@@ -25,6 +25,9 @@ const ALLOWED_ACTIONS = new Set([
   'generate_python_course_full',
 ]);
 
+// Per-user hourly cap on AI generations. Override via env for heavy dev/testing; default 20.
+const AI_COURSE_RATE_LIMIT = Math.max(1, Number(process.env.AI_COURSE_RATE_LIMIT) || 20);
+
 async function checkRateLimit(userId: string): Promise<NextResponse | null> {
   const redis = getRedis();
   if (!redis) {
@@ -35,9 +38,9 @@ async function checkRateLimit(userId: string): Promise<NextResponse | null> {
     const key   = `rate:ai-course:${userId}`;
     const count = await redis.incr(key);
     if (count === 1) await redis.expire(key, 3600); // 1-hour window
-    if (count > 20) {
+    if (count > AI_COURSE_RATE_LIMIT) {
       return NextResponse.json(
-        { error: 'AI generation limit reached. You can make up to 20 requests per hour.' },
+        { error: `AI generation limit reached. You can make up to ${AI_COURSE_RATE_LIMIT} requests per hour.` },
         { status: 429 },
       );
     }
