@@ -2447,7 +2447,17 @@ STRICT RULES:
 
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 }); // unreachable -- allowlist above
   } catch (err: any) {
-    console.error('AI course error:', err);
+    console.error(`AI course error (action: ${action}):`, err);
+    // A truncated/oversized model response surfaces as a JSON parse SyntaxError. Tell the
+    // creator which step returned incomplete data instead of a bare 500 so it is actionable.
+    const msg = String(err?.message ?? '');
+    const incompleteJson = err instanceof SyntaxError || /Unterminated string|Unexpected (token|end)|JSON/i.test(msg);
+    if (incompleteJson) {
+      return NextResponse.json(
+        { error: `The AI returned incomplete data while generating "${action}" (the response was likely too large). Please try again.` },
+        { status: 502 },
+      );
+    }
     return NextResponse.json({ error: 'AI request failed. Please try again.' }, { status: 500 });
   }
 }

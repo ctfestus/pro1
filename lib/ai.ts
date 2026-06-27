@@ -71,7 +71,12 @@ async function generateGeminiJSON(
       return safeJSON(extractGeminiText(result) || '{}');
     } catch (err) {
       lastError = err;
-      if (attempt >= retries || !isRetryableGeminiError(err)) throw err;
+      // Retry on transient network errors AND on JSON parse failures. A truncated or
+      // malformed response throws a SyntaxError from JSON.parse; that is often a one-off
+      // (especially near the model's output-token ceiling), so a fresh generation usually
+      // succeeds. Without this, an incomplete JSON body fails the whole request outright.
+      const retryable = isRetryableGeminiError(err) || err instanceof SyntaxError;
+      if (attempt >= retries || !retryable) throw err;
       await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
     }
   }
