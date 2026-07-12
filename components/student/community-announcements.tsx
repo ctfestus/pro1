@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { renderAnnouncementContent } from '@/lib/sanitize';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { Sk, EmptyState } from '@/components/student/shared';
+import { getStudentMode } from '@/lib/student-mode-client';
 import {
   Users, Megaphone, X, ExternalLink, ChevronRight, ChevronLeft, Play, ThumbsUp, Bookmark,
 } from 'lucide-react';
@@ -388,6 +389,7 @@ export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: strin
 
   async function toggleReaction(annId: string, type: 'like' | 'bookmark') {
     if (acting || !userId) return;
+    if (getStudentMode()) return; // read-only: never react on a student's behalf in Student Mode
     setActing(true);
     const prev = reactState[annId] ?? { liked: false, bookmarked: false, likeCount: 0, bookmarkCount: 0 };
     const isOn = type === 'like' ? prev.liked : prev.bookmarked;

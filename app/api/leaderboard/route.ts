@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 
 export const dynamic = 'force-dynamic';
@@ -12,7 +12,7 @@ function adminClient() {
 }
 
 async function getSessionUser(req: NextRequest) {
-  const auth = await requireUser(req);
+  const auth = await requireStudentUser(req);
   return isAuthError(auth) ? null : auth.user;
 }
 

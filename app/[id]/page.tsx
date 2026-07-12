@@ -17,6 +17,8 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { getFontById } from '@/lib/fonts';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
+import { StudentModeBanner } from '@/components/student/StudentModeBanner';
+import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -226,6 +228,7 @@ export default function PublicFormPage() {
   const { id } = useParams();
   const [form, setForm] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [studentMode, setStudentModeContext] = useState<StudentModeContext | null>(() => getStudentMode());
   const [studentTheme, setStudentTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window === 'undefined') return 'light';
     return localStorage.getItem('ff-theme') === 'dark' ? 'dark' : 'light';
@@ -290,6 +293,8 @@ export default function PublicFormPage() {
   // Certification taker auth (resolved after the content loads; certifications require login).
   const [certAuth, setCertAuth] = useState<{ name: string; email: string; token: string } | null>(null);
 
+  useEffect(() => installStudentModeFetchBridge(), []);
+
   const copyToClipboard = (text: string, id: string) => {
     const done = () => { setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); };
     if (navigator.clipboard) {
@@ -312,8 +317,21 @@ export default function PublicFormPage() {
       // Restore session first so the auth token is attached to the forms query.
       // Running the query in parallel with getUser() meant it fired as anon,
       // which blocked RLS on courses/VEs.
-      await supabase.auth.getSession();
+      const { data: { session: authSession } } = await supabase.auth.getSession();
       const { data: { user } } = await supabase.auth.getUser();
+      // Validate any persisted Student Mode session; a stale one (e.g. left by a
+      // prior admin on a shared browser) is cleared so it cannot drive this page.
+      let activeStudentMode = getStudentMode();
+      if (activeStudentMode) {
+        try {
+          const check = await fetch('/api/student-mode', {
+            headers: authSession?.access_token ? { Authorization: `Bearer ${authSession.access_token}` } : {},
+          });
+          if (!check.ok) { clearStudentMode(); activeStudentMode = null; }
+        } catch { /* network error: leave RLS to protect reads */ }
+      }
+      setStudentModeContext(activeStudentMode);
+      const effectiveUserId = activeStudentMode?.studentId ?? user?.id;
 
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string);
       const lookupField = isUUID ? 'id' : 'slug';
@@ -385,9 +403,9 @@ export default function PublicFormPage() {
 
       if (data) {
         setForm(data);
-        if (data.config?.isCertification && user) {
+        if (data.config?.isCertification && user && effectiveUserId) {
           const { data: { session } } = await supabase.auth.getSession();
-          const { data: student } = await supabase.from('students').select('full_name, email').eq('id', user.id).single();
+          const { data: student } = await supabase.from('students').select('full_name, email').eq('id', effectiveUserId).single();
           setCertAuth({
             name:  student?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '',
             email: student?.email || user.email || '',
@@ -398,10 +416,10 @@ export default function PublicFormPage() {
           const { data: count } = await supabase.rpc('get_response_count', { p_form_id: data.id });
           if (count !== null) setAttendeeCount(Number(count));
           // Fetch join token and cohort membership for the logged-in student
-          if (user) {
+          if (user && effectiveUserId) {
             const [{ data: reg }, { data: student }] = await Promise.all([
-              supabase.from('event_registrations').select('join_token').eq('event_id', data.id).eq('student_id', user.id).maybeSingle(),
-              supabase.from('students').select('cohort_id').eq('id', user.id).maybeSingle(),
+              supabase.from('event_registrations').select('join_token').eq('event_id', data.id).eq('student_id', effectiveUserId).maybeSingle(),
+              supabase.from('students').select('cohort_id').eq('id', effectiveUserId).maybeSingle(),
             ]);
             if (reg?.join_token) setJoinToken(reg.join_token);
             if (student?.cohort_id && (data.cohort_ids ?? []).includes(student.cohort_id)) {
@@ -430,16 +448,16 @@ export default function PublicFormPage() {
         }
 
         // Auto-resume VE: only skip cover page if the user already has saved progress
-        if (user && (data.config?.isVirtualExperience || data.config?.isGuidedProject)) {
+        if (user && effectiveUserId && (data.config?.isVirtualExperience || data.config?.isGuidedProject)) {
           const { data: { session } } = await supabase.auth.getSession();
-          const { data: student } = await supabase.from('students').select('full_name, email, role').eq('id', user.id).single();
+          const { data: student } = await supabase.from('students').select('full_name, email, role').eq('id', effectiveUserId).single();
           const name  = student?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
           const email = student?.email || user.email || '';
-          const isPreviewUser = student?.role !== 'student';
+          const isPreviewUser = !activeStudentMode && student?.role !== 'student';
           let hasProgress = false;
           if (!isPreviewUser) {
             try {
-              const r = await fetch(`/api/guided-project-progress?formId=${data.id}&studentId=${user.id}`, {
+              const r = await fetch(`/api/guided-project-progress?formId=${data.id}&studentId=${effectiveUserId}`, {
                 headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
               });
               if (r.ok) {
@@ -455,18 +473,18 @@ export default function PublicFormPage() {
           }
           setProjectStudentName(name);
           setProjectStudentEmail(email);
-          setProjectUserId(user.id);
+          setProjectUserId(effectiveUserId);
           setProjectSessionToken(session?.access_token ?? '');
           setProjectPreviewMode(isPreviewUser);
           if (hasProgress) setProjectStarted(true);
         }
 
         // Pre-fill from logged-in student
-        if (user && data.config?.isCourse) {
+        if (user && effectiveUserId && data.config?.isCourse) {
           const { data: student } = await supabase
             .from('students')
             .select('full_name, email')
-            .eq('id', user.id)
+            .eq('id', effectiveUserId)
             .single();
           const name  = student?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
           const email = student?.email || user.email || '';
@@ -720,11 +738,13 @@ export default function PublicFormPage() {
     if (!certAuth) {
       return (
         <div style={{ minHeight: '100vh', background: '#17181E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <StudentModeBanner context={studentMode} fixed />
           <Loader2 className="w-7 h-7 animate-spin" style={{ color: accentColor }} />
         </div>
       );
     }
     return (
+      <><StudentModeBanner context={studentMode} fixed />
       <CertificationTaker
         certificationId={form.id}
         slug={form.slug}
@@ -737,7 +757,7 @@ export default function PublicFormPage() {
         logoUrl={logoUrl}
         logoDarkUrl={logoDarkUrl}
         onExit={() => { window.location.href = '/student'; }}
-      />
+      /></>
     );
   }
 
@@ -753,15 +773,17 @@ export default function PublicFormPage() {
     const handleStartProject = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      const activeStudentMode = getStudentMode();
+      const effectiveUserId = activeStudentMode?.studentId ?? user.id;
       const { data: { session } } = await supabase.auth.getSession();
-      const { data: student } = await supabase.from('students').select('full_name, email, role').eq('id', user.id).single();
+      const { data: student } = await supabase.from('students').select('full_name, email, role').eq('id', effectiveUserId).single();
       const name  = student?.full_name || user.user_metadata?.full_name || user.email?.split('@')[0] || '';
       const email = student?.email || user.email || '';
-      const isPreviewUser = student?.role !== 'student';
+      const isPreviewUser = !activeStudentMode && student?.role !== 'student';
       // Restore any saved progress
       if (!isPreviewUser) {
         try {
-          const r = await fetch(`/api/guided-project-progress?formId=${form.id}&studentId=${user.id}`, {
+          const r = await fetch(`/api/guided-project-progress?formId=${form.id}&studentId=${effectiveUserId}`, {
             headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
           });
           if (r.ok) {
@@ -776,7 +798,7 @@ export default function PublicFormPage() {
       }
       setProjectStudentName(name);
       setProjectStudentEmail(email);
-      setProjectUserId(user.id);
+      setProjectUserId(effectiveUserId);
       setProjectSessionToken(session?.access_token ?? '');
       setProjectPreviewMode(isPreviewUser);
       setProjectStarted(true);
@@ -784,6 +806,7 @@ export default function PublicFormPage() {
 
     if (projectStarted) {
       return (
+        <><StudentModeBanner context={studentMode} fixed />
         <VirtualExperienceTaker
           formId={form.id}
           formSlug={form.slug}
@@ -801,7 +824,7 @@ export default function PublicFormPage() {
           logoUrl={logoUrl}
           logoDarkUrl={logoDarkUrl}
           previewMode={projectPreviewMode}
-        />
+        /></>
       );
     }
 
@@ -823,6 +846,7 @@ export default function PublicFormPage() {
 
     return (
       <div style={{ minHeight: '100vh', background: gp.bg, color: gp.title, fontFamily: fontFace }}>
+        <StudentModeBanner context={studentMode} fixed />
         <style>{googleFontImport}</style>
 
         {/* -- Sticky nav -- */}
@@ -1039,6 +1063,7 @@ export default function PublicFormPage() {
 
     return (
       <div style={{ minHeight: '100vh', background: cp.bg, color: cp.title, fontFamily: fontFace }}>
+        <StudentModeBanner context={studentMode} fixed />
         <style>{googleFontImport}</style>
 
         {/* Sticky nav */}
@@ -1245,6 +1270,7 @@ export default function PublicFormPage() {
 
   return (
     <div className="ff-pub" style={{ minHeight: '100vh', background: t.page, position: 'relative', transition: 'background 0.3s' }}>
+      {studentMode && <StudentModeBanner context={studentMode} fixed />}
       <style>{`${googleFontImport} .ff-pub{font-family:${fontFace};}`}</style>
       {/* Navbar */}
       <nav style={{ position: 'sticky', top: 0, zIndex: 30, background: t.nav, borderBottom: `1px solid ${t.navBorder}`, backdropFilter: 'blur(12px)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', height: 56, transition: 'background 0.3s' }}>

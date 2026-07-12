@@ -198,7 +198,7 @@ export function StudentBadgesSection({ userId, C }: { userId: string; C: typeof 
 }
 
 // --- Leaderboard section ---
-export function LeaderboardSection({ userEmail, C }: { userEmail: string; C: typeof LIGHT_C }) {
+export function LeaderboardSection({ userId: userIdProp, userEmail, C }: { userId?: string; userEmail: string; C: typeof LIGHT_C }) {
   const [cohort, setCohort]     = useState<any>(null);
   const [rankings, setRankings] = useState<any[]>([]);
   const [loading, setLoading]   = useState(true);
@@ -212,7 +212,7 @@ export function LeaderboardSection({ userEmail, C }: { userEmail: string; C: typ
       try {
         // Get current student's cohort -- query by auth user ID (reliable; email can mismatch)
         const { data: { session } } = await supabase.auth.getSession();
-        const userId = session?.user?.id;
+        const userId = userIdProp ?? session?.user?.id;
         if (!userId) { setLoading(false); return; }
 
         const { data: me } = await supabase
@@ -245,7 +245,7 @@ export function LeaderboardSection({ userEmail, C }: { userEmail: string; C: typ
       }
     };
     load();
-  }, [userEmail, refreshKey]);
+  }, [userIdProp, userEmail, refreshKey]);
 
   // Avatar colour derived from name
   const myEntry = rankings.find(r => r.isMe);

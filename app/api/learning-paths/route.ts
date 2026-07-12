@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser, requireRole, isAuthError } from '@/lib/api-auth';
+import { requireStudentUser, requireRole, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 import { sendPathNotification } from '@/lib/send-path-notification';
 
@@ -11,7 +11,7 @@ function adminClient() {
 }
 
 async function getSessionUser(req: NextRequest): Promise<{ id: string; email: string } | null> {
-  const auth = await requireUser(req);
+  const auth = await requireStudentUser(req);
   if (isAuthError(auth) || !auth.user.email) return null;
   return { id: auth.user.id, email: auth.user.email.trim().toLowerCase() };
 }

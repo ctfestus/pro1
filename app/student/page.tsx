@@ -33,6 +33,14 @@ import { CertificationsSection } from '@/components/student/certifications';
 import { DataCenterSection, RecordingsSection, ScheduleSection } from '@/components/student/schedule-recordings';
 import { StudentBadgesSection, LeaderboardSection, CertificatesSection } from '@/components/student/badges-leaderboard-certs';
 import { AiCareerToolkitSection } from '@/components/student/ai-career-toolkit';
+import { StudentModeBanner } from '@/components/student/StudentModeBanner';
+import {
+  clearStudentMode,
+  getStudentMode,
+  installStudentModeFetchBridge,
+  setStudentMode,
+  type StudentModeContext,
+} from '@/lib/student-mode-client';
 
 
 // Sk, CarouselSkeleton, EmptyState, StatusBadge, ProgressBar live in @/components/student/shared
@@ -48,7 +56,7 @@ export default function StudentDashboard() {
   const [user, setUser]       = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [viewingAs, setViewingAs] = useState<{ id: string; name: string; email: string } | null>(null);
+  const [viewingAs, setViewingAs] = useState<StudentModeContext | null>(null);
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
@@ -66,6 +74,8 @@ export default function StudentDashboard() {
   const tickerTimerGlobal  = useRef<any>(null);
   // eslint-disable-next-line react-hooks/purity
   const pageLoadTimeGlobal = useRef(Date.now());
+
+  useEffect(() => installStudentModeFetchBridge(), []);
 
   useEffect(() => {
     setMounted(true);
@@ -150,16 +160,34 @@ export default function StudentDashboard() {
       if (!authUser) { router.replace('/auth'); return; }
       if (!studentData?.onboarding_done) { router.replace('/onboarding'); return; }
 
-      // Check for admin viewAs mode
+      // Resolve a new or persisted Student Mode context.
       const viewAsId = new URLSearchParams(window.location.search).get('viewAs');
-      let resolvedViewingAs: { id: string; name: string; email: string } | null = null;
+      const storedMode = getStudentMode();
+      let resolvedViewingAs: StudentModeContext | null = null;
       if (viewAsId) {
-        const { data: callerRole } = await supabase.from('students').select('role').eq('id', authUser.id).single();
-        if (callerRole?.role === 'admin' || callerRole?.role === 'instructor') {
-          const { data: target } = await supabase.from('students').select('id, full_name, email').eq('id', viewAsId).single();
-          if (target) resolvedViewingAs = { id: target.id, name: target.full_name || target.email, email: target.email };
+        const response = await fetch('/api/student-mode', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+          body: JSON.stringify({ studentId: viewAsId }),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok && result.context) {
+          resolvedViewingAs = result.context as StudentModeContext;
+          setStudentMode(resolvedViewingAs);
+          // Drop ?viewAs= so a reload does not start a second session.
+          window.history.replaceState({}, '', window.location.pathname + window.location.hash);
+        }
+      } else if (storedMode) {
+        const response = await fetch('/api/student-mode', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        const result = await response.json().catch(() => ({}));
+        if (response.ok) {
+          resolvedViewingAs = { ...storedMode, name: result.name || storedMode.name, email: result.email || storedMode.email };
+          setStudentMode(resolvedViewingAs);
         }
       }
+      if ((viewAsId || storedMode) && !resolvedViewingAs) clearStudentMode();
       setViewingAs(resolvedViewingAs);
 
       setUser(authUser);
@@ -177,7 +205,7 @@ export default function StudentDashboard() {
       }
 
       // Fetch cohort for global activity ticker + outstanding check
-      supabase.from('students').select('cohort_id, original_cohort_id, payment_exempt').eq('id', resolvedViewingAs?.id ?? authUser.id).single()
+      supabase.from('students').select('cohort_id, original_cohort_id, payment_exempt').eq('id', resolvedViewingAs?.studentId ?? authUser.id).single()
         .then(async ({ data: s }) => {
           if (s?.cohort_id) {
             setCohortIdForTicker(s.cohort_id);
@@ -193,7 +221,7 @@ export default function StudentDashboard() {
           const { data: enroll } = await supabase
             .from('bootcamp_enrollments')
             .select('access_status, total_fee, deposit_required, paid_total, payment_plan, bootcamp_ends_at, cohort_id, payment_installments ( due_date, status )')
-            .eq('student_id', resolvedViewingAs?.id ?? authUser.id)
+            .eq('student_id', resolvedViewingAs?.studentId ?? authUser.id)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -237,11 +265,12 @@ export default function StudentDashboard() {
   }, [router]);
 
   const signOut = useCallback(async () => {
+    clearStudentMode();
     await supabase.auth.signOut();
     router.replace('/auth');
   }, [router]);
 
-  const effectiveId    = viewingAs?.id    ?? user?.id;
+  const effectiveId    = viewingAs?.studentId ?? user?.id;
   const effectiveEmail = viewingAs?.email ?? user?.email;
   const userName = profile?.name || profile?.full_name || user?.email?.split('@')[0] || 'Student';
   const activeItem = NAV_ITEMS.find(n => n.id === activeSection)!;
@@ -260,14 +289,7 @@ export default function StudentDashboard() {
 
   return (
     <div className="min-h-screen" style={{ background: C.page }}>
-      {/* -- Admin viewAs banner -- */}
-      {viewingAs && (
-        <div className="sticky top-0 z-50 flex items-center justify-between px-4 py-2.5 text-sm font-semibold"
-          style={{ background: '#f59e0b', color: '#000' }}>
-          <span>Admin view - viewing dashboard as {viewingAs.name} ({viewingAs.email})</span>
-          <button onClick={() => window.close()} className="text-xs underline opacity-70 hover:opacity-100">Close tab</button>
-        </div>
-      )}
+      {viewingAs && <StudentModeBanner context={viewingAs} />}
       {/* -- Top nav -- */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b backdrop-blur-md"
         style={{ background: C.nav, borderColor: C.navBorder }}>
@@ -292,7 +314,7 @@ export default function StudentDashboard() {
               ? <Sun className="w-4 h-4" style={{ color: C.text }}/>
               : <Moon className="w-4 h-4" style={{ color: C.text }}/>}
           </button>
-          {user && <ProfileMenu user={user} profile={profile} onSignOut={signOut}/>}
+          {user && !viewingAs && <ProfileMenu user={user} profile={profile} onSignOut={signOut}/>}
         </div>
       </header>
 
@@ -378,7 +400,7 @@ export default function StudentDashboard() {
 
               {/* Sidebar footer */}
               <div className="px-2 pb-3 pt-2 border-t space-y-0.5" style={{ borderColor: C.divider }}>
-                {!navCollapsed && (
+                {!navCollapsed && !viewingAs && (
                   <Link href="/settings"
                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-normal transition-all"
                     style={{ color: C.muted }}
@@ -535,7 +557,7 @@ export default function StudentDashboard() {
               <StudentBadgesSection userId={effectiveId} C={C}/>
             )}
             {activeSection === 'leaderboard' && user && (
-              <LeaderboardSection userEmail={effectiveEmail} C={C}/>
+              <LeaderboardSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>
             )}
             {activeSection === 'certificates' && user && (
               <CertificatesSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>

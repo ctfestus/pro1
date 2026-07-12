@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { confirmationEmail } from '@/lib/email-templates';
@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Require authenticated student
-  const auth = await requireUser(req);
+  const auth = await requireStudentUser(req);
   if (isAuthError(auth)) return auth.error;
   const { user, supabase } = auth;
 

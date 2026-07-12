@@ -762,6 +762,37 @@ CREATE TABLE public.meeting_integrations (
 
 
 -- ── site_settings (landing page template + config) ────────────
+-- Student Mode sessions are server-issued, revocable capabilities. The raw
+-- selected student id is never sufficient to impersonate an account.
+CREATE TABLE public.student_mode_sessions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  started_at timestamptz NOT NULL DEFAULT now(),
+  expires_at timestamptz NOT NULL,
+  ended_at timestamptz,
+  user_agent text,
+  CONSTRAINT student_mode_distinct_accounts CHECK (actor_id <> student_id)
+);
+
+CREATE TABLE public.student_mode_audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  student_id uuid NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  session_id uuid NOT NULL REFERENCES public.student_mode_sessions(id) ON DELETE CASCADE,
+  action text NOT NULL,
+  metadata jsonb NOT NULL DEFAULT '{}'::jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_student_mode_sessions_actor_active
+  ON public.student_mode_sessions(actor_id, expires_at DESC)
+  WHERE ended_at IS NULL;
+CREATE INDEX idx_student_mode_audit_actor_created
+  ON public.student_mode_audit_log(actor_id, created_at DESC);
+CREATE INDEX idx_student_mode_audit_student_created
+  ON public.student_mode_audit_log(student_id, created_at DESC);
+
 CREATE TABLE public.site_settings (
   id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   singleton   boolean     UNIQUE DEFAULT true CHECK (singleton = true),
@@ -893,6 +924,18 @@ ALTER TABLE public.sent_nudges                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.learning_path_progress     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.meeting_integrations       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_settings              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_mode_sessions      ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.student_mode_audit_log     ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "student mode sessions: admins read"
+  ON public.student_mode_sessions FOR SELECT
+  USING ((SELECT public.is_admin()));
+CREATE POLICY "student mode audit: admins read"
+  ON public.student_mode_audit_log FOR SELECT
+  USING ((SELECT public.is_admin()));
+
+REVOKE INSERT, UPDATE, DELETE ON public.student_mode_sessions FROM authenticated;
+REVOKE INSERT, UPDATE, DELETE ON public.student_mode_audit_log FROM authenticated;
 
 
 -- ─────────────────────────────────────────────────────────────

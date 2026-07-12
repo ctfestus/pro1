@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextResponse } from 'next/server';
 import { createHmac } from 'crypto';
 
-vi.mock('@/lib/api-auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/api-auth')>()),
-  requireUser: vi.fn(),
-}));
+vi.mock('@/lib/api-auth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api-auth')>();
+  const requireUser = vi.fn();
+  // The course route resolves the learner via requireStudentUser. With no Student Mode
+  // header it behaves exactly like requireUser, so both share one stub in these tests.
+  return { ...actual, requireUser, requireStudentUser: requireUser };
+});
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: vi.fn(),

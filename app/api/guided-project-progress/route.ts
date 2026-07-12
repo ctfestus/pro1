@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireUser, requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { Resend } from 'resend';
 import { milestoneEmail, courseResultEmail, badgeEarnedEmail } from '@/lib/email-templates';
 import { hasNudgeBeenSent, recordNudge } from '@/lib/nudge-helpers';
@@ -187,8 +187,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ attempts: merged });
   }
 
-  // Student view
-  const authRes = await requireUser(req);
+  // Student view -- Student Mode lets a validated instructor/admin load the selected student.
+  const authRes = await requireStudentUser(req);
   if (isAuthError(authRes)) return authRes.error;
   const { user } = authRes;
   if (user.id !== studentId) {
@@ -259,7 +259,7 @@ export async function POST(req: NextRequest) {
     const resolvedVeId = veId ?? body.formId;
     if (!resolvedVeId) return NextResponse.json({ error: 'veId required' }, { status: 400 });
 
-    const certAuth = await requireUser(req);
+    const certAuth = await requireStudentUser(req);
     if (isAuthError(certAuth)) return certAuth.error;
     const certUser = certAuth.user;
 
@@ -396,7 +396,7 @@ export async function POST(req: NextRequest) {
 
   if (!resolvedVeId) return NextResponse.json({ error: 'veId required' }, { status: 400 });
 
-  const progressAuth = await requireUser(req);
+  const progressAuth = await requireStudentUser(req);
   if (isAuthError(progressAuth)) return progressAuth.error;
   const progressUser = progressAuth.user;
 

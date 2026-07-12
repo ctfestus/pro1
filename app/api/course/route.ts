@@ -1,5 +1,5 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
 import { hasNudgeBeenSent, recordNudge } from '@/lib/nudge-helpers';
@@ -25,7 +25,7 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 async function getSessionUser(req: NextRequest): Promise<{ id: string; email: string } | null> {
-  const auth = await requireUser(req);
+  const auth = await requireStudentUser(req);
   if (isAuthError(auth) || !auth.user.email) return null;
   return { id: auth.user.id, email: auth.user.email.trim().toLowerCase() };
 }

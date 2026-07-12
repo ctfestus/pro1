@@ -15,6 +15,7 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRecord';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { getStudentMode } from '@/lib/student-mode-client';
 import { Sk, EmptyState, StatusBadge } from '@/components/student/shared';
 import {
   BookOpen, ClipboardList, Users, ChevronDown, X, CheckCircle, AlertCircle, Star,
@@ -32,6 +33,9 @@ function AssignmentDetail({ assignment, userId, studentName, studentEmail, C, on
   type ReadyFile = { name: string; url: string; status: 'uploading' | 'done' | 'error'; error?: string };
   const { theme } = useTheme();
   const isDark = theme === 'dark';
+  // Student Mode is read-only for graded work: an instructor/admin viewing a
+  // student may review but must never submit on the student's behalf.
+  const inStudentMode = useRef(!!getStudentMode()).current;
   const [submission, setSubmission] = useState<any>(null);
   const [savedFiles, setSavedFiles] = useState<any[]>([]);
   const [resources, setResources] = useState<any[]>([]);
@@ -264,6 +268,7 @@ function AssignmentDetail({ assignment, userId, studentName, studentEmail, C, on
 
   async function handleSubmit(asDraft: boolean) {
     setSubmitError('');
+    if (inStudentMode) { setSubmitError('Submitting on a student behalf is disabled in Student Mode.'); return; }
     setSubmitting(true);
     try {
       const newStatus = asDraft ? 'draft' : 'submitted';
@@ -347,8 +352,9 @@ function AssignmentDetail({ assignment, userId, studentName, studentEmail, C, on
 
   async function handleResubmit() {
     if (!submission) return;
-    setSubmitting(true);
     setSubmitError('');
+    if (inStudentMode) { setSubmitError('Resubmitting on a student behalf is disabled in Student Mode.'); return; }
+    setSubmitting(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
@@ -368,6 +374,7 @@ function AssignmentDetail({ assignment, userId, studentName, studentEmail, C, on
   }
 
   async function autoSubmit(aiScore: number | null, summaryText: string) {
+    if (inStudentMode) { setSubmitError('Submitting on a student behalf is disabled in Student Mode.'); return; }
     const participantIds = Array.from(new Set(selectedParticipants));
     if (isGroupAssignment && myGroupId && participantIds.length === 0) {
       setSubmitError('Select at least one participant before submitting.');
@@ -1180,18 +1187,22 @@ function AssignmentDetail({ assignment, userId, studentName, studentEmail, C, on
             {submitError && <p className="text-xs mb-3" style={{ color: '#ef4444' }}>{submitError}</p>}
 
             {(!isGroupAssignment || isLeader) && (
-            <div className="flex gap-3">
-              <button onClick={() => handleSubmit(true)} disabled={submitting}
-                className="px-4 py-2 rounded-xl text-sm font-semibold"
-                style={{ background: C.pill, color: C.muted, border: `1px solid ${C.divider}`, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}>
-                Save Draft
-              </button>
-              <button onClick={() => handleSubmit(false)} disabled={submitting || uploading || !hasContent}
-                className="px-5 py-2 rounded-xl text-sm font-semibold dashboard-cta"
-                style={{ background: C.cta, color: C.ctaText, border: 'none', cursor: (submitting || uploading || !hasContent) ? 'not-allowed' : 'pointer', opacity: (submitting || uploading || !hasContent) ? 0.6 : 1 }}>
-                {submitting ? 'Submitting...' : uploading ? 'Uploading...' : isSubmitted ? 'Resubmit' : 'Submit'}
-              </button>
-            </div>
+              inStudentMode ? (
+                <p className="text-xs" style={{ color: C.faint }}>Submitting is disabled in Student Mode.</p>
+              ) : (
+                <div className="flex gap-3">
+                  <button onClick={() => handleSubmit(true)} disabled={submitting}
+                    className="px-4 py-2 rounded-xl text-sm font-semibold"
+                    style={{ background: C.pill, color: C.muted, border: `1px solid ${C.divider}`, cursor: submitting ? 'not-allowed' : 'pointer', opacity: submitting ? 0.6 : 1 }}>
+                    Save Draft
+                  </button>
+                  <button onClick={() => handleSubmit(false)} disabled={submitting || uploading || !hasContent}
+                    className="px-5 py-2 rounded-xl text-sm font-semibold dashboard-cta"
+                    style={{ background: C.cta, color: C.ctaText, border: 'none', cursor: (submitting || uploading || !hasContent) ? 'not-allowed' : 'pointer', opacity: (submitting || uploading || !hasContent) ? 0.6 : 1 }}>
+                    {submitting ? 'Submitting...' : uploading ? 'Uploading...' : isSubmitted ? 'Resubmit' : 'Submit'}
+                  </button>
+                </div>
+              )
             )}
           </div>
         )}

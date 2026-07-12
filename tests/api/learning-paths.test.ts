@@ -8,11 +8,13 @@ import { NextResponse } from 'next/server';
 // Two seams: api-auth (the requireRole/requireUser the route's helpers call) and
 // @supabase/supabase-js createClient (the route builds its own service-role client for data).
 
-vi.mock('@/lib/api-auth', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/api-auth')>()),
-  requireRole: vi.fn(),
-  requireUser: vi.fn(),
-}));
+vi.mock('@/lib/api-auth', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api-auth')>();
+  const requireUser = vi.fn();
+  // get-student-paths resolves the learner via requireStudentUser; with no Student Mode
+  // header it behaves exactly like requireUser, so both share one stub in these tests.
+  return { ...actual, requireRole: vi.fn(), requireUser, requireStudentUser: requireUser };
+});
 
 // vi.hoisted so the holder exists before the mock factory runs at import time (admin-client
 // constructs its singleton on load, before any `let` in this file would be initialized).
