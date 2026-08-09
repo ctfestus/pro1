@@ -63,11 +63,18 @@ export function CertificationPlayground({ playground, accentColor }: { playgroun
 
   const border = 'rgba(255,255,255,0.10)';
   return (
-    <div style={{ borderRadius: 12, overflow: 'hidden', background: '#0c0d12', border: `1px solid ${border}`, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '8px 12px', background: '#111318', borderBottom: `1px solid ${border}` }}>
-        <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#8a8a93' }}>
-          {isSql ? 'SQL' : 'Python'} playground
-        </span>
+    <div style={{ borderRadius: 16, overflow: 'hidden', background: '#0c0d12', border: `1px solid ${border}`, boxShadow: '0 18px 48px rgba(0,0,0,0.22)', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', background: '#111318', borderBottom: `1px solid ${border}` }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <span style={{ display: 'flex', gap: 5 }} aria-hidden="true">
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: '#fb7185' }} />
+            <span className="animate-pulse" style={{ width: 8, height: 8, borderRadius: 999, background: '#fbbf24' }} />
+            <span style={{ width: 8, height: 8, borderRadius: 999, background: '#34d399' }} />
+          </span>
+          <span style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#9ca3af' }}>
+            {isSql ? 'SQL' : 'Python'} workspace
+          </span>
+        </div>
         <button type="button" onClick={run} disabled={running}
           style={{ display: 'inline-flex', alignItems: 'center', gap: 6, height: 30, padding: '0 14px', borderRadius: 8, background: accentColor, color: '#06281a', fontSize: 12.5, fontWeight: 700, cursor: running ? 'default' : 'pointer', opacity: running ? 0.7 : 1 }}>
           {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />} Run

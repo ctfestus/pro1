@@ -247,11 +247,14 @@ export default function PublicFormPage() {
     return () => window.removeEventListener('storage', handler);
   }, []);
 
-  // Override the dashboard's data-theme so the creator's chosen mode wins
+  // Keep certifications aligned with the learner's dashboard preference. Other
+  // public experiences continue to respect the creator's chosen appearance.
   useEffect(() => {
     if (!form) return;
     const rawMode = form.config?.mode ?? 'dark';
-    const resolved = rawMode === 'auto' ? studentTheme : rawMode;
+    const resolved = form.config?.isCertification
+      ? studentTheme
+      : rawMode === 'auto' ? studentTheme : rawMode;
     const prev = document.documentElement.getAttribute('data-theme');
     document.documentElement.setAttribute('data-theme', resolved);
     return () => {
@@ -703,13 +706,18 @@ export default function PublicFormPage() {
 
   const config = form.config;
   const rawMode: ThemeMode = config.mode ?? 'dark';
-  const resolvedMode: 'light' | 'dark' = rawMode === 'auto' ? studentTheme : rawMode;
+  const resolvedMode: 'light' | 'dark' = config.isCertification
+    ? studentTheme
+    : rawMode === 'auto' ? studentTheme : rawMode;
   const dark = resolvedMode === 'dark';
   const t = dark ? DARK_P : LIGHT_P;
   const pageUrl = typeof window !== 'undefined' ? window.location.href : '';
-  const accentColor = config.customAccent ?? ({
+  const configuredAccent = config.customAccent ?? ({
     forest: '#00bf63', lime: '#ADEE66', emerald: '#10b981', rose: '#f43f5e', amber: '#f59e0b', ocean: '#3E93FF',
   }[config.theme as string] ?? '#00bf63');
+  // Blue-on-charcoal is visually harsh for the credential experience. Keep the
+  // configured accent in light mode and use the platform green in dark mode.
+  const accentColor = config.isCertification && dark ? '#00bf63' : configuredAccent;
   const fontOption = getFontById(config.font ?? 'google-sans-text');
   const fontFace = fontOption.cssFamily;
   const googleFontImport = fontOption.googleFamily
@@ -740,7 +748,7 @@ export default function PublicFormPage() {
   if (config.isCertification) {
     if (!certAuth) {
       return (
-        <div style={{ minHeight: '100vh', background: '#17181E', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: '100vh', background: dark ? '#17181E' : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <StudentModeBanner context={studentMode} fixed />
           <Loader2 className="w-7 h-7 animate-spin" style={{ color: accentColor }} />
         </div>

@@ -471,7 +471,7 @@ export async function POST(req: NextRequest) {
             .order('attempt_number', { ascending: false }).limit(1).maybeSingle(),
         ]);
         if (maxAttempts > 0 && (completedCount ?? 0) >= maxAttempts) {
-          return NextResponse.json({ error: 'No attempts remaining.' }, { status: 403 });
+          return NextResponse.json({ error: 'No attempts remaining.', reason: 'no_attempts' }, { status: 403 });
         }
         // Retake cooldown: minimum wait after the previous attempt. Passing is already blocked above,
         // so any prior attempt here is a failed one; the most recent is `last` (attempts are serial).

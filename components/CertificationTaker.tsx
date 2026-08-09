@@ -9,7 +9,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { X, Clock, Loader2, CheckCircle2, XCircle, ShieldAlert, Award, AlertTriangle, Circle, Check, ListChecks, Sparkle, ChevronRight, FileText, ExternalLink, BarChart3, Image as ImageIcon, BookOpen, Play, LogOut } from 'lucide-react';
+import { X, Clock, Loader2, CheckCircle2, XCircle, ShieldAlert, Award, AlertTriangle, Circle, Check, ListChecks, Sparkle, ChevronRight, FileText, ExternalLink, BarChart3, Image as ImageIcon, BookOpen, BookOpenCheck, FileCheck2, Play, LogOut } from 'lucide-react';
 import { initSQLRuntime, SQLRuntime } from '@/lib/sql-engine';
 import SQLExercisePlayer from '@/components/sql-course/SQLExercisePlayer';
 import PythonExercisePlayer from '@/components/sql-course/PythonExercisePlayer';
@@ -52,6 +52,60 @@ function shortText(html: string): string {
 function exercisePassed(raw?: string): boolean {
   if (!raw) return false;
   try { const p = JSON.parse(raw); return !!p?.passed && !p?.skipped && !p?.solutionViewed; } catch { return false; }
+}
+
+export function CertificationResultSummary({ result, passmark, isPreview = false, theme, accentColor, compact = false }: {
+  result: { score: number; passed: boolean; passmark?: number; correctQuestions?: number; totalQuestions?: number; skills?: { id: string; name: string; correct: number; total: number; pct: number }[]; practice?: boolean };
+  passmark: number;
+  isPreview?: boolean;
+  theme: { card: string; border: string; text: string; muted: string; track: string };
+  accentColor: string;
+  compact?: boolean;
+}) {
+  const skills = result.skills ?? [];
+  const strengths = skills.filter(s => s.pct >= passmark);
+  const gaps = skills.filter(s => s.pct < passmark);
+  const hasBreakdown = !isPreview && skills.length > 0;
+  const SkillBar = (s: { id: string; name: string; correct: number; total: number; pct: number }) => (
+    <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
+      <span style={{ flex: '0 0 130px', fontSize: 13, color: theme.text, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+      <div style={{ flex: 1, maxWidth: 240, position: 'relative', height: 7, borderRadius: 999, background: theme.track }}>
+        <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${s.pct}%`, minWidth: s.pct > 0 ? 7 : 0, background: '#16a34a', borderRadius: 999 }} />
+        <div title={`Pass mark ${passmark}%`} style={{ position: 'absolute', left: `${passmark}%`, top: -3, bottom: -3, width: 2, marginLeft: -1, background: theme.text, borderRadius: 2 }} />
+      </div>
+      <span style={{ flex: '0 0 auto', fontSize: 12.5, color: theme.muted, fontVariantNumeric: 'tabular-nums' }}>{s.pct}%</span>
+    </div>
+  );
+
+  return (
+    <>
+      {result.passed || isPreview
+        ? <CheckCircle2 className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} mx-auto mb-4`} style={{ color: accentColor }} />
+        : <XCircle className={`${compact ? 'w-9 h-9' : 'w-14 h-14'} mx-auto mb-4`} style={{ color: '#f43f5e' }} />}
+      <h1 style={{ fontSize: compact ? 19 : 24, fontWeight: 800, marginBottom: 6 }}>{isPreview ? 'Preview complete' : result.practice ? 'Practice complete' : result.passed ? 'Certification passed' : 'Not passed yet'}</h1>
+      {result.practice && <p style={{ fontSize: 13, color: theme.muted, marginBottom: 10 }}>Practice run. Not graded, no certificate issued.</p>}
+      {isPreview ? (
+        <p style={{ fontSize: 15, color: theme.muted, marginBottom: 24 }}>This was a preview. Attempts taken here are not scored or recorded.</p>
+      ) : (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
+            <ScoreGauge score={result.score} passmark={passmark} passed={result.passed} track={theme.track} scoreColor={theme.text} mutedColor={theme.muted} tickColor={theme.text} width={compact ? 150 : 200} />
+          </div>
+          <p style={{ fontSize: 14, color: theme.muted, marginTop: 4, marginBottom: hasBreakdown ? 20 : 24 }}>
+            {result.correctQuestions != null && result.totalQuestions != null
+              ? <>Scored <span style={{ color: theme.text, fontWeight: 700 }}>{result.correctQuestions} of {result.totalQuestions}</span> correct. Pass mark {passmark}%.</>
+              : <>Your score: <span style={{ color: theme.text, fontWeight: 700 }}>{result.score}%</span> (pass mark {passmark}%)</>}
+          </p>
+        </>
+      )}
+      {hasBreakdown && (
+        <div style={{ textAlign: 'left', marginBottom: compact ? 8 : 24, display: 'grid', gridTemplateColumns: `repeat(auto-fit, minmax(${compact ? 190 : 240}px, 1fr))`, gap: compact ? 14 : 24 }}>
+          {strengths.length > 0 && <div><div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Strengths</div>{strengths.map(SkillBar)}</div>}
+          {gaps.length > 0 && <div><div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Areas to improve</div>{gaps.map(SkillBar)}</div>}
+        </div>
+      )}
+    </>
+  );
 }
 
 export default function CertificationTaker({
@@ -113,7 +167,9 @@ export default function CertificationTaker({
   // Set when starting is blocked because the student is enrolled in another unpassed certification;
   // confirming switches (abandons the other) and starts this one.
   const [switchPrompt, setSwitchPrompt] = useState<{ title: string } | null>(null);
+  const [showNoAttempts, setShowNoAttempts] = useState(false);
   const [warning, setWarning] = useState('');
+  const [journeyAnswer, setJourneyAnswer] = useState('');
 
   // Mobile layout switch. The component is styled inline, so responsive tweaks use this flag
   // instead of CSS breakpoints (640px matches Tailwind's sm).
@@ -182,7 +238,10 @@ export default function CertificationTaker({
           return;
         }
         if (maxAttempts > 0 && completed >= maxAttempts) {
-          setPhase('blocked');
+          // Attempt eligibility does not remove access to the certification
+          // overview. The start action will explain the limit when requested.
+          setAttemptsLeft(0);
+          setPhase('intro');
           return;
         }
         if (d.retakeAt) setRetakeAt(d.retakeAt);
@@ -369,6 +428,10 @@ export default function CertificationTaker({
 
   const doStart = useCallback(async (doSwitch: boolean) => {
     setStartError('');
+    if (!doSwitch && maxAttempts > 0 && attemptsLeft === 0) {
+      setShowNoAttempts(true);
+      return;
+    }
     setStarting(true);
     try {
       // start-attempt is the ONLY place the attempt (and its started_at) is created and where the
@@ -376,6 +439,11 @@ export default function CertificationTaker({
       const res = await api('start-attempt', doSwitch ? { switch: true } : {});
       const d = await res.json();
       if (!res.ok) {
+        if (res.status === 403 && d.reason === 'no_attempts') {
+          setAttemptsLeft(0);
+          setShowNoAttempts(true);
+          return;
+        }
         if (res.status === 403) { setPhase('blocked'); return; }
         if (res.status === 409 && d.reason === 'already_passed') { setResult({ score: 100, passed: true }); setPhase('result'); return; }
         if (res.status === 429 && d.reason === 'cooldown') { setRetakeAt(d.retakeAt || null); setStartError(d.error || 'Retake is not available yet.'); return; }
@@ -404,7 +472,7 @@ export default function CertificationTaker({
     } finally {
       setStarting(false);
     }
-  }, [api]);
+  }, [api, attemptsLeft, maxAttempts]);
   // Buttons call this (no args); the switch-confirm modal calls doStart(true).
   const startExam = useCallback(() => doStart(false), [doStart]);
 
@@ -509,7 +577,7 @@ export default function CertificationTaker({
   if (phase === 'blocked') {
     return (
       <div style={{ minHeight: '100vh', background: t.bg, color: t.text, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <div style={{ maxWidth: 460, textAlign: 'center' }}>
+        <div style={{ maxWidth: 460, width: '100%', textAlign: 'center', background: t.card, borderRadius: 24, padding: 32, border: `1px solid ${t.border}`, boxShadow: '0 24px 70px rgba(0,0,0,0.16)' }}>
           <AlertTriangle className="w-12 h-12 mx-auto mb-4" style={{ color: '#f59e0b' }} />
           <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>No attempts remaining</h1>
           <p style={{ fontSize: 14, color: t.muted, marginBottom: 20 }}>You have used all {maxAttempts} attempt{maxAttempts === 1 ? '' : 's'} for this certification.</p>
@@ -524,61 +592,11 @@ export default function CertificationTaker({
     const reportUrl = result.certId ? `/cert-report/${result.certId}` : null;
     const pm = result.passmark ?? config?.passmark ?? 70;
     const skills = result.skills ?? [];
-    const strengths = skills.filter(s => s.pct >= pm);
-    const gaps = skills.filter(s => s.pct < pm);
     const hasBreakdown = !isPreview && skills.length > 0;
-    const SkillBar = (s: { id: string; name: string; correct: number; total: number; pct: number }) => (
-      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-        <span style={{ flex: '0 0 130px', fontSize: 13, color: t.text, textAlign: 'left', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-        <div style={{ flex: 1, maxWidth: 240, position: 'relative', height: 7, borderRadius: 999, background: t.track }}>
-          <div style={{ position: 'absolute', left: 0, top: 0, height: '100%', width: `${s.pct}%`, minWidth: s.pct > 0 ? 7 : 0, background: '#16a34a', borderRadius: 999 }} />
-          <div title={`Pass mark ${pm}%`} style={{ position: 'absolute', left: `${pm}%`, top: -3, bottom: -3, width: 2, marginLeft: -1, background: t.text, borderRadius: 2 }} />
-        </div>
-        <span style={{ flex: '0 0 auto', fontSize: 12.5, color: t.muted, fontVariantNumeric: 'tabular-nums' }}>{s.pct}%</span>
-      </div>
-    );
     return (
       <div style={{ minHeight: '100vh', background: t.bg, color: t.text, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ maxWidth: hasBreakdown || (result.practice && (result.review?.length ?? 0) > 0) ? 640 : 480, width: '100%', textAlign: 'center' }}>
-          {result.passed || isPreview
-            ? <CheckCircle2 className="w-14 h-14 mx-auto mb-4" style={{ color: accentColor }} />
-            : <XCircle className="w-14 h-14 mx-auto mb-4" style={{ color: '#f43f5e' }} />}
-          <h1 style={{ fontSize: 24, fontWeight: 800, marginBottom: 6 }}>{isPreview ? 'Preview complete' : result.practice ? 'Practice complete' : result.passed ? 'Certification passed' : 'Not passed yet'}</h1>
-          {result.practice && <p style={{ fontSize: 13, color: t.muted, marginBottom: 10 }}>Practice run. Not graded, no certificate issued.</p>}
-
-          {isPreview ? (
-            <p style={{ fontSize: 15, color: t.muted, marginBottom: 24 }}>This was a preview. Attempts taken here are not scored or recorded.</p>
-          ) : (
-            <>
-              {/* Score gauge (half dial) */}
-              <div style={{ display: 'flex', justifyContent: 'center', marginTop: 6 }}>
-                <ScoreGauge score={result.score} passmark={pm} passed={result.passed} track={t.track} scoreColor={t.text} mutedColor={t.muted} tickColor={t.text} />
-              </div>
-              <p style={{ fontSize: 14, color: t.muted, marginTop: 4, marginBottom: hasBreakdown ? 20 : 24 }}>
-                {result.correctQuestions != null && result.totalQuestions != null
-                  ? <>Scored <span style={{ color: t.text, fontWeight: 700 }}>{result.correctQuestions} of {result.totalQuestions}</span> correct. Pass mark {pm}%.</>
-                  : <>Your score: <span style={{ color: t.text, fontWeight: 700 }}>{result.score}%</span> (pass mark {pm}%)</>}
-              </p>
-            </>
-          )}
-
-          {/* Per-skill breakdown -- the mark on each bar is the pass mark */}
-          {hasBreakdown && (
-            <div style={{ textAlign: 'left', marginBottom: 24, display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 24 }}>
-              {strengths.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Strengths</div>
-                  {strengths.map(SkillBar)}
-                </div>
-              )}
-              {gaps.length > 0 && (
-                <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, marginBottom: 12 }}>Areas to improve</div>
-                  {gaps.map(SkillBar)}
-                </div>
-              )}
-            </div>
-          )}
+        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ maxWidth: hasBreakdown || (result.practice && (result.review?.length ?? 0) > 0) ? 720 : 520, width: '100%', textAlign: 'center', background: t.card, borderRadius: 28, padding: 'clamp(24px, 5vw, 44px)', border: `1px solid ${t.border}`, boxShadow: '0 28px 80px rgba(0,0,0,0.18)' }}>
+          <CertificationResultSummary result={result} passmark={pm} isPreview={isPreview} theme={t} accentColor={accentColor} />
 
           {result.passed && certUrl && (
             <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', marginBottom: 12 }}>
@@ -632,39 +650,23 @@ export default function CertificationTaker({
   }
 
   if (phase === 'intro') {
-    // DataCamp-style certification overview: a light, airy, card-based marketing page, always light
-    // for clean contrast (distinct from the dark, focused exam chrome that takes over once the exam
-    // starts). The overview uses the tenant brand primary color; the exam keeps the content accent.
-    const ov = { bg: '#ffffff', surface: '#f4f5f7', surfaceAlt: '#eef1f5', border: '#e6e8ec', text: '#10131a', muted: '#5a616b' };
-    const brandColor = tenantBrand || accentColor;
+    // Follow the learner's selected theme while keeping the branded hero immersive.
+    const ov = isDark
+      ? { bg: '#17181E', card: '#1E1F26', surface: '#23242c', surfaceAlt: '#2a2b34', border: 'rgba(255,255,255,0.07)', text: '#f4f6f8', muted: '#a8b0bc' }
+      : { bg: '#ffffff', card: '#ffffff', surface: '#f5f7fa', surfaceAlt: '#eef2f6', border: 'rgba(15,23,42,0.08)', text: '#10131a', muted: '#5a616b' };
+    // Dark mode intentionally uses the calmer certification green instead of a
+    // potentially bright tenant/ocean blue. Light mode retains tenant branding.
+    const brandColor = isDark ? accentColor : (tenantBrand || accentColor);
+    // Keep brand colour for actions, but use a calm semantic green for
+    // informational icons, labels, progress and credential cues.
+    const signalColor = '#00bf63';
     // Brand tint that works for any hex color (falls back to a neutral wash for non-hex values).
     const tint = (a: number) => {
-      const h = String(brandColor || '').replace('#', '');
+      const h = String(signalColor).replace('#', '');
       if (h.length === 6) { const n = parseInt(h, 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; }
       return isDark ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
     };
-    // A darker shade of the brand color (multiply each channel), for a brand gradient with depth that
-    // stays fully saturated -- no white overlay, so the color never looks faint or transparent.
-    const shade = (factor: number) => {
-      const h = String(brandColor || '').replace('#', '');
-      if (h.length === 6) { const n = parseInt(h, 16); return `rgb(${Math.round(((n >> 16) & 255) * factor)},${Math.round(((n >> 8) & 255) * factor)},${Math.round((n & 255) * factor)})`; }
-      return brandColor;
-    };
-    // A lighter shade of the brand color (mix p toward white) at alpha a -- used for the box-grid lines,
-    // so the pattern is derived from the SAME brand color (not hardcoded white). The alpha is what keeps
-    // it SUBTLE: an opaque lifted color reads as a hard near-white line; a low alpha blends it into the
-    // band as a soft, brand-hued line.
-    const lift = (p: number, a = 1) => {
-      const h = String(brandColor || '').replace('#', '');
-      if (h.length === 6) { const n = parseInt(h, 16); const m = (c: number) => Math.round(c + (255 - c) * p); return `rgba(${m((n >> 16) & 255)},${m((n >> 8) & 255)},${m(n & 255)},${a})`; }
-      return `rgba(255,255,255,${0.18 * a})`;
-    };
-    // Brand bands (hero + closing CTA): full-strength brand color deepening to a darker shade, with a
-    // soft box-grid texture in a low-alpha lighter shade of the same brand color (subtle, on-brand).
-    const gridLine = lift(0.3, 0.15);
-    const heroBg = `linear-gradient(to right, ${gridLine} 1px, transparent 1px) 0 0 / 46px 46px, linear-gradient(to bottom, ${gridLine} 1px, transparent 1px) 0 0 / 46px 46px, linear-gradient(160deg, ${brandColor} 0%, ${shade(0.78)} 100%)`;
-    // Overview is always light, so use the light-mode logo (the dark-mode logo is built for dark backgrounds).
-    const logo = logoUrl || logoDarkUrl;
+    const logo = isDark ? (logoDarkUrl || logoUrl) : (logoUrl || logoDarkUrl);
     // Hero uses the cover image; the poster is a separate resource shown below.
     const heroVisual = config?.coverImage || '';
     const title = config?.title || 'Certification';
@@ -676,10 +678,14 @@ export default function CertificationTaker({
       { icon: CheckCircle2, label: 'Attempts', value: maxAttempts > 0 ? `${attemptsLeft ?? maxAttempts} of ${maxAttempts}` : 'Unlimited' },
     ];
     const howSteps = [
-      { title: 'Complete courses', desc: 'Build the skills this certification assesses.' },
-      { title: 'Ace your exams', desc: 'Pass the timed, protected certification exam.' },
-      { title: 'Showcase it', desc: 'Share your certificate and badge on LinkedIn.' },
+      { Icon: BookOpenCheck, title: 'Prepare with confidence', desc: 'Use the study resources, courses, learning paths, and practice questions provided for your certification.' },
+      { Icon: FileCheck2, title: 'Pass the assessment', desc: 'Complete the practical exam and meet the required pass mark within the available attempts.' },
+      { Icon: Award, title: 'Receive your credential', desc: 'Unlock your result, certificate, and badge, ready to view and share.' },
     ];
+    const journeyTheme = isDark
+      ? { bg: '#17181E', card: '#1E1F26', cardHover: '#23242c', border: 'rgba(255,255,255,0.10)', text: '#f0f0f0', muted: '#8a8a93', track: 'rgba(255,255,255,0.08)' }
+      : { bg: '#ffffff', card: '#ffffff', cardHover: '#f8fafc', border: 'rgba(15,23,42,0.09)', text: '#111827', muted: '#667085', track: '#e9eef5' };
+    const journeyQuestion = { id: 'cert-journey-preview', type: 'multiple_choice', question: 'Which approach best validates a model before deployment?', options: ['Test against representative data', 'Use only training accuracy', 'Skip edge-case testing'], correctAnswer: 'Test against representative data' };
     const resources = [
       studyGuide ? { icon: FileText, title: 'Study guide', desc: 'View or download the PDF.', href: studyGuide.url } : null,
       practiceTestUrl ? { icon: ExternalLink, title: 'Practice test', desc: 'Warm up before the real exam.', href: practiceTestUrl } : null,
@@ -687,32 +693,40 @@ export default function CertificationTaker({
     ].filter(Boolean) as { icon: any; title: string; desc: string; href: string }[];
 
     // Small section labels use a dark ~90% tone (not blue/primary, per design).
-    const eyebrow = { fontSize: 12.5, fontWeight: 800 as const, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: 'rgba(16,19,26,0.9)', marginBottom: 12 };
+    const eyebrow = { fontSize: 12.5, fontWeight: 800 as const, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: ov.text, marginBottom: 12 };
     const h2 = { fontSize: 26, fontWeight: 800 as const, marginBottom: 8, color: ov.text };
     const sub = { fontSize: 15, color: ov.muted, lineHeight: 1.6, marginBottom: 24, maxWidth: 640 };
-    const card = { background: '#ffffff', borderRadius: 16, padding: 20 };
-    const sectionStyle = { padding: '32px 0' };
+    const card = { background: ov.card, borderRadius: 18, padding: 20, border: 'none' };
+    const sectionStyle = { padding: isMobile ? '36px 0' : '48px 0' };
     const ctaPrimary = { background: brandColor, color: '#ffffff', fontWeight: 700 as const, fontSize: 15, padding: '13px 30px', borderRadius: 12, opacity: starting ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none', cursor: 'pointer' };
     // Hero sits on a full-width primary-color band, so its text is white and its CTA is a white
     // button (an accent button would vanish on the accent background).
-    const heroCtaPrimary = { background: '#ffffff', color: '#10131a', fontWeight: 700 as const, fontSize: 15, padding: '13px 30px', borderRadius: 12, opacity: starting ? 0.7 : 1, display: 'inline-flex', alignItems: 'center', gap: 8, border: 'none', cursor: 'pointer' };
-    const heroCtaSecondary = { background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600 as const, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' };
-    const heroEyebrow = { display: 'inline-flex' as const, alignItems: 'center' as const, gap: 6, fontSize: 12.5, fontWeight: 800 as const, letterSpacing: '0.08em', textTransform: 'uppercase' as const, color: '#22c55e', marginBottom: 12 };
+    const heroEyebrow = { display: 'inline-flex' as const, alignItems: 'center' as const, gap: 7, fontSize: 12.5, fontWeight: 700 as const, letterSpacing: '0.1em', textTransform: 'uppercase' as const, color: signalColor, marginBottom: 14 };
 
     return (
       <div style={{ minHeight: '100vh', background: ov.bg, color: ov.text, overflowY: 'auto' }}>
         {protectStyle}
         <style>{`
-          .cert-card { box-shadow: 0 1px 2px rgba(16,19,26,0.04), 0 10px 30px rgba(16,19,26,0.06); transition: transform .2s ease, box-shadow .2s ease; }
-          .cert-card:hover { transform: translateY(-4px); box-shadow: 0 8px 18px rgba(16,19,26,0.08), 0 22px 48px rgba(16,19,26,0.12); }
+          @keyframes cert-signal-pulse {
+            0%, 100% { transform: scale(1); box-shadow: 0 0 0 4px ${tint(0.11)}; }
+            50% { transform: scale(1.22); box-shadow: 0 0 0 8px ${tint(0.035)}; }
+          }
+          .cert-credential-dot { animation: cert-signal-pulse 2.2s ease-in-out infinite; transform-origin: center; }
+          .cert-card { box-shadow: ${isDark ? 'none' : '0 6px 22px rgba(15,23,42,0.065), 0 2px 8px rgba(15,23,42,0.035)'}; transition: transform .2s ease, box-shadow .2s ease; }
+          .cert-card:hover { transform: translateY(-4px); box-shadow: ${isDark ? 'none' : '0 12px 34px rgba(15,23,42,0.11)'}; }
           .cert-cta { transition: transform .16s ease, box-shadow .16s ease; }
           .cert-cta:hover { transform: translateY(-2px); box-shadow: 0 12px 28px rgba(16,19,26,0.22); }
           .cert-cta:active { transform: translateY(0); }
           .cert-prep-card { transition: transform .18s ease; }
           .cert-prep-card:hover { transform: translateY(-3px); }
+          .cert-required-track { display: flex; gap: 14px; overflow-x: auto; padding: 6px 4px 28px; margin: -2px -4px -12px; scroll-snap-type: x proximity; scrollbar-width: none; }
+          .cert-required-track::-webkit-scrollbar { display: none; }
+          .cert-required-item { flex: 0 0 min(300px, 82vw); scroll-snap-align: start; transition: transform .2s ease, box-shadow .2s ease; }
+          .cert-required-item:hover { transform: translateY(-4px); }
           @media (prefers-reduced-motion: reduce) {
-            .cert-card, .cert-cta, .cert-prep-card { transition: none; }
-            .cert-card:hover, .cert-cta:hover, .cert-prep-card:hover { transform: none; }
+            .cert-credential-dot { animation: none; }
+            .cert-card, .cert-cta, .cert-prep-card, .cert-required-item { transition: none; }
+            .cert-card:hover, .cert-cta:hover, .cert-prep-card:hover, .cert-required-item:hover { transform: none; }
           }
           @media (prefers-reduced-motion: no-preference) {
             @supports ((animation-timeline: view()) and (animation-range: entry)) {
@@ -746,36 +760,51 @@ export default function CertificationTaker({
           </div>
         )}
 
-        {/* Hero band - full width, brand primary color. The image is bottom-anchored and flush with the band's bottom edge; the text is vertically centered. No section vertical padding -- the text column supplies its own, so the image can reach the very bottom. */}
-        <div style={{ background: heroBg, overflow: 'hidden' }}>
-          <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ maxWidth: 1040, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: 40, alignItems: 'stretch', padding: '0 24px' }}>
-            <div style={{ flex: '1 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', padding: isMobile ? '40px 0' : '56px 0' }}>
-              <div style={heroEyebrow}><Award style={{ width: 15, height: 15 }} /> Certification</div>
-              <h1 style={{ fontSize: 'clamp(32px, 4.4vw, 46px)', fontWeight: 800, lineHeight: 1.07, marginBottom: 16, letterSpacing: '-0.02em', color: '#ffffff' }}>{title}</h1>
-              {config?.description && <p style={{ fontSize: 17, color: 'rgba(255,255,255,0.9)', lineHeight: 1.6, marginBottom: 26, maxWidth: 560 }}>{config.description}</p>}
-              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-                <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...heroCtaPrimary, ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake not available yet' : ctaLabel}<ChevronRight className="w-4 h-4" /></button>
-                {practiceCount > 0 && <button onClick={startPractice} disabled={starting} className="cert-cta" style={heroCtaSecondary}>Practice run</button>}
-                {practiceTestUrl && <a href={practiceTestUrl} target="_blank" rel="noreferrer" className="cert-cta" style={heroCtaSecondary}>Try the practice test</a>}
-              </div>
-              {(startError || retakeBlocked) && <p style={{ marginTop: 14, fontSize: 13, color: '#ffffff' }}>{startError || `You can retake this certification on ${retakeWhen}.`}</p>}
+        {/* Attempt limits block starting the exam, not access to this overview. */}
+        {showNoAttempts && (
+          <div role="dialog" aria-modal="true" aria-labelledby="no-attempts-title" style={{ position: 'fixed', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.55)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+            <div style={{ background: ov.card, color: ov.text, maxWidth: 440, width: '100%', borderRadius: 20, padding: isMobile ? 24 : 30, border: isDark ? `1px solid ${ov.border}` : 'none', boxShadow: '0 24px 70px rgba(0,0,0,0.28)', textAlign: 'center' }}>
+              <span style={{ width: 58, height: 58, margin: '0 auto 18px', borderRadius: 17, display: 'grid', placeItems: 'center', background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}><AlertTriangle style={{ width: 29, height: 29 }} /></span>
+              <h3 id="no-attempts-title" style={{ fontSize: 20, fontWeight: 700, marginBottom: 9 }}>No attempts remaining</h3>
+              <p style={{ fontSize: 14.5, color: ov.muted, lineHeight: 1.6, marginBottom: 22 }}>You have used all {maxAttempts} attempt{maxAttempts === 1 ? '' : 's'} for this certification. You can still review its preparation, required learning, and exam information.</p>
+              <button autoFocus onClick={() => setShowNoAttempts(false)} style={{ background: brandColor, color: '#ffffff', fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 11 }}>Return to certification</button>
             </div>
-            {heroVisual
-              ? <div style={{ flex: '0 1 440px', alignSelf: 'flex-end', display: 'flex', alignItems: 'flex-end' }}><img src={heroVisual} alt="" style={{ width: '100%', display: 'block', filter: 'drop-shadow(0 14px 26px rgba(0,0,0,0.22))' }} /></div>
-              : <div style={{ flex: '0 1 300px', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '56px 0' }}>
-                  <div style={{ width: 200, height: 200, borderRadius: '50%', background: 'rgba(255,255,255,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Award style={{ width: 92, height: 92, color: '#ffffff' }} />
-                  </div>
-                </div>}
-          </motion.section>
-        </div>
+          </div>
+        )}
 
-        <div style={{ maxWidth: 1040, margin: '0 auto', padding: isMobile ? '28px 20px 56px' : '36px 24px 72px' }}>
+        {/* Credential hero -- page-integrated like the certification hub, with the visual elevated separately. */}
+        <motion.section initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} style={{ maxWidth: 1120, margin: '0 auto', display: 'flex', flexWrap: 'wrap', gap: isMobile ? 32 : 56, alignItems: 'center', padding: isMobile ? '46px 20px 34px' : '72px 24px 52px' }}>
+          <div style={{ flex: '1 1 440px', minWidth: 0 }}>
+            <div style={heroEyebrow}><span className="cert-credential-dot" style={{ width: 8, height: 8, borderRadius: 999, background: signalColor }} /> Professional credential</div>
+            <h1 style={{ fontSize: 'clamp(34px, 5vw, 56px)', fontWeight: 650, lineHeight: 1.1, marginBottom: 18, letterSpacing: '-0.022em', color: ov.text }}>{title}</h1>
+            {config?.description && <p style={{ fontSize: isMobile ? 16 : 18, color: ov.muted, lineHeight: 1.65, marginBottom: 28, maxWidth: 640 }}>{config.description}</p>}
+            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+              <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake not available yet' : ctaLabel}<ChevronRight className="w-4 h-4" /></button>
+              {practiceCount > 0 && <button onClick={startPractice} disabled={starting} className="cert-cta" style={{ background: ov.surface, color: ov.text, fontWeight: 650, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}>Practice run</button>}
+              {practiceTestUrl && <a href={practiceTestUrl} target="_blank" rel="noreferrer" className="cert-cta" style={{ background: ov.surface, color: ov.text, fontWeight: 650, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>Practice test</a>}
+            </div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 20px', marginTop: 24, color: ov.muted, fontSize: 13 }}>
+              {['Official credential', 'Shareable certificate', 'Publicly verifiable'].map(label => <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><CheckCircle2 style={{ width: 15, height: 15, color: signalColor }} />{label}</span>)}
+            </div>
+            {(startError || retakeBlocked) && <p style={{ marginTop: 14, fontSize: 13, color: '#ef4444' }}>{startError || `You can retake this certification on ${retakeWhen}.`}</p>}
+          </div>
+          <div className="cert-card" style={{ flex: '0 1 410px', minHeight: isMobile ? 300 : 390, borderRadius: 28, padding: 22, background: isDark ? ov.card : '#ffffff', display: 'grid', placeItems: 'center', overflow: 'hidden', position: 'relative' }}>
+            <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at 72% 18%, ${tint(0.18)}, transparent 42%)`, pointerEvents: 'none' }} />
+            {heroVisual
+              ? <img src={heroVisual} alt="" style={{ position: 'relative', width: '100%', height: '100%', maxHeight: 390, objectFit: 'contain', display: 'block' }} />
+              : <div style={{ position: 'relative', width: isMobile ? 190 : 230, height: isMobile ? 190 : 230, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tint(0.09), border: `2px dotted ${tint(0.42)}` }}>
+                  <div style={{ width: '68%', height: '68%', borderRadius: '50%', display: 'grid', placeItems: 'center', border: `2px solid ${signalColor}`, color: signalColor }}><Award style={{ width: '48%', height: '48%' }} /></div>
+                  <span style={{ position: 'absolute', bottom: '13%', borderRadius: 999, padding: '6px 13px', background: signalColor, color: '#fff', fontSize: 10, fontWeight: 850, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Certified</span>
+                </div>}
+          </div>
+        </motion.section>
+
+        <div style={{ maxWidth: 1120, margin: '0 auto', padding: isMobile ? '20px 20px 56px' : '28px 24px 72px' }}>
           {/* Facts strip -- the 140px min keeps two columns on phones instead of a single tall stack */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: 14 }}>
             {facts.map((f, i) => (
               <div key={i} className="cert-card" style={{ ...card, padding: 18 }}>
-                <f.icon className="w-5 h-5" style={{ color: brandColor, marginBottom: 10 }} />
+                <f.icon className="w-5 h-5" style={{ color: signalColor, marginBottom: 10 }} />
                 <div style={{ fontSize: 22, fontWeight: 800 }}>{f.value}</div>
                 <div style={{ fontSize: 12.5, color: ov.muted, marginTop: 2 }}>{f.label}</div>
               </div>
@@ -816,7 +845,7 @@ export default function CertificationTaker({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14 }}>
                 {skillAreas.map(s => (
                   <div key={s.id} className="cert-card" style={{ ...card, display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: brandColor }} />
+                    <CheckCircle2 className="w-5 h-5 flex-shrink-0" style={{ color: signalColor }} />
                     <span style={{ fontSize: 15, fontWeight: 600 }}>{s.name}</span>
                   </div>
                 ))}
@@ -824,35 +853,60 @@ export default function CertificationTaker({
             </section>
           )}
 
-          {/* How it works */}
+          {/* The same three-card journey used on the certification landing page. */}
           <section className="cert-reveal" style={sectionStyle}>
-            <div style={eyebrow}>Get certified</div>
-            <h2 style={h2}>How it works</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 8 }}>
-              {howSteps.map((step, i) => (
-                <div key={i} className="cert-card" style={card}>
-                  <span style={{ width: 34, height: 34, borderRadius: 999, background: tint(0.12), color: 'rgba(16,19,26,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 800, marginBottom: 14 }}>{i + 1}</span>
-                  <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{step.title}</div>
-                  <div style={{ fontSize: 13.5, color: ov.muted, lineHeight: 1.5 }}>{step.desc}</div>
+            <div style={eyebrow}>Your certification journey</div>
+            <h2 style={h2}>From preparation to credential in three steps</h2>
+            <p style={sub}>Build confidence, demonstrate your skills, and unlock a credential you can carry forward.</p>
+            <div style={{ display: 'grid', gap: 18, marginTop: 8 }}>
+              {howSteps.map(({ Icon, title: stepTitle, desc }, i) => (
+                <div key={stepTitle} className="cert-card" style={{ ...card, display: 'grid', gridTemplateColumns: isMobile ? '1fr' : 'minmax(240px, 0.32fr) minmax(0, 0.68fr)', gap: isMobile ? 24 : 34, padding: isMobile ? 22 : 28, alignItems: 'start' }}>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 18 }}>
+                      <span style={{ width: 44, height: 44, borderRadius: 12, background: tint(0.12), color: signalColor, display: 'grid', placeItems: 'center' }}><Icon style={{ width: 20, height: 20 }} /></span>
+                      <span style={{ fontSize: 30, fontWeight: 750, color: tint(isDark ? 0.24 : 0.18) }}>0{i + 1}</span>
+                    </div>
+                    <div style={{ fontSize: 16, fontWeight: 700, marginTop: 18, marginBottom: 6 }}>{stepTitle}</div>
+                    <div style={{ fontSize: 13.5, color: ov.muted, lineHeight: 1.55 }}>{desc}</div>
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    {i === 0 && <CertPrepCourses prepItems={prepItems} brandColor={signalColor} actionColor={brandColor} ov={ov} embedded />}
+                    {i === 1 && (
+                      <div style={{ maxWidth: 680, margin: '0 auto', overflow: 'hidden', borderRadius: 16, background: journeyTheme.bg, boxShadow: isDark ? 'none' : '0 14px 40px rgba(15,23,42,0.10)' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '32px minmax(0,1fr) 72px', alignItems: 'center', gap: 12, padding: '12px 16px' }}>
+                          <span style={{ width: 28, height: 28, borderRadius: 999, background: journeyTheme.track, color: journeyTheme.muted, display: 'grid', placeItems: 'center' }}><X style={{ width: 14, height: 14 }} /></span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6, fontSize: 9, fontWeight: 700, color: journeyTheme.muted }}><span>Question 2 of 10</span><span>20%</span></div>
+                            <div style={{ height: 6, borderRadius: 999, overflow: 'hidden', background: journeyTheme.track }}><div style={{ width: '20%', height: '100%', borderRadius: 999, background: signalColor }} /></div>
+                          </div>
+                          <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 4, fontSize: 10, fontWeight: 700, color: journeyTheme.muted }}><Clock style={{ width: 14, height: 14 }} />04:18</span>
+                        </div>
+                        <div style={{ maxWidth: 580, margin: '0 auto', padding: isMobile ? 16 : 20 }}>
+                          <CertificationQuestionView q={journeyQuestion} qType="multiple_choice" value={journeyAnswer} onChange={setJourneyAnswer} t={journeyTheme} accentColor={signalColor} sharedPlayground={{}} />
+                        </div>
+                      </div>
+                    )}
+                    {i === 2 && (
+                      <div style={{ maxWidth: 580, margin: '0 auto', borderRadius: 16, padding: isMobile ? 16 : 20, textAlign: 'center', background: journeyTheme.bg, color: journeyTheme.text, boxShadow: isDark ? 'none' : '0 14px 40px rgba(15,23,42,0.10)' }}>
+                        <CertificationResultSummary compact result={{ score: 86, passed: true, correctQuestions: 17, totalQuestions: 20, skills: [{ id: 'analysis', name: 'Analysis', correct: 11, total: 12, pct: 92 }, { id: 'application', name: 'Application', correct: 5, total: 6, pct: 83 }, { id: 'judgement', name: 'Judgement', correct: 1, total: 2, pct: 50 }] }} passmark={config?.passmark ?? 70} theme={journeyTheme} accentColor={signalColor} />
+                      </div>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
-            {/* Courses / learning paths to complete -- landing-page-style cards with hover previews. */}
-            {prepItems.length > 0 && (
-              <CertPrepCourses prepItems={prepItems} brandColor={brandColor} ov={ov} />
-            )}
           </section>
 
           {/* Prepare / resources */}
           {resources.length > 0 && (
             <section className="cert-reveal" style={sectionStyle}>
-              <div style={eyebrow}>Prepare</div>
-              <h2 style={h2}>Prepare for the exam</h2>
+              <div style={eyebrow}>Resources</div>
+              <h2 style={h2}>Exam resources</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginTop: 8 }}>
                 {resources.map((r, i) => (
                   <a key={i} href={r.href} target="_blank" rel="noreferrer" className="cert-card" style={{ ...card, display: 'flex', alignItems: 'flex-start', gap: 12, textDecoration: 'none', color: ov.text }}>
                     <div style={{ width: 38, height: 38, borderRadius: 10, background: tint(0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <r.icon className="w-5 h-5" style={{ color: brandColor }} />
+                      <r.icon className="w-5 h-5" style={{ color: signalColor }} />
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontSize: 15, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}>{r.title} <ChevronRight className="w-3.5 h-3.5" style={{ color: ov.muted }} /></div>
@@ -864,20 +918,6 @@ export default function CertificationTaker({
             </section>
           )}
 
-          {/* Closing CTA - full brand colour band, using the exact hero background. No cert-reveal here: its opacity fade would make the brand band look semi-transparent (faint) mid-scroll. */}
-          <div style={{ marginTop: 48, borderRadius: 24, padding: isMobile ? '40px 20px' : '56px 32px', textAlign: 'center', overflow: 'hidden', background: heroBg }}>
-            <div style={{ width: 60, height: 60, borderRadius: 18, background: 'rgba(255,255,255,0.16)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', marginBottom: 18 }}>
-              <Award style={{ width: 30, height: 30, color: '#ffffff' }} />
-            </div>
-            <h2 style={{ fontSize: 26, fontWeight: 800, marginBottom: 8, color: '#ffffff' }}>Ready to get certified?</h2>
-            <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.85)', marginBottom: 24 }}>
-              {retakeBlocked
-                ? `You can retake this certification on ${retakeWhen}.`
-                : maxAttempts > 0 && attemptsLeft != null ? `You have ${attemptsLeft} attempt${attemptsLeft === 1 ? '' : 's'} remaining.` : 'Take the exam when you are ready.'}
-            </p>
-            <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...heroCtaPrimary, fontSize: 16, padding: '14px 34px', ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake not available yet' : ctaLabel}<ChevronRight className="w-4 h-4" /></button>
-            {startError && <p style={{ marginTop: 14, fontSize: 13, color: '#ffffff' }}>{startError}</p>}
-          </div>
         </div>
       </div>
     );
@@ -1001,7 +1041,7 @@ export default function CertificationTaker({
         <div style={{ paddingTop: 96, paddingBottom: 140, paddingLeft: contentPad.left, paddingRight: contentPad.right }}>
           <AnimatePresence mode="wait">
             <motion.div key={currentQuestion.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} transition={{ duration: 0.22 }}>
-              <QuestionView q={currentQuestion} qType={qType} value={answers[currentQuestion.id] ?? ''} onChange={(v) => setAnswer(currentQuestion.id, v)} t={t} accentColor={accentColor} sharedPlayground={sharedPlayground} />
+              <CertificationQuestionView q={currentQuestion} qType={qType} value={answers[currentQuestion.id] ?? ''} onChange={(v) => setAnswer(currentQuestion.id, v)} t={t} accentColor={accentColor} sharedPlayground={sharedPlayground} />
             </motion.div>
           </AnimatePresence>
         </div>
@@ -1132,7 +1172,7 @@ function mergeSharedPlayground(pg: NonNullable<CourseQuestion['playground']>, sh
 
 // One non-exercise question (multiple_choice | image | code | fill_blank | arrange), optionally with
 // a non-graded runnable playground the student uses to work out the answer.
-function QuestionView({ q, qType, value, onChange, t, accentColor, sharedPlayground }: {
+export function CertificationQuestionView({ q, qType, value, onChange, t, accentColor, sharedPlayground }: {
   q: any; qType: string; value: string; onChange: (v: string) => void; t: any; accentColor: string; sharedPlayground: PlaygroundData;
 }) {
   const options: string[] = Array.isArray(q.options) ? q.options : [];
@@ -1388,12 +1428,15 @@ const PREP_ICON = '#16a34a';
 // Courses open at their public slug; a learning path opens in the student dashboard.
 const prepHref = (item: PrepDetail) => (item.type === 'course' ? `/${item.slug}` : '/student');
 
-function CertPrepCourses({ prepItems, brandColor, ov }: {
+function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, embedded = false }: {
   prepItems: CertificationPrepItem[];
   brandColor: string;
-  ov: { text: string; muted: string };
+  actionColor?: string;
+  ov: { bg: string; card: string; surface: string; surfaceAlt: string; border: string; text: string; muted: string };
+  embedded?: boolean;
 }) {
   const [details, setDetails] = useState<PrepDetail[]>([]);
+  const [loading, setLoading] = useState(true);
   const [hover, setHover] = useState<{ item: PrepDetail; left: number; top: number; originX: number; originY: number } | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
@@ -1419,14 +1462,18 @@ function CertPrepCourses({ prepItems, brandColor, ov }: {
       (pRes.data ?? []).forEach((r: any) => { pathMap[r.id] = { id: r.id, type: 'path', title: r.title, description: r.description ?? '', imageUrl: resolveCoverUrl(r.cover_image), slug: '', pathCourses: pathItemMap[r.id] ?? [] }; });
       // Keep the instructor's chosen order; drop any id that is no longer published.
       const ordered = prepItems.map(p => (p.type === 'course' ? courseMap[p.id] : pathMap[p.id])).filter(Boolean) as PrepDetail[];
-      if (!cancelled) setDetails(ordered);
+      if (!cancelled) { setDetails(ordered); setLoading(false); }
     })();
     return () => { cancelled = true; };
   }, [prepItems]);
 
   useEffect(() => () => cancelClose(), []);
 
-  if (details.length === 0) return null;
+  if (details.length === 0) return embedded ? (
+    <div style={{ minHeight: 150, borderRadius: 16, padding: 22, display: 'grid', placeItems: 'center', textAlign: 'center', background: ov.surface, color: ov.muted, fontSize: 13.5 }}>
+      {loading ? 'Loading required learning…' : prepItems.length > 0 ? 'The configured learning is not currently published.' : 'No required course or learning path has been configured for this certification.'}
+    </div>
+  ) : null;
 
   const openHover = (item: PrepDetail, el: HTMLElement) => {
     if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
@@ -1440,28 +1487,45 @@ function CertPrepCourses({ prepItems, brandColor, ov }: {
     const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
     setHover({ item, left, top, originX, originY });
   };
+  const isDarkRequired = ov.bg === '#17181E';
 
   return (
-    <div style={{ marginTop: 20 }}>
-      <div style={{ fontSize: 18, fontWeight: 700, color: ov.text, marginBottom: 12 }}>Courses to prepare for the exam</div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 16 }}>
+    <div style={{ marginTop: embedded ? 0 : 32, borderRadius: embedded ? 18 : undefined, padding: embedded ? 18 : undefined, background: embedded ? ov.surface : undefined, boxShadow: embedded && !isDarkRequired ? '0 14px 38px rgba(15,23,42,0.08)' : 'none' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, marginBottom: 17 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12, minWidth: 0 }}>
+          <span style={{ width: 42, height: 42, flexShrink: 0, borderRadius: 13, display: 'grid', placeItems: 'center', background: `${brandColor}14`, color: brandColor }}><BookOpenCheck style={{ width: 20, height: 20 }} /></span>
+          <div style={{ minWidth: 0 }}>
+            <div style={{ fontSize: 10.5, fontWeight: 800, letterSpacing: '0.11em', textTransform: 'uppercase', color: brandColor, marginBottom: 3 }}>Required preparation</div>
+            <div style={{ fontSize: embedded ? 18 : 20, fontWeight: 700, color: ov.text, lineHeight: 1.25 }}>Learning selected for this certification</div>
+            <p style={{ fontSize: 12.5, color: ov.muted, lineHeight: 1.5, marginTop: 5 }}>Complete these before starting the assessment.</p>
+          </div>
+        </div>
+        <span style={{ flexShrink: 0, borderRadius: 999, padding: '6px 10px', background: ov.card, color: ov.muted, fontSize: 11, fontWeight: 700 }}>{details.length} item{details.length === 1 ? '' : 's'}</span>
+      </div>
+      <div className="cert-required-track">
         {details.map(item => (
-          <div key={`${item.type}:${item.id}`} onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
-            <a href={prepHref(item)} className="cert-prep-card" style={{ textDecoration: 'none', color: 'inherit', display: 'block' }}>
-              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', width: '100%', aspectRatio: '16/9', background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
+          <article key={`${item.type}:${item.id}`} className="cert-required-item" style={{ overflow: 'hidden', background: ov.card, borderRadius: 17, boxShadow: 'none' }} onMouseEnter={e => openHover(item, e.currentTarget)} onMouseLeave={scheduleClose}>
+            <a href={prepHref(item)} className="cert-prep-card" style={{ textDecoration: 'none', color: 'inherit', display: 'block', padding: 10, paddingBottom: 0 }}>
+              <div style={{ position: 'relative', borderRadius: 12, overflow: 'hidden', width: '100%', aspectRatio: '16/9', background: item.imageUrl ? '#0b0b0d' : ov.surface }}>
                 {item.imageUrl
                   ? <img src={item.imageUrl} alt={item.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                   : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: PREP_FALLBACK_BG }}><BookOpen style={{ width: 30, height: 30, color: PREP_ICON }} /></div>}
+                <span style={{ position: 'absolute', left: 9, top: 9, borderRadius: 999, padding: '5px 9px', background: brandColor, color: '#fff', fontSize: 9, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', boxShadow: '0 4px 12px rgba(0,0,0,0.18)' }}>{item.type === 'path' ? 'Learning path' : 'Course'}</span>
               </div>
-              <p style={{ fontSize: 12, color: ov.muted, marginTop: 8 }}>{item.type === 'path' ? 'Learning Path' : 'Course'}</p>
-              <p style={{ fontSize: 15, fontWeight: 700, lineHeight: 1.3, marginTop: 2, color: ov.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</p>
+              <div style={{ padding: '12px 4px 11px' }}>
+                <p style={{ fontSize: 15.5, fontWeight: 700, lineHeight: 1.35, color: ov.text, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.title}</p>
+                {item.description && <p style={{ fontSize: 12.5, color: ov.muted, lineHeight: 1.48, marginTop: 6, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{item.description.replace(/<[^>]*>/g, ' ')}</p>}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 11, fontSize: 11.5 }}>
+                  <span style={{ color: ov.muted }}>{item.type === 'path' ? `${item.pathCourses?.length ?? 0} included item${(item.pathCourses?.length ?? 0) === 1 ? '' : 's'}` : 'Complete before assessment'}</span>
+                </div>
+              </div>
             </a>
-          </div>
+          </article>
         ))}
       </div>
       {typeof document !== 'undefined' && hover && createPortal(
         <HoverPreviewCard key={`${hover.item.type}:${hover.item.id}`} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
-          <PrepPreview item={hover.item} brandColor={brandColor} />
+          <PrepPreview item={hover.item} brandColor={brandColor} actionColor={actionColor} ov={ov} />
         </HoverPreviewCard>,
         document.body,
       )}
@@ -1469,49 +1533,50 @@ function CertPrepCourses({ prepItems, brandColor, ov }: {
   );
 }
 
-// Hover popup content -- mirrors the landing page's course/path preview, always light.
-function PrepPreview({ item, brandColor }: { item: PrepDetail; brandColor: string }) {
+// Hover popup content -- mirrors the landing page's course/path preview in the active theme.
+function PrepPreview({ item, brandColor, actionColor, ov }: { item: PrepDetail; brandColor: string; actionColor: string; ov: { bg: string; card: string; surface: string; surfaceAlt: string; border: string; text: string; muted: string } }) {
   const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
   const href = prepHref(item);
+  const isDarkPreview = ov.bg === '#17181E';
   const clamp = (lines: number) => ({ display: '-webkit-box', WebkitLineClamp: lines, WebkitBoxOrient: 'vertical' as const, overflow: 'hidden' });
-  const cta = { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, padding: '10px 16px', borderRadius: 12, background: brandColor, color: 'white', textDecoration: 'none' };
+  const cta = { display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 14, fontWeight: 600, padding: '10px 16px', borderRadius: 12, background: actionColor, color: 'white', textDecoration: 'none' };
 
   if (item.type === 'path') {
     const courses = item.pathCourses ?? [];
     const popupW = Math.min(640, Math.max(360, courses.length * 120 + 32));
     return (
-      <div style={{ width: popupW, borderRadius: 16, overflow: 'hidden', background: 'white', boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05)' }}>
+      <div style={{ width: popupW, borderRadius: 16, overflow: 'hidden', background: ov.card, boxShadow: isDarkPreview ? '0 18px 55px rgba(0,0,0,0.38)' : '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05)' }}>
         <div style={{ padding: '16px 16px 0' }}>
           <span style={{ display: 'inline-block', fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, marginBottom: 8, background: PREP_ICON, color: 'white' }}>Learning Path</span>
-          <h3 style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.3, marginBottom: 6, color: '#111', ...clamp(2) }}>{item.title}</h3>
-          {desc && <p style={{ fontSize: 14, lineHeight: 1.5, color: '#555', ...clamp(2) }}>{desc}</p>}
+          <h3 style={{ fontSize: 16, fontWeight: 700, lineHeight: 1.3, marginBottom: 6, color: ov.text, ...clamp(2) }}>{item.title}</h3>
+          {desc && <p style={{ fontSize: 14, lineHeight: 1.5, color: ov.muted, ...clamp(2) }}>{desc}</p>}
         </div>
         <div style={{ padding: 16 }}>
           {courses.length > 0 ? (
             <>
-              <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, color: '#888' }}>{courses.length} item{courses.length !== 1 ? 's' : ''} in this path</p>
+              <p style={{ fontSize: 11, fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 12, color: ov.muted }}>{courses.length} item{courses.length !== 1 ? 's' : ''} in this path</p>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10 }}>
                 {courses.map(c => (
                   <div key={c.id} style={{ flexShrink: 0, width: 110 }}>
-                    <div style={{ borderRadius: 8, overflow: 'hidden', marginBottom: 6, aspectRatio: '16/9', background: c.imageUrl ? '#0b0b0d' : '#F0F6FF' }}>
+                    <div style={{ borderRadius: 8, overflow: 'hidden', marginBottom: 6, aspectRatio: '16/9', background: c.imageUrl ? '#0b0b0d' : ov.surface }}>
                       {c.imageUrl
                         ? <img src={c.imageUrl} alt={c.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><BookOpen style={{ width: 18, height: 18, color: '#9CA3AF' }} /></div>}
                     </div>
-                    <p style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.3, color: '#333', ...clamp(2) }}>{c.title}</p>
+                    <p style={{ fontSize: 11, fontWeight: 500, lineHeight: 1.3, color: ov.text, ...clamp(2) }}>{c.title}</p>
                   </div>
                 ))}
               </div>
             </>
-          ) : (desc && <p style={{ fontSize: 14, lineHeight: 1.5, color: '#555' }}>{desc}</p>)}
-          <a href={href} style={{ ...cta, marginTop: 16 }}><Play style={{ width: 14, height: 14 }} /> Start path</a>
+          ) : (desc && <p style={{ fontSize: 14, lineHeight: 1.5, color: ov.muted }}>{desc}</p>)}
+          <a href={href} target="_blank" rel="noopener noreferrer" style={{ ...cta, marginTop: 16 }}><Play style={{ width: 14, height: 14 }} /> Start path</a>
         </div>
       </div>
     );
   }
 
   return (
-    <div style={{ width: 320, borderRadius: 16, overflow: 'hidden', background: 'white', boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)' }}>
+    <div style={{ width: 320, borderRadius: 16, overflow: 'hidden', background: ov.card, boxShadow: isDarkPreview ? '0 18px 55px rgba(0,0,0,0.38)' : '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)' }}>
       <div style={{ position: 'relative', width: '100%', aspectRatio: '16/9', background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
         {item.imageUrl
           ? <img src={item.imageUrl} alt={item.title} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -1519,10 +1584,10 @@ function PrepPreview({ item, brandColor }: { item: PrepDetail; brandColor: strin
         <span style={{ position: 'absolute', top: 8, left: 8, fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 6, background: PREP_ICON, color: 'white' }}>Course</span>
       </div>
       <div style={{ padding: 20 }}>
-        <p style={{ fontSize: 12, marginBottom: 4, color: '#888' }}>Course</p>
-        <h3 style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: '#111', ...clamp(2) }}>{item.title}</h3>
-        {desc && <p style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 12, color: '#555', ...clamp(3) }}>{desc}</p>}
-        <a href={href} style={cta}><Play style={{ width: 14, height: 14 }} /> Start learning</a>
+        <p style={{ fontSize: 12, marginBottom: 4, color: ov.muted }}>Course</p>
+        <h3 style={{ fontSize: 18, fontWeight: 700, lineHeight: 1.3, marginBottom: 8, color: ov.text, ...clamp(2) }}>{item.title}</h3>
+        {desc && <p style={{ fontSize: 14, lineHeight: 1.5, marginBottom: 12, color: ov.muted, ...clamp(3) }}>{desc}</p>}
+        <a href={href} target="_blank" rel="noopener noreferrer" style={cta}><Play style={{ width: 14, height: 14 }} /> Start learning</a>
       </div>
     </div>
   );
