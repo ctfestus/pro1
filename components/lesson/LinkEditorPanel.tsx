@@ -41,13 +41,22 @@ export function LinkEditorPanel({ initial, dark, accentColor, canRemove, onSave,
 
   useEffect(() => { hrefRef.current?.focus(); }, []);
 
+  const applyLink = () => {
+    if (text.trim() && normalizedHref) onSave({ text: text.trim(), href: normalizedHref, newTab });
+  };
+
   return (
-    <form
+    <div
+      role="group"
+      aria-label={canRemove ? 'Edit link' : 'Add link'}
       className={`lesson-link-editor${dark ? ' dark' : ''}`}
       style={{ '--lesson-accent-base': accentColor } as React.CSSProperties}
-      onSubmit={(event) => {
+      onKeyDown={(event) => {
+        const target = event.target as HTMLInputElement;
+        if (event.key !== 'Enter' || target.type === 'checkbox') return;
         event.preventDefault();
-        if (text.trim() && normalizedHref) onSave({ text: text.trim(), href: normalizedHref, newTab });
+        event.stopPropagation();
+        applyLink();
       }}
     >
       <div className="lesson-link-editor__head">
@@ -75,9 +84,9 @@ export function LinkEditorPanel({ initial, dark, accentColor, canRemove, onSave,
         </label>
         <div className="lesson-link-editor__actions">
           {canRemove ? <button type="button" className="lesson-link-editor__remove" onClick={onRemove}><Trash2 width={13} height={13} /> Remove</button> : null}
-          <button type="submit" className="lesson-link-editor__save" disabled={!text.trim() || !normalizedHref}><Check width={14} height={14} /> Apply link</button>
+          <button type="button" className="lesson-link-editor__save" disabled={!text.trim() || !normalizedHref} onClick={applyLink}><Check width={14} height={14} /> Apply link</button>
         </div>
       </div>
-    </form>
+    </div>
   );
 }
