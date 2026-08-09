@@ -450,10 +450,10 @@ export default function StudentDashboard() {
         </AnimatePresence>
 
         {/* -- Main content -- */}
-        <main className="flex-1 min-w-0 overflow-y-auto px-5 md:px-8 py-7">
+        <main className="flex-1 min-w-0 overflow-y-auto px-5 md:px-8 py-7" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
           <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {/* Section header -- hidden on overview (has its own greeting) and assignments (manages its own title) */}
-            {activeSection !== 'overview' && activeSection !== 'assignments' && (
+            {activeSection !== 'overview' && activeSection !== 'assignments' && activeSection !== 'certifications' && (
               <div className="flex items-center justify-between mb-6">
                 <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isMyLearning ? 'My Learning' : activeItem.label}</h1>
               </div>

@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, arrayMove, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { GripVertical, Trash2, ChevronDown, ChevronUp, Plus, ArrowLeft, Loader2, Check, ImagePlus, ShieldCheck, Upload, FileText, BookOpen, Route, Search, X } from 'lucide-react';
+import { GripVertical, Trash2, ChevronDown, ChevronUp, Plus, ArrowLeft, Loader2, Check, ImagePlus, ShieldCheck, Upload, FileText, BookOpen, Route, Search, X, SlidersHorizontal, Layers3, Library, ListChecks, Sparkles, Eye } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { uploadToGithub } from '@/lib/uploadToGithub';
@@ -26,6 +26,18 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { CourseQuestion, QuestionType, SkillArea, CertificationPrepItem, CertificationType, PlaygroundData, CertificationScenario } from '@/lib/course-schema';
 
 const EXAM_TYPES: QuestionTypeOrDownloads[] = ['multiple_choice', 'fill_blank', 'arrange', 'image', 'image_choice', 'code', 'python_exercise'];
+
+type EditorTab = 'overview' | 'settings' | 'blueprint' | 'resources' | 'questions' | 'practice' | 'publish';
+
+const EDITOR_TABS: { id: EditorTab; label: string; icon: typeof ShieldCheck }[] = [
+  { id: 'overview', label: 'Overview', icon: ShieldCheck },
+  { id: 'settings', label: 'Exam setup', icon: SlidersHorizontal },
+  { id: 'blueprint', label: 'Blueprint', icon: Layers3 },
+  { id: 'resources', label: 'Resources', icon: Library },
+  { id: 'questions', label: 'Questions', icon: ListChecks },
+  { id: 'practice', label: 'Practice', icon: Sparkles },
+  { id: 'publish', label: 'Publish', icon: Check },
+];
 
 const newId = () => { try { return crypto.randomUUID(); } catch { return `q-${Math.random().toString(36).slice(2)}`; } };
 
@@ -122,6 +134,7 @@ function CertificationEditor() {
   const [loading, setLoading] = useState(!!editId);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
+  const [editorTab, setEditorTab] = useState<EditorTab>('overview');
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
@@ -281,32 +294,60 @@ function CertificationEditor() {
   }
 
   return (
-    <div className="min-h-screen" style={{ background: C.page, color: C.text }}>
-      {/* Top bar */}
-      <div className="sticky top-0 z-30 flex items-center justify-between px-5 h-14" style={{ background: C.nav, borderBottom: `1px solid ${C.navBorder}`, backdropFilter: 'blur(12px)' }}>
-        <button onClick={() => router.push('/dashboard#certifications')} className="flex items-center gap-2 text-sm" style={{ color: C.muted }}>
-          <ArrowLeft className="w-4 h-4" /> Certifications
-        </button>
-        <div className="flex items-center gap-2">
-          <button onClick={() => save('draft')} disabled={saving} className="px-3.5 py-2 rounded-lg text-sm font-medium" style={{ background: C.pill, color: C.text }}>Save draft</button>
-          <button onClick={() => save('published')} disabled={saving} className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1.5" style={{ background: C.cta, color: C.ctaText }}>
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Publish
-          </button>
+    <div className="min-h-screen pb-28" style={{ background: C.page, color: C.text }}>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 pt-6 sm:pt-8">
+        <div className="rounded-2xl overflow-hidden" style={{ background: C.card, boxShadow: C.cardShadow }}>
+          <div className="flex flex-col gap-5 px-5 sm:px-7 pt-6 pb-5">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.cta }}>
+                  <span className="h-2 w-2 rounded-full" style={{ background: C.cta, boxShadow: `0 0 0 5px ${C.cta}18` }} /> Certification Studio
+                </div>
+                <h1 className="mt-2 truncate text-xl sm:text-2xl font-bold">{state.title.trim() || (editId ? 'Edit certification' : 'New certification')}</h1>
+              </div>
+              <button onClick={() => router.push('/dashboard#certifications')} className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition-transform hover:-translate-y-0.5" style={{ background: C.pill, color: C.muted }}>
+                <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Certifications</span>
+              </button>
+            </div>
+
+            <div className="overflow-x-auto pb-1">
+              <div className="flex min-w-max items-center gap-1.5">
+                {EDITOR_TABS.map(tab => {
+                  const Icon = tab.icon;
+                  const active = editorTab === tab.id;
+                  const count = tab.id === 'questions' ? state.questions.length : tab.id === 'practice' ? state.practiceQuestions.length : null;
+                  return (
+                    <button key={tab.id} type="button" onClick={() => setEditorTab(tab.id)}
+                      className="flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-semibold transition-all"
+                      style={{ background: active ? `${C.cta}14` : 'transparent', color: active ? C.cta : C.faint }}>
+                      <Icon className="w-4 h-4" /> {tab.label}
+                      {count !== null && <span className="min-w-5 rounded-full px-1.5 py-0.5 text-[10px] text-center" style={{ background: active ? `${C.cta}1f` : C.pill }}>{count}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto px-5 py-8 space-y-8">
-        <div className="flex items-center gap-2" style={{ color: C.cta }}>
-          <ShieldCheck className="w-5 h-5" />
-          <span className="text-xs font-bold uppercase tracking-wider">Certification exam</span>
-        </div>
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-6">
 
         {error && <div className="text-sm px-4 py-3 rounded-lg" style={{ background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>{error}</div>}
 
         {/* Basics */}
-        <div className="rounded-xl p-5 space-y-4" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
-          <input value={state.title} onChange={e => update({ title: e.target.value })} placeholder="Certification title"
-            className="w-full bg-transparent text-2xl font-bold outline-none" style={{ color: C.text }} />
+        {editorTab === 'overview' && <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={{ background: C.card }}>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Certification identity</p>
+            <h2 className="mt-1 text-lg font-bold">Set the promise learners will work toward</h2>
+            <p className="mt-1 text-sm" style={{ color: C.muted }}>Create a clear title, summary, category, and public address.</p>
+          </div>
+          <div>
+            <label className={labelCls} style={{ color: C.faint }}>Certification name</label>
+            <input value={state.title} onChange={e => update({ title: e.target.value })} placeholder="Enter certification name"
+              className="w-full rounded-xl px-4 py-3.5 text-lg font-semibold outline-none focus-visible:outline-2 focus-visible:outline-offset-2"
+              style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text, outlineColor: C.cta }} />
+          </div>
           <textarea value={state.description} onChange={e => update({ description: e.target.value })} placeholder="Short description shown before the exam starts"
             rows={2} className={inputCls} style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text }} />
           <div>
@@ -334,11 +375,15 @@ function CertificationEditor() {
             </div>
             <p className="text-xs mt-1" style={{ color: C.faint }}>The link students open. Leave blank to keep the current one.</p>
           </div>
-        </div>
+        </div>}
 
         {/* Settings */}
-        <div className="rounded-xl p-5 space-y-5" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
-          <h3 className="text-sm font-semibold">Exam settings</h3>
+        {editorTab === 'settings' && <div className="rounded-2xl p-5 sm:p-7 space-y-6" style={{ background: C.card }}>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Exam setup</p>
+            <h2 className="mt-1 text-lg font-bold">Define the exam rules</h2>
+            <p className="mt-1 text-sm" style={{ color: C.muted }}>Control scoring, time, attempts, security, access, and award visuals.</p>
+          </div>
           <div className="grid grid-cols-2 gap-4">
             <NumField C={C} label="Pass mark (%)" value={state.passmark} min={0} max={100} onChange={v => update({ passmark: v })} />
             <NumField C={C} label="Time limit (minutes, 0 = none)" value={state.timeLimit} min={0} max={600} onChange={v => update({ timeLimit: v })} />
@@ -402,12 +447,14 @@ function CertificationEditor() {
               {state.cohortIds.length === 0 ? 'Available to everyone who is signed in.' : 'Only the selected cohorts can take this certification.'}
             </p>
           </div>
-        </div>
+        </div>}
 
         {/* Skill areas */}
-        <div className="rounded-xl p-5 space-y-4" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+        {editorTab === 'blueprint' && <>
+        <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={{ background: C.card }}>
           <div>
-            <h3 className="text-sm font-semibold">Skill areas</h3>
+            <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Assessment blueprint</p>
+            <h2 className="mt-1 text-lg font-bold">Skills and case studies</h2>
             <p className="text-xs mt-0.5" style={{ color: C.faint }}>Define the skills this certification assesses, then map each question to a skill below.</p>
           </div>
           {state.skillAreas.length > 0 && (
@@ -424,7 +471,7 @@ function CertificationEditor() {
         </div>
 
         {/* Case studies */}
-        <div className="rounded-xl p-5 space-y-4" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+        <div className="rounded-2xl p-5 sm:p-7 space-y-4" style={{ background: C.card }}>
           <div>
             <h3 className="text-sm font-semibold">Case studies</h3>
             <p className="text-xs mt-0.5" style={{ color: C.faint }}>Define a shared scenario, then attach questions to it below. Each attached question shows the scenario alongside it, so several questions can build on one context.</p>
@@ -446,10 +493,16 @@ function CertificationEditor() {
           )}
           <button onClick={addScenario} className="text-xs font-medium flex items-center gap-1" style={{ color: C.cta }}><Plus className="w-3 h-3" /> Add case study</button>
         </div>
+        </>}
 
         {/* Learner resources */}
-        <div className="rounded-xl p-5 space-y-5" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
-          <h3 className="text-sm font-semibold">Learner resources</h3>
+        {editorTab === 'resources' && <>
+        <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={{ background: C.card }}>
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Learner resources</p>
+            <h2 className="mt-1 text-lg font-bold">Prepare learners for success</h2>
+            <p className="mt-1 text-sm" style={{ color: C.muted }}>Publish study materials, a visual poster, and optional practice links.</p>
+          </div>
           <StudyGuideField C={C} url={state.studyGuideUrl} name={state.studyGuideName} published={state.studyGuidePublished}
             onChange={(url, name) => update({ studyGuideUrl: url, studyGuideName: name, ...(url ? {} : { studyGuidePublished: false }) })}
             onPublish={v => update({ studyGuidePublished: v })} />
@@ -465,14 +518,19 @@ function CertificationEditor() {
 
         {/* Courses to complete (shown on the overview's "Complete courses" step) */}
         <PrepItemsField C={C} value={state.prepItems} onChange={items => update({ prepItems: items })} />
+        </>}
 
         {/* Shared playground data -- define tables/datasets once; question playgrounds reuse them */}
-        <SharedPlaygroundField C={C} inputStyle={inputStyle} value={state.playgroundData} onChange={pd => update({ playgroundData: pd })} />
+        {editorTab === 'blueprint' && <SharedPlaygroundField C={C} inputStyle={inputStyle} value={state.playgroundData} onChange={pd => update({ playgroundData: pd })} />}
 
         {/* Questions */}
-        <div>
+        {editorTab === 'questions' && <div className="rounded-2xl p-5 sm:p-7" style={{ background: C.card }}>
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold">Questions <span style={{ color: C.faint }}>({state.questions.length})</span></h3>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Question bank</p>
+              <h2 className="mt-1 text-lg font-bold">Graded exam questions <span style={{ color: C.faint }}>({state.questions.length})</span></h2>
+              <p className="mt-1 text-sm" style={{ color: C.muted }}>Build and reorder the questions used in scored attempts.</p>
+            </div>
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
             <SortableContext items={state.questions.map(q => q.id)} strategy={verticalListSortingStrategy}>
@@ -493,13 +551,14 @@ function CertificationEditor() {
             style={{ border: `1.5px dashed ${C.inputBorder}`, color: C.muted }}>
             <Plus className="w-4 h-4" /> Add question
           </button>
-        </div>
+        </div>}
 
         {/* Practice questions -- a SEPARATE bank used only by practice mode (never the graded exam). */}
-        <div>
+        {editorTab === 'practice' && <div className="rounded-2xl p-5 sm:p-7" style={{ background: C.card }}>
           <div className="mb-3">
-            <h3 className="text-sm font-semibold">Practice questions <span style={{ color: C.faint }}>({state.practiceQuestions.length})</span></h3>
-            <p className="text-xs mt-0.5" style={{ color: C.faint }}>Separate from the exam above. Students run these in Practice mode and see the correct answers and explanations afterwards, so keep them distinct from the real exam questions. Leave empty to hide Practice.</p>
+            <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Practice bank</p>
+            <h2 className="mt-1 text-lg font-bold">Practice questions <span style={{ color: C.faint }}>({state.practiceQuestions.length})</span></h2>
+            <p className="text-sm mt-1" style={{ color: C.muted }}>Students see the correct answers and explanations after practice. These questions never appear in the graded exam. Leave empty to hide Practice.</p>
           </div>
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onPracticeDragEnd}>
             <SortableContext items={state.practiceQuestions.map(q => q.id)} strategy={verticalListSortingStrategy}>
@@ -520,7 +579,45 @@ function CertificationEditor() {
             style={{ border: `1.5px dashed ${C.inputBorder}`, color: C.muted }}>
             <Plus className="w-4 h-4" /> Add practice question
           </button>
-        </div>
+        </div>}
+
+        {editorTab === 'publish' && (
+          <div className="rounded-2xl p-5 sm:p-7 space-y-6" style={{ background: C.card }}>
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>Readiness</p>
+              <h2 className="mt-1 text-lg font-bold">Review before publishing</h2>
+              <p className="mt-1 text-sm" style={{ color: C.muted }}>A quick check of the essentials learners need for a complete certification experience.</p>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[
+                { label: 'Certification identity', detail: state.title.trim() ? state.title : 'Add a title', ready: !!state.title.trim(), tab: 'overview' as EditorTab },
+                { label: 'Exam questions', detail: `${state.questions.length} graded question${state.questions.length === 1 ? '' : 's'}`, ready: state.questions.length > 0, tab: 'questions' as EditorTab },
+                { label: 'Award badge', detail: state.badgeImageUrl ? 'Badge ready' : 'Optional badge not added', ready: !!state.badgeImageUrl, tab: 'settings' as EditorTab },
+                { label: 'Learner preparation', detail: `${state.prepItems.length} prerequisite${state.prepItems.length === 1 ? '' : 's'} · ${state.practiceQuestions.length} practice question${state.practiceQuestions.length === 1 ? '' : 's'}`, ready: state.prepItems.length > 0 || state.practiceQuestions.length > 0, tab: state.practiceQuestions.length ? 'practice' as EditorTab : 'resources' as EditorTab },
+              ].map(item => (
+                <button key={item.label} type="button" onClick={() => setEditorTab(item.tab)} className="flex items-center gap-3 rounded-xl p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: C.input }}>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full" style={{ background: item.ready ? `${C.cta}16` : C.pill, color: item.ready ? C.cta : C.faint }}>
+                    {item.ready ? <Check className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </span>
+                  <span className="min-w-0"><span className="block text-sm font-semibold">{item.label}</span><span className="block truncate text-xs mt-0.5" style={{ color: C.muted }}>{item.detail}</span></span>
+                </button>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 pt-1">
+              <button onClick={() => save('draft')} disabled={saving} className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>Save as draft</button>
+              <button onClick={() => save('published')} disabled={saving} className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold flex items-center justify-center gap-2" style={{ background: C.cta, color: C.ctaText }}>
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Publish certification
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="fixed bottom-5 right-4 sm:right-6 z-30 flex items-center gap-2 rounded-2xl p-2" style={{ background: C.card, boxShadow: '0 16px 50px rgba(15,23,42,0.20)' }}>
+        <button onClick={() => save('draft')} disabled={saving} className="rounded-xl px-3.5 py-2.5 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>Save draft</button>
+        <button onClick={() => save('published')} disabled={saving} className="rounded-xl px-4 py-2.5 text-sm font-semibold flex items-center gap-2" style={{ background: C.cta, color: C.ctaText }}>
+          {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />} Publish
+        </button>
       </div>
 
       {picking && (
@@ -631,7 +728,7 @@ function PrepItemsField({ C, value, onChange }: {
   );
 
   return (
-    <div className="rounded-xl p-5 space-y-4" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+    <div className="space-y-4 pt-2">
       <div>
         <h3 className="text-sm font-semibold">Courses to prepare for the exam</h3>
         <p className="text-xs mt-0.5" style={{ color: C.faint }}>Attach the courses or learning paths that build the skills for this certification. They appear on the certification page under &quot;Complete courses&quot; as cards with a hover preview.</p>
@@ -642,7 +739,7 @@ function PrepItemsField({ C, value, onChange }: {
           {value.map(p => {
             const o = byId[p.id];
             return (
-              <div key={`${p.type}:${p.id}`} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}>
+              <div key={`${p.type}:${p.id}`} className="flex items-center gap-3 p-2 rounded-lg" style={{ background: C.pill }}>
                 <Thumb o={o ?? (p as any)} size={48} />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium truncate" style={{ color: C.text }}>{o?.title ?? (loading ? 'Loading...' : 'No longer published')}</p>
@@ -660,8 +757,8 @@ function PrepItemsField({ C, value, onChange }: {
       </button>
 
       {open && (
-        <div className="rounded-lg p-3 space-y-2" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}>
-          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-md" style={{ background: C.card }}>
+        <div className="pt-3 space-y-2" style={{ borderTop: `1px solid ${C.divider}` }}>
+          <div className="flex items-center gap-2 px-3 py-2.5 rounded-lg" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}>
             <Search className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }} />
             <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search courses and paths" className="flex-1 bg-transparent text-sm outline-none" style={{ color: C.text }} />
           </div>

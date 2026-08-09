@@ -40,18 +40,26 @@ export function GlossaryEditorPanel({
     setDetails((current) => ({ ...current, [key]: value }));
   };
 
+  const saveDetails = () => {
+    if (details.definition.trim()) onSave({
+      definition: details.definition.trim(),
+      pronunciation: details.pronunciation.trim(),
+      example: details.example.trim(),
+      learnMoreUrl: details.learnMoreUrl.trim(),
+    });
+  };
+
   return (
-    <form
+    <div
+      role="group"
+      aria-label={`Define ${term || 'selected term'}`}
       className={`lesson-glossary-editor${dark ? ' dark' : ''}`}
       style={{ '--lesson-accent-base': accentColor } as React.CSSProperties}
-      onSubmit={(event) => {
+      onKeyDown={(event) => {
+        if (event.key !== 'Enter' || event.target instanceof HTMLTextAreaElement) return;
         event.preventDefault();
-        if (details.definition.trim()) onSave({
-          definition: details.definition.trim(),
-          pronunciation: details.pronunciation.trim(),
-          example: details.example.trim(),
-          learnMoreUrl: details.learnMoreUrl.trim(),
-        });
+        event.stopPropagation();
+        saveDetails();
       }}
     >
       <div className="lesson-glossary-editor__head">
@@ -93,8 +101,8 @@ export function GlossaryEditorPanel({
         {canRemove ? (
           <button type="button" className="lesson-glossary-editor__remove" onClick={onRemove}><Trash2 width={13} height={13} /> Remove term</button>
         ) : <span />}
-        <button type="submit" className="lesson-glossary-editor__save" disabled={!details.definition.trim()}><Check width={14} height={14} /> Save definition</button>
+        <button type="button" className="lesson-glossary-editor__save" disabled={!details.definition.trim()} onClick={saveDetails}><Check width={14} height={14} /> Save definition</button>
       </div>
-    </form>
+    </div>
   );
 }

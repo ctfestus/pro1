@@ -241,12 +241,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ certification: {
         id: cert.id, slug: cert.slug, user_id: cert.user_id,
         config: {
-          title: cert.title, description: cert.description, isCertification: true,
+          title: cert.title, description: cert.description, certType: cert.cert_type, isCertification: true,
           questionCount, practiceCount,
           passmark: cert.passmark, timeLimit: cert.time_limit,
           maxAttempts: cert.max_attempts, retakeCooldownHours: cert.retake_cooldown_hours ?? 24,
           examProtection: cert.exam_protection,
-          coverImage: cert.cover_image, deadline_days: cert.deadline_days,
+          coverImage: cert.cover_image, badgeImageUrl: cert.badge_image_url || null, deadline_days: cert.deadline_days,
           theme: cert.theme, mode: cert.mode, font: cert.font, customAccent: cert.custom_accent,
           // Foundation assets shown on the intro screen. Study guide + poster are gated on their
           // publish flags; skill areas + practice-test link are always visible.
@@ -471,7 +471,7 @@ export async function POST(req: NextRequest) {
             .order('attempt_number', { ascending: false }).limit(1).maybeSingle(),
         ]);
         if (maxAttempts > 0 && (completedCount ?? 0) >= maxAttempts) {
-          return NextResponse.json({ error: 'No attempts remaining.' }, { status: 403 });
+          return NextResponse.json({ error: 'No attempts remaining.', reason: 'no_attempts' }, { status: 403 });
         }
         // Retake cooldown: minimum wait after the previous attempt. Passing is already blocked above,
         // so any prior attempt here is a failed one; the most recent is `last` (attempts are serial).

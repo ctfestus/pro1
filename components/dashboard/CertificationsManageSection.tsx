@@ -6,12 +6,13 @@
 // Delete goes through /api/certifications so Cloudinary covers and cohort_assignments are cleaned up
 // (the cascade handles certification_attempts).
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
-import { Plus, Edit2, Trash2, ExternalLink, ShieldCheck, Clock, Loader2, BarChart3, ChevronDown, ChevronUp, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, ExternalLink, ShieldCheck, Clock, Loader2, BarChart3, ChevronDown, ChevronUp, Download, Search, Layers3 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
+import { resolveCoverUrl } from '@/lib/cloudinary-url';
 
 type Analytics = {
   totalAttempts: number; uniqueStudents: number; passCount: number; passRate: number; avgScore: number;
@@ -62,13 +63,21 @@ export function CertificationsManageSection({ C }: { C: typeof LIGHT_C }) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'published' | 'draft'>('all');
 
   useEffect(() => {
     supabase.from('certifications')
-      .select('id, title, slug, status, passmark, time_limit, max_attempts, created_at')
+      .select('id, title, slug, status, passmark, time_limit, max_attempts, created_at, cover_image, badge_image_url, description, cert_type, questions')
       .order('created_at', { ascending: false })
       .then(({ data }) => { setItems(data ?? []); setLoading(false); });
   }, []);
+
+  const visibleItems = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return items.filter(item => (statusFilter === 'all' || item.status === statusFilter)
+      && (!term || item.title?.toLowerCase().includes(term) || item.description?.toLowerCase().includes(term)));
+  }, [items, query, statusFilter]);
 
   async function remove(id: string) {
     if (!window.confirm('Delete this certification? This cannot be undone.')) return;
@@ -87,18 +96,23 @@ export function CertificationsManageSection({ C }: { C: typeof LIGHT_C }) {
   if (!items.length) return <SectionEmptyState Icon={ShieldCheck} label="certification" createHref="/create/certification" createLabel="New certification" C={C} />;
 
   return (
-    <div>
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-bold" style={{ color: C.text }}>Certifications</h2>
+    <div className="space-y-5">
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
+        <div><p className="text-sm" style={{ color: C.faint }}>Build trusted, skills-based credentials and monitor exam quality.</p><p className="text-xs mt-1" style={{ color: C.faint }}>{items.length} certification{items.length === 1 ? '' : 's'}</p></div>
         <Link href="/create/certification" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
           style={{ background: C.cta, color: C.ctaText }}>
           <Plus className="w-4 h-4" /> New certification
         </Link>
       </div>
-      <div className="space-y-3">
-        {items.map(item => (
+      <div className="flex flex-col sm:flex-row gap-3 p-3 rounded-2xl" style={{ ...cardStyle(C) }}>
+        <div className="relative flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.faint }}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search certifications..." className="w-full rounded-xl pl-10 pr-4 py-2.5 text-sm outline-none" style={{ background: C.input, color: C.text }}/></div>
+        <div className="flex gap-1 p-1 rounded-xl" style={{ background: C.pill }}>{(['all','published','draft'] as const).map(filter => <button key={filter} onClick={() => setStatusFilter(filter)} className="px-3 py-2 rounded-lg text-xs font-semibold capitalize" style={{ background: statusFilter === filter ? C.card : 'transparent', color: statusFilter === filter ? C.green : C.faint }}>{filter}</button>)}</div>
+      </div>
+      <div className="space-y-4">
+        {visibleItems.map(item => (
           <CertRow key={item.id} item={item} C={C} deleting={deletingId === item.id} onDelete={() => remove(item.id)} />
         ))}
+        {visibleItems.length === 0 && <div className="py-16 text-center rounded-2xl" style={{ ...cardStyle(C) }}><Search className="w-6 h-6 mx-auto mb-2" style={{ color: C.faint }}/><p className="text-sm font-semibold" style={{ color: C.text }}>No matching certifications</p><p className="text-xs mt-1" style={{ color: C.faint }}>Try another search or status filter.</p></div>}
       </div>
     </div>
   );
@@ -134,29 +148,40 @@ function CertRow({ item, C, deleting, onDelete }: { item: any; C: typeof LIGHT_C
   }
 
   return (
-    <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
-      <div className="flex items-center justify-between gap-4 p-4">
+    <article className="group rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 p-4 sm:p-5">
+        <div className="flex items-center gap-4 min-w-0 flex-1">
+          <div className="relative w-20 h-16 rounded-xl overflow-hidden flex-shrink-0 grid place-items-center" style={{ background: `${C.green}0d` }}>
+            {item.cover_image
+              ? <img src={resolveCoverUrl(item.cover_image)} alt="" className="absolute inset-0 w-full h-full object-cover"/>
+              : <Layers3 className="w-6 h-6" style={{ color: C.green }}/>
+            }
+            {item.badge_image_url && <span className="absolute bottom-1 right-1 w-7 h-7 rounded-lg grid place-items-center" style={{ background: C.card }}><img src={resolveCoverUrl(item.badge_image_url)} alt="" className="w-5 h-5 object-contain"/></span>}
+          </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
-            <p className="font-semibold text-sm truncate" style={{ color: C.text }}>{item.title}</p>
-            {item.status === 'draft' && <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: 'rgba(251,191,36,0.12)', color: '#f59e0b' }}>DRAFT</span>}
+            <p className="font-bold text-base truncate" style={{ color: C.text }}>{item.title}</p>
+            <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full" style={{ background: item.status === 'published' ? `${C.green}14` : 'rgba(251,191,36,0.12)', color: item.status === 'published' ? C.green : '#f59e0b' }}>{item.status}</span>
           </div>
-          <div className="flex items-center gap-3 mt-1 text-xs" style={{ color: C.faint }}>
+          {item.description && <p className="text-xs mt-1 truncate" style={{ color: C.muted }}>{item.description}</p>}
+          <div className="flex flex-wrap items-center gap-3 mt-2 text-xs" style={{ color: C.faint }}>
             <span>Pass {item.passmark ?? 70}%</span>
             <span className="flex items-center gap-1"><Clock className="w-3 h-3" />{item.time_limit ? `${item.time_limit}m` : 'Untimed'}</span>
             <span>{item.max_attempts ? `${item.max_attempts} attempt${item.max_attempts === 1 ? '' : 's'}` : 'Unlimited'}</span>
+            <span>{Array.isArray(item.questions) ? item.questions.length : 0} questions</span>
           </div>
+        </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <button onClick={toggle} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: open ? C.cta : C.pill, color: open ? C.ctaText : C.muted }} title="Analytics">
             <BarChart3 className="w-3.5 h-3.5" /> Analytics {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
           </button>
-          <Link href={`/${item.slug || item.id}`} target="_blank" className="p-2 rounded-xl" style={{ background: C.pill, color: C.muted }} title="Preview"><ExternalLink className="w-3.5 h-3.5" /></Link>
+          <Link href={`/${item.slug || item.id}`} target="_blank" className="p-2.5 rounded-xl" style={{ background: C.pill, color: C.muted }} title="Preview"><ExternalLink className="w-3.5 h-3.5" /></Link>
           <Link href={`/create/certification?id=${item.id}`} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><Edit2 className="w-3.5 h-3.5" /> Edit</Link>
-          <button onClick={onDelete} disabled={deleting}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+          <button onClick={onDelete} disabled={deleting} aria-label={`Delete ${item.title}`} title="Delete certification"
+            className="w-9 h-9 grid place-items-center rounded-xl"
             style={{ background: C.deleteBg, color: C.deleteText, border: `1px solid ${C.deleteBorder}`, opacity: deleting ? 0.6 : 1 }}>
-            <Trash2 className="w-3.5 h-3.5" /> {deleting ? 'Deleting...' : 'Delete'}
+            {deleting ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>
@@ -171,7 +196,7 @@ function CertRow({ item, C, deleting, onDelete }: { item: any; C: typeof LIGHT_C
           ) : null}
         </div>
       )}
-    </div>
+    </article>
   );
 }
 
