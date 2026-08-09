@@ -115,7 +115,7 @@ export default function CertificationTaker({
   // Platform branding colours, used for the OVERVIEW only (the exam keeps the content `accentColor`):
   // - tenantBrand = Brand Colour (`brand_color`) -> the hero band. The OVERVIEW uses the BRAND color
   // (NOT primary/ocean -- that convention is only for the instructor editor, which mirrors courses).
-  const { brandColor: tenantBrand, primaryColor: tenantPrimary } = useTenant();
+  const { brandColor: tenantBrand, primaryColor: tenantPrimary, orgName, appName } = useTenant();
   // This is a chromeless full-screen surface -- hide global chrome (e.g. the PWA
   // install prompt) for as long as the taker is mounted.
   useEffect(() => {
@@ -667,8 +667,9 @@ export default function CertificationTaker({
       return isDark ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
     };
     const logo = isDark ? (logoDarkUrl || logoUrl) : (logoUrl || logoDarkUrl);
-    // Hero uses the cover image; the poster is a separate resource shown below.
-    const heroVisual = config?.coverImage || '';
+    // Discovery surfaces use the cover. The individual credential hero uses the
+    // awarded badge artwork, with the generated seal below as its fallback.
+    const heroVisual = config?.badgeImageUrl ? resolveCoverUrl(config.badgeImageUrl) : '';
     const title = config?.title || 'Certification';
     const ctaLabel = canResume ? 'Resume exam' : 'Start exam';
     const facts = [
@@ -711,7 +712,34 @@ export default function CertificationTaker({
             0%, 100% { transform: scale(1); box-shadow: 0 0 0 4px ${tint(0.11)}; }
             50% { transform: scale(1.22); box-shadow: 0 0 0 8px ${tint(0.035)}; }
           }
+          @keyframes cert-holo-shift {
+            0%, 100% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+          }
+          @keyframes cert-credential-sweep {
+            0% { transform: translateX(-180%) skewX(-18deg); opacity: 0; }
+            28% { opacity: .48; }
+            100% { transform: translateX(260%) skewX(-18deg); opacity: 0; }
+          }
           .cert-credential-dot { animation: cert-signal-pulse 2.2s ease-in-out infinite; transform-origin: center; }
+          .cert-credential-stage { perspective: 1000px; }
+          .cert-credential-frame { transition: transform .35s ease, box-shadow .35s ease; transform-style: preserve-3d; }
+          .cert-holo-border {
+            position: absolute;
+            inset: 0;
+            z-index: 5;
+            border-radius: 26px;
+            padding: 2px;
+            pointer-events: none;
+            background: linear-gradient(115deg,${signalColor},#38bdf8,#8b5cf6,#f59e0b,${signalColor});
+            background-size: 300% 300%;
+            animation: cert-holo-shift 7s ease-in-out infinite;
+            -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+          }
+          .cert-credential-stage:hover .cert-credential-frame { transform: rotateX(2deg) rotateY(-3deg) translateY(-4px); }
+          .cert-credential-stage:hover .cert-credential-sweep { animation: cert-credential-sweep .95s ease-out; }
           .cert-card { box-shadow: ${isDark ? 'none' : '0 6px 22px rgba(15,23,42,0.065), 0 2px 8px rgba(15,23,42,0.035)'}; transition: transform .2s ease, box-shadow .2s ease; }
           .cert-card:hover { transform: translateY(-4px); box-shadow: ${isDark ? 'none' : '0 12px 34px rgba(15,23,42,0.11)'}; }
           .cert-cta { transition: transform .16s ease, box-shadow .16s ease; }
@@ -725,6 +753,8 @@ export default function CertificationTaker({
           .cert-required-item:hover { transform: translateY(-4px); }
           @media (prefers-reduced-motion: reduce) {
             .cert-credential-dot { animation: none; }
+            .cert-holo-border, .cert-credential-sweep { animation: none; }
+            .cert-credential-stage:hover .cert-credential-frame { transform: none; }
             .cert-card, .cert-cta, .cert-prep-card, .cert-required-item { transition: none; }
             .cert-card:hover, .cert-cta:hover, .cert-prep-card:hover, .cert-required-item:hover { transform: none; }
           }
@@ -788,14 +818,42 @@ export default function CertificationTaker({
             </div>
             {(startError || retakeBlocked) && <p style={{ marginTop: 14, fontSize: 13, color: '#ef4444' }}>{startError || `You can retake this certification on ${retakeWhen}.`}</p>}
           </div>
-          <div className="cert-card" style={{ flex: '0 1 410px', minHeight: isMobile ? 300 : 390, borderRadius: 28, padding: 22, background: isDark ? ov.card : '#ffffff', display: 'grid', placeItems: 'center', overflow: 'hidden', position: 'relative' }}>
-            <div style={{ position: 'absolute', inset: 0, background: `radial-gradient(circle at 72% 18%, ${tint(0.18)}, transparent 42%)`, pointerEvents: 'none' }} />
-            {heroVisual
-              ? <img src={heroVisual} alt="" style={{ position: 'relative', width: '100%', height: '100%', maxHeight: 390, objectFit: 'contain', display: 'block' }} />
-              : <div style={{ position: 'relative', width: isMobile ? 190 : 230, height: isMobile ? 190 : 230, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tint(0.09), border: `2px dotted ${tint(0.42)}` }}>
-                  <div style={{ width: '68%', height: '68%', borderRadius: '50%', display: 'grid', placeItems: 'center', border: `2px solid ${signalColor}`, color: signalColor }}><Award style={{ width: '48%', height: '48%' }} /></div>
-                  <span style={{ position: 'absolute', bottom: '13%', borderRadius: 999, padding: '6px 13px', background: signalColor, color: '#fff', fontSize: 10, fontWeight: 850, letterSpacing: '0.12em', textTransform: 'uppercase' }}>Certified</span>
-                </div>}
+          <div className="cert-credential-stage" style={{ flex: '0 1 420px', minHeight: isMobile ? 350 : 372, display: 'grid', placeItems: 'center', position: 'relative' }}>
+            <div className="cert-credential-frame" style={{ position: 'relative', width: '100%', minHeight: isMobile ? 338 : 356, padding: isMobile ? '24px 20px 22px' : '28px 28px 24px', overflow: 'hidden', borderRadius: 26, background: isDark ? 'linear-gradient(145deg,#24262d 0%,#191a20 72%)' : 'linear-gradient(145deg,#ffffff 0%,#eef2f5 76%)', boxShadow: isDark ? 'inset 0 0 0 2px rgba(255,255,255,0.09)' : '0 22px 58px rgba(15,23,42,0.12), inset 0 0 0 2px rgba(15,23,42,0.065)' }}>
+              <div className="cert-holo-border" />
+              <div style={{ position: 'absolute', inset: 0, opacity: isDark ? 0.24 : 0.32, backgroundImage: `repeating-radial-gradient(ellipse at 86% 22%, transparent 0 9px, ${tint(0.12)} 10px 11px, transparent 12px 17px)`, pointerEvents: 'none' }} />
+              <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 650, color: ov.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orgName || appName || 'AI Skills Africa'}</div>
+                </div>
+                <span style={{ flexShrink: 0, padding: '6px 9px', borderRadius: 999, background: tint(0.1), color: signalColor, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{config?.certType === 'career' ? 'Career' : 'Technology'}</span>
+              </div>
+
+              <div style={{ position: 'relative', zIndex: 2, display: 'grid', gridTemplateColumns: isMobile ? '104px minmax(0,1fr)' : '132px minmax(0,1fr)', gap: isMobile ? 18 : 24, alignItems: 'center', marginTop: isMobile ? 28 : 32 }}>
+                <div style={{ height: isMobile ? 126 : 148, display: 'grid', placeItems: 'center' }}>
+                  {heroVisual
+                    ? <img src={heroVisual} alt={`${title} credential`} style={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }} />
+                    : <div style={{ width: isMobile ? 94 : 116, height: isMobile ? 94 : 116, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `2px solid ${signalColor}`, color: signalColor, background: tint(0.08), boxShadow: `0 0 0 8px ${tint(0.05)}` }}><Award style={{ width: '46%', height: '46%' }} /></div>}
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 9.5, fontWeight: 750, letterSpacing: '0.12em', textTransform: 'uppercase', color: ov.muted }}>Professional certification</div>
+                  <h3 style={{ marginTop: 9, fontSize: isMobile ? 19 : 24, fontWeight: 650, lineHeight: 1.16, letterSpacing: '-0.02em', color: ov.text }}>{title}</h3>
+                  <div style={{ marginTop: 16, width: 38, height: 3, borderRadius: 999, background: signalColor }} />
+                  <p style={{ marginTop: 11, fontSize: 11.5, lineHeight: 1.5, color: ov.muted }}>Recognises demonstrated capability against the certification standard.</p>
+                </div>
+              </div>
+
+              <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: 16, marginTop: isMobile ? 24 : 28 }}>
+                <div>
+                  <div style={{ fontSize: 9, fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: ov.muted }}>Credential status</div>
+                  <div style={{ marginTop: 6, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12.5, fontWeight: 750, color: signalColor }}><CheckCircle2 style={{ width: 15, height: 15 }} />Certified</div>
+                </div>
+                <div style={{ width: 62, height: 62, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `1px solid ${tint(0.4)}`, background: tint(0.08), color: signalColor }}>
+                  <div style={{ width: 46, height: 46, borderRadius: '50%', display: 'grid', placeItems: 'center', border: `1.5px dashed ${signalColor}` }}><CheckCircle2 style={{ width: 22, height: 22 }} /></div>
+                </div>
+              </div>
+              <div className="cert-credential-sweep" style={{ position: 'absolute', zIndex: 4, top: '-20%', bottom: '-20%', left: 0, width: '20%', background: 'linear-gradient(90deg,transparent,rgba(255,255,255,0.45),transparent)', pointerEvents: 'none', opacity: 0 }} />
+            </div>
           </div>
         </motion.section>
 

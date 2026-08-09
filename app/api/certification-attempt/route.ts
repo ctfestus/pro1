@@ -241,12 +241,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ certification: {
         id: cert.id, slug: cert.slug, user_id: cert.user_id,
         config: {
-          title: cert.title, description: cert.description, isCertification: true,
+          title: cert.title, description: cert.description, certType: cert.cert_type, isCertification: true,
           questionCount, practiceCount,
           passmark: cert.passmark, timeLimit: cert.time_limit,
           maxAttempts: cert.max_attempts, retakeCooldownHours: cert.retake_cooldown_hours ?? 24,
           examProtection: cert.exam_protection,
-          coverImage: cert.cover_image, deadline_days: cert.deadline_days,
+          coverImage: cert.cover_image, badgeImageUrl: cert.badge_image_url || null, deadline_days: cert.deadline_days,
           theme: cert.theme, mode: cert.mode, font: cert.font, customAccent: cert.custom_accent,
           // Foundation assets shown on the intro screen. Study guide + poster are gated on their
           // publish flags; skill areas + practice-test link are always visible.
