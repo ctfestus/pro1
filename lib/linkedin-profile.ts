@@ -14,9 +14,9 @@ import { parseLinkedInProfileVanity } from '@/lib/linkedin-post-url';
 /**
  * Merge a LinkedIn profile URL into the signed-in student's `social_links`.
  *
- * Same client-side write onboarding already performs (app/onboarding/page.tsx), so it relies on the
- * same RLS. Existing social links are read and merged rather than replaced -- a blind update here
- * would wipe a student's other socials.
+ * This student-owned client-side write relies on the students own-update RLS policy. Existing social
+ * links are read and merged rather than replaced -- a blind update here would wipe a student's
+ * other socials.
  */
 export async function saveMyLinkedInProfileUrl(
   url: string,

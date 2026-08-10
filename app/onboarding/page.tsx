@@ -1,518 +1,446 @@
-﻿'use client';
+'use client';
 
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useEffect, useState } from 'react';
+import type { CSSProperties } from 'react';
+import { useRouter } from 'next/navigation';
+import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
-import { motion, AnimatePresence } from 'motion/react';
-import {
-  Loader2, ArrowRight, ArrowLeft, Check, Camera,
-  Twitter, Linkedin, Instagram, Globe, Github, Youtube,
-  ChevronDown, MapPin, User, Briefcase, X,
-} from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { sanitizePlainText } from '@/lib/sanitize';
-import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
+import { LinkedInIcon } from '@/components/LinkedInIcon';
 
-// -- Constants ---
-const INDUSTRIES = [
-  'Accounting & Finance', 'Advertising & Marketing', 'Aerospace & Defence',
-  'Agriculture & Farming', 'Architecture & Urban Planning', 'Arts & Entertainment',
-  'Automotive', 'Banking', 'Biotechnology', 'Broadcasting & Media',
-  'Business Consulting', 'Chemical & Materials', 'Civic & Non-Profit',
-  'Civil Engineering', 'Construction & Real Estate', 'Consumer Goods',
-  'Cybersecurity', 'Data & Analytics', 'Design & Creative', 'E-Commerce',
-  'Education & Training', 'Energy & Utilities', 'Environmental Services',
-  'Events & Hospitality', 'Fashion & Apparel', 'Film & Production',
-  'Financial Technology', 'Food & Beverage', 'Gaming & Esports',
-  'Government & Public Sector', 'Healthcare & Medical', 'Human Resources',
-  'Insurance', 'Interior Design', 'Internet of Things', 'Investment',
-  'Law & Legal Services', 'Logistics & Supply Chain', 'Luxury Goods',
-  'Manufacturing', 'Market Research', 'Mining & Resources', 'Music & Audio',
-  'Oil & Gas', 'Pharmaceuticals', 'Photography & Videography',
-  'Product Management', 'Public Relations', 'Publishing & Writing',
-  'Recruitment & Staffing', 'Retail', 'Robotics & Automation',
-  'SaaS & Software', 'Sales & Business Development', 'Science & Research',
-  'Social Impact', 'Sports & Fitness', 'Telecommunications',
-  'Tourism & Travel', 'Transportation', 'UX & Product Design',
-  'Venture Capital & Private Equity', 'Web Development', 'Wellness & Beauty',
+type AnswerKey = 'employment_status' | 'learning_objective' | 'referral_source';
+
+type Answers = Record<AnswerKey, string> & {
+  employment_status_other: string;
+  referral_source_other: string;
+};
+
+type Option = {
+  value: string;
+  label: string;
+  emoji?: string;
+  brand?: 'linkedin' | 'facebook' | 'x' | 'whatsapp';
+};
+
+const EMPLOYMENT_OPTIONS: Option[] = [
+  { value: 'full_time', label: 'Full-time', emoji: '\u{1F4BC}' },
+  { value: 'part_time', label: 'Part-time', emoji: '\u{1F552}' },
+  { value: 'student', label: 'Student', emoji: '\u{1F393}' },
+  { value: 'nss', label: 'National Service (NSS)', emoji: '\u{1F9D1}\u{200D}\u{1F4BC}' },
+  { value: 'unemployed', label: 'Unemployed', emoji: '\u{1F50E}' },
+  { value: 'other', label: 'Other', emoji: '\u{2728}' },
 ];
 
-const SOCIAL_FIELDS = [
-  { key: 'twitter',   label: 'X / Twitter', Icon: Twitter,   placeholder: 'https://x.com/username' },
-  { key: 'linkedin',  label: 'LinkedIn',     Icon: Linkedin,  placeholder: 'https://linkedin.com/in/username' },
-  { key: 'instagram', label: 'Instagram',    Icon: Instagram, placeholder: 'https://instagram.com/username' },
-  { key: 'github',    label: 'GitHub',       Icon: Github,    placeholder: 'https://github.com/username' },
-  { key: 'youtube',   label: 'YouTube',      Icon: Youtube,   placeholder: 'https://youtube.com/@channel' },
-  { key: 'website',   label: 'Website',      Icon: Globe,     placeholder: 'https://yoursite.com' },
+const OBJECTIVE_OPTIONS: Option[] = [
+  { value: 'new_career', label: 'Start a new career', emoji: '\u{1F680}' },
+  { value: 'level_up', label: 'Level up in my current role', emoji: '\u{1F4C8}' },
+  { value: 'transition_to_tech', label: 'Transition into tech', emoji: '\u{1F4BB}' },
+  { value: 'explore_skills', label: 'Explore new skills', emoji: '\u{1F9ED}' },
 ];
 
-const STEPS = [
-  { title: 'Who are you?',    subtitle: 'Tell us your name',                 optional: false },
-  { title: 'Your background', subtitle: 'Help us know you a little better',  optional: true  },
-  { title: 'Profile photo',   subtitle: 'Put a face to your name',           optional: true  },
-  { title: 'Social links',    subtitle: 'Connect your platforms',            optional: true  },
+const REFERRAL_OPTIONS: Option[] = [
+  { value: 'linkedin', label: 'LinkedIn', brand: 'linkedin' },
+  { value: 'facebook', label: 'Facebook', brand: 'facebook' },
+  { value: 'x', label: 'X', brand: 'x' },
+  { value: 'whatsapp', label: 'WhatsApp', brand: 'whatsapp' },
+  { value: 'friend', label: 'A friend or colleague', emoji: '\u{1F91D}' },
+  { value: 'other', label: 'Other', emoji: '\u{2728}' },
 ];
 
-// -- Logo ---
-function Logo() {
+const QUESTION_STEPS: Array<{
+  key: AnswerKey;
+  title: string;
+  subtitle: string;
+  options: Option[];
+}> = [
+  {
+    key: 'employment_status',
+    title: 'What is your current employment status?',
+    subtitle: 'This helps us understand where you are in your career journey.',
+    options: EMPLOYMENT_OPTIONS,
+  },
+  {
+    key: 'learning_objective',
+    title: 'What is your main learning objective?',
+    subtitle: 'Choose the outcome that matters most to you right now.',
+    options: OBJECTIVE_OPTIONS,
+  },
+  {
+    key: 'referral_source',
+    title: 'Where did you hear about us?',
+    subtitle: 'Your answer helps us reach more learners like you.',
+    options: REFERRAL_OPTIONS,
+  },
+];
+
+const EMPTY_ANSWERS: Answers = {
+  employment_status: '',
+  employment_status_other: '',
+  learning_objective: '',
+  referral_source: '',
+  referral_source_other: '',
+};
+
+function SocialBrandIcon({ brand }: { brand: NonNullable<Option['brand']> }) {
+  if (brand === 'linkedin') {
+    return <LinkedInIcon className="h-7 w-7 text-[#0A66C2]" />;
+  }
+
+  if (brand === 'facebook') {
+    return (
+      <svg className="h-7 w-7" viewBox="0 0 24 24" fill="#1877F2" aria-hidden="true">
+        <path d="M24 12.073c0-6.627-5.373-12-12-12S0 5.446 0 12.073c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073Z" />
+      </svg>
+    );
+  }
+
+  if (brand === 'whatsapp') {
+    return (
+      <svg className="h-7 w-7" viewBox="0 0 24 24" fill="#25D366" aria-hidden="true">
+        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413Z" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg className="h-7 w-7 text-black" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231Zm-1.161 17.52h1.833L7.084 4.126H5.117Z" />
+    </svg>
+  );
+}
+
+function Logo({ appName }: { appName: string }) {
   const { logoUrl } = useTenant();
-  return (
-    <div className="flex items-center gap-2">
-      <img src={logoUrl || undefined} alt="" className="h-8 w-auto" />
-    </div>
-  );
+
+  return logoUrl
+    ? (
+      <img src={logoUrl} alt={appName} className="h-11 w-11 rounded-xl object-cover" />
+    )
+    : (
+      <span aria-label={appName} className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#12111a] text-sm font-bold text-white">
+        {appName.slice(0, 1).toUpperCase()}
+      </span>
+    );
 }
 
-// -- Industry dropdown ---
-function IndustrySelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen]       = useState(false);
-  const [query, setQuery]     = useState('');
-  const ref                   = useRef<HTMLDivElement>(null);
-  const inputRef              = useRef<HTMLInputElement>(null);
-
-  const filtered = INDUSTRIES.filter(i => i.toLowerCase().includes(query.toLowerCase()));
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, []);
-
-  useEffect(() => { if (open) setTimeout(() => inputRef.current?.focus(), 50); }, [open]);
-
-  return (
-    <div ref={ref} className="relative">
-      <button type="button" onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-4 py-3 rounded-xl border border-white/20 bg-white/10 text-sm text-left transition-all focus:outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50"
-      >
-        <span style={{ color: value ? '#ffffff' : 'rgba(255,255,255,0.4)' }}>{value || 'Select your industry'}</span>
-        <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: 'rgba(255,255,255,0.5)' }} />
-      </button>
-      <AnimatePresence>
-        {open && (
-          <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.15 }}
-            className="absolute z-50 w-full mt-1 rounded-xl border border-[#e2e4e8] bg-white shadow-xl overflow-hidden">
-            <div className="p-2 border-b border-[#e2e4e8]">
-              <input ref={inputRef} value={query} onChange={e => setQuery(e.target.value)}
-                placeholder="Search industries…"
-                className="w-full px-3 py-2 text-sm rounded-lg bg-[#f5f6f7] border border-[#e2e4e8] outline-none placeholder-[#aaa] text-[#111]"
-              />
-            </div>
-            <div className="max-h-48 overflow-y-auto">
-              {filtered.length === 0
-                ? <p className="text-xs text-[#888] text-center py-4">No match</p>
-                : filtered.map(ind => (
-                  <button key={ind} type="button"
-                    onClick={() => { onChange(ind); setOpen(false); setQuery(''); }}
-                    className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${value === ind ? 'bg-[#f0fdf4] text-[#00bf63] font-medium' : 'text-[#111] hover:bg-[#f5f6f7]'}`}
-                  >{ind}</button>
-                ))
-              }
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-// -- Main page ---
 export default function OnboardingPage() {
   const router = useRouter();
+  const { appName, primaryColor } = useTenant();
+  const brand = primaryColor || '#6d28d9';
 
-  const [step, setStep]     = useState(0); // 0-indexed
+  const [step, setStep] = useState(0);
   const [userId, setUserId] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving]   = useState(false);
-  const [error, setError]     = useState('');
-  const [direction, setDirection] = useState(1); // 1 = forward, -1 = back
-
-  // Step 0 -- identity
+  const [role, setRole] = useState('student');
   const [name, setName] = useState('');
+  const [answers, setAnswers] = useState<Answers>(EMPTY_ANSWERS);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
-  // Step 1 -- background
-  const [bio, setBio]         = useState('');
-  const [country, setCountry] = useState('');
-  const [city, setCity]       = useState('');
-
-  // Step 3 -- socials
-  const [socialLinks, setSocialLinks] = useState<Record<string, string>>({});
-
-  // Step 2 -- avatar
-  const [avatarUrl, setAvatarUrl]             = useState('');
-  const [avatarUploading, setAvatarUploading] = useState(false);
-  const avatarInputRef = useRef<HTMLInputElement>(null);
-
-  // -- Init ---
   useEffect(() => {
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { router.replace('/auth'); return; }
-
-      const { data: p } = await supabase
-        .from('students')
-        .select('full_name, bio, country, city, avatar_url, social_links, onboarding_done, role')
-        .eq('id', session.user.id)
-        .single();
-
-      if (p?.onboarding_done) {
-        router.replace(p.role === 'student' || p.role === 'staff' ? '/student' : '/dashboard');
+      if (!session?.user) {
+        router.replace('/auth');
         return;
       }
 
-      setUserId(session.user.id);
-      if (p?.full_name)    setName(p.full_name);
-      if (p?.bio)          setBio(p.bio);
-      if (p?.country)      setCountry(p.country);
-      if (p?.city)         setCity(p.city);
-      if (p?.avatar_url)   setAvatarUrl(p.avatar_url);
-      if (p?.social_links) setSocialLinks(p.social_links);
+      const { data: student } = await supabase
+        .from('students')
+        .select('full_name, onboarding_done, onboarding_responses, role')
+        .eq('id', session.user.id)
+        .single();
 
+      if (student?.onboarding_done) {
+        router.replace(
+          student.role === 'student' || student.role === 'staff'
+            ? '/student#learning_paths'
+            : '/dashboard',
+        );
+        return;
+      }
+
+      const saved = student?.onboarding_responses as Partial<Answers> | null;
+      setUserId(session.user.id);
+      setRole(student?.role ?? 'student');
+      setName(student?.full_name?.trim() ?? '');
+      setAnswers({
+        employment_status: saved?.employment_status ?? '',
+        employment_status_other: saved?.employment_status_other ?? '',
+        learning_objective: saved?.learning_objective ?? '',
+        referral_source: saved?.referral_source ?? '',
+        referral_source_other: saved?.referral_source_other ?? '',
+      });
       setLoading(false);
     })();
   }, [router]);
 
-  // -- Avatar upload ---
-  const handleAvatarFile = async (file: File) => {
-    if (!file || !userId) return;
-    setAvatarUploading(true);
-    try {
-      const url = await uploadToCloudinary(file, 'avatars');
-      setAvatarUrl(url);
-    } catch { /* ignore */ }
-    setAvatarUploading(false);
+  const responsePayload = (currentAnswers: Answers = answers) => ({
+    version: 1,
+    employment_status: currentAnswers.employment_status || null,
+    employment_status_other: currentAnswers.employment_status === 'other'
+      ? currentAnswers.employment_status_other.trim() || null
+      : null,
+    learning_objective: currentAnswers.learning_objective || null,
+    referral_source: currentAnswers.referral_source || null,
+    referral_source_other: currentAnswers.referral_source === 'other'
+      ? currentAnswers.referral_source_other.trim() || null
+      : null,
+  });
+
+  const saveDraft = async () => {
+    const update = step === 0
+      ? { full_name: name.trim(), onboarding_responses: responsePayload() }
+      : { onboarding_responses: responsePayload() };
+
+    const { error: updateError } = await supabase
+      .from('students')
+      .update(update)
+      .eq('id', userId);
+
+    if (updateError) throw updateError;
   };
 
-  // -- Navigation ---
-  const canProceed = () => {
-    if (step === 0) return name.trim().length >= 2;
-    return true;
+  const completeOnboarding = async () => {
+    const cleanName = name.trim();
+    const { error: updateError } = await supabase
+      .from('students')
+      .update({
+        full_name: cleanName,
+        onboarding_responses: responsePayload(),
+        onboarding_done: true,
+        onboarding_completed_at: new Date().toISOString(),
+      })
+      .eq('id', userId);
+
+    if (updateError) throw updateError;
+
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      fetch('/api/trigger/onboarding', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ name: cleanName }),
+      }).catch(() => {});
+    }
+
+    router.replace(
+      role === 'student' || role === 'staff'
+        ? '/student#learning_paths'
+        : '/dashboard',
+    );
   };
 
-  const go = (delta: number) => {
-    setDirection(delta);
-    setError('');
-    setStep(s => s + delta);
-  };
-
-  const finish = async () => {
+  const advance = async () => {
     setSaving(true);
     setError('');
     try {
-      const { error: updateErr } = await supabase
-        .from('students')
-        .update({
-          full_name:       name.trim() || null,
-          bio:             bio.trim() || null,
-          country:         country.trim() || null,
-          city:            city.trim() || null,
-          avatar_url:      avatarUrl || null,
-          social_links:    socialLinks,
-          onboarding_done: true,
-          onboarding_completed_at: new Date().toISOString(),
-        })
-        .eq('id', userId);
-      if (updateErr) throw updateErr;
-
-      // Trigger onboarding email sequence (fire-and-forget).
-      // The route derives email/userId from the verified token; only the display name is sent.
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.access_token) {
-        fetch('/api/trigger/onboarding', {
-          method:  'POST',
-          headers: {
-            'Content-Type':  'application/json',
-            'Authorization': `Bearer ${session.access_token}`,
-          },
-          body: JSON.stringify({ name: name.trim() || 'there' }),
-        }).catch(() => {});
+      if (step === 3) await completeOnboarding();
+      else {
+        await saveDraft();
+        setStep(current => current + 1);
+        setSaving(false);
       }
-
-      const { data: finalStudent } = await supabase.from('students').select('role').eq('id', userId).single();
-      router.replace(finalStudent?.role === 'student' || finalStudent?.role === 'staff' ? '/student' : '/dashboard');
-    } catch (e: any) {
-      setError(e.message || 'Something went wrong. Please try again.');
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : 'Something went wrong. Please try again.');
       setSaving(false);
     }
   };
 
-  const isLastStep = step === STEPS.length - 1;
+  const moveForward = async () => {
+    if (step === 0 && name.trim().length < 2) {
+      setError('Please enter your full name.');
+      return;
+    }
 
-  // -- Loading ---
+    await advance();
+  };
+
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#1f1bc3] flex items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-white" />
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white">
+        <Loader2 className="h-5 w-5 animate-spin" style={{ color: brand }} />
       </div>
     );
   }
 
-  // -- Step content ---
-  const variants = {
-    enter:  (d: number) => ({ x: d > 0 ? 40 : -40, opacity: 0 }),
-    center: { x: 0, opacity: 1 },
-    exit:   (d: number) => ({ x: d > 0 ? -40 : 40, opacity: 0 }),
-  };
-
-  const inputCls = "w-full px-4 py-3 rounded-xl border border-white/20 bg-white/10 text-sm outline-none focus:ring-2 focus:ring-white/20 focus:border-white/50 transition-all";
-  const labelCls = "block text-[11px] font-semibold uppercase tracking-wider mb-1.5";
+  const question = step > 0 ? QUESTION_STEPS[step - 1] : null;
+  const selectedValue = question ? answers[question.key] : '';
+  const needsEmploymentDetails = question?.key === 'employment_status' && selectedValue === 'other';
+  const needsReferralDetails = question?.key === 'referral_source' && selectedValue === 'other';
+  const needsOtherDetails = needsEmploymentDetails || needsReferralDetails;
+  const otherDetails = needsEmploymentDetails
+    ? answers.employment_status_other
+    : answers.referral_source_other;
+  const canContinue = step === 0
+    ? name.trim().length >= 2
+    : Boolean(selectedValue) && (!needsOtherDetails || otherDetails.trim().length >= 2);
+  const isFinalStep = step === 3;
 
   return (
-    <div className="min-h-screen bg-[#1f1bc3] flex flex-col">
-
-      {/* -- Top bar --- */}
-      <div className="flex items-center justify-between px-6 py-5 border-b border-white/10">
-        <Logo />
-        <span className="text-xs font-medium" style={{ color: '#ffffff' }}>
-          Step {step + 1} of {STEPS.length}
-        </span>
-      </div>
-
-      {/* -- Progress bar --- */}
-      <div className="h-0.5 bg-white/20">
-        <motion.div
-          className="h-full bg-white"
-          animate={{ width: `${((step + 1) / STEPS.length) * 100}%` }}
-          transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-        />
-      </div>
-
-      {/* -- Content --- */}
-      <div className="flex-1 flex items-start justify-center px-6 py-12 overflow-hidden">
-        <div className="w-full max-w-md">
-
-          {/* Step heading */}
-          <AnimatePresence mode="wait" custom={direction}>
-            <motion.div
-              key={`head-${step}`}
-              custom={direction}
-              variants={variants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
-              className="mb-8"
-            >
-              {/* Step dots */}
-              <div className="flex items-center gap-1.5 mb-5">
-                {STEPS.map((_, i) => (
-                  <div key={i} className={`rounded-full transition-all duration-300 ${
-                    i === step ? 'w-6 h-2 bg-white' :
-                    i < step   ? 'w-2 h-2 bg-white/50' :
-                                 'w-2 h-2 bg-white/20'
-                  }`} />
-                ))}
-              </div>
-
-              <h1 className="text-2xl font-bold mb-1" style={{ color: '#ffffff' }}>{STEPS[step].title}</h1>
-              <p className="text-sm" style={{ color: 'rgba(255,255,255,0.8)' }}>{STEPS[step].subtitle}</p>
-            </motion.div>
-          </AnimatePresence>
-
-          {/* Step body */}
-          <AnimatePresence mode="wait" custom={direction}>
-            <motion.div
-              key={`body-${step}`}
-              custom={direction}
-              variants={variants}
-              initial="enter"
-              animate="center"
-              exit="exit"
-              transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
-              className="space-y-4"
-            >
-
-              {/* -- Step 0: Identity --- */}
-              {step === 0 && (
-                <div>
-                  <label className={labelCls} style={{ color: '#ffffff' }}>Full name <span className="normal-case font-normal" style={{ color: '#f87171' }}>required</span></label>
-                  <input
-                    value={name}
-                    onChange={e => setName(sanitizePlainText(e.target.value))}
-                    placeholder="Your full name"
-                    className={inputCls}
-                    style={{ color: '#ffffff' }}
-                  />
-                </div>
-              )}
-
-              {/* -- Step 1: Background --- */}
-              {step === 1 && (
-                <>
-                  <div>
-                    <label className={labelCls} style={{ color: '#ffffff' }}>Bio</label>
-                    <textarea
-                      value={bio}
-                      onChange={e => setBio(sanitizePlainText(e.target.value))}
-                      placeholder="Tell us a little about yourself…"
-                      rows={3}
-                      maxLength={300}
-                      className={`${inputCls} resize-none`}
-                      style={{ color: '#ffffff' }}
-                    />
-                    <p className="mt-1 text-[11px] text-right" style={{ color: 'rgba(255,255,255,0.5)' }}>{bio.length}/300</p>
-                  </div>
-
-                  <div>
-                    <label className={labelCls} style={{ color: '#ffffff' }}>Country</label>
-                    <input
-                      value={country}
-                      onChange={e => setCountry(sanitizePlainText(e.target.value))}
-                      placeholder="e.g. Ghana"
-                      className={inputCls}
-                      style={{ color: '#ffffff' }}
-                    />
-                  </div>
-
-                  <div>
-                    <label className={labelCls} style={{ color: '#ffffff' }}>City</label>
-                    <div className="relative">
-                      <MapPin className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                      <input
-                        value={city}
-                        onChange={e => setCity(sanitizePlainText(e.target.value))}
-                        placeholder="e.g. Accra"
-                        className={`${inputCls} pl-10`}
-                        style={{ color: '#ffffff' }}
-                      />
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* -- Step 2: Avatar --- */}
-              {step === 2 && (
-                <div className="flex flex-col items-center py-4">
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={e => { const f = e.target.files?.[0]; if (f) handleAvatarFile(f); }}
-                  />
-
-                  {/* Avatar circle */}
-                  <button
-                    type="button"
-                    onClick={() => avatarInputRef.current?.click()}
-                    className="relative w-32 h-32 rounded-full overflow-hidden border-4 border-white shadow-xl bg-[#f5f6f7] flex items-center justify-center group transition-all hover:shadow-2xl"
-                  >
-                    {avatarUrl ? (
-                      <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" />
-                    ) : (
-                      <User className="w-12 h-12 text-[#ccc]" />
-                    )}
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-full">
-                      {avatarUploading
-                        ? <Loader2 className="w-6 h-6 text-white animate-spin" />
-                        : <Camera className="w-6 h-6 text-white" />
-                      }
-                    </div>
-                  </button>
-
-                  <p className="mt-5 text-sm font-medium" style={{ color: '#ffffff' }}>
-                    {avatarUrl ? 'Looking good!' : 'Upload a profile photo'}
-                  </p>
-                  <p className="mt-1 text-xs text-center max-w-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
-                    Click the circle to upload. JPG, PNG or GIF. You can change this anytime in settings.
-                  </p>
-
-                  {avatarUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setAvatarUrl('')}
-                      className="mt-4 text-xs transition-colors underline underline-offset-2"
-                      style={{ color: 'rgba(255,255,255,0.6)' }}
-                    >
-                      Remove photo
-                    </button>
-                  )}
-                </div>
-              )}
-
-
-              {/* -- Step 3: Socials --- */}
-              {step === 3 && (
-                <div className="space-y-3">
-                  {SOCIAL_FIELDS.map(({ key, label, Icon, placeholder }) => (
-                    <div key={key}>
-                      <label className={labelCls} style={{ color: '#ffffff' }}>{label}</label>
-                      <div className="relative">
-                        <Icon className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: 'rgba(255,255,255,0.5)' }} />
-                        <input
-                          value={socialLinks[key] ?? ''}
-                          onChange={e => setSocialLinks(prev => ({ ...prev, [key]: sanitizePlainText(e.target.value) }))}
-                          placeholder={placeholder}
-                          className={`${inputCls} pl-10`}
-                          style={{ color: '#ffffff' }}
-                        />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-            </motion.div>
-          </AnimatePresence>
-
-          {/* -- Error --- */}
-          <AnimatePresence>
-            {error && (
-              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
-                className="mt-4 text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl px-4 py-3"
-              >{error}</motion.p>
-            )}
-          </AnimatePresence>
-
-          {/* -- Actions --- */}
-          <div className="mt-8 flex items-center justify-between gap-3">
-            {/* Back */}
+    <div className="grid min-h-[100dvh] grid-rows-[auto_1fr_auto] bg-white text-[#12111a]">
+      <header className="fixed inset-x-0 top-0 z-20 bg-white/95 backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-[96rem] items-center gap-4 px-4 pb-7 pt-[calc(1.75rem+env(safe-area-inset-top))] sm:gap-5 sm:px-10 lg:px-16">
+          {step > 0 ? (
             <button
               type="button"
-              onClick={() => go(-1)}
-              disabled={step === 0}
-              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm hover:bg-white/10 disabled:opacity-0 disabled:pointer-events-none transition-all"
-              style={{ color: '#ffffff' }}
+              aria-label="Go back"
+              onClick={() => {
+                setStep(current => current - 1);
+                setError('');
+              }}
+              disabled={saving}
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#4e4a55] transition-colors hover:bg-[#f7f7f8] disabled:opacity-40"
             >
-              <ArrowLeft className="w-4 h-4" /> Back
+              <ArrowLeft className="h-4 w-4" />
             </button>
+          ) : (
+            <span className="h-10 w-10 shrink-0" aria-hidden="true" />
+          )}
+          <div className="h-3 flex-1 overflow-hidden rounded-full bg-[#efeff1]">
+            <div
+              className="h-full rounded-full transition-[width] duration-300 ease-out"
+              style={{ width: `${((step + 1) / 4) * 100}%`, background: brand }}
+            />
+          </div>
+          <div className="shrink-0">
+            <Logo appName={appName} />
+          </div>
+        </div>
+      </header>
 
-            <div className="flex items-center gap-2">
-              {/* Skip (optional steps only) */}
-              {STEPS[step].optional && (
-                <button
-                  type="button"
-                  onClick={() => isLastStep ? finish() : go(1)}
-                  disabled={saving}
-                  className="px-4 py-2.5 rounded-xl text-sm hover:bg-white/10 transition-all"
-                  style={{ color: '#ffffff' }}
-                >
-                  Skip
-                </button>
-              )}
-
-              {/* Continue / Finish */}
-              <button
-                type="button"
-                onClick={() => isLastStep ? finish() : go(1)}
-                disabled={!canProceed() || saving}
-                className="flex items-center gap-2 px-6 py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed hover:brightness-105 active:scale-[0.98]"
-                style={{ background: '#ADEE66', color: '#004d1a' }}
-              >
-                {saving ? (
-                  <><Loader2 className="w-4 h-4 animate-spin" /> Saving…</>
-                ) : isLastStep ? (
-                  <><Check className="w-4 h-4" /> Finish setup</>
-                ) : (
-                  <>Continue <ArrowRight className="w-4 h-4" /></>
-                )}
-              </button>
-            </div>
+      <main className="flex items-start justify-center px-4 pb-32 pt-[calc(7rem+env(safe-area-inset-top))] sm:px-8 sm:pb-36">
+        <div className="w-full max-w-4xl">
+          <div className="mb-10 text-center">
+            <h1 className="text-2xl font-bold tracking-[-0.03em] sm:whitespace-nowrap sm:text-3xl">
+              {step === 0 ? 'What should we call you?' : question?.title}
+            </h1>
+            <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-[#6d6975]">
+              {step === 0
+                ? 'Enter your full name exactly as you want it to appear on your certificates.'
+                : question?.subtitle}
+            </p>
           </div>
 
+          {step === 0 ? (
+            <div>
+              <label htmlFor="full-name" className="mb-2 block text-sm font-semibold text-[#34313b]">
+                Full name
+              </label>
+              <input
+                id="full-name"
+                value={name}
+                onChange={event => {
+                  setName(sanitizePlainText(event.target.value));
+                  setError('');
+                }}
+                placeholder="Enter your full name"
+                autoFocus={!name}
+                autoComplete="name"
+                className="h-16 w-full rounded-2xl border border-[#d8d6dc] bg-white px-5 text-base font-medium outline-none transition-all placeholder:font-normal placeholder:text-[#aaa7b0] hover:border-[#aaa7b0] focus:ring-4"
+                style={{ '--tw-ring-color': `${brand}20`, borderColor: error ? '#ef4444' : undefined } as CSSProperties}
+              />
+            </div>
+          ) : (
+            <div className="mx-auto grid w-full max-w-3xl gap-4 sm:grid-cols-2">
+              {question?.options.map(option => {
+                const selected = selectedValue === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => {
+                      setAnswers(current => ({ ...current, [question.key]: option.value }));
+                      setError('');
+                    }}
+                    aria-pressed={selected}
+                    className="flex min-h-18 items-center gap-4 rounded-2xl border bg-white px-5 py-3.5 text-left text-base font-medium transition-all hover:border-[#aaa7b0] hover:shadow-sm"
+                    style={selected ? { borderColor: brand, borderWidth: 3, background: `${brand}08` } : { borderColor: '#dedce2' }}
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center text-3xl" aria-hidden="true">
+                      {option.brand ? <SocialBrandIcon brand={option.brand} /> : option.emoji}
+                    </span>
+                    <span className="flex-1">{option.label}</span>
+                    {selected && (
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full text-white" style={{ background: brand }}>
+                        <Check className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {needsOtherDetails && (
+            <div className="mx-auto mt-5 w-full max-w-3xl">
+              <label htmlFor="other-details" className="mb-2 block text-sm font-semibold text-[#34313b]">
+                Please specify
+              </label>
+              <input
+                id="other-details"
+                value={otherDetails}
+                onChange={event => {
+                  const value = sanitizePlainText(event.target.value);
+                  setAnswers(current => needsEmploymentDetails
+                    ? { ...current, employment_status_other: value }
+                    : { ...current, referral_source_other: value });
+                  setError('');
+                }}
+                placeholder={needsEmploymentDetails ? 'Enter your employment status' : 'Tell us where you heard about us'}
+                autoFocus
+                className="h-14 w-full rounded-xl border border-[#d8d6dc] bg-white px-4 text-sm font-medium outline-none transition-all placeholder:font-normal placeholder:text-[#aaa7b0] hover:border-[#aaa7b0] focus:ring-4"
+                style={{ '--tw-ring-color': `${brand}20` } as CSSProperties}
+              />
+            </div>
+          )}
+
+          {error && (
+            <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </p>
+          )}
         </div>
-      </div>
+      </main>
+
+      <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-[#e7e5e9] bg-white/95 backdrop-blur-sm">
+        <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:gap-4 sm:px-10 sm:py-6 lg:px-16">
+          <div className="min-w-0">
+            {step === 0 ? (
+              <span className="hidden text-sm text-[#8a8791] sm:inline">Your profile can be completed later.</span>
+            ) : (
+              <button
+                type="button"
+                onClick={advance}
+                disabled={saving}
+                className="whitespace-nowrap rounded-xl px-2 py-3 text-sm font-semibold text-[#66626d] transition-colors hover:text-[#12111a] disabled:opacity-40"
+              >
+                Skip for now
+              </button>
+            )}
+          </div>
+
+          <div className="flex shrink-0 items-center gap-3">
+            <button
+              type="button"
+              onClick={moveForward}
+              disabled={!canContinue || saving}
+              className="flex h-14 min-w-32 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-semibold text-white transition-all hover:brightness-90 disabled:cursor-not-allowed disabled:bg-[#efeff1] disabled:text-[#b6b3ba] sm:min-w-40 sm:px-7"
+              style={canContinue && !saving ? { background: brand } : undefined}
+            >
+              {saving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <>{isFinalStep ? 'Start learning' : 'Continue'} <ArrowRight className="h-4 w-4" /></>
+              )}
+            </button>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
