@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { CSSProperties } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Check, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
+import { useC } from '@/lib/theme';
 import { sanitizePlainText } from '@/lib/sanitize';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 
@@ -112,13 +113,14 @@ function SocialBrandIcon({ brand }: { brand: NonNullable<Option['brand']> }) {
 
 function Logo({ appName }: { appName: string }) {
   const { logoUrl } = useTenant();
+  const C = useC();
 
   return logoUrl
     ? (
-      <img src={logoUrl} alt={appName} className="h-11 w-11 rounded-xl object-cover" />
+      <img src={logoUrl} alt={appName} className="h-11 w-auto" />
     )
     : (
-      <span aria-label={appName} className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#12111a] text-sm font-bold text-white">
+      <span aria-label={appName} className="flex h-11 w-11 items-center justify-center text-sm font-bold" style={{ background: C.cta, color: '#fff' }}>
         {appName.slice(0, 1).toUpperCase()}
       </span>
     );
@@ -126,8 +128,9 @@ function Logo({ appName }: { appName: string }) {
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { appName, primaryColor } = useTenant();
-  const brand = primaryColor || '#6d28d9';
+  const { appName } = useTenant();
+  const C = useC();
+  const brand = C.cta;
 
   const [step, setStep] = useState(0);
   const [userId, setUserId] = useState('');
@@ -260,14 +263,6 @@ export default function OnboardingPage() {
     await advance();
   };
 
-  if (loading) {
-    return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-white">
-        <Loader2 className="h-5 w-5 animate-spin" style={{ color: brand }} />
-      </div>
-    );
-  }
-
   const question = step > 0 ? QUESTION_STEPS[step - 1] : null;
   const selectedValue = question ? answers[question.key] : '';
   const needsEmploymentDetails = question?.key === 'employment_status' && selectedValue === 'other';
@@ -281,9 +276,26 @@ export default function OnboardingPage() {
     : Boolean(selectedValue) && (!needsOtherDetails || otherDetails.trim().length >= 2);
   const isFinalStep = step === 3;
 
+  const otherInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!needsOtherDetails) return;
+    // The fixed header/footer bars mean a native focus-scroll can still leave this field
+    // partly hidden behind them on a short laptop viewport, so scroll it to the middle first.
+    otherInputRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    otherInputRef.current?.focus({ preventScroll: true });
+  }, [needsOtherDetails]);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[100dvh] items-center justify-center" style={{ background: C.page }}>
+        <Loader2 className="h-5 w-5 animate-spin" style={{ color: brand }} />
+      </div>
+    );
+  }
+
   return (
-    <div className="grid min-h-[100dvh] grid-rows-[auto_1fr_auto] bg-white text-[#12111a]">
-      <header className="fixed inset-x-0 top-0 z-20 bg-white/95 backdrop-blur-sm">
+    <div className="grid min-h-[100dvh] grid-rows-[auto_1fr_auto]" style={{ background: C.page, color: C.text }}>
+      <header className="fixed inset-x-0 top-0 z-20 backdrop-blur-sm" style={{ background: C.nav }}>
         <div className="mx-auto flex w-full max-w-[96rem] items-center gap-4 px-4 pb-7 pt-[calc(1.75rem+env(safe-area-inset-top))] sm:gap-5 sm:px-10 lg:px-16">
           {step > 0 ? (
             <button
@@ -294,14 +306,15 @@ export default function OnboardingPage() {
                 setError('');
               }}
               disabled={saving}
-              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[#4e4a55] transition-colors hover:bg-[#f7f7f8] disabled:opacity-40"
+              className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full transition-opacity hover:opacity-70 disabled:opacity-40"
+              style={{ color: C.muted }}
             >
               <ArrowLeft className="h-4 w-4" />
             </button>
           ) : (
             <span className="h-10 w-10 shrink-0" aria-hidden="true" />
           )}
-          <div className="h-3 flex-1 overflow-hidden rounded-full bg-[#efeff1]">
+          <div className="h-3 flex-1 overflow-hidden rounded-full" style={{ background: C.skeleton }}>
             <div
               className="h-full rounded-full transition-[width] duration-300 ease-out"
               style={{ width: `${((step + 1) / 4) * 100}%`, background: brand }}
@@ -319,7 +332,7 @@ export default function OnboardingPage() {
             <h1 className="text-2xl font-bold tracking-[-0.03em] sm:whitespace-nowrap sm:text-3xl">
               {step === 0 ? 'What should we call you?' : question?.title}
             </h1>
-            <p className="mx-auto mt-3 max-w-xl text-base leading-7 text-[#6d6975]">
+            <p className="mx-auto mt-3 max-w-xl text-base leading-7" style={{ color: C.muted }}>
               {step === 0
                 ? 'Enter your full name exactly as you want it to appear on your certificates.'
                 : question?.subtitle}
@@ -328,7 +341,7 @@ export default function OnboardingPage() {
 
           {step === 0 ? (
             <div>
-              <label htmlFor="full-name" className="mb-2 block text-sm font-semibold text-[#34313b]">
+              <label htmlFor="full-name" className="mb-2 block text-sm font-semibold" style={{ color: C.text }}>
                 Full name
               </label>
               <input
@@ -341,8 +354,13 @@ export default function OnboardingPage() {
                 placeholder="Enter your full name"
                 autoFocus={!name}
                 autoComplete="name"
-                className="h-16 w-full rounded-2xl border border-[#d8d6dc] bg-white px-5 text-base font-medium outline-none transition-all placeholder:font-normal placeholder:text-[#aaa7b0] hover:border-[#aaa7b0] focus:ring-4"
-                style={{ '--tw-ring-color': `${brand}20`, borderColor: error ? '#ef4444' : undefined } as CSSProperties}
+                className="h-16 w-full rounded-2xl border px-5 text-base font-medium outline-none transition-all placeholder:font-normal focus:ring-4"
+                style={{
+                  background: C.input,
+                  color: C.text,
+                  borderColor: error ? C.errorText : C.inputBorder,
+                  '--tw-ring-color': `${brand}20`,
+                } as CSSProperties}
               />
             </div>
           ) : (
@@ -358,15 +376,17 @@ export default function OnboardingPage() {
                       setError('');
                     }}
                     aria-pressed={selected}
-                    className="flex min-h-18 items-center gap-4 rounded-2xl border bg-white px-5 py-3.5 text-left text-base font-medium transition-all hover:border-[#aaa7b0] hover:shadow-sm"
-                    style={selected ? { borderColor: brand, borderWidth: 3, background: `${brand}08` } : { borderColor: '#dedce2' }}
+                    className="flex min-h-18 items-center gap-4 rounded-2xl border px-5 py-3.5 text-left text-base font-medium transition-all hover:shadow-sm"
+                    style={selected
+                      ? { borderColor: brand, borderWidth: 3, background: `${brand}08` }
+                      : { borderColor: C.cardBorder, background: C.card }}
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center text-3xl" aria-hidden="true">
                       {option.brand ? <SocialBrandIcon brand={option.brand} /> : option.emoji}
                     </span>
                     <span className="flex-1">{option.label}</span>
                     {selected && (
-                      <span className="flex h-6 w-6 items-center justify-center rounded-full text-white" style={{ background: brand }}>
+                      <span className="flex h-6 w-6 items-center justify-center rounded-full" style={{ background: brand, color: '#fff' }}>
                         <Check className="h-3.5 w-3.5" />
                       </span>
                     )}
@@ -378,11 +398,12 @@ export default function OnboardingPage() {
 
           {needsOtherDetails && (
             <div className="mx-auto mt-5 w-full max-w-3xl">
-              <label htmlFor="other-details" className="mb-2 block text-sm font-semibold text-[#34313b]">
+              <label htmlFor="other-details" className="mb-2 block text-sm font-semibold" style={{ color: C.text }}>
                 Please specify
               </label>
               <input
                 id="other-details"
+                ref={otherInputRef}
                 value={otherDetails}
                 onChange={event => {
                   const value = sanitizePlainText(event.target.value);
@@ -392,32 +413,37 @@ export default function OnboardingPage() {
                   setError('');
                 }}
                 placeholder={needsEmploymentDetails ? 'Enter your employment status' : 'Tell us where you heard about us'}
-                autoFocus
-                className="h-14 w-full rounded-xl border border-[#d8d6dc] bg-white px-4 text-sm font-medium outline-none transition-all placeholder:font-normal placeholder:text-[#aaa7b0] hover:border-[#aaa7b0] focus:ring-4"
-                style={{ '--tw-ring-color': `${brand}20` } as CSSProperties}
+                className="h-14 w-full rounded-xl border px-4 text-sm font-medium outline-none transition-all placeholder:font-normal focus:ring-4"
+                style={{
+                  background: C.input,
+                  color: C.text,
+                  borderColor: C.inputBorder,
+                  '--tw-ring-color': `${brand}20`,
+                } as CSSProperties}
               />
             </div>
           )}
 
           {error && (
-            <p role="alert" className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            <p role="alert" className="mt-4 rounded-xl border px-4 py-3 text-sm" style={{ background: C.errorBg, borderColor: C.errorBorder, color: C.errorText }}>
               {error}
             </p>
           )}
         </div>
       </main>
 
-      <footer className="fixed inset-x-0 bottom-0 z-20 border-t border-[#e7e5e9] bg-white/95 backdrop-blur-sm">
+      <footer className="fixed inset-x-0 bottom-0 z-20 border-t backdrop-blur-sm" style={{ background: C.nav, borderColor: C.navBorder }}>
         <div className="mx-auto flex w-full max-w-[96rem] items-center justify-between gap-2 px-4 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-4 sm:gap-4 sm:px-10 sm:py-6 lg:px-16">
           <div className="min-w-0">
             {step === 0 ? (
-              <span className="hidden text-sm text-[#8a8791] sm:inline">Your profile can be completed later.</span>
+              <span className="hidden text-sm sm:inline" style={{ color: C.faint }}>Your profile can be completed later.</span>
             ) : (
               <button
                 type="button"
                 onClick={advance}
                 disabled={saving}
-                className="whitespace-nowrap rounded-xl px-2 py-3 text-sm font-semibold text-[#66626d] transition-colors hover:text-[#12111a] disabled:opacity-40"
+                className="whitespace-nowrap rounded-xl px-2 py-3 text-sm font-semibold transition-opacity hover:opacity-70 disabled:opacity-40"
+                style={{ color: C.muted }}
               >
                 Skip for now
               </button>
@@ -429,8 +455,8 @@ export default function OnboardingPage() {
               type="button"
               onClick={moveForward}
               disabled={!canContinue || saving}
-              className="flex h-14 min-w-32 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-sm font-semibold text-white transition-all hover:brightness-90 disabled:cursor-not-allowed disabled:bg-[#efeff1] disabled:text-[#b6b3ba] sm:min-w-40 sm:px-7"
-              style={canContinue && !saving ? { background: brand } : undefined}
+              className="flex h-14 min-w-32 items-center justify-center gap-2 whitespace-nowrap rounded-xl px-4 text-base font-semibold transition-all hover:brightness-90 disabled:cursor-not-allowed disabled:opacity-40 sm:min-w-40 sm:px-7"
+              style={{ background: brand, color: '#fff' }}
             >
               {saving ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
