@@ -78,6 +78,7 @@ CREATE TABLE public.students (
   cohort_id          uuid        REFERENCES public.cohorts(id) ON DELETE SET NULL,
   original_cohort_id uuid        REFERENCES public.cohorts(id) ON DELETE SET NULL,
   onboarding_done    boolean     NOT NULL DEFAULT false,
+  onboarding_responses jsonb     NOT NULL DEFAULT '{}'::jsonb,
   payment_exempt     boolean     NOT NULL DEFAULT false,
   username           text,
   education          jsonb       DEFAULT '[]'::jsonb,
