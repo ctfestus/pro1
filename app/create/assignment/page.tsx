@@ -862,7 +862,7 @@ export default function CreateAssignmentPage() {
                       <textarea
                         value={context}
                         onChange={e => setContext(e.target.value)}
-                        placeholder="Describe the business scenario or rules the AI should apply when reviewing the spreadsheet…"
+                        placeholder="Describe the business scenario or rules the AI should apply when reviewing the spreadsheet..."
                         style={textareaStyle(C)}
                       />
                     </div>
@@ -899,7 +899,7 @@ export default function CreateAssignmentPage() {
                   placeholder="Paste an image URL or upload" style={{ ...inputStyle(C), flex: '1 1 260px' }}/>
                 <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 46, padding: '10px 14px', borderRadius: 12, border: 'none', background: C.pill, color: C.muted, fontSize: 12, fontWeight: 700, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                  <Upload style={{ width: 14, height: 14 }}/>{coverUploading ? 'Uploading…' : 'Upload'}
+                  <Upload style={{ width: 14, height: 14 }}/>{coverUploading ? 'Uploading...' : 'Upload'}
                 </button>
                 <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
                   style={{ display: 'flex', alignItems: 'center', minHeight: 46, padding: '10px 13px', borderRadius: 12, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
@@ -952,10 +952,10 @@ export default function CreateAssignmentPage() {
                 </div>
               ) : (
                 [
-                  { label: 'Scenario', value: scenario, setter: setScenario, placeholder: 'Describe the background context…' },
-                  { label: 'Brief', value: brief, setter: setBrief, placeholder: 'Summarise the assignment…' },
-                  { label: 'Tasks', value: tasks, setter: setTasks, placeholder: 'List the tasks students must complete…' },
-                  { label: 'Requirements', value: requirements, setter: setRequirements, placeholder: 'List any requirements or constraints…' },
+                  { label: 'Scenario', value: scenario, setter: setScenario, placeholder: 'Describe the background context...' },
+                  { label: 'Brief', value: brief, setter: setBrief, placeholder: 'Summarise the assignment...' },
+                  { label: 'Tasks', value: tasks, setter: setTasks, placeholder: 'List the tasks students must complete...' },
+                  { label: 'Requirements', value: requirements, setter: setRequirements, placeholder: 'List any requirements or constraints...' },
                 ].map(({ label, value, setter, placeholder }) => (
                   <div key={label} style={{ ...fieldGroupStyle, marginBottom: 12 }}>
                     <label style={labelStyle(C)}>{label}</label>
@@ -1001,7 +1001,7 @@ export default function CreateAssignmentPage() {
                     onChange={e => updateResource(resource.id, 'name', sanitizePlainText(e.target.value))}
                     style={{ ...inputStyle(C), width: '100%' }} maxLength={200}/>
                   <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                    <input type="url" placeholder={resource.resource_type === 'file' ? 'Upload a file or paste URL…' : 'https://…'} value={resource.url}
+                    <input type="url" placeholder={resource.resource_type === 'file' ? 'Upload a file or paste URL...' : 'https://...'} value={resource.url}
                       onChange={e => updateResource(resource.id, 'url', e.target.value)}
                       style={{ ...inputStyle(C), width: '100%', flex: 1 }}/>
                     {resource.resource_type === 'file' && (
@@ -1011,7 +1011,7 @@ export default function CreateAssignmentPage() {
                         <button type="button" onClick={() => resourceFileRefs.current[resource.id]?.click()} disabled={resourceUploading[resource.id]}
                           style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 44, padding: '9px 12px', borderRadius: 11, border: 'none', background: C.pill, color: C.muted, fontSize: 11.5, fontWeight: 700, cursor: resourceUploading[resource.id] ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
                           {resourceUploading[resource.id] ? <Loader2 style={{ width: 12, height: 12 }} className="animate-spin"/> : <Upload style={{ width: 12, height: 12 }}/>}
-                          {resourceUploading[resource.id] ? 'Uploading…' : 'Upload'}
+                          {resourceUploading[resource.id] ? 'Uploading...' : 'Upload'}
                         </button>
                       </>
                     )}
@@ -1245,7 +1245,7 @@ export default function CreateAssignmentPage() {
             ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin"/>
             : <Save style={{ width: 15, height: 15 }}/>
           }
-          {loading ? 'Saving…' : editId ? 'Update assignment' : status === 'draft' ? 'Save draft' : 'Publish'}
+          {loading ? 'Saving...' : editId ? 'Update assignment' : status === 'draft' ? 'Save draft' : 'Publish'}
         </motion.button>
       </div>
 

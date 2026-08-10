@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "test": "vitest run",
+    "check:chars": "node scripts/check-user-visible-ascii.mjs",
+    "check:chars:all": "node scripts/check-user-visible-ascii.mjs --all",
+    "test": "node scripts/check-user-visible-ascii.mjs && vitest run",
     "test:watch": "vitest",
     "clean": "next clean"
   },

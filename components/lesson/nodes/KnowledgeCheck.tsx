@@ -76,7 +76,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
         <NodeTextInput
           className="lesson-check__q-input"
           value={question}
-          placeholder="Ask a clear question…"
+          placeholder="Ask a clear question..."
           onCommit={(v) => updateAttributes({ question: v })}
         />
         <div className="lesson-check__options">
@@ -127,7 +127,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
           multiline
           className="lesson-check__explain-input"
           value={explanation}
-          placeholder="Explain why the correct answer is right (shown after answering)…"
+          placeholder="Explain why the correct answer is right (shown after answering)..."
           onCommit={(v) => updateAttributes({ explanation: v })}
         />
       </NodeViewWrapper>

@@ -146,7 +146,7 @@ export default function AiStructuredReviewReport({
             { label: metricLabels.strengths ?? 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e' },
             { label: metricLabels.risks ?? 'Risks', value: errors.length + warnings.length, icon: TriangleAlert, color: '#f59e0b' },
             { label: metricLabels.opportunities ?? 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6' },
-            { label: metricLabels.rubric ?? 'Rubric passed', value: rubricGrades.length ? `${rubricPassed}/${rubricGrades.length}` : '—', icon: CheckCircle2, color: accentColor },
+            { label: metricLabels.rubric ?? 'Rubric passed', value: rubricGrades.length ? `${rubricPassed}/${rubricGrades.length}` : 'N/A', icon: CheckCircle2, color: accentColor },
           ].map(metric => (
             <div key={metric.label} className="flex items-center gap-3 px-4 py-4 sm:px-5" style={{ background: card }}>
               <metric.icon className="h-4 w-4 shrink-0" style={{ color: metric.color }} />
@@ -200,7 +200,7 @@ export default function AiStructuredReviewReport({
         {rubricGrades.length > 0 && (
           <section className="rounded-[22px] p-4 sm:p-5" style={{ background: card, border: `1px solid ${border}` }}>
             <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Rubric signal</p><h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Requirements check</h3></div><span className="text-sm font-bold tabular-nums" style={{ color: text }}>{rubricPassed}<span style={{ color: muted }}>/{rubricGrades.length}</span></span></div>
-            <div className="mt-4 space-y-2">{rubricGrades.map((grade, index) => <div key={index} className="flex items-start gap-2.5 rounded-xl p-3" style={{ background: inner }}><span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] font-bold" style={{ background: grade.passed ? '#22c55e' : isDark ? '#343943' : '#dfe4ea', color: grade.passed ? '#fff' : muted }}>{grade.passed ? '✓' : '–'}</span><div className="min-w-0"><p className="text-[11.5px] font-semibold" style={{ color: text }}>{grade.criterion}</p><p className="mt-1 text-[10.5px] leading-relaxed" style={{ color: muted }}>{grade.comment}</p></div></div>)}</div>
+            <div className="mt-4 space-y-2">{rubricGrades.map((grade, index) => <div key={index} className="flex items-start gap-2.5 rounded-xl p-3" style={{ background: inner }}><span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] font-bold" style={{ background: grade.passed ? '#22c55e' : isDark ? '#343943' : '#dfe4ea', color: grade.passed ? '#fff' : muted }}>{grade.passed ? 'Y' : '-'}</span><div className="min-w-0"><p className="text-[11.5px] font-semibold" style={{ color: text }}>{grade.criterion}</p><p className="mt-1 text-[10.5px] leading-relaxed" style={{ color: muted }}>{grade.comment}</p></div></div>)}</div>
           </section>
         )}
         {categories.length > 0 && (

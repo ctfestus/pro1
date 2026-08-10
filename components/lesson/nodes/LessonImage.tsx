@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Image from '@tiptap/extension-image';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { Crop, Expand, Replace, RotateCcw } from 'lucide-react';
+import { Crop, Expand, Replace, RotateCcw, X } from 'lucide-react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { ImageCropModal } from '@/components/ImageCropModal';
 import {
@@ -15,7 +15,7 @@ import {
 } from '@/components/lesson/nodes/StyleControls';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
-import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
+import { deleteFromCloudinary, isCloudinaryUrl, uploadToCloudinary } from '@/lib/uploadToCloudinary';
 
 type Align = 'left' | 'center' | 'right';
 type Size = 'small' | 'medium' | 'full';
@@ -88,8 +88,10 @@ function ImageView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
   const applyCrop = async (blob: Blob, aspect: number) => {
     setCropError('');
     try {
+      const previousCrop = src && src !== cropSource ? src : '';
       const url = await uploadToCloudinary(new File([blob], 'lesson-image-crop.png', { type: blob.type || 'image/png' }), 'lesson-images');
       updateAttributes({ src: url, originalSrc: cropSource, frame: frameFromAspect(aspect) });
+      if (previousCrop && isCloudinaryUrl(previousCrop)) void deleteFromCloudinary(previousCrop);
       setShowCrop(false);
     } catch (error) {
       setCropError((error as Error).message || 'Could not save the cropped image.');
@@ -106,7 +108,7 @@ function ImageView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
           <div className="lesson-block-corner lesson-image__controls" contentEditable={false}>
             <button type="button" className="lesson-image__control" aria-label="Replace image" title="Replace image" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowLibrary(true)}><Replace width={14} height={14} /></button>
             <button type="button" className="lesson-image__control" aria-label="Crop image" title="Crop image" onMouseDown={(event) => event.preventDefault()} onClick={() => setShowCrop(true)}><Crop width={14} height={14} /></button>
-            {originalSrc && src !== originalSrc && <button type="button" className="lesson-image__control" aria-label="Restore original image" title="Restore original" onMouseDown={(event) => event.preventDefault()} onClick={() => updateAttributes({ src: originalSrc, frame: 'original' })}><RotateCcw width={14} height={14} /></button>}
+            {originalSrc && src !== originalSrc && <button type="button" className="lesson-image__control" aria-label="Restore original image" title="Restore original" onMouseDown={(event) => event.preventDefault()} onClick={() => { const croppedSrc = src; updateAttributes({ src: originalSrc, frame: 'original' }); if (isCloudinaryUrl(croppedSrc)) void deleteFromCloudinary(croppedSrc); }}><RotateCcw width={14} height={14} /></button>}
             <StyleMenu>
               <MenuRow label="Align">
                 <Segmented<Align> value={align} onChange={(value) => updateAttributes({ align: value })} options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }, { value: 'right', label: 'Right' }]} />
@@ -148,14 +150,14 @@ function ImageView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
 
       {editable && cropError && <span className="lesson-image__error" contentEditable={false}>{cropError}</span>}
       {showLibrary && (
-        <ImageLibrary uploadFolder="lesson-images" initialFolder="lesson-images" onSelect={(url) => { updateAttributes({ src: url, originalSrc: url, frame: 'original' }); setCropError(''); setShowLibrary(false); }} onClose={() => setShowLibrary(false)} />
+        <ImageLibrary uploadFolder="lesson-images" initialFolder="lesson-images" onSelect={(url) => { const previousCrop = originalSrc && src !== originalSrc ? src : ''; updateAttributes({ src: url, originalSrc: url, frame: 'original' }); if (previousCrop && isCloudinaryUrl(previousCrop)) void deleteFromCloudinary(previousCrop); setCropError(''); setShowLibrary(false); }} onClose={() => setShowLibrary(false)} />
       )}
       {showCrop && (
         <ImageCropModal src={cropSource} aspect={cropAspectForFrame(frame)} aspectOptions={CROP_OPTIONS} shape="rect" title="Crop lesson image" onConfirm={applyCrop} onCancel={() => setShowCrop(false)} />
       )}
       {!editable && expanded && createPortal(
         <div className="lesson-image-lightbox" role="dialog" aria-modal="true" aria-label={alt || 'Expanded lesson image'} onMouseDown={(event) => { if (event.target === event.currentTarget) setExpanded(false); }}>
-          <button type="button" className="lesson-image-lightbox__close" aria-label="Close expanded image" onClick={() => setExpanded(false)}>×</button>
+          <button type="button" className="lesson-image-lightbox__close" aria-label="Close expanded image" onClick={() => setExpanded(false)}><X width={18} height={18} /></button>
           <img src={src} alt={alt} />
           {caption && <p>{caption}</p>}
         </div>,

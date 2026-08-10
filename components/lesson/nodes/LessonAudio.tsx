@@ -46,7 +46,7 @@ function AudioView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
             <button type="button" className="lesson-audio__add-transcript" onClick={() => setTranscriptEditing(true)}><Plus width={12} height={12} /> Add transcript</button>
           ) : (
             <div className="lesson-audio__transcript-editor">
-              <NodeTextInput multiline className="lesson-audio__transcript-input" value={transcript} placeholder="Paste or write the audio transcript…" onCommit={(value) => updateAttributes({ transcript: value })} />
+              <NodeTextInput multiline className="lesson-audio__transcript-input" value={transcript} placeholder="Paste or write the audio transcript..." onCommit={(value) => updateAttributes({ transcript: value })} />
               <button type="button" className="lesson-audio__remove-transcript" aria-label="Remove transcript" title="Remove transcript" onClick={() => { updateAttributes({ transcript: '' }); setTranscriptEditing(false); }}><X width={12} height={12} /></button>
             </div>
           )}

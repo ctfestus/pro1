@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { adminClient } from '@/lib/admin-client';
 import { LEGACY_RUNTIME_POINTS_SYSTEM, normalizeFormConfig, normalizePointsSystem } from '@/lib/course-schema';
+import { ExperienceGuideResolutionError, resolveTransferredExperienceGuide } from '@/lib/experience-guide';
 
 export const dynamic = 'force-dynamic';
 
@@ -128,11 +129,32 @@ export async function POST(req: NextRequest) {
     const cfg   = payload.config;
     if (!cfg) return NextResponse.json({ error: 'config required' }, { status: 400 });
     const title = payload.title || cfg.title || 'Synced Virtual Experience';
+    const verifyGuide = async (publishing: boolean) => {
+      try {
+        return await resolveTransferredExperienceGuide({
+          db,
+          ownerId: userId,
+          requestedGuideId: cfg.guideId,
+          publishing,
+        });
+      } catch (error) {
+        if (error instanceof ExperienceGuideResolutionError) {
+          // Only a consent/status block can reach here: a guide ID the destination does not
+          // know is dropped as a transfer artefact. Log and label it so a stopped push reads
+          // as a deliberate consent decision rather than an unreachable destination.
+          console.error(`[sync-receive] guide consent block on "${title}":`, error.message);
+          return NextResponse.json({ error: error.message, code: 'guide_consent_required' }, { status: 400 });
+        }
+        throw error;
+      }
+    };
 
     const { data: existing } = await db
-      .from('virtual_experiences').select('id, slug').eq('user_id', userId).eq('title', title).maybeSingle();
+      .from('virtual_experiences').select('id, slug, status').eq('user_id', userId).eq('title', title).maybeSingle();
 
     if (existing) {
+      const verifiedGuide = await verifyGuide(existing.status === 'published');
+      if (verifiedGuide instanceof NextResponse) return verifiedGuide;
       const { error: upErr } = await db.from('virtual_experiences').update({
         description:    cfg.description ?? null,
         industry:       cfg.industry ?? null,
@@ -147,7 +169,8 @@ export async function POST(req: NextRequest) {
         learn_outcomes: cfg.learnOutcomes ?? [],
         manager_name:   cfg.managerName ?? null,
         manager_title:  cfg.managerTitle ?? null,
-        guide_snapshot: cfg.guideSnapshot ?? null,
+        guide_id:       verifiedGuide.guideId,
+        guide_snapshot: verifiedGuide.snapshot,
         modules:        cfg.modules ?? [],
         dataset:        cfg.dataset ?? null,
         cover_image:    cfg.coverImage ?? null,
@@ -166,6 +189,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ id: existing.id, slug: existing.slug, type: 'virtual_experience', action: 'updated' });
     }
 
+    const verifiedGuide = await verifyGuide(false);
+    if (verifiedGuide instanceof NextResponse) return verifiedGuide;
     let attempt = 0, slug = shortSlug();
     while (attempt < 3) {
       if (attempt > 0) slug = shortSlug();
@@ -188,7 +213,8 @@ export async function POST(req: NextRequest) {
         learn_outcomes: cfg.learnOutcomes ?? [],
         manager_name:   cfg.managerName ?? null,
         manager_title:  cfg.managerTitle ?? null,
-        guide_snapshot: cfg.guideSnapshot ?? null,
+        guide_id:       verifiedGuide.guideId,
+        guide_snapshot: verifiedGuide.snapshot,
         modules:        cfg.modules ?? [],
         dataset:        cfg.dataset ?? null,
         cover_image:    cfg.coverImage ?? null,

@@ -256,7 +256,7 @@ export default function DocumentReviewPlayer({
       <AiStructuredReviewReport
         reportLabel="AI document intelligence"
         title="Your document review"
-        metadata={`Submitted document${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` · Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
+        metadata={`Submitted document${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
         score={result.overallScore}
         summary={result.executiveSummary}
         findings={result.sections.map(section => ({

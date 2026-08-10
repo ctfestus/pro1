@@ -84,7 +84,6 @@ export function LessonContentStyles() {
 .lesson-content.dark th, .lesson-content.dark td { border-color: #3f3f46; }
 .lesson-content.dark th { color: #fafafa; background: var(--cell-bg, color-mix(in oklab, var(--lesson-accent-base) 9%, rgba(255,255,255,0.045))); }
 .lesson-content.dark tbody tr:hover > td { background-color: var(--cell-bg, rgba(255,255,255,0.025)); }
-.lesson-content th[data-cell-align], .lesson-content td[data-cell-align] { text-align: attr(data-cell-align); }
 .lesson-content td[data-cb], .lesson-content th[data-cb] { border-color: var(--cbc, #e4e4e7); }
 .lesson-content.dark td[data-cb], .lesson-content.dark th[data-cb] { border-color: var(--cbc, #3f3f46); }
 .lesson-content td[data-cb="none"], .lesson-content th[data-cb="none"] { border: 0; }
@@ -786,7 +785,7 @@ export function LessonContentStyles() {
 .lesson-content .lesson-flip__side-label { position: absolute; top: 13px; left: 14px; color: #a1a1aa; font-size: 9.5px; font-weight: 800; letter-spacing: 0.11em; line-height: 1; text-transform: uppercase; }
 .lesson-content .lesson-flip__face--back .lesson-flip__side-label { color: var(--lesson-accent-ink); opacity: 0.78; }
 .lesson-content .lesson-flip__front-icon, .lesson-content .lesson-flip__edit-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: 0 0 40px; overflow: hidden; border-radius: 12px; color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
-.lesson-content .lesson-flip__front-icon img, .lesson-content .lesson-flip__edit-icon img { object-fit: contain; padding: 5px; }
+.lesson-content .lesson-flip__front-icon img, .lesson-content .lesson-flip__edit-icon img { display: block; width: 100%; height: 100%; object-fit: contain; padding: 5px; }
 .lesson-content .lesson-flip__text { font-size: 14.5px; line-height: 1.48; }
 .lesson-content .lesson-flip__hint { position: absolute; right: 13px; bottom: 12px; display: inline-flex; align-items: center; gap: 4px; color: #a1a1aa; font-size: 9.5px; font-weight: 650; }
 .lesson-content .lesson-flip__face--back .lesson-flip__hint { color: var(--lesson-accent-ink); opacity: 0.72; }
@@ -1022,7 +1021,7 @@ ${stepReveal}
 .lesson-content .ProseMirror a:not([class]) { color: var(--lesson-accent-ink); font-weight: 620; text-decoration-color: color-mix(in oklab, var(--lesson-accent-base) 48%, transparent); text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; transition: color 0.14s ease, text-decoration-color 0.14s ease; }
 .lesson-content .ProseMirror a:not([class]):hover { color: var(--lesson-accent-strong); text-decoration-color: var(--lesson-accent); }
 .lesson-content .ProseMirror a:not([class]):focus-visible { border-radius: 3px; outline: 2px solid var(--lesson-accent) !important; outline-offset: 2px; }
-.lesson-content .ProseMirror a:not([class])[target="_blank"]::after { content: '↗'; display: inline-block; margin-left: 2px; font-size: 0.78em; line-height: 1; transform: translateY(-0.12em); }
+.lesson-content .ProseMirror a:not([class])[target="_blank"]::after { content: ' [new]'; display: inline-block; margin-left: 2px; font-size: 0.78em; line-height: 1; transform: translateY(-0.12em); }
 
 .lesson-link-editor { padding: 13px 14px 14px; border-bottom: 1px solid rgba(0,0,0,0.07); color: #3f3f46; background: #fafafa; }
 .lesson-link-editor.dark { border-bottom-color: rgba(255,255,255,0.07); color: #d4d4d8; background: rgba(255,255,255,0.025); }

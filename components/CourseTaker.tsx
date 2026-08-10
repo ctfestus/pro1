@@ -3883,7 +3883,7 @@ export function CourseTaker({
                     >
                       <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0" />
                       <span className="flex-1 leading-relaxed">{currentQuestion.hint}</span>
-                      <span className="text-[10px] opacity-60 whitespace-nowrap">Score ×0.9</span>
+                      <span className="text-[10px] opacity-60 whitespace-nowrap">Score x0.9</span>
                     </motion.div>
                   )}
 

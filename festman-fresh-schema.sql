@@ -101,6 +101,30 @@ CREATE TABLE public.students (
 );
 CREATE UNIQUE INDEX idx_students_username_ci ON public.students (lower(username)) WHERE username IS NOT NULL;
 
+-- Reusable public-facing professionals for Virtual Experiences (migration 162)
+CREATE TABLE public.experience_guides (
+  id                   uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  owner_id             uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  linked_user_id       uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
+  source_type          text        NOT NULL DEFAULT 'external'
+                                   CHECK (source_type IN ('external', 'instructor')),
+  full_name            text        NOT NULL,
+  profile_photo_url    text,
+  professional_title   text,
+  company              text,
+  bio                  text,
+  linkedin_url         text,
+  expertise            text[]      NOT NULL DEFAULT '{}',
+  consent_status       text        NOT NULL DEFAULT 'pending'
+                                   CHECK (consent_status IN ('pending', 'confirmed', 'not_required')),
+  status               text        NOT NULL DEFAULT 'active'
+                                   CHECK (status IN ('draft', 'active', 'archived')),
+  created_at           timestamptz NOT NULL DEFAULT now(),
+  updated_at           timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (owner_id, linked_user_id)
+);
+CREATE INDEX experience_guides_owner_idx ON public.experience_guides (owner_id, status);
+
 -- ── forms (registration forms only — courses/events/VEs have own tables) ──
 CREATE TABLE public.forms (
   id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -266,6 +290,8 @@ CREATE TABLE public.virtual_experiences (
   learn_outcomes  text[]      DEFAULT '{}',
   manager_name    text,
   manager_title   text        DEFAULT 'Manager',
+  guide_id        uuid        REFERENCES public.experience_guides(id) ON DELETE SET NULL,
+  guide_snapshot  jsonb,
   dataset         jsonb,
   is_short_course boolean     NOT NULL DEFAULT false,
   badge_image_url text,
@@ -960,6 +986,7 @@ ALTER TABLE public.partners                   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.courses                    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events                     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.virtual_experiences        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.experience_guides           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.data_center_datasets       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assignments                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.assignment_resources       ENABLE ROW LEVEL SECURITY;
@@ -1054,6 +1081,8 @@ CREATE TRIGGER trg_events_updated_at
   BEFORE UPDATE ON public.events FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_virtual_experiences_updated_at
   BEFORE UPDATE ON public.virtual_experiences FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER trg_experience_guides_updated_at
+  BEFORE UPDATE ON public.experience_guides FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_data_center_datasets_updated_at
   BEFORE UPDATE ON public.data_center_datasets FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_assignments_updated_at
@@ -1809,6 +1838,24 @@ CREATE INDEX IF NOT EXISTS idx_courses_partner_id
   WHERE partner_id IS NOT NULL;
 
 -- ── virtual_experiences (migration 100: remove group_ids check; standalone VEs are cohort-only) ──
+-- experience_guides (migrations 162-163)
+CREATE POLICY "Guide owners can read"
+  ON public.experience_guides FOR SELECT TO authenticated
+  USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
+
+CREATE POLICY "Guide owners can insert"
+  ON public.experience_guides FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
+
+CREATE POLICY "Guide owners can update"
+  ON public.experience_guides FOR UPDATE TO authenticated
+  USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()))
+  WITH CHECK ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
+
+CREATE POLICY "Guide owners can delete"
+  ON public.experience_guides FOR DELETE TO authenticated
+  USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
+
 CREATE POLICY "virtual_experiences: participants select"
   ON public.virtual_experiences FOR SELECT
   USING (

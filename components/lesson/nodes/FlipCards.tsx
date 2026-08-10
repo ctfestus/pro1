@@ -7,7 +7,6 @@
 // showing is persisted. The 3D flip + theming live in `.lesson-flip*` CSS.
 
 import { useState } from 'react';
-import Image from 'next/image';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { ArrowDown, ArrowUp, BookOpen, Brain, CalendarDays, Clock3, Code2, Copy, Globe2, HelpCircle, Image as ImageIcon, Lightbulb, MessageCircle, Plus, Puzzle, RefreshCw, Rocket, ShieldCheck, Sparkles, Target, Trash2, TrendingUp, Users, WandSparkles, X, Zap } from 'lucide-react';
@@ -121,7 +120,7 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
               <button type="button" className="lesson-flip__control lesson-flip__remove" disabled={siblingCount <= 1} aria-label={`Delete card ${index + 1}`} title="Delete card" onMouseDown={(event) => event.preventDefault()} onClick={removeSelf}><Trash2 width={13} height={13} /></button>
             </div>
           </div>
-          {(iconUrl || FrontIcon) && <span className="lesson-flip__edit-icon">{iconUrl ? <Image src={iconUrl} alt="" fill sizes="32px" unoptimized /> : FrontIcon && <FrontIcon width={16} height={16} aria-hidden="true" />}</span>}
+          {(iconUrl || FrontIcon) && <span className="lesson-flip__edit-icon">{iconUrl ? <img src={iconUrl} alt="" /> : FrontIcon && <FrontIcon width={16} height={16} aria-hidden="true" />}</span>}
           <NodeTextInput
             multiline
             className="lesson-flip__edit-input"
@@ -163,7 +162,7 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
         <span className="lesson-flip__inner">
           {/* Only the visible face is exposed to assistive tech, so the hidden side (often the answer) is not announced before the learner flips. */}
           <span className="lesson-flip__face lesson-flip__face--front" aria-hidden={flipped}>
-            {(iconUrl || FrontIcon) && <span className="lesson-flip__front-icon">{iconUrl ? <Image src={iconUrl} alt="" fill sizes="40px" unoptimized /> : FrontIcon && <FrontIcon width={21} height={21} aria-hidden="true" />}</span>}
+            {(iconUrl || FrontIcon) && <span className="lesson-flip__front-icon">{iconUrl ? <img src={iconUrl} alt="" /> : FrontIcon && <FrontIcon width={21} height={21} aria-hidden="true" />}</span>}
             <span className="lesson-flip__text">{front}</span>
             <span className="lesson-flip__hint"><RefreshCw width={12} height={12} /> Tap to reveal</span>
           </span>
