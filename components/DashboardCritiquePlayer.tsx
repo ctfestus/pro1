@@ -266,7 +266,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         </div>
         <div className="text-center">
           <p className="text-sm font-semibold" style={{ color: text }}>Drop your dashboard screenshot here</p>
-          <p className="text-xs mt-1" style={{ color: muted }}>or click to browse · PNG or JPG</p>
+          <p className="text-xs mt-1" style={{ color: muted }}>or click to browse | PNG or JPG</p>
         </div>
         {error && <p className="text-xs font-medium text-red-400">{error}</p>}
         <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/jpg" className="hidden"
@@ -289,7 +289,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
           <Loader2 className="w-6 h-6 animate-spin absolute -bottom-1 -right-1" style={{ color: accentColor }} />
         </div>
         <div className="text-center">
-          <p className="text-sm font-semibold" style={{ color: text }}>Analyzing your dashboard…</p>
+          <p className="text-sm font-semibold" style={{ color: text }}>Analyzing your dashboard...</p>
           <p className="text-xs mt-1" style={{ color: muted }}>Detecting elements and generating coaching feedback</p>
         </div>
       </div>
@@ -425,7 +425,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
               {hovered.strengths.length > 0 && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: '#16a34a' }}>
-                    ✓ Effective
+                    Effective
                   </p>
                   <ul className="space-y-1">
                     {hovered.strengths.map((s, i) => (
@@ -442,7 +442,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
               {hovered.weaknesses.length > 0 && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-1.5" style={{ color: '#dc2626' }}>
-                    ✗ Needs Improvement
+                    Needs Improvement
                   </p>
                   <ul className="space-y-1">
                     {hovered.weaknesses.map((w, i) => (
@@ -482,7 +482,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
             </div>
             <div>
               <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-                Score {score.toFixed(1)}/100 · Below the {minScore}/100 minimum -- no point awarded
+                Score {score.toFixed(1)}/100 | Below the {minScore}/100 minimum -- no point awarded
               </p>
               <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>You can continue or try again with a revised dashboard.</p>
             </div>
@@ -492,7 +492,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
             style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}30` }}>
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
             <p className="text-xs font-medium" style={{ color: accentColor }}>
-              {result.elements.length} elements analysed · hover each zone to explore the feedback
+              {result.elements.length} elements analysed | hover each zone to explore the feedback
             </p>
           </div>
         );

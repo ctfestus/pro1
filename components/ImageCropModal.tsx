@@ -3,6 +3,7 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
 import Cropper from 'react-easy-crop';
 import type { Area, MediaSize, Size } from 'react-easy-crop';
+import { X } from 'lucide-react';
 
 interface Props {
   src: string;
@@ -140,7 +141,7 @@ export function ImageCropModal({ src, aspect = 1, aspectOptions, shape = 'round'
         {/* Header */}
         <div style={{ padding: '16px 20px', borderBottom: '1px solid rgba(255,255,255,0.07)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <span style={{ fontSize: 14, fontWeight: 600, color: '#f0f0f0' }}>{title}</span>
-          <button onClick={onCancel} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+          <button onClick={onCancel} aria-label="Close crop editor" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', lineHeight: 1, padding: 4 }}><X width={18} height={18} /></button>
         </div>
 
         {/* Crop area */}
@@ -210,11 +211,11 @@ export function ImageCropModal({ src, aspect = 1, aspectOptions, shape = 'round'
               onChange={e => setZoom(Number(e.target.value))}
               style={{ flex: 1, accentColor: '#10b981' }}
             />
-            <span style={{ fontSize: 11, color: '#888', width: 32, textAlign: 'right', flexShrink: 0 }}>{zoom.toFixed(1)}×</span>
+            <span style={{ fontSize: 11, color: '#888', width: 32, textAlign: 'right', flexShrink: 0 }}>{zoom.toFixed(1)}x</span>
           </div>
 
           {/* Hint */}
-          <p style={{ fontSize: 11, color: '#777', margin: 0 }}>Drag to reposition · pinch or scroll to zoom</p>
+          <p style={{ fontSize: 11, color: '#777', margin: 0 }}>Drag to reposition | pinch or scroll to zoom</p>
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
@@ -229,7 +230,7 @@ export function ImageCropModal({ src, aspect = 1, aspectOptions, shape = 'round'
               disabled={processing}
               style={{ flex: 2, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: processing ? 'wait' : 'pointer', background: '#10b981', border: 'none', color: '#fff', opacity: processing ? 0.6 : 1 }}
             >
-              {processing ? 'Applying…' : 'Apply crop'}
+              {processing ? 'Applying...' : 'Apply crop'}
             </button>
           </div>
         </div>

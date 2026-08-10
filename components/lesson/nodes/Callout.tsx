@@ -109,7 +109,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
         {editable && showAction && (
           <div className="lesson-callout__action-editor" contentEditable={false}>
             <NodeTextInput className="lesson-callout__action-input" value={actionLabel} placeholder="Action label" onCommit={(value) => updateAttributes({ actionLabel: value })} />
-            <NodeTextInput className="lesson-callout__action-input" value={actionUrl} placeholder="https://… or /course/path" onCommit={(value) => updateAttributes({ actionUrl: value })} />
+            <NodeTextInput className="lesson-callout__action-input" value={actionUrl} placeholder="https://... or /course/path" onCommit={(value) => updateAttributes({ actionUrl: value })} />
             <button type="button" className="lesson-callout__remove-action" aria-label="Remove action" title="Remove action" onMouseDown={(event) => { event.preventDefault(); removeAction(); }}><X width={12} height={12} /></button>
           </div>
         )}

@@ -215,7 +215,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
           className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
           style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
           {analyzing
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing…</>
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing...</>
             : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
         </button>
       </div>
@@ -234,7 +234,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       <AiStructuredReviewReport
         reportLabel="AI workbook intelligence"
         title="Your workbook review"
-        metadata={`Excel workbook${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` · Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
+        metadata={`Excel workbook${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
         score={result.overallScore}
         summary={result.executiveSummary}
         findings={result.issues.map(issue => ({ location: issue.cell, severity: issue.severity, title: issue.title, detail: issue.detail, fix: issue.fix }))}
@@ -382,7 +382,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached · {result.overallScore.toFixed(1)}/100 · Required: {minScore}/100
+              Minimum score not reached | {result.overallScore.toFixed(1)}/100 | Required: {minScore}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, update your workbook, and submit another review.</p>
           </div>
@@ -391,7 +391,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
           <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
-            Review complete · {result.issues.length} finding{result.issues.length !== 1 ? 's' : ''} identified
+            Review complete | {result.issues.length} finding{result.issues.length !== 1 ? 's' : ''} identified
           </p>
         </div>
       )}

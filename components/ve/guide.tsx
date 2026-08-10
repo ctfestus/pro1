@@ -36,16 +36,13 @@ export interface GuideTheme {
 /**
  * The guide to show on a public surface, or null.
  *
- * An explicit 'pending' consent status hides the profile: permission to use a real
- * person's name, photo and employer is not on record yet, and discovery surfaces are
- * the most visible place to get that wrong. A snapshot with no status is still shown --
- * every authoring path writes one, so a missing value means older content rather than
- * a refusal.
+ * Public identity fails closed: external profiles require confirmed consent and linked
+ * instructors require the explicit not_required status written by the server.
  */
 export function publicGuide(config: any): GuideSnapshot | null {
   const guide = config?.guideSnapshot;
   if (!guide?.fullName) return null;
-  if (guide.consentStatus === 'pending') return null;
+  if (guide.consentStatus !== 'confirmed' && guide.consentStatus !== 'not_required') return null;
   return guide as GuideSnapshot;
 }
 

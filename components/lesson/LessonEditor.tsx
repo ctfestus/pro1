@@ -163,7 +163,7 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
 
   useEffect(() => {
     if (!editor) return;
-    editor.setEditable(!previewMode);
+    editor.setEditable(!previewMode, false);
   }, [editor, previewMode]);
 
   // Glossary term: preserve the selected range while the compact details panel is

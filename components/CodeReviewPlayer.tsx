@@ -253,7 +253,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
             <div className="flex items-center gap-2">
               <Code2 className="w-3.5 h-3.5" style={{ color: muted }} />
               <span className="text-xs font-semibold" style={{ color: muted }}>
-                {language}{language === 'SQL' ? ` · ${dialect}` : ''}
+                {language}{language === 'SQL' ? ` | ${dialect}` : ''}
               </span>
             </div>
             <div className="flex items-center gap-1" style={{ background: isDark ? '#0a0a0a' : '#e5e7eb', borderRadius: 6, padding: 3 }}>
@@ -276,7 +276,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
             <textarea
               value={code}
               onChange={e => setCode(e.target.value)}
-              placeholder={`Paste your ${language} code here…`}
+              placeholder={`Paste your ${language} code here...`}
               rows={14}
               spellCheck={false}
               className="w-full resize-none outline-none text-[13px] font-mono px-4 py-3"
@@ -327,7 +327,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
           className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
           style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
           {analyzing
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing…</>
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing...</>
             : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
         </button>
       </div>
@@ -368,8 +368,8 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: accentColor }}>AI code intelligence</p>
               <p className="mt-0.5 text-[11px] font-medium" style={{ color: muted }}>
-                {result.language ?? language}{result.language === 'SQL' && result.dialect ? ` · ${result.dialect}` : ''}
-                {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` · Attempt ${reviewsUsed} of ${maxReviews}` : ''}
+                {result.language ?? language}{result.language === 'SQL' && result.dialect ? ` | ${result.dialect}` : ''}
+                {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}
               </p>
             </div>
           </div>
@@ -404,7 +404,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
             { label: 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e' },
             { label: 'Risks', value: errors.length + warnings.length, icon: TriangleAlert, color: '#f59e0b' },
             { label: 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6' },
-            { label: 'Rubric passed', value: rubricTotal ? `${rubricPassed}/${rubricTotal}` : '—', icon: CheckCircle2, color: accentColor },
+            { label: 'Rubric passed', value: rubricTotal ? `${rubricPassed}/${rubricTotal}` : 'N/A', icon: CheckCircle2, color: accentColor },
           ].map(metric => (
             <div key={metric.label} className="flex items-center gap-3 px-4 py-4 sm:px-5" style={{ background: card }}>
               <metric.icon className="h-4 w-4 shrink-0" style={{ color: metric.color }} />
@@ -461,7 +461,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
             <div className="mt-4 space-y-2">
               {result.rubricGrades.map((grade, index) => (
                 <div key={index} className="flex items-start gap-2.5 rounded-xl p-3" style={{ background: reportInner }}>
-                  <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] font-black" style={{ background: grade.passed ? '#22c55e' : isDark ? '#343943' : '#dfe4ea', color: grade.passed ? '#fff' : muted }}>{grade.passed ? '✓' : '–'}</span>
+                  <span className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[9px] font-black" style={{ background: grade.passed ? '#22c55e' : isDark ? '#343943' : '#dfe4ea', color: grade.passed ? '#fff' : muted }}>{grade.passed ? 'Y' : '-'}</span>
                   <div className="min-w-0"><p className="text-[11.5px] font-semibold" style={{ color: text }}>{grade.criterion}</p><p className="mt-1 text-[10.5px] leading-relaxed" style={{ color: muted }}>{grade.comment}</p></div>
                 </div>
               ))}
@@ -507,7 +507,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached · {result.overallScore.toFixed(1)}/100 · Required: {minScore}/100
+              Minimum score not reached | {result.overallScore.toFixed(1)}/100 | Required: {minScore}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, revise your code, and submit another review.</p>
           </div>
@@ -516,7 +516,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
           <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
-            Review complete · {result.issues.length} finding{result.issues.length !== 1 ? 's' : ''} identified
+            Review complete | {result.issues.length} finding{result.issues.length !== 1 ? 's' : ''} identified
           </p>
         </div>
       )}

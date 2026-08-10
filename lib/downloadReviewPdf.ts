@@ -219,36 +219,73 @@ export async function downloadStructuredReviewPdf(data: StructuredReviewPdfData,
         setText(9.5, muted);
         const detailLines = wrap(issue.detail, contentWidth - 40, 9.5);
         const fixLines = issue.fix ? wrap(issue.fix, contentWidth - 64, 9.5) : [];
-        const cardHeight = 48 + titleLines.length * lineHeight(10) + detailLines.length * lineHeight(9.5) + (fixLines.length ? 28 + fixLines.length * lineHeight(9.5) : 0);
-        ensureSpace(cardHeight + 9);
-        const cardTop = y;
-        pdf.setFillColor(...soft);
-        pdf.roundedRect(margin, cardTop, contentWidth, cardHeight, 11, 11, 'F');
-        pdf.setFillColor(...color);
-        pdf.roundedRect(margin + 14, cardTop + 17, 7, 7, 3.5, 3.5, 'F');
-        setText(7, color, 'bold');
-        pdf.text((data.severityLabels?.[issue.severity] ?? issue.severity).toUpperCase(), margin + 30, cardTop + 23);
-        if (issue.lines) {
-          setText(7, muted, 'bold');
-          const location = `${data.locationLabel ?? 'LINE'} ${issue.lines}`;
-          pdf.text(location.length > 48 ? `${location.slice(0, 45)}...` : location, pageWidth - margin - 16, cardTop + 23, { align: 'right' });
+        const titleHeight = titleLines.length * lineHeight(10);
+        const detailLineHeight = lineHeight(9.5);
+        const baseHeight = 48 + titleHeight;
+        let detailIndex = 0;
+        let fixIndex = 0;
+        let firstFragment = true;
+
+        // A single finding can be taller than a page. Split its detail and fix text into
+        // continued cards instead of drawing one oversized card that gets clipped.
+        while (firstFragment || detailIndex < detailLines.length || fixIndex < fixLines.length) {
+          firstFragment = false;
+          const minimumContentHeight = detailIndex < detailLines.length
+            ? detailLineHeight
+            : fixIndex < fixLines.length ? 28 + detailLineHeight : 0;
+          if (pageHeight - footerSpace - y < baseHeight + minimumContentHeight + 9) nextPage();
+          const availableHeight = pageHeight - footerSpace - y - 9;
+          let remainingHeight = availableHeight - baseHeight;
+          const detailStart = detailIndex;
+          const fixStart = fixIndex;
+
+          if (detailIndex < detailLines.length) {
+            const detailCount = Math.max(1, Math.floor(remainingHeight / detailLineHeight));
+            detailIndex = Math.min(detailLines.length, detailIndex + detailCount);
+            remainingHeight -= (detailIndex - detailStart) * detailLineHeight;
+          }
+          if (detailIndex === detailLines.length && fixIndex < fixLines.length && remainingHeight >= 28 + detailLineHeight) {
+            const fixCount = Math.max(1, Math.floor((remainingHeight - 28) / detailLineHeight));
+            fixIndex = Math.min(fixLines.length, fixIndex + fixCount);
+          }
+
+          const detailChunk = detailLines.slice(detailStart, detailIndex);
+          const fixChunk = fixLines.slice(fixStart, fixIndex);
+          const cardHeight = baseHeight
+            + detailChunk.length * detailLineHeight
+            + (fixChunk.length ? 28 + fixChunk.length * detailLineHeight : 0);
+          const cardTop = y;
+          pdf.setFillColor(...soft);
+          pdf.roundedRect(margin, cardTop, contentWidth, cardHeight, 11, 11, 'F');
+          pdf.setFillColor(...color);
+          pdf.roundedRect(margin + 14, cardTop + 17, 7, 7, 3.5, 3.5, 'F');
+          setText(7, color, 'bold');
+          pdf.text((data.severityLabels?.[issue.severity] ?? issue.severity).toUpperCase(), margin + 30, cardTop + 23);
+          if (issue.lines) {
+            setText(7, muted, 'bold');
+            const location = `${data.locationLabel ?? 'LINE'} ${issue.lines}`;
+            pdf.text(location.length > 48 ? `${location.slice(0, 45)}...` : location, pageWidth - margin - 16, cardTop + 23, { align: 'right' });
+          }
+          setText(10, ink, 'bold');
+          pdf.text(titleLines, margin + 30, cardTop + 42, { lineHeightFactor: 1.42 });
+          let detailY = cardTop + 45 + titleHeight;
+          if (detailChunk.length) {
+            setText(9.5, muted);
+            pdf.text(detailChunk, margin + 20, detailY, { lineHeightFactor: 1.42 });
+            detailY += detailChunk.length * detailLineHeight + 8;
+          }
+          if (fixChunk.length) {
+            const fixHeight = 15 + fixChunk.length * detailLineHeight;
+            pdf.setFillColor(...white);
+            pdf.roundedRect(margin + 20, detailY, contentWidth - 40, fixHeight, 8, 8, 'F');
+            setText(6.5, accent, 'bold');
+            pdf.text('RECOMMENDED FIX', margin + 32, detailY + 13);
+            setText(9.5, ink);
+            pdf.text(fixChunk, margin + 32, detailY + 29, { lineHeightFactor: 1.42 });
+          }
+          y += cardHeight + 9;
+          if (detailIndex < detailLines.length || fixIndex < fixLines.length) nextPage();
         }
-        setText(10, ink, 'bold');
-        pdf.text(titleLines, margin + 30, cardTop + 42, { lineHeightFactor: 1.42 });
-        let detailY = cardTop + 45 + titleLines.length * lineHeight(10);
-        setText(9.5, muted);
-        pdf.text(detailLines, margin + 20, detailY, { lineHeightFactor: 1.42 });
-        detailY += detailLines.length * lineHeight(9.5) + 8;
-        if (fixLines.length) {
-          const fixHeight = 15 + fixLines.length * lineHeight(9.5);
-          pdf.setFillColor(...white);
-          pdf.roundedRect(margin + 20, detailY, contentWidth - 40, fixHeight, 8, 8, 'F');
-          setText(6.5, accent, 'bold');
-          pdf.text('RECOMMENDED FIX', margin + 32, detailY + 13);
-          setText(9.5, ink);
-          pdf.text(fixLines, margin + 32, detailY + 29, { lineHeightFactor: 1.42 });
-        }
-        y += cardHeight + 9;
       });
       y += 8;
     }

@@ -160,7 +160,7 @@ export function InteractiveInsertMenu({ editor, dark, accentColor }: { editor: E
           </div>
           <label className="lesson-insert-menu__search">
             <Search width={14} height={14} aria-hidden="true" />
-            <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search interactions…" aria-label="Search interactive content" />
+            <input ref={searchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search interactions..." aria-label="Search interactive content" />
           </label>
           <div className="lesson-insert-menu__results">
             {grouped.map(({ category, items }) => {
@@ -182,7 +182,7 @@ export function InteractiveInsertMenu({ editor, dark, accentColor }: { editor: E
                 </section>
               );
             })}
-            {filtered.length === 0 && <div className="lesson-insert-menu__empty">No interactive elements match “{query}”.</div>}
+            {filtered.length === 0 && <div className="lesson-insert-menu__empty">No interactive elements match &quot;{query}&quot;.</div>}
           </div>
         </div>,
         document.body,

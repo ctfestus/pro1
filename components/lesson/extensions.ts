@@ -111,7 +111,19 @@ class LessonTableView extends TableView {
 
 const LessonTable = Table.extend({
   addAttributes() {
-    return { ...this.parent?.(), caption: { default: '' }, radius: { default: 'square' } };
+    return {
+      ...this.parent?.(),
+      caption: {
+        default: '',
+        parseHTML: (element: HTMLElement) => element.querySelector(':scope > caption')?.textContent || '',
+        renderHTML: () => ({}),
+      },
+      radius: {
+        default: 'square',
+        parseHTML: (element: HTMLElement) => element.getAttribute('data-table-radius') || 'square',
+        renderHTML: (attrs: Record<string, unknown>) => ({ 'data-table-radius': attrs.radius || 'square' }),
+      },
+    };
   },
   renderHTML({ node, HTMLAttributes }) {
     const { colgroup, tableWidth, tableMinWidth } = createColGroup(node, this.options.cellMinWidth);

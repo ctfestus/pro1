@@ -4,6 +4,7 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { LEGACY_RUNTIME_POINTS_SYSTEM, normalizeFormConfig, normalizePointsSystem } from '@/lib/course-schema';
 import { compareResults, SQLResult, SQLTableConfig } from '@/lib/sql-engine';
 import { computeServerSqlResult } from '@/lib/sql-engine-server';
+import { ExperienceGuideResolutionError, resolveTransferredExperienceGuide } from '@/lib/experience-guide';
 
 export const dynamic = 'force-dynamic';
 
@@ -262,11 +263,32 @@ export async function POST(req: NextRequest) {
     if (!cfg) return NextResponse.json({ error: 'config required' }, { status: 400 });
 
     const title = body.title || cfg.title || 'Imported Virtual Experience';
+    const verifyGuide = async (publishing: boolean) => {
+      try {
+        return await resolveTransferredExperienceGuide({
+          db: supabase,
+          ownerId: user.id,
+          requestedGuideId: cfg.guideId,
+          publishing,
+        });
+      } catch (error) {
+        if (error instanceof ExperienceGuideResolutionError) {
+          // Only a consent/status block can reach here: a guide ID this install does not know
+          // is dropped as a transfer artefact. Label it so the importer sees a consent
+          // decision rather than a malformed-file error.
+          console.error(`[content-import] guide consent block on "${title}":`, error.message);
+          return NextResponse.json({ error: error.message, code: 'guide_consent_required' }, { status: 400 });
+        }
+        throw error;
+      }
+    };
 
     if (importMode === 'sync') {
       const { data: existing } = await supabase
-        .from('virtual_experiences').select('id, slug').eq('user_id', user.id).eq('title', title).maybeSingle();
+        .from('virtual_experiences').select('id, slug, status').eq('user_id', user.id).eq('title', title).maybeSingle();
       if (existing) {
+        const verifiedGuide = await verifyGuide(existing.status === 'published');
+        if (verifiedGuide instanceof NextResponse) return verifiedGuide;
         const { error: upErr } = await supabase.from('virtual_experiences').update({
           description:    cfg.description ?? null,
           industry:       cfg.industry ?? null,
@@ -281,7 +303,8 @@ export async function POST(req: NextRequest) {
           learn_outcomes: cfg.learnOutcomes ?? [],
           manager_name:   cfg.managerName ?? null,
           manager_title:  cfg.managerTitle ?? null,
-          guide_snapshot: cfg.guideSnapshot ?? null,
+          guide_id:       verifiedGuide.guideId,
+          guide_snapshot: verifiedGuide.snapshot,
           modules:        cfg.modules ?? [],
           dataset:        cfg.dataset ?? null,
           cover_image:    cfg.coverImage ?? null,
@@ -301,6 +324,8 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    const verifiedGuide = await verifyGuide(false);
+    if (verifiedGuide instanceof NextResponse) return verifiedGuide;
     let attempt = 0, slug = shortSlug();
     while (attempt < 3) {
       if (attempt > 0) slug = shortSlug();
@@ -323,7 +348,8 @@ export async function POST(req: NextRequest) {
         learn_outcomes: cfg.learnOutcomes ?? [],
         manager_name:   cfg.managerName ?? null,
         manager_title:  cfg.managerTitle ?? null,
-        guide_snapshot: cfg.guideSnapshot ?? null,
+        guide_id:       verifiedGuide.guideId,
+        guide_snapshot: verifiedGuide.snapshot,
         modules:        cfg.modules ?? [],
         dataset:        cfg.dataset ?? null,
         cover_image:    cfg.coverImage ?? null,

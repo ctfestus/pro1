@@ -32,24 +32,35 @@ export function usePushStatus(type: string, id: string) {
       setState('done');
       setTimeout(() => setState('idle'), 2500);
     } catch (err: any) {
+      // Failure messages come from the destination platform and are full sentences
+      // ("Permission must be confirmed before publishing..."), so they need longer on
+      // screen than a one-word success confirmation.
       setMsg(err.message || 'Push failed');
       setState('error');
-      setTimeout(() => setState('idle'), 3000);
+      setTimeout(() => setState('idle'), 8000);
     }
   }
   return { state, msg, push };
 }
 
 // Status pill shown on a card thumbnail while/after a push. Renders nothing when idle.
+//
+// A failure carries the destination platform's own sentence (a consent block reads very
+// differently from an unreachable server), so the error state widens into a wrapping,
+// width-bounded block. Pushing and success stay the compact uppercase pill.
 export function PushStatusPill({ state, msg, className = 'top-2 left-2' }: { state: PushState; msg: string; className?: string }) {
   if (state === 'idle') return null;
-  const label = state === 'pushing' ? 'Pushing' : state === 'done' ? msg : 'Failed';
-  const bg = state === 'error' ? 'rgba(239,68,68,0.95)' : state === 'done' ? 'rgba(16,185,129,0.95)' : 'rgba(17,17,17,0.72)';
+  const failed = state === 'error';
+  const bg = failed ? 'rgba(239,68,68,0.95)' : state === 'done' ? 'rgba(16,185,129,0.95)' : 'rgba(17,17,17,0.72)';
+  const shape = failed
+    ? 'max-w-[min(15rem,calc(100%_-_1rem))] items-start rounded-xl px-2 py-1 text-left leading-snug'
+    : 'items-center rounded-full px-2 py-0.5 uppercase tracking-wide whitespace-nowrap';
   return (
-    <div className={`absolute z-10 flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${className}`}
+    <div role="status" aria-live="polite"
+      className={`absolute z-10 flex gap-1 text-[10px] font-bold ${shape} ${className}`}
       style={{ background: bg, color: '#fff' }}>
-      {state === 'pushing' && <Loader2 className="w-3 h-3 animate-spin"/>}
-      {label}
+      {state === 'pushing' && <Loader2 className="w-3 h-3 animate-spin shrink-0"/>}
+      {failed ? (msg || 'Push failed') : state === 'done' ? msg : 'Pushing'}
     </div>
   );
 }
@@ -76,12 +87,21 @@ export function PushButton({ type, id, C }: { type: string; id: string; C: typeo
     } catch (err: any) {
       setMsg(err.message || 'Push failed');
       setState('error');
-      setTimeout(() => setState('idle'), 3000);
+      setTimeout(() => setState('idle'), 8000);
     }
   }
 
-  const label = state === 'pushing' ? '...' : state === 'done' ? msg : state === 'error' ? 'Failed' : 'Push';
-  const color = state === 'done' ? C.green : state === 'error' ? C.deleteText : C.muted;
+  const failed = state === 'error';
+  const label = state === 'pushing' ? '...' : state === 'done' ? msg : failed ? (msg || 'Push failed') : 'Push';
+  const color = state === 'done' ? C.green : failed ? C.deleteText : C.muted;
+  // Idle is a hover hint and stays hover-only. Every other state is driven by the push
+  // itself and must show without a pointer, or a touch operator never learns why a push
+  // stopped. Failures also wrap inside a bounded width instead of running off-screen.
+  const bubble = state === 'idle'
+    ? 'whitespace-nowrap opacity-0 group-hover/push:opacity-100'
+    : failed
+      ? 'w-max max-w-[14rem] text-left leading-snug opacity-100'
+      : 'whitespace-nowrap opacity-100';
 
   return (
     <div className="relative group/push">
@@ -91,7 +111,8 @@ export function PushButton({ type, id, C }: { type: string; id: string; C: typeo
         title="Push to other platform">
         <Send className="w-3.5 h-3.5" />
       </button>
-      <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 rounded text-xs whitespace-nowrap pointer-events-none opacity-0 group-hover/push:opacity-100 transition-opacity z-20"
+      <span role={state === 'idle' ? undefined : 'status'} aria-live={state === 'idle' ? undefined : 'polite'}
+        className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 px-2 py-0.5 rounded text-xs pointer-events-none transition-opacity z-20 ${bubble}`}
         style={{ background: C.text, color: C.page }}>
         {label}
       </span>

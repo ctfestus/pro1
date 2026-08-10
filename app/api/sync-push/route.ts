@@ -145,6 +145,13 @@ export async function POST(req: NextRequest) {
       );
     }
     const result = await res.json();
+    // A coded rejection is the destination deciding not to accept this content (e.g. a guide
+    // whose consent is still pending). Keep its status and code instead of flattening it to
+    // 502, which reads as "destination unreachable" and sends operators after the wrong fault.
+    if (result.error && result.code) {
+      console.error('[sync-push] destination rejected:', result.code, result.error);
+      return NextResponse.json({ error: result.error, code: result.code }, { status: res.status });
+    }
     if (result.error) return NextResponse.json({ error: result.error }, { status: 502 });
     return NextResponse.json(result);
   } catch (err: any) {

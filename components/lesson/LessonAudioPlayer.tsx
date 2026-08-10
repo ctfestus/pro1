@@ -31,7 +31,17 @@ export function LessonAudioPlayer({ src, title, transcript, isDark = false, acce
   const [transcriptOpen, setTranscriptOpen] = useState(false);
   const [failed, setFailed] = useState(false);
 
-  if (!src) return null;
+  if (!src) {
+    if (!editorControls) return null;
+    return (
+      <div className={`lesson-audio-player lesson-audio-player--empty ${className}`.trim()} data-theme={isDark ? 'dark' : 'light'} style={{ '--audio-accent': accentColor } as React.CSSProperties}>
+        <div className="lesson-audio-player__surface">
+          <span className="lesson-audio-player__empty-message">No audio source. Replace or remove this block.</span>
+          <div className="lesson-audio-player__editor">{editorControls}</div>
+        </div>
+      </div>
+    );
+  }
 
   const togglePlayback = async () => {
     const audio = audioRef.current;
@@ -84,9 +94,6 @@ export function LessonAudioPlayer({ src, title, transcript, isDark = false, acce
 
   return (
     <div className={`lesson-audio-player ${className}`.trim()} data-theme={isDark ? 'dark' : 'light'} style={{ '--audio-accent': accentColor } as React.CSSProperties}>
-      <style>{`
-        .lesson-audio-player{--audio-surface:#f4f4f5;--audio-text:#27272a;--audio-muted:#71717a;--audio-track:#d4d4d8;--audio-buffer:#c4c4c8;display:flex;flex-direction:column;gap:7px;width:100%;max-width:560px;color:var(--audio-text);font-family:inherit}.lesson-audio-player[data-theme="dark"],.lesson-content.dark .lesson-audio-player{--audio-surface:rgba(255,255,255,.055);--audio-text:#f4f4f5;--audio-muted:#a1a1aa;--audio-track:#3f3f46;--audio-buffer:#52525b}.lesson-audio-player__surface{display:flex;align-items:center;gap:8px;padding:10px;border-radius:14px;background:var(--audio-surface)}.lesson-audio-player__icon{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex:0 0 28px;padding:0;border:0;border-radius:8px;color:var(--audio-muted);background:transparent;cursor:pointer}.lesson-audio-player__icon:hover{color:var(--audio-text);background:rgba(127,127,127,.09)}.lesson-audio-player__play{width:36px;height:36px;flex-basis:36px;border-radius:11px;color:#fff;background:var(--audio-accent)}.lesson-audio-player__play:hover{color:#fff;background:color-mix(in oklab,var(--audio-accent) 86%,#000)}.lesson-audio-player__main{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.lesson-audio-player__time{display:flex;justify-content:space-between;color:var(--audio-muted);font-size:9.5px;font-variant-numeric:tabular-nums}.lesson-audio-player__range{width:100%;height:4px;margin:0;appearance:none;border-radius:999px;outline:0;cursor:pointer}.lesson-audio-player__range::-webkit-slider-thumb{width:12px;height:12px;appearance:none;border:2px solid var(--audio-surface);border-radius:999px;background:var(--audio-accent);box-shadow:0 1px 4px rgba(0,0,0,.2)}.lesson-audio-player__range::-moz-range-thumb{width:10px;height:10px;border:2px solid var(--audio-surface);border-radius:999px;background:var(--audio-accent)}.lesson-audio-player__volume{display:flex;align-items:center;gap:1px}.lesson-audio-player__volume-range{width:54px}.lesson-audio-player__speed{height:27px;padding:0 4px;border:0;border-radius:7px;outline:0;color:var(--audio-muted);background:transparent;cursor:pointer;font:inherit;font-size:10px;font-weight:700}.lesson-audio-player__speed:hover{color:var(--audio-text);background:rgba(127,127,127,.09)}.lesson-audio-player__editor{display:inline-flex;align-items:center;gap:1px;padding-left:5px;border-left:1px solid rgba(127,127,127,.18)}.lesson-audio-player__caption{color:var(--audio-muted);font-size:12px;line-height:1.5}.lesson-audio-player__transcript-toggle{display:inline-flex;align-items:center;gap:5px;width:fit-content;padding:3px 0;border:0;color:var(--audio-muted);background:transparent;cursor:pointer;font:inherit;font-size:11px;font-weight:650}.lesson-audio-player__transcript-toggle:hover{color:var(--audio-text)}.lesson-audio-player__transcript-toggle svg{transition:transform .18s ease}.lesson-audio-player__transcript-toggle[data-open="true"] svg{transform:rotate(180deg)}.lesson-audio-player__transcript{padding:10px 12px;border-radius:10px;color:var(--audio-muted);background:var(--audio-surface);white-space:pre-wrap;font-size:12px;line-height:1.55}.lesson-audio-player__error{color:#dc2626;font-size:11px}.lesson-audio-player button:focus-visible,.lesson-audio-player select:focus-visible,.lesson-audio-player input:focus-visible{outline:2px solid var(--audio-accent)!important;outline-offset:2px}@media(hover:hover){.lesson-audio-player__editor{opacity:0;transition:opacity .15s ease}.lesson-audio-player:hover .lesson-audio-player__editor,.lesson-audio-player:focus-within .lesson-audio-player__editor{opacity:1}}@media(max-width:520px){.lesson-audio-player__surface{gap:5px;padding:8px}.lesson-audio-player__volume{display:none}.lesson-audio-player__icon{width:26px;height:26px;flex-basis:26px}.lesson-audio-player__play{width:34px;height:34px;flex-basis:34px}.lesson-audio-player__editor{padding-left:3px}}@media(prefers-reduced-motion:reduce){.lesson-audio-player__transcript-toggle svg{transition:none}}
-      `}</style>
       <audio
         ref={audioRef}
         src={src}
@@ -117,7 +124,7 @@ export function LessonAudioPlayer({ src, title, transcript, isDark = false, acce
           <input aria-label="Volume" className="lesson-audio-player__range lesson-audio-player__volume-range" type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume} onChange={(event) => changeVolume(Number(event.target.value))} style={{ background: `linear-gradient(to right,var(--audio-accent) 0 ${(muted ? 0 : volume) * 100}%,var(--audio-track) ${(muted ? 0 : volume) * 100}% 100%)` }} />
         </div>
         <select className="lesson-audio-player__speed" aria-label="Playback speed" value={speed} onChange={(event) => changeSpeed(Number(event.target.value))}>
-          {[0.75, 1, 1.25, 1.5, 2].map((value) => <option key={value} value={value}>{value}×</option>)}
+          {[0.75, 1, 1.25, 1.5, 2].map((value) => <option key={value} value={value}>{value}x</option>)}
         </select>
         {editorControls && <div className="lesson-audio-player__editor">{editorControls}</div>}
       </div>

@@ -69,12 +69,15 @@ a feature so it lands in the right place and follows the patterns the codebase a
   Prefer safe URL embedding and existing viewers/helpers over building a new viewer.
 - **Multi-tenant:** never hardcode "AI Skills Africa" (or any tenant) as a default/fallback.
 - **Style:** borderless cards; no purple/indigo (use `C.cta`/neutrals); status badges green on
-  white; plain ASCII only (no em dashes, curly quotes, ellipsis char, angle brackets);
+  white; plain ASCII in user-visible string, template, and JSX text (no em dashes, curly quotes,
+  ellipsis char, angle brackets); comments are outside this rule and must not be auto-rewritten;
+  use UI icons rather than ASCII substitutes when the character is a control (for example Close);
   no `--` in dropdown placeholders ("Select cohort", not "-- Select cohort --").
 
 ## Before committing
 
-`npx tsc --noEmit`, `npx eslint <files>`, and `npm test` should be clean. tsc is the safety net
+`npx tsc --noEmit`, `npx eslint <files>`, and `npm test` should be clean. `npm test` begins with
+the non-mutating, changed-lines-only user-visible ASCII check (`npm run check:chars`). tsc is the safety net
 for moves/refactors — it catches cross-file symbol and type gaps the linter (which does not flag
 unused imports here) misses. Note: the harness covers route/auth behavior, **not** UI interaction
 — exercise UI-heavy changes manually.

@@ -23,22 +23,25 @@ CREATE TABLE IF NOT EXISTS public.experience_guides (
 );
 
 CREATE INDEX IF NOT EXISTS experience_guides_owner_idx ON public.experience_guides(owner_id, status);
+DROP TRIGGER IF EXISTS trg_experience_guides_updated_at ON public.experience_guides;
+CREATE TRIGGER trg_experience_guides_updated_at
+  BEFORE UPDATE ON public.experience_guides FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 ALTER TABLE public.experience_guides ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Guide owners can read" ON public.experience_guides;
 CREATE POLICY "Guide owners can read" ON public.experience_guides FOR SELECT TO authenticated
-  USING (owner_id = auth.uid());
+  USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
 DROP POLICY IF EXISTS "Guide owners can insert" ON public.experience_guides;
 CREATE POLICY "Guide owners can insert" ON public.experience_guides FOR INSERT TO authenticated
-  WITH CHECK (owner_id = auth.uid());
+  WITH CHECK ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
 DROP POLICY IF EXISTS "Guide owners can update" ON public.experience_guides;
 CREATE POLICY "Guide owners can update" ON public.experience_guides FOR UPDATE TO authenticated
-  USING (owner_id = auth.uid()) WITH CHECK (owner_id = auth.uid());
+  USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()))
+  WITH CHECK ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
 DROP POLICY IF EXISTS "Guide owners can delete" ON public.experience_guides;
 CREATE POLICY "Guide owners can delete" ON public.experience_guides FOR DELETE TO authenticated
-  USING (owner_id = auth.uid());
+  USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
 
 ALTER TABLE public.virtual_experiences
   ADD COLUMN IF NOT EXISTS guide_id uuid REFERENCES public.experience_guides(id) ON DELETE SET NULL,
   ADD COLUMN IF NOT EXISTS guide_snapshot jsonb;
-

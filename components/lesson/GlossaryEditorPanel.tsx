@@ -65,7 +65,7 @@ export function GlossaryEditorPanel({
       <div className="lesson-glossary-editor__head">
         <span className="lesson-glossary-editor__icon"><BookMarked width={15} height={15} /></span>
         <span>
-          <strong>Define “{term || 'selected term'}”</strong>
+          <strong>Define &quot;{term || 'selected term'}&quot;</strong>
           <small>Add context learners can open without leaving the lesson.</small>
         </span>
         <button type="button" className="lesson-glossary-editor__close" onClick={onClose} aria-label="Close glossary editor"><X width={15} height={15} /></button>
@@ -77,7 +77,7 @@ export function GlossaryEditorPanel({
           ref={definitionRef}
           rows={2}
           value={details.definition}
-          placeholder="Explain the term in plain language…"
+          placeholder="Explain the term in plain language..."
           onChange={(event) => update('definition', event.target.value)}
         />
       </label>
@@ -85,15 +85,15 @@ export function GlossaryEditorPanel({
       <div className="lesson-glossary-editor__grid">
         <label className="lesson-glossary-editor__field">
           <span>Pronunciation <em>Optional</em></span>
-          <input value={details.pronunciation} placeholder="e.g. /ˈdeɪtə/" onChange={(event) => update('pronunciation', event.target.value)} />
+          <input value={details.pronunciation} placeholder="e.g. day-tuh" onChange={(event) => update('pronunciation', event.target.value)} />
         </label>
         <label className="lesson-glossary-editor__field">
           <span>Learn more <em>Optional</em></span>
-          <input type="url" value={details.learnMoreUrl} placeholder="https://…" onChange={(event) => update('learnMoreUrl', event.target.value)} />
+          <input type="url" value={details.learnMoreUrl} placeholder="https://..." onChange={(event) => update('learnMoreUrl', event.target.value)} />
         </label>
         <label className="lesson-glossary-editor__field lesson-glossary-editor__field--wide">
           <span>Example <em>Optional</em></span>
-          <input value={details.example} placeholder="Use the term in context…" onChange={(event) => update('example', event.target.value)} />
+          <input value={details.example} placeholder="Use the term in context..." onChange={(event) => update('example', event.target.value)} />
         </label>
       </div>
 
