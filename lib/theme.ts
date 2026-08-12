@@ -64,7 +64,7 @@ export const DARK_C: typeof LIGHT_C = {
   ctaText:       'white',
   text:          '#ACB8C5',
   muted:         '#A8B5C2',
-  faint:         '#6b7a89',
+  faint:         '#94A3B8',
   divider:       'rgba(255,255,255,0.07)',
   pill:          '#2a2b34',
   input:         '#2a2b34',

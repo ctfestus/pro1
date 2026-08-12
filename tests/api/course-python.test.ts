@@ -75,7 +75,7 @@ describe('POST /api/course Python exercise security', () => {
   it('does not accept forged SQL passed answers without a server proof', async () => {
     authed(makeSupabaseStub({
       courses: {
-        data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions: [sqlQuestion], passmark: 50, points_enabled: false, points_base: 100 },
+        data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [sqlQuestion], passmark: 50, points_enabled: false, points_base: 100 },
         error: null,
       },
       course_attempts: [
@@ -109,7 +109,7 @@ describe('POST /api/course Python exercise security', () => {
           id: 'course1',
           user_id: 'owner1',
           status: 'published',
-          cohort_ids: [],
+          cohort_ids: [], available_to_everyone: true,
           questions: [sqlQuestion],
         },
         error: null,
@@ -174,7 +174,7 @@ describe('POST /api/course Python exercise security', () => {
           id: 'course1',
           user_id: 'owner1',
           status: 'published',
-          cohort_ids: [],
+          cohort_ids: [], available_to_everyone: true,
           questions: [{ ...sqlQuestion, sqlExpectedResult: { columns: ['secret'], rows: [['hidden-value'], ['second-row']] } }],
         },
         error: null,
@@ -210,7 +210,7 @@ describe('POST /api/course Python exercise security', () => {
       from(table: string) {
         const state: { op: 'select' | 'update'; payload?: unknown } = { op: 'select' };
         const result = () => {
-          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], questions: [{ ...sqlQuestion, sqlSolution: 'SELECT 1 AS n' }] }, error: null };
+          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [{ ...sqlQuestion, sqlSolution: 'SELECT 1 AS n' }] }, error: null };
           if (table === 'students') return { data: { role: 'student', cohort_id: 'co1' }, error: null };
           if (table === 'course_attempts' && state.op === 'select') return { data: { id: 'attempt1', answers: {} }, error: null };
           return { data: null, error: null };
@@ -272,7 +272,7 @@ describe('POST /api/course Python exercise security', () => {
         const state: { op: 'select' | 'insert'; payload?: unknown } = { op: 'select' };
         let courseAttemptSelects = 0;
         const result = () => {
-          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], questions: [sqlQuestion] }, error: null };
+          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [sqlQuestion] }, error: null };
           if (table === 'course_attempts' && state.op === 'insert') return { data: null, error: null };
           if (table === 'course_attempts') {
             courseAttemptSelects += 1;
@@ -331,7 +331,7 @@ describe('POST /api/course Python exercise security', () => {
         const state: { op: 'select' | 'insert'; payload?: unknown } = { op: 'select' };
         let courseAttemptSelects = 0;
         const result = () => {
-          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], questions: [sqlQuestion] }, error: null };
+          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [sqlQuestion] }, error: null };
           if (table === 'course_attempts' && state.op === 'insert') return { data: null, error: null };
           if (table === 'course_attempts') {
             courseAttemptSelects += 1;
@@ -390,7 +390,7 @@ describe('POST /api/course Python exercise security', () => {
       from(table: string) {
         const state: { op: 'select' | 'update'; payload?: unknown } = { op: 'select' };
         const result = () => {
-          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], questions: [sqlQuestion] }, error: null };
+          if (table === 'courses') return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [sqlQuestion] }, error: null };
           if (table === 'course_attempts' && state.op === 'update') return { data: null, error: null };
           if (table === 'course_attempts') {
             return {
@@ -454,7 +454,7 @@ describe('POST /api/course Python exercise security', () => {
   it('does not accept forged Python passed answers without a server proof', async () => {
     authed(makeSupabaseStub({
       courses: {
-        data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions: [pythonQuestion], passmark: 50, points_enabled: false, points_base: 100 },
+        data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [pythonQuestion], passmark: 50, points_enabled: false, points_base: 100 },
         error: null,
       },
       course_attempts: [
@@ -488,7 +488,7 @@ describe('POST /api/course Python exercise security', () => {
           id: 'course1',
           user_id: 'owner1',
           status: 'published',
-          cohort_ids: [],
+          cohort_ids: [], available_to_everyone: true,
           questions: [pythonQuestion],
         },
         error: null,
@@ -510,7 +510,7 @@ describe('POST /api/course Python exercise security', () => {
 
     authed(makeSupabaseStub({
       courses: {
-        data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions: [pythonQuestion], passmark: 50, points_enabled: false, points_base: 100 },
+        data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [pythonQuestion], passmark: 50, points_enabled: false, points_base: 100 },
         error: null,
       },
       course_attempts: [
@@ -545,7 +545,7 @@ describe('POST /api/course Python exercise security', () => {
           id: 'course1',
           user_id: 'owner1',
           status: 'published',
-          cohort_ids: [],
+          cohort_ids: [], available_to_everyone: true,
           questions: [pythonQuestion],
         },
         error: null,
@@ -566,7 +566,7 @@ describe('POST /api/course Python exercise security', () => {
     authed(makeSupabaseStub({
       courses: {
         data: {
-          user_id: 'owner1', status: 'published', cohort_ids: [],
+          user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true,
           questions: [pythonQuestion, secondQuestion],
           passmark: 50,
           points_enabled: true,
@@ -615,7 +615,7 @@ describe('POST /api/course Python exercise security', () => {
           id: 'course1',
           user_id: 'owner1',
           status: 'published',
-          cohort_ids: [],
+          cohort_ids: [], available_to_everyone: true,
           questions: [pythonQuestion],
         },
         error: null,
@@ -635,7 +635,7 @@ describe('POST /api/course Python exercise security', () => {
     authed(makeSupabaseStub({
       courses: {
         data: {
-          user_id: 'owner1', status: 'published', cohort_ids: [],
+          user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true,
           questions: [pythonQuestion],
           passmark: 50,
           points_enabled: true,
@@ -720,7 +720,7 @@ describe('POST /api/course Python exercise security', () => {
           id: 'course1',
           user_id: 'owner1',
           status: 'published',
-          cohort_ids: [],
+          cohort_ids: [], available_to_everyone: true,
           questions: [pythonQuestion],
         },
         error: null,

@@ -65,7 +65,7 @@ export default function CreateRecordingPage() {
         router.replace('/dashboard'); return;
       }
 
-      const { data: cohortsData } = await supabase.from('cohorts').select('id, name').order('name');
+      const { data: cohortsData } = await supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name');
       if (cohortsData) setCohorts(cohortsData);
 
       if (id) {

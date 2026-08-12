@@ -35,7 +35,7 @@ const CA_CONTENT_TYPE: Record<string, string | null> = {
 
 // Columns to fetch per table
 const SELECT_COLS: Record<string, string> = {
-  courses:             'id, title, slug, status, cohort_ids, user_id',
+  courses:             'id, title, slug, status, cohort_ids, available_to_everyone, user_id',
   virtual_experiences: 'id, title, slug, status, cohort_ids, user_id',
   assignments:         'id, title, status, cohort_ids, created_by',
   learning_paths:      'id, title, description, item_ids, status, cohort_ids, instructor_id',
@@ -68,7 +68,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { contentId, contentTable, cohortId } = body;
+  const { contentId, contentTable, cohortId, confirmRestriction } = body;
   if (!contentId)    return NextResponse.json({ error: 'contentId is required' },    { status: 400 });
   if (!contentTable) return NextResponse.json({ error: 'contentTable is required' }, { status: 400 });
   if (!cohortId)     return NextResponse.json({ error: 'cohortId is required' },     { status: 400 });
@@ -92,10 +92,25 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, alreadyAssigned: true });
   }
 
+  if (contentTable === 'courses' && content.available_to_everyone === true && confirmRestriction !== true) {
+    return NextResponse.json({
+      error: 'This course is currently available to everyone. Assigning it to a cohort will restrict access to selected cohorts only.',
+      requiresConfirmation: true,
+    }, { status: 409 });
+  }
+
   // 1. Update cohort_ids on the content
+  // Unlike paid subscription-plan assignment, which rejects globally free content as
+  // likely configuration error, narrowing a course to a teaching cohort is a normal
+  // administrative action. It is allowed only after the explicit confirmation above.
+  // A confirmed retry reaches this point through a fresh request and fresh content read.
+  const nextCohortIds = [...currentIds, cohortId];
+  const assignmentUpdate = contentTable === 'courses'
+    ? { cohort_ids: nextCohortIds, available_to_everyone: false }
+    : { cohort_ids: nextCohortIds };
   const { error: updateError } = await supabase
     .from(contentTable)
-    .update({ cohort_ids: [...currentIds, cohortId] })
+    .update(assignmentUpdate)
     .eq('id', contentId);
 
   if (updateError) {
@@ -142,7 +157,7 @@ export async function POST(req: NextRequest) {
     notifyError = 'Assigned, but notification email failed to send.';
   }
 
-  return NextResponse.json({ ok: true, ...(notifyError ? { notifyError } : {}) });
+  return NextResponse.json({ ok: true, cohortIds: nextCohortIds, ...(notifyError ? { notifyError } : {}) });
 }
 
 export async function DELETE(req: NextRequest) {

@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     // Resolve caller's profile -- single indexed lookup by PK
     const { data: profile } = await supabase
       .from('students')
-      .select('role, cohort_id, email')
+      .select('role, cohort_id, email, cohort:cohorts!cohort_id(cohort_kind)')
       .eq('id', user.id)
       .single();
 
@@ -44,6 +44,11 @@ export async function GET(req: NextRequest) {
       // Students can only view their own cohort's leaderboard
       if (profile.cohort_id !== cohortId) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+      // Subscription-plan cohorts can contain unrelated subscribers. The student UI
+      // hides their leaderboard, and the API must enforce the same privacy boundary.
+      if ((profile as any).cohort?.cohort_kind !== 'bootcamp') {
+        return NextResponse.json({ error: 'Leaderboard is available only for bootcamp cohorts.' }, { status: 403 });
       }
     }
 

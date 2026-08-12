@@ -56,6 +56,8 @@ export async function GET(req: NextRequest) {
           payment_installments ( id, due_date, amount_due, amount_paid, status )
         `)
         .eq('student_id', targetStudentId)
+        // A released enrollment (migration 171) is history, not the student's current one.
+        .is('released_at', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle(),

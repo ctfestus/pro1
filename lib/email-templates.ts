@@ -1123,6 +1123,33 @@ export function paymentReceiptEmail(data: {
 }
 
 // -- Payment Confirmation Acknowledged (student submitted) ---
+export function subscriptionPaymentAssignedEmail(data: {
+  name: string;
+  planName: string;
+  amount: number;
+  currency: string;
+  dueDate: string;
+  dashboardUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, planName, amount, currency, dueDate, dashboardUrl, branding } = data;
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p>A payment request has been assigned for your <b>${esc(planName)}</b> subscription.</p>
+    <div style="margin:20px 0;padding:20px;background:#f9fafb;border:1px solid #e5e7eb;border-radius:0;">
+      <table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;color:#374151;">
+        <tr><td style="padding:4px 0;font-weight:700;width:140px;">Amount</td><td>${esc(currency)} ${Number(amount).toLocaleString()}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:700;">Payment deadline</td><td>${esc(dueDate)}</td></tr>
+      </table>
+    </div>
+    <p style="color:#374151;">Open the Payments section to view the available payment options and submit your confirmation. Access starts after your payment is approved.</p>
+    ${cta('View Payment Request', `${dashboardUrl}#payments`)}
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
+
+// -- Payment Confirmation Acknowledged (student submitted) ---
 export function paymentConfirmationAcknowledgedEmail(data: {
   name: string;
   amount: number;

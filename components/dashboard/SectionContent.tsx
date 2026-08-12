@@ -19,6 +19,7 @@ import { BadgesSection } from '@/components/dashboard/BadgesSection';
 import { PaymentsSection } from '@/components/dashboard/PaymentsSection';
 import { LeaderboardSection } from '@/components/dashboard/LeaderboardSection';
 import { StudentsSection } from '@/components/dashboard/StudentsSection';
+import { SubscriptionsSection } from '@/components/dashboard/SubscriptionsSection';
 import { StudentTrackingSection } from '@/components/dashboard/StudentTrackingSection';
 import { LearningPathsSection } from '@/components/dashboard/LearningPathsSection';
 import { BrandingSection } from '@/components/dashboard/BrandingSection';
@@ -46,6 +47,7 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
   if (section === 'partners')       return <PartnersSection C={C} />;
   if (section === 'certificates') return <CertificatesSection C={C} />;
   if (section === 'students')     return <StudentsSection C={C} />;
+  if (section === 'subscriptions') return <SubscriptionsSection C={C} />;
   if (section === 'cohorts')      return <CohortsSection C={C} />;
   if (section === 'payments')     return <PaymentsSection C={C} />;
   if (section === 'tracking')     return <StudentTrackingSection C={C} />;

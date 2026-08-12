@@ -12,6 +12,7 @@ import { getLastScheduledSessionDate, getNextScheduledSessionDate } from '@/lib/
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { Sk, EmptyState } from '@/components/student/shared';
+import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   CalendarDays, Calendar, Sun, CheckCircle, ChevronRight, ChevronLeft, Video, MapPin, Repeat, Download,
 } from 'lucide-react';
@@ -27,14 +28,16 @@ export function EventsSection({ userId, C }: { userId: string; C: typeof LIGHT_C
       setLoading(true);
       try {
         const { data: student } = await supabase
-          .from('students').select('cohort_id').eq('id', userId).single();
+          .from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', userId).single();
+        // A synthetic individual-enrollment cohort (migration 165) has no events.
+        const inIndividualCohort = isIndividualCohort((student as any)?.cohort?.cohort_kind);
 
         const [{ data: regsData }, { data: cohortData }] = await Promise.all([
           supabase
             .from('event_registrations')
             .select('event_id, registered_at, join_token')
             .eq('student_id', userId),
-          student?.cohort_id
+          student?.cohort_id && !inIndividualCohort
             ? supabase.from('events').select('id, title, description, slug, cover_image, event_date, event_time, timezone, location, meeting_link, event_type, status, recurrence, recurrence_end_date, recurrence_days')
                 .contains('cohort_ids', [student.cohort_id]).eq('status', 'published')
             : Promise.resolve({ data: [] }),

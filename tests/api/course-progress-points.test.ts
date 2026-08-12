@@ -35,7 +35,7 @@ function capturingStub(questions: any[], existingAttempt: any) {
       const state: { op: 'select' | 'insert' | 'update' } = { op: 'select' };
       const result = () => {
         if (table === 'courses') {
-          return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], questions, points_system: POINTS_SYSTEM }, error: null };
+          return { data: { id: 'course1', user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions, points_system: POINTS_SYSTEM }, error: null };
         }
         if (table === 'students') return { data: { role: 'student', cohort_id: null }, error: null };
         if (table === 'linkedin_shares') return { data: [], error: null };

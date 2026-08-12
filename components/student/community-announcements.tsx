@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { renderAnnouncementContent } from '@/lib/sanitize';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { Sk, EmptyState } from '@/components/student/shared';
+import { announcementCohortFilter, isIndividualCohort } from '@/lib/cohort-kind';
 import { getStudentMode } from '@/lib/student-mode-client';
 import {
   Users, Megaphone, X, ExternalLink, ChevronRight, ChevronLeft, Play, ThumbsUp, Bookmark,
@@ -23,8 +24,10 @@ export function CommunitySection({ userId, C }: { userId: string; C: typeof LIGH
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: student } = await supabase.from('students').select('cohort_id').eq('id', userId).single();
-      if (!student?.cohort_id) { setLoading(false); return; }
+      const { data: student } = await supabase.from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', userId).single();
+      // A synthetic individual-enrollment cohort (migration 165) has no community --
+      // treat it the same as no cohort at all.
+      if (!student?.cohort_id || isIndividualCohort((student as any).cohort?.cohort_kind)) { setLoading(false); return; }
       const { data } = await supabase
         .from('communities')
         .select('id, name, description, whatsapp_link, cover_image, status, created_at')
@@ -346,17 +349,21 @@ export function AnnouncementsSection({ userId: userIdProp, C }: { userId?: strin
       const effectiveUserId = userIdProp ?? user.id;
       setUserId(effectiveUserId);
 
-      const { data: student } = await supabase.from('students').select('cohort_id').eq('id', effectiveUserId).single();
-      if (!student?.cohort_id) { setLoading(false); return; }
-
-      const { data: anns } = await supabase
+      const { data: student } = await supabase.from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', effectiveUserId).single();
+      // Both individual cohort kinds receive platform-wide announcements, but not
+      // bootcamp-cohort announcements. Empty cohort_ids is the existing global marker.
+      const audienceFilter = announcementCohortFilter(student?.cohort_id, (student as any).cohort?.cohort_kind);
+      let announcementQuery = supabase
         .from('announcements')
         .select('id, title, subtitle, content, cover_image, youtube_url, is_pinned, published_at, author_id')
-        .or(`cohort_ids.cs.{${student.cohort_id}},cohort_ids.eq.{}`)
         .lte('published_at', new Date().toISOString())
         .order('is_pinned', { ascending: false })
         .order('published_at', { ascending: false })
         .limit(50);
+      announcementQuery = audienceFilter === null
+        ? announcementQuery.eq('cohort_ids', '{}')
+        : announcementQuery.or(audienceFilter);
+      const { data: anns } = await announcementQuery;
 
       const authorIds = [...new Set((anns ?? []).map((a: any) => a.author_id).filter(Boolean))];
       const { data: authors } = authorIds.length

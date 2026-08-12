@@ -3,10 +3,67 @@
 // Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
 
 import { useState, useEffect } from 'react';
-import { Download, ExternalLink, Eye, MoreVertical, Search, X } from 'lucide-react';
+import { Download, ExternalLink, Eye, MoreVertical, Search, UserPlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reportExportCSV } from '@/lib/dashboard-export';
 import { LIGHT_C, DARK_C, cardStyle } from '@/lib/theme';
+import { isIndividualCohort } from '@/lib/cohort-kind';
+
+async function dashboardAuthFetch(url: string, init?: RequestInit) {
+  const { data: { session } } = await supabase.auth.getSession();
+  return fetch(url, { ...init, headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${session?.access_token}` } });
+}
+
+function StudentSubscriptionSummary({ studentId, C }: { studentId: string; C: typeof LIGHT_C }) {
+  const [subscription, setSubscription] = useState<any>(null);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    dashboardAuthFetch(`/api/payments?action=subscription-status&studentId=${studentId}`)
+      .then(async res => ({ ok: res.ok, data: await res.json() }))
+      .then(({ ok, data }) => { if (!ok) throw new Error(data.error || 'Failed to load subscription'); setSubscription(data.subscription ?? null); })
+      .catch(err => setError(err.message));
+  }, [studentId]);
+
+  return <div className="rounded-xl p-3 mb-5" style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
+    <div className="flex items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Individual subscription</p>{error ? <p className="text-xs mt-1" style={{ color: '#dc2626' }}>{error}</p> : subscription ? <><p className="text-sm font-semibold mt-1" style={{ color: C.text }}>{subscription.subscription_plans?.name || 'Subscription plan'}</p><p className="text-xs capitalize" style={{ color: C.muted }}>{subscription.status} - expires {fullDate(subscription.current_period_end)}</p></> : <p className="text-sm mt-1" style={{ color: C.muted }}>No subscription</p>}</div><button onClick={() => { window.location.hash = 'subscriptions'; }} className="text-xs font-semibold" style={{ color: C.cta }}>Manage subscriptions</button></div>
+  </div>;
+}
+
+function CreateIndividualStudent({ onCreated, C }: { onCreated: () => void; C: typeof LIGHT_C }) {
+  const [open, setOpen] = useState(false);
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  async function create() {
+    setBusy(true); setError('');
+    try {
+      const res = await dashboardAuthFetch('/api/admissions', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'create-individual-student', fullName, email }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to create student');
+      setFullName(''); setEmail(''); setOpen(false); onCreated();
+    } catch (err: any) { setError(err.message); }
+    finally { setBusy(false); }
+  }
+
+  return <>
+    <button onClick={() => setOpen(true)} className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}><UserPlus className="w-3.5 h-3.5"/>Individual student</button>
+    {open && <div className="fixed inset-0 z-[70] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.45)' }} onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}>
+      <div className="w-full max-w-md rounded-xl p-5 space-y-3" style={{ background: C.card }}>
+        <div className="flex justify-between"><div><p className="font-semibold" style={{ color: C.text }}>Create individual student</p><p className="text-xs" style={{ color: C.muted }}>No bootcamp cohort is required.</p></div><button onClick={() => setOpen(false)}><X className="w-4 h-4" style={{ color: C.muted }}/></button></div>
+        <input value={fullName} onChange={e => setFullName(e.target.value)} placeholder="Full name" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: C.input, color: C.text }}/>
+        <input value={email} onChange={e => setEmail(e.target.value)} placeholder="Email" type="email" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: C.input, color: C.text }}/>
+        {error && <p className="text-xs" style={{ color: '#dc2626' }}>{error}</p>}
+        <button onClick={create} disabled={busy || !email.trim()} className="w-full py-2 rounded-lg text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? 'Creating...' : 'Create and send setup email'}</button>
+      </div>
+    </div>}
+  </>;
+}
 
 function shortDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'Never';
@@ -65,6 +122,8 @@ function StudentDetailPanel({ student, cohortName, detail, loading, onClose, C }
             <ExternalLink className="w-4 h-4"/>
             Open Student Dashboard
           </a>
+
+          <StudentSubscriptionSummary studentId={student.id} C={C} />
 
           <div className="rounded-xl p-3 mb-5" style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
             <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Account setup</p>
@@ -183,26 +242,28 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
   const [menuRow,      setMenuRow]      = useState<any | null>(null);
   const [menuPos,      setMenuPos]      = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
+  const load = async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const [{ data: stu }, { data: coh }, statsRes] = await Promise.all([
+      supabase
+        .from('students')
+        .select('id, full_name, email, cohort_id, enrollment_model, onboarding_done, account_provisioned_at, setup_email_sent_at, password_setup_started_at, password_set_at, onboarding_completed_at, last_login_at')
+        .eq('role', 'student')
+        .order('full_name'),
+      supabase.from('cohorts').select('id, name, cohort_kind'),
+      fetch('/api/admin/students-stats', { headers: { Authorization: `Bearer ${session?.access_token}` } }),
+    ]);
+    const stats = statsRes.ok ? await statsRes.json() : { completedCount: {}, cohortContentCount: {} };
+    setStudents(stu ?? []);
+    setCohorts(coh ?? []);
+    setCourseCounts(stats.cohortContentCount ?? {});
+    setCompletedCounts(stats.completedCount ?? {});
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      const [{ data: stu }, { data: coh }, statsRes] = await Promise.all([
-        supabase
-          .from('students')
-          .select('id, full_name, email, cohort_id, onboarding_done, account_provisioned_at, setup_email_sent_at, password_setup_started_at, password_set_at, onboarding_completed_at, last_login_at')
-          .eq('role', 'student')
-          .order('full_name'),
-        supabase.from('cohorts').select('id, name'),
-        fetch('/api/admin/students-stats', { headers: { Authorization: `Bearer ${session?.access_token}` } }),
-      ]);
-      const stats = statsRes.ok ? await statsRes.json() : { completedCount: {}, cohortContentCount: {} };
-      setStudents(stu ?? []);
-      setCohorts(coh ?? []);
-      setCourseCounts(stats.cohortContentCount ?? {});
-      setCompletedCounts(stats.completedCount ?? {});
-      setLoading(false);
-    };
-    load();
+    const timeout = window.setTimeout(() => { void load(); }, 0);
+    return () => window.clearTimeout(timeout);
   }, []);
 
   const cohortMap = Object.fromEntries(cohorts.map(c => [c.id, c.name]));
@@ -235,9 +296,11 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
           <div>
             <h2 className="text-lg font-bold leading-none" style={{ color: C.text }}>Students</h2>
             <p className="text-xs mt-1.5" style={{ color: C.muted }}>
-              {students.length} student{students.length !== 1 ? 's' : ''} across {cohorts.length} cohort{cohorts.length !== 1 ? 's' : ''}
+              {students.length} student{students.length !== 1 ? 's' : ''} across {cohorts.filter(cohort => !isIndividualCohort(cohort.cohort_kind)).length} bootcamp cohort{cohorts.filter(cohort => !isIndividualCohort(cohort.cohort_kind)).length !== 1 ? 's' : ''}
             </p>
           </div>
+          <div className="flex gap-2 flex-wrap justify-end">
+          <CreateIndividualStudent onCreated={load} C={C}/>
           <button
             onClick={() => reportExportCSV(
               ['Name', 'Email', 'Cohort', 'Access Status', 'Account Created', 'Setup Email Sent', 'Setup Link Opened', 'Password Set', 'Onboarding Complete', 'Last Login', 'Content in Cohort', 'Completed'],
@@ -265,6 +328,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
             <Download className="w-3.5 h-3.5" />
             Export CSV
           </button>
+          </div>
         </div>
 
         {/* Body */}
@@ -282,7 +346,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
               className="px-3 py-2.5 rounded-lg text-sm outline-none"
               style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}>
               <option value="">All Cohorts</option>
-              {cohorts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              {cohorts.filter(c => !isIndividualCohort(c.cohort_kind)).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
             </select>
           </div>
 

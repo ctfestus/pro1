@@ -12,6 +12,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { CarouselSkeleton, ProgressBar, HoverPreviewCard, stripSqlSolutions } from '@/components/student/shared';
+import { isIndividualCohort } from '@/lib/cohort-kind';
 import type { SectionId } from '@/components/student/nav';
 import {
   BookOpen, Briefcase, CheckCircle, ChevronLeft, ChevronRight, Play, TrendingUp,
@@ -192,8 +193,15 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       const token = session?.access_token ?? '';
 
       const { data: student } = await supabase
-        .from('students').select('cohort_id').eq('id', user.id).single();
+        .from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', user.id).single();
       const cohort = student?.cohort_id ?? null;
+      // A synthetic individual-enrollment cohort (migration 165) has no real peer
+      // group, so its "leaderboard" is just the one student -- skip fetching it.
+      // Courses/VEs/events/assignments stay keyed off `cohort` as-is: they still
+      // correctly show whatever's actually tagged into that cohort's cohort_ids
+      // (the individually-purchased course), and naturally come back empty for
+      // content types individual enrollment never tags (events, VEs, assignments).
+      const inIndividualCohort = isIndividualCohort((student as any)?.cohort?.cohort_kind);
 
       // Fetch the student's group memberships so we can include group assignments below
       const { data: gmRows } = await supabase.from('group_members').select('group_id').eq('student_id', user.id);
@@ -202,8 +210,8 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       const [courseRes, veRes, attemptsRes, gpAttRes, cohortAssignCrsRes, cohortAssignVeRes, certsData, lbData, eventsRes, gapsData, assignmentsRes, asmSubsRes, allBadgesRes, earnedBadgesRes, streakRes, groupAssignmentsRes, groupSubsRes] =
         await Promise.all([
           cohort
-            ? supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').contains('cohort_ids', [cohort]).eq('status', 'published')
-            : Promise.resolve({ data: [] as any[] }),
+            ? supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').eq('available_to_everyone', true).eq('status', 'published'),
           cohort
             ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').contains('cohort_ids', [cohort]).eq('status', 'published')
             : Promise.resolve({ data: [] as any[] }),
@@ -226,7 +234,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
                 body: JSON.stringify({ action: 'get-my-certificates' }),
               }).then(r => r.json()).catch(() => ({ certs: [] }))
             : Promise.resolve({ certs: [] }),
-          cohort && token
+          cohort && token && !inIndividualCohort
             ? fetch(`/api/leaderboard?cohort_id=${encodeURIComponent(cohort)}`, { headers: { Authorization: `Bearer ${token}` } })
                 .then(r => r.json()).catch(() => ({ rankings: [] }))
             : Promise.resolve({ rankings: [] }),

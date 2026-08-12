@@ -62,7 +62,7 @@ export default function CreateCommunityPage() {
       const { data: profile } = await supabase.from('students').select('role').eq('id', session.user.id).single();
       if (!profile || !['instructor', 'admin'].includes(profile.role)) { router.replace('/dashboard'); return; }
 
-      const { data: c } = await supabase.from('cohorts').select('id, name').order('name');
+      const { data: c } = await supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name');
       if (c) setCohorts(c);
 
       if (id) {

@@ -11,6 +11,7 @@ const TYPE_LABELS: Record<string, string> = {
   virtual_experience: 'virtual experience',
   announcement: 'announcement',
   assignment: 'assignment',
+  certification: 'certification',
 };
 
 const TYPE_MESSAGES: Record<string, string> = {
@@ -19,6 +20,7 @@ const TYPE_MESSAGES: Record<string, string> = {
   virtual_experience: 'You have been assigned a new virtual experience. Jump in and get started.',
   announcement: 'A new announcement has been posted for you.',
   assignment: 'You have been assigned a new assignment. Log in to view the details and submit your work.',
+  certification: 'You have been enrolled in a new certification. Log in to start preparing.',
 };
 
 const TYPE_CTA: Record<string, string> = {
@@ -27,6 +29,7 @@ const TYPE_CTA: Record<string, string> = {
   virtual_experience: 'View Virtual Experience',
   announcement: 'View Announcement',
   assignment: 'View Assignment',
+  certification: 'View Certification',
 };
 
 /**

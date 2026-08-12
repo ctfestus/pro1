@@ -48,7 +48,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
     // caller's own certifications (admins see all), matching the course options above.
     const [res, { data: coh }, { data: certs }] = await Promise.all([
       fetch('/api/learning-paths', { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} }),
-      supabase.from('cohorts').select('id, name').order('name'),
+      supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name'),
       supabase.from('certifications').select('id, title').eq('status', 'published').order('title'),
     ]);
     if (res.ok) { const { paths: p } = await res.json(); setPaths(p ?? []); }

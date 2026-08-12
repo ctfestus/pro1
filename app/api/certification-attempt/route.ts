@@ -29,7 +29,7 @@ async function loadAccessibleCertification(
   supabase: ReturnType<typeof adminClient>,
   ref: string,
   user: { id: string },
-  select = 'id, user_id, status, cohort_ids, questions, passmark, max_attempts, time_limit',
+  select = 'id, user_id, status, cohort_ids, available_to_everyone, questions, passmark, max_attempts, time_limit',
 ) {
   const [{ data: cert, error }, { data: student }] = await Promise.all([
     supabase.from('certifications').select(select).eq(UUID_RE.test(ref) ? 'id' : 'slug', ref).maybeSingle(),
@@ -42,7 +42,11 @@ async function loadAccessibleCertification(
   const isOwner = (cert as any).user_id === user.id;
   const isAdmin = role === 'admin';
   const isPublished = (cert as any).status === 'published';
-  const cohortAllowed = cohortIds.length === 0 || (!!(student as any)?.cohort_id && cohortIds.includes((student as any).cohort_id));
+  // Open access is explicit (migration 174). An empty cohort_ids no longer means everyone --
+  // it means nobody has been granted access yet, so untagging a certification cannot
+  // silently publish it platform-wide.
+  const cohortAllowed = (cert as any).available_to_everyone === true
+    || (!!(student as any)?.cohort_id && cohortIds.includes((student as any).cohort_id));
   const elevatedPublished = (role === 'instructor' || role === 'staff') && isPublished;
   // A published learning path assigned to the student's cohort grants access to every item in it,
   // even when the certification's own cohort list does not include that cohort. Mirror the
@@ -167,7 +171,7 @@ export async function POST(req: NextRequest) {
       const cohortId = (student as any)?.cohort_id;
       const { data: rows } = await supabase
         .from('certifications')
-        .select('id, title, slug, cert_type, cover_image, badge_image_url, passmark, time_limit, max_attempts, description, cohort_ids')
+        .select('id, title, slug, cert_type, cover_image, badge_image_url, passmark, time_limit, max_attempts, description, cohort_ids, available_to_everyone')
         .eq('status', 'published');
       // Published learning paths assigned to the student's cohort also grant access to the
       // certifications they contain, even when the certification's own cohort list does not.
@@ -190,16 +194,16 @@ export async function POST(req: NextRequest) {
           attemptedIds = new Set((atts ?? []).map((a: any) => a.certification_id));
         }
       }
-      // A certification with no assigned cohorts is open to everyone; otherwise the student's cohort
-      // must be in the list, or a learning path must grant it AND the student must have started it.
+      // Open access is explicit (migration 174); otherwise the student's cohort must be in the
+      // list, or a learning path must grant it AND the student must have started it.
       // Privileged users see all.
       const visible = (rows ?? []).filter((r: any) => {
         if (privileged) return true;
         const cids = Array.isArray(r.cohort_ids) ? r.cohort_ids : [];
-        return cids.length === 0 || (cohortId && cids.includes(cohortId)) || (pathItemIds.has(r.id) && attemptedIds.has(r.id));
+        return r.available_to_everyone === true || (cohortId && cids.includes(cohortId)) || (pathItemIds.has(r.id) && attemptedIds.has(r.id));
       });
       // Never leak cohort_ids to the client.
-      return NextResponse.json({ certifications: visible.map(({ cohort_ids, ...m }: any) => m) });
+      return NextResponse.json({ certifications: visible.map(({ cohort_ids, available_to_everyone, ...m }: any) => m) });
     } catch (err: any) {
       console.error('[certification-attempt/list]', err);
       return NextResponse.json({ error: 'Failed to load certifications.' }, { status: 500 });
@@ -322,7 +326,7 @@ export async function POST(req: NextRequest) {
     const { question_id, output } = body;
     if (!question_id) return NextResponse.json({ error: 'question_id required' }, { status: 400 });
     try {
-      const access = await loadAccessibleCertification(supabase, certification_id, sessionUser, 'id, user_id, status, cohort_ids, questions, time_limit');
+      const access = await loadAccessibleCertification(supabase, certification_id, sessionUser, 'id, user_id, status, cohort_ids, available_to_everyone, questions, time_limit');
       if ('error' in access) return access.error;
       const cert = access.cert as any;
       const question = (Array.isArray(cert.questions) ? cert.questions : [])
@@ -376,7 +380,7 @@ export async function POST(req: NextRequest) {
     try {
       const access = await loadAccessibleCertification(
         supabase, certification_id, sessionUser,
-        'id, user_id, status, cohort_ids, questions, scenarios, max_attempts, time_limit, retake_cooldown_hours, randomize_questions, shuffle_options, question_pool_size',
+        'id, user_id, status, cohort_ids, available_to_everyone, questions, scenarios, max_attempts, time_limit, retake_cooldown_hours, randomize_questions, shuffle_options, question_pool_size',
       );
       if ('error' in access) return access.error;
       const cert = access.cert as any;
@@ -529,7 +533,7 @@ export async function POST(req: NextRequest) {
   if (action === 'save-progress') {
     const { current_question_index, answers, proctor } = body;
     try {
-      const access = await loadAccessibleCertification(supabase, certification_id, sessionUser, 'id, user_id, status, cohort_ids, time_limit');
+      const access = await loadAccessibleCertification(supabase, certification_id, sessionUser, 'id, user_id, status, cohort_ids, available_to_everyone, time_limit');
       if ('error' in access) return access.error;
       const timeLimit = Number((access.cert as any).time_limit) || 0;
 
@@ -573,7 +577,7 @@ export async function POST(req: NextRequest) {
     try {
       const access = await loadAccessibleCertification(
         supabase, certification_id, sessionUser,
-        'id, user_id, status, cohort_ids, questions, passmark, max_attempts, time_limit, skill_areas',
+        'id, user_id, status, cohort_ids, available_to_everyone, questions, passmark, max_attempts, time_limit, skill_areas',
       );
       if ('error' in access) return access.error;
       const cert = access.cert as any;
@@ -699,7 +703,7 @@ export async function POST(req: NextRequest) {
     try {
       const access = await loadAccessibleCertification(
         supabase, certification_id, sessionUser,
-        'id, user_id, status, cohort_ids, questions, passmark, skill_areas',
+        'id, user_id, status, cohort_ids, available_to_everyone, questions, passmark, skill_areas',
       );
       if ('error' in access) return access.error;
       const cert = access.cert as any;
@@ -804,7 +808,7 @@ export async function POST(req: NextRequest) {
     try {
       const access = await loadAccessibleCertification(
         supabase, certification_id, sessionUser,
-        'id, user_id, status, cohort_ids, practice_questions, scenarios, randomize_questions, shuffle_options',
+        'id, user_id, status, cohort_ids, available_to_everyone, practice_questions, scenarios, randomize_questions, shuffle_options',
       );
       if ('error' in access) return access.error;
       const cert = access.cert as any;
@@ -833,7 +837,7 @@ export async function POST(req: NextRequest) {
     try {
       const access = await loadAccessibleCertification(
         supabase, certification_id, sessionUser,
-        'id, user_id, status, cohort_ids, practice_questions, passmark, skill_areas',
+        'id, user_id, status, cohort_ids, available_to_everyone, practice_questions, passmark, skill_areas',
       );
       if ('error' in access) return access.error;
       const cert = access.cert as any;
