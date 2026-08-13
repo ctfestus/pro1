@@ -11,6 +11,7 @@ import {
   CircleDollarSign,
   Clock3,
   CreditCard,
+  Download,
   FileCheck2,
   History,
   Layers3,
@@ -187,13 +188,25 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [planFilter, setPlanFilter] = useState("all");
+  const [assignMenuOpen, setAssignMenuOpen] = useState(false);
+  const [assignMenuPosition, setAssignMenuPosition] = useState({
+    top: 0,
+    right: 12,
+  });
   const [enrolOpen, setEnrolOpen] = useState(false);
   const [enrolMode, setEnrolMode] = useState<"request" | "paid">("request");
   const [learnerMode, setLearnerMode] = useState<"existing" | "new">("existing");
   const [newLearnerName, setNewLearnerName] = useState("");
   const [newLearnerEmail, setNewLearnerEmail] = useState("");
   const [manageSub, setManageSub] = useState<any>(null);
-  const [renewMode, setRenewMode] = useState<"request" | "paid">("request");
+  const [manageAction, setManageAction] = useState<
+    "change-plan" | "request-payment" | "extend-access" | null
+  >(null);
+  const [subscriberMenu, setSubscriberMenu] = useState<{
+    sub: any;
+    top: number;
+    right: number;
+  } | null>(null);
   const [studentId, setStudentId] = useState("");
   const [planId, setPlanId] = useState("");
   const [payment, setPayment] = useState(freshPayment);
@@ -222,6 +235,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [bulkPlan, setBulkPlan] = useState<any>(null);
   const [bulkText, setBulkText] = useState("");
   const [bulkRows, setBulkRows] = useState<any[]>([]);
+  const [bulkMode, setBulkMode] = useState<"request" | "paid">("request");
+  const [bulkAttemptKey, setBulkAttemptKey] = useState("");
   const [bulkDefaults, setBulkDefaults] = useState(freshPayment);
   const [bulkResult, setBulkResult] = useState<any>(null);
   const [bulkError, setBulkError] = useState("");
@@ -375,6 +390,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setPaidAttemptKey("");
   }
   function openEnrol() {
+    setAssignMenuOpen(false);
     setLearnerMode("existing");
     setNewLearnerName("");
     setNewLearnerEmail("");
@@ -384,6 +400,19 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setEnrolMode("request");
     setError("");
     setEnrolOpen(true);
+  }
+
+  function toggleAssignMenu(event: React.MouseEvent<HTMLButtonElement>) {
+    if (assignMenuOpen) {
+      setAssignMenuOpen(false);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setAssignMenuPosition({
+      top: rect.bottom + 8,
+      right: Math.max(12, window.innerWidth - rect.right),
+    });
+    setAssignMenuOpen(true);
   }
 
   async function assignNewLearner() {
@@ -431,19 +460,48 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setBusy(false);
     }
   }
-  function openManage(sub: any) {
+  function openSubscriberAction(
+    sub: any,
+    action: "change-plan" | "request-payment" | "extend-access",
+  ) {
     setError("");
     setManageSub(sub);
     setChangePlanId(sub.plan_id);
-    setRenewMode("request");
+    setManageAction(action);
+    setSubscriberMenu(null);
     resetPayment();
   }
 
-  function openBulkImport(plan: any) {
+  function toggleSubscriberMenu(event: React.MouseEvent<HTMLElement>, sub: any) {
+    event.stopPropagation();
+    if (subscriberMenu?.sub.id === sub.id) {
+      setSubscriberMenu(null);
+      return;
+    }
+    const rect = event.currentTarget.getBoundingClientRect();
+    setSubscriberMenu({
+      sub,
+      top:
+        rect.bottom + 310 > window.innerHeight
+          ? Math.max(12, rect.top - 300)
+          : rect.bottom + 6,
+      right: Math.max(12, window.innerWidth - rect.right),
+    });
+  }
+
+  function openBulkImport(plan?: any) {
+    const nextPlan = plan?.id ? plan : activePlans[0];
+    if (!nextPlan) {
+      setError("Create or activate a subscription plan before adding learners.");
+      return;
+    }
+    setAssignMenuOpen(false);
     setPlanCardMenuId(null);
-    setBulkPlan(plan);
+    setBulkPlan(nextPlan);
     setBulkText("");
     setBulkRows([]);
+    setBulkMode("request");
+    setBulkAttemptKey(crypto.randomUUID());
     setBulkDefaults(freshPayment());
     setBulkResult(null);
     setBulkError("");
@@ -464,6 +522,24 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     reader.readAsText(file);
   }
 
+  function downloadBulkTemplate() {
+    const content = [
+      "email,full_name",
+      "learner@example.com,Ama Mensah",
+    ].join("\r\n");
+    const blob = new Blob([`\uFEFF${content}\r\n`], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "subscription-learners-template.csv";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function importBulkStudents() {
     if (!bulkPlan) return;
     setBusy(true);
@@ -475,6 +551,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "bulk-subscription-payment-requests",
+          mode: bulkMode,
+          batchId: bulkAttemptKey,
           planId: bulkPlan.id,
           rows: bulkRows,
           defaults: {
@@ -482,6 +560,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             amount: Number(bulkDefaults.amount),
             currency: bulkDefaults.currency,
             dueDate: bulkDefaults.dueDate,
+            paymentMethod: bulkDefaults.paymentMethod,
+            paymentReference: bulkDefaults.paymentReference,
+            notes: bulkDefaults.notes,
           },
         }),
       });
@@ -489,7 +570,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       if (!res.ok) throw new Error(data.error || "Failed to import students");
       setBulkResult(data);
       setSuccess(
-        `${data.requested} payment request${data.requested === 1 ? "" : "s"} created for ${bulkPlan.name}.`,
+        bulkMode === "request"
+          ? `${data.requested} payment request${data.requested === 1 ? "" : "s"} created for ${bulkPlan.name}.`
+          : `${data.activated} learner${data.activated === 1 ? "" : "s"} activated on ${bulkPlan.name}.`,
       );
       await load(bulkPlan.id);
     } catch (err: any) {
@@ -531,6 +614,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       );
       setEnrolOpen(false);
       setManageSub(null);
+      setManageAction(null);
       resetPayment();
       await load();
     } catch (err: any) {
@@ -570,6 +654,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       );
       setEnrolOpen(false);
       setManageSub(null);
+      setManageAction(null);
       resetPayment();
       setTab("payments");
       await load();
@@ -666,6 +751,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         "Access plan changed. Billing terms and deadline were preserved.",
       );
       setManageSub(null);
+      setManageAction(null);
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -674,9 +760,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     }
   }
 
-  async function cancelSubscription() {
+  async function cancelSubscription(subscriptionOverride?: any) {
+    const subscription = subscriptionOverride?.id ? subscriptionOverride : manageSub;
     if (
-      !manageSub ||
+      !subscription ||
       !confirm("Cancel this subscription and revoke access immediately?")
     )
       return;
@@ -688,7 +775,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "cancel-subscription",
-          subscriptionId: manageSub.id,
+          subscriptionId: subscription.id,
         }),
       });
       const data = await res.json();
@@ -696,6 +783,42 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         throw new Error(data.error || "Failed to cancel subscription");
       setSuccess("Subscription cancelled and access revoked.");
       setManageSub(null);
+      setManageAction(null);
+      setSubscriberMenu(null);
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function deleteSubscriberAccount(subscriptionOverride?: any) {
+    const subscription = subscriptionOverride?.id ? subscriptionOverride : manageSub;
+    if (!subscription?.student_id) return;
+    const label =
+      subscription.students?.full_name || subscription.students?.email || "this learner";
+    if (
+      !confirm(
+        `Permanently delete "${label}"? This removes their login and student account, cancels open subscription access and payment requests, and cannot be undone. Completed financial history will be retained without the student identity.`,
+      )
+    )
+      return;
+
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/admin/delete-user", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: subscription.student_id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to delete student account");
+      setManageSub(null);
+      setManageAction(null);
+      setSubscriberMenu(null);
+      setSuccess(`${label} was permanently deleted.`);
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -705,6 +828,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   }
 
   async function showHistory(sub: any) {
+    setSubscriberMenu(null);
     const res = await authFetch(
       `/api/payments?action=subscription-history&studentId=${sub.student_id}`,
     );
@@ -1042,18 +1166,25 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               payments and keep every learner on schedule.
             </p>
           </div>
-          <button
-            onClick={openEnrol}
-            className={`${primary} self-start lg:self-auto`}
-            style={{
-              background: "#fff",
-              color: "#101828",
-              boxShadow: "0 16px 40px rgba(0,0,0,0.22)",
-            }}
-          >
-            <UserPlus className="w-4 h-4" />
-            Assign subscription
-          </button>
+          <div className="relative self-start lg:self-auto">
+            <button
+              onClick={toggleAssignMenu}
+              className={primary}
+              style={{
+                background: "#fff",
+                color: "#101828",
+                boxShadow: "0 16px 40px rgba(0,0,0,0.22)",
+              }}
+              aria-expanded={assignMenuOpen}
+              aria-haspopup="menu"
+            >
+              <UserPlus className="w-4 h-4" />
+              Assign subscription
+              <ChevronRight
+                className={`w-4 h-4 transition-transform ${assignMenuOpen ? "rotate-90" : ""}`}
+              />
+            </button>
+          </div>
         </div>
       </section>
 
@@ -1312,7 +1443,12 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                       return (
                         <button
                           key={sub.id}
-                          onClick={() => openManage(sub)}
+                          onClick={() => {
+                            setTab("subscribers");
+                            setSearch(
+                              sub.students?.email || sub.students?.full_name || "",
+                            );
+                          }}
                           className="w-full flex items-center gap-3 text-left"
                         >
                           <div
@@ -1442,24 +1578,16 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         style={{ borderBottom: `1px solid ${C.divider}` }}
                       >
                         <td className="px-5 py-4">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className="w-9 h-9 rounded-full grid place-items-center text-xs font-black"
-                              style={{ background: `${C.cta}14`, color: C.cta }}
+                          <div>
+                            <p
+                              className="font-bold"
+                              style={{ color: C.text }}
                             >
-                              {(sub.students?.full_name || "?").charAt(0)}
-                            </div>
-                            <div>
-                              <p
-                                className="font-bold"
-                                style={{ color: C.text }}
-                              >
-                                {sub.students?.full_name || "--"}
-                              </p>
-                              <p className="text-xs" style={{ color: C.faint }}>
-                                {sub.students?.email}
-                              </p>
-                            </div>
+                              {sub.students?.full_name || "--"}
+                            </p>
+                            <p className="text-xs" style={{ color: C.faint }}>
+                              {sub.students?.email}
+                            </p>
                           </div>
                         </td>
                         <td
@@ -1503,11 +1631,13 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </td>
                         <td className="px-5 py-4">
                           <button
-                            onClick={() => openManage(sub)}
-                            className="rounded-lg px-3 py-2 text-xs font-bold"
+                            onClick={(event) => toggleSubscriberMenu(event, sub)}
+                            className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-bold"
                             style={{ background: C.pill, color: C.cta }}
+                            aria-label={`Actions for ${sub.students?.full_name || sub.students?.email}`}
                           >
-                            Manage
+                            Actions
+                            <MoreHorizontal className="w-4 h-4" />
                           </button>
                         </td>
                       </tr>
@@ -1525,9 +1655,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               </div>
               <div className="md:hidden space-y-3">
                 {filtered.map((sub) => (
-                  <button
+                  <div
                     key={sub.id}
-                    onClick={() => openManage(sub)}
                     className="w-full rounded-2xl p-4 text-left"
                     style={cardStyle(C)}
                   >
@@ -1570,7 +1699,16 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </p>
                       </div>
                     </div>
-                  </button>
+                    <button
+                      onClick={(event) => toggleSubscriberMenu(event, sub)}
+                      className={`${primary} w-full mt-4`}
+                      style={{ background: C.pill, color: C.cta }}
+                      aria-label={`Actions for ${sub.students?.full_name || sub.students?.email}`}
+                    >
+                      Actions
+                      <MoreHorizontal className="w-4 h-4" />
+                    </button>
+                  </div>
                 ))}
               </div>
             </div>
@@ -1842,7 +1980,11 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     {planMenuOpen && (
                       <div
                         className="absolute right-0 top-11 z-20 w-56 rounded-xl p-2"
-                        style={modalStyle(C)}
+                        style={{
+                          ...modalStyle(C),
+                          background: dark ? C.pill : C.card,
+                          border: `1px solid ${C.divider}`,
+                        }}
                       >
                         <button
                           onClick={() => {
@@ -2251,8 +2393,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                         style={{
                                           background: selected
                                             ? C.cta
-                                            : "transparent",
-                                          border: `1.5px solid ${selected ? C.cta : C.cardBorder}`,
+                                            : C.card,
+                                          border: `1.5px solid ${selected ? C.cta : C.divider}`,
                                         }}
                                       >
                                         {selected && (
@@ -2314,20 +2456,272 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         </>
       )}
 
+      {assignMenuOpen && (
+        <>
+          <button
+            aria-label="Close subscription assignment menu"
+            className="fixed inset-0 z-[70] cursor-default"
+            onClick={() => setAssignMenuOpen(false)}
+          />
+          <div
+            role="menu"
+            className="fixed z-[75] w-72 max-w-[calc(100vw-24px)] rounded-2xl p-2"
+            style={{
+              ...modalStyle(C),
+              top: assignMenuPosition.top,
+              right: assignMenuPosition.right,
+              background: dark ? C.pill : C.card,
+              border: `1px solid ${C.divider}`,
+            }}
+          >
+            <button
+              role="menuitem"
+              onClick={openEnrol}
+              className="w-full flex items-start gap-3 rounded-xl px-3 py-3 text-left"
+              style={{ color: C.text }}
+            >
+              <UserPlus className="w-4 h-4 mt-0.5" style={{ color: C.cta }} />
+              <span>
+                <span className="block text-sm font-bold">Single learner</span>
+                <span className="block text-xs mt-1" style={{ color: C.faint }}>
+                  Select an existing learner or create a new account.
+                </span>
+              </span>
+            </button>
+            <button
+              role="menuitem"
+              onClick={() => openBulkImport()}
+              disabled={activePlans.length === 0}
+              className="w-full flex items-start gap-3 rounded-xl px-3 py-3 text-left disabled:opacity-50"
+              style={{ color: C.text }}
+            >
+              <FileSpreadsheet className="w-4 h-4 mt-0.5" style={{ color: C.cta }} />
+              <span>
+                <span className="block text-sm font-bold">Bulk learners</span>
+                <span className="block text-xs mt-1" style={{ color: C.faint }}>
+                  Upload CSV or paste multiple learner emails.
+                </span>
+              </span>
+            </button>
+          </div>
+        </>
+      )}
+
+      {subscriberMenu && (
+        <>
+          <button
+            aria-label="Close subscriber actions"
+            className="fixed inset-0 z-[70] cursor-default"
+            onClick={() => setSubscriberMenu(null)}
+          />
+          <div
+            className="fixed z-[75] w-52 rounded-xl p-2"
+            style={{
+              ...modalStyle(C),
+              top: subscriberMenu.top,
+              right: subscriberMenu.right,
+              background: dark ? C.pill : C.card,
+              border: `1px solid ${C.divider}`,
+            }}
+          >
+            {[
+              {
+                label: "Change plan",
+                tooltip: "Switch plans without changing price, duration, or expiry.",
+                icon: Layers3,
+                onClick: () =>
+                  openSubscriberAction(subscriberMenu.sub, "change-plan"),
+              },
+              {
+                label: "Request payment",
+                tooltip: "Send a renewal request; access extends after approval.",
+                icon: Clock3,
+                onClick: () =>
+                  openSubscriberAction(subscriberMenu.sub, "request-payment"),
+              },
+              {
+                label: "Extend access",
+                tooltip: "Record a verified payment and extend access immediately.",
+                icon: CalendarClock,
+                onClick: () =>
+                  openSubscriberAction(subscriberMenu.sub, "extend-access"),
+              },
+              {
+                label: "History",
+                tooltip: "View the learner's subscription payment history.",
+                icon: History,
+                onClick: () => showHistory(subscriberMenu.sub),
+              },
+            ].map(({ label, tooltip, icon: Icon, onClick }) => (
+              <div key={label} className="group/action relative">
+                <button
+                  onClick={onClick}
+                  title={tooltip}
+                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                  style={{ color: C.text }}
+                >
+                  <Icon className="w-4 h-4" style={{ color: C.cta }} />
+                  {label}
+                </button>
+                <span
+                  role="tooltip"
+                  className="hidden sm:block pointer-events-none absolute right-full top-1/2 z-10 mr-2 w-64 -translate-y-1/2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 transition-opacity group-hover/action:opacity-100 group-focus-within/action:opacity-100"
+                  style={{ background: C.text, color: C.card }}
+                >
+                  {tooltip}
+                </span>
+              </div>
+            ))}
+            <div className="my-1" style={{ borderTop: `1px solid ${C.divider}` }} />
+            {subscriberMenu.sub.status === "active" && (
+              <div className="group/action relative">
+                <button
+                  onClick={() => cancelSubscription(subscriberMenu.sub)}
+                  title="Cancel the subscription but keep the learner account."
+                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                  style={{ color: C.deleteText }}
+                >
+                  <XCircle className="w-4 h-4" />
+                  Revoke access
+                </button>
+                <span
+                  role="tooltip"
+                  className="hidden sm:block pointer-events-none absolute right-full top-1/2 z-10 mr-2 w-64 -translate-y-1/2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 transition-opacity group-hover/action:opacity-100 group-focus-within/action:opacity-100"
+                  style={{ background: C.text, color: C.card }}
+                >
+                  Cancel the subscription but keep the learner account.
+                </span>
+              </div>
+            )}
+            <div className="group/action relative">
+              <button
+                onClick={() => deleteSubscriberAccount(subscriberMenu.sub)}
+                title="Permanently delete the learner while retaining anonymized financial history."
+                className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                style={{ color: C.deleteText }}
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete account
+              </button>
+              <span
+                role="tooltip"
+                className="hidden sm:block pointer-events-none absolute right-full top-1/2 z-10 mr-2 w-64 -translate-y-1/2 rounded-lg px-3 py-2 text-xs leading-relaxed opacity-0 transition-opacity group-hover/action:opacity-100 group-focus-within/action:opacity-100"
+                style={{ background: C.text, color: C.card }}
+              >
+                Permanently delete the learner while retaining anonymized financial history.
+              </span>
+            </div>
+          </div>
+        </>
+      )}
+
       {bulkPlan && (
         <Modal
-          title={`Bulk add to ${bulkPlan.name}`}
+          title="Bulk add learners"
           eyebrow="CSV or pasted learners"
           onClose={() => setBulkPlan(null)}
           C={C}
           wide
         >
           <div className="space-y-6">
+            <label className="text-xs font-bold" style={{ color: C.muted }}>
+              Access plan
+              <select
+                value={bulkPlan.id}
+                onChange={(event) => {
+                  const nextPlan = activePlans.find(
+                    (plan) => plan.id === event.target.value,
+                  );
+                  if (nextPlan) {
+                    setBulkPlan(nextPlan);
+                    setBulkResult(null);
+                    setBulkError("");
+                  }
+                }}
+                className={`${fieldClass} mt-1.5`}
+                style={inputStyle}
+              >
+                {activePlans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name}
+                  </option>
+                ))}
+              </select>
+              <span className="block font-normal mt-1.5" style={{ color: C.faint }}>
+                Every learner in this import will be assigned to this plan.
+              </span>
+            </label>
+            <div className="pt-3">
+              <p className="text-sm font-bold mb-3" style={{ color: C.text }}>
+                How should payment be handled?
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {([
+                  {
+                    value: "request" as const,
+                    title: "Request payment",
+                    description: "Learners confirm payment before an admin approves access.",
+                  },
+                  {
+                    value: "paid" as const,
+                    title: "Already paid",
+                    description: "Record verified payments and activate access immediately.",
+                  },
+                ]).map(({ value, title, description }) => {
+                  const selected = bulkMode === value;
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => {
+                        setBulkMode(value);
+                        setBulkResult(null);
+                        setBulkError("");
+                      }}
+                      className="flex items-start gap-3 rounded-2xl p-4 text-left"
+                      style={{
+                        background: selected ? `${C.cta}12` : C.card,
+                        border: `1.5px solid ${selected ? C.cta : C.divider}`,
+                      }}
+                    >
+                      <span
+                        className="mt-0.5 grid h-5 w-5 flex-shrink-0 place-items-center rounded-full"
+                        style={{
+                          background: selected ? C.cta : C.card,
+                          border: `1.5px solid ${selected ? C.cta : C.divider}`,
+                        }}
+                      >
+                        {selected && (
+                          <Check
+                            className="h-3 w-3"
+                            style={{ color: "#ffffff" }}
+                          />
+                        )}
+                      </span>
+                      <span>
+                        <span className="block text-sm font-bold" style={{ color: C.text }}>
+                          {title}
+                        </span>
+                        <span className="mt-1 block text-xs leading-relaxed" style={{ color: C.faint }}>
+                          {description}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
               <ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: C.cta }} />
               <div>
-                <p className="text-sm font-bold" style={{ color: C.text }}>Payment approval still controls access</p>
-                <p className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>Each learner receives a payment request for this plan. Their subscription becomes active only after their payment confirmation is approved.</p>
+                <p className="text-sm font-bold" style={{ color: C.text }}>
+                  {bulkMode === "request" ? "Payment approval controls access" : "Access begins immediately"}
+                </p>
+                <p className="text-xs mt-1 leading-relaxed" style={{ color: C.muted }}>
+                  {bulkMode === "request"
+                    ? "Each learner receives a payment request. Their subscription becomes active only after their payment confirmation is approved."
+                    : "Use this only for payments you have already verified. Each learner is activated as soon as the import succeeds."}
+                </p>
               </div>
             </div>
 
@@ -2337,19 +2731,32 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   <p className="text-sm font-bold" style={{ color: C.text }}>1. Add learners</p>
                   <p className="text-xs mt-1" style={{ color: C.faint }}>Upload a .csv file or paste CSV rows or one email per line.</p>
                 </div>
-                <label className={`${primary} cursor-pointer self-start`} style={{ background: C.pill, color: C.text }}>
-                  <Upload className="w-4 h-4" />Upload CSV
-                  <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => { readBulkFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
-                </label>
+                <div className="flex flex-wrap gap-2 self-start">
+                  <button
+                    type="button"
+                    onClick={downloadBulkTemplate}
+                    className={primary}
+                    style={{ background: C.pill, color: C.text }}
+                  >
+                    <Download className="w-4 h-4" />
+                    Download template
+                  </button>
+                  <label className={`${primary} cursor-pointer`} style={{ background: C.pill, color: C.text }}>
+                    <Upload className="w-4 h-4" />Upload CSV
+                    <input type="file" accept=".csv,text/csv" className="sr-only" onChange={(event) => { readBulkFile(event.target.files?.[0]); event.currentTarget.value = ""; }} />
+                  </label>
+                </div>
               </div>
               <textarea
                 value={bulkText}
                 onChange={(event) => updateBulkText(event.target.value)}
                 className={`${fieldClass} min-h-44 font-mono text-xs leading-relaxed`}
                 style={inputStyle}
-                placeholder={'email,full_name,duration_months,amount,currency,due_date\nada@example.com,Ada Mensah\nkwame@example.com,Kwame Asare,3,300,GHS,2026-09-30'}
+                placeholder={'email,full_name\nada@example.com,Ada Mensah\nkwame@example.com,Kwame Asare'}
               />
-              <p className="text-[11px] mt-2" style={{ color: C.faint }}>Required column: email. Optional: full_name, duration_months, amount, currency, due_date. Optional values override the defaults below.</p>
+              <p className="text-[11px] mt-2" style={{ color: C.faint }}>
+                Required: email. Optional: full_name. The payment terms below apply to every learner in this batch.
+              </p>
             </div>
 
             <div>
@@ -2358,8 +2765,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Duration<select value={bulkDefaults.durationMonths} onChange={(event) => setBulkDefaults(value => ({ ...value, durationMonths: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle}>{[1, 3, 6, 12].map(months => <option key={months} value={months}>{months} month{months === 1 ? "" : "s"}</option>)}</select></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={bulkDefaults.amount} onChange={(event) => setBulkDefaults(value => ({ ...value, amount: event.target.value }))} placeholder="0.00" className={`${fieldClass} mt-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} style={inputStyle} /></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
-                <label className="text-xs font-bold" style={{ color: C.muted }}>Payment deadline<input type="date" value={bulkDefaults.dueDate} onChange={(event) => setBulkDefaults(value => ({ ...value, dueDate: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                {bulkMode === "request" ? (
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment deadline<input type="date" value={bulkDefaults.dueDate} onChange={(event) => setBulkDefaults(value => ({ ...value, dueDate: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                ) : (
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment method<input value={bulkDefaults.paymentMethod} onChange={(event) => setBulkDefaults(value => ({ ...value, paymentMethod: event.target.value }))} placeholder="Bank transfer" className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                )}
               </div>
+              {bulkMode === "paid" && (
+                <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment reference<input value={bulkDefaults.paymentReference} onChange={(event) => setBulkDefaults(value => ({ ...value, paymentReference: event.target.value }))} placeholder="Optional shared reference" className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Notes<input value={bulkDefaults.notes} onChange={(event) => setBulkDefaults(value => ({ ...value, notes: event.target.value }))} placeholder="Optional internal note" className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                </div>
+              )}
             </div>
 
             {bulkRows.length > 0 && (
@@ -2373,11 +2790,11 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             )}
 
             {bulkError && <div className="rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{bulkError}</div>}
-            {bulkResult && <div className="space-y-3"><div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{[["Requests", bulkResult.requested], ["New accounts", bulkResult.newAccounts], ["Existing", bulkResult.existingStudents], ["Payment emails", bulkResult.paymentEmailsSent], ["Setup emails", bulkResult.setupEmailsSent]].map(([label, value]) => <div key={String(label)} className="rounded-xl p-3" style={{ background: C.page }}><p className="text-[10px] uppercase tracking-wider" style={{ color: C.faint }}>{label}</p><p className="text-xl font-bold mt-1" style={{ color: C.text }}>{value}</p></div>)}</div>{bulkResult.errors?.length > 0 && <div className="rounded-xl p-3" style={{ background: C.errorBg, color: C.errorText }}><p className="text-xs font-bold mb-2">Rows needing attention</p>{bulkResult.errors.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs mt-1">Row {item.row}: {item.email || "No email"} - {item.error}</p>)}</div>}{bulkResult.warnings?.length > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>{bulkResult.warnings.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs">Row {item.row}: {item.warning}</p>)}</div>}</div>}
+            {bulkResult && <div className="space-y-3"><div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{[[bulkMode === "request" ? "Requests" : "Activated", bulkMode === "request" ? bulkResult.requested : bulkResult.activated], ["New accounts", bulkResult.newAccounts], ["Existing", bulkResult.existingStudents], [bulkMode === "request" ? "Payment emails" : "Errors", bulkMode === "request" ? bulkResult.paymentEmailsSent : bulkResult.errors?.length || 0], ["Setup emails", bulkResult.setupEmailsSent]].map(([label, value]) => <div key={String(label)} className="rounded-xl p-3" style={{ background: C.page }}><p className="text-[10px] uppercase tracking-wider" style={{ color: C.faint }}>{label}</p><p className="text-xl font-bold mt-1" style={{ color: C.text }}>{value}</p></div>)}</div>{bulkResult.errors?.length > 0 && <div className="rounded-xl p-3" style={{ background: C.errorBg, color: C.errorText }}><p className="text-xs font-bold mb-2">Rows needing attention</p>{bulkResult.errors.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs mt-1">Row {item.row}: {item.email || "No email"} - {item.error}</p>)}</div>}{bulkResult.warnings?.length > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>{bulkResult.warnings.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs">Row {item.row}: {item.warning}</p>)}</div>}</div>}
 
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
               <button onClick={() => setBulkPlan(null)} className={primary} style={{ background: C.pill, color: C.text }}>{bulkResult ? "Close" : "Cancel"}</button>
-              <button onClick={importBulkStudents} disabled={busy || bulkRows.length === 0 || bulkRows.length > 500 || Number(bulkDefaults.amount) <= 0 || !bulkDefaults.currency.trim() || !bulkDefaults.dueDate} className={primary} style={{ background: C.cta, color: C.ctaText }}><UserPlus className="w-4 h-4" />{busy ? "Creating requests..." : `Create ${bulkRows.length || ""} payment request${bulkRows.length === 1 ? "" : "s"}`}</button>
+              <button onClick={importBulkStudents} disabled={busy || bulkRows.length === 0 || bulkRows.length > 500 || Number(bulkDefaults.amount) <= 0 || !bulkDefaults.currency.trim() || (bulkMode === "request" && !bulkDefaults.dueDate)} className={primary} style={{ background: C.cta, color: C.ctaText }}><UserPlus className="w-4 h-4" />{busy ? (bulkMode === "request" ? "Creating requests..." : "Activating learners...") : bulkMode === "request" ? `Create ${bulkRows.length || ""} payment request${bulkRows.length === 1 ? "" : "s"}` : `Activate ${bulkRows.length || ""} learner${bulkRows.length === 1 ? "" : "s"}`}</button>
             </div>
           </div>
         </Modal>
@@ -2680,150 +3097,113 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         </Modal>
       )}
 
-      {manageSub && (
+      {manageSub && manageAction && (
         <Modal
-          title={manageSub.students?.full_name || manageSub.students?.email}
-          eyebrow="Subscriber workspace"
-          onClose={() => setManageSub(null)}
+          title={
+            manageAction === "change-plan"
+              ? "Change plan"
+              : manageAction === "request-payment"
+                ? "Request renewal payment"
+                : "Record payment and extend"
+          }
+          eyebrow={manageSub.students?.full_name || manageSub.students?.email}
+          onClose={() => {
+            setManageSub(null);
+            setManageAction(null);
+            setError("");
+          }}
           C={C}
           error={error}
-          wide
         >
-          <div className="space-y-6">
-            <div className="grid sm:grid-cols-4 gap-3">
-              {[
-                ["Status", manageSub.status],
-                ["Plan", manageSub.subscription_plans?.name],
-                ["Expires", dateLabel(manageSub.current_period_end)],
-                [
-                  "Current terms",
-                  `${manageSub.duration_months} mo - ${money(manageSub.currency, manageSub.amount)}`,
-                ],
-              ].map(([label, value]) => (
-                <div
-                  key={label}
-                  className="rounded-xl p-3"
-                  style={{ background: C.page }}
-                >
-                  <p
-                    className="text-[10px] uppercase tracking-wider font-bold"
-                    style={{ color: C.faint }}
-                  >
-                    {label}
-                  </p>
-                  <p
-                    className="text-sm font-bold mt-1 capitalize"
-                    style={{ color: C.text }}
-                  >
-                    {value}
-                  </p>
-                </div>
-              ))}
-            </div>
-            <div className="rounded-2xl p-5" style={{ background: C.page }}>
+          {manageAction === "change-plan" ? (
+            <div className="space-y-5">
+              <div className="rounded-2xl p-4" style={{ background: C.page }}>
+                <p className="text-xs" style={{ color: C.faint }}>Current plan</p>
+                <p className="font-bold mt-1" style={{ color: C.text }}>
+                  {manageSub.subscription_plans?.name}
+                </p>
+              </div>
               <p className="font-bold" style={{ color: C.text }}>
-                Change access blueprint
+                Select the new plan
               </p>
-              <p className="text-xs mt-1 mb-3" style={{ color: C.faint }}>
+              <p className="text-xs -mt-4" style={{ color: C.faint }}>
                 Price, duration and expiry remain unchanged.
               </p>
-              <div className="flex flex-col sm:flex-row gap-2">
-                <select
-                  value={changePlanId}
-                  onChange={(e) => setChangePlanId(e.target.value)}
-                  className={`${fieldClass} flex-1`}
-                  style={inputStyle}
-                >
-                  {activePlans.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+              <select
+                value={changePlanId}
+                onChange={(e) => setChangePlanId(e.target.value)}
+                className={fieldClass}
+                style={inputStyle}
+              >
+                {activePlans.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={changePlan}
+                disabled={busy || changePlanId === manageSub.plan_id}
+                className={`${primary} w-full`}
+                style={{ background: C.cta, color: C.ctaText }}
+              >
+                {busy ? "Saving..." : "Apply plan"}
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="rounded-2xl p-4" style={{ background: C.page }}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs" style={{ color: C.faint }}>Current expiry</p>
+                    <p className="font-bold mt-1" style={{ color: C.text }}>
+                      {dateLabel(manageSub.current_period_end)}
+                    </p>
+                  </div>
+                  <StatusPill status={manageSub.status} C={C} />
+                </div>
+              </div>
+              {TermsFields(manageAction === "request-payment")}
+              {manageAction === "extend-access" && ReferenceFields()}
+              <p className="text-xs" style={{ color: C.faint }}>
+                {manageAction === "request-payment"
+                  ? "Access extends only after the learner submits payment confirmation and it is approved."
+                  : "This records a verified payment and extends access immediately."}
+              </p>
+              <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2">
                 <button
-                  onClick={changePlan}
-                  disabled={busy || changePlanId === manageSub.plan_id}
+                  onClick={() => {
+                    setManageSub(null);
+                    setManageAction(null);
+                    setError("");
+                  }}
+                  disabled={busy}
+                  className={primary}
+                  style={{ background: C.pill, color: C.text }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() =>
+                    manageAction === "request-payment"
+                      ? assignRequest(manageSub)
+                      : savePaid(manageSub)
+                  }
+                  disabled={
+                    busy ||
+                    Number(payment.amount) <= 0 ||
+                    (manageAction === "request-payment" && !payment.dueDate)
+                  }
                   className={primary}
                   style={{ background: C.cta, color: C.ctaText }}
                 >
-                  Apply plan
+                  {busy
+                    ? "Saving..."
+                    : manageAction === "request-payment"
+                      ? "Send payment request"
+                      : "Record and extend"}
                 </button>
               </div>
             </div>
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <p className="font-bold" style={{ color: C.text }}>
-                    Extend access
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: C.faint }}>
-                    Create a learner payment request or record a verified
-                    renewal.
-                  </p>
-                </div>
-              </div>
-              <div
-                className="inline-flex p-1 rounded-xl mb-4"
-                style={{ background: C.pill }}
-              >
-                {(["request", "paid"] as const).map((mode) => (
-                  <button
-                    key={mode}
-                    onClick={() => { setRenewMode(mode); setPaidAttemptKey(""); }}
-                    className="rounded-lg px-3 py-2 text-xs font-bold capitalize"
-                    style={{
-                      background: renewMode === mode ? C.card : "transparent",
-                      color: renewMode === mode ? C.text : C.faint,
-                    }}
-                  >
-                    {mode === "request" ? "Request payment" : "Already paid"}
-                  </button>
-                ))}
-              </div>
-              {TermsFields(renewMode === "request")}
-              {renewMode === "paid" && (
-                <div className="mt-3">
-                  {ReferenceFields()}
-                </div>
-              )}
-              <button
-                onClick={() =>
-                  renewMode === "request"
-                    ? assignRequest(manageSub)
-                    : savePaid(manageSub)
-                }
-                disabled={busy || Number(payment.amount) <= 0}
-                className={`${primary} w-full mt-4`}
-                style={{ background: C.cta, color: C.ctaText }}
-              >
-                {renewMode === "request"
-                  ? "Send renewal request"
-                  : "Record and extend access"}
-              </button>
-            </div>
-            <div
-              className="flex flex-wrap items-center justify-between gap-3 pt-5"
-              style={{ borderTop: `1px solid ${C.divider}` }}
-            >
-              <button
-                onClick={() => showHistory(manageSub)}
-                className="inline-flex items-center gap-2 text-sm font-bold"
-                style={{ color: C.cta }}
-              >
-                <History className="w-4 h-4" />
-                Payment history
-              </button>
-              {manageSub.status === "active" && (
-                <button
-                  onClick={cancelSubscription}
-                  className="text-sm font-bold"
-                  style={{ color: C.deleteText }}
-                >
-                  Cancel and revoke access
-                </button>
-              )}
-            </div>
-          </div>
+          )}
         </Modal>
       )}
 

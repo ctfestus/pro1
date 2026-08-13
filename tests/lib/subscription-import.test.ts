@@ -23,4 +23,14 @@ describe('parseSubscriptionImportText', () => {
       { email: 'ada@example.com', full_name: 'Ada, Mensah' },
     ]);
   });
+
+  it('parses row-level paid-payment details and their short aliases', () => {
+    expect(parseSubscriptionImportText([
+      'email,method,reference,notes',
+      'ada@example.com,Bank transfer,TX-101,Verified by finance',
+    ].join('\n'))).toEqual([{
+      email: 'ada@example.com', payment_method: 'Bank transfer',
+      payment_reference: 'TX-101', notes: 'Verified by finance',
+    }]);
+  });
 });

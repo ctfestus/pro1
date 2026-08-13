@@ -542,6 +542,8 @@ export async function POST(req: NextRequest) {
   }
 
   if (body.action === 'bulk-subscription-payment-requests') {
+    const mode = body.mode === 'paid' ? 'paid' : 'request';
+    const batchId = String(body.batchId || '').trim();
     const durationMonths = Number(body.defaults?.durationMonths);
     const amount = Number(body.defaults?.amount);
     const currency = String(body.defaults?.currency || '').trim();
@@ -553,14 +555,27 @@ export async function POST(req: NextRequest) {
     if (![1, 3, 6, 12].includes(durationMonths) || !Number.isFinite(amount) || amount <= 0 || !currency) {
       return NextResponse.json({ error: 'Valid default duration, amount, and currency are required' }, { status: 400 });
     }
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(`${dueDate}T00:00:00Z`)) || dueDate < new Date().toISOString().slice(0, 10)) {
+    if (mode === 'request' && (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(`${dueDate}T00:00:00Z`)) || dueDate < new Date().toISOString().slice(0, 10))) {
       return NextResponse.json({ error: 'A valid payment deadline that is not in the past is required' }, { status: 400 });
+    }
+    if (mode === 'paid' && !batchId) {
+      return NextResponse.json({ error: 'batchId is required when recording paid subscriptions' }, { status: 400 });
     }
     try {
       return NextResponse.json(await bulkAssignSubscriptionStudents(db, {
         planId: body.planId,
+        mode,
+        batchId,
         rows: body.rows,
-        defaults: { durationMonths, amount, currency, dueDate },
+        defaults: {
+          durationMonths,
+          amount,
+          currency,
+          dueDate: mode === 'request' ? dueDate : null,
+          paymentMethod: body.defaults?.paymentMethod,
+          paymentReference: body.defaults?.paymentReference,
+          notes: body.defaults?.notes,
+        },
         createdBy: sessionUser.id,
       }));
     } catch (err: any) {

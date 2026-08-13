@@ -24,6 +24,9 @@ const HEADER_ALIASES: Record<string, keyof BulkSubscriptionStudentRow> = {
   amount: 'amount', price: 'amount',
   currency: 'currency',
   due_date: 'due_date', deadline: 'due_date',
+  payment_method: 'payment_method', method: 'payment_method',
+  payment_reference: 'payment_reference', reference: 'payment_reference',
+  notes: 'notes',
 };
 
 export function parseSubscriptionImportText(text: string): BulkSubscriptionStudentRow[] {

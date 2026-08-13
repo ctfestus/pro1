@@ -197,13 +197,29 @@ describe('subscription payment actions', () => {
     authenticateAs('admin');
     const rows = [{ email: 'ada@example.com' }, { email: 'kwame@example.com', duration_months: 3 }];
     const response = await POST(request({
-      action: 'bulk-subscription-payment-requests', planId: 'plan-1', rows,
+      action: 'bulk-subscription-payment-requests', mode: 'request', batchId: 'batch-1', planId: 'plan-1', rows,
       defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: '2026-09-01' },
     }));
     expect(response.status).toBe(200);
     expect(bulkAssignSubscriptionStudents).toHaveBeenCalledWith({}, {
       planId: 'plan-1', rows,
-      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: '2026-09-01' },
+      mode: 'request', batchId: 'batch-1',
+      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: '2026-09-01', paymentMethod: undefined, paymentReference: undefined, notes: undefined },
+      createdBy: 'admin-1',
+    });
+  });
+
+  it('records bulk paid subscriptions without requiring a payment deadline', async () => {
+    authenticateAs('admin');
+    const rows = [{ email: 'ada@example.com' }];
+    const response = await POST(request({
+      action: 'bulk-subscription-payment-requests', mode: 'paid', batchId: 'batch-paid-1', planId: 'plan-1', rows,
+      defaults: { durationMonths: 3, amount: 300, currency: 'GHS', paymentMethod: 'Bank transfer', paymentReference: 'BATCH-22' },
+    }));
+    expect(response.status).toBe(200);
+    expect(bulkAssignSubscriptionStudents).toHaveBeenCalledWith({}, {
+      planId: 'plan-1', mode: 'paid', batchId: 'batch-paid-1', rows,
+      defaults: { durationMonths: 3, amount: 300, currency: 'GHS', dueDate: null, paymentMethod: 'Bank transfer', paymentReference: 'BATCH-22', notes: undefined },
       createdBy: 'admin-1',
     });
   });

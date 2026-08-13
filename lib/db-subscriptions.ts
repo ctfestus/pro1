@@ -250,19 +250,33 @@ export interface BulkSubscriptionStudentRow {
   amount?: number | string | null;
   currency?: string | null;
   due_date?: string | null;
+  payment_method?: string | null;
+  payment_reference?: string | null;
+  notes?: string | null;
 }
 
 export async function bulkAssignSubscriptionStudents(
   db: SupabaseClient,
   input: {
     planId: string;
+    mode: 'request' | 'paid';
+    batchId: string;
     rows: BulkSubscriptionStudentRow[];
-    defaults: { durationMonths: number; amount: number; currency: string; dueDate: string };
+    defaults: {
+      durationMonths: number;
+      amount: number;
+      currency: string;
+      dueDate?: string | null;
+      paymentMethod?: string | null;
+      paymentReference?: string | null;
+      notes?: string | null;
+    };
     createdBy: string;
   },
 ) {
   const result = {
     requested: 0,
+    activated: 0,
     newAccounts: 0,
     existingStudents: 0,
     setupEmailsSent: 0,
@@ -284,28 +298,50 @@ export async function bulkAssignSubscriptionStudents(
       const durationMonths = Number(row.duration_months || input.defaults.durationMonths);
       const amount = Number(row.amount || input.defaults.amount);
       const currency = String(row.currency || input.defaults.currency).trim().toUpperCase();
-      const dueDate = String(row.due_date || input.defaults.dueDate).trim();
+      const dueDate = String(row.due_date || input.defaults.dueDate || '').trim();
+      const paymentMethod = String(row.payment_method || input.defaults.paymentMethod || '').trim() || null;
+      const paymentReference = String(row.payment_reference || input.defaults.paymentReference || '').trim() || null;
+      const notes = String(row.notes || input.defaults.notes || '').trim() || null;
       if (![1, 3, 6, 12].includes(durationMonths)) throw new Error('Duration must be 1, 3, 6, or 12 months.');
       if (!Number.isFinite(amount) || amount <= 0) throw new Error('Amount must be greater than 0.');
       if (!currency) throw new Error('Currency is required.');
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(`${dueDate}T00:00:00Z`))) throw new Error('Due date must use YYYY-MM-DD.');
-      if (dueDate < new Date().toISOString().slice(0, 10)) throw new Error('Due date cannot be in the past.');
+      if (input.mode === 'request') {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(`${dueDate}T00:00:00Z`))) throw new Error('Due date must use YYYY-MM-DD.');
+        if (dueDate < new Date().toISOString().slice(0, 10)) throw new Error('Due date cannot be in the past.');
+      }
 
       provisioned = await provisionIndividualStudent(db, { email, fullName: row.full_name, notify: false, claimModel: false });
-      const request = await createSubscriptionPaymentRequest(db, {
-        studentId: provisioned.studentId,
-        planId: input.planId,
-        durationMonths: durationMonths as 1 | 3 | 6 | 12,
-        amount,
-        currency,
-        dueDate,
-        createdBy: input.createdBy,
-      });
-      result.requested += 1;
+      let request: any = null;
+      if (input.mode === 'request') {
+        request = await createSubscriptionPaymentRequest(db, {
+          studentId: provisioned.studentId,
+          planId: input.planId,
+          durationMonths: durationMonths as 1 | 3 | 6 | 12,
+          amount,
+          currency,
+          dueDate,
+          createdBy: input.createdBy,
+        });
+        result.requested += 1;
+      } else {
+        await purchaseOrRenewSubscription(db, {
+          studentId: provisioned.studentId,
+          planId: input.planId,
+          durationMonths: durationMonths as 1 | 3 | 6 | 12,
+          amount,
+          currency,
+          idempotencyKey: `bulk-subscription:${input.batchId}:${email}`,
+          paymentMethod,
+          paymentReference,
+          notes,
+          createdBy: input.createdBy,
+        });
+        result.activated += 1;
+      }
       if (provisioned.isNewAccount) result.newAccounts += 1;
       else result.existingStudents += 1;
 
-      try {
+      if (input.mode === 'request') try {
         await notifySubscriptionPaymentRequest(db, {
           studentId: provisioned.studentId,
           planName: request.planName,
@@ -328,7 +364,7 @@ export async function bulkAssignSubscriptionStudents(
           });
           result.setupEmailsSent += 1;
         } catch (emailError: any) {
-          result.warnings.push({ row: index + 1, email, warning: `Payment request created, but setup email failed: ${emailError.message ?? 'Unknown error'}` });
+          result.warnings.push({ row: index + 1, email, warning: `${input.mode === 'request' ? 'Payment request created' : 'Subscription activated'}, but setup email failed: ${emailError.message ?? 'Unknown error'}` });
         }
       }
     } catch (error: any) {
