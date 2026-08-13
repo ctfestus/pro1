@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
@@ -16,7 +16,8 @@ import {
 } from '@/lib/db-payments';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
-import { provisionIndividualStudent, sendIndividualStudentSetupEmail } from '@/lib/provision-individual-student';
+import { notifySubscriptionActivated } from '@/lib/notify-subscription-activated';
+import { provisionIndividualStudent } from '@/lib/provision-individual-student';
 import { addToResendAudience } from '@/lib/resend-audience';
 import {
   cancelSubscription,
@@ -406,14 +407,10 @@ export async function POST(req: NextRequest) {
           dueDate: body.dueDate,
           createdBy: sessionUser.id,
         });
+        // The sender picks the right message from durable state: a learner who cannot sign
+        // in yet receives the combined welcome, everyone else the request on its own.
         try {
-          await notifySubscriptionPaymentRequest(db, {
-            studentId: provisioned.studentId,
-            planName: assignment.planName,
-            amount,
-            currency,
-            dueDate: body.dueDate,
-          });
+          await notifySubscriptionPaymentRequest(db, { requestId: assignment.requestId });
         } catch (notificationError: any) {
           notificationWarning = notificationError.message ?? 'Payment notification email failed';
         }
@@ -432,17 +429,19 @@ export async function POST(req: NextRequest) {
         });
       }
 
-      let setupWarning: string | null = null;
-      if (provisioned.isNewAccount) {
-        await addToResendAudience({ email, name: fullName });
+      let activationWarning: string | null = null;
+
+      if (provisioned.isNewAccount) await addToResendAudience({ email, name: fullName });
+
+      // The request path already mailed above. For the paid path the sender decides which
+      // message applies: a learner who cannot sign in yet gets the combined welcome with a
+      // setup link, everyone else the access notice. Retries still attempt delivery; the
+      // delivery stamps prevent a second copy and the hourly sweep picks up failures.
+      if (mode === 'paid' && assignment.paymentId) {
         try {
-          await sendIndividualStudentSetupEmail(db, {
-            studentId: provisioned.studentId,
-            email,
-            fullName,
-          });
-        } catch (setupError: any) {
-          setupWarning = setupError.message ?? 'Account setup email failed';
+          await notifySubscriptionActivated(db, { paymentId: assignment.paymentId });
+        } catch (emailError: any) {
+          activationWarning = emailError.message ?? 'Subscription email failed';
         }
       }
 
@@ -451,7 +450,7 @@ export async function POST(req: NextRequest) {
         studentId: provisioned.studentId,
         isNewAccount: provisioned.isNewAccount,
         notificationWarning,
-        setupWarning,
+        activationWarning,
       });
     } catch (err: any) {
       if (provisioned?.isNewAccount) {
@@ -490,7 +489,19 @@ export async function POST(req: NextRequest) {
         notes: body.notes,
         createdBy: sessionUser.id,
       });
-      return NextResponse.json(result);
+      // Attempted on every request, including a retry the RPC reports as already
+      // processed: the first attempt may have committed the payment and then failed to
+      // deliver. notifySubscriptionActivated is a no-op once the payment is stamped, so a
+      // successful email is never repeated.
+      let activationWarning: string | null = null;
+      if (result.paymentId) {
+        try {
+          await notifySubscriptionActivated(db, { paymentId: result.paymentId });
+        } catch (emailError: any) {
+          activationWarning = emailError.message ?? 'Subscription email failed';
+        }
+      }
+      return NextResponse.json({ ...result, activationWarning });
     } catch (err: any) {
       const conflict = err?.code === '23505'
         || String(err?.message ?? '').includes('already belongs')
@@ -524,13 +535,7 @@ export async function POST(req: NextRequest) {
         createdBy: sessionUser.id,
       });
       try {
-        await notifySubscriptionPaymentRequest(db, {
-          studentId: body.studentId,
-          planName: result.planName,
-          amount,
-          currency: String(body.currency || 'GHS').trim().toUpperCase(),
-          dueDate: body.dueDate,
-        });
+        await notifySubscriptionPaymentRequest(db, { requestId: result.requestId });
         return NextResponse.json({ ...result, notificationSent: true });
       } catch (notificationError: any) {
         return NextResponse.json({ ...result, notificationSent: false, notificationWarning: notificationError.message ?? 'Notification email failed' });
@@ -594,8 +599,21 @@ export async function POST(req: NextRequest) {
         : await rejectSubscriptionPaymentConfirmation(db, { confirmationId: body.confirmationId, reviewedBy: sessionUser.id, adminNotes: body.adminNotes });
 
       if (process.env.RESEND_API_KEY) {
-        void (async () => {
+        // after() runs once the response is sent and is not cut off by the serverless
+        // freeze that drops a bare fire-and-forget promise. Approval is the moment access
+        // actually starts for the request flow, so this is the learner's only notice.
+        after(async () => {
           try {
+            // Migration 177 makes a replayed approval return the payment the original
+            // approval created, so a failed activation email can be retried by approving
+            // again. The delivery stamp stops a successful one being resent.
+            const approvedPaymentId = body.action === 'approve-subscription-confirmation'
+              ? (result as any)?.paymentId
+              : null;
+            if (approvedPaymentId) {
+              await notifySubscriptionActivated(db, { paymentId: approvedPaymentId });
+              return;
+            }
             const { data: confirmation } = await db.from('subscription_payment_confirmations')
               .select('amount, student_id, subscription_payment_requests!inner(currency)')
               .eq('id', body.confirmationId).maybeSingle();
@@ -617,7 +635,7 @@ export async function POST(req: NextRequest) {
                 : paymentConfirmationRejectedEmail({ name: student.full_name || 'there', amount: Number(confirmation.amount), currency, dashboardUrl: settings.appUrl, adminNotes: body.adminNotes, branding }),
             });
           } catch { /* Payment state is authoritative; email is best effort. */ }
-        })();
+        });
       }
       return NextResponse.json(result);
     } catch (err: any) {

@@ -444,7 +444,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create and assign learner");
 
-      const warnings = [data.notificationWarning, data.setupWarning].filter(Boolean);
+      const warnings = [data.notificationWarning, data.activationWarning].filter(Boolean);
       setSuccess(
         enrolMode === "paid"
           ? `Account ready and subscription activated.${warnings.length ? ` ${warnings.join(" ")}` : ""}`
@@ -607,10 +607,13 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to save subscription");
+      const paidWarning = data.activationWarning
+        ? ` The learner email could not be sent: ${data.activationWarning}`
+        : "";
       setSuccess(
-        subscription
+        (subscription
           ? "Renewal recorded and access extended."
-          : "Payment recorded and access activated.",
+          : "Payment recorded and access activated.") + paidWarning,
       );
       setEnrolOpen(false);
       setManageSub(null);
@@ -2790,7 +2793,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             )}
 
             {bulkError && <div className="rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{bulkError}</div>}
-            {bulkResult && <div className="space-y-3"><div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{[[bulkMode === "request" ? "Requests" : "Activated", bulkMode === "request" ? bulkResult.requested : bulkResult.activated], ["New accounts", bulkResult.newAccounts], ["Existing", bulkResult.existingStudents], [bulkMode === "request" ? "Payment emails" : "Errors", bulkMode === "request" ? bulkResult.paymentEmailsSent : bulkResult.errors?.length || 0], ["Setup emails", bulkResult.setupEmailsSent]].map(([label, value]) => <div key={String(label)} className="rounded-xl p-3" style={{ background: C.page }}><p className="text-[10px] uppercase tracking-wider" style={{ color: C.faint }}>{label}</p><p className="text-xl font-bold mt-1" style={{ color: C.text }}>{value}</p></div>)}</div>{bulkResult.errors?.length > 0 && <div className="rounded-xl p-3" style={{ background: C.errorBg, color: C.errorText }}><p className="text-xs font-bold mb-2">Rows needing attention</p>{bulkResult.errors.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs mt-1">Row {item.row}: {item.email || "No email"} - {item.error}</p>)}</div>}{bulkResult.warnings?.length > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>{bulkResult.warnings.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs">Row {item.row}: {item.warning}</p>)}</div>}</div>}
+            {bulkResult && <div className="space-y-3"><div className="grid grid-cols-2 sm:grid-cols-5 gap-2">{[[bulkMode === "request" ? "Requests" : "Activated", bulkMode === "request" ? bulkResult.requested : bulkResult.activated], ["New accounts", bulkResult.newAccounts], ["Existing", bulkResult.existingStudents], ["Emails sent", bulkResult.paymentEmailsSent], ["Errors", bulkResult.errors?.length || 0]].map(([label, value]) => <div key={String(label)} className="rounded-xl p-3" style={{ background: C.page }}><p className="text-[10px] uppercase tracking-wider" style={{ color: C.faint }}>{label}</p><p className="text-xl font-bold mt-1" style={{ color: C.text }}>{value}</p></div>)}</div>{bulkResult.errors?.length > 0 && <div className="rounded-xl p-3" style={{ background: C.errorBg, color: C.errorText }}><p className="text-xs font-bold mb-2">Rows needing attention</p>{bulkResult.errors.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs mt-1">Row {item.row}: {item.email || "No email"} - {item.error}</p>)}</div>}{bulkResult.warnings?.length > 0 && <div className="rounded-xl p-3" style={{ background: "rgba(217,119,6,0.10)", color: "#b45309" }}>{bulkResult.warnings.map((item: any) => <p key={`${item.row}-${item.email}`} className="text-xs">Row {item.row}: {item.warning}</p>)}</div>}</div>}
 
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
               <button onClick={() => setBulkPlan(null)} className={primary} style={{ background: C.pill, color: C.text }}>{bulkResult ? "Close" : "Cancel"}</button>

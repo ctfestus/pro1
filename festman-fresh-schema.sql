@@ -112,6 +112,10 @@ CREATE TABLE public.students (
   portfolio_items    jsonb       DEFAULT '[]'::jsonb,
   account_provisioned_at      timestamptz,
   setup_email_sent_at         timestamptz,
+  -- migration 180: short-lived claim held while a worker sends the combined welcome, so the
+  -- admin route and the hourly sweep cannot both send one. Expires so a crashed worker does
+  -- not strand the learner.
+  setup_email_claimed_at      timestamptz,
   password_setup_started_at   timestamptz,
   password_set_at             timestamptz,
   onboarding_completed_at     timestamptz,
@@ -4128,12 +4132,25 @@ CREATE TABLE public.individual_subscriptions (
   current_period_start timestamptz NOT NULL,
   current_period_end timestamptz NOT NULL,
   cancelled_at timestamptz,
+  -- migration 179: the current_period_end a pre-expiry warning was last sent for. A renewal
+  -- moves the period end, which makes the subscription eligible for a fresh warning.
+  expiry_warning_for_period_end timestamptz,
+  -- migration 180: bounded warning attempts, so one permanently invalid address cannot hold
+  -- a slot in the warning window forever.
+  expiry_warning_attempts integer NOT NULL DEFAULT 0,
+  expiry_warning_last_error text,
+  -- migration 180: which period those attempts were spent on. Without it the counter is a
+  -- lifetime total and five failures bar the learner from every future warning.
+  expiry_warning_attempted_for_period_end timestamptz,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT individual_subscriptions_plan_cohort_fkey
     FOREIGN KEY (plan_id, cohort_id) REFERENCES public.subscription_plans(id, cohort_id) ON DELETE RESTRICT
 );
 CREATE UNIQUE INDEX idx_individual_subscriptions_student ON public.individual_subscriptions(student_id) WHERE student_id IS NOT NULL;
+CREATE INDEX idx_individual_subscriptions_expiry_warning
+  ON public.individual_subscriptions(current_period_end)
+  WHERE status = 'active';
 CREATE INDEX idx_individual_subscriptions_sweep ON public.individual_subscriptions(status, current_period_end);
 CREATE INDEX idx_individual_subscriptions_plan ON public.individual_subscriptions(plan_id);
 
@@ -4156,9 +4173,19 @@ CREATE TABLE public.subscription_payments (
   payment_method text,
   payment_reference text,
   notes text,
+  -- migration 177: set once the activation email is accepted by the mail provider. NULL
+  -- means it still needs sending, which is what makes a failed delivery retryable.
+  activation_email_sent_at timestamptz,
+  -- migration 179: bounded retries. The sweep stops past a cap so one permanently broken
+  -- row cannot starve every newer learner behind it in the queue.
+  email_attempts integer NOT NULL DEFAULT 0,
+  email_last_error text,
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now()
 );
+CREATE INDEX idx_subscription_payments_activation_email_pending
+  ON public.subscription_payments(created_at)
+  WHERE activation_email_sent_at IS NULL;
 
 CREATE TABLE public.subscription_plan_content (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -4450,8 +4477,17 @@ CREATE TABLE public.subscription_payment_requests (
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','confirmation_submitted','paid','cancelled')),
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
-  paid_at timestamptz, cancelled_at timestamptz
+  paid_at timestamptz, cancelled_at timestamptz,
+  -- migration 178: set once the payment-request email is accepted by the mail provider.
+  -- NULL means it still needs sending, which is what makes a failed delivery retryable.
+  request_email_sent_at timestamptz,
+  -- migration 179: see subscription_payments.email_attempts.
+  email_attempts integer NOT NULL DEFAULT 0,
+  email_last_error text
 );
+CREATE INDEX idx_subscription_payment_requests_email_pending
+  ON public.subscription_payment_requests(created_at)
+  WHERE request_email_sent_at IS NULL;
 CREATE UNIQUE INDEX idx_subscription_payment_requests_open_student ON public.subscription_payment_requests(student_id)
   WHERE student_id IS NOT NULL AND status IN ('pending','confirmation_submitted');
 CREATE INDEX idx_subscription_payment_requests_review ON public.subscription_payment_requests(status,due_date);
@@ -4509,36 +4545,295 @@ CREATE TRIGGER trg_close_subscription_before_student_delete BEFORE DELETE ON pub
   FOR EACH ROW EXECUTE FUNCTION public.close_subscription_before_student_delete();
 REVOKE ALL ON FUNCTION public.close_subscription_before_student_delete() FROM PUBLIC, anon, authenticated;
 
+CREATE FUNCTION public.list_subscriptions_needing_expiry_warning(
+  p_horizon timestamptz,
+  p_limit integer DEFAULT 25,
+  p_max_attempts integer DEFAULT 5
+) RETURNS TABLE (id uuid, current_period_end timestamptz)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $$
+  SELECT s.id, s.current_period_end
+  FROM public.individual_subscriptions s
+  WHERE s.status = 'active'
+    AND s.current_period_end > now()
+    AND s.current_period_end <= p_horizon
+    AND s.expiry_warning_for_period_end IS DISTINCT FROM s.current_period_end
+    AND (
+      s.expiry_warning_attempted_for_period_end IS DISTINCT FROM s.current_period_end
+      OR s.expiry_warning_attempts < p_max_attempts
+    )
+  ORDER BY s.current_period_end
+  LIMIT p_limit;
+$$;
+REVOKE EXECUTE ON FUNCTION public.list_subscriptions_needing_expiry_warning(timestamptz, integer, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.list_subscriptions_needing_expiry_warning(timestamptz, integer, integer)
+  TO service_role;
+
+CREATE OR REPLACE FUNCTION public.record_expiry_warning_failure(
+  p_subscription_id uuid,
+  p_period_end timestamptz,
+  p_error text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.individual_subscriptions
+  SET expiry_warning_attempts = CASE
+        WHEN expiry_warning_attempted_for_period_end IS DISTINCT FROM p_period_end THEN 1
+        ELSE expiry_warning_attempts + 1
+      END,
+      expiry_warning_attempted_for_period_end = p_period_end,
+      expiry_warning_last_error = left(COALESCE(p_error, 'Unknown error'), 500)
+  WHERE id = p_subscription_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.record_expiry_warning_failure(uuid, timestamptz, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_expiry_warning_failure(uuid, timestamptz, text) TO service_role;
+
+-- Wins the right to send this learner's welcome, or returns false because another worker
+-- already holds it. The UPDATE is the claim: a single statement, so two callers cannot both
+-- match the WHERE clause.
+CREATE OR REPLACE FUNCTION public.claim_learner_welcome_email(
+  p_student_id uuid,
+  p_ttl_seconds integer DEFAULT 300
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_claimed uuid;
+BEGIN
+  UPDATE public.students
+  SET setup_email_claimed_at = now()
+  WHERE id = p_student_id
+    AND setup_email_sent_at IS NULL
+    AND (
+      setup_email_claimed_at IS NULL
+      OR setup_email_claimed_at < now() - make_interval(secs => p_ttl_seconds)
+    )
+  RETURNING id INTO v_claimed;
+
+  RETURN v_claimed IS NOT NULL;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_learner_welcome_email(uuid, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_learner_welcome_email(uuid, integer) TO service_role;
+
+-- Released on failure so the next attempt does not wait out the whole TTL.
+CREATE OR REPLACE FUNCTION public.release_learner_welcome_claim(p_student_id uuid)
+RETURNS void
+LANGUAGE sql SECURITY DEFINER SET search_path = ''
+AS $$
+  UPDATE public.students
+  SET setup_email_claimed_at = NULL
+  WHERE id = p_student_id
+    AND setup_email_sent_at IS NULL;
+$$;
+REVOKE EXECUTE ON FUNCTION public.release_learner_welcome_claim(uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_learner_welcome_claim(uuid) TO service_role;
+
+-- Clearing the claim belongs in the same transaction as the stamps, so a delivered welcome
+-- never leaves a stale claim behind.
+CREATE OR REPLACE FUNCTION public.mark_subscription_email_delivered(
+  p_student_id uuid DEFAULT NULL,
+  p_payment_id uuid DEFAULT NULL,
+  p_request_id uuid DEFAULT NULL,
+  p_mark_setup boolean DEFAULT false
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  IF p_payment_id IS NOT NULL THEN
+    UPDATE public.subscription_payments
+    SET activation_email_sent_at = now(), email_last_error = NULL
+    WHERE id = p_payment_id
+      AND activation_email_sent_at IS NULL;
+  END IF;
+
+  IF p_request_id IS NOT NULL THEN
+    UPDATE public.subscription_payment_requests
+    SET request_email_sent_at = now(), email_last_error = NULL
+    WHERE id = p_request_id
+      AND request_email_sent_at IS NULL;
+  END IF;
+
+  IF p_mark_setup AND p_student_id IS NOT NULL THEN
+    UPDATE public.students
+    SET setup_email_sent_at = COALESCE(setup_email_sent_at, now()),
+        setup_email_claimed_at = NULL,
+        updated_at = now()
+    WHERE id = p_student_id;
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.mark_subscription_email_delivered(uuid, uuid, uuid, boolean)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_subscription_email_delivered(uuid, uuid, uuid, boolean)
+  TO service_role;
+
+
+-- Counted server-side so concurrent sweeps cannot lose an increment to a read-modify-write
+-- race, which would keep a dead row in the queue indefinitely.
+CREATE OR REPLACE FUNCTION public.record_subscription_email_failure(
+  p_payment_id uuid DEFAULT NULL,
+  p_request_id uuid DEFAULT NULL,
+  p_error text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  IF p_payment_id IS NOT NULL THEN
+    UPDATE public.subscription_payments
+    SET email_attempts = email_attempts + 1,
+        email_last_error = left(COALESCE(p_error, 'Unknown error'), 500)
+    WHERE id = p_payment_id
+      AND activation_email_sent_at IS NULL;
+  END IF;
+
+  IF p_request_id IS NOT NULL THEN
+    UPDATE public.subscription_payment_requests
+    SET email_attempts = email_attempts + 1,
+        email_last_error = left(COALESCE(p_error, 'Unknown error'), 500)
+    WHERE id = p_request_id
+      AND request_email_sent_at IS NULL;
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.record_subscription_email_failure(uuid, uuid, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_subscription_email_failure(uuid, uuid, text)
+  TO service_role;
+
+-- Records that a warning went out for the period it was actually about, so a renewal that
+-- extends current_period_end makes the subscription eligible again.
+CREATE OR REPLACE FUNCTION public.mark_subscription_expiry_warned(
+  p_subscription_id uuid,
+  p_period_end timestamptz
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.individual_subscriptions
+  SET expiry_warning_for_period_end = p_period_end,
+      expiry_warning_attempts = 0,
+      expiry_warning_attempted_for_period_end = NULL,
+      expiry_warning_last_error = NULL
+  WHERE id = p_subscription_id
+    AND current_period_end = p_period_end;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.mark_subscription_expiry_warned(uuid, timestamptz)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_subscription_expiry_warned(uuid, timestamptz)
+  TO service_role;
+
 CREATE OR REPLACE FUNCTION public.approve_subscription_payment_confirmation(
-  p_confirmation_id uuid,p_reviewed_by uuid DEFAULT NULL,p_admin_notes text DEFAULT NULL
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+  p_confirmation_id uuid,
+  p_reviewed_by uuid DEFAULT NULL,
+  p_admin_notes text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 DECLARE
   v_confirmation public.subscription_payment_confirmations%ROWTYPE;
   v_request public.subscription_payment_requests%ROWTYPE;
-  v_request_id uuid; v_student_id uuid; v_result jsonb; v_subscription_id uuid;
+  v_request_id uuid;
+  v_student_id uuid;
+  v_result jsonb;
+  v_subscription_id uuid;
+  v_payment_id uuid;
+  v_idempotency_key text := 'subscription-confirmation:' || p_confirmation_id::text;
 BEGIN
-  SELECT confirmation.request_id,request.student_id INTO v_request_id,v_student_id
+  SELECT confirmation.request_id, request.student_id
+  INTO v_request_id, v_student_id
   FROM public.subscription_payment_confirmations AS confirmation
-  JOIN public.subscription_payment_requests AS request ON request.id=confirmation.request_id
-  WHERE confirmation.id=p_confirmation_id;
-  IF NOT FOUND OR v_student_id IS NULL THEN RAISE EXCEPTION 'subscription payment confirmation not found'; END IF;
-  PERFORM 1 FROM public.students WHERE id=v_student_id FOR UPDATE;
+  JOIN public.subscription_payment_requests AS request ON request.id = confirmation.request_id
+  WHERE confirmation.id = p_confirmation_id;
+  IF NOT FOUND OR v_student_id IS NULL THEN
+    RAISE EXCEPTION 'subscription payment confirmation not found';
+  END IF;
+
+  -- student, then request, then confirmation. Migration 176's delete trigger already holds
+  -- the student row when it reaches the request, so approval must take the same order or
+  -- a deletion and an approval of the same learner can deadlock.
+  PERFORM 1 FROM public.students WHERE id = v_student_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'subscription student no longer exists'; END IF;
-  SELECT * INTO v_request FROM public.subscription_payment_requests WHERE id=v_request_id FOR UPDATE;
-  IF NOT FOUND OR v_request.status<>'confirmation_submitted' THEN RAISE EXCEPTION 'subscription payment request is not awaiting confirmation'; END IF;
-  SELECT * INTO v_confirmation FROM public.subscription_payment_confirmations WHERE id=p_confirmation_id FOR UPDATE;
-  IF NOT FOUND OR v_confirmation.status<>'pending' THEN RAISE EXCEPTION 'subscription payment confirmation has already been processed' USING ERRCODE='unique_violation'; END IF;
-  IF v_confirmation.request_id IS DISTINCT FROM v_request.id THEN RAISE EXCEPTION 'subscription payment confirmation request changed unexpectedly'; END IF;
-  IF v_request.student_id IS DISTINCT FROM v_student_id OR v_confirmation.student_id IS DISTINCT FROM v_request.student_id THEN RAISE EXCEPTION 'subscription payment confirmation does not belong to this request'; END IF;
-  IF v_confirmation.amount IS DISTINCT FROM v_request.amount THEN RAISE EXCEPTION 'confirmed amount must equal the assigned subscription amount'; END IF;
-  v_result:=public.purchase_or_renew_individual_subscription(v_request.student_id,v_request.plan_id,v_request.duration_months,v_request.amount,v_request.currency,
-    'subscription-confirmation:'||v_confirmation.id::text,v_confirmation.method,v_confirmation.reference,v_confirmation.notes,p_reviewed_by);
-  v_subscription_id:=(v_result->>'subscriptionId')::uuid;
-  UPDATE public.subscription_payments SET paid_at=v_confirmation.paid_at WHERE id=(v_result->>'paymentId')::uuid;
-  UPDATE public.subscription_payment_confirmations SET status='approved',reviewed_by=p_reviewed_by,reviewed_at=now(),admin_notes=NULLIF(btrim(p_admin_notes),'') WHERE id=p_confirmation_id;
-  UPDATE public.subscription_payment_requests SET status='paid',subscription_id=v_subscription_id,paid_at=now() WHERE id=v_request.id;
-  RETURN v_result||jsonb_build_object('requestId',v_request.id,'confirmationId',p_confirmation_id);
+
+  SELECT * INTO v_request
+  FROM public.subscription_payment_requests
+  WHERE id = v_request_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription payment request not found'; END IF;
+
+  SELECT * INTO v_confirmation
+  FROM public.subscription_payment_confirmations
+  WHERE id = p_confirmation_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription payment confirmation not found'; END IF;
+
+  -- Replay of an approval that already succeeded. Return the payment it created so the
+  -- caller can retry a failed activation email against it. Deliberately narrow: only an
+  -- approved confirmation replays, and only when its payment still exists. A rejected or
+  -- otherwise non-pending confirmation still raises, as before.
+  IF v_confirmation.status = 'approved' THEN
+    SELECT id, subscription_id INTO v_payment_id, v_subscription_id
+    FROM public.subscription_payments
+    WHERE idempotency_key = v_idempotency_key;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'subscription payment confirmation has already been processed'
+        USING ERRCODE = 'unique_violation';
+    END IF;
+    RETURN jsonb_build_object(
+      'ok', true,
+      'subscriptionId', v_subscription_id,
+      'paymentId', v_payment_id,
+      'alreadyProcessed', true,
+      'requestId', v_request.id,
+      'confirmationId', p_confirmation_id
+    );
+  END IF;
+
+  IF v_request.status <> 'confirmation_submitted' THEN
+    RAISE EXCEPTION 'subscription payment request is not awaiting confirmation';
+  END IF;
+  IF v_confirmation.status <> 'pending' THEN
+    RAISE EXCEPTION 'subscription payment confirmation has already been processed'
+      USING ERRCODE = 'unique_violation';
+  END IF;
+  IF v_confirmation.request_id IS DISTINCT FROM v_request.id THEN
+    RAISE EXCEPTION 'subscription payment confirmation request changed unexpectedly';
+  END IF;
+  IF v_request.student_id IS NULL OR v_confirmation.student_id IS DISTINCT FROM v_request.student_id THEN
+    RAISE EXCEPTION 'subscription payment confirmation does not belong to this request';
+  END IF;
+  IF v_confirmation.amount IS DISTINCT FROM v_request.amount THEN
+    RAISE EXCEPTION 'confirmed amount must equal the assigned subscription amount';
+  END IF;
+
+  v_result := public.purchase_or_renew_individual_subscription(
+    v_request.student_id, v_request.plan_id, v_request.duration_months,
+    v_request.amount, v_request.currency,
+    v_idempotency_key,
+    v_confirmation.method, v_confirmation.reference, v_confirmation.notes,
+    p_reviewed_by
+  );
+  v_subscription_id := (v_result->>'subscriptionId')::uuid;
+
+  UPDATE public.subscription_payments
+  SET paid_at = v_confirmation.paid_at
+  WHERE id = (v_result->>'paymentId')::uuid;
+  UPDATE public.subscription_payment_confirmations
+  SET status = 'approved', reviewed_by = p_reviewed_by, reviewed_at = now(),
+      admin_notes = NULLIF(btrim(p_admin_notes), '')
+  WHERE id = p_confirmation_id;
+  UPDATE public.subscription_payment_requests
+  SET status = 'paid', subscription_id = v_subscription_id, paid_at = now()
+  WHERE id = v_request.id;
+
+  RETURN v_result || jsonb_build_object('requestId', v_request.id, 'confirmationId', p_confirmation_id);
 END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.approve_subscription_payment_confirmation(uuid,uuid,text) FROM PUBLIC,anon,authenticated;

@@ -14,6 +14,9 @@ const deleteSubscriptionPlan = vi.hoisted(() => vi.fn());
 const bulkAssignSubscriptionStudents = vi.hoisted(() => vi.fn());
 const provisionIndividualStudent = vi.hoisted(() => vi.fn());
 const sendIndividualStudentSetupEmail = vi.hoisted(() => vi.fn());
+const sendIndividualLearnerWelcome = vi.hoisted(() => vi.fn());
+const notifySubscriptionPaymentRequest = vi.hoisted(() => vi.fn().mockResolvedValue({ sent: true }));
+const notifySubscriptionActivated = vi.hoisted(() => vi.fn().mockResolvedValue({ sent: true }));
 const addToResendAudience = vi.hoisted(() => vi.fn());
 const createClient = vi.hoisted(() => vi.fn());
 
@@ -33,6 +36,22 @@ vi.mock('@/lib/db-subscriptions', () => ({
   getSubscriptionPaymentRequests: vi.fn(),
 }));
 vi.mock('@supabase/supabase-js', () => ({ createClient }));
+// after() schedules work for once the response is sent and needs a Next request context,
+// which vitest does not provide. The route's post-response email is not what these tests
+// cover, so it is a no-op here.
+vi.mock('next/server', async importOriginal => ({
+  ...(await importOriginal<typeof import('next/server')>()),
+  // Runs the callback, matching learning-paths.test.ts and certification-path-access.test.ts.
+  // A no-op stub would leave the approval-to-email path asserted by nothing.
+  after: (task: any) => { if (typeof task === 'function') return task(); },
+}));
+vi.mock('@/lib/notify-individual-learner-welcome', () => ({
+  sendIndividualLearnerWelcome,
+  learnerNeedsSetup: () => false,
+  LEARNER_SETUP_FIELDS: 'account_origin, password_set_at, setup_email_sent_at',
+}));
+vi.mock('@/lib/notify-subscription-payment-request', () => ({ notifySubscriptionPaymentRequest }));
+vi.mock('@/lib/notify-subscription-activated', () => ({ notifySubscriptionActivated, notifySubscriptionActivatedBatch: vi.fn() }));
 vi.mock('@/lib/provision-individual-student', () => ({
   provisionIndividualStudent,
   sendIndividualStudentSetupEmail,
@@ -63,7 +82,7 @@ beforeEach(() => {
   createClient.mockReturnValue({});
   purchaseOrRenewSubscription.mockResolvedValue({ ok: true, paymentId: 'pay-1' });
   createSubscriptionPaymentRequest.mockResolvedValue({ ok: true, requestId: 'request-1' });
-  approveSubscriptionPaymentConfirmation.mockResolvedValue({ ok: true });
+  approveSubscriptionPaymentConfirmation.mockResolvedValue({ ok: true, paymentId: 'pay-approved', alreadyProcessed: false });
   rejectSubscriptionPaymentConfirmation.mockResolvedValue({ ok: true });
   deleteSubscriptionPlan.mockResolvedValue({ ok: true });
   bulkAssignSubscriptionStudents.mockResolvedValue({ requested: 2, errors: [] });
@@ -154,9 +173,13 @@ describe('subscription payment actions', () => {
     }));
     expect(provisionIndividualStudent).toHaveBeenCalledTimes(1);
     expect(addToResendAudience).toHaveBeenCalledWith({ email: 'ada@example.com', name: 'Ada Mensah' });
-    expect(sendIndividualStudentSetupEmail).toHaveBeenCalledWith(expect.anything(), {
-      studentId: 'student-new', email: 'ada@example.com', fullName: 'Ada Mensah',
+    // The route no longer chooses the message. It calls the request sender, which decides
+    // from durable state whether the learner gets the combined welcome or a request-only
+    // notice -- so a retry after a failed welcome cannot downgrade to the plan-only email.
+    expect(notifySubscriptionPaymentRequest).toHaveBeenCalledWith(expect.anything(), {
+      requestId: 'request-1',
     });
+    expect(sendIndividualStudentSetupEmail).not.toHaveBeenCalled();
     expect(purchaseOrRenewSubscription).not.toHaveBeenCalled();
   });
 
@@ -177,9 +200,9 @@ describe('subscription payment actions', () => {
     expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
   });
 
-  it('keeps a new learner in the audience when setup email delivery fails', async () => {
+  it('keeps a new learner in the audience when the learner email fails', async () => {
     authenticateAs('admin');
-    sendIndividualStudentSetupEmail.mockRejectedValueOnce(new Error('Email unavailable'));
+    notifySubscriptionPaymentRequest.mockRejectedValueOnce(new Error('Email unavailable'));
     const response = await POST(request({
       action: 'assign-new-subscription-student', mode: 'request', fullName: 'Ada Mensah',
       email: 'ada@example.com', planId: 'plan-1', durationMonths: 3, amount: 300,
@@ -187,10 +210,8 @@ describe('subscription payment actions', () => {
     }));
     const data = await response.json();
     expect(response.status).toBe(200);
-    expect(addToResendAudience.mock.invocationCallOrder[0]).toBeLessThan(
-      sendIndividualStudentSetupEmail.mock.invocationCallOrder[0],
-    );
-    expect(data.setupWarning).toBe('Email unavailable');
+    expect(addToResendAudience).toHaveBeenCalledWith({ email: 'ada@example.com', name: 'Ada Mensah' });
+    expect(data.notificationWarning).toBe('Email unavailable');
   });
 
   it('creates bulk payment requests using shared defaults', async () => {
@@ -248,6 +269,24 @@ describe('subscription payment actions', () => {
     expect(approveSubscriptionPaymentConfirmation).toHaveBeenCalledWith({}, {
       confirmationId: 'conf-1', reviewedBy: 'admin-1', adminNotes: undefined,
     });
+    // Approval is the moment access starts for the request flow, so the payment it produced
+    // must reach the activation sender. after() runs for real above, so this covers the
+    // post-response hop rather than stopping at the database wrapper.
+    expect(notifySubscriptionActivated).toHaveBeenCalledWith(expect.anything(), { paymentId: 'pay-approved' });
+  });
+
+  it('still hands the payment to the activation sender when the approval is replayed', async () => {
+    authenticateAs('admin');
+    // Migration 177 returns the original payment on a replay so a failed activation email
+    // can be retried by approving again.
+    approveSubscriptionPaymentConfirmation.mockResolvedValue({
+      ok: true, paymentId: 'pay-approved', alreadyProcessed: true,
+    });
+
+    const response = await POST(request({ action: 'approve-subscription-confirmation', confirmationId: 'conf-1' }));
+
+    expect(response.status).toBe(200);
+    expect(notifySubscriptionActivated).toHaveBeenCalledWith(expect.anything(), { paymentId: 'pay-approved' });
   });
 
   it('deletes an unused plan through the guarded RPC wrapper', async () => {

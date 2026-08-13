@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { provisionIndividualStudent, sendIndividualStudentSetupEmail } from '@/lib/provision-individual-student';
+import { provisionIndividualStudent } from '@/lib/provision-individual-student';
+import { notifySubscriptionActivatedBatch } from '@/lib/notify-subscription-activated';
 import { addToResendAudience } from '@/lib/resend-audience';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
 
@@ -279,12 +280,12 @@ export async function bulkAssignSubscriptionStudents(
     activated: 0,
     newAccounts: 0,
     existingStudents: 0,
-    setupEmailsSent: 0,
     paymentEmailsSent: 0,
     errors: [] as { row: number; email: string; error: string }[],
     warnings: [] as { row: number; email: string; warning: string }[],
   };
   const seen = new Set<string>();
+  const activationPaymentIds: string[] = [];
 
   for (let index = 0; index < input.rows.length; index += 1) {
     const row = input.rows[index];
@@ -312,6 +313,7 @@ export async function bulkAssignSubscriptionStudents(
 
       provisioned = await provisionIndividualStudent(db, { email, fullName: row.full_name, notify: false, claimModel: false });
       let request: any = null;
+      let purchase: any = null;
       if (input.mode === 'request') {
         request = await createSubscriptionPaymentRequest(db, {
           studentId: provisioned.studentId,
@@ -324,7 +326,7 @@ export async function bulkAssignSubscriptionStudents(
         });
         result.requested += 1;
       } else {
-        await purchaseOrRenewSubscription(db, {
+        purchase = await purchaseOrRenewSubscription(db, {
           studentId: provisioned.studentId,
           planId: input.planId,
           durationMonths: durationMonths as 1 | 3 | 6 | 12,
@@ -337,34 +339,32 @@ export async function bulkAssignSubscriptionStudents(
           createdBy: input.createdBy,
         });
         result.activated += 1;
+        // Every payment id is collected, including ones the RPC reports as already
+        // processed: a previous run may have committed the payment and then failed to
+        // deliver, and that learner still needs their email. The delivery stamp on each
+        // payment decides what actually gets sent, so a fully successful re-run sends
+        // nothing. Collected rather than sent per learner because a large import would
+        // otherwise make one API call per row and trip Resend's rate limit.
+        // Every payment id, regardless of whether the account is new: the sender decides
+        // from durable state whether the learner gets the combined welcome or the plan-only
+        // notice, so this no longer has to guess.
+        if (purchase.paymentId) {
+          activationPaymentIds.push(purchase.paymentId);
+        }
       }
       if (provisioned.isNewAccount) result.newAccounts += 1;
       else result.existingStudents += 1;
 
-      if (input.mode === 'request') try {
-        await notifySubscriptionPaymentRequest(db, {
-          studentId: provisioned.studentId,
-          planName: request.planName,
-          amount,
-          currency,
-          dueDate,
-        });
-        result.paymentEmailsSent += 1;
-      } catch (emailError: any) {
-        result.warnings.push({ row: index + 1, email, warning: `Payment request created, but notification email failed: ${emailError.message ?? 'Unknown error'}` });
-      }
+      if (provisioned.isNewAccount) await addToResendAudience({ email, name: row.full_name });
 
-      if (provisioned.isNewAccount) {
-        await addToResendAudience({ email, name: row.full_name });
+      // Paid rows are mailed together after the loop. Request rows are mailed here; the
+      // sender picks the combined welcome or the request-only notice from durable state.
+      if (input.mode === 'request') {
         try {
-          await sendIndividualStudentSetupEmail(db, {
-            studentId: provisioned.studentId,
-            email,
-            fullName: row.full_name,
-          });
-          result.setupEmailsSent += 1;
+          const { sent } = await notifySubscriptionPaymentRequest(db, { requestId: request.requestId });
+          if (sent) result.paymentEmailsSent += 1;
         } catch (emailError: any) {
-          result.warnings.push({ row: index + 1, email, warning: `${input.mode === 'request' ? 'Payment request created' : 'Subscription activated'}, but setup email failed: ${emailError.message ?? 'Unknown error'}` });
+          result.warnings.push({ row: index + 1, email, warning: `Payment request created, but notification email failed: ${emailError.message ?? 'Unknown error'}` });
         }
       }
     } catch (error: any) {
@@ -372,5 +372,30 @@ export async function bulkAssignSubscriptionStudents(
       result.errors.push({ row: index + 1, email, error: error.message ?? 'Import failed' });
     }
   }
+
+  // Sent once for the whole import. A failure here must not undo any subscription that
+  // was already committed, so it is reported as a warning against the batch.
+  if (activationPaymentIds.length) {
+    try {
+      const { sent, failed } = await notifySubscriptionActivatedBatch(db, {
+        paymentIds: activationPaymentIds,
+      });
+      result.paymentEmailsSent += sent;
+      if (failed > 0) {
+        result.warnings.push({
+          row: 0,
+          email: '',
+          warning: `${failed} learner email${failed === 1 ? '' : 's'} could not be sent and will be retried automatically.`,
+        });
+      }
+    } catch (emailError: any) {
+      result.warnings.push({
+        row: 0,
+        email: '',
+        warning: `Subscriptions were activated, but some confirmation emails could not be sent: ${emailError.message ?? 'Unknown error'}. Re-running this import will retry only the learners who were not emailed.`,
+      });
+    }
+  }
+
   return result;
 }

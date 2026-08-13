@@ -1592,3 +1592,174 @@ export function groupAssignedEmail(data: {
   `;
   return shell(content, branding);
 }
+
+// Shared by the two subscription emails. A date-only value (subscription_payment_requests
+// .due_date is a `date` column, so PostgREST returns "2026-09-01") parses as UTC midnight
+// and renders a day early anywhere west of UTC -- this file already hit that twice, hence
+// the noon anchor. Timestamps come through untouched.
+function subscriptionDay(value: string): string {
+  const dateOnly = /^\d{4}-\d{2}-\d{2}$/.test(value);
+  return new Date(dateOnly ? `${value}T12:00:00` : value)
+    .toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function subscriptionRow(label: string, value: string): string {
+  return `
+    <tr>
+      <td style="padding:6px 0;font-size:14px;color:#6b7280;">${esc(label)}</td>
+      <td style="padding:6px 0;font-size:14px;color:#111827;font-weight:600;text-align:right;">${esc(value)}</td>
+    </tr>`;
+}
+
+function subscriptionMonths(durationMonths: number): string {
+  return `${durationMonths} month${durationMonths === 1 ? '' : 's'}`;
+}
+
+// -- Subscription activated or renewed (student notified) ---
+// Sent when access actually starts or is extended, which is the moment a learner needs
+// the dates. Both the "recorded as already paid" path and the payment-approval path use
+// this, so a learner who pays normally is told exactly as much as one an admin records
+// manually.
+export function subscriptionActivatedEmail(data: {
+  name: string;
+  planName: string;
+  durationMonths: number;
+  periodStart: string;
+  periodEnd: string;
+  isActivation: boolean;
+  dashboardUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, planName, durationMonths, periodStart, periodEnd, isActivation, dashboardUrl, branding } = data;
+
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p>${isActivation
+      ? `Your subscription to <b>${esc(planName)}</b> is now active.`
+      : `Your subscription to <b>${esc(planName)}</b> has been extended.`}</p>
+
+    <div style="margin:20px 0;padding:16px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0;">
+      <p style="margin:0;font-size:14px;color:#15803d;">
+        Your access runs from <b>${esc(subscriptionDay(periodStart))}</b> to <b>${esc(subscriptionDay(periodEnd))}</b>.
+      </p>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+      ${subscriptionRow('Plan', planName)}
+      ${subscriptionRow('Duration', subscriptionMonths(durationMonths))}
+      ${subscriptionRow('Access starts', subscriptionDay(periodStart))}
+      ${subscriptionRow('Access expires', subscriptionDay(periodEnd))}
+    </table>
+
+    ${cta('Go to my dashboard', `${dashboardUrl}/student`)}
+
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
+
+// -- New individual learner welcome (account + plan in one message) ---
+// A learner created through subscription enrollment used to receive two emails moments
+// apart: one to set up their account, one about their plan. Whether those are separate
+// concepts internally is not the learner's problem, and the two could arrive in either
+// order -- "go to your dashboard" landing before they could log in. This is the single
+// message both flows send instead. Access details only, never payment details.
+export function individualLearnerWelcomeEmail(data: {
+  name: string;
+  planName: string;
+  durationMonths: number;
+  setupUrl: string;
+  // A learner can be enrolled, never open this email, and later be renewed. The second
+  // message still needs the setup link, but must not read as a brand-new subscription.
+  isRenewal: boolean;
+  // Paid: access already runs. Request: access starts once the payment is approved.
+  access: { kind: 'active'; periodStart: string; periodEnd: string }
+    | { kind: 'awaiting_payment'; amount: number; currency: string; dueDate: string };
+  branding?: EmailBranding;
+}) {
+  const { name, planName, durationMonths, setupUrl, isRenewal, access, branding } = data;
+
+  const detail = access.kind === 'active'
+    ? `
+      ${subscriptionRow('Plan', planName)}
+      ${subscriptionRow('Duration', subscriptionMonths(durationMonths))}
+      ${subscriptionRow('Access starts', subscriptionDay(access.periodStart))}
+      ${subscriptionRow('Access expires', subscriptionDay(access.periodEnd))}`
+    : `
+      ${subscriptionRow('Plan', planName)}
+      ${subscriptionRow('Duration', subscriptionMonths(durationMonths))}
+      ${subscriptionRow('Amount due', `${access.currency} ${Number(access.amount).toFixed(2)}`)}
+      ${subscriptionRow('Pay by', subscriptionDay(access.dueDate))}`;
+
+  const status = access.kind === 'active'
+    ? `<p style="margin:0;font-size:14px;color:#15803d;">Your access to <b>${esc(planName)}</b> runs from <b>${esc(subscriptionDay(access.periodStart))}</b> to <b>${esc(subscriptionDay(access.periodEnd))}</b>.</p>`
+    // Amber, not green: this learner still owes money, and the settled-payment green would
+    // read as "all done".
+    : `<p style="margin:0;font-size:14px;color:#92400e;">Your place on <b>${esc(planName)}</b> is reserved. Access begins once your payment is confirmed.</p>`;
+
+  const statusBox = access.kind === 'active'
+    ? 'background:#f0fdf4;border-left:4px solid #16a34a;'
+    : 'background:#fffbeb;border-left:4px solid #d97706;';
+
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p>${isRenewal
+      ? `Your subscription to <b>${esc(planName)}</b> has been extended. You have not set a password yet, so use the button below to finish setting up your account.`
+      : 'Your account is ready. Set your password using the button below, then sign in to get started.'}</p>
+
+    ${cta(isRenewal ? 'Finish setting up my account' : 'Set up my account', setupUrl)}
+
+    <div style="margin:20px 0;padding:16px;${statusBox}border-radius:0;">
+      ${status}
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+      ${detail}
+    </table>
+
+    ${access.kind === 'awaiting_payment'
+      ? '<p style="color:#374151;">You can submit your payment confirmation from the <b>Payments</b> section once you are signed in.</p>'
+      : ''}
+
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
+
+// -- Subscription expiring soon (student notified) ---
+// Expiry is automatic and silent: access simply disappears on the period end with nothing
+// sent. This is the one lifecycle notice a learner cannot infer from an admin action.
+export function subscriptionExpiringEmail(data: {
+  name: string;
+  planName: string;
+  periodEnd: string;
+  daysLeft: number;
+  dashboardUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, planName, periodEnd, daysLeft, dashboardUrl, branding } = data;
+  const days = `${daysLeft} day${daysLeft === 1 ? '' : 's'}`;
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p>Your subscription to <b>${esc(planName)}</b> ends in <b>${esc(days)}</b>.</p>
+
+    <div style="margin:20px 0;padding:16px;background:#fffbeb;border-left:4px solid #d97706;border-radius:0;">
+      <p style="margin:0;font-size:14px;color:#92400e;">
+        Access ends on <b>${esc(subscriptionDay(periodEnd))}</b>. After that date your courses and
+        materials will no longer be available until the subscription is renewed.
+      </p>
+    </div>
+
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;">
+      ${subscriptionRow('Plan', planName)}
+      ${subscriptionRow('Access ends', subscriptionDay(periodEnd))}
+    </table>
+
+    <p style="color:#374151;">To continue, contact your instructor to arrange your renewal.</p>
+
+    ${cta('Go to my dashboard', `${dashboardUrl}/student`)}
+
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
