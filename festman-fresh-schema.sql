@@ -4480,6 +4480,35 @@ CREATE POLICY "subscription_payment_confirmations: student read own" ON public.s
 CREATE TRIGGER trg_subscription_payment_requests_updated_at BEFORE UPDATE ON public.subscription_payment_requests FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_subscription_payment_confirmations_updated_at BEFORE UPDATE ON public.subscription_payment_confirmations FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
+-- Subscription access state and open payment work must not survive deletion of
+-- the student account. Completed financial ledger rows remain via SET NULL FKs.
+CREATE OR REPLACE FUNCTION public.close_subscription_before_student_delete()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  PERFORM id FROM public.subscription_payment_requests
+  WHERE student_id = OLD.id AND status IN ('pending', 'confirmation_submitted')
+  ORDER BY id FOR UPDATE;
+  UPDATE public.subscription_payment_confirmations AS confirmation
+  SET status = 'rejected', reviewed_at = COALESCE(reviewed_at, now()),
+      admin_notes = COALESCE(admin_notes, 'Student account deleted')
+  FROM public.subscription_payment_requests AS request
+  WHERE confirmation.request_id = request.id
+    AND request.student_id = OLD.id
+    AND request.status IN ('pending', 'confirmation_submitted')
+    AND confirmation.status = 'pending';
+  UPDATE public.subscription_payment_requests
+  SET status = 'cancelled', cancelled_at = COALESCE(cancelled_at, now())
+  WHERE student_id = OLD.id AND status IN ('pending', 'confirmation_submitted');
+  UPDATE public.individual_subscriptions
+  SET status = 'cancelled', cancelled_at = COALESCE(cancelled_at, now())
+  WHERE student_id = OLD.id AND status = 'active';
+  RETURN OLD;
+END;
+$$;
+CREATE TRIGGER trg_close_subscription_before_student_delete BEFORE DELETE ON public.students
+  FOR EACH ROW EXECUTE FUNCTION public.close_subscription_before_student_delete();
+REVOKE ALL ON FUNCTION public.close_subscription_before_student_delete() FROM PUBLIC, anon, authenticated;
+
 CREATE OR REPLACE FUNCTION public.approve_subscription_payment_confirmation(
   p_confirmation_id uuid,p_reviewed_by uuid DEFAULT NULL,p_admin_notes text DEFAULT NULL
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
@@ -4487,16 +4516,21 @@ AS $$
 DECLARE
   v_confirmation public.subscription_payment_confirmations%ROWTYPE;
   v_request public.subscription_payment_requests%ROWTYPE;
-  v_request_id uuid; v_result jsonb; v_subscription_id uuid;
+  v_request_id uuid; v_student_id uuid; v_result jsonb; v_subscription_id uuid;
 BEGIN
-  SELECT request_id INTO v_request_id FROM public.subscription_payment_confirmations WHERE id=p_confirmation_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'subscription payment confirmation not found'; END IF;
+  SELECT confirmation.request_id,request.student_id INTO v_request_id,v_student_id
+  FROM public.subscription_payment_confirmations AS confirmation
+  JOIN public.subscription_payment_requests AS request ON request.id=confirmation.request_id
+  WHERE confirmation.id=p_confirmation_id;
+  IF NOT FOUND OR v_student_id IS NULL THEN RAISE EXCEPTION 'subscription payment confirmation not found'; END IF;
+  PERFORM 1 FROM public.students WHERE id=v_student_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription student no longer exists'; END IF;
   SELECT * INTO v_request FROM public.subscription_payment_requests WHERE id=v_request_id FOR UPDATE;
   IF NOT FOUND OR v_request.status<>'confirmation_submitted' THEN RAISE EXCEPTION 'subscription payment request is not awaiting confirmation'; END IF;
   SELECT * INTO v_confirmation FROM public.subscription_payment_confirmations WHERE id=p_confirmation_id FOR UPDATE;
   IF NOT FOUND OR v_confirmation.status<>'pending' THEN RAISE EXCEPTION 'subscription payment confirmation has already been processed' USING ERRCODE='unique_violation'; END IF;
   IF v_confirmation.request_id IS DISTINCT FROM v_request.id THEN RAISE EXCEPTION 'subscription payment confirmation request changed unexpectedly'; END IF;
-  IF v_request.student_id IS NULL OR v_confirmation.student_id IS DISTINCT FROM v_request.student_id THEN RAISE EXCEPTION 'subscription payment confirmation does not belong to this request'; END IF;
+  IF v_request.student_id IS DISTINCT FROM v_student_id OR v_confirmation.student_id IS DISTINCT FROM v_request.student_id THEN RAISE EXCEPTION 'subscription payment confirmation does not belong to this request'; END IF;
   IF v_confirmation.amount IS DISTINCT FROM v_request.amount THEN RAISE EXCEPTION 'confirmed amount must equal the assigned subscription amount'; END IF;
   v_result:=public.purchase_or_renew_individual_subscription(v_request.student_id,v_request.plan_id,v_request.duration_months,v_request.amount,v_request.currency,
     'subscription-confirmation:'||v_confirmation.id::text,v_confirmation.method,v_confirmation.reference,v_confirmation.notes,p_reviewed_by);

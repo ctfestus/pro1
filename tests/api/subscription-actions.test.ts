@@ -12,6 +12,9 @@ const rejectSubscriptionPaymentConfirmation = vi.hoisted(() => vi.fn());
 const cancelSubscriptionPaymentRequest = vi.hoisted(() => vi.fn());
 const deleteSubscriptionPlan = vi.hoisted(() => vi.fn());
 const bulkAssignSubscriptionStudents = vi.hoisted(() => vi.fn());
+const provisionIndividualStudent = vi.hoisted(() => vi.fn());
+const sendIndividualStudentSetupEmail = vi.hoisted(() => vi.fn());
+const addToResendAudience = vi.hoisted(() => vi.fn());
 const createClient = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api-auth', () => ({ requireUser, isAuthError: (value: any) => Boolean(value?.error) }));
@@ -30,6 +33,11 @@ vi.mock('@/lib/db-subscriptions', () => ({
   getSubscriptionPaymentRequests: vi.fn(),
 }));
 vi.mock('@supabase/supabase-js', () => ({ createClient }));
+vi.mock('@/lib/provision-individual-student', () => ({
+  provisionIndividualStudent,
+  sendIndividualStudentSetupEmail,
+}));
+vi.mock('@/lib/resend-audience', () => ({ addToResendAudience }));
 
 import { POST } from '@/app/api/payments/route';
 
@@ -59,6 +67,9 @@ beforeEach(() => {
   rejectSubscriptionPaymentConfirmation.mockResolvedValue({ ok: true });
   deleteSubscriptionPlan.mockResolvedValue({ ok: true });
   bulkAssignSubscriptionStudents.mockResolvedValue({ requested: 2, errors: [] });
+  provisionIndividualStudent.mockResolvedValue({ studentId: 'student-new', isNewAccount: true });
+  sendIndividualStudentSetupEmail.mockResolvedValue(undefined);
+  addToResendAudience.mockResolvedValue(undefined);
 });
 
 describe('subscription payment actions', () => {
@@ -125,6 +136,61 @@ describe('subscription payment actions', () => {
       currency: 'GHS', dueDate: '2026-09-01', createdBy: 'admin-1',
     });
     expect(purchaseOrRenewSubscription).not.toHaveBeenCalled();
+  });
+
+  it('creates a learner account and payment request in one action', async () => {
+    authenticateAs('admin');
+    const response = await POST(request({
+      action: 'assign-new-subscription-student', mode: 'request', fullName: 'Ada Mensah',
+      email: 'ada@example.com', planId: 'plan-1', durationMonths: 3, amount: 300,
+      currency: 'GHS', dueDate: '2026-09-01',
+    }));
+    expect(response.status).toBe(200);
+    expect(provisionIndividualStudent).toHaveBeenNthCalledWith(1, expect.anything(), {
+      email: 'ada@example.com', fullName: 'Ada Mensah', notify: false, claimModel: false,
+    });
+    expect(createSubscriptionPaymentRequest).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      studentId: 'student-new', planId: 'plan-1', durationMonths: 3, amount: 300,
+    }));
+    expect(provisionIndividualStudent).toHaveBeenCalledTimes(1);
+    expect(addToResendAudience).toHaveBeenCalledWith({ email: 'ada@example.com', name: 'Ada Mensah' });
+    expect(sendIndividualStudentSetupEmail).toHaveBeenCalledWith(expect.anything(), {
+      studentId: 'student-new', email: 'ada@example.com', fullName: 'Ada Mensah',
+    });
+    expect(purchaseOrRenewSubscription).not.toHaveBeenCalled();
+  });
+
+  it('creates a learner account and activates an already-paid subscription in one action', async () => {
+    authenticateAs('admin');
+    const response = await POST(request({
+      action: 'assign-new-subscription-student', mode: 'paid', fullName: 'Ada Mensah',
+      email: 'ada@example.com', planId: 'plan-1', durationMonths: 6, amount: 600,
+      currency: 'GHS', idempotencyKey: 'new-learner-attempt-1', paymentMethod: 'bank',
+    }));
+    expect(response.status).toBe(200);
+    expect(purchaseOrRenewSubscription).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+      studentId: 'student-new', planId: 'plan-1', durationMonths: 6,
+      idempotencyKey: 'new-learner-attempt-1',
+    }));
+    expect(provisionIndividualStudent).toHaveBeenCalledTimes(1);
+    expect(addToResendAudience).toHaveBeenCalledWith({ email: 'ada@example.com', name: 'Ada Mensah' });
+    expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
+  });
+
+  it('keeps a new learner in the audience when setup email delivery fails', async () => {
+    authenticateAs('admin');
+    sendIndividualStudentSetupEmail.mockRejectedValueOnce(new Error('Email unavailable'));
+    const response = await POST(request({
+      action: 'assign-new-subscription-student', mode: 'request', fullName: 'Ada Mensah',
+      email: 'ada@example.com', planId: 'plan-1', durationMonths: 3, amount: 300,
+      currency: 'GHS', dueDate: '2026-09-01',
+    }));
+    const data = await response.json();
+    expect(response.status).toBe(200);
+    expect(addToResendAudience.mock.invocationCallOrder[0]).toBeLessThan(
+      sendIndividualStudentSetupEmail.mock.invocationCallOrder[0],
+    );
+    expect(data.setupWarning).toBe('Email unavailable');
   });
 
   it('creates bulk payment requests using shared defaults', async () => {

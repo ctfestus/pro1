@@ -16,6 +16,8 @@ import {
 } from '@/lib/db-payments';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
+import { provisionIndividualStudent, sendIndividualStudentSetupEmail } from '@/lib/provision-individual-student';
+import { addToResendAudience } from '@/lib/resend-audience';
 import {
   cancelSubscription,
   cancelSubscriptionPaymentRequest,
@@ -352,6 +354,114 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to update subscription plan' }, { status: 500 });
+    }
+  }
+
+  if (body.action === 'assign-new-subscription-student') {
+    const mode = body.mode === 'paid' ? 'paid' : body.mode === 'request' ? 'request' : null;
+    const durationMonths = Number(body.durationMonths);
+    const amount = Number(body.amount);
+    const currency = String(body.currency || '').trim().toUpperCase();
+    const email = String(body.email || '').trim().toLowerCase();
+    const fullName = String(body.fullName || '').trim();
+    if (!mode) return NextResponse.json({ error: 'Payment workflow must be request or paid' }, { status: 400 });
+    if (!body.planId || ![1, 3, 6, 12].includes(durationMonths)) {
+      return NextResponse.json({ error: 'planId and a duration of 1, 3, 6, or 12 months are required' }, { status: 400 });
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'A valid learner email is required' }, { status: 400 });
+    }
+    if (!fullName) return NextResponse.json({ error: 'Learner name is required' }, { status: 400 });
+    if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    if (!currency) return NextResponse.json({ error: 'Currency is required' }, { status: 400 });
+    if (mode === 'request') {
+      if (!body.dueDate || Number.isNaN(Date.parse(`${body.dueDate}T00:00:00Z`))) {
+        return NextResponse.json({ error: 'A valid payment deadline is required' }, { status: 400 });
+      }
+      if (body.dueDate < new Date().toISOString().slice(0, 10)) {
+        return NextResponse.json({ error: 'Payment deadline cannot be in the past' }, { status: 400 });
+      }
+    } else if (!body.idempotencyKey?.trim()) {
+      return NextResponse.json({ error: 'idempotencyKey is required' }, { status: 400 });
+    }
+
+    let provisioned: { studentId: string; isNewAccount: boolean } | null = null;
+    try {
+      provisioned = await provisionIndividualStudent(db, {
+        email,
+        fullName,
+        notify: false,
+        claimModel: false,
+      });
+
+      let assignment: any;
+      let notificationWarning: string | null = null;
+      if (mode === 'request') {
+        assignment = await createSubscriptionPaymentRequest(db, {
+          studentId: provisioned.studentId,
+          planId: body.planId,
+          durationMonths: durationMonths as 1 | 3 | 6 | 12,
+          amount,
+          currency,
+          dueDate: body.dueDate,
+          createdBy: sessionUser.id,
+        });
+        try {
+          await notifySubscriptionPaymentRequest(db, {
+            studentId: provisioned.studentId,
+            planName: assignment.planName,
+            amount,
+            currency,
+            dueDate: body.dueDate,
+          });
+        } catch (notificationError: any) {
+          notificationWarning = notificationError.message ?? 'Payment notification email failed';
+        }
+      } else {
+        assignment = await purchaseOrRenewSubscription(db, {
+          studentId: provisioned.studentId,
+          planId: body.planId,
+          durationMonths: durationMonths as 1 | 3 | 6 | 12,
+          amount,
+          currency,
+          idempotencyKey: body.idempotencyKey,
+          paymentMethod: body.paymentMethod,
+          paymentReference: body.paymentReference,
+          notes: body.notes,
+          createdBy: sessionUser.id,
+        });
+      }
+
+      let setupWarning: string | null = null;
+      if (provisioned.isNewAccount) {
+        await addToResendAudience({ email, name: fullName });
+        try {
+          await sendIndividualStudentSetupEmail(db, {
+            studentId: provisioned.studentId,
+            email,
+            fullName,
+          });
+        } catch (setupError: any) {
+          setupWarning = setupError.message ?? 'Account setup email failed';
+        }
+      }
+
+      return NextResponse.json({
+        ...assignment,
+        studentId: provisioned.studentId,
+        isNewAccount: provisioned.isNewAccount,
+        notificationWarning,
+        setupWarning,
+      });
+    } catch (err: any) {
+      if (provisioned?.isNewAccount) {
+        await db.auth.admin.deleteUser(provisioned.studentId).catch(() => {});
+      }
+      const conflict = err?.code === '23505'
+        || String(err?.message ?? '').includes('already belongs')
+        || String(err?.message ?? '').includes('before assigning')
+        || String(err?.message ?? '').includes('idempotency key');
+      return NextResponse.json({ error: err.message ?? 'Failed to create and assign learner' }, { status: conflict ? 409 : 500 });
     }
   }
 

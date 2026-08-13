@@ -12,6 +12,45 @@ function temporaryPassword() {
   return `${randomBytes(32).toString('base64url')}Aa1!`;
 }
 
+/**
+ * Deliver first-time account setup without changing account origin, access state,
+ * or password requirements. This is deliberately separate from provisioning so a
+ * subscription can be committed before its setup email is sent.
+ */
+export async function sendIndividualStudentSetupEmail(
+  db: SupabaseClient,
+  input: { studentId: string; email: string; fullName?: string | null },
+) {
+  const email = input.email.trim().toLowerCase();
+  const fullName = input.fullName?.trim() || null;
+  const tenant = await getTenantSettings();
+  const appUrl = (process.env.APP_URL || tenant.appUrl || '').replace(/\/$/, '');
+  if (!appUrl) throw new Error('APP_URL or platform App URL must be configured.');
+  const { data: link, error: linkError } = await db.auth.admin.generateLink({ type: 'recovery', email });
+  if (linkError || !link.properties?.hashed_token) throw linkError ?? new Error('Could not generate setup link.');
+  const setupUrl = `${appUrl}/auth/confirm?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=recovery`;
+
+  if (!process.env.RESEND_API_KEY) throw new Error('Account created, but RESEND_API_KEY is not configured.');
+  const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`;
+  const { error: emailError } = await resend.emails.send({
+    from,
+    to: email,
+    subject: `Your ${tenant.appName} account is ready`,
+    html: studentAccountCreatedEmail({
+      name: fullName || 'there',
+      cohortName: 'individual subscription',
+      setupUrl,
+      branding: { appName: tenant.appName, appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName },
+    }),
+  });
+  if (emailError) throw new Error(emailError.message);
+
+  const { error: stampError } = await db.from('students')
+    .update({ setup_email_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+    .eq('id', input.studentId);
+  if (stampError) throw stampError;
+}
+
 export async function provisionIndividualStudent(
   db: SupabaseClient,
   input: { email: string; fullName?: string | null; notify?: boolean; claimModel?: boolean },
@@ -73,29 +112,11 @@ export async function provisionIndividualStudent(
     else await markExistingAccountAdmitted(db, studentId);
 
     if (input.notify !== false) {
-      const tenant = await getTenantSettings();
-      const appUrl = (process.env.APP_URL || tenant.appUrl || '').replace(/\/$/, '');
-      if (!appUrl) throw new Error('APP_URL or platform App URL must be configured.');
-      const { data: link, error: linkError } = await db.auth.admin.generateLink({ type: 'recovery', email });
-      if (linkError || !link.properties?.hashed_token) throw linkError ?? new Error('Could not generate setup link.');
-      const setupUrl = `${appUrl}/auth/confirm?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=recovery`;
-
-      if (!process.env.RESEND_API_KEY) throw new Error('Account created, but RESEND_API_KEY is not configured.');
-      const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`;
-      const { error: emailError } = await resend.emails.send({
-        from,
-        to: email,
-        subject: `Your ${tenant.appName} account is ready`,
-        html: studentAccountCreatedEmail({
-          name: fullName || existing?.full_name || 'there',
-          cohortName: 'individual subscription',
-          setupUrl,
-          branding: { appName: tenant.appName, appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName },
-        }),
+      await sendIndividualStudentSetupEmail(db, {
+        studentId,
+        email,
+        fullName: fullName || existing?.full_name,
       });
-      if (emailError) throw new Error(emailError.message);
-
-      await db.from('students').update({ setup_email_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', studentId);
       if (createdUserId) await addToResendAudience({ email, name: fullName });
     }
     return { ok: true, studentId, isNewAccount: Boolean(createdUserId) };

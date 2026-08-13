@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { provisionIndividualStudent } from '@/lib/provision-individual-student';
+import { provisionIndividualStudent, sendIndividualStudentSetupEmail } from '@/lib/provision-individual-student';
+import { addToResendAudience } from '@/lib/resend-audience';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
 
 export type SubscriptionStatus = 'active' | 'expired' | 'cancelled';
@@ -130,6 +131,7 @@ export async function getSubscriptions(db: SupabaseClient) {
   const { data, error } = await db
     .from('individual_subscriptions')
     .select('id, student_id, plan_id, cohort_id, status, duration_months, amount, currency, current_period_start, current_period_end, cancelled_at, created_at, updated_at, students!individual_subscriptions_student_id_fkey ( id, full_name, email, cohort_id, enrollment_model ), subscription_plans!individual_subscriptions_plan_id_fkey ( id, name, description, status )')
+    .not('student_id', 'is', null)
     .order('current_period_end', { ascending: true });
   if (error) throw error;
   return data ?? [];
@@ -197,6 +199,7 @@ export async function getSubscriptionPaymentRequests(db: SupabaseClient) {
         receipt_url, status, admin_notes, reviewed_at, created_at
       )
     `)
+    .not('student_id', 'is', null)
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -316,8 +319,13 @@ export async function bulkAssignSubscriptionStudents(
       }
 
       if (provisioned.isNewAccount) {
+        await addToResendAudience({ email, name: row.full_name });
         try {
-          await provisionIndividualStudent(db, { email, fullName: row.full_name, notify: true });
+          await sendIndividualStudentSetupEmail(db, {
+            studentId: provisioned.studentId,
+            email,
+            fullName: row.full_name,
+          });
           result.setupEmailsSent += 1;
         } catch (emailError: any) {
           result.warnings.push({ row: index + 1, email, warning: `Payment request created, but setup email failed: ${emailError.message ?? 'Unknown error'}` });

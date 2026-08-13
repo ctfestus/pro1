@@ -9,6 +9,8 @@ import {
   expireSubscription,
   getSubscriptionForStudent,
   getSubscriptionHistory,
+  getSubscriptionPaymentRequests,
+  getSubscriptions,
   purchaseOrRenewSubscription,
   rejectSubscriptionPaymentConfirmation,
 } from '@/lib/db-subscriptions';
@@ -84,6 +86,32 @@ describe('db subscriptions', () => {
     expect(builder.select).toHaveBeenCalledWith(expect.stringContaining(
       'subscription_plans!individual_subscriptions_plan_id_fkey',
     ));
+  });
+
+  it('excludes deleted students from the live subscriber list', async () => {
+    const builder: any = {
+      select: vi.fn(() => builder),
+      not: vi.fn(() => builder),
+      order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    const db = { from: vi.fn(() => builder) } as any;
+
+    await getSubscriptions(db);
+
+    expect(builder.not).toHaveBeenCalledWith('student_id', 'is', null);
+  });
+
+  it('excludes deleted students from the payment-request workspace', async () => {
+    const builder: any = {
+      select: vi.fn(() => builder),
+      not: vi.fn(() => builder),
+      order: vi.fn().mockResolvedValue({ data: [], error: null }),
+    };
+    const db = { from: vi.fn(() => builder) } as any;
+
+    await getSubscriptionPaymentRequests(db);
+
+    expect(builder.not).toHaveBeenCalledWith('student_id', 'is', null);
   });
 
   it('reviews subscription confirmations only through transactional RPCs', async () => {

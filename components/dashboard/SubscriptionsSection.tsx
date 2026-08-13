@@ -17,6 +17,7 @@ import {
   LayoutDashboard,
   FileSpreadsheet,
   MoreHorizontal,
+  Pencil,
   Plus,
   Search,
   ShieldCheck,
@@ -188,6 +189,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [planFilter, setPlanFilter] = useState("all");
   const [enrolOpen, setEnrolOpen] = useState(false);
   const [enrolMode, setEnrolMode] = useState<"request" | "paid">("request");
+  const [learnerMode, setLearnerMode] = useState<"existing" | "new">("existing");
+  const [newLearnerName, setNewLearnerName] = useState("");
+  const [newLearnerEmail, setNewLearnerEmail] = useState("");
   const [manageSub, setManageSub] = useState<any>(null);
   const [renewMode, setRenewMode] = useState<"request" | "paid">("request");
   const [studentId, setStudentId] = useState("");
@@ -209,6 +213,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [planMenuOpen, setPlanMenuOpen] = useState(false);
   const [planCardMenuId, setPlanCardMenuId] = useState<string | null>(null);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
+  const [editPlan, setEditPlan] = useState<any>(null);
+  const [editPlanName, setEditPlanName] = useState("");
+  const [editPlanDescription, setEditPlanDescription] = useState("");
   const [contentOptions, setContentOptions] = useState<any[]>([]);
   const [selectedContentKeys, setSelectedContentKeys] = useState<string[]>([]);
   const [contentSearch, setContentSearch] = useState("");
@@ -368,12 +375,61 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setPaidAttemptKey("");
   }
   function openEnrol() {
+    setLearnerMode("existing");
+    setNewLearnerName("");
+    setNewLearnerEmail("");
     setStudentId("");
     setPlanId(activePlans[0]?.id ?? "");
     resetPayment();
     setEnrolMode("request");
     setError("");
     setEnrolOpen(true);
+  }
+
+  async function assignNewLearner() {
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const attemptKey = paidAttemptKey || crypto.randomUUID();
+      if (enrolMode === "paid" && !paidAttemptKey) setPaidAttemptKey(attemptKey);
+      const res = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "assign-new-subscription-student",
+          mode: enrolMode,
+          fullName: newLearnerName,
+          email: newLearnerEmail,
+          planId,
+          durationMonths: Number(payment.durationMonths),
+          amount: Number(payment.amount),
+          currency: payment.currency,
+          dueDate: payment.dueDate,
+          paymentMethod: payment.paymentMethod || null,
+          paymentReference: payment.paymentReference || null,
+          notes: payment.notes || null,
+          idempotencyKey: enrolMode === "paid" ? attemptKey : undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to create and assign learner");
+
+      const warnings = [data.notificationWarning, data.setupWarning].filter(Boolean);
+      setSuccess(
+        enrolMode === "paid"
+          ? `Account ready and subscription activated.${warnings.length ? ` ${warnings.join(" ")}` : ""}`
+          : `Account ready and plan assigned. Access begins after payment approval.${warnings.length ? ` ${warnings.join(" ")}` : ""}`,
+      );
+      setEnrolOpen(false);
+      resetPayment();
+      setTab(enrolMode === "request" ? "payments" : "subscribers");
+      await load(planId);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   }
   function openManage(sub: any) {
     setError("");
@@ -681,6 +737,42 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setCreatePlanOpen(false);
       setPlanMenuOpen(false);
       await load(data.planId);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function openEditPlan(plan: any) {
+    setError("");
+    setPlanCardMenuId(null);
+    setEditPlan(plan);
+    setEditPlanName(plan.name ?? "");
+    setEditPlanDescription(plan.description ?? "");
+  }
+
+  async function savePlanDetails() {
+    if (!editPlan || !editPlanName.trim()) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update-subscription-plan",
+          planId: editPlan.id,
+          name: editPlanName.trim(),
+          description: editPlanDescription.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update plan");
+      const updatedPlanId = editPlan.id;
+      setEditPlan(null);
+      setSuccess("Plan details updated.");
+      await load(updatedPlanId);
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -1834,6 +1926,23 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 style={modalStyle(C)}
                               >
                                 <button
+                                  onClick={() => openEditPlan(plan)}
+                                  disabled={busy}
+                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                                  style={{ color: C.text }}
+                                >
+                                  <span
+                                    className="w-8 h-8 rounded-lg grid place-items-center"
+                                    style={{
+                                      background: `${C.cta}14`,
+                                      color: C.cta,
+                                    }}
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </span>
+                                  Edit plan details
+                                </button>
+                                <button
                                   onClick={() => togglePlan(plan)}
                                   disabled={busy}
                                   className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
@@ -2317,6 +2426,65 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         </Modal>
       )}
 
+      {editPlan && (
+        <Modal
+          title="Edit plan details"
+          eyebrow="Reusable access blueprint"
+          onClose={() => {
+            setEditPlan(null);
+            setError("");
+          }}
+          C={C}
+          error={error}
+        >
+          <div className="space-y-4">
+            <label className="text-xs font-bold" style={{ color: C.muted }}>
+              Plan name
+              <input
+                autoFocus
+                value={editPlanName}
+                onChange={(e) => setEditPlanName(e.target.value)}
+                placeholder="For example: Professional"
+                className={`${fieldClass} mt-1.5`}
+                style={inputStyle}
+              />
+            </label>
+            <label className="text-xs font-bold" style={{ color: C.muted }}>
+              Description
+              <textarea
+                value={editPlanDescription}
+                onChange={(e) => setEditPlanDescription(e.target.value)}
+                placeholder="Describe who this plan is for"
+                className={`${fieldClass} mt-1.5 min-h-24`}
+                style={inputStyle}
+              />
+            </label>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <button
+                onClick={() => {
+                  setEditPlan(null);
+                  setError("");
+                }}
+                disabled={busy}
+                className={primary}
+                style={{ background: C.pill, color: C.text }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={savePlanDetails}
+                disabled={busy || !editPlanName.trim()}
+                className={primary}
+                style={{ background: C.cta, color: C.ctaText }}
+              >
+                <Check className="w-4 h-4" style={{ color: "#ffffff" }} />
+                {busy ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {enrolOpen && (
         <Modal
           title="Assign a subscription"
@@ -2327,23 +2495,81 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           wide
         >
           <div className="space-y-6">
+            <div>
+              <p className="text-xs font-bold mb-2" style={{ color: C.muted }}>
+                Learner account
+              </p>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {(
+                  [
+                    ["existing", "Existing learner", "Choose an unassigned student", Users],
+                    ["new", "New learner", "Create the account and assign the plan", UserPlus],
+                  ] as const
+                ).map(([id, title, body, Icon]) => (
+                  <button
+                    key={id}
+                    onClick={() => {
+                      setLearnerMode(id);
+                      setPaidAttemptKey("");
+                      setError("");
+                    }}
+                    className="rounded-2xl p-4 text-left"
+                    style={{
+                      background: learnerMode === id ? `${C.cta}10` : C.page,
+                      outline: learnerMode === id ? `2px solid ${C.cta}` : "2px solid transparent",
+                    }}
+                  >
+                    <Icon className="w-5 h-5 mb-3" style={{ color: learnerMode === id ? C.cta : C.faint }} />
+                    <p className="text-sm font-bold" style={{ color: C.text }}>{title}</p>
+                    <p className="text-xs mt-1" style={{ color: C.faint }}>{body}</p>
+                  </button>
+                ))}
+              </div>
+            </div>
             <div className="grid sm:grid-cols-2 gap-3">
-              <label className="text-xs font-bold" style={{ color: C.muted }}>
-                Learner
-                <select
-                  value={studentId}
-                  onChange={(e) => { setStudentId(e.target.value); setPaidAttemptKey(""); }}
-                  className={`${fieldClass} mt-1.5`}
-                  style={inputStyle}
-                >
-                  <option value="">Choose an eligible student</option>
-                  {eligibleStudents.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.full_name || s.email} ({s.email})
-                    </option>
-                  ))}
-                </select>
-              </label>
+              {learnerMode === "existing" ? (
+                <label className="text-xs font-bold" style={{ color: C.muted }}>
+                  Learner
+                  <select
+                    value={studentId}
+                    onChange={(e) => { setStudentId(e.target.value); setPaidAttemptKey(""); }}
+                    className={`${fieldClass} mt-1.5`}
+                    style={inputStyle}
+                  >
+                    <option value="">Choose an eligible student</option>
+                    {eligibleStudents.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.full_name || s.email} ({s.email})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <div className="grid sm:grid-cols-2 gap-3 sm:col-span-2">
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>
+                    Full name
+                    <input
+                      autoFocus
+                      value={newLearnerName}
+                      onChange={(e) => setNewLearnerName(e.target.value)}
+                      placeholder="Learner's full name"
+                      className={`${fieldClass} mt-1.5`}
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>
+                    Email address
+                    <input
+                      type="email"
+                      value={newLearnerEmail}
+                      onChange={(e) => setNewLearnerEmail(e.target.value)}
+                      placeholder="learner@example.com"
+                      className={`${fieldClass} mt-1.5`}
+                      style={inputStyle}
+                    />
+                  </label>
+                </div>
+              )}
               <label className="text-xs font-bold" style={{ color: C.muted }}>
                 Access plan
                 <select
@@ -2410,7 +2636,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             </div>
             {TermsFields(enrolMode === "request")}
             {enrolMode === "paid" && ReferenceFields()}
-            {eligibleStudents.length === 0 && (
+            {learnerMode === "existing" && eligibleStudents.length === 0 && (
               <p
                 className="rounded-xl p-3 text-xs"
                 style={{ background: C.page, color: C.muted }}
@@ -2421,11 +2647,17 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             )}
             <button
               onClick={() =>
-                enrolMode === "request" ? assignRequest() : savePaid()
+                learnerMode === "new"
+                  ? assignNewLearner()
+                  : enrolMode === "request"
+                    ? assignRequest()
+                    : savePaid()
               }
               disabled={
                 busy ||
-                !studentId ||
+                (learnerMode === "existing"
+                  ? !studentId
+                  : !newLearnerName.trim() || !/^\S+@\S+\.\S+$/.test(newLearnerEmail.trim())) ||
                 !planId ||
                 Number(payment.amount) <= 0 ||
                 (enrolMode === "request" && !payment.dueDate)
@@ -2435,6 +2667,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             >
               {busy
                 ? "Saving..."
+                : learnerMode === "new" && enrolMode === "request"
+                  ? "Create account and assign plan"
+                  : learnerMode === "new"
+                    ? "Create account and activate"
                 : enrolMode === "request"
                   ? "Assign payment request"
                   : "Activate subscription"}
