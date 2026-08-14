@@ -1,325 +1,109 @@
+// GET /api/tracking -- the Student Tracking table.
+//
+// Returns one page of rows plus the aggregates the page cannot describe on its own: the KPI strip
+// counts the whole cohort, not the fifty rows on screen. Scoping and status classification live in
+// lib/tracking-report so this report and the bulk-message segments it feeds cannot drift apart.
+//
+// Known limit: rows are enumerated for the whole filtered set before one page is sliced, because a
+// row's status is computed rather than stored and cannot be filtered or counted in SQL. The heavy
+// jsonb is kept out of that pass -- only the page about to be rendered pays for progress
+// percentages -- but a genuinely O(page) query would need the enumeration pushed into a Postgres
+// function, which is a migration rather than a route change.
+
 import { NextRequest, NextResponse } from 'next/server';
-import { adminClient } from '@/lib/admin-client';
 import { requireRole, isAuthError } from '@/lib/api-auth';
-import { veProgressPct } from '@/lib/ve-completion';
-import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
+import {
+  attachProgress, buildStatusRows, loadCohortNames, loadStudents, loadTrackedContent,
+} from '@/lib/tracking-report';
 
 export const dynamic = 'force-dynamic';
 
-const STALL_DAYS = 7;
+const DEFAULT_PAGE_SIZE = 50;
+const MAX_PAGE_SIZE = 200;
 
-function daysSince(dateStr: string | null | undefined): number | null {
-  if (!dateStr) return null;
-  return Math.floor((Date.now() - new Date(dateStr).getTime()) / (1000 * 60 * 60 * 24));
-}
-
-// VE percentages route through veProgressPct so they agree with the completion gate; the raw
-// requirement total below is still used for the "x of y" display on non-VE items.
-function totalRequirementsFromModules(modules: any): number {
-  let total = 0;
-  for (const mod of modules ?? []) {
-    for (const lesson of mod.lessons ?? []) {
-      total += (lesson.requirements ?? []).length;
-    }
-  }
-  return total;
-}
-
-function completedRequirements(progress: any): number {
-  if (!progress || typeof progress !== 'object') return 0;
-  return Object.values(progress).filter((v: any) => v?.completed).length;
-}
+const zeroStats = () => ({
+  total: 0, not_started: 0, in_progress: 0, stalled: 0, failed: 0, completed: 0, at_risk: 0,
+});
 
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ['admin', 'instructor', 'staff']);
   if (isAuthError(auth)) return auth.error;
   const { user, supabase, role } = auth;
-  const isStaff = role === 'staff';
-  const isAdmin = role === 'admin';
 
   const url = new URL(req.url);
   const cohortFilter = url.searchParams.get('cohortId') ?? 'all';
   const typeFilter   = url.searchParams.get('contentType') ?? 'all';
+  const statusFilter = url.searchParams.get('status') ?? 'all';
+  const search       = (url.searchParams.get('search') ?? '').trim().toLowerCase();
+  // CSV export needs the whole filtered set rather than the page on screen.
+  const wantsAll     = url.searchParams.get('all') === '1';
+  const page         = Math.max(1, Math.floor(Number(url.searchParams.get('page')) || 1));
+  const pageSize     = Math.min(MAX_PAGE_SIZE, Math.max(1, Math.floor(Number(url.searchParams.get('pageSize')) || DEFAULT_PAGE_SIZE)));
 
-  // 1. Fetch tracked content. Staff/admins see all published content; instructors
-  // keep their owner-scoped view, including drafts as before.
-  const coursesQuery = () => {
-    let query = supabase.from('courses').select('id, title, cohort_ids, questions, deadline_days, status');
-    if (isStaff || isAdmin) query = query.eq('status', 'published');
-    else query = query.eq('user_id', user.id);
-    return query;
-  };
-  const vesQuery = () => {
-    let query = supabase.from('virtual_experiences').select('id, title, cohort_ids, modules, deadline_days, status');
-    if (isStaff || isAdmin) query = query.eq('status', 'published');
-    else query = query.eq('user_id', user.id);
-    return query;
-  };
-  const assignmentsQuery = () => {
-    let query = supabase.from('assignments').select('id, title, cohort_ids, deadline_date, type, config, status').eq('status', 'published');
-    if (!isStaff && !isAdmin) query = query.eq('created_by', user.id);
-    return query;
-  };
+  const empty = (cohorts: { id: string; name: string }[]) =>
+    NextResponse.json({ rows: [], total: 0, page, pageSize, stats: zeroStats(), cohorts });
 
-  const [{ data: courses }, { data: ves }, { data: assignments }] = await Promise.all([
-    typeFilter === 'all' || typeFilter === 'course'
-      ? coursesQuery()
-      : Promise.resolve({ data: [] as any[] }),
-    typeFilter === 'all' || typeFilter === 'virtual_experience'
-      ? vesQuery()
-      : Promise.resolve({ data: [] as any[] }),
-    typeFilter === 'all' || typeFilter === 'assignment'
-      ? assignmentsQuery()
-      : Promise.resolve({ data: [] as any[] }),
-  ]);
+  // The tracking table is a read-only report, so admins and staff see all published content.
+  const items = await loadTrackedContent(supabase, { userId: user.id, role, typeFilter });
+  if (!items.length) return empty([]);
 
-  // Split assignments: VE-type assignments track progress via guided_project_attempts
-  const regularAssignments = (assignments ?? []).filter((a: any) => a.type !== 'virtual_experience');
-  const veTypeAssignments  = (assignments ?? []).filter((a: any) => a.type === 'virtual_experience');
-  const veFormIds          = veTypeAssignments.map((a: any) => a.config?.ve_form_id).filter(Boolean) as string[];
-
-  type ContentRow = {
-    id: string; title: string; cohort_ids: string[];
-    deadline_days?: number | null; deadline_date?: string | null;
-    content_type: string; questions?: any; modules?: any;
-    ve_form_id?: string | null;
-  };
-
-  const allContent: ContentRow[] = [
-    ...(courses ?? []).map((c: any) => ({ ...c, content_type: 'course' })),
-    ...(ves    ?? []).map((v: any) => ({ ...v, content_type: 'virtual_experience' })),
-    ...regularAssignments.map((a: any) => ({ ...a, content_type: 'assignment' })),
-    ...veTypeAssignments.map((a: any)  => ({ ...a, content_type: 'assignment', ve_form_id: a.config?.ve_form_id ?? null })),
-  ];
-
-  if (!allContent.length) return NextResponse.json({ rows: [], cohorts: [] });
-
-  // 2. Collect all cohort IDs referenced by these items
-  const allCohortIds = [...new Set(allContent.flatMap(f => Array.isArray(f.cohort_ids) ? f.cohort_ids : []))];
-  if (!allCohortIds.length) return NextResponse.json({ rows: [], cohorts: [] });
+  const allCohortIds = [...new Set(items.flatMap(i => i.cohortIds))];
+  if (!allCohortIds.length) return empty([]);
 
   const activeCohortIds = cohortFilter === 'all'
     ? allCohortIds
     : allCohortIds.filter(id => id === cohortFilter);
 
-  if (!activeCohortIds.length) return NextResponse.json({ rows: [], cohorts: [] });
-
-  // 3. Fetch cohort metadata + students in parallel
-  const [{ data: cohorts }, { data: students }] = await Promise.all([
-    supabase.from('cohorts').select('id, name').in('id', activeCohortIds),
-    supabase.from('students').select('id, email, full_name, cohort_id').in('cohort_id', activeCohortIds).eq('role', 'student'),
+  // The cohort list always spans every cohort this caller's content reaches, never just the
+  // filtered one: the dashboard rebuilds its cohort dropdown from it, so narrowing it dropped
+  // every other option the moment a cohort was picked. Only the students narrow.
+  const [cohorts, students] = await Promise.all([
+    loadCohortNames(supabase, allCohortIds),
+    loadStudents(supabase, activeCohortIds),
   ]);
+  if (!students.length) return empty(cohorts);
 
-  if (!students?.length) return NextResponse.json({ rows: [], cohorts: cohorts ?? [] });
+  const rows = await buildStatusRows(supabase, {
+    items,
+    students,
+    cohortNames: new Map(cohorts.map(c => [c.id, c.name])),
+    activeCohortIds,
+  });
 
-  const cohortMap = new Map((cohorts ?? []).map(c => [c.id, c.name]));
-
-  // 4. Fetch attempts, submissions, cohort assignments, and VE modules for VE-type assignments
-  const courseIds        = allContent.filter(f => f.content_type === 'course').map(f => f.id);
-  const veIds            = allContent.filter(f => f.content_type === 'virtual_experience').map(f => f.id);
-  const regularAssignIds = regularAssignments.map((a: any) => a.id);
-  // VE-type assignments are "completed" only once the student submits, so they need their
-  // submission rows too -- the VE attempt alone (completed via any path) is not a submission.
-  const submissionAssignIds = [...regularAssignIds, ...veTypeAssignments.map((a: any) => a.id)];
-  const allContentIds    = allContent.map(f => f.id);
-  // guided_project_attempts covers both standalone VEs and VE-type assignment ve_form_ids
-  const allGpVeIds       = [...new Set([...veIds, ...veFormIds])];
-
-  const [{ data: courseAttempts }, { data: gpAttempts }, { data: assignmentSubs }, { data: cohortAssignments }, { data: veModulesData }] = await Promise.all([
-    courseIds.length
-      ? supabase.from('course_attempts').select('student_id, course_id, completed_at, updated_at, score, passed, current_question_index, answers').in('course_id', courseIds)
-      : Promise.resolve({ data: [] as any[] }),
-    allGpVeIds.length
-      ? supabase.from('guided_project_attempts').select('student_id, ve_id, completed_at, updated_at, progress').in('ve_id', allGpVeIds)
-      : Promise.resolve({ data: [] as any[] }),
-    submissionAssignIds.length
-      ? supabase.from('assignment_submissions').select('student_id, assignment_id, status, score, updated_at, submitted_at, graded_at').in('assignment_id', submissionAssignIds)
-      : Promise.resolve({ data: [] as any[] }),
-    supabase.from('cohort_assignments').select('content_id, cohort_id, assigned_at').in('content_id', allContentIds).in('cohort_id', activeCohortIds),
-    // Fetch modules for VE-type assignments so we can calculate requirement-based progress
-    veFormIds.length
-      ? supabase.from('virtual_experiences').select('id, modules').in('id', veFormIds)
-      : Promise.resolve({ data: [] as any[] }),
-  ]);
-
-  // Build lookup maps
-  const cohortAssignmentMap = new Map<string, string>();
-  for (const ca of cohortAssignments ?? []) {
-    cohortAssignmentMap.set(`${ca.content_id}|${ca.cohort_id}`, ca.assigned_at);
+  // KPI strip. Scoped to the cohort and content type -- the filters that reload the view -- and
+  // deliberately not to status or search, so clicking a KPI to filter the table cannot rewrite the
+  // very numbers being clicked.
+  const stats = zeroStats();
+  stats.total = rows.length;
+  for (const row of rows) {
+    (stats as any)[row.status] += 1;
+    if (row.isAtRisk) stats.at_risk += 1;
   }
 
-  const courseAttemptMap = new Map<string, any>();
-  for (const a of courseAttempts ?? []) {
-    const key = `${a.student_id}|${a.course_id}`;
-    const existing = courseAttemptMap.get(key);
-    if (!existing) { courseAttemptMap.set(key, a); continue; }
-    // Passed+completed always wins over in-progress.
-    if (a.passed && a.completed_at && !existing.completed_at) { courseAttemptMap.set(key, a); continue; }
-    if (existing.passed && existing.completed_at && !a.completed_at) continue;
-    // A current retake should beat an older completed-but-failed attempt.
-    if (!a.completed_at && existing.completed_at && !existing.passed) { courseAttemptMap.set(key, a); continue; }
-    if (a.completed_at && !a.passed && !existing.completed_at) continue;
-    // Among completed, prefer higher score
-    if (a.completed_at && existing.completed_at && (a.score ?? 0) > (existing.score ?? 0)) { courseAttemptMap.set(key, a); continue; }
-    // Among in-progress, prefer most recently updated
-    if (!a.completed_at && !existing.completed_at && new Date(a.updated_at) > new Date(existing.updated_at)) courseAttemptMap.set(key, a);
-  }
-
-  const gpAttemptMap = new Map<string, any>();
-  for (const a of gpAttempts ?? []) {
-    gpAttemptMap.set(`${a.student_id}|${a.ve_id}`, a);
-  }
-
-  const submissionMap = new Map<string, any>();
-  for (const s of assignmentSubs ?? []) {
-    submissionMap.set(`${s.student_id}|${s.assignment_id}`, s);
-  }
-
-  // VE modules map keyed by VE id (for VE-type assignment progress calculation)
-  const veModulesMap = new Map<string, any>();
-  for (const v of veModulesData ?? []) {
-    veModulesMap.set(v.id, v.modules);
-  }
-
-  // Pre-group students by cohort_id
-  const studentsByCohort = new Map<string, typeof students>();
-  for (const student of students ?? []) {
-    if (!studentsByCohort.has(student.cohort_id)) studentsByCohort.set(student.cohort_id, []);
-    studentsByCohort.get(student.cohort_id)!.push(student);
-  }
-
-  const activeCohortSet = new Set(activeCohortIds);
-
-  // 5. Build unified rows
-  const rows: any[] = [];
-
-  for (const item of allContent) {
-    const itemCohortIds = (Array.isArray(item.cohort_ids) ? item.cohort_ids : [])
-      .filter((id: string) => activeCohortSet.has(id));
-    if (!itemCohortIds.length) continue;
-
-    const isVE           = item.content_type === 'virtual_experience';
-    const isAssignment   = item.content_type === 'assignment';
-    const isVeAssignment = isAssignment && !!item.ve_form_id;
-
-    const total = isVeAssignment
-      ? totalRequirementsFromModules(veModulesMap.get(item.ve_form_id!))
-      : isVE
-        ? totalRequirementsFromModules(item.modules)
-        : isAssignment
-          ? 0
-          // Course denominator excludes an optional share this student never claimed, so it is
-          // resolved per student below rather than once for the item.
-          : 0;
-
-    const itemStudents = itemCohortIds.flatMap(cid => studentsByCohort.get(cid) ?? []);
-
-    for (const student of itemStudents) {
-      const key = `${student.id}|${item.id}`;
-
-      let status: 'not_started' | 'in_progress' | 'stalled' | 'completed' | 'failed' = 'not_started';
-      let progressPct = 0;
-      let lastActive: string | null = null;
-      let score: number | null = null;
-      let passed: boolean | null = null;
-
-      if (isVeAssignment) {
-        // Completion requires a submission (the explicit "Complete" step). The VE attempt --
-        // keyed by the underlying VE id and completable via standalone/learning-path paths too --
-        // only drives in-progress status, never "completed".
-        const sub = submissionMap.get(key);
-        const attempt = gpAttemptMap.get(`${student.id}|${item.ve_form_id}`);
-        if (sub && sub.status !== 'draft') {
-          status = 'completed';
-          progressPct = 100;
-          lastActive = sub.graded_at ?? sub.submitted_at ?? sub.updated_at ?? null;
-          score = sub.score ?? null;
-        } else if (attempt) {
-          lastActive = attempt.updated_at ?? null;
-          const days = daysSince(lastActive);
-          status = days !== null && days >= STALL_DAYS ? 'stalled' : 'in_progress';
-          progressPct = veProgressPct(veModulesMap.get(item.ve_form_id!) ?? [], attempt.progress ?? {});
-        } else {
-          status = 'not_started';
-        }
-      } else if (isAssignment) {
-        const sub = submissionMap.get(key);
-        if (!sub) {
-          status = 'not_started';
-        } else if (sub.status === 'draft') {
-          lastActive = sub.updated_at ?? null;
-          const days = daysSince(lastActive);
-          status = days !== null && days >= STALL_DAYS ? 'stalled' : 'in_progress';
-          progressPct = 50;
-        } else {
-          status = 'completed';
-          progressPct = 100;
-          lastActive = sub.graded_at ?? sub.submitted_at ?? sub.updated_at ?? null;
-          score = sub.score ?? null;
-        }
-      } else {
-        const attempt = isVE ? gpAttemptMap.get(key) : courseAttemptMap.get(key);
-        if (!attempt) {
-          status = 'not_started';
-        } else if (attempt.completed_at) {
-          status = attempt.passed === false ? 'failed' : 'completed';
-          progressPct = 100;
-          lastActive = attempt.updated_at ?? attempt.completed_at;
-          score  = attempt.score ?? null;
-          passed = attempt.passed ?? null;
-        } else {
-          lastActive = attempt.updated_at ?? null;
-          const days = daysSince(lastActive);
-          status = days !== null && days >= STALL_DAYS ? 'stalled' : 'in_progress';
-          // Not guarded on `total`: the course denominator is resolved per student inside
-          // courseProgressPct (an unclaimed optional share leaves it), so the item-level total is
-          // 0 for courses and gating on it would report every course at 0%.
-          progressPct = isVE
-            ? veProgressPct(item.modules ?? [], attempt.progress ?? {})
-            : courseProgressPct((item.questions as any[]) ?? [], attempt.answers ?? {});
-        }
-      }
-
-      // Deadline calculation
-      let deadline: string | null = null;
-      let daysUntilDeadline: number | null = null;
-
-      if (isAssignment && item.deadline_date) {
-        const dl = new Date(item.deadline_date);
-        deadline = dl.toISOString();
-        daysUntilDeadline = Math.ceil((dl.getTime() - Date.now()) / 86400000);
-      } else if (!isAssignment) {
-        const assignedAt   = cohortAssignmentMap.get(`${item.id}|${student.cohort_id}`);
-        const deadlineDays = item.deadline_days;
-        if (assignedAt && deadlineDays) {
-          const dl = new Date(new Date(assignedAt).getTime() + Number(deadlineDays) * 86400000);
-          deadline = dl.toISOString();
-          daysUntilDeadline = Math.ceil((dl.getTime() - Date.now()) / 86400000);
-        }
-      }
-
-      const isAtRisk = status === 'failed' || (status !== 'completed' && daysUntilDeadline !== null && daysUntilDeadline <= 3);
-
-      rows.push({
-        studentEmail:      student.email,
-        studentName:       student.full_name ?? '',
-        cohortId:          student.cohort_id,
-        cohortName:        cohortMap.get(student.cohort_id) ?? '',
-        formId:            item.id,
-        formTitle:         item.title,
-        contentType:       item.content_type,
-        status,
-        progressPct,
-        lastActive,
-        daysSinceActivity: daysSince(lastActive),
-        score,
-        passed,
-        deadline,
-        daysUntilDeadline,
-        isAtRisk,
-      });
+  // Status and search run here rather than in the browser: the browser now holds only a page, so
+  // filtering there would search that page and report the wrong totals.
+  const matching = rows.filter(row => {
+    if (statusFilter === 'at_risk') { if (!row.isAtRisk) return false; }
+    else if (statusFilter !== 'all' && row.status !== statusFilter) return false;
+    if (search) {
+      const haystack = `${row.studentName} ${row.studentEmail} ${row.formTitle}`.toLowerCase();
+      if (!haystack.includes(search)) return false;
     }
-  }
+    return true;
+  });
 
-  return NextResponse.json({ rows, cohorts: cohorts ?? [] });
+  // A total order, so a row cannot slip between pages or repeat across them. Student name leads
+  // because paging a report ordered by anything else is not navigable.
+  matching.sort((a, b) =>
+    (a.studentName || a.studentEmail).localeCompare(b.studentName || b.studentEmail)
+    || a.formTitle.localeCompare(b.formTitle)
+    || a.formId.localeCompare(b.formId));
+
+  const start = (page - 1) * pageSize;
+  const pageRows = wantsAll ? matching : matching.slice(start, start + pageSize);
+
+  // Only the rows going out get their progress percentages resolved.
+  await attachProgress(supabase, pageRows, items);
+
+  return NextResponse.json({ rows: pageRows, total: matching.length, page, pageSize, stats, cohorts });
 }
