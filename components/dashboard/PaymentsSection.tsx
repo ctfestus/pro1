@@ -10,6 +10,7 @@ import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { reportExportCSV } from '@/lib/dashboard-export';
 import { useTheme } from '@/components/ThemeProvider';
 import { LIGHT_C, DARK_C, cardStyle, modalStyle } from '@/lib/theme';
+import { isIndividualCohort } from '@/lib/cohort-kind';
 
 type PaymentStatus = 'unpaid' | 'partial' | 'paid' | 'waived' | string;
 
@@ -1029,7 +1030,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                 className="w-full text-sm px-3 py-2 rounded-lg outline-none"
                 style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }}>
                 <option value="">Select the outstanding cohort</option>
-                {cohorts.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {cohorts.filter((c: any) => !isIndividualCohort(c.cohort_kind)).map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
               <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Students moved here lose access to course resources.</p>
             </div>
@@ -1048,7 +1049,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
                   className="flex-1 min-w-0 text-sm px-3 py-2 rounded-lg outline-none"
                   style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }}>
                   <option value="">Select cohort</option>
-                  {cohorts.map((c: any) => (
+                  {cohorts.filter((c: any) => c.cohort_kind === 'bootcamp').map((c: any) => (
                     <option key={c.id} value={c.id}>
                       {c.name}{gracePeriods[c.id] != null ? ` (${gracePeriods[c.id]}d)` : ''}
                     </option>
@@ -1108,7 +1109,7 @@ export function PaymentsSection({ C }: { C: typeof LIGHT_C }) {
           className="text-sm px-3 py-2 rounded-lg outline-none"
           style={{ background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` }}>
           <option value="all">All Cohorts</option>
-          {cohorts.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+          {cohorts.filter((c: any) => c.cohort_kind === 'bootcamp').map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}
           className="text-sm px-3 py-2 rounded-lg outline-none"

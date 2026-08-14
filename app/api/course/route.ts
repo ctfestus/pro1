@@ -197,10 +197,13 @@ async function loadAccessibleCourse(
   supabase: ReturnType<typeof adminClient>,
   courseId: string,
   sessionUser: { id: string; email: string },
-  select = 'id, user_id, status, cohort_ids, questions',
+  select = 'id, user_id, status, cohort_ids, available_to_everyone, questions',
 ) {
+  const accessSelect = select.includes('available_to_everyone')
+    ? select
+    : `${select}, available_to_everyone`;
   const [{ data: course, error }, { data: student }] = await Promise.all([
-    supabase.from('courses').select(select).eq('id', courseId).single(),
+    supabase.from('courses').select(accessSelect).eq('id', courseId).single(),
     supabase.from('students').select('role, cohort_id').eq('id', sessionUser.id).maybeSingle(),
   ]);
   if (error || !course) return { error: NextResponse.json({ error: 'Course not found' }, { status: 404 }) };
@@ -210,7 +213,8 @@ async function loadAccessibleCourse(
   const isPrivileged = ['admin', 'instructor', 'staff'].includes(role);
   const isOwner = (course as any).user_id === sessionUser.id;
   const isPublished = (course as any).status === 'published';
-  const cohortAllowed = cohortIds.length === 0 || (!!(student as any)?.cohort_id && cohortIds.includes((student as any).cohort_id));
+  const cohortAllowed = (course as any).available_to_everyone === true
+    || (!!(student as any)?.cohort_id && cohortIds.includes((student as any).cohort_id));
   let learningPathAllowed = false;
 
   // Course SELECT policies also grant access through published learning paths.

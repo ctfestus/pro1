@@ -116,10 +116,10 @@ describe('POST /api/certification-attempt learning-path access', () => {
       students: { data: { role: 'student', cohort_id: 'path-cohort' }, error: null },
       certifications: {
         data: [
-          { id: 'cert1', title: 'Path-granted, attempted', cohort_ids: ['direct-cohort'] },
-          { id: 'cert2', title: 'Open to everyone', cohort_ids: [] },
-          { id: 'cert3', title: 'Path-granted, not attempted yet', cohort_ids: ['direct-cohort'] },
-          { id: 'cert4', title: 'Different cohort, no path', cohort_ids: ['direct-cohort'] },
+          { available_to_everyone: false, id: 'cert1', title: 'Path-granted, attempted', cohort_ids: ['direct-cohort'] },
+          { id: 'cert2', title: 'Open to everyone', cohort_ids: [], available_to_everyone: true },
+          { available_to_everyone: false, id: 'cert3', title: 'Path-granted, not attempted yet', cohort_ids: ['direct-cohort'] },
+          { available_to_everyone: false, id: 'cert4', title: 'Different cohort, no path', cohort_ids: ['direct-cohort'] },
         ],
         error: null,
       },

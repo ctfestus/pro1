@@ -22,7 +22,7 @@ export function LeaderboardSection({ C }: { C: typeof LIGHT_C }) {
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const { data: cohortData } = await supabase.from('cohorts').select('id, name').order('created_at', { ascending: false });
+      const { data: cohortData } = await supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('created_at', { ascending: false });
       const list = cohortData ?? [];
       setCohorts(list);
       const { data: { session } } = await supabase.auth.getSession();

@@ -131,7 +131,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { title, description, slug: preferredSlug, cohort_ids, status: bodyStatus } = body;
+  const { title, description, slug: preferredSlug, cohort_ids, available_to_everyone, status: bodyStatus } = body;
   const config = body.config ?? {};
   const badType = invalidExamType(config.questions) || invalidExamType(config.practiceQuestions);
   if (badType) return NextResponse.json({ error: `Unsupported question type for certifications: ${badType}` }, { status: 400 });
@@ -142,7 +142,8 @@ export async function POST(req: NextRequest) {
     title:       title ?? config.title ?? 'Untitled',
     description: description ?? config.description ?? null,
     status,
-    cohort_ids:  cohort_ids ?? [],
+    cohort_ids:  available_to_everyone === true ? [] : (cohort_ids ?? []),
+    available_to_everyone: available_to_everyone === true,
     ...toRow(config),
   };
 
@@ -157,8 +158,8 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (!error) {
-      if (cohort_ids?.length && status === 'published') {
-        await upsertCohortAssignments(supabase, data.id, cohort_ids);
+      if (base.cohort_ids.length && status === 'published') {
+        await upsertCohortAssignments(supabase, data.id, base.cohort_ids);
       }
       return NextResponse.json({ id: data.id, slug: data.slug, status: data.status });
     }
@@ -179,11 +180,11 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { id, title, description, slug: preferredSlug, cohort_ids, status: bodyStatus } = body;
+  const { id, title, description, slug: preferredSlug, cohort_ids, available_to_everyone, status: bodyStatus } = body;
   if (!id || !body.config) return NextResponse.json({ error: 'id and config are required' }, { status: 400 });
 
   const { data: existing } = await supabase
-    .from('certifications').select('id, user_id, status, cohort_ids').eq('id', id).maybeSingle();
+    .from('certifications').select('id, user_id, status, cohort_ids, available_to_everyone').eq('id', id).maybeSingle();
   if (!existing) return NextResponse.json({ error: 'Not found' }, { status: 404 });
   if (existing.user_id !== user.id && role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
@@ -194,12 +195,17 @@ export async function PUT(req: NextRequest) {
   if (badType) return NextResponse.json({ error: `Unsupported question type for certifications: ${badType}` }, { status: 400 });
   const status = bodyStatus === 'draft' ? 'draft' : (bodyStatus === 'published' ? 'published' : existing.status);
   const slugValue = preferredSlug?.trim() || undefined;
+  const submittedCohorts = Array.isArray(cohort_ids) && cohort_ids.length > 0;
+  const effectiveAvailableToEveryone = submittedCohorts
+    ? false
+    : (available_to_everyone ?? existing.available_to_everyone ?? false);
 
   const payload: any = {
     title:       title ?? config.title ?? 'Untitled',
     description: description ?? config.description ?? null,
     status,
-    cohort_ids:  cohort_ids ?? existing.cohort_ids ?? [],
+    cohort_ids:  effectiveAvailableToEveryone ? [] : (cohort_ids ?? existing.cohort_ids ?? []),
+    available_to_everyone: effectiveAvailableToEveryone,
     ...toRow(config),
     ...(slugValue ? { slug: slugValue } : {}),
   };
@@ -213,7 +219,7 @@ export async function PUT(req: NextRequest) {
 
   // Sync cohort_assignments: add new, remove dropped
   const prev = existing.cohort_ids ?? [];
-  const next = cohort_ids ?? existing.cohort_ids ?? [];
+  const next = payload.cohort_ids ?? [];
   const removed = prev.filter((c: string) => !next.includes(c));
   const added = next.filter((c: string) => !prev.includes(c));
   if (removed.length) {

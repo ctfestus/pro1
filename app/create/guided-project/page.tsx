@@ -466,7 +466,7 @@ function VirtualExperienceCreatePageInner() {
 
       await loadExperienceGuides(session.access_token);
 
-      const { data: cohortData } = await supabase.from('cohorts').select('id, name').order('name');
+      const { data: cohortData } = await supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name');
       setCohorts(cohortData ?? []);
 
       if (editId) {

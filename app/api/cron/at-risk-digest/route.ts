@@ -58,6 +58,7 @@ export async function POST(req: NextRequest) {
       .in('student_id', studentIds),
     supabase.from('bootcamp_enrollments')
       .select('student_id, access_status, grace_active')
+      .is('released_at', null)
       .in('student_id', studentIds),
     supabase.from('course_attempts')
       .select('student_id')

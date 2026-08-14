@@ -64,6 +64,7 @@ export async function POST(req: NextRequest) {
         payment_installments ( id, due_date, status )
       `)
       .not('student_id', 'is', null)
+      .is('released_at', null)
       .not('payment_plan', 'in', '("waived","sponsored")')
       .neq('access_status', 'completed'),
     db

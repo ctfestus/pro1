@@ -187,9 +187,9 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
 
   const load = async () => {
     const [{ data: c }, { data: s }, { data: cr }, { data: veData }, { data: lpData }, { data: asgnData }] = await Promise.all([
-      supabase.from('cohorts').select('*').order('created_at', { ascending: false }),
+      supabase.from('cohorts').select('*').eq('cohort_kind', 'bootcamp').order('created_at', { ascending: false }),
       supabase.from('students').select('id, full_name, email, cohort_id, role').eq('role', 'student').order('full_name'),
-      supabase.from('courses').select('id, title, status, cohort_ids').order('created_at', { ascending: false }),
+      supabase.from('courses').select('id, title, status, cohort_ids, available_to_everyone').order('created_at', { ascending: false }),
       supabase.from('virtual_experiences').select('id, title, status, cohort_ids').order('created_at', { ascending: false }),
       supabase.from('learning_paths').select('id, title, status, cohort_ids').order('created_at', { ascending: false }),
       supabase.from('assignments').select('id, title, status, cohort_ids').order('created_at', { ascending: false }),
@@ -372,13 +372,24 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
     }
 
     try {
-      const res = await fetch('/api/cohort-content-assignment', {
-        method:  already ? 'DELETE' : 'POST',
+      const sendAssignment = (confirmRestriction = false) => fetch('/api/cohort-content-assignment', {
+        method: already ? 'DELETE' : 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body:    JSON.stringify({ contentId: itemId, contentTable, cohortId: selectedCohort.id }),
+        body: JSON.stringify({ contentId: itemId, contentTable, cohortId: selectedCohort.id, confirmRestriction }),
       });
+      let res = await sendAssignment();
+      let json = await res.json().catch(() => ({}));
 
-      const json = await res.json().catch(() => ({}));
+      if (res.status === 409 && json.requiresConfirmation) {
+        if (!window.confirm(json.error)) {
+          setTogglingCourse(null);
+          return;
+        }
+        // The confirmed retry is a new request, so the server re-reads the
+        // course and applies the change against its current access state.
+        res = await sendAssignment(true);
+        json = await res.json().catch(() => ({}));
+      }
 
       if (!res.ok) {
         showToast(false, json.error || (already ? 'Failed to remove from cohort.' : 'Failed to assign to cohort.'));
@@ -388,8 +399,10 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
 
       const newIds = already
         ? currentIds.filter(id => id !== selectedCohort.id)
-        : [...currentIds, selectedCohort.id];
-      setter(prev => prev.map(item => item.id === itemId ? { ...item, cohort_ids: newIds } : item));
+        : (Array.isArray(json.cohortIds) ? json.cohortIds : [...currentIds, selectedCohort.id]);
+      setter(prev => prev.map(item => item.id === itemId
+        ? { ...item, cohort_ids: newIds, ...(contentTable === 'courses' && !already ? { available_to_everyone: false } : {}) }
+        : item));
 
       if (already) {
         showToast(true, 'Removed from cohort');
@@ -715,7 +728,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                                   style={{ color: '#3b82f6' }}>
                                   <ArrowRight className="w-3.5 h-3.5"/> Move
                                 </button>
-                                <button onClick={async () => { if (await assignStudent(s.id, null)) showToast(true, `${s.full_name || s.email} removed`); setReassignId(null); }}
+                                <button onClick={async () => { if (!window.confirm(`Remove ${s.full_name || s.email} from this bootcamp cohort? Their bootcamp payment history will be preserved, and they will become eligible for an individual subscription.`)) return; if (await assignStudent(s.id, null)) showToast(true, `${s.full_name || s.email} removed and eligible for individual subscription`); setReassignId(null); }}
                                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-red-500/10"
                                   style={{ color: '#ef4444' }}>
                                   <UserMinus className="w-3.5 h-3.5"/> Remove
@@ -886,6 +899,11 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                               <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium ${item.status === 'published' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                                 {item.status ?? 'draft'}
                               </span>
+                              {item._type === 'course' && item.available_to_everyone === true && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium" style={{ background: C.pill, color: C.muted }}>
+                                  Everyone
+                                </span>
+                              )}
                             </div>
                           </div>
                           {assigned && <span className="text-xs font-semibold flex-shrink-0" style={{ color: '#16a34a' }}>Assigned</span>}

@@ -144,7 +144,7 @@ export default function AdminGroupsPage() {
   }, [cohortFilter]);
 
   useEffect(() => {
-    supabase.from('cohorts').select('id, name').order('name')
+    supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name')
       .then(({ data }) => { if (data) setCohorts(data); });
     // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGroups();

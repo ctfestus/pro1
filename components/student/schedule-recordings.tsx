@@ -12,6 +12,7 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { LIGHT_C, DARK_C } from '@/lib/theme';
 import { DataPlaygroundGrid } from '@/components/data-playground/DataPlayground';
 import { Sk, EmptyState } from '@/components/student/shared';
+import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   ArrowLeft, BookOpen, Calendar, ChevronRight, ExternalLink, FileText, Play, Video,
 } from 'lucide-react';
@@ -194,8 +195,9 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: student } = await supabase.from('students').select('cohort_id').eq('id', userId).single();
-      const cohortId = student?.cohort_id;
+      const { data: student } = await supabase.from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', userId).single();
+      // A synthetic individual-enrollment cohort (migration 165) has no recordings.
+      const cohortId = isIndividualCohort((student as any)?.cohort?.cohort_kind) ? null : student?.cohort_id;
       if (!cohortId) { setLoading(false); return; }
       const { data } = await supabase.from('recordings')
         .select('id, title, description, cover_image')
@@ -374,8 +376,9 @@ export function ScheduleSection({ userId, C }: { userId: string; C: typeof LIGHT
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: student } = await supabase.from('students').select('cohort_id').eq('id', userId).single();
-      const cohortId = student?.cohort_id;
+      const { data: student } = await supabase.from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', userId).single();
+      // A synthetic individual-enrollment cohort (migration 165) has no schedule.
+      const cohortId = isIndividualCohort((student as any)?.cohort?.cohort_kind) ? null : student?.cohort_id;
       const schedulesRes = cohortId
         ? await supabase.from('schedules').select('id, title, description, cover_image, start_date, end_date, status, created_at, course_id')
             .contains('cohort_ids', [cohortId]).eq('status', 'published')

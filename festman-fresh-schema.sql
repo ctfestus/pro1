@@ -56,10 +56,34 @@ CREATE TABLE public.cohorts (
   created_by  uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   status      text        NOT NULL DEFAULT 'active'
                             CHECK (status IN ('active','completed','archived')),
+  -- migration 172: what this cohort actually is. bootcamp = a real intake with a schedule
+  -- and fee structure; legacy_individual = the per-student synthetic cohort from migration
+  -- 165; subscription_plan = a plan's shared access cohort from migration 167. Access is
+  -- unchanged either way -- content is still granted through cohort_ids tagging.
+  cohort_kind text NOT NULL DEFAULT 'bootcamp'
+                            CHECK (cohort_kind IN ('bootcamp','legacy_individual','subscription_plan')),
+  -- migration 165, deprecated by migration 172: kept in sync from cohort_kind by
+  -- trg_cohorts_sync_is_individual so consumers still filtering on it stay correct.
+  -- individual_student_id is added further down via ALTER TABLE, once public.students
+  -- exists -- it references students, which is created after cohorts in this file.
+  is_individual          boolean NOT NULL DEFAULT false,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT cohorts_dates_valid CHECK (end_date IS NULL OR start_date IS NULL OR end_date >= start_date)
 );
+CREATE INDEX idx_cohorts_is_individual ON public.cohorts (is_individual);
+CREATE INDEX idx_cohorts_kind ON public.cohorts (cohort_kind);
+
+CREATE OR REPLACE FUNCTION public.sync_cohort_is_individual()
+RETURNS trigger LANGUAGE plpgsql SET search_path = '' AS $$
+BEGIN
+  NEW.is_individual := (NEW.cohort_kind <> 'bootcamp');
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_cohorts_sync_is_individual
+  BEFORE INSERT OR UPDATE OF cohort_kind, is_individual ON public.cohorts
+  FOR EACH ROW EXECUTE FUNCTION public.sync_cohort_is_individual();
 
 -- ── students ──────────────────────────────────────────────────
 CREATE TABLE public.students (
@@ -77,6 +101,7 @@ CREATE TABLE public.students (
                                    CHECK (status IN ('active','inactive','graduated','suspended')),
   cohort_id          uuid        REFERENCES public.cohorts(id) ON DELETE SET NULL,
   original_cohort_id uuid        REFERENCES public.cohorts(id) ON DELETE SET NULL,
+  enrollment_model   text        CHECK (enrollment_model IN ('bootcamp','individual')),
   onboarding_done    boolean     NOT NULL DEFAULT false,
   onboarding_responses jsonb     NOT NULL DEFAULT '{}'::jsonb,
   payment_exempt     boolean     NOT NULL DEFAULT false,
@@ -87,6 +112,10 @@ CREATE TABLE public.students (
   portfolio_items    jsonb       DEFAULT '[]'::jsonb,
   account_provisioned_at      timestamptz,
   setup_email_sent_at         timestamptz,
+  -- migration 180: short-lived claim held while a worker sends the combined welcome, so the
+  -- admin route and the hourly sweep cannot both send one. Expires so a crashed worker does
+  -- not strand the learner.
+  setup_email_claimed_at      timestamptz,
   password_setup_started_at   timestamptz,
   password_set_at             timestamptz,
   onboarding_completed_at     timestamptz,
@@ -101,6 +130,23 @@ CREATE TABLE public.students (
   updated_at         timestamptz NOT NULL DEFAULT now()
 );
 CREATE UNIQUE INDEX idx_students_username_ci ON public.students (lower(username)) WHERE username IS NOT NULL;
+
+-- migration 165: reverse lookup from a synthetic individual-enrollment cohort back to
+-- its owning student. Added here (after students) rather than inline on cohorts above,
+-- since cohorts is created before students in this file and can't forward-reference it.
+ALTER TABLE public.cohorts
+  ADD COLUMN individual_student_id uuid REFERENCES public.students(id) ON DELETE SET NULL;
+ALTER TABLE public.cohorts
+  ADD CONSTRAINT cohorts_individual_student_consistency
+  CHECK (individual_student_id IS NULL OR is_individual);
+-- migration 172: a shared plan cohort must never claim to belong to one student.
+ALTER TABLE public.cohorts
+  ADD CONSTRAINT cohorts_subscription_plan_has_no_student_check
+  CHECK (cohort_kind <> 'subscription_plan' OR individual_student_id IS NULL);
+-- One live synthetic cohort per student.
+CREATE UNIQUE INDEX idx_cohorts_individual_student
+  ON public.cohorts (individual_student_id)
+  WHERE individual_student_id IS NOT NULL;
 
 -- Reusable public-facing professionals for Virtual Experiences (migration 162)
 CREATE TABLE public.experience_guides (
@@ -172,6 +218,10 @@ CREATE TABLE public.courses (
   status          text        NOT NULL DEFAULT 'published'
                                 CHECK (status IN ('draft','published','archived')),
   cohort_ids      uuid[]      NOT NULL DEFAULT '{}',
+  -- migration 174: present for parity with certifications, not yet consulted by the
+  -- course access checks. See that migration for why the switch is a separate decision.
+  available_to_everyone boolean NOT NULL DEFAULT false
+    CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
   deadline_days   integer,
   theme           text,
@@ -318,6 +368,10 @@ CREATE TABLE public.certifications (
   cert_type       text        NOT NULL DEFAULT 'technology'
                                 CHECK (cert_type IN ('career','technology')),
   cohort_ids      uuid[]      NOT NULL DEFAULT '{}',
+  -- migration 174: explicit open access. When false, access is limited to cohort_ids,
+  -- and an empty cohort_ids then means nobody rather than everyone.
+  available_to_everyone boolean NOT NULL DEFAULT false
+    CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
   badge_image_url text,
   questions       jsonb       NOT NULL DEFAULT '[]',
@@ -625,7 +679,6 @@ CREATE TABLE public.cohort_assignments (
   cohort_id    uuid        NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
   content_type text        NOT NULL CHECK (content_type IN ('course','event','virtual_experience','form','certification')),
   content_id   uuid        NOT NULL,
-  assigned_by  uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   assigned_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (content_id, cohort_id)
 );
@@ -1713,6 +1766,7 @@ CREATE POLICY "courses: participants select"
   USING (
     user_id = (SELECT auth.uid())
     OR (SELECT public.is_admin())
+    OR (status = 'published' AND available_to_everyone)
     OR (SELECT cohort_id FROM public.students WHERE id = (SELECT auth.uid())) = ANY(cohort_ids)
     OR EXISTS (
       SELECT 1 FROM public.learning_paths lp
@@ -3084,6 +3138,9 @@ CREATE TABLE public.bootcamp_enrollments (
   access_until         date,
   bootcamp_starts_at   date,
   bootcamp_ends_at     date,
+  -- Set when a student is explicitly removed from their cohort. The row is kept as
+  -- financial history with student_id intact; payment enforcement skips released rows.
+  released_at          timestamptz,
   created_at           timestamptz   NOT NULL DEFAULT now(),
   updated_at           timestamptz   NOT NULL DEFAULT now()
 );
@@ -3105,6 +3162,8 @@ CREATE INDEX idx_bootcamp_enrollments_email   ON public.bootcamp_enrollments(low
 CREATE INDEX idx_bootcamp_enrollments_student ON public.bootcamp_enrollments(student_id);
 CREATE INDEX idx_bootcamp_enrollments_cohort  ON public.bootcamp_enrollments(cohort_id);
 CREATE INDEX idx_bootcamp_enrollments_status  ON public.bootcamp_enrollments(access_status);
+CREATE INDEX idx_bootcamp_enrollments_released ON public.bootcamp_enrollments(released_at)
+  WHERE released_at IS NULL;
 CREATE TRIGGER trg_bootcamp_enrollments_updated_at
   BEFORE UPDATE ON public.bootcamp_enrollments
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -3554,6 +3613,7 @@ GRANT SELECT ON public.published_path_items TO anon, authenticated;
 --       /api/cron/weekly-digest       — every Monday 08:00
 --       /api/cron/at-risk-digest      — every Monday 07:00
 --       /api/cron/reindex-courses     — daily 02:00
+--       /api/cron/subscription-expiry-sweep — hourly (0 * * * *)
 -- ─────────────────────────────────────────────────────────────
 
 
@@ -4047,3 +4107,920 @@ CREATE POLICY "linkedin_shares: staff select"
 -- There is no migration 158. It was drafted as a claim backfill, found to match
 -- long-standing accounts, and removed before release. Its review queries now live in
 -- scripts/preview-password-setup-backfill.sql and are run by hand.
+
+-- Migration 166: duration-based individual subscriptions
+CREATE TABLE public.subscription_plans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL CHECK (length(btrim(name)) > 0),
+  description text,
+  cohort_id uuid NOT NULL UNIQUE REFERENCES public.cohorts(id) ON DELETE RESTRICT,
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (id, cohort_id)
+);
+CREATE TABLE public.individual_subscriptions (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid REFERENCES public.students(id) ON DELETE SET NULL,
+  plan_id uuid NOT NULL REFERENCES public.subscription_plans(id) ON DELETE RESTRICT,
+  cohort_id uuid NOT NULL REFERENCES public.cohorts(id) ON DELETE RESTRICT,
+  status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','expired','cancelled')),
+  duration_months integer NOT NULL CHECK (duration_months IN (1,3,6,12)),
+  amount numeric(10,2) NOT NULL CHECK (amount > 0),
+  currency text NOT NULL DEFAULT 'GHS',
+  current_period_start timestamptz NOT NULL,
+  current_period_end timestamptz NOT NULL,
+  cancelled_at timestamptz,
+  -- migration 179: the current_period_end a pre-expiry warning was last sent for. A renewal
+  -- moves the period end, which makes the subscription eligible for a fresh warning.
+  expiry_warning_for_period_end timestamptz,
+  -- migration 180: bounded warning attempts, so one permanently invalid address cannot hold
+  -- a slot in the warning window forever.
+  expiry_warning_attempts integer NOT NULL DEFAULT 0,
+  expiry_warning_last_error text,
+  -- migration 180: which period those attempts were spent on. Without it the counter is a
+  -- lifetime total and five failures bar the learner from every future warning.
+  expiry_warning_attempted_for_period_end timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT individual_subscriptions_plan_cohort_fkey
+    FOREIGN KEY (plan_id, cohort_id) REFERENCES public.subscription_plans(id, cohort_id) ON DELETE RESTRICT
+);
+CREATE UNIQUE INDEX idx_individual_subscriptions_student ON public.individual_subscriptions(student_id) WHERE student_id IS NOT NULL;
+CREATE INDEX idx_individual_subscriptions_expiry_warning
+  ON public.individual_subscriptions(current_period_end)
+  WHERE status = 'active';
+CREATE INDEX idx_individual_subscriptions_sweep ON public.individual_subscriptions(status, current_period_end);
+CREATE INDEX idx_individual_subscriptions_plan ON public.individual_subscriptions(plan_id);
+
+CREATE TABLE public.subscription_payments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscription_id uuid REFERENCES public.individual_subscriptions(id) ON DELETE SET NULL,
+  student_id uuid REFERENCES public.students(id) ON DELETE SET NULL,
+  plan_id uuid NOT NULL REFERENCES public.subscription_plans(id) ON DELETE RESTRICT,
+  plan_name text NOT NULL,
+  idempotency_key text NOT NULL UNIQUE CHECK (length(btrim(idempotency_key)) > 0),
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','completed')),
+  is_activating boolean NOT NULL,
+  kind text NOT NULL CHECK (kind IN ('purchase','renewal')),
+  duration_months integer NOT NULL CHECK (duration_months IN (1,3,6,12)),
+  amount numeric(10,2) NOT NULL CHECK (amount > 0),
+  currency text NOT NULL DEFAULT 'GHS',
+  period_start timestamptz NOT NULL,
+  period_end timestamptz NOT NULL,
+  paid_at date NOT NULL DEFAULT current_date,
+  payment_method text,
+  payment_reference text,
+  notes text,
+  -- migration 177: set once the activation email is accepted by the mail provider. NULL
+  -- means it still needs sending, which is what makes a failed delivery retryable.
+  activation_email_sent_at timestamptz,
+  -- migration 179: bounded retries. The sweep stops past a cap so one permanently broken
+  -- row cannot starve every newer learner behind it in the queue.
+  email_attempts integer NOT NULL DEFAULT 0,
+  email_last_error text,
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_subscription_payments_activation_email_pending
+  ON public.subscription_payments(created_at)
+  WHERE activation_email_sent_at IS NULL;
+
+CREATE TABLE public.subscription_plan_content (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  plan_id uuid NOT NULL REFERENCES public.subscription_plans(id) ON DELETE CASCADE,
+  content_table text NOT NULL CHECK (content_table IN ('courses','virtual_experiences','certifications','learning_paths')),
+  content_id uuid NOT NULL,
+  added_at timestamptz NOT NULL DEFAULT now(),
+  added_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  notified_at timestamptz,
+  UNIQUE (plan_id, content_table, content_id)
+);
+CREATE INDEX idx_subscription_plan_content_plan ON public.subscription_plan_content(plan_id);
+CREATE INDEX idx_subscription_payments_plan ON public.subscription_payments(plan_id);
+
+CREATE TABLE public.subscription_plan_changes (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  subscription_id uuid REFERENCES public.individual_subscriptions(id) ON DELETE SET NULL,
+  student_id uuid REFERENCES public.students(id) ON DELETE SET NULL,
+  old_plan_id uuid NOT NULL REFERENCES public.subscription_plans(id) ON DELETE RESTRICT,
+  new_plan_id uuid NOT NULL REFERENCES public.subscription_plans(id) ON DELETE RESTRICT,
+  changed_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  notes text,
+  changed_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (old_plan_id <> new_plan_id)
+);
+CREATE INDEX idx_subscription_plan_changes_subscription ON public.subscription_plan_changes(subscription_id,changed_at DESC);
+-- Best-effort duplicate suppression only. External email delivery and notified_at
+-- cannot be committed atomically, so a narrow duplicate-send window is accepted.
+
+ALTER TABLE public.subscription_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.individual_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscription_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscription_plan_content ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscription_plan_changes ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "subscription_plans: instructor select" ON public.subscription_plans FOR SELECT USING ((SELECT public.is_instructor_or_admin()));
+CREATE POLICY "subscription_plans: student read assigned" ON public.subscription_plans FOR SELECT USING (EXISTS (SELECT 1 FROM public.individual_subscriptions s WHERE s.plan_id=subscription_plans.id AND s.student_id=(SELECT auth.uid())));
+CREATE POLICY "individual_subscriptions: instructor select" ON public.individual_subscriptions FOR SELECT USING ((SELECT public.is_instructor_or_admin()));
+CREATE POLICY "individual_subscriptions: student read own" ON public.individual_subscriptions FOR SELECT USING (student_id = (SELECT auth.uid()));
+CREATE POLICY "subscription_payments: instructor select" ON public.subscription_payments FOR SELECT USING ((SELECT public.is_instructor_or_admin()));
+CREATE POLICY "subscription_payments: student read own" ON public.subscription_payments FOR SELECT USING (student_id = (SELECT auth.uid()));
+CREATE POLICY "subscription_plan_content: instructor select" ON public.subscription_plan_content FOR SELECT USING ((SELECT public.is_instructor_or_admin()));
+CREATE POLICY "subscription_plan_content: student read assigned" ON public.subscription_plan_content FOR SELECT USING (
+  EXISTS (SELECT 1 FROM public.individual_subscriptions s WHERE s.plan_id = subscription_plan_content.plan_id AND s.student_id = (SELECT auth.uid()))
+);
+CREATE POLICY "subscription_plan_changes: instructor select" ON public.subscription_plan_changes FOR SELECT USING ((SELECT public.is_instructor_or_admin()));
+CREATE POLICY "subscription_plan_changes: student read own" ON public.subscription_plan_changes FOR SELECT USING (student_id=(SELECT auth.uid()));
+CREATE TRIGGER trg_subscription_plans_updated_at BEFORE UPDATE ON public.subscription_plans
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER trg_individual_subscriptions_updated_at BEFORE UPDATE ON public.individual_subscriptions
+  FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+CREATE OR REPLACE FUNCTION public.prevent_enrollment_model_change()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  IF (SELECT auth.role()) = 'service_role' OR (SELECT auth.uid()) IS NULL THEN RETURN NEW; END IF;
+  RAISE EXCEPTION 'permission denied: enrollment_model may only be changed by an enrollment-model claim'
+    USING ERRCODE = 'insufficient_privilege';
+END;
+$$;
+CREATE TRIGGER trg_prevent_enrollment_model_change BEFORE UPDATE OF enrollment_model ON public.students
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_enrollment_model_change();
+
+CREATE OR REPLACE FUNCTION public.claim_student_enrollment_model(p_student_id uuid, p_requested_model text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_current text; v_cohort_id uuid; v_original_cohort_id uuid;
+BEGIN
+  IF p_requested_model NOT IN ('bootcamp','individual') THEN RAISE EXCEPTION 'invalid enrollment model: %', p_requested_model; END IF;
+  SELECT enrollment_model,cohort_id,original_cohort_id INTO v_current,v_cohort_id,v_original_cohort_id
+  FROM public.students WHERE id = p_student_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'student % not found', p_student_id; END IF;
+  IF v_current IS NULL THEN
+    UPDATE public.students SET enrollment_model = p_requested_model WHERE id = p_student_id;
+  ELSIF v_current='bootcamp' AND p_requested_model='individual'
+        AND v_cohort_id IS NULL AND v_original_cohort_id IS NULL THEN
+    UPDATE public.bootcamp_enrollments SET released_at=COALESCE(released_at,now()),updated_at=now()
+      WHERE student_id=p_student_id AND released_at IS NULL;
+    UPDATE public.students SET enrollment_model='individual' WHERE id=p_student_id;
+  ELSIF v_current <> p_requested_model THEN
+    RAISE EXCEPTION 'student % already belongs to the % enrollment model', p_student_id, v_current USING ERRCODE = 'unique_violation';
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_student_enrollment_model(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_student_enrollment_model(uuid,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.release_student_from_bootcamp(p_student_id uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_model text;
+BEGIN
+  SELECT enrollment_model INTO v_model FROM public.students WHERE id=p_student_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'student % not found',p_student_id; END IF;
+  IF v_model='individual' THEN
+    RAISE EXCEPTION 'an individual subscriber cannot be unassigned through the bootcamp workflow' USING ERRCODE='unique_violation';
+  END IF;
+  -- Keep student_id so paid_total, installments and receipts stay attached to the person
+  -- who paid them. payment_exempt records a sponsorship decision, not cohort membership,
+  -- so it is deliberately left alone. See migration 171.
+  UPDATE public.bootcamp_enrollments SET released_at=now(),updated_at=now()
+    WHERE student_id=p_student_id AND released_at IS NULL;
+  UPDATE public.students SET cohort_id=NULL,original_cohort_id=NULL,enrollment_model=NULL WHERE id=p_student_id;
+  RETURN jsonb_build_object('ok',true,'released',true);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.release_student_from_bootcamp(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_student_from_bootcamp(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.reattach_released_enrollment(p_enrollment_id uuid)
+RETURNS void LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
+  UPDATE public.bootcamp_enrollments SET released_at=NULL,updated_at=now()
+  WHERE id=p_enrollment_id AND released_at IS NOT NULL;
+$$;
+REVOKE EXECUTE ON FUNCTION public.reattach_released_enrollment(uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.reattach_released_enrollment(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.enforce_student_cohort_model_claim()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_is_individual boolean; v_requested text;
+BEGIN
+  IF NEW.cohort_id IS NULL THEN RETURN NEW; END IF;
+  IF TG_OP = 'UPDATE' AND NEW.cohort_id IS NOT DISTINCT FROM OLD.cohort_id THEN RETURN NEW; END IF;
+  SELECT is_individual INTO v_is_individual FROM public.cohorts WHERE id = NEW.cohort_id;
+  v_requested := CASE WHEN COALESCE(v_is_individual, false) THEN 'individual' ELSE 'bootcamp' END;
+  IF TG_OP = 'INSERT' OR OLD.enrollment_model IS NULL THEN
+    NEW.enrollment_model := v_requested;
+  ELSIF OLD.enrollment_model <> v_requested THEN
+    RAISE EXCEPTION 'student % already belongs to the % enrollment model', NEW.id, OLD.enrollment_model USING ERRCODE = 'unique_violation';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+CREATE TRIGGER trg_enforce_student_cohort_model_claim BEFORE INSERT OR UPDATE OF cohort_id ON public.students
+  FOR EACH ROW EXECUTE FUNCTION public.enforce_student_cohort_model_claim();
+
+CREATE OR REPLACE FUNCTION public.add_months_clamped(base timestamptz, months integer)
+RETURNS timestamptz LANGUAGE plpgsql IMMUTABLE SET search_path = '' AS $$
+DECLARE v_utc timestamp; v_target_month date; v_last_day date; v_day integer;
+BEGIN
+  v_utc := base AT TIME ZONE 'UTC';
+  v_target_month := (date_trunc('month', v_utc) + make_interval(months => months))::date;
+  v_last_day := (v_target_month + interval '1 month - 1 day')::date;
+  v_day := LEAST(EXTRACT(day FROM v_utc)::integer, EXTRACT(day FROM v_last_day)::integer);
+  RETURN (v_target_month + (v_day - 1) + v_utc::time) AT TIME ZONE 'UTC';
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.add_months_clamped(timestamptz,integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.add_months_clamped(timestamptz,integer) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.create_individual_subscription_plan(p_name text,p_description text,p_created_by uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_plan_id uuid:=gen_random_uuid(); v_cohort_id uuid;
+BEGIN
+  IF btrim(COALESCE(p_name,''))='' THEN RAISE EXCEPTION 'plan name is required'; END IF;
+  -- cohort_kind must be set explicitly. Inserting is_individual alone would fall to the
+  -- 'bootcamp' default and trg_cohorts_sync_is_individual would flip it straight back to
+  -- false, silently revoking access for every subscriber on the plan. See migration 172.
+  INSERT INTO public.cohorts(name,status,cohort_kind,individual_student_id,start_date,created_by)
+  VALUES ('Subscription - '||btrim(p_name),'active','subscription_plan',NULL,current_date,p_created_by) RETURNING id INTO v_cohort_id;
+  INSERT INTO public.subscription_plans(id,name,description,cohort_id,created_by)
+  VALUES (v_plan_id,btrim(p_name),NULLIF(btrim(p_description),''),v_cohort_id,p_created_by);
+  RETURN jsonb_build_object('ok',true,'planId',v_plan_id,'cohortId',v_cohort_id);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.create_individual_subscription_plan(text,text,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_individual_subscription_plan(text,text,uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.purchase_or_renew_individual_subscription(
+  p_student_id uuid, p_plan_id uuid, p_duration_months integer, p_amount numeric, p_currency text,
+  p_idempotency_key text, p_payment_method text DEFAULT NULL,
+  p_payment_reference text DEFAULT NULL, p_notes text DEFAULT NULL,
+  p_created_by uuid DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_currency text;
+  v_payment public.subscription_payments%ROWTYPE;
+  v_subscription public.individual_subscriptions%ROWTYPE;
+  v_plan public.subscription_plans%ROWTYPE; v_plan_cohort_is_individual boolean;
+  v_base timestamptz; v_period_start timestamptz; v_period_end timestamptz;
+  v_is_activating boolean; v_kind text; v_subscription_id uuid; v_payment_id uuid;
+BEGIN
+  IF p_duration_months NOT IN (1,3,6,12) THEN RAISE EXCEPTION 'durationMonths must be one of 1, 3, 6, or 12'; END IF;
+  IF p_amount IS NULL OR p_amount <= 0 THEN RAISE EXCEPTION 'amount must be greater than 0'; END IF;
+  v_currency := upper(btrim(COALESCE(p_currency, '')));
+  IF v_currency = '' THEN RAISE EXCEPTION 'currency is required'; END IF;
+  IF btrim(COALESCE(p_idempotency_key, '')) = '' THEN RAISE EXCEPTION 'idempotencyKey is required'; END IF;
+
+  PERFORM public.claim_student_enrollment_model(p_student_id, 'individual');
+  SELECT * INTO v_payment FROM public.subscription_payments WHERE idempotency_key = p_idempotency_key;
+  IF FOUND THEN
+    IF v_payment.student_id IS DISTINCT FROM p_student_id
+       OR v_payment.plan_id IS DISTINCT FROM p_plan_id
+       OR v_payment.amount IS DISTINCT FROM p_amount
+       OR v_payment.currency IS DISTINCT FROM v_currency
+       OR v_payment.duration_months IS DISTINCT FROM p_duration_months THEN
+      RAISE EXCEPTION 'idempotency key was already used for a different subscription payment' USING ERRCODE = 'unique_violation';
+    END IF;
+    RETURN jsonb_build_object('ok',true,'subscriptionId',v_payment.subscription_id,'paymentId',v_payment.id,'alreadyProcessed',true);
+  END IF;
+
+  SELECT * INTO v_plan FROM public.subscription_plans WHERE id=p_plan_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription plan not found'; END IF;
+  SELECT is_individual INTO v_plan_cohort_is_individual FROM public.cohorts WHERE id=v_plan.cohort_id;
+  IF v_plan.status<>'active' OR NOT COALESCE(v_plan_cohort_is_individual,false) THEN RAISE EXCEPTION 'subscription plan is not active or has an invalid access cohort'; END IF;
+
+  SELECT * INTO v_subscription FROM public.individual_subscriptions WHERE student_id = p_student_id;
+  v_is_activating := NOT (FOUND AND v_subscription.status = 'active' AND v_subscription.current_period_end > now());
+  v_base := CASE WHEN v_is_activating THEN now() ELSE v_subscription.current_period_end END;
+  v_period_start := v_base;
+  v_period_end := public.add_months_clamped(v_base, p_duration_months);
+  v_kind := CASE WHEN v_subscription.id IS NULL THEN 'purchase' ELSE 'renewal' END;
+  IF v_subscription.id IS NOT NULL AND v_subscription.plan_id<>p_plan_id THEN
+    RAISE EXCEPTION 'this student is already assigned to a different subscription plan' USING ERRCODE='unique_violation';
+  END IF;
+
+  IF v_subscription.id IS NULL THEN
+    INSERT INTO public.individual_subscriptions(student_id,plan_id,cohort_id,status,duration_months,amount,currency,current_period_start,current_period_end,cancelled_at)
+    VALUES (p_student_id,p_plan_id,v_plan.cohort_id,'active',p_duration_months,p_amount,v_currency,v_period_start,v_period_end,NULL)
+    RETURNING id INTO v_subscription_id;
+  ELSE
+    UPDATE public.individual_subscriptions SET
+      status='active', duration_months=p_duration_months, amount=p_amount, currency=v_currency,
+      current_period_start=CASE WHEN v_is_activating THEN v_period_start ELSE current_period_start END,
+      current_period_end=v_period_end, cancelled_at=NULL
+    WHERE id=v_subscription.id RETURNING id INTO v_subscription_id;
+  END IF;
+
+  INSERT INTO public.subscription_payments(
+    subscription_id,student_id,plan_id,plan_name,idempotency_key,status,is_activating,kind,duration_months,
+    amount,currency,period_start,period_end,payment_method,payment_reference,notes,created_by
+  ) VALUES (
+    v_subscription_id,p_student_id,p_plan_id,v_plan.name,p_idempotency_key,'completed',v_is_activating,v_kind,p_duration_months,
+    p_amount,v_currency,v_period_start,v_period_end,NULLIF(btrim(p_payment_method),''),
+    NULLIF(btrim(p_payment_reference),''),NULLIF(btrim(p_notes),''),p_created_by
+  ) RETURNING id INTO v_payment_id;
+  UPDATE public.students SET cohort_id=v_plan.cohort_id WHERE id=p_student_id;
+  RETURN jsonb_build_object('ok',true,'subscriptionId',v_subscription_id,'paymentId',v_payment_id,'alreadyProcessed',false);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.purchase_or_renew_individual_subscription(uuid,uuid,integer,numeric,text,text,text,text,text,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.purchase_or_renew_individual_subscription(uuid,uuid,integer,numeric,text,text,text,text,text,uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.change_individual_subscription_plan(
+  p_subscription_id uuid,p_new_plan_id uuid,p_changed_by uuid DEFAULT NULL,p_notes text DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE
+  v_student_id uuid; v_old_plan_id uuid; v_old_cohort_id uuid; v_new_cohort_id uuid;
+  v_new_plan_status text; v_new_cohort_is_individual boolean;
+  v_subscription_status text; v_period_end timestamptz;
+BEGIN
+  SELECT student_id INTO v_student_id FROM public.individual_subscriptions WHERE id=p_subscription_id;
+  IF NOT FOUND OR v_student_id IS NULL THEN RAISE EXCEPTION 'subscription not found'; END IF;
+  PERFORM public.claim_student_enrollment_model(v_student_id,'individual');
+  SELECT plan_id,cohort_id,status,current_period_end
+  INTO v_old_plan_id,v_old_cohort_id,v_subscription_status,v_period_end
+  FROM public.individual_subscriptions WHERE id=p_subscription_id FOR UPDATE;
+  SELECT cohort_id,status INTO v_new_cohort_id,v_new_plan_status FROM public.subscription_plans WHERE id=p_new_plan_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription plan not found'; END IF;
+  SELECT is_individual INTO v_new_cohort_is_individual FROM public.cohorts WHERE id=v_new_cohort_id;
+  IF v_new_plan_status<>'active' OR NOT COALESCE(v_new_cohort_is_individual,false) THEN
+    RAISE EXCEPTION 'subscription plan is not active or has an invalid access cohort';
+  END IF;
+  IF v_old_plan_id=p_new_plan_id THEN
+    RETURN jsonb_build_object('ok',true,'alreadyAssigned',true,'subscriptionId',p_subscription_id);
+  END IF;
+  UPDATE public.individual_subscriptions SET plan_id=p_new_plan_id,cohort_id=v_new_cohort_id WHERE id=p_subscription_id;
+  IF v_subscription_status='active' AND v_period_end>now() THEN
+    UPDATE public.students SET cohort_id=v_new_cohort_id WHERE id=v_student_id;
+  ELSE
+    UPDATE public.students SET cohort_id=NULL WHERE id=v_student_id AND cohort_id=v_old_cohort_id;
+  END IF;
+  INSERT INTO public.subscription_plan_changes(subscription_id,student_id,old_plan_id,new_plan_id,changed_by,notes)
+  VALUES(p_subscription_id,v_student_id,v_old_plan_id,p_new_plan_id,p_changed_by,NULLIF(btrim(p_notes),''));
+  RETURN jsonb_build_object('ok',true,'alreadyAssigned',false,'subscriptionId',p_subscription_id,'planId',p_new_plan_id);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.change_individual_subscription_plan(uuid,uuid,uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.change_individual_subscription_plan(uuid,uuid,uuid,text) TO service_role;
+
+CREATE TABLE public.subscription_payment_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid REFERENCES public.students(id) ON DELETE SET NULL,
+  subscription_id uuid REFERENCES public.individual_subscriptions(id) ON DELETE SET NULL,
+  plan_id uuid NOT NULL REFERENCES public.subscription_plans(id) ON DELETE RESTRICT,
+  plan_name text NOT NULL,
+  kind text NOT NULL CHECK (kind IN ('purchase','renewal')),
+  duration_months integer NOT NULL CHECK (duration_months IN (1,3,6,12)),
+  amount numeric(10,2) NOT NULL CHECK (amount > 0),
+  currency text NOT NULL DEFAULT 'GHS',
+  due_date date NOT NULL,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','confirmation_submitted','paid','cancelled')),
+  created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now(),
+  paid_at timestamptz, cancelled_at timestamptz,
+  -- migration 178: set once the payment-request email is accepted by the mail provider.
+  -- NULL means it still needs sending, which is what makes a failed delivery retryable.
+  request_email_sent_at timestamptz,
+  -- migration 179: see subscription_payments.email_attempts.
+  email_attempts integer NOT NULL DEFAULT 0,
+  email_last_error text
+);
+CREATE INDEX idx_subscription_payment_requests_email_pending
+  ON public.subscription_payment_requests(created_at)
+  WHERE request_email_sent_at IS NULL;
+CREATE UNIQUE INDEX idx_subscription_payment_requests_open_student ON public.subscription_payment_requests(student_id)
+  WHERE student_id IS NOT NULL AND status IN ('pending','confirmation_submitted');
+CREATE INDEX idx_subscription_payment_requests_review ON public.subscription_payment_requests(status,due_date);
+
+CREATE TABLE public.subscription_payment_confirmations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  request_id uuid NOT NULL REFERENCES public.subscription_payment_requests(id) ON DELETE CASCADE,
+  student_id uuid REFERENCES public.students(id) ON DELETE SET NULL,
+  amount numeric(10,2) NOT NULL CHECK (amount > 0), paid_at date NOT NULL,
+  method text, reference text, notes text, receipt_url text,
+  status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','rejected')),
+  reviewed_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  reviewed_at timestamptz, admin_notes text,
+  created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX idx_subscription_payment_confirmations_pending_request
+  ON public.subscription_payment_confirmations(request_id) WHERE status='pending';
+CREATE INDEX idx_subscription_payment_confirmations_student ON public.subscription_payment_confirmations(student_id,created_at DESC);
+CREATE INDEX idx_subscription_payment_confirmations_review ON public.subscription_payment_confirmations(status,created_at DESC);
+ALTER TABLE public.subscription_payment_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.subscription_payment_confirmations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "subscription_payment_requests: instructor select" ON public.subscription_payment_requests FOR SELECT USING ((SELECT public.is_instructor_or_admin()));
+CREATE POLICY "subscription_payment_requests: student read own" ON public.subscription_payment_requests FOR SELECT USING (student_id=(SELECT auth.uid()));
+CREATE POLICY "subscription_payment_confirmations: instructor select" ON public.subscription_payment_confirmations FOR SELECT USING ((SELECT public.is_instructor_or_admin()));
+CREATE POLICY "subscription_payment_confirmations: student read own" ON public.subscription_payment_confirmations FOR SELECT USING (student_id=(SELECT auth.uid()));
+CREATE TRIGGER trg_subscription_payment_requests_updated_at BEFORE UPDATE ON public.subscription_payment_requests FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER trg_subscription_payment_confirmations_updated_at BEFORE UPDATE ON public.subscription_payment_confirmations FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- Subscription access state and open payment work must not survive deletion of
+-- the student account. Completed financial ledger rows remain via SET NULL FKs.
+CREATE OR REPLACE FUNCTION public.close_subscription_before_student_delete()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  PERFORM id FROM public.subscription_payment_requests
+  WHERE student_id = OLD.id AND status IN ('pending', 'confirmation_submitted')
+  ORDER BY id FOR UPDATE;
+  UPDATE public.subscription_payment_confirmations AS confirmation
+  SET status = 'rejected', reviewed_at = COALESCE(reviewed_at, now()),
+      admin_notes = COALESCE(admin_notes, 'Student account deleted')
+  FROM public.subscription_payment_requests AS request
+  WHERE confirmation.request_id = request.id
+    AND request.student_id = OLD.id
+    AND request.status IN ('pending', 'confirmation_submitted')
+    AND confirmation.status = 'pending';
+  UPDATE public.subscription_payment_requests
+  SET status = 'cancelled', cancelled_at = COALESCE(cancelled_at, now())
+  WHERE student_id = OLD.id AND status IN ('pending', 'confirmation_submitted');
+  UPDATE public.individual_subscriptions
+  SET status = 'cancelled', cancelled_at = COALESCE(cancelled_at, now())
+  WHERE student_id = OLD.id AND status = 'active';
+  RETURN OLD;
+END;
+$$;
+CREATE TRIGGER trg_close_subscription_before_student_delete BEFORE DELETE ON public.students
+  FOR EACH ROW EXECUTE FUNCTION public.close_subscription_before_student_delete();
+REVOKE ALL ON FUNCTION public.close_subscription_before_student_delete() FROM PUBLIC, anon, authenticated;
+
+CREATE FUNCTION public.list_subscriptions_needing_expiry_warning(
+  p_horizon timestamptz,
+  p_limit integer DEFAULT 25,
+  p_max_attempts integer DEFAULT 5
+) RETURNS TABLE (id uuid, current_period_end timestamptz)
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path = ''
+AS $$
+  SELECT s.id, s.current_period_end
+  FROM public.individual_subscriptions s
+  WHERE s.status = 'active'
+    AND s.current_period_end > now()
+    AND s.current_period_end <= p_horizon
+    AND s.expiry_warning_for_period_end IS DISTINCT FROM s.current_period_end
+    AND (
+      s.expiry_warning_attempted_for_period_end IS DISTINCT FROM s.current_period_end
+      OR s.expiry_warning_attempts < p_max_attempts
+    )
+  ORDER BY s.current_period_end
+  LIMIT p_limit;
+$$;
+REVOKE EXECUTE ON FUNCTION public.list_subscriptions_needing_expiry_warning(timestamptz, integer, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.list_subscriptions_needing_expiry_warning(timestamptz, integer, integer)
+  TO service_role;
+
+CREATE OR REPLACE FUNCTION public.record_expiry_warning_failure(
+  p_subscription_id uuid,
+  p_period_end timestamptz,
+  p_error text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.individual_subscriptions
+  SET expiry_warning_attempts = CASE
+        WHEN expiry_warning_attempted_for_period_end IS DISTINCT FROM p_period_end THEN 1
+        ELSE expiry_warning_attempts + 1
+      END,
+      expiry_warning_attempted_for_period_end = p_period_end,
+      expiry_warning_last_error = left(COALESCE(p_error, 'Unknown error'), 500)
+  WHERE id = p_subscription_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.record_expiry_warning_failure(uuid, timestamptz, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_expiry_warning_failure(uuid, timestamptz, text) TO service_role;
+
+-- Wins the right to send this learner's welcome, or returns false because another worker
+-- already holds it. The UPDATE is the claim: a single statement, so two callers cannot both
+-- match the WHERE clause.
+CREATE OR REPLACE FUNCTION public.claim_learner_welcome_email(
+  p_student_id uuid,
+  p_ttl_seconds integer DEFAULT 300
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_claimed uuid;
+BEGIN
+  UPDATE public.students
+  SET setup_email_claimed_at = now()
+  WHERE id = p_student_id
+    AND setup_email_sent_at IS NULL
+    AND (
+      setup_email_claimed_at IS NULL
+      OR setup_email_claimed_at < now() - make_interval(secs => p_ttl_seconds)
+    )
+  RETURNING id INTO v_claimed;
+
+  RETURN v_claimed IS NOT NULL;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_learner_welcome_email(uuid, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_learner_welcome_email(uuid, integer) TO service_role;
+
+-- Released on failure so the next attempt does not wait out the whole TTL.
+CREATE OR REPLACE FUNCTION public.release_learner_welcome_claim(p_student_id uuid)
+RETURNS void
+LANGUAGE sql SECURITY DEFINER SET search_path = ''
+AS $$
+  UPDATE public.students
+  SET setup_email_claimed_at = NULL
+  WHERE id = p_student_id
+    AND setup_email_sent_at IS NULL;
+$$;
+REVOKE EXECUTE ON FUNCTION public.release_learner_welcome_claim(uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_learner_welcome_claim(uuid) TO service_role;
+
+-- Clearing the claim belongs in the same transaction as the stamps, so a delivered welcome
+-- never leaves a stale claim behind.
+CREATE OR REPLACE FUNCTION public.mark_subscription_email_delivered(
+  p_student_id uuid DEFAULT NULL,
+  p_payment_id uuid DEFAULT NULL,
+  p_request_id uuid DEFAULT NULL,
+  p_mark_setup boolean DEFAULT false
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  IF p_payment_id IS NOT NULL THEN
+    UPDATE public.subscription_payments
+    SET activation_email_sent_at = now(), email_last_error = NULL
+    WHERE id = p_payment_id
+      AND activation_email_sent_at IS NULL;
+  END IF;
+
+  IF p_request_id IS NOT NULL THEN
+    UPDATE public.subscription_payment_requests
+    SET request_email_sent_at = now(), email_last_error = NULL
+    WHERE id = p_request_id
+      AND request_email_sent_at IS NULL;
+  END IF;
+
+  IF p_mark_setup AND p_student_id IS NOT NULL THEN
+    UPDATE public.students
+    SET setup_email_sent_at = COALESCE(setup_email_sent_at, now()),
+        setup_email_claimed_at = NULL,
+        updated_at = now()
+    WHERE id = p_student_id;
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.mark_subscription_email_delivered(uuid, uuid, uuid, boolean)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_subscription_email_delivered(uuid, uuid, uuid, boolean)
+  TO service_role;
+
+
+-- Counted server-side so concurrent sweeps cannot lose an increment to a read-modify-write
+-- race, which would keep a dead row in the queue indefinitely.
+CREATE OR REPLACE FUNCTION public.record_subscription_email_failure(
+  p_payment_id uuid DEFAULT NULL,
+  p_request_id uuid DEFAULT NULL,
+  p_error text DEFAULT NULL
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  IF p_payment_id IS NOT NULL THEN
+    UPDATE public.subscription_payments
+    SET email_attempts = email_attempts + 1,
+        email_last_error = left(COALESCE(p_error, 'Unknown error'), 500)
+    WHERE id = p_payment_id
+      AND activation_email_sent_at IS NULL;
+  END IF;
+
+  IF p_request_id IS NOT NULL THEN
+    UPDATE public.subscription_payment_requests
+    SET email_attempts = email_attempts + 1,
+        email_last_error = left(COALESCE(p_error, 'Unknown error'), 500)
+    WHERE id = p_request_id
+      AND request_email_sent_at IS NULL;
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.record_subscription_email_failure(uuid, uuid, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_subscription_email_failure(uuid, uuid, text)
+  TO service_role;
+
+-- Records that a warning went out for the period it was actually about, so a renewal that
+-- extends current_period_end makes the subscription eligible again.
+CREATE OR REPLACE FUNCTION public.mark_subscription_expiry_warned(
+  p_subscription_id uuid,
+  p_period_end timestamptz
+) RETURNS void
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+BEGIN
+  UPDATE public.individual_subscriptions
+  SET expiry_warning_for_period_end = p_period_end,
+      expiry_warning_attempts = 0,
+      expiry_warning_attempted_for_period_end = NULL,
+      expiry_warning_last_error = NULL
+  WHERE id = p_subscription_id
+    AND current_period_end = p_period_end;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.mark_subscription_expiry_warned(uuid, timestamptz)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_subscription_expiry_warned(uuid, timestamptz)
+  TO service_role;
+
+CREATE OR REPLACE FUNCTION public.approve_subscription_payment_confirmation(
+  p_confirmation_id uuid,
+  p_reviewed_by uuid DEFAULT NULL,
+  p_admin_notes text DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_confirmation public.subscription_payment_confirmations%ROWTYPE;
+  v_request public.subscription_payment_requests%ROWTYPE;
+  v_request_id uuid;
+  v_student_id uuid;
+  v_result jsonb;
+  v_subscription_id uuid;
+  v_payment_id uuid;
+  v_idempotency_key text := 'subscription-confirmation:' || p_confirmation_id::text;
+BEGIN
+  SELECT confirmation.request_id, request.student_id
+  INTO v_request_id, v_student_id
+  FROM public.subscription_payment_confirmations AS confirmation
+  JOIN public.subscription_payment_requests AS request ON request.id = confirmation.request_id
+  WHERE confirmation.id = p_confirmation_id;
+  IF NOT FOUND OR v_student_id IS NULL THEN
+    RAISE EXCEPTION 'subscription payment confirmation not found';
+  END IF;
+
+  -- student, then request, then confirmation. Migration 176's delete trigger already holds
+  -- the student row when it reaches the request, so approval must take the same order or
+  -- a deletion and an approval of the same learner can deadlock.
+  PERFORM 1 FROM public.students WHERE id = v_student_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription student no longer exists'; END IF;
+
+  SELECT * INTO v_request
+  FROM public.subscription_payment_requests
+  WHERE id = v_request_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription payment request not found'; END IF;
+
+  SELECT * INTO v_confirmation
+  FROM public.subscription_payment_confirmations
+  WHERE id = p_confirmation_id
+  FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription payment confirmation not found'; END IF;
+
+  -- Replay of an approval that already succeeded. Return the payment it created so the
+  -- caller can retry a failed activation email against it. Deliberately narrow: only an
+  -- approved confirmation replays, and only when its payment still exists. A rejected or
+  -- otherwise non-pending confirmation still raises, as before.
+  IF v_confirmation.status = 'approved' THEN
+    SELECT id, subscription_id INTO v_payment_id, v_subscription_id
+    FROM public.subscription_payments
+    WHERE idempotency_key = v_idempotency_key;
+    IF NOT FOUND THEN
+      RAISE EXCEPTION 'subscription payment confirmation has already been processed'
+        USING ERRCODE = 'unique_violation';
+    END IF;
+    RETURN jsonb_build_object(
+      'ok', true,
+      'subscriptionId', v_subscription_id,
+      'paymentId', v_payment_id,
+      'alreadyProcessed', true,
+      'requestId', v_request.id,
+      'confirmationId', p_confirmation_id
+    );
+  END IF;
+
+  IF v_request.status <> 'confirmation_submitted' THEN
+    RAISE EXCEPTION 'subscription payment request is not awaiting confirmation';
+  END IF;
+  IF v_confirmation.status <> 'pending' THEN
+    RAISE EXCEPTION 'subscription payment confirmation has already been processed'
+      USING ERRCODE = 'unique_violation';
+  END IF;
+  IF v_confirmation.request_id IS DISTINCT FROM v_request.id THEN
+    RAISE EXCEPTION 'subscription payment confirmation request changed unexpectedly';
+  END IF;
+  IF v_request.student_id IS NULL OR v_confirmation.student_id IS DISTINCT FROM v_request.student_id THEN
+    RAISE EXCEPTION 'subscription payment confirmation does not belong to this request';
+  END IF;
+  IF v_confirmation.amount IS DISTINCT FROM v_request.amount THEN
+    RAISE EXCEPTION 'confirmed amount must equal the assigned subscription amount';
+  END IF;
+
+  v_result := public.purchase_or_renew_individual_subscription(
+    v_request.student_id, v_request.plan_id, v_request.duration_months,
+    v_request.amount, v_request.currency,
+    v_idempotency_key,
+    v_confirmation.method, v_confirmation.reference, v_confirmation.notes,
+    p_reviewed_by
+  );
+  v_subscription_id := (v_result->>'subscriptionId')::uuid;
+
+  UPDATE public.subscription_payments
+  SET paid_at = v_confirmation.paid_at
+  WHERE id = (v_result->>'paymentId')::uuid;
+  UPDATE public.subscription_payment_confirmations
+  SET status = 'approved', reviewed_by = p_reviewed_by, reviewed_at = now(),
+      admin_notes = NULLIF(btrim(p_admin_notes), '')
+  WHERE id = p_confirmation_id;
+  UPDATE public.subscription_payment_requests
+  SET status = 'paid', subscription_id = v_subscription_id, paid_at = now()
+  WHERE id = v_request.id;
+
+  RETURN v_result || jsonb_build_object('requestId', v_request.id, 'confirmationId', p_confirmation_id);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.approve_subscription_payment_confirmation(uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.approve_subscription_payment_confirmation(uuid,uuid,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.submit_subscription_payment_confirmation(
+  p_request_id uuid,p_student_id uuid,p_amount numeric,p_paid_at date,p_method text DEFAULT NULL,
+  p_reference text DEFAULT NULL,p_notes text DEFAULT NULL,p_receipt_url text DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
+DECLARE v_request public.subscription_payment_requests%ROWTYPE; v_confirmation_id uuid;
+BEGIN
+  SELECT * INTO v_request FROM public.subscription_payment_requests WHERE id=p_request_id FOR UPDATE;
+  IF NOT FOUND OR v_request.student_id IS DISTINCT FROM p_student_id THEN RAISE EXCEPTION 'subscription payment request not found'; END IF;
+  IF v_request.status<>'pending' THEN RAISE EXCEPTION 'subscription payment request is not open'; END IF;
+  IF p_amount IS DISTINCT FROM v_request.amount THEN RAISE EXCEPTION 'confirmed amount must equal the assigned subscription amount'; END IF;
+  IF p_paid_at IS NULL OR p_paid_at>current_date THEN RAISE EXCEPTION 'paid date must be today or earlier'; END IF;
+  INSERT INTO public.subscription_payment_confirmations(request_id,student_id,amount,paid_at,method,reference,notes,receipt_url)
+  VALUES(p_request_id,p_student_id,p_amount,p_paid_at,NULLIF(btrim(p_method),''),NULLIF(btrim(p_reference),''),NULLIF(btrim(p_notes),''),NULLIF(btrim(p_receipt_url),''))
+  RETURNING id INTO v_confirmation_id;
+  UPDATE public.subscription_payment_requests SET status='confirmation_submitted' WHERE id=p_request_id;
+  RETURN jsonb_build_object('ok',true,'confirmationId',v_confirmation_id);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.submit_subscription_payment_confirmation(uuid,uuid,numeric,date,text,text,text,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.submit_subscription_payment_confirmation(uuid,uuid,numeric,date,text,text,text,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.reject_subscription_payment_confirmation(
+  p_confirmation_id uuid,p_reviewed_by uuid DEFAULT NULL,p_admin_notes text DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
+DECLARE v_request_id uuid; v_request public.subscription_payment_requests%ROWTYPE; v_confirmation public.subscription_payment_confirmations%ROWTYPE;
+BEGIN
+  SELECT request_id INTO v_request_id FROM public.subscription_payment_confirmations WHERE id=p_confirmation_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription payment confirmation not found or already processed' USING ERRCODE='unique_violation'; END IF;
+  SELECT * INTO v_request FROM public.subscription_payment_requests WHERE id=v_request_id FOR UPDATE;
+  IF NOT FOUND OR v_request.status<>'confirmation_submitted' THEN RAISE EXCEPTION 'subscription payment request is not awaiting confirmation'; END IF;
+  SELECT * INTO v_confirmation FROM public.subscription_payment_confirmations WHERE id=p_confirmation_id FOR UPDATE;
+  IF NOT FOUND OR v_confirmation.status<>'pending' OR v_confirmation.request_id IS DISTINCT FROM v_request.id THEN RAISE EXCEPTION 'subscription payment confirmation not found or already processed' USING ERRCODE='unique_violation'; END IF;
+  UPDATE public.subscription_payment_requests SET status='pending' WHERE id=v_request.id;
+  UPDATE public.subscription_payment_confirmations SET status='rejected',reviewed_by=p_reviewed_by,reviewed_at=now(),admin_notes=NULLIF(btrim(p_admin_notes),'') WHERE id=p_confirmation_id;
+  RETURN jsonb_build_object('ok',true,'requestId',v_request_id,'confirmationId',p_confirmation_id);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.reject_subscription_payment_confirmation(uuid,uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.reject_subscription_payment_confirmation(uuid,uuid,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.cancel_subscription_payment_request(p_request_id uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
+BEGIN
+  UPDATE public.subscription_payment_requests SET status='cancelled',cancelled_at=COALESCE(cancelled_at,now())
+  WHERE id=p_request_id AND status IN ('pending','confirmation_submitted');
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription payment request is not open'; END IF;
+  UPDATE public.subscription_payment_confirmations SET status='rejected',reviewed_at=now(),admin_notes='Payment request cancelled by administrator'
+  WHERE request_id=p_request_id AND status='pending';
+  RETURN jsonb_build_object('ok',true,'requestId',p_request_id);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.cancel_subscription_payment_request(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.cancel_subscription_payment_request(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.delete_unused_subscription_plan(p_plan_id uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
+AS $$
+DECLARE v_cohort_id uuid; v_content record;
+BEGIN
+  SELECT cohort_id INTO v_cohort_id FROM public.subscription_plans WHERE id=p_plan_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription plan not found'; END IF;
+  IF EXISTS (SELECT 1 FROM public.individual_subscriptions WHERE plan_id=p_plan_id) THEN RAISE EXCEPTION 'This plan has subscriber history and cannot be deleted. Deactivate it instead.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.subscription_payments WHERE plan_id=p_plan_id) THEN RAISE EXCEPTION 'This plan has payment history and cannot be deleted. Deactivate it instead.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.subscription_payment_requests WHERE plan_id=p_plan_id) THEN RAISE EXCEPTION 'This plan has payment-request history and cannot be deleted. Deactivate it instead.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.subscription_plan_changes WHERE old_plan_id=p_plan_id OR new_plan_id=p_plan_id) THEN RAISE EXCEPTION 'This plan has plan-change history and cannot be deleted. Deactivate it instead.'; END IF;
+  IF EXISTS (SELECT 1 FROM public.students WHERE cohort_id=v_cohort_id OR original_cohort_id=v_cohort_id) THEN RAISE EXCEPTION 'This plan access cohort is still assigned to a student and cannot be deleted.'; END IF;
+  FOR v_content IN SELECT content_table,content_id FROM public.subscription_plan_content WHERE plan_id=p_plan_id LOOP
+    PERFORM public.toggle_content_cohort_tag(v_content.content_table,v_content.content_id,v_cohort_id,false);
+  END LOOP;
+  DELETE FROM public.cohort_assignments WHERE cohort_id=v_cohort_id;
+  DELETE FROM public.subscription_plans WHERE id=p_plan_id;
+  DELETE FROM public.cohorts WHERE id=v_cohort_id;
+  RETURN jsonb_build_object('ok',true,'planId',p_plan_id);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.delete_unused_subscription_plan(uuid) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_unused_subscription_plan(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.close_individual_subscription(p_subscription_id uuid, p_new_status text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_student_id uuid; v_cohort_id uuid; v_status text; v_period_end timestamptz;
+BEGIN
+  IF p_new_status NOT IN ('cancelled','expired') THEN RAISE EXCEPTION 'invalid target status: %', p_new_status; END IF;
+  SELECT student_id,cohort_id INTO v_student_id,v_cohort_id FROM public.individual_subscriptions WHERE id=p_subscription_id;
+  IF NOT FOUND OR v_student_id IS NULL THEN RETURN jsonb_build_object('ok',true,'skipped',true,'reason','not_found'); END IF;
+  PERFORM public.claim_student_enrollment_model(v_student_id,'individual');
+  SELECT status,current_period_end INTO v_status,v_period_end FROM public.individual_subscriptions WHERE id=p_subscription_id FOR UPDATE;
+  IF p_new_status='expired' AND (v_status <> 'active' OR v_period_end >= now()) THEN
+    RETURN jsonb_build_object('ok',true,'skipped',true,'reason','no_longer_applicable');
+  END IF;
+  UPDATE public.individual_subscriptions SET status=p_new_status,
+    cancelled_at=CASE WHEN p_new_status='cancelled' THEN COALESCE(cancelled_at,now()) ELSE cancelled_at END
+  WHERE id=p_subscription_id;
+  UPDATE public.students SET cohort_id=NULL WHERE id=v_student_id AND cohort_id=v_cohort_id;
+  RETURN jsonb_build_object('ok',true,'skipped',false,'status',p_new_status);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.toggle_content_cohort_tag(p_content_table text,p_content_id uuid,p_cohort_id uuid,p_add boolean)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  IF p_content_table NOT IN ('courses','virtual_experiences','certifications','learning_paths') THEN RAISE EXCEPTION 'invalid content table: %', p_content_table; END IF;
+  IF p_add THEN
+    EXECUTE format('UPDATE public.%I SET cohort_ids=array_append(cohort_ids,$1) WHERE id=$2 AND NOT ($1=ANY(cohort_ids))',p_content_table) USING p_cohort_id,p_content_id;
+  ELSE
+    EXECUTE format('UPDATE public.%I SET cohort_ids=array_remove(cohort_ids,$1) WHERE id=$2',p_content_table) USING p_cohort_id,p_content_id;
+  END IF;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.toggle_content_cohort_tag(text,uuid,uuid,boolean) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.toggle_content_cohort_tag(text,uuid,uuid,boolean) TO service_role;
+
+-- Migration 173: final reversible enrollment-model transition rules. This override is
+-- intentionally after subscription_payment_requests exists because it checks open requests.
+CREATE OR REPLACE FUNCTION public.claim_student_enrollment_model(p_student_id uuid,p_requested_model text)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_current text; v_cohort_id uuid; v_original_cohort_id uuid;
+BEGIN
+  IF p_requested_model NOT IN ('bootcamp','individual') THEN RAISE EXCEPTION 'invalid enrollment model: %',p_requested_model; END IF;
+  SELECT enrollment_model,cohort_id,original_cohort_id INTO v_current,v_cohort_id,v_original_cohort_id
+  FROM public.students WHERE id=p_student_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'student % not found',p_student_id; END IF;
+  IF v_current=p_requested_model THEN RETURN; END IF;
+  IF v_current IS NULL THEN
+    IF p_requested_model='individual' AND (v_cohort_id IS NOT NULL OR v_original_cohort_id IS NOT NULL) THEN
+      RAISE EXCEPTION 'remove this student from their bootcamp cohort before assigning an individual subscription' USING ERRCODE='unique_violation';
+    END IF;
+    UPDATE public.students SET enrollment_model=p_requested_model WHERE id=p_student_id;
+    RETURN;
+  END IF;
+  IF v_current='bootcamp' AND p_requested_model='individual' AND v_cohort_id IS NULL AND v_original_cohort_id IS NULL THEN
+    UPDATE public.bootcamp_enrollments SET released_at=COALESCE(released_at,now()),updated_at=now()
+    WHERE student_id=p_student_id AND released_at IS NULL;
+    UPDATE public.students SET enrollment_model='individual' WHERE id=p_student_id;
+    RETURN;
+  END IF;
+  IF v_current='individual' AND p_requested_model='bootcamp' AND v_cohort_id IS NULL AND v_original_cohort_id IS NULL
+     AND NOT EXISTS (SELECT 1 FROM public.individual_subscriptions WHERE student_id=p_student_id AND status='active')
+     AND NOT EXISTS (SELECT 1 FROM public.subscription_payment_requests WHERE student_id=p_student_id AND status IN ('pending','confirmation_submitted')) THEN
+    UPDATE public.students SET enrollment_model='bootcamp' WHERE id=p_student_id;
+    RETURN;
+  END IF;
+  RAISE EXCEPTION 'student % already belongs to the % enrollment model',p_student_id,v_current USING ERRCODE='unique_violation';
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_student_enrollment_model(uuid,text) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_student_enrollment_model(uuid,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.create_individual_subscription_payment_request(
+  p_student_id uuid,p_plan_id uuid,p_duration_months integer,p_amount numeric,
+  p_currency text,p_due_date date,p_created_by uuid DEFAULT NULL
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE
+  v_plan public.subscription_plans%ROWTYPE; v_plan_kind text;
+  v_subscription public.individual_subscriptions%ROWTYPE;
+  v_request_id uuid; v_currency text;
+BEGIN
+  IF p_duration_months NOT IN (1,3,6,12) THEN RAISE EXCEPTION 'durationMonths must be one of 1, 3, 6, or 12'; END IF;
+  IF p_amount IS NULL OR p_amount<=0 THEN RAISE EXCEPTION 'amount must be greater than 0'; END IF;
+  IF p_due_date IS NULL OR p_due_date<current_date THEN RAISE EXCEPTION 'payment deadline cannot be in the past'; END IF;
+  v_currency:=upper(btrim(COALESCE(p_currency,'')));
+  IF v_currency='' THEN RAISE EXCEPTION 'currency is required'; END IF;
+  SELECT * INTO v_plan FROM public.subscription_plans WHERE id=p_plan_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription plan not found'; END IF;
+  SELECT cohort_kind INTO v_plan_kind FROM public.cohorts WHERE id=v_plan.cohort_id;
+  IF v_plan.status<>'active' OR v_plan_kind NOT IN ('legacy_individual','subscription_plan') THEN
+    RAISE EXCEPTION 'subscription plan is not active or has an invalid access cohort';
+  END IF;
+  SELECT * INTO v_subscription FROM public.individual_subscriptions WHERE student_id=p_student_id;
+  IF FOUND AND v_subscription.plan_id<>p_plan_id THEN RAISE EXCEPTION 'change the student plan before assigning a renewal payment'; END IF;
+  PERFORM public.claim_student_enrollment_model(p_student_id,'individual');
+  INSERT INTO public.subscription_payment_requests(student_id,subscription_id,plan_id,plan_name,kind,duration_months,amount,currency,due_date,created_by)
+  VALUES(p_student_id,CASE WHEN v_subscription.id IS NULL THEN NULL ELSE v_subscription.id END,p_plan_id,v_plan.name,
+    CASE WHEN v_subscription.id IS NULL THEN 'purchase' ELSE 'renewal' END,p_duration_months,p_amount,v_currency,p_due_date,p_created_by)
+  RETURNING id INTO v_request_id;
+  RETURN jsonb_build_object('ok',true,'requestId',v_request_id,'planName',v_plan.name);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) TO service_role;

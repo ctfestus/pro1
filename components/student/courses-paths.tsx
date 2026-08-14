@@ -806,6 +806,10 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
         .from('bootcamp_enrollments')
         .select('access_status, total_fee, deposit_required, paid_total, payment_plan, bootcamp_ends_at, cohort_id, payment_installments ( due_date, status )')
         .eq('student_id', effectiveUserId)
+        // Released enrollments are retained as financial history (migration 171). Reading one
+        // here would payment-lock a student who has left the bootcamp -- including a former
+        // bootcamp student now on a paid subscription -- out of their content.
+        .is('released_at', null)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -840,10 +844,16 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
 
 
       // Load cohort courses + student attempts + certificates in parallel
+      const courseCatalogQuery = !restrictedByPayment
+        ? (() => {
+            const query = supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes, category, content_type:id, partner:partners(name, logo_url)').eq('status', 'published');
+            return student?.cohort_id
+              ? query.or(`available_to_everyone.eq.true,cohort_ids.cs.{${student.cohort_id}}`)
+              : query.eq('available_to_everyone', true);
+          })()
+        : Promise.resolve({ data: [] });
       const [{ data: cohortCourseRows }, { data: attempts }, certsRes] = await Promise.all([
-        student?.cohort_id && !restrictedByPayment
-          ? supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes, category, content_type:id, partner:partners(name, logo_url)').contains('cohort_ids', [student.cohort_id]).eq('status', 'published')
-          : Promise.resolve({ data: [] }),
+        courseCatalogQuery,
         supabase.from('course_attempts')
           .select('course_id, score, points, current_question_index, completed_at, passed, updated_at, answers')
           .eq('student_id', effectiveUserId)

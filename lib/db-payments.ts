@@ -109,7 +109,7 @@ async function applyCohortAction(db: SupabaseClient, action: CohortAction): Prom
 // Returns all post-signup enrollments enriched with cohort and student info.
 // ---
 
-export async function getEnrollmentRows(db: SupabaseClient): Promise<{ rows: EnrollmentRow[]; cohorts: { id: string; name: string }[] }> {
+export async function getEnrollmentRows(db: SupabaseClient): Promise<{ rows: EnrollmentRow[]; cohorts: { id: string; name: string; cohort_kind: string }[] }> {
   const [enrollRes, cohortsRes, settingsRes, psRes] = await Promise.all([
     db
       .from('bootcamp_enrollments')
@@ -132,8 +132,12 @@ export async function getEnrollmentRows(db: SupabaseClient): Promise<{ rows: Enr
         cohorts ( name ),
         payment_installments ( due_date, status )
       `)
+      // Released enrollments (migration 171) are retained as financial history, not live
+      // enrollments. Including them would list a removed student under the cohort they
+      // left, with a balance and a reminder button, and recompute access on that row.
+      .is('released_at', null)
       .order('created_at', { ascending: false }),
-    db.from('cohorts').select('id, name').order('name'),
+    db.from('cohorts').select('id, name, cohort_kind').order('name'),
     db.from('cohort_payment_settings').select('cohort_id, post_bootcamp_access_months, grace_period_days'),
     db.from('payment_config').select('outstanding_cohort_id').eq('id', 'default').maybeSingle(),
   ]);
@@ -369,6 +373,14 @@ export async function activateEnrollment(
   if (enrollment.student_id && enrollment.student_id !== studentId) {
     throw new Error('This admission record is already linked to a different student account.');
   }
+
+  // Claim only after read-only validation, immediately before the first bootcamp
+  // mutation. A missing or conflicting reservation must not classify the student.
+  const { error: claimError } = await db.rpc('claim_student_enrollment_model', {
+    p_student_id: studentId,
+    p_requested_model: 'bootcamp',
+  });
+  if (claimError) throw claimError;
 
   if (!enrollment.student_id) {
     const { error: activateErr } = await db
@@ -794,7 +806,7 @@ async function recomputeEnrollmentAccess(
 ): Promise<void> {
   const { data: enroll, error } = await db
     .from('bootcamp_enrollments')
-    .select('total_fee, deposit_required, paid_total, payment_plan, bootcamp_ends_at, student_id, cohort_id')
+    .select('total_fee, deposit_required, paid_total, payment_plan, bootcamp_ends_at, student_id, cohort_id, released_at')
     .eq('id', enrollmentId)
     .single();
   if (error || !enroll) throw error ?? new Error('Enrollment not found');
@@ -826,7 +838,12 @@ async function recomputeEnrollmentAccess(
     .eq('id', enrollmentId);
   if (accessUpdErr) throw accessUpdErr;
 
-  if (enroll.student_id) {
+  // A released enrollment (migration 171) keeps student_id so its payment history stays
+  // attached, but the student has left the cohort. Outstanding-cohort enforcement must
+  // not act on it: students.cohort_id is NULL after release, so the move would write an
+  // empty fromCohortId, and re-attaching a removed student to the outstanding cohort is
+  // wrong regardless.
+  if (enroll.student_id && !enroll.released_at) {
     const [psResult, studentResult] = await Promise.all([
       db.from('payment_config').select('outstanding_cohort_id').eq('id', 'default').maybeSingle(),
       db.from('students').select('cohort_id, original_cohort_id, payment_exempt, email, full_name').eq('id', enroll.student_id).maybeSingle(),

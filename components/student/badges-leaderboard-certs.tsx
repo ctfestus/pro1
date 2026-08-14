@@ -11,6 +11,7 @@ import { useTenant } from '@/components/TenantProvider';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { Sk, CarouselSkeleton, EmptyState } from '@/components/student/shared';
+import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   Award, BarChart3, BookOpen, ChevronLeft, ChevronRight, Download, Lock, Medal, RefreshCw, Trophy, Users, Zap,
 } from 'lucide-react';
@@ -226,9 +227,12 @@ export function LeaderboardSection({ userId: userIdProp, userEmail, C }: { userI
         // Fetch cohort name separately -- join can silently return null if RLS blocks it
         const { data: cohortData } = await supabase
           .from('cohorts')
-          .select('id, name')
+          .select('id, name, cohort_kind')
           .eq('id', me.cohort_id)
           .single();
+        // A synthetic individual-enrollment cohort (migration 165) has no real peer
+        // group to rank against.
+        if (isIndividualCohort(cohortData?.cohort_kind)) { setLoading(false); return; }
         setCohort(cohortData ?? { id: me.cohort_id, name: 'Your Cohort' });
 
         // Fetch leaderboard via server API (service role bypasses RLS for cross-student reads)

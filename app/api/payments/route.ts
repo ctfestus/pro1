@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
@@ -14,6 +14,29 @@ import {
   deletePayment,
   recomputeEnrollmentAccessPublic,
 } from '@/lib/db-payments';
+import { isIndividualCohort } from '@/lib/cohort-kind';
+import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
+import { notifySubscriptionActivated } from '@/lib/notify-subscription-activated';
+import { provisionIndividualStudent } from '@/lib/provision-individual-student';
+import { addToResendAudience } from '@/lib/resend-audience';
+import {
+  cancelSubscription,
+  cancelSubscriptionPaymentRequest,
+  bulkAssignSubscriptionStudents,
+  changeSubscriptionPlan,
+  createSubscriptionPaymentRequest,
+  createSubscriptionPlan,
+  deleteSubscriptionPlan,
+  getEligibleSubscriptionStudents,
+  getSubscriptionForStudent,
+  getSubscriptionHistory,
+  getSubscriptionPlans,
+  getSubscriptions,
+  getSubscriptionPaymentRequests,
+  approveSubscriptionPaymentConfirmation,
+  rejectSubscriptionPaymentConfirmation,
+  purchaseOrRenewSubscription,
+} from '@/lib/db-subscriptions';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -180,6 +203,92 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (action === 'subscription-plans') {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['instructor', 'admin'].includes(sessionUser.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    try {
+      return NextResponse.json({ plans: await getSubscriptionPlans(adminClient(), req.nextUrl.searchParams.get('activeOnly') === 'true') });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to load subscription plans' }, { status: 500 });
+    }
+  }
+
+  if (action === 'subscription-list') {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['instructor', 'admin'].includes(sessionUser.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    try {
+      const db = adminClient();
+      const [subscriptions, eligibleStudents] = await Promise.all([
+        getSubscriptions(db),
+        getEligibleSubscriptionStudents(db),
+      ]);
+      return NextResponse.json({ subscriptions, eligibleStudents });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to load subscriptions' }, { status: 500 });
+    }
+  }
+
+  if (action === 'subscription-payment-requests') {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['instructor', 'admin'].includes(sessionUser.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    try {
+      return NextResponse.json({ requests: await getSubscriptionPaymentRequests(adminClient()) });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to load subscription payment requests' }, { status: 500 });
+    }
+  }
+
+  if (action === 'subscription-status' || action === 'subscription-history' || action === 'subscription-plan-content') {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['instructor', 'admin'].includes(sessionUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    const studentId = req.nextUrl.searchParams.get('studentId');
+    const planId = req.nextUrl.searchParams.get('planId');
+    if (action !== 'subscription-plan-content' && !studentId) return NextResponse.json({ error: 'studentId is required' }, { status: 400 });
+    if (action === 'subscription-plan-content' && !planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+
+    try {
+      const db = adminClient();
+      const subscription = studentId ? await getSubscriptionForStudent(db, studentId) : null;
+      if (action === 'subscription-status') return NextResponse.json({ subscription });
+      if (action === 'subscription-history' && !subscription) return NextResponse.json({ payments: [] });
+      if (action === 'subscription-history') {
+        return NextResponse.json({ payments: await getSubscriptionHistory(db, subscription!.id) });
+      }
+
+      const { data: coverage, error } = await db
+        .from('subscription_plan_content')
+        .select('id, content_table, content_id, added_at, notified_at')
+        .eq('plan_id', planId)
+        .order('added_at', { ascending: false });
+      if (error) throw error;
+
+      const resolved: any[] = [];
+      for (const table of ['courses', 'virtual_experiences', 'certifications', 'learning_paths']) {
+        const rows = (coverage ?? []).filter(row => row.content_table === table);
+        if (rows.length === 0) continue;
+        const { data: titles, error: titleError } = await db
+          .from(table)
+          .select('id, title')
+          .in('id', rows.map(row => row.content_id));
+        if (titleError) throw titleError;
+        const titleMap = new Map((titles ?? []).map(row => [row.id, row.title]));
+        for (const row of rows) {
+          const title = titleMap.get(row.content_id);
+          if (title) resolved.push({ ...row, title });
+        }
+      }
+      return NextResponse.json({ content: resolved });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to load subscription data' }, { status: 500 });
+    }
+  }
+
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 }
 
@@ -198,6 +307,379 @@ export async function POST(req: NextRequest) {
   }
 
   const db = adminClient();
+
+  if (body.action === 'create-subscription-plan') {
+    if (!body.name?.trim()) return NextResponse.json({ error: 'Plan name is required' }, { status: 400 });
+    try {
+      return NextResponse.json(await createSubscriptionPlan(db, {
+        name: body.name,
+        description: body.description,
+        createdBy: sessionUser.id,
+      }));
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to create subscription plan' }, { status: 500 });
+    }
+  }
+
+  if (body.action === 'delete-subscription-plan') {
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    try {
+      return NextResponse.json(await deleteSubscriptionPlan(db, body.planId));
+    } catch (err: any) {
+      const conflict = String(err?.message ?? '').includes('cannot be deleted');
+      return NextResponse.json({ error: err.message ?? 'Failed to delete subscription plan' }, { status: conflict ? 409 : 500 });
+    }
+  }
+
+  if (body.action === 'update-subscription-plan') {
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    const updates: Record<string, unknown> = {};
+    if (body.name !== undefined) {
+      const name = String(body.name).trim();
+      if (!name) return NextResponse.json({ error: 'Plan name cannot be empty' }, { status: 400 });
+      updates.name = name;
+    }
+    if (body.description !== undefined) updates.description = body.description || null;
+    if (body.status !== undefined) {
+      if (!['active', 'inactive'].includes(body.status)) {
+        return NextResponse.json({ error: 'status must be active or inactive' }, { status: 400 });
+      }
+      updates.status = body.status;
+    }
+    if (Object.keys(updates).length === 0) {
+      return NextResponse.json({ error: 'No plan changes were provided' }, { status: 400 });
+    }
+    try {
+      const { error } = await db.from('subscription_plans').update(updates).eq('id', body.planId);
+      if (error) throw error;
+      return NextResponse.json({ ok: true });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to update subscription plan' }, { status: 500 });
+    }
+  }
+
+  if (body.action === 'assign-new-subscription-student') {
+    const mode = body.mode === 'paid' ? 'paid' : body.mode === 'request' ? 'request' : null;
+    const durationMonths = Number(body.durationMonths);
+    const amount = Number(body.amount);
+    const currency = String(body.currency || '').trim().toUpperCase();
+    const email = String(body.email || '').trim().toLowerCase();
+    const fullName = String(body.fullName || '').trim();
+    if (!mode) return NextResponse.json({ error: 'Payment workflow must be request or paid' }, { status: 400 });
+    if (!body.planId || ![1, 3, 6, 12].includes(durationMonths)) {
+      return NextResponse.json({ error: 'planId and a duration of 1, 3, 6, or 12 months are required' }, { status: 400 });
+    }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return NextResponse.json({ error: 'A valid learner email is required' }, { status: 400 });
+    }
+    if (!fullName) return NextResponse.json({ error: 'Learner name is required' }, { status: 400 });
+    if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    if (!currency) return NextResponse.json({ error: 'Currency is required' }, { status: 400 });
+    if (mode === 'request') {
+      if (!body.dueDate || Number.isNaN(Date.parse(`${body.dueDate}T00:00:00Z`))) {
+        return NextResponse.json({ error: 'A valid payment deadline is required' }, { status: 400 });
+      }
+      if (body.dueDate < new Date().toISOString().slice(0, 10)) {
+        return NextResponse.json({ error: 'Payment deadline cannot be in the past' }, { status: 400 });
+      }
+    } else if (!body.idempotencyKey?.trim()) {
+      return NextResponse.json({ error: 'idempotencyKey is required' }, { status: 400 });
+    }
+
+    let provisioned: { studentId: string; isNewAccount: boolean } | null = null;
+    try {
+      provisioned = await provisionIndividualStudent(db, {
+        email,
+        fullName,
+        notify: false,
+        claimModel: false,
+      });
+
+      let assignment: any;
+      let notificationWarning: string | null = null;
+      if (mode === 'request') {
+        assignment = await createSubscriptionPaymentRequest(db, {
+          studentId: provisioned.studentId,
+          planId: body.planId,
+          durationMonths: durationMonths as 1 | 3 | 6 | 12,
+          amount,
+          currency,
+          dueDate: body.dueDate,
+          createdBy: sessionUser.id,
+        });
+        // The sender picks the right message from durable state: a learner who cannot sign
+        // in yet receives the combined welcome, everyone else the request on its own.
+        try {
+          await notifySubscriptionPaymentRequest(db, { requestId: assignment.requestId });
+        } catch (notificationError: any) {
+          notificationWarning = notificationError.message ?? 'Payment notification email failed';
+        }
+      } else {
+        assignment = await purchaseOrRenewSubscription(db, {
+          studentId: provisioned.studentId,
+          planId: body.planId,
+          durationMonths: durationMonths as 1 | 3 | 6 | 12,
+          amount,
+          currency,
+          idempotencyKey: body.idempotencyKey,
+          paymentMethod: body.paymentMethod,
+          paymentReference: body.paymentReference,
+          notes: body.notes,
+          createdBy: sessionUser.id,
+        });
+      }
+
+      let activationWarning: string | null = null;
+
+      if (provisioned.isNewAccount) await addToResendAudience({ email, name: fullName });
+
+      // The request path already mailed above. For the paid path the sender decides which
+      // message applies: a learner who cannot sign in yet gets the combined welcome with a
+      // setup link, everyone else the access notice. Retries still attempt delivery; the
+      // delivery stamps prevent a second copy and the hourly sweep picks up failures.
+      if (mode === 'paid' && assignment.paymentId) {
+        try {
+          await notifySubscriptionActivated(db, { paymentId: assignment.paymentId });
+        } catch (emailError: any) {
+          activationWarning = emailError.message ?? 'Subscription email failed';
+        }
+      }
+
+      return NextResponse.json({
+        ...assignment,
+        studentId: provisioned.studentId,
+        isNewAccount: provisioned.isNewAccount,
+        notificationWarning,
+        activationWarning,
+      });
+    } catch (err: any) {
+      if (provisioned?.isNewAccount) {
+        await db.auth.admin.deleteUser(provisioned.studentId).catch(() => {});
+      }
+      const conflict = err?.code === '23505'
+        || String(err?.message ?? '').includes('already belongs')
+        || String(err?.message ?? '').includes('before assigning')
+        || String(err?.message ?? '').includes('idempotency key');
+      return NextResponse.json({ error: err.message ?? 'Failed to create and assign learner' }, { status: conflict ? 409 : 500 });
+    }
+  }
+
+  if (body.action === 'create-subscription' || body.action === 'renew-subscription') {
+    const durationMonths = Number(body.durationMonths);
+    const amount = Number(body.amount);
+    if (!body.studentId || !body.planId || ![1, 3, 6, 12].includes(durationMonths)) {
+      return NextResponse.json({ error: 'studentId, planId, and a duration of 1, 3, 6, or 12 months are required' }, { status: 400 });
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+      return NextResponse.json({ error: 'Amount must be greater than 0.' }, { status: 400 });
+    }
+    if (!body.idempotencyKey?.trim()) {
+      return NextResponse.json({ error: 'idempotencyKey is required' }, { status: 400 });
+    }
+    try {
+      const result = await purchaseOrRenewSubscription(db, {
+        studentId: body.studentId,
+        planId: body.planId,
+        durationMonths: durationMonths as 1 | 3 | 6 | 12,
+        amount,
+        currency: String(body.currency || 'GHS'),
+        idempotencyKey: body.idempotencyKey,
+        paymentMethod: body.paymentMethod,
+        paymentReference: body.paymentReference,
+        notes: body.notes,
+        createdBy: sessionUser.id,
+      });
+      // Attempted on every request, including a retry the RPC reports as already
+      // processed: the first attempt may have committed the payment and then failed to
+      // deliver. notifySubscriptionActivated is a no-op once the payment is stamped, so a
+      // successful email is never repeated.
+      let activationWarning: string | null = null;
+      if (result.paymentId) {
+        try {
+          await notifySubscriptionActivated(db, { paymentId: result.paymentId });
+        } catch (emailError: any) {
+          activationWarning = emailError.message ?? 'Subscription email failed';
+        }
+      }
+      return NextResponse.json({ ...result, activationWarning });
+    } catch (err: any) {
+      const conflict = err?.code === '23505'
+        || String(err?.message ?? '').includes('already belongs')
+        || String(err?.message ?? '').includes('idempotency key');
+      return NextResponse.json({ error: err.message ?? 'Failed to save subscription' }, { status: conflict ? 409 : 500 });
+    }
+  }
+
+  if (body.action === 'create-subscription-payment-request') {
+    const durationMonths = Number(body.durationMonths);
+    const amount = Number(body.amount);
+    if (!body.studentId || !body.planId || ![1, 3, 6, 12].includes(durationMonths)) {
+      return NextResponse.json({ error: 'studentId, planId, and a duration of 1, 3, 6, or 12 months are required' }, { status: 400 });
+    }
+    if (!Number.isFinite(amount) || amount <= 0) return NextResponse.json({ error: 'Amount must be greater than 0' }, { status: 400 });
+    if (!body.dueDate || Number.isNaN(Date.parse(`${body.dueDate}T00:00:00Z`))) {
+      return NextResponse.json({ error: 'A valid payment deadline is required' }, { status: 400 });
+    }
+    if (body.dueDate < new Date().toISOString().slice(0, 10)) {
+      return NextResponse.json({ error: 'Payment deadline cannot be in the past' }, { status: 400 });
+    }
+    if (!String(body.currency || '').trim()) return NextResponse.json({ error: 'Currency is required' }, { status: 400 });
+    try {
+      const result = await createSubscriptionPaymentRequest(db, {
+        studentId: body.studentId,
+        planId: body.planId,
+        durationMonths: durationMonths as 1 | 3 | 6 | 12,
+        amount,
+        currency: String(body.currency || 'GHS'),
+        dueDate: body.dueDate,
+        createdBy: sessionUser.id,
+      });
+      try {
+        await notifySubscriptionPaymentRequest(db, { requestId: result.requestId });
+        return NextResponse.json({ ...result, notificationSent: true });
+      } catch (notificationError: any) {
+        return NextResponse.json({ ...result, notificationSent: false, notificationWarning: notificationError.message ?? 'Notification email failed' });
+      }
+    } catch (err: any) {
+      const conflict = err?.code === '23505' || String(err?.message ?? '').includes('before assigning');
+      return NextResponse.json({ error: err.message ?? 'Failed to assign subscription payment' }, { status: conflict ? 409 : 500 });
+    }
+  }
+
+  if (body.action === 'bulk-subscription-payment-requests') {
+    const mode = body.mode === 'paid' ? 'paid' : 'request';
+    const batchId = String(body.batchId || '').trim();
+    const durationMonths = Number(body.defaults?.durationMonths);
+    const amount = Number(body.defaults?.amount);
+    const currency = String(body.defaults?.currency || '').trim();
+    const dueDate = String(body.defaults?.dueDate || '').trim();
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    if (!Array.isArray(body.rows) || body.rows.length === 0 || body.rows.length > 500) {
+      return NextResponse.json({ error: 'Provide between 1 and 500 student rows' }, { status: 400 });
+    }
+    if (![1, 3, 6, 12].includes(durationMonths) || !Number.isFinite(amount) || amount <= 0 || !currency) {
+      return NextResponse.json({ error: 'Valid default duration, amount, and currency are required' }, { status: 400 });
+    }
+    if (mode === 'request' && (!/^\d{4}-\d{2}-\d{2}$/.test(dueDate) || Number.isNaN(Date.parse(`${dueDate}T00:00:00Z`)) || dueDate < new Date().toISOString().slice(0, 10))) {
+      return NextResponse.json({ error: 'A valid payment deadline that is not in the past is required' }, { status: 400 });
+    }
+    if (mode === 'paid' && !batchId) {
+      return NextResponse.json({ error: 'batchId is required when recording paid subscriptions' }, { status: 400 });
+    }
+    try {
+      return NextResponse.json(await bulkAssignSubscriptionStudents(db, {
+        planId: body.planId,
+        mode,
+        batchId,
+        rows: body.rows,
+        defaults: {
+          durationMonths,
+          amount,
+          currency,
+          dueDate: mode === 'request' ? dueDate : null,
+          paymentMethod: body.defaults?.paymentMethod,
+          paymentReference: body.defaults?.paymentReference,
+          notes: body.defaults?.notes,
+        },
+        createdBy: sessionUser.id,
+      }));
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to import subscription students' }, { status: 500 });
+    }
+  }
+
+  if (body.action === 'approve-subscription-confirmation' || body.action === 'reject-subscription-confirmation') {
+    if (!body.confirmationId) return NextResponse.json({ error: 'confirmationId is required' }, { status: 400 });
+    if (body.action === 'reject-subscription-confirmation' && !String(body.adminNotes || '').trim()) {
+      return NextResponse.json({ error: 'A rejection reason is required' }, { status: 400 });
+    }
+    try {
+      const result = body.action === 'approve-subscription-confirmation'
+        ? await approveSubscriptionPaymentConfirmation(db, { confirmationId: body.confirmationId, reviewedBy: sessionUser.id, adminNotes: body.adminNotes })
+        : await rejectSubscriptionPaymentConfirmation(db, { confirmationId: body.confirmationId, reviewedBy: sessionUser.id, adminNotes: body.adminNotes });
+
+      if (process.env.RESEND_API_KEY) {
+        // after() runs once the response is sent and is not cut off by the serverless
+        // freeze that drops a bare fire-and-forget promise. Approval is the moment access
+        // actually starts for the request flow, so this is the learner's only notice.
+        after(async () => {
+          try {
+            // Migration 177 makes a replayed approval return the payment the original
+            // approval created, so a failed activation email can be retried by approving
+            // again. The delivery stamp stops a successful one being resent.
+            const approvedPaymentId = body.action === 'approve-subscription-confirmation'
+              ? (result as any)?.paymentId
+              : null;
+            if (approvedPaymentId) {
+              await notifySubscriptionActivated(db, { paymentId: approvedPaymentId });
+              return;
+            }
+            const { data: confirmation } = await db.from('subscription_payment_confirmations')
+              .select('amount, student_id, subscription_payment_requests!inner(currency)')
+              .eq('id', body.confirmationId).maybeSingle();
+            if (!confirmation?.student_id) return;
+            const [{ data: student }, settings] = await Promise.all([
+              db.from('students').select('full_name,email').eq('id', confirmation.student_id).maybeSingle(),
+              getTenantSettings(),
+            ]);
+            if (!student?.email) return;
+            const from = process.env.RESEND_FROM_EMAIL || `${settings.senderName} <${settings.supportEmail}>`;
+            const branding = { logoUrl: settings.logoUrl, emailBannerUrl: settings.emailBannerUrl, teamName: settings.teamName, appName: settings.appName, appUrl: settings.appUrl };
+            const currency = (confirmation.subscription_payment_requests as any)?.currency || 'GHS';
+            const approved = body.action === 'approve-subscription-confirmation';
+            await resend.emails.send({
+              from, to: student.email,
+              subject: approved ? 'Your subscription payment has been approved' : 'Your subscription payment could not be verified',
+              html: approved
+                ? paymentConfirmationApprovedEmail({ name: student.full_name || 'there', amount: Number(confirmation.amount), currency, dashboardUrl: settings.appUrl, adminNotes: body.adminNotes, branding })
+                : paymentConfirmationRejectedEmail({ name: student.full_name || 'there', amount: Number(confirmation.amount), currency, dashboardUrl: settings.appUrl, adminNotes: body.adminNotes, branding }),
+            });
+          } catch { /* Payment state is authoritative; email is best effort. */ }
+        });
+      }
+      return NextResponse.json(result);
+    } catch (err: any) {
+      const conflict = err?.code === '23505' || String(err?.message ?? '').includes('already been processed');
+      return NextResponse.json({ error: err.message ?? 'Failed to review subscription confirmation' }, { status: conflict ? 409 : 500 });
+    }
+  }
+
+  if (body.action === 'cancel-subscription-payment-request') {
+    if (!body.requestId) return NextResponse.json({ error: 'requestId is required' }, { status: 400 });
+    try {
+      return NextResponse.json(await cancelSubscriptionPaymentRequest(db, body.requestId));
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to cancel payment request' }, { status: 409 });
+    }
+  }
+
+  if (body.action === 'change-subscription-plan') {
+    if (!body.subscriptionId || !body.planId) {
+      return NextResponse.json({ error: 'subscriptionId and planId are required' }, { status: 400 });
+    }
+    try {
+      return NextResponse.json(await changeSubscriptionPlan(db, {
+        subscriptionId: body.subscriptionId,
+        planId: body.planId,
+        changedBy: sessionUser.id,
+        notes: body.notes,
+      }));
+    } catch (err: any) {
+      const conflict = err?.code === '23505' || String(err?.message ?? '').includes('not active');
+      return NextResponse.json({ error: err.message ?? 'Failed to change subscription plan' }, { status: conflict ? 409 : 500 });
+    }
+  }
+
+  if (body.action === 'cancel-subscription') {
+    if (!body.subscriptionId) {
+      return NextResponse.json({ error: 'subscriptionId is required' }, { status: 400 });
+    }
+    try {
+      return NextResponse.json(await cancelSubscription(db, body.subscriptionId));
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to cancel subscription' }, { status: 500 });
+    }
+  }
 
   // record-payment -- insert payment, apply to installments, recompute access
   if (body.action === 'record-payment') {
@@ -618,6 +1100,12 @@ export async function POST(req: NextRequest) {
   if (body.action === 'save-payment-config') {
     const { outstandingCohortId } = body;
     try {
+      if (outstandingCohortId) {
+        const { data: targetCohort } = await db.from('cohorts').select('cohort_kind').eq('id', outstandingCohortId).maybeSingle();
+        if (isIndividualCohort(targetCohort?.cohort_kind)) {
+          return NextResponse.json({ error: 'A synthetic individual-enrollment cohort cannot be the outstanding cohort -- every overdue student platform-wide would inherit that one student\'s course access.' }, { status: 400 });
+        }
+      }
       const { error } = await db.from('payment_config').upsert({
         id:                    'default',
         outstanding_cohort_id: outstandingCohortId || null,

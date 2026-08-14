@@ -580,9 +580,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const [cohorts, setCohorts]               = useState<{ id: string; name: string }[]>([]);
   const [partners, setPartners]               = useState<{ id: string; name: string; is_active: boolean }[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
+  const [courseAvailableToEveryone, setCourseAvailableToEveryone] = useState(false);
   const savedCohortIds = useRef<string[]>([]);
-  const toggleCohort = (id: string) =>
+  const toggleCohort = (id: string) => {
+    if (contentType === 'course') setCourseAvailableToEveryone(false);
     setSelectedCohortIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  };
   const [speakerAddOpen, setSpeakerAddOpen] = useState(false);
   const [speakerEditId, setSpeakerEditId] = useState<string | null>(null);
   const [speakerDraft, setSpeakerDraft] = useState({ name: '', title: '', bio: '', avatar_url: '', linkedin_url: '' });
@@ -625,7 +628,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     setIsLoading(true);
     (async () => {
       if (contentType === 'course') {
-        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts').eq('id', formId).maybeSingle();
+        const { data: course } = await supabase.from('courses').select('id, title, description, slug, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts').eq('id', formId).maybeSingle();
         if (course) {
           setFormConfig({
             isCourse: true,
@@ -653,7 +656,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
           });
           setCustomSlug(course.slug || '');
           const loadedCohorts = course.cohort_ids ?? [];
-          if (loadedCohorts.length) setSelectedCohortIds(loadedCohorts);
+          setSelectedCohortIds(loadedCohorts);
+          setCourseAvailableToEveryone(course.available_to_everyone === true);
           savedCohortIds.current = loadedCohorts;
         }
       } else {
@@ -695,7 +699,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
       }
       setIsLoading(false);
     })();
-    supabase.from('cohorts').select('id, name').order('name').then(({ data }) => {
+    supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name').then(({ data }) => {
       if (data) setCohorts(data);
     });
     supabase.from('partners').select('id, name, is_active').order('name').then(({ data }) => {
@@ -1035,6 +1039,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
           description: configToSave.description,
           config: configToSave,
           cohort_ids: selectedCohortIds,
+          ...(contentType === 'course' ? { available_to_everyone: courseAvailableToEveryone } : {}),
           ...(slugValue ? { slug: slugValue } : {}),
         }),
       });
@@ -2120,8 +2125,14 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
               <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 2 } : undefined}>
                 {formConfig.isCourse && <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Learner access</p>
-                  <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Choose the cohorts that can access this course and optionally set a deadline.</p>
+                  <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Choose Everyone or the cohorts that can access this course.</p>
                 </div>}
+                {formConfig.isCourse && <button
+                  type="button"
+                  onClick={() => { setCourseAvailableToEveryone(true); setSelectedCohortIds([]); }}
+                  className="w-full rounded-xl px-3.5 py-3 text-left text-sm font-semibold"
+                  style={{ background: courseAvailableToEveryone ? `${accentColor}18` : FE.groupBg, border: `1px solid ${courseAvailableToEveryone ? accentColor : FE.groupBorder}`, color: courseAvailableToEveryone ? accentColor : FE.text }}
+                >Everyone</button>}
                 {cohorts.length === 0 ? (
                   <div className="rounded-xl px-4 py-6 text-center" style={{ background: FE.groupBg }}>
                     <Users className="mx-auto h-5 w-5" style={{ color: FE.faint }} />
@@ -2143,6 +2154,13 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                     ))}
                   </div>
                 )}
+                {formConfig.isCourse && <p className="text-xs" style={{ color: FE.faint }}>
+                  {courseAvailableToEveryone
+                    ? 'Available to every signed-in student.'
+                    : selectedCohortIds.length > 0
+                      ? 'Only the selected cohorts can access this course.'
+                      : 'Nobody can access this yet. Choose Everyone or select at least one cohort.'}
+                </p>}
                 {selectedCohortIds.length > 0 && (
                   <div className="pt-2 border-t" style={{ borderColor: FE.inputBorder }}>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: FE.muted }}>Deadline (days from assignment)</label>

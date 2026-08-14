@@ -82,7 +82,7 @@ function shortSlug() {
 // Returns { table, row } or null.
 async function findContentById(supabase: ReturnType<typeof adminClient>, id: string) {
   const [c, e, v] = await Promise.all([
-    supabase.from('courses').select('id, user_id, status, slug, cohort_ids').eq('id', id).maybeSingle(),
+    supabase.from('courses').select('id, user_id, status, slug, cohort_ids, available_to_everyone').eq('id', id).maybeSingle(),
     supabase.from('events').select('id, user_id, status, slug, cohort_ids').eq('id', id).maybeSingle(),
     supabase.from('virtual_experiences').select('id, user_id, status, slug, cohort_ids').eq('id', id).maybeSingle(),
   ]);
@@ -117,7 +117,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { title, description, slug: preferredSlug, cohort_ids, deadline_days, status: bodyStatus } = body;
+  const { title, description, slug: preferredSlug, cohort_ids, available_to_everyone, deadline_days, status: bodyStatus } = body;
   const config = normalizeFormConfig(body.config);
   const valid = validateFormConfig(config);
   if (!valid.ok) return NextResponse.json({ error: valid.error }, { status: 400 });
@@ -130,6 +130,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Staff can only create live sessions.' }, { status: 403 });
   }
   const content_type = isCourse ? 'course' : 'event';
+  const effectiveCohortIds = isCourse && available_to_everyone === true ? [] : (cohort_ids ?? []);
 
   // Shared columns (badge_image_url excluded -- only courses and virtual_experiences have that column)
   const shared = {
@@ -137,7 +138,7 @@ export async function POST(req: NextRequest) {
     title:         title ?? 'Untitled',
     description:   description ?? null,
     status:        formStatus,
-    cohort_ids:    cohort_ids ?? [],
+    cohort_ids:    effectiveCohortIds,
     cover_image:   config.coverImage ?? null,
     deadline_days: deadline_days ? Number(deadline_days) : (config.deadline_days ? Number(config.deadline_days) : null),
     theme:         config.theme ?? null,
@@ -159,6 +160,7 @@ export async function POST(req: NextRequest) {
         .from('courses')
         .insert({
           ...shared,
+          available_to_everyone: available_to_everyone === true,
           badge_image_url: config.badgeImageUrl ?? null,
           slug,
           questions:      normalizeQuestions(config.questions),
@@ -204,14 +206,14 @@ export async function POST(req: NextRequest) {
     }
 
     if (!error) {
-      if (cohort_ids?.length && formStatus === 'published') {
-        await upsertCohortAssignments(supabase, content_type, data.id, cohort_ids);
+      if (effectiveCohortIds.length && formStatus === 'published') {
+        await upsertCohortAssignments(supabase, content_type, data.id, effectiveCohortIds);
         try {
           if (content_type === 'event') {
-            await autoRegisterEventCohorts(supabase, data.id, cohort_ids);
+            await autoRegisterEventCohorts(supabase, data.id, effectiveCohortIds);
           } else {
             await sendAssignmentNotifications({
-              cohortIds:   cohort_ids,
+              cohortIds:   effectiveCohortIds,
               title:       title || '',
               slug:        data.slug,
               contentType: content_type,
@@ -255,7 +257,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { id, title, description, slug: preferredSlug, cohort_ids, deadline_days, status: bodyStatus } = body;
+  const { id, title, description, slug: preferredSlug, cohort_ids, available_to_everyone, deadline_days, status: bodyStatus } = body;
   // PUT routes by the existing row's table (course / event / virtual_experience), so we do NOT
   // gate on the course/event shape here -- virtual_experiences carry neither isCourse nor
   // eventDetails.isEvent and were always editable through this path. Presence-only, as before.
@@ -273,12 +275,16 @@ export async function PUT(req: NextRequest) {
 
   const formStatus = bodyStatus === 'draft' ? 'draft' : (bodyStatus === 'published' ? 'published' : found.row.status);
   const slugValue = preferredSlug?.trim() || undefined;
+  const submittedCourseCohorts = found.table === 'courses' && Array.isArray(cohort_ids) && cohort_ids.length > 0;
+  const courseAvailableToEveryone = found.table === 'courses'
+    ? (submittedCourseCohorts ? false : (available_to_everyone ?? found.row.available_to_everyone ?? false))
+    : false;
 
   const shared: any = {
     title:         title ?? 'Untitled',
     description:   description ?? null,
     status:        formStatus,
-    cohort_ids:    cohort_ids ?? found.row.cohort_ids ?? [],
+    cohort_ids:    courseAvailableToEveryone ? [] : (cohort_ids ?? found.row.cohort_ids ?? []),
     cover_image:   config.coverImage ?? null,
     deadline_days: deadline_days != null ? Number(deadline_days) : (config.deadline_days != null ? Number(config.deadline_days) : null),
     theme:         config.theme ?? null,
@@ -292,6 +298,7 @@ export async function PUT(req: NextRequest) {
   if (found.table === 'courses') {
     updatePayload = {
       ...shared,
+      available_to_everyone: courseAvailableToEveryone,
       badge_image_url: config.badgeImageUrl ?? null,
       questions:      normalizeQuestions(config.questions),
       fields:         config.fields         ?? [],
@@ -343,7 +350,7 @@ export async function PUT(req: NextRequest) {
   // Sync cohort_assignments: upsert added, delete removed
   // Use found.row fallback so callers that omit cohort_ids do not accidentally wipe all rows
   const prevCohorts    = found.row.cohort_ids ?? [];
-  const newCohorts     = cohort_ids ?? found.row.cohort_ids ?? [];
+  const newCohorts     = shared.cohort_ids ?? [];
   const addedCohorts   = newCohorts.filter((c: string) => !prevCohorts.includes(c));
   const removedCohorts = prevCohorts.filter((c: string) => !newCohorts.includes(c));
   const contentType    = found.table === 'courses' ? 'course' : found.table === 'events' ? 'event' : 'virtual_experience';

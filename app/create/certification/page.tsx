@@ -74,6 +74,7 @@ interface CertState {
   retakeCooldownHours: number; // min wait after a fail before a retake; 0 = none
   examProtection: boolean;
   cohortIds: string[];
+  availableToEveryone: boolean;
   skillAreas: SkillArea[];
   scenarios: CertificationScenario[];  // case studies (shared stimulus referenced by questions)
   studyGuideUrl: string;
@@ -95,6 +96,7 @@ const DEFAULTS: CertState = {
   title: '', description: '', certType: 'technology', slug: '', coverImage: '', badgeImageUrl: '',
   passmark: 70, timeLimit: 30, maxAttempts: 1, retakeCooldownHours: 24, examProtection: true,
   cohortIds: [],
+  availableToEveryone: false,
   skillAreas: [], scenarios: [], studyGuideUrl: '', studyGuideName: '', studyGuidePublished: false,
   posterUrl: '', posterPublished: false, practiceTestUrl: '', prepItems: [], playgroundData: {},
   randomizeQuestions: false, shuffleOptions: false, questionPoolSize: 0,
@@ -139,7 +141,7 @@ function CertificationEditor() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
 
   useEffect(() => {
-    supabase.from('cohorts').select('id, name').order('name').then(({ data }) => setCohorts(data ?? []));
+    supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name').then(({ data }) => setCohorts(data ?? []));
   }, []);
 
   useEffect(() => {
@@ -152,7 +154,7 @@ function CertificationEditor() {
           badgeImageUrl: data.badge_image_url ?? '',
           passmark: data.passmark ?? 70, timeLimit: data.time_limit ?? 0, maxAttempts: data.max_attempts ?? 1,
           retakeCooldownHours: data.retake_cooldown_hours ?? 24,
-          examProtection: data.exam_protection !== false, cohortIds: data.cohort_ids ?? [],
+          examProtection: data.exam_protection !== false, cohortIds: data.cohort_ids ?? [], availableToEveryone: data.available_to_everyone === true,
           skillAreas: Array.isArray(data.skill_areas) ? data.skill_areas : [],
           scenarios: Array.isArray(data.scenarios) ? data.scenarios : [],
           studyGuideUrl: data.study_guide_url ?? '', studyGuideName: data.study_guide_name ?? '',
@@ -248,6 +250,7 @@ function CertificationEditor() {
         description: state.description,
         slug: state.slug.trim() || undefined,
         cohort_ids: state.cohortIds,
+        available_to_everyone: state.availableToEveryone,
         status,
         config: {
           certType: state.certType,
@@ -428,15 +431,15 @@ function CertificationEditor() {
           <div>
             <label className={labelCls} style={{ color: C.faint }}>Who can take this</label>
             <div className="flex flex-wrap gap-2">
-              <button onClick={() => update({ cohortIds: [] })}
+              <button onClick={() => update({ cohortIds: [], availableToEveryone: true })}
                 className="px-3 py-1.5 rounded-full text-xs font-medium"
-                style={{ background: state.cohortIds.length === 0 ? C.cta : C.pill, color: state.cohortIds.length === 0 ? C.ctaText : C.muted }}>
+                style={{ background: state.availableToEveryone ? C.cta : C.pill, color: state.availableToEveryone ? C.ctaText : C.muted }}>
                 Everyone
               </button>
               {cohorts.map(c => {
                 const on = state.cohortIds.includes(c.id);
                 return (
-                  <button key={c.id} onClick={() => update({ cohortIds: on ? state.cohortIds.filter(x => x !== c.id) : [...state.cohortIds, c.id] })}
+                  <button key={c.id} onClick={() => update({ availableToEveryone: false, cohortIds: on ? state.cohortIds.filter(x => x !== c.id) : [...state.cohortIds, c.id] })}
                     className="px-3 py-1.5 rounded-full text-xs font-medium" style={{ background: on ? C.cta : C.pill, color: on ? C.ctaText : C.muted }}>
                     {c.name}
                   </button>
@@ -444,7 +447,11 @@ function CertificationEditor() {
               })}
             </div>
             <p className="text-xs mt-2" style={{ color: C.faint }}>
-              {state.cohortIds.length === 0 ? 'Available to everyone who is signed in.' : 'Only the selected cohorts can take this certification.'}
+              {state.availableToEveryone
+                ? 'Available to everyone who is signed in.'
+                : state.cohortIds.length === 0
+                  ? 'Nobody can take this yet. Choose Everyone or select at least one cohort.'
+                  : 'Only the selected cohorts can take this certification.'}
             </p>
           </div>
         </div>}

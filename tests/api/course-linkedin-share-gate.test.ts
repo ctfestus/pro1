@@ -43,7 +43,7 @@ const optionalShare = { id: 'share2', isLinkedInShare: true, linkedInShareRequir
 /** Stub for a course with the given slides, plus an active attempt and its share claims. */
 function stub(questions: any[], claimedItemIds: string[], attemptAnswers: Record<string, string> = { q1: 'A' }) {
   return makeSupabaseStub({
-    courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions, passmark: 50, points_enabled: true, points_base: 100, points_system: { enabled: true, basePoints: 100, timeBonusEnabled: false, timeBonusMultiplier: 1, streakEnabled: false, streakCount: 0, streakBonus: 0, hintPenalty: 0, solutionPenalty: 0, milestones: [] } }, error: null },
+    courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions, passmark: 50, points_enabled: true, points_base: 100, points_system: { enabled: true, basePoints: 100, timeBonusEnabled: false, timeBonusMultiplier: 1, streakEnabled: false, streakCount: 0, streakBonus: 0, hintPenalty: 0, solutionPenalty: 0, milestones: [] } }, error: null },
     course_attempts: [
       { data: { id: 'attempt1', answers: attemptAnswers, hints_used: [] }, error: null },
       { data: null, error: null },
@@ -157,7 +157,7 @@ describe('POST /api/course complete-attempt: required LinkedIn share is enforced
     authed(makeSupabaseStub({
       courses: {
         data: {
-          user_id: 'owner1', status: 'published', cohort_ids: [],
+          user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true,
           questions: [optionalShare],
           passmark: 50, points_enabled: false, points_base: 100,
         },
@@ -187,7 +187,7 @@ describe('POST /api/course complete-attempt: required LinkedIn share is enforced
 
   it('still refuses a REQUIRED share when there is no attempt row', async () => {
     authed(makeSupabaseStub({
-      courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions: [requiredShare], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
+      courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [requiredShare], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
       course_attempts: [
         { data: null, error: null },
         { data: null, error: null },
@@ -209,7 +209,7 @@ describe('POST /api/course complete-attempt: required LinkedIn share is enforced
 
   it('is a no-op for courses with no share slides', async () => {
     authed(makeSupabaseStub({
-      courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions: [quizQuestion], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
+      courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [quizQuestion], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
       course_attempts: [
         { data: { id: 'attempt1', answers: { q1: 'A' }, hints_used: [] }, error: null },
         { data: null, error: null },
@@ -257,7 +257,7 @@ describe('POST /api/course: course access is enforced on progress and completion
 // "already passed" and "insert failed", and complete-attempt mapped every null to a 200.
 describe('POST /api/course: persistence failures are reported, not swallowed', () => {
   const withAttemptFailure = (questions: any[]) => makeSupabaseStub({
-    courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions, passmark: 50, points_enabled: false, points_base: 100 }, error: null },
+    courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions, passmark: 50, points_enabled: false, points_base: 100 }, error: null },
     students: [
       { data: { role: 'student', cohort_id: null }, error: null },
       { data: { full_name: 'Student One' }, error: null },
@@ -284,7 +284,7 @@ describe('POST /api/course: persistence failures are reported, not swallowed', (
 
   it('still reports already_completed for a genuinely passed course', async () => {
     authed(makeSupabaseStub({
-      courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions: [quizQuestion], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
+      courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [quizQuestion], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
       students: [
         { data: { role: 'student', cohort_id: null }, error: null },
         { data: { full_name: 'Student One' }, error: null },
@@ -308,7 +308,7 @@ describe('POST /api/course: persistence failures are reported, not swallowed', (
 // attempt_number 1, and the "current attempt" ranking in /api/course-progress would be wrong.
 describe('POST /api/course: every attempt lookup reports its own failure', () => {
   const failingLookup = (failAt: number) => makeSupabaseStub({
-    courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], questions: [optionalShare], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
+    courses: { data: { user_id: 'owner1', status: 'published', cohort_ids: [], available_to_everyone: true, questions: [optionalShare], passmark: 50, points_enabled: false, points_base: 100 }, error: null },
     students: [
       { data: { role: 'student', cohort_id: null }, error: null },
       { data: { full_name: 'Student One' }, error: null },

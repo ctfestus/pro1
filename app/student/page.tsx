@@ -22,7 +22,7 @@ import { LIGHT_C, useC } from '@/lib/theme';
 import { Sk, CarouselSkeleton, EmptyState, StatusBadge, ProgressBar } from '@/components/student/shared';
 import { NAV_ITEMS, NAV_GROUPS, type SectionId } from '@/components/student/nav';
 import { OverviewSection } from '@/components/student/overview';
-import { PaymentsSection } from '@/components/student/payments';
+import { StudentPaymentsSection } from '@/components/student/subscription-payments';
 import { type CohortTimeline, CohortTimelineBadge, ProfileMenu } from '@/components/student/header';
 import { CoursesSection, LearningPathsSection } from '@/components/student/courses-paths';
 import { EventsSection } from '@/components/student/events';
@@ -34,6 +34,7 @@ import { DataCenterSection, RecordingsSection, ScheduleSection } from '@/compone
 import { StudentBadgesSection, LeaderboardSection, CertificatesSection } from '@/components/student/badges-leaderboard-certs';
 import { AiCareerToolkitSection } from '@/components/student/ai-career-toolkit';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
+import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   clearStudentMode,
   getStudentMode,
@@ -240,13 +241,20 @@ export default function StudentDashboard() {
       supabase.from('students').select('cohort_id, original_cohort_id, payment_exempt').eq('id', resolvedViewingAs?.studentId ?? authUser.id).single()
         .then(async ({ data: s }) => {
           if (s?.cohort_id) {
-            setCohortIdForTicker(s.cohort_id);
             const { data: cohortDates } = await supabase
               .from('cohorts')
-              .select('id, name, start_date, end_date')
+              .select('id, name, start_date, end_date, cohort_kind')
               .eq('id', s.cohort_id)
               .maybeSingle();
-            setCohortTimeline(cohortDates ?? null);
+            // Neither an individual cohort kind has a real bootcamp timeline: the legacy
+            // per-student cohort (migration 165) has no peer group at all, and a
+            // subscription plan cohort (migration 167) has no intake dates. Skip both.
+            if (isIndividualCohort(cohortDates?.cohort_kind)) {
+              setCohortTimeline(null);
+            } else {
+              setCohortIdForTicker(s.cohort_id);
+              setCohortTimeline(cohortDates ?? null);
+            }
           } else {
             setCohortTimeline(null);
           }
@@ -254,6 +262,9 @@ export default function StudentDashboard() {
             .from('bootcamp_enrollments')
             .select('access_status, total_fee, deposit_required, paid_total, payment_plan, bootcamp_ends_at, cohort_id, payment_installments ( due_date, status )')
             .eq('student_id', resolvedViewingAs?.studentId ?? authUser.id)
+            // Skip released enrollments (migration 171) so a student who left the bootcamp is
+            // not shown an outstanding-balance modal for a cohort they are no longer in.
+            .is('released_at', null)
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle();
@@ -633,7 +644,7 @@ export default function StudentDashboard() {
               <AiCareerToolkitSection C={C}/>
             )}
             {activeSection === 'payments' && user && (
-              <PaymentsSection userId={effectiveId} C={C} readOnly={!!viewingAs}/>
+              <StudentPaymentsSection userId={effectiveId} C={C} readOnly={!!viewingAs}/>
             )}
           </motion.div>
         </main>
