@@ -16,6 +16,7 @@ import { adminClient } from '@/lib/admin-client';
 import { verifyQStashRequest } from '@/lib/qstash';
 import { atRiskDigestEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,48 +35,50 @@ export async function POST(req: NextRequest) {
   const sevenDaysAgo  = new Date(now - 7  * 24 * 60 * 60 * 1000).toISOString();
   const fourteenDaysAgo = new Date(now - 14 * 24 * 60 * 60 * 1000).toISOString();
 
-  // 1. All active students (non-instructor)
-  const { data: students } = await supabase
+  // 1. All active students (non-instructor). Paged: an unpaged scan stopped at the project's row
+  // cap, so on a large tenant every student past it was silently never scored -- and the id list it
+  // produced was then long enough to build a request URL a proxy could reject.
+  const students = await fetchAllRows<any>((from, to) => supabase
     .from('students')
-    .select('id, full_name, email, cohort_id, last_login_at, created_at, role')
-    .eq('role', 'student');
+    .select('id, full_name, email, cohort_id, last_login_at, created_at, role', { count: 'exact' })
+    .eq('role', 'student').order('id').range(from, to));
 
-  if (!students?.length) return NextResponse.json({ ok: true, sent: 0 });
+  if (!students.length) return NextResponse.json({ ok: true, sent: 0 });
 
   const studentIds = students.map((s: any) => s.id);
 
   // 2. Stalled attempts (started, not completed, idle 7+ days)
-  const [{ data: stalledCourse }, { data: stalledVe }, { data: enrollments }, { data: completions }] = await Promise.all([
-    supabase.from('course_attempts')
-      .select('student_id')
+  const [stalledCourse, stalledVe, enrollments, completions] = await Promise.all([
+    fetchAllRowsByIds<any>(studentIds, (idChunk, from, to) => supabase.from('course_attempts')
+      .select('student_id', { count: 'exact' })
       .is('completed_at', null)
       .lt('updated_at', sevenDaysAgo)
-      .in('student_id', studentIds),
-    supabase.from('guided_project_attempts')
-      .select('student_id')
+      .in('student_id', idChunk).order('id').range(from, to)),
+    fetchAllRowsByIds<any>(studentIds, (idChunk, from, to) => supabase.from('guided_project_attempts')
+      .select('student_id', { count: 'exact' })
       .is('completed_at', null)
       .lt('updated_at', sevenDaysAgo)
-      .in('student_id', studentIds),
-    supabase.from('bootcamp_enrollments')
-      .select('student_id, access_status, grace_active')
+      .in('student_id', idChunk).order('id').range(from, to)),
+    fetchAllRowsByIds<any>(studentIds, (idChunk, from, to) => supabase.from('bootcamp_enrollments')
+      .select('student_id, access_status, grace_active', { count: 'exact' })
       .is('released_at', null)
-      .in('student_id', studentIds),
-    supabase.from('course_attempts')
-      .select('student_id')
+      .in('student_id', idChunk).order('id').range(from, to)),
+    fetchAllRowsByIds<any>(studentIds, (idChunk, from, to) => supabase.from('course_attempts')
+      .select('student_id', { count: 'exact' })
       .not('completed_at', 'is', null)
-      .in('student_id', studentIds),
+      .in('student_id', idChunk).order('id').range(from, to)),
   ]);
 
   const stalledSet   = new Set([
-    ...(stalledCourse ?? []).map((a: any) => a.student_id),
-    ...(stalledVe     ?? []).map((a: any) => a.student_id),
+    ...stalledCourse.map((a: any) => a.student_id),
+    ...stalledVe.map((a: any) => a.student_id),
   ]);
   const overdueSet   = new Set(
-    (enrollments ?? [])
+    enrollments
       .filter((e: any) => e.access_status === 'overdue' || e.grace_active)
       .map((e: any) => e.student_id)
   );
-  const completedSet = new Set((completions ?? []).map((c: any) => c.student_id));
+  const completedSet = new Set(completions.map((c: any) => c.student_id));
 
   // 3. Score each student
   type RiskyStudent = { name: string; email: string; riskScore: number; reasons: string[] };
@@ -115,12 +118,11 @@ export async function POST(req: NextRequest) {
   atRisk.sort((a, b) => b.riskScore - a.riskScore);
 
   // 4. Fetch all instructors
-  const { data: instructors } = await supabase
-    .from('students')
-    .select('full_name, email')
-    .eq('role', 'instructor');
+  const instructors = await fetchAllRows<any>((from, to) => supabase
+    .from('students').select('full_name, email', { count: 'exact' })
+    .eq('role', 'instructor').order('id').range(from, to));
 
-  if (!instructors?.length) {
+  if (!instructors.length) {
     console.log('[cron/at-risk-digest] no instructors found');
     return NextResponse.json({ ok: true, sent: 0, atRisk: atRisk.length });
   }

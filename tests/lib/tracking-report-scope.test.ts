@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadTrackedContent } from '@/lib/tracking-report';
+import { loadTrackedContent, loadPathGrantedPairs } from '@/lib/tracking-report';
 
 // Which content a caller may report on is two independent questions -- whose, and in what state --
 // and they were once answered by a single either/or. Asking for the owner's content therefore
@@ -70,5 +70,70 @@ describe('loadTrackedContent scoping', () => {
       await loadTrackedContent(db, { userId: 'u1', role });
       expect(db.calls.assignments).toContainEqual(['status', 'published']);
     }
+  });
+});
+
+/** Like recordingDb, but each table can return rows so the later lookups actually run. */
+function seededDb(rowsByTable: Record<string, unknown[]>) {
+  const calls: Record<string, Array<[string, unknown]>> = {};
+  return {
+    calls,
+    from(table: string) {
+      calls[table] ??= [];
+      const rows = rowsByTable[table] ?? [];
+      const chain: any = {
+        select: () => chain,
+        eq: (col: string, val: unknown) => { calls[table].push([col, val]); return chain; },
+        in: () => chain,
+        order: () => chain,
+        range: () => chain,
+        then: (onFulfilled: any, onRejected: any) =>
+          Promise.resolve({ data: rows, count: rows.length, error: null }).then(onFulfilled, onRejected),
+      };
+      return chain;
+    },
+  };
+}
+
+describe('loadPathGrantedPairs', () => {
+  const seeded = () => seededDb({
+    learning_paths: [{ item_ids: ['c1'], cohort_ids: ['co1', 'co2'] }],
+    courses: [{ id: 'c1' }],
+    virtual_experiences: [],
+  });
+
+  it('emits one pair per cohort the path is assigned to', async () => {
+    const pairs = await loadPathGrantedPairs(seeded());
+    expect(pairs).toEqual([
+      { content_id: 'c1', content_type: 'course', cohort_id: 'co1' },
+      { content_id: 'c1', content_type: 'course', cohort_id: 'co2' },
+    ]);
+  });
+
+  it('considers only published paths and only published items', async () => {
+    // A published path holding a draft course grants nothing, which is the rule app/api/course
+    // enforces at read time. The item lookups must carry the filter for that to hold.
+    const db = seeded();
+    await loadPathGrantedPairs(db);
+    expect(db.calls.learning_paths).toContainEqual(['status', 'published']);
+    expect(db.calls.courses).toContainEqual(['status', 'published']);
+    expect(db.calls.virtual_experiences).toContainEqual(['status', 'published']);
+  });
+
+  it('returns nothing when no path is assigned to a cohort', async () => {
+    const pairs = await loadPathGrantedPairs(seededDb({
+      learning_paths: [{ item_ids: ['c1'], cohort_ids: [] }],
+      courses: [{ id: 'c1' }],
+    }));
+    expect(pairs).toEqual([]);
+  });
+
+  it('drops path items that are neither a course nor a VE, such as certifications', async () => {
+    const pairs = await loadPathGrantedPairs(seededDb({
+      learning_paths: [{ item_ids: ['cert1'], cohort_ids: ['co1'] }],
+      courses: [],
+      virtual_experiences: [],
+    }));
+    expect(pairs).toEqual([]);
   });
 });

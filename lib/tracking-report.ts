@@ -150,6 +150,59 @@ export async function loadTrackedContent(
   ];
 }
 
+export type GrantedPair = { content_id: string; content_type: 'course' | 'virtual_experience'; cohort_id: string };
+
+/**
+ * The (content, cohort) pairs that a published learning path grants and no cohort_assignments row
+ * records.
+ *
+ * Assigning content to a cohort writes both cohort_ids and a cohort_assignments row, so anything
+ * driven by that table sees direct assignments correctly. Assigning a learning path writes neither
+ * for the items inside it -- access is granted at read time by checking the path. Scheduled jobs
+ * that decide who to email from cohort_assignments therefore cannot see a cohort taught only
+ * through a path, and silently send them nothing. Fold these pairs in alongside that table.
+ *
+ * Only published items are returned: an unpublished item inside a published path grants nothing,
+ * which is the rule app/api/course and app/api/guided-project-progress both enforce.
+ */
+export async function loadPathGrantedPairs(supabase: any): Promise<GrantedPair[]> {
+  const paths = await fetchAllRows<any>((from, to) => supabase
+    .from('learning_paths').select('item_ids, cohort_ids', { count: 'exact' })
+    .eq('status', 'published').order('id').range(from, to));
+
+  const cohortsByItem = new Map<string, Set<string>>();
+  for (const path of paths) {
+    const cohortIds: string[] = Array.isArray(path.cohort_ids) ? path.cohort_ids : [];
+    if (!cohortIds.length) continue;
+    for (const itemId of Array.isArray(path.item_ids) ? path.item_ids : []) {
+      const set = cohortsByItem.get(itemId) ?? new Set<string>();
+      for (const cohortId of cohortIds) set.add(cohortId);
+      cohortsByItem.set(itemId, set);
+    }
+  }
+  const itemIds = [...cohortsByItem.keys()];
+  if (!itemIds.length) return [];
+
+  // A path may also hold certifications, which no scheduled job tracks; they simply do not match
+  // either lookup and drop out here.
+  const [courses, ves] = await Promise.all([
+    fetchAllRowsByIds<any>(itemIds, (idChunk, from, to) => supabase
+      .from('courses').select('id', { count: 'exact' }).in('id', idChunk).eq('status', 'published').order('id').range(from, to)),
+    fetchAllRowsByIds<any>(itemIds, (idChunk, from, to) => supabase
+      .from('virtual_experiences').select('id', { count: 'exact' }).in('id', idChunk).eq('status', 'published').order('id').range(from, to)),
+  ]);
+
+  const pairs: GrantedPair[] = [];
+  const emit = (id: string, contentType: GrantedPair['content_type']) => {
+    for (const cohortId of cohortsByItem.get(id) ?? []) {
+      pairs.push({ content_id: id, content_type: contentType, cohort_id: cohortId });
+    }
+  };
+  for (const c of courses) emit(c.id, 'course');
+  for (const v of ves)     emit(v.id, 'virtual_experience');
+  return pairs;
+}
+
 export async function loadCohortNames(supabase: any, cohortIds: string[]): Promise<{ id: string; name: string }[]> {
   if (!cohortIds.length) return [];
   const rows = await fetchAllRowsByIds<{ id: string; name: string }>(cohortIds, (idChunk, from, to) => supabase

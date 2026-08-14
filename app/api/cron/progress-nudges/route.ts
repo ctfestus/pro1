@@ -8,6 +8,8 @@ import { adminClient } from '@/lib/admin-client';
 import { verifyQStashRequest } from '@/lib/qstash';
 import { nudgeEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
+import { loadPathGrantedPairs } from '@/lib/tracking-report';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,58 +39,71 @@ export async function POST(req: NextRequest) {
   const cutoff   = new Date(Date.now() - INACTIVITY_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const oldest   = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString();
 
-  // Fetch stalled attempts: started but not completed, last activity between 7 and 60 days ago
-  const [{ data: courseAttempts }, { data: gpAttempts }] = await Promise.all([
-    supabase.from('course_attempts')
-      .select('student_id, course_id, updated_at')
+  // Fetch stalled attempts: started but not completed, last activity between 7 and 60 days ago.
+  // Paged: the API truncates any single response at the project's row cap, and a truncated scan
+  // here means the students past the cap are silently never nudged.
+  const [courseAttempts, gpAttempts] = await Promise.all([
+    fetchAllRows<any>((from, to) => supabase.from('course_attempts')
+      .select('student_id, course_id, updated_at', { count: 'exact' })
       .is('completed_at', null)
       .lt('updated_at', cutoff)
-      .gt('updated_at', oldest),
-    supabase.from('guided_project_attempts')
-      .select('student_id, ve_id, updated_at')
+      .gt('updated_at', oldest)
+      .order('id').range(from, to)),
+    fetchAllRows<any>((from, to) => supabase.from('guided_project_attempts')
+      .select('student_id, ve_id, updated_at', { count: 'exact' })
       .is('completed_at', null)
       .lt('updated_at', cutoff)
-      .gt('updated_at', oldest),
+      .gt('updated_at', oldest)
+      .order('id').range(from, to)),
   ]);
 
   // Collect unique IDs
-  const courseIds  = [...new Set((courseAttempts ?? []).map((a: any) => a.course_id))];
-  const veIds      = [...new Set((gpAttempts    ?? []).map((a: any) => a.ve_id))];
+  const courseIds  = [...new Set(courseAttempts.map((a: any) => a.course_id))];
+  const veIds      = [...new Set(gpAttempts.map((a: any) => a.ve_id))];
   const studentIds = [...new Set([
-    ...(courseAttempts ?? []).map((a: any) => a.student_id),
-    ...(gpAttempts     ?? []).map((a: any) => a.student_id),
+    ...courseAttempts.map((a: any) => a.student_id),
+    ...gpAttempts.map((a: any) => a.student_id),
   ])];
 
   if (!studentIds.length) return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
 
-  const [{ data: courses }, { data: ves }, { data: studentRows }, { data: cohortAssignments }] = await Promise.all([
-    courseIds.length ? supabase.from('courses').select('id, title, slug, cover_image').in('id', courseIds) : Promise.resolve({ data: [] }),
-    veIds.length     ? supabase.from('virtual_experiences').select('id, title, slug, cover_image').in('id', veIds) : Promise.resolve({ data: [] }),
-    supabase.from('students').select('id, email, full_name, cohort_id').in('id', studentIds),
-    supabase.from('cohort_assignments').select('content_id, cohort_id').in('content_id', [...courseIds, ...veIds]),
+  const [courses, ves, studentRows, cohortAssignments, pathPairs] = await Promise.all([
+    fetchAllRowsByIds<any>(courseIds, (idChunk, from, to) => supabase
+      .from('courses').select('id, title, slug, cover_image', { count: 'exact' }).in('id', idChunk).order('id').range(from, to)),
+    fetchAllRowsByIds<any>(veIds, (idChunk, from, to) => supabase
+      .from('virtual_experiences').select('id, title, slug, cover_image', { count: 'exact' }).in('id', idChunk).order('id').range(from, to)),
+    fetchAllRowsByIds<any>(studentIds, (idChunk, from, to) => supabase
+      .from('students').select('id, email, full_name, cohort_id', { count: 'exact' }).in('id', idChunk).order('id').range(from, to)),
+    fetchAllRowsByIds<any>([...courseIds, ...veIds], (idChunk, from, to) => supabase
+      .from('cohort_assignments').select('content_id, cohort_id', { count: 'exact' }).in('content_id', idChunk).order('id').range(from, to)),
+    loadPathGrantedPairs(supabase),
   ]);
 
   // Build unified content map
   const contentMap = new Map<string, { id: string; title: string; slug: string; cover_image?: string | null; content_type: string }>();
-  for (const c of courses ?? []) contentMap.set(c.id, { ...c, content_type: 'course' });
-  for (const v of ves     ?? []) contentMap.set(v.id, { ...v, content_type: 'virtual_experience' });
+  for (const c of courses) contentMap.set(c.id, { ...c, content_type: 'course' });
+  for (const v of ves)     contentMap.set(v.id, { ...v, content_type: 'virtual_experience' });
 
-  const studentMap = new Map((studentRows ?? []).map((s: any) => [s.id, s]));
+  const studentMap = new Map(studentRows.map((s: any) => [s.id, s]));
 
-  // Only nudge students whose cohort is currently assigned the stalled content. Mirrors the
-  // cohort_assignments scoping used by the weekly-digest and deadline-reminder crons, so learners
-  // with no cohort (or in a cohort the content was never assigned to) are never nudged.
+  // Only nudge students whose cohort can currently reach the stalled content, so learners with no
+  // cohort (or in a cohort the content never reached) are never nudged. Reachability is direct
+  // assignment OR a published learning path: a path writes no cohort_assignments row, so reading
+  // that table alone made every path-taught cohort invisible here and they received nothing.
   const assignedCohortsByContent = new Map<string, Set<string>>();
-  for (const a of cohortAssignments ?? []) {
-    if (!assignedCohortsByContent.has(a.content_id)) assignedCohortsByContent.set(a.content_id, new Set());
-    assignedCohortsByContent.get(a.content_id)!.add(a.cohort_id);
-  }
+  const allowReach = (contentId: string, cohortId: string) => {
+    const set = assignedCohortsByContent.get(contentId) ?? new Set<string>();
+    set.add(cohortId);
+    assignedCohortsByContent.set(contentId, set);
+  };
+  for (const a of cohortAssignments) allowReach(a.content_id, a.cohort_id);
+  for (const p of pathPairs) allowReach(p.content_id, p.cohort_id);
 
   // Fetch related assignments for stalled courses (smart nudge)
-  const { data: relatedAssignments } = courseIds.length
-    ? await supabase.from('assignments').select('id, title, related_course').in('related_course', courseIds).eq('status', 'published')
-    : { data: [] };
-  const assignmentMap = new Map((relatedAssignments ?? []).map((a: any) => [a.related_course, a.title]));
+  const relatedAssignments = await fetchAllRowsByIds<any>(courseIds, (idChunk, from, to) => supabase
+    .from('assignments').select('id, title, related_course', { count: 'exact' })
+    .in('related_course', idChunk).eq('status', 'published').order('id').range(from, to));
+  const assignmentMap = new Map(relatedAssignments.map((a: any) => [a.related_course, a.title]));
 
   // Merge and deduplicate stalled attempts
   let excludedUnassigned = 0;
@@ -104,7 +119,7 @@ export async function POST(req: NextRequest) {
     coverImage?: string | null;
   }[] = [];
 
-  for (const a of courseAttempts ?? []) {
+  for (const a of courseAttempts) {
     const key = `${a.student_id}|${a.course_id}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -115,7 +130,7 @@ export async function POST(req: NextRequest) {
     candidates.push({ studentId: a.student_id, email: student.email, name: student.full_name || 'there', contentId: a.course_id, contentType: 'course', title: content.title, slug: content.slug ?? a.course_id, coverImage: content.cover_image });
   }
 
-  for (const a of gpAttempts ?? []) {
+  for (const a of gpAttempts) {
     const key = `${a.student_id}|${a.ve_id}`;
     if (seen.has(key)) continue;
     seen.add(key);
@@ -129,14 +144,15 @@ export async function POST(req: NextRequest) {
   // Pre-fetch recent inactivity nudges in bulk
   const nudgeCutoff = new Date(Date.now() - RESEND_AFTER_DAYS * 24 * 60 * 60 * 1000).toISOString();
   const candidateStudentIds = [...new Set(candidates.map(c => c.studentId))];
-  const { data: recentNudges } = candidateStudentIds.length
-    ? await supabase.from('sent_nudges').select('student_id, form_id')
-        .eq('nudge_type', 'inactivity')
-        .in('student_id', candidateStudentIds)
-        .gte('sent_at', nudgeCutoff)
-    : { data: [] as any[] };
+  const recentNudges = await fetchAllRowsByIds<any>(candidateStudentIds, (idChunk, from, to) => supabase
+    .from('sent_nudges').select('student_id, form_id', { count: 'exact' })
+    .eq('nudge_type', 'inactivity')
+    .in('student_id', idChunk)
+    .gte('sent_at', nudgeCutoff)
+    .order('id').range(from, to));
 
-  const nudgedSet = new Set((recentNudges ?? []).map((n: any) => `${n.student_id}|${n.form_id}`));
+  // A truncated read here would resend a nudge someone already had, so this is paged like the rest.
+  const nudgedSet = new Set(recentNudges.map((n: any) => `${n.student_id}|${n.form_id}`));
 
   // Build email batch
   const t        = await getTenantSettings();
@@ -194,7 +210,12 @@ export async function POST(req: NextRequest) {
     const toInsert = nudgeRecords
       .filter(n => sentKeys.has(`${n.student_id}|${n.form_id}`))
       .map(n => ({ student_id: n.student_id, form_id: n.form_id, nudge_type: 'inactivity' }));
-    if (toInsert.length) await supabase.from('sent_nudges').insert(toInsert);
+    // Chunked: one oversized insert that fails would lose the whole record of what was just sent,
+    // and every one of those students would be nudged again on the next run.
+    for (const rows of chunk(toInsert, BATCH_SIZE)) {
+      const { error } = await supabase.from('sent_nudges').insert(rows);
+      if (error) console.error('[cron/progress-nudges] sent_nudges insert failed:', error.message);
+    }
   }
 
   console.log(`[cron/progress-nudges] sent=${sent} skipped=${skipped} excludedUnassigned=${excludedUnassigned}`);
