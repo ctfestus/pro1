@@ -8,6 +8,8 @@ import { adminClient } from '@/lib/admin-client';
 import { verifyQStashRequest } from '@/lib/qstash';
 import { weeklyDigestEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { fetchAllRows, fetchAllRowsByIds, fetchAllRowsByIdPairs } from '@/lib/fetch-all-rows';
+import { loadPathGrantedPairs } from '@/lib/tracking-report';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,12 +34,27 @@ export async function POST(req: NextRequest) {
   const now = Date.now();
   const sevenDaysAgo = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-  // -- 1. Fetch all cohort assignments (polymorphic) --
-  const { data: cohortAssignments } = await supabase
+  // -- 1. Fetch all cohort assignments (polymorphic), plus what learning paths grant --
+  // Paged: this reads the whole table, so past the row cap it silently returned a partial list and
+  // the cohorts beyond it received no digest at all. The path grants are appended because a path
+  // writes no row here, which made a cohort taught only through one invisible to this job.
+  const directAssignments = await fetchAllRows<any>((from, to) => supabase
     .from('cohort_assignments')
-    .select('content_id, content_type, cohort_id, assigned_at');
+    .select('content_id, content_type, cohort_id, assigned_at', { count: 'exact' })
+    .order('id').range(from, to));
 
-  if (!cohortAssignments?.length) {
+  const pathPairs = await loadPathGrantedPairs(supabase);
+  const seenPair = new Set(directAssignments.map((a: any) => `${a.content_id}|${a.cohort_id}`));
+  // assigned_at is null for a path grant: there is no assignment event to count a deadline from,
+  // which is why the deadline branch below requires one.
+  const cohortAssignments = [
+    ...directAssignments,
+    ...pathPairs
+      .filter(p => !seenPair.has(`${p.content_id}|${p.cohort_id}`))
+      .map(p => ({ content_id: p.content_id, content_type: p.content_type, cohort_id: p.cohort_id, assigned_at: null })),
+  ];
+
+  if (!cohortAssignments.length) {
     return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
   }
 
@@ -46,45 +63,47 @@ export async function POST(req: NextRequest) {
   const eventIds  = [...new Set(cohortAssignments.filter(a => a.content_type === 'event').map(a => a.content_id))];
   const veIds     = [...new Set(cohortAssignments.filter(a => a.content_type === 'virtual_experience').map(a => a.content_id))];
 
-  const [{ data: courses }, { data: events }, { data: ves }] = await Promise.all([
-    courseIds.length ? supabase.from('courses').select('id, title, slug, deadline_days').in('id', courseIds).eq('status', 'published') : Promise.resolve({ data: [] }),
-    eventIds.length  ? supabase.from('events').select('id, title, slug, deadline_days').in('id', eventIds).eq('status', 'published')   : Promise.resolve({ data: [] }),
-    veIds.length     ? supabase.from('virtual_experiences').select('id, title, slug, deadline_days').in('id', veIds).eq('status', 'published') : Promise.resolve({ data: [] }),
+  const [courses, events, ves] = await Promise.all([
+    fetchAllRowsByIds<any>(courseIds, (idChunk, from, to) => supabase.from('courses')
+      .select('id, title, slug, deadline_days', { count: 'exact' }).in('id', idChunk).eq('status', 'published').order('id').range(from, to)),
+    fetchAllRowsByIds<any>(eventIds, (idChunk, from, to) => supabase.from('events')
+      .select('id, title, slug, deadline_days', { count: 'exact' }).in('id', idChunk).eq('status', 'published').order('id').range(from, to)),
+    fetchAllRowsByIds<any>(veIds, (idChunk, from, to) => supabase.from('virtual_experiences')
+      .select('id, title, slug, deadline_days', { count: 'exact' }).in('id', idChunk).eq('status', 'published').order('id').range(from, to)),
   ]);
 
   const contentMap = new Map<string, { id: string; title: string; slug: string; deadline_days: number | null; content_type: string }>();
-  for (const c of courses ?? []) contentMap.set(c.id, { ...c, content_type: 'course' });
-  for (const e of events  ?? []) contentMap.set(e.id, { ...e, content_type: 'event' });
-  for (const v of ves     ?? []) contentMap.set(v.id, { ...v, content_type: 'virtual_experience' });
+  for (const c of courses) contentMap.set(c.id, { ...c, content_type: 'course' });
+  for (const e of events)  contentMap.set(e.id, { ...e, content_type: 'event' });
+  for (const v of ves)     contentMap.set(v.id, { ...v, content_type: 'virtual_experience' });
 
   // -- 3. Fetch all students in the relevant cohorts --
   const cohortIds = [...new Set(cohortAssignments.map((a: any) => a.cohort_id))];
-  const { data: students } = await supabase
-    .from('students')
-    .select('id, email, full_name, cohort_id')
-    .in('cohort_id', cohortIds);
+  const students = await fetchAllRowsByIds<any>(cohortIds, (idChunk, from, to) => supabase
+    .from('students').select('id, email, full_name, cohort_id', { count: 'exact' })
+    .in('cohort_id', idChunk).order('id').range(from, to));
 
-  if (!students?.length) return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
+  if (!students.length) return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
 
   // -- 4. Fetch all attempts for the relevant content --
-  const allContentIds = [...contentMap.keys()];
-  const [{ data: courseAttempts }, { data: gpAttempts }] = await Promise.all([
-    courseIds.length
-      ? supabase.from('course_attempts').select('student_id, course_id, completed_at, score, updated_at').in('course_id', courseIds)
-      : Promise.resolve({ data: [] }),
-    veIds.length
-      ? supabase.from('guided_project_attempts').select('student_id, ve_id, completed_at, updated_at').in('ve_id', veIds)
-      : Promise.resolve({ data: [] }),
+  const studentIdsInScope = students.map((s: any) => s.id);
+  const [courseAttempts, gpAttempts] = await Promise.all([
+    fetchAllRowsByIdPairs<any>(studentIdsInScope, courseIds, (studentChunk, contentChunk, from, to) => supabase
+      .from('course_attempts').select('student_id, course_id, completed_at, score, updated_at', { count: 'exact' })
+      .in('student_id', studentChunk).in('course_id', contentChunk).order('id').range(from, to)),
+    fetchAllRowsByIdPairs<any>(studentIdsInScope, veIds, (studentChunk, contentChunk, from, to) => supabase
+      .from('guided_project_attempts').select('student_id, ve_id, completed_at, updated_at', { count: 'exact' })
+      .in('student_id', studentChunk).in('ve_id', contentChunk).order('id').range(from, to)),
   ]);
 
   // Map: `${studentId}|${contentId}` -> attempt
   type AttemptData = { completedAt: string | null; score?: number | null; updatedAt: string };
   const attemptMap = new Map<string, AttemptData>();
 
-  for (const a of courseAttempts ?? []) {
+  for (const a of courseAttempts) {
     attemptMap.set(`${a.student_id}|${a.course_id}`, { completedAt: a.completed_at, score: a.score, updatedAt: a.updated_at });
   }
-  for (const a of gpAttempts ?? []) {
+  for (const a of gpAttempts) {
     const key = `${a.student_id}|${a.ve_id}`;
     if (!attemptMap.has(key)) {
       attemptMap.set(key, { completedAt: a.completed_at, updatedAt: a.updated_at });
@@ -100,15 +119,15 @@ export async function POST(req: NextRequest) {
 
   // -- 6. Pre-fetch recent weekly digest nudges --
   const sixDaysAgo = new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString();
-  const studentIds = students.map((s: any) => s.id);
-  const { data: recentNudges } = await supabase
-    .from('sent_nudges')
-    .select('student_id')
+  // A truncated read here would resend a digest someone already had this week.
+  const recentNudges = await fetchAllRowsByIds<any>(studentIdsInScope, (idChunk, from, to) => supabase
+    .from('sent_nudges').select('student_id', { count: 'exact' })
     .eq('nudge_type', 'weekly_digest')
-    .in('student_id', studentIds)
-    .gte('sent_at', sixDaysAgo);
+    .in('student_id', idChunk)
+    .gte('sent_at', sixDaysAgo)
+    .order('id').range(from, to));
 
-  const nudgedStudentIds = new Set((recentNudges ?? []).map((n: any) => n.student_id));
+  const nudgedStudentIds = new Set(recentNudges.map((n: any) => n.student_id));
 
   // -- 7. Build email batch --
   const t        = await getTenantSettings();
@@ -141,7 +160,9 @@ export async function POST(req: NextRequest) {
 
       let isOverdue = false;
       let daysOverdue = 0;
-      if (content.deadline_days) {
+      // assigned_at is required, not just deadline_days: a path-granted item has no assignment date,
+      // and without this guard it would date from the epoch and report as decades overdue.
+      if (content.deadline_days && assignment.assigned_at) {
         const deadline = new Date(assignment.assigned_at).getTime() + Number(content.deadline_days) * 86400000;
         if (now > deadline && !attempt?.completedAt) {
           isOverdue  = true;
@@ -212,7 +233,12 @@ export async function POST(req: NextRequest) {
     const toInsert = nudgeRecords
       .filter(n => sentStudentIds.has(n.student_id))
       .map(n => ({ student_id: n.student_id, form_id: null, nudge_type: 'weekly_digest' }));
-    if (toInsert.length) await supabase.from('sent_nudges').insert(toInsert);
+    // Chunked: losing this record to one oversized insert would send every one of them a second
+    // digest on the next run.
+    for (const rows of chunk(toInsert, BATCH_SIZE)) {
+      const { error } = await supabase.from('sent_nudges').insert(rows);
+      if (error) console.error('[cron/weekly-digest] sent_nudges insert failed:', error.message);
+    }
   }
 
   console.log(`[cron/weekly-digest] sent=${sent} skipped=${skipped}`);
