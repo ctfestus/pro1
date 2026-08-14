@@ -11,6 +11,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
+import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 
 const MAX_ENTRIES = 30;
@@ -99,9 +100,12 @@ function TimelineEntryView({ node, getPos, editor, updateAttributes }: NodeViewP
   );
 }
 
-function TimelineView({ node, editor, getPos }: NodeViewProps) {
+function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
   const count = node.childCount;
+  const accentColor = (node.attrs.accentColor as string) || '';
+  // Drives the connector rail, the milestone dots, and the date chips.
+  const accent = accentScope(accentColor);
 
   const addEntry = () => {
     if (count >= MAX_ENTRIES) return;
@@ -112,7 +116,7 @@ function TimelineView({ node, editor, getPos }: NodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper className="lesson-timeline">
+    <NodeViewWrapper className={`lesson-timeline ${accent.className}`.trim()} style={accent.style}>
       <NodeViewContent className="lesson-timeline__entries" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>
@@ -121,7 +125,14 @@ function TimelineView({ node, editor, getPos }: NodeViewProps) {
               <Plus width={13} height={13} /> Add event
             </button>
           )}
-          <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="timeline" />
+          {/* Grouped so the footer stays "add on the left, controls on the right" -- it is a
+              space-between row, and a bare third child would sit stranded in the middle. */}
+          <span className="lesson-block-actions">
+            <StyleMenu width={210}>
+              <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Timeline accent" /></MenuRow>
+            </StyleMenu>
+            <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="timeline" />
+          </span>
         </div>
       )}
     </NodeViewWrapper>
@@ -177,6 +188,17 @@ export const Timeline = Node.create({
   content: 'timelineEntry+',
   defining: true,
   isolating: true,
+
+  addAttributes() {
+    return {
+      // Empty = follow the tenant accent, so untouched timelines are unchanged.
+      accentColor: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-accent-color') || '',
+        renderHTML: (attrs) => ({ 'data-accent-color': attrs.accentColor }),
+      },
+    };
+  },
 
   parseHTML() {
     return [{ tag: 'div[data-timeline]' }];

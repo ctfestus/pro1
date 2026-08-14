@@ -236,7 +236,7 @@ function ResponsesTab({
         if (q.type === 'document_review') {
           try { const p = JSON.parse(answer); return p?.completed === true; } catch { return answer === 'completed'; }
         }
-        if (['code_review', 'excel_review', 'dashboard_critique'].includes(q.type)) return answer === 'completed';
+        if (['code_review', 'excel_review', 'dashboard_critique', 'written_response'].includes(q.type)) return answer === 'completed';
         if (q.type === 'fill_blank') {
           const accepted = (q.correctAnswer ?? '').split('|').map((s: string) => s.trim().toLowerCase());
           return accepted.includes(String(answer).trim().toLowerCase());

@@ -63,9 +63,11 @@ export function extractDocImageUrls(doc: LessonDoc | null | undefined): string[]
     }
     if (!isObject(node)) return;
     if (isObject(node.attrs)) {
-      // inline images (attrs.src) and carousel slide covers (attrs.cover)
+      // inline images (attrs.src), carousel slide covers (attrs.cover), and the optional
+      // logo on a collapsible section header (attrs.logoUrl)
       if (node.type === 'image') push(node.attrs.src);
       if (node.type === 'carouselSlide') push(node.attrs.cover);
+      if (node.type === 'accordionItem') push(node.attrs.logoUrl);
     }
     if (Array.isArray(node.content)) node.content.forEach(visit);
   };

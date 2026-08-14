@@ -13,7 +13,7 @@ import { ArrowDown, ArrowUp, BookOpen, Brain, CalendarDays, Clock3, Code2, Copy,
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
-import { MenuRow, StyleMenu } from '@/components/lesson/nodes/StyleControls';
+import { ColorField, MenuRow, StyleMenu, accentScope } from '@/components/lesson/nodes/StyleControls';
 
 const MAX_CARDS = 24;
 
@@ -177,7 +177,7 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
   );
 }
 
-function FlipDeckView({ node, editor, getPos }: NodeViewProps) {
+function FlipDeckView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
   const count = node.childCount;
 
@@ -189,8 +189,12 @@ function FlipDeckView({ node, editor, getPos }: NodeViewProps) {
     editor.chain().focus().insertContentAt(endInside, { type: 'flipCard', attrs: { front: '', back: '', icon: 'none', iconUrl: '' } }).run();
   };
 
+  const accentColor = (node.attrs.accentColor as string) || '';
+  // Drives the card face accents.
+  const accent = accentScope(accentColor);
+
   return (
-    <NodeViewWrapper className="lesson-flip-deck">
+    <NodeViewWrapper className={`lesson-flip-deck ${accent.className}`.trim()} style={accent.style}>
       <NodeViewContent className="lesson-flip-deck__grid" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>
@@ -199,7 +203,14 @@ function FlipDeckView({ node, editor, getPos }: NodeViewProps) {
               <Plus width={13} height={13} /> Add card
             </button>
           )}
-          <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="flip-card deck" />
+          {/* Grouped so the footer stays "add on the left, controls on the right" -- it is a
+              space-between row, and a bare third child would sit stranded in the middle. */}
+          <span className="lesson-block-actions">
+            <StyleMenu width={210}>
+              <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Card accent" /></MenuRow>
+            </StyleMenu>
+            <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="flip-card deck" />
+          </span>
         </div>
       )}
     </NodeViewWrapper>
@@ -246,6 +257,17 @@ export const FlipCardDeck = Node.create({
   content: 'flipCard+',
   defining: true,
   isolating: true,
+
+  addAttributes() {
+    return {
+      // Empty = follow the tenant accent, so untouched blocks are unchanged.
+      accentColor: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-accent-color') || '',
+        renderHTML: (attrs) => ({ 'data-accent-color': attrs.accentColor }),
+      },
+    };
+  },
 
   parseHTML() {
     return [{ tag: 'div[data-flip-deck]' }];

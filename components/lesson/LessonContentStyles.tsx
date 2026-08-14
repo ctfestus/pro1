@@ -20,9 +20,12 @@ export function LessonContentStyles() {
     // steps match a rule with no animation, so they don't re-play on each reveal. It
     // also has no connector below it (would dangle into empty space).
     const last = `.lesson-content .lesson-stepper[data-revealed="${revealed}"] .lesson-step[data-step-index="${revealed - 1}"]`;
-    const current = `.lesson-content .lesson-stepper[data-editable="false"][data-revealed="${revealed}"]:not([data-complete="true"]) .lesson-step[data-step-index="${revealed - 1}"]`;
+    // Walkthrough-only: the "current step" emphasis and the numbers-become-checks rules are
+    // scoped to data-reveal="sequential". A 'show all' stepper is reference instructions, so
+    // every step keeps its number and none is singled out as current.
+    const current = `.lesson-content .lesson-stepper[data-editable="false"][data-reveal="sequential"][data-revealed="${revealed}"]:not([data-complete="true"]) .lesson-step[data-step-index="${revealed - 1}"]`;
     const completed = Array.from({ length: Math.max(0, revealed - 1) }, (_, i) =>
-      `.lesson-content .lesson-stepper[data-editable="false"][data-revealed="${revealed}"] .lesson-step[data-step-index="${i}"]`,
+      `.lesson-content .lesson-stepper[data-editable="false"][data-reveal="sequential"][data-revealed="${revealed}"] .lesson-step[data-step-index="${i}"]`,
     ).join(',\n');
     return `${show} { display: flex; }\n${last} { animation: lesson-step-in 0.34s cubic-bezier(0.2,0.7,0.3,1); }\n${last}::after { display: none; }\n${current} .lesson-step__main { background: color-mix(in oklab, var(--lesson-accent-base) 5%, transparent); }\n${current} .lesson-step__num { box-shadow: 0 0 0 5px var(--lesson-accent-ring); }${completed ? `\n${completed} .lesson-step__num { display: none; }\n${completed} .lesson-step__check { display: inline-flex; }` : ''}`;
   }).join('\n');
@@ -37,6 +40,11 @@ export function LessonContentStyles() {
    (correct=green, callout variants, etc.) intentionally stay fixed. */
 .lesson-content { --lesson-accent-base: #10b981; --lesson-accent: var(--lesson-accent-base); --lesson-accent-ink: color-mix(in oklab, var(--lesson-accent) 80%, #000); --lesson-accent-ring: color-mix(in oklab, var(--lesson-accent) 22%, transparent); --lesson-accent-strong: color-mix(in oklab, var(--lesson-accent) 85%, #000); }
 .lesson-content.dark { --lesson-accent: color-mix(in oklab, var(--lesson-accent-base) 85%, #fff); --lesson-accent-ink: color-mix(in oklab, var(--lesson-accent) 70%, #fff); }
+/* Per-block accent override (see accentScope in StyleControls). The shades above are computed on
+   .lesson-content, so a block that sets only --lesson-accent-base would keep inheriting the
+   container's ink/ring. Re-declaring the set here re-derives all of them from the local base. */
+.lesson-content .lesson-accent-scope { --lesson-accent: var(--lesson-accent-base); --lesson-accent-ink: color-mix(in oklab, var(--lesson-accent) 80%, #000); --lesson-accent-ring: color-mix(in oklab, var(--lesson-accent) 22%, transparent); --lesson-accent-strong: color-mix(in oklab, var(--lesson-accent) 85%, #000); }
+.lesson-content.dark .lesson-accent-scope { --lesson-accent: color-mix(in oklab, var(--lesson-accent-base) 85%, #fff); --lesson-accent-ink: color-mix(in oklab, var(--lesson-accent) 70%, #fff); }
 .lesson-content p { margin: 0 0 0.75rem; }
 .lesson-content p:last-child { margin-bottom: 0; }
 .lesson-content ul { list-style: disc; padding-left: 1.4rem; margin: 0.4rem 0 0.75rem; }
@@ -137,6 +145,10 @@ export function LessonContentStyles() {
 .lesson-content .lesson-callout__heading { min-width: 0; flex: 1; }
 .lesson-content .lesson-callout__eyebrow { display: block; color: var(--callout-ink); font-size: 9.5px; font-weight: 800; letter-spacing: 0.13em; line-height: 1.45; text-transform: uppercase; }
 .lesson-content.dark .lesson-callout__eyebrow { color: color-mix(in oklab, var(--callout-accent) 60%, #fff); }
+/* Editor twin of the eyebrow: same small-caps look, with a dashed underline marking it editable. */
+.lesson-content .lesson-callout__eyebrow-input { display: block; width: 100%; padding: 0 0 1px; border: 0; border-bottom: 1px dashed color-mix(in oklab, var(--callout-accent) 24%, #d4d4d8); outline: 0; color: var(--callout-ink); background: transparent; font: inherit; font-size: 9.5px; font-weight: 800; letter-spacing: 0.13em; line-height: 1.45; text-transform: uppercase; }
+.lesson-content.dark .lesson-callout__eyebrow-input { border-bottom-color: rgba(255,255,255,0.13); color: color-mix(in oklab, var(--callout-accent) 60%, #fff); }
+.lesson-content .lesson-callout__eyebrow-input::placeholder { color: color-mix(in oklab, var(--callout-ink) 50%, #a1a1aa); }
 .lesson-content .lesson-callout__title { margin: 2px 0 0; color: #18181b; font-size: 14.5px; font-weight: 740; letter-spacing: -0.005em; line-height: 1.4; }
 .lesson-content.dark .lesson-callout__title { color: #fafafa; }
 .lesson-content .lesson-callout__title-input { display: block; width: 100%; margin-top: 1px; padding: 1px 0; border: 0; border-bottom: 1px dashed color-mix(in oklab, var(--callout-accent) 20%, #d4d4d8); outline: 0; color: #18181b; background: transparent; font: inherit; font-size: 14.5px; font-weight: 740; line-height: 1.4; }
@@ -195,6 +207,9 @@ export function LessonContentStyles() {
 .lesson-content .lesson-block-actions { display: inline-flex; align-items: center; gap: 4px; }
 .lesson-content .lesson-block-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 10px; }
 .lesson-content .lesson-block-footer > button { margin-top: 0; }
+/* Keeps the controls on the right even when the "Add ..." button is gone (a block at its maximum
+   leaves the footer with one child, and space-between alone would park it on the left). */
+.lesson-content .lesson-block-footer > .lesson-block-actions { margin-left: auto; }
 .lesson-content .lesson-block-footer .lesson-block-delete { margin-left: auto; box-shadow: none; background: rgba(0,0,0,0.045); }
 .lesson-content.dark .lesson-block-footer .lesson-block-delete { background: rgba(255,255,255,0.07); }
 .lesson-content .lesson-block-actions .lesson-block-delete { box-shadow: none; background: rgba(0,0,0,0.045); }
@@ -208,22 +223,55 @@ export function LessonContentStyles() {
 .lesson-content .lesson-accordion__items > [data-node-view-content-react] { display: flex; flex-direction: column; }
 .lesson-content .lesson-accordion__items > [data-node-view-content-react] > .node-accordionItem + .node-accordionItem { border-top: 1px solid var(--acc-border-color, var(--acc-border-default, #e2e8f0)); }
 .lesson-content .lesson-accordion__item { position: relative; overflow: hidden; background: transparent; }
-.lesson-content .lesson-accordion__item::before { content: ''; position: absolute; inset: 0 auto 0 0; width: 3px; z-index: 2; background: var(--lesson-accent); opacity: 0; transform: scaleY(0.45); transform-origin: center; transition: opacity 0.2s ease, transform 0.2s ease; }
-.lesson-content .lesson-accordion__item[data-open="true"]::before { opacity: 1; transform: scaleY(1); }
-.lesson-content .lesson-accordion__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 62px; margin: 0; padding: 15px 18px 15px 20px; border: 0; border-radius: 0; color: #18181b; background: transparent; cursor: pointer; user-select: none; text-align: left; font: inherit; font-size: 15px; font-weight: 720; line-height: 1.35; transition: background 0.16s ease, color 0.16s ease; }
+/* Deliberately the same size as the guided-steps title (1.05rem), at every width -- a section
+   heading and a step title should read as the same level. Change both together or neither. */
+.lesson-content .lesson-accordion__head { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; min-height: 62px; margin: 0; padding: 15px 18px 15px 20px; border: 0; border-radius: 0; color: #18181b; background: transparent; cursor: pointer; user-select: none; text-align: left; font: inherit; font-size: 1.05rem; font-weight: 720; line-height: 1.35; transition: background 0.16s ease, color 0.16s ease; }
+/* The editor head carries more controls than the player's (logo, accent menu, collapse, remove),
+   so it runs a tighter gap to keep the title from being squeezed on a phone. The player head is a
+   <button>, the editor head a <div> -- that is the distinction. */
+.lesson-content div.lesson-accordion__head { gap: 10px; }
 .lesson-content .lesson-accordion__head:hover { background: color-mix(in oklab, var(--lesson-accent-base) 4%, transparent); }
 .lesson-content .lesson-accordion__head:focus-visible { position: relative; z-index: 3; outline: 2px solid var(--lesson-accent) !important; outline-offset: -3px; }
 .lesson-content.dark .lesson-accordion__head { color: #f4f4f5; }
 .lesson-content.dark .lesson-accordion__head:hover { background: rgba(255,255,255,0.035); }
-.lesson-content .lesson-accordion__title { flex: 1; color: inherit; }
-.lesson-content .lesson-accordion__title-input { flex: 1; min-width: 0; padding: 2px 0; border: none; outline: none; color: inherit; background: transparent; font: inherit; font-weight: 720; }
+/* Header identity: optional logo, then a title + subtitle stack, then the toggle. */
+.lesson-content .lesson-accordion__heading { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 1px; }
+.lesson-content .lesson-accordion__title { color: inherit; }
+.lesson-content .lesson-accordion__title-input { width: 100%; min-width: 0; padding: 2px 0; border: none; outline: none; color: inherit; background: transparent; font: inherit; font-weight: 720; }
 .lesson-content .lesson-accordion__title-input::placeholder { color: #a1a1aa; font-weight: 550; }
+.lesson-content .lesson-accordion__subtitle { color: #71717a; font-size: 13px; font-weight: 500; line-height: 1.4; }
+.lesson-content.dark .lesson-accordion__subtitle { color: #9b9ba3; }
+.lesson-content .lesson-accordion__subtitle-input { width: 100%; min-width: 0; padding: 1px 0; border: none; outline: none; color: #71717a; background: transparent; font: inherit; font-size: 13px; font-weight: 500; line-height: 1.4; }
+.lesson-content.dark .lesson-accordion__subtitle-input { color: #9b9ba3; }
+.lesson-content .lesson-accordion__subtitle-input::placeholder { color: #a1a1aa; font-weight: 450; }
+/* The logo renders bare -- no tile, border, or fill -- so an uploaded mark sits on the header the
+   way it was designed. The accent still colours the rest of the section header. */
+/* margin:0 is load-bearing. The generic image rule near the top of this sheet gives every lesson
+   image a 0.75rem vertical margin. In the player the logo is a direct flex child of the header, so
+   without this reset those margins add about 24px to the header height. */
+.lesson-content .lesson-accordion__logo { width: 100%; height: 100%; margin: 0; object-fit: contain; border: 0; border-radius: 9px; background: transparent; }
+/* Roughly the height of the title + subtitle stack beside it, so the tile anchors the row. */
+.lesson-content .lesson-accordion__head > .lesson-accordion__logo { width: 46px; height: 46px; flex: 0 0 46px; }
+/* The clear control is pinned to the tile's corner rather than nudged with margins, so it
+   cannot shift the header row as the logo is added or removed. */
+.lesson-content .lesson-accordion__logo-slot { position: relative; display: inline-flex; flex: 0 0 auto; }
+.lesson-content .lesson-accordion__logo-btn { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex: 0 0 46px; padding: 0; overflow: hidden; border: 0; border-radius: 12px; color: #a1a1aa; background: transparent; cursor: pointer; }
+.lesson-content .lesson-accordion__logo-btn[data-empty="true"] { border: 1px dashed var(--acc-border-color, var(--acc-border-default, #e2e8f0)); }
+.lesson-content .lesson-accordion__logo-btn[data-empty="true"]:hover { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
+.lesson-content .lesson-accordion__logo-clear { position: absolute; top: -6px; right: -6px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 999px; color: #71717a; background: #ffffff; box-shadow: 0 1px 4px rgba(15,23,42,0.2); cursor: pointer; }
+.lesson-content.dark .lesson-accordion__logo-clear { color: #d4d4d8; background: #27272a; box-shadow: 0 1px 4px rgba(0,0,0,0.5); }
+.lesson-content .lesson-accordion__logo-clear:hover { color: #ef4444; }
 .lesson-content .lesson-accordion__editor-toggle { display: inline-flex; flex: 0 0 auto; padding: 0; border: 0; border-radius: 9px; color: inherit; background: transparent; cursor: pointer; }
 .lesson-content .lesson-accordion__remove { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; flex: 0 0 26px; padding: 0; border: 0; border-radius: 7px; color: #a1a1aa; background: transparent; cursor: pointer; }
 .lesson-content .lesson-accordion__remove:hover { color: #ef4444; background: rgba(239,68,68,0.08); }
-.lesson-content .lesson-accordion__toggle-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; color: #71717a; transition: color 0.16s ease, background 0.16s ease; }
+/* Accent-coloured at rest, not only on hover. This is the section's ONLY always-visible accent
+   surface -- the open-state bar and the tinted logo tile were both removed by request -- and
+   phones have no hover at all, so a hover-only treatment would mean the colour a student sees is
+   never the one the author picked. */
+.lesson-content .lesson-accordion__toggle-icon { position: relative; display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; color: var(--lesson-accent-ink); transition: color 0.16s ease, background 0.16s ease; }
 .lesson-content .lesson-accordion__head:hover .lesson-accordion__toggle-icon, .lesson-content .lesson-accordion__editor-toggle:hover .lesson-accordion__toggle-icon { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
-.lesson-content.dark .lesson-accordion__toggle-icon { color: #a1a1aa; }
+/* An open section reads as active without needing hover either. */
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__toggle-icon { background: var(--lesson-accent-ring); }
 .lesson-content .lesson-accordion__plus, .lesson-content .lesson-accordion__minus { position: absolute; transition: opacity 0.18s ease, transform 0.22s cubic-bezier(0.2,0.7,0.3,1); }
 .lesson-content .lesson-accordion__minus { opacity: 0; transform: rotate(-90deg) scale(0.7); }
 .lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__plus { opacity: 0; transform: rotate(90deg) scale(0.7); }
@@ -238,11 +286,16 @@ export function LessonContentStyles() {
 .lesson-content .lesson-accordion__add:hover { background: var(--lesson-accent-ring); }
 @media (max-width: 560px) {
   .lesson-content .lesson-accordion__items { border-radius: 13px; }
-  .lesson-content .lesson-accordion__head { min-height: 56px; padding: 13px 13px 13px 16px; font-size: 14px; }
+  /* No font-size override: guided steps does not shrink on mobile either, so overriding here is
+     what let the two drift apart in the first place. */
+  .lesson-content .lesson-accordion__head { min-height: 56px; padding: 13px 13px 13px 16px; }
+  .lesson-content .lesson-accordion__head { gap: 11px; }
+  .lesson-content .lesson-accordion__head > .lesson-accordion__logo, .lesson-content .lesson-accordion__logo-btn { width: 38px; height: 38px; flex-basis: 38px; }
+  .lesson-content .lesson-accordion__subtitle, .lesson-content .lesson-accordion__subtitle-input { font-size: 12px; }
   .lesson-content .lesson-accordion__body { padding: 1px 16px 16px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .lesson-content .lesson-accordion__item::before, .lesson-content .lesson-accordion__plus, .lesson-content .lesson-accordion__minus, .lesson-content .lesson-accordion__body-shell { transition: none; }
+  .lesson-content .lesson-accordion__plus, .lesson-content .lesson-accordion__minus, .lesson-content .lesson-accordion__body-shell { transition: none; }
 }
 
 .lesson-content .lesson-tabs { --tabs-border: #e2e8f0; overflow: hidden; margin: 1rem 0; border: 0; border-radius: 16px; background: #ffffff; box-shadow: 0 8px 24px rgba(15,23,42,0.05); }
@@ -358,13 +411,47 @@ export function LessonContentStyles() {
 .lesson-content.dark .lesson-check__explain-input { border-color: rgba(255,255,255,0.08); color: #d4d4d8; background: rgba(255,255,255,0.03); }
 .lesson-content .lesson-check__explain-input:focus { border-color: var(--lesson-accent); box-shadow: 0 0 0 3px var(--lesson-accent-ring); }
 .lesson-content .lesson-check__explain-input::placeholder { color: #a1a1aa; }
+/* Editor: format / feedback-mode pickers and the field captions above each answer-key list. */
+.lesson-content .lesson-check__config { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+.lesson-content .lesson-check__config-label { color: #8b8b93; font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.lesson-content .lesson-check__field-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; margin: 12px 0 7px; color: #52525b; font-size: 11px; font-weight: 760; }
+.lesson-content.dark .lesson-check__field-label { color: #d4d4d8; }
+.lesson-content .lesson-check__field-label small { color: #8b8b93; font-size: 10px; font-weight: 500; }
+/* The captioned inputs already get their spacing from the caption above them. */
+.lesson-content .lesson-check__field-label + .lesson-check__explain-input { margin-top: 0; }
+/* Learner: typed answer for the fill-in and written formats. */
+.lesson-content .lesson-check__answer-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lesson-content .lesson-check__answer-form[data-multiline="true"] { flex-direction: column; align-items: stretch; }
+.lesson-content .lesson-check__answer-input { min-width: 0; flex: 1; width: 100%; padding: 11px 13px; border: 1px solid #e4e4e7; border-radius: 11px; outline: 0; resize: vertical; color: #3f3f46; background: #fafafa; font: inherit; font-size: 13.5px; line-height: 1.55; }
+.lesson-content.dark .lesson-check__answer-input { border-color: rgba(255,255,255,0.09); color: #e4e4e7; background: rgba(255,255,255,0.035); }
+.lesson-content .lesson-check__answer-input:focus { border-color: var(--lesson-accent); box-shadow: 0 0 0 3px var(--lesson-accent-ring); }
+.lesson-content .lesson-check__answer-input::placeholder { color: #a1a1aa; }
+.lesson-content .lesson-check__answer-input:disabled { opacity: 0.75; cursor: default; }
+.lesson-content .lesson-check__submit { display: inline-flex; align-items: center; justify-content: center; gap: 6px; align-self: flex-start; min-height: 40px; padding: 9px 15px; border: 0; border-radius: 10px; color: #fff; background: var(--lesson-accent); cursor: pointer; font: inherit; font-size: 12.5px; font-weight: 720; }
+.lesson-content .lesson-check__submit:hover:not(:disabled) { opacity: 0.9; }
+.lesson-content .lesson-check__submit:disabled { opacity: 0.45; cursor: default; }
+.lesson-content .lesson-check__spin { animation: lesson-check-spin 0.9s linear infinite; }
+.lesson-content .lesson-check__error { margin: 0; color: #dc2626; font-size: 11.5px; font-weight: 620; }
+.lesson-content.dark .lesson-check__error { color: #fca5a5; }
+.lesson-content .lesson-check__score { margin-left: 7px; font-size: 11px; font-weight: 760; font-variant-numeric: tabular-nums; opacity: 0.8; }
+.lesson-content .lesson-check__model { margin-top: 9px; padding: 9px 11px; border-radius: 9px; background: rgba(255,255,255,0.6); }
+.lesson-content.dark .lesson-check__model { background: rgba(255,255,255,0.06); }
+.lesson-content .lesson-check__model-label { display: block; margin-bottom: 3px; color: color-mix(in oklab, currentColor 70%, #52525b); font-size: 9.5px; font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; }
+.lesson-content .lesson-check__model p { margin: 0; font-size: 12px; line-height: 1.55; white-space: pre-wrap; }
+.lesson-content .lesson-check__rubric { margin: 9px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 5px; }
+.lesson-content .lesson-check__rubric li { display: flex; align-items: flex-start; gap: 7px; font-size: 11.5px; line-height: 1.5; }
+.lesson-content .lesson-check__rubric-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px; flex: 0 0 16px; margin-top: 1px; border-radius: 999px; color: #fff; background: #10b981; }
+.lesson-content .lesson-check__rubric li[data-passed="false"] .lesson-check__rubric-icon { background: #f43f5e; }
 @media (max-width: 560px) {
   .lesson-content .lesson-check { padding: 16px 14px 17px; border-radius: 14px; }
   .lesson-content .lesson-check__feedback { grid-template-columns: 28px minmax(0,1fr); }
   .lesson-content .lesson-check__retry { grid-column: 2; justify-self: start; }
+  .lesson-content .lesson-check__submit { width: 100%; }
 }
+@keyframes lesson-check-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) {
   .lesson-content .lesson-check__option { transition: none; }
+  .lesson-content .lesson-check__spin { animation: none; }
 }
 
 .lesson-content .lesson-code { position: relative; margin: 1rem 0; overflow: hidden; border: 1px solid rgba(15,23,42,0.09); border-radius: 16px; background: #f6f8fa; box-shadow: 0 10px 30px rgba(15,23,42,0.065); }
@@ -497,6 +584,14 @@ export function LessonContentStyles() {
 .lesson-content .lesson-style__color-reset:hover { background: rgba(0,0,0,0.06); color: #52525b; }
 .lesson-content.dark .lesson-style__color-reset:hover { background: rgba(255,255,255,0.08); }
 .lesson-content .lesson-style__label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #a1a1aa; }
+/* Icon grid: wraps to the popover width, so adding icons to a block's set needs no layout change. */
+.lesson-content .lesson-style__icons { display: grid; grid-template-columns: repeat(8, 1fr); gap: 3px; width: 100%; }
+.lesson-content .lesson-style__icons button { display: inline-flex; align-items: center; justify-content: center; aspect-ratio: 1; padding: 0; border: 1px solid transparent; border-radius: 6px; background: rgba(0,0,0,0.05); color: #52525b; cursor: pointer; }
+.lesson-content.dark .lesson-style__icons button { background: rgba(255,255,255,0.08); color: #a1a1aa; }
+.lesson-content .lesson-style__icons button:hover { background: rgba(0,0,0,0.1); color: #18181b; }
+.lesson-content.dark .lesson-style__icons button:hover { background: rgba(255,255,255,0.14); color: #fafafa; }
+.lesson-content .lesson-style__icons button[data-active="true"] { background: #10b981; color: #fff; }
+.lesson-content .lesson-style__icons button:focus-visible { outline: 2px solid var(--lesson-accent) !important; outline-offset: 1px; }
 
 .lesson-style-menu { display: inline-flex; }
 .lesson-style-menu__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 5px; width: 26px; height: 26px; padding: 0; border-radius: 7px; border: none; background: rgba(0,0,0,0.05); color: #52525b; cursor: pointer; font: inherit; font-size: 10.5px; font-weight: 700; }

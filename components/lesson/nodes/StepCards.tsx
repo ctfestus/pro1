@@ -10,6 +10,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { ArrowDown, ArrowUp, Copy, Plus, X } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
+import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 
 const MAX_STEP_CARDS = 12;
@@ -155,9 +156,12 @@ function StepCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
   );
 }
 
-function StepCardsView({ node, editor, getPos }: NodeViewProps) {
+function StepCardsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
   const count = node.childCount;
+  const accentColor = (node.attrs.accentColor as string) || '';
+  // Drives the numbered circles and the guidance panel on every card in the set.
+  const accent = accentScope(accentColor);
 
   const addCard = () => {
     if (count >= MAX_STEP_CARDS) return;
@@ -172,7 +176,7 @@ function StepCardsView({ node, editor, getPos }: NodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper className="lesson-step-cards">
+    <NodeViewWrapper className={`lesson-step-cards ${accent.className}`.trim()} style={accent.style}>
       <NodeViewContent className="lesson-step-cards__items" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>
@@ -181,7 +185,14 @@ function StepCardsView({ node, editor, getPos }: NodeViewProps) {
               <Plus width={13} height={13} /> Add step card
             </button>
           )}
-          <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="step cards" />
+          {/* Grouped so the footer stays "add on the left, controls on the right" -- it is a
+              space-between row, and a bare third child would sit stranded in the middle. */}
+          <span className="lesson-block-actions">
+            <StyleMenu width={210}>
+              <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Step accent" /></MenuRow>
+            </StyleMenu>
+            <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="step cards" />
+          </span>
         </div>
       )}
     </NodeViewWrapper>
@@ -251,6 +262,17 @@ export const StepCards = Node.create({
   content: 'stepCard+',
   defining: true,
   isolating: true,
+
+  addAttributes() {
+    return {
+      // Empty = follow the tenant accent, so untouched step cards are unchanged.
+      accentColor: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-accent-color') || '',
+        renderHTML: (attrs) => ({ 'data-accent-color': attrs.accentColor }),
+      },
+    };
+  },
 
   parseHTML() {
     return [{ tag: 'div[data-step-cards]' }];

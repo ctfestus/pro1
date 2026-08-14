@@ -18,6 +18,7 @@ export interface ReviewRecord {
   report: any;
   imageUrl?: string;
   documentReviewMode?: string;
+  answerText?: string;   // written_response: the text the student submitted
 }
 
 // Infer the review type from a report's shape -- only used as a fallback when the stored record
@@ -37,7 +38,7 @@ export function inferReviewType(report: any): string | null {
 export function isFullReport(type: string | null | undefined, report: any): boolean {
   if (!type || !report || typeof report !== 'object') return false;
   if (type === 'code_review' || type === 'excel_review') return Array.isArray(report.issues) && Array.isArray(report.categories);
-  if (type === 'document_review') return Array.isArray(report.sections) && Array.isArray(report.categories);
+  if (type === 'document_review' || type === 'written_response') return Array.isArray(report.sections) && Array.isArray(report.categories);
   if (type === 'dashboard_critique') return Array.isArray(report.elements) || !!report.audit;
   return false;
 }
@@ -61,6 +62,7 @@ export function parseReviewNotes(notes?: string | null): ReviewRecord | null {
       report: p.report,
       imageUrl: typeof p.imageUrl === 'string' ? p.imageUrl : undefined,
       documentReviewMode: typeof p.documentReviewMode === 'string' ? p.documentReviewMode : undefined,
+      answerText: typeof p.answerText === 'string' ? p.answerText : undefined,
     };
   }
   return { report: p }; // legacy bare report

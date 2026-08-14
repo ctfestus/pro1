@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { motion } from 'motion/react';
 import {
   X, ListChecks, PenLine, ArrowUpDown, Image as ImageIcon, Images,
-  Code2, Bot, Table2, BarChart2, ScrollText,
+  Code2, Bot, Table2, BarChart2, ScrollText, MessageSquareText,
   Database, Terminal, Download,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
@@ -24,6 +24,7 @@ export const TYPE_LABELS: Record<QuestionTypeOrDownloads, string> = {
   excel_review:       'AI Excel Review',
   dashboard_critique: 'AI Dashboard Critique',
   document_review:    'AI Document Review',
+  written_response:   'AI Written Response',
   sql_exercise:       'SQL Exercise',
   python_exercise:    'Python Exercise',
   downloads:          'Downloads',
@@ -68,6 +69,7 @@ const CATEGORIES: Array<{ label: string; color: string; types: TypeEntry[] }> = 
       { value: 'excel_review',       label: 'AI Excel Review',       icon: <Table2     className="w-[15px] h-[15px]" /> },
       { value: 'dashboard_critique', label: 'AI Dashboard Critique', icon: <BarChart2  className="w-[15px] h-[15px]" /> },
       { value: 'document_review',    label: 'AI Document Review',    icon: <ScrollText className="w-[15px] h-[15px]" /> },
+      { value: 'written_response',   label: 'AI Written Response',   icon: <MessageSquareText className="w-[15px] h-[15px]" /> },
     ],
   },
   {

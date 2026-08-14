@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
+import { ColorField, MenuRow, StyleMenu, accentScope } from '@/components/lesson/nodes/StyleControls';
 import {
   buildChatGptPromptUrl,
   buildClaudePromptUrl,
@@ -116,9 +117,14 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
     resetTimer.current = setTimeout(() => setCopyState('idle'), 2200);
   };
 
+  const accentColor = (node.attrs.accentColor as string) || '';
+  // Drives the header identity and the copy / launch buttons.
+  const accent = accentScope(accentColor);
+
   return (
     <NodeViewWrapper
-      className="lesson-prompt"
+      className={`lesson-prompt ${accent.className}`.trim()}
+      style={accent.style}
       data-editing={editable ? 'true' : 'false'}
       contentEditable={false}
     >
@@ -138,6 +144,11 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
         </div>
         <span className="lesson-block-actions" contentEditable={false}>
           <span className="lesson-prompt__status"><span /> Ready to explore</span>
+          {editable && (
+            <StyleMenu width={210}>
+              <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Prompt accent" /></MenuRow>
+            </StyleMenu>
+          )}
           {editable && <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="AI prompt" />}
         </span>
       </div>
@@ -247,6 +258,12 @@ export const PromptBlock = Node.create({
 
   addAttributes() {
     return {
+      // Empty = follow the tenant accent, so untouched blocks are unchanged.
+      accentColor: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-accent-color') || '',
+        renderHTML: (attrs) => ({ 'data-accent-color': attrs.accentColor }),
+      },
       title: {
         default: 'Try this prompt',
         parseHTML: (element) => element.getAttribute('data-prompt-title') || 'Try this prompt',

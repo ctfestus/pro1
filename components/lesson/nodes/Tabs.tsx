@@ -16,7 +16,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { Plus, X } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
-import { ColorField, Segmented, StyleMenu, MenuRow, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
+import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 
 const MAX_TABS = 12;
@@ -29,9 +29,15 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
 
   const borderStyle = (node.attrs.borderStyle as BorderStyle) || 'none';
   const borderColor = (node.attrs.borderColor as string) || '';
-  const wrapperStyle: React.CSSProperties = borderStyle === 'none'
-    ? { border: 'none' }
-    : { borderStyle, borderWidth: 1, borderColor: borderColor || 'var(--tabs-border)' };
+  const accentColor = (node.attrs.accentColor as string) || '';
+  // Drives the active tab colour and its underline.
+  const accent = accentScope(accentColor);
+  const wrapperStyle: React.CSSProperties = {
+    ...(borderStyle === 'none'
+      ? { border: 'none' }
+      : { borderStyle, borderWidth: 1, borderColor: borderColor || 'var(--tabs-border)' }),
+    ...accent.style,
+  };
 
   const labels: string[] = [];
   node.forEach((child) => labels.push((child.attrs.label as string) || ''));
@@ -92,7 +98,7 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper className="lesson-tabs" data-active={current} style={wrapperStyle}>
+    <NodeViewWrapper className={`lesson-tabs ${accent.className}`.trim()} data-active={current} style={wrapperStyle}>
       <div className="lesson-tabs__bar" contentEditable={false} role={editable ? undefined : 'tablist'} aria-label={editable ? undefined : 'Lesson sections'}>
         {labels.map((label, i) => (
           <div key={i} className="lesson-tabs__tab" data-active={i === current ? 'true' : 'false'}>
@@ -138,6 +144,7 @@ function TabsView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
               {borderStyle !== 'none' && (
                 <MenuRow label="Color"><ColorField value={borderColor} onChange={(v) => updateAttributes({ borderColor: v })} /></MenuRow>
               )}
+              <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Tabs accent" /></MenuRow>
             </StyleMenu>
             <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="tabs" />
           </span>
@@ -219,6 +226,12 @@ export const Tabs = Node.create({
     return {
       borderStyle: { default: 'none' },
       borderColor: { default: '' },
+      // Empty = follow the tenant accent, so untouched blocks are unchanged.
+      accentColor: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-accent-color') || '',
+        renderHTML: (attrs) => ({ 'data-accent-color': attrs.accentColor }),
+      },
     };
   },
 

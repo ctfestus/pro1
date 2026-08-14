@@ -12,7 +12,7 @@
 import { createHmac, timingSafeEqual } from 'crypto';
 
 // AI-review question types: graded by the 'completed' sentinel the review players store.
-export const REVIEW_TYPES = ['code_review', 'excel_review', 'dashboard_critique', 'document_review'];
+export const REVIEW_TYPES = ['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
 
 // Strip answer keys before sending exam questions to a student (the inverse of grading). The exam is
 // scored server-side, so the taker never needs correctAnswer / solutions / expected results. Kept:
@@ -21,7 +21,7 @@ export const REVIEW_TYPES = ['code_review', 'excel_review', 'dashboard_critique'
 export function sanitizeExamQuestions(questions: any): any[] {
   return (Array.isArray(questions) ? questions : []).map((q: any) => {
     if (!q || typeof q !== 'object') return q;
-    const { correctAnswer, sqlSolution, pythonSolution, pythonExpectedOutput, sqlExpectedResult, rubric, explanation, ...safe } = q;
+    const { correctAnswer, sqlSolution, pythonSolution, pythonExpectedOutput, sqlExpectedResult, rubric, expectedAnswer, explanation, ...safe } = q;
     return { ...safe, pythonHasExpectedOutput: !!String(pythonExpectedOutput ?? '').trim() };
   });
 }
