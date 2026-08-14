@@ -54,6 +54,7 @@ import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
 import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
+import WrittenResponsePlayer from '@/components/WrittenResponsePlayer';
 import PdfCarousel from '@/components/PdfCarousel';
 import { pdfDownloadUrl } from '@/lib/cloudinary-pdf';
 import dynamic from 'next/dynamic';
@@ -76,7 +77,7 @@ function MenuIcon({ className }: { className?: string }) {
 type ShowAnswers = 'per_question' | 'after_quiz' | 'none';
 
 // QuestionType / DownloadItem / CourseQuestion come from the canonical contract in lib/course-schema.
-const REVIEW_TYPES: QuestionType[] = ['code_review', 'excel_review', 'dashboard_critique', 'document_review'];
+const REVIEW_TYPES: QuestionType[] = ['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({
@@ -446,7 +447,13 @@ export function CourseTaker({
     if (questionType === 'dashboard_critique') {
       return { result: inSession?.result ?? shadow?.report ?? undefined, imageUrl: inSession?.imageUrl, count };
     }
-    return { report: (inSession ?? shadow?.report) ?? undefined, count };
+    // written_response also restores the text the student submitted, so a resumed attempt shows the
+    // answer alongside its report instead of an unexplained score.
+    return {
+      report: (inSession ?? shadow?.report) ?? undefined,
+      count,
+      answerText: typeof shadow?.answerText === 'string' ? shadow.answerText : undefined,
+    };
   })();
   const [sqlRuntime, setSqlRuntime] = useState<SQLRuntime | null>(null);
   const [sqlPreparing, setSqlPreparing] = useState(false);
@@ -583,10 +590,11 @@ export function CourseTaker({
         } catch {}
       }
       if (prevAnswer) {
-        // For document_review, a 'failed' answer means the student scored below minScore
-        // and still has retry attempts available -- don't mark as completed so they see
-        // the upload form again instead of being locked out of their retry.
-        if (qType !== 'document_review' || prevAnswer === 'completed') {
+        // For document_review and written_response, a 'failed' answer means the student scored below
+        // minScore and still has retry attempts available -- don't mark as completed so they see the
+        // submission form again instead of being locked out of their retry.
+        const retryOnFail = qType === 'document_review' || qType === 'written_response';
+        if (!retryOnFail || prevAnswer === 'completed') {
           setReviewCompleted(prev => new Set(prev).add(currentQuestion.id));
         }
       }
@@ -1010,7 +1018,7 @@ export function CourseTaker({
     q: any,
     report: any,
     passed: boolean,
-    extra?: { imageUrl?: string; documentReviewMode?: string },
+    extra?: { imageUrl?: string; documentReviewMode?: string; answerText?: string },
   ) {
     const id = q.id;
     const type = q.type;
@@ -1042,6 +1050,8 @@ export function CourseTaker({
       submittedAt: new Date().toISOString(),
       report: isManualDoc ? null : report,
       ...(extra?.documentReviewMode ? { documentReviewMode: extra.documentReviewMode } : {}),
+      // written_response only: the submitted text, so the report is readable on resume and by staff.
+      ...(extra?.answerText ? { answerText: extra.answerText } : {}),
     });
     const newAnswers = { ...answersRef.current, [id]: answer, [`__review_${id}`]: snapshot };
     answersRef.current = newAnswers;
@@ -4154,6 +4164,28 @@ export function CourseTaker({
                       showAttemptCount
                       documentReviewMode={(currentQuestion as any).documentReviewMode ?? 'ai_only'}
                       onComplete={(result, passed) => recordReview(currentQuestion, result, passed, { documentReviewMode: (currentQuestion as any).documentReviewMode ?? 'ai_only' })}
+                    />
+                  )}
+                  {questionType === 'written_response' && (
+                    <WrittenResponsePlayer
+                      // Keyed so two written-response slides in a row do not share draft/report state.
+                      key={currentQuestion.id}
+                      reqId={currentQuestion.id}
+                      isDark={isDark}
+                      accentColor={accent}
+                      completed={reviewCompleted.has(currentQuestion.id)}
+                      savedResult={reviewSaved?.report}
+                      savedAnswer={reviewSaved?.answerText}
+                      reviewsUsed={reviewSaved?.count ?? 0}
+                      question={currentQuestion.question}
+                      context={currentQuestion.context}
+                      rubric={currentQuestion.rubric}
+                      expectedAnswer={currentQuestion.expectedAnswer}
+                      minScore={currentQuestion.minScore}
+                      maxWords={currentQuestion.writtenMaxWords}
+                      maxReviews={2}
+                      showAttemptCount
+                      onComplete={(result, passed, answerText) => recordReview(currentQuestion, result, passed, { answerText })}
                     />
                   )}
 

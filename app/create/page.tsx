@@ -1280,6 +1280,7 @@ const [isSaving, setIsSaving] = useState(false);
       excel_review:        { options: [], correctAnswer: '', rubric: ['Correct formulas used', 'Data is accurate', 'Formatting is clean'], context: '', minScore: 70 },
       dashboard_critique:  { options: [], correctAnswer: '', rubric: ['Visuals are appropriate', 'Insights are accurate', 'Layout is clear'], context: '', minScore: 70 },
       document_review:     { options: [], correctAnswer: '', rubric: ['Report addresses the brief', 'Analysis is evidence-based', 'Recommendations are actionable', 'Writing is clear and professional'], context: '', minScore: 70, documentReviewMode: 'ai_only' },
+      written_response:    { options: [], correctAnswer: '', rubric: ['Answers the question directly', 'Reasoning is explained, not just asserted', 'Supported with a specific example or evidence', 'Clear and well organised'], context: '', expectedAnswer: '', writtenMaxWords: 200, minScore: 70 },
       sql_exercise:        { options: [], correctAnswer: '', sqlTables: [], sqlStarterCode: 'SELECT * FROM table_name LIMIT 10;', sqlSolution: '', sqlExpectedResult: undefined, sqlHints: [], sqlResultOrdered: false, sqlNumericTolerance: 0, sqlRequiredPatterns: [] },
       python_exercise:     { options: [], correctAnswer: '', pythonDatasets: [], pythonStarterCode: '# Write your solution here\n', pythonSolution: '', pythonExpectedOutput: '', pythonSetupCode: '', pythonHints: [] },
     };
@@ -1357,6 +1358,7 @@ const [isSaving, setIsSaving] = useState(false);
       excel_review:        { options: [], correctAnswer: '', rubric: ['Correct formulas used', 'Data is accurate', 'Formatting is clean'], context: '', minScore: 70 },
       dashboard_critique:  { options: [], correctAnswer: '', rubric: ['Visuals are appropriate', 'Insights are accurate', 'Layout is clear'], context: '', minScore: 70 },
       document_review:     { options: [], correctAnswer: '', rubric: ['Report addresses the brief', 'Analysis is evidence-based', 'Recommendations are actionable', 'Writing is clear and professional'], context: '', minScore: 70, documentReviewMode: 'ai_only' },
+      written_response:    { options: [], correctAnswer: '', rubric: ['Answers the question directly', 'Reasoning is explained, not just asserted', 'Supported with a specific example or evidence', 'Clear and well organised'], context: '', expectedAnswer: '', writtenMaxWords: 200, minScore: 70 },
       sql_exercise:        { options: [], correctAnswer: '', sqlTables: [], sqlStarterCode: 'SELECT * FROM table_name LIMIT 10;', sqlSolution: '', sqlExpectedResult: undefined, sqlHints: [], sqlResultOrdered: false, sqlNumericTolerance: 0, sqlRequiredPatterns: [] },
       python_exercise:     { options: [], correctAnswer: '', pythonDatasets: [], pythonStarterCode: '# Write your solution here\n', pythonSolution: '', pythonExpectedOutput: '', pythonSetupCode: '', pythonHints: [] },
     };
@@ -1384,7 +1386,7 @@ const [isSaving, setIsSaving] = useState(false);
       if (!q) return;
       const qType = q.type ?? 'multiple_choice';
       const v = type as QuestionType;
-      const isReview = ['code_review', 'excel_review', 'dashboard_critique', 'document_review'].includes(v);
+      const isReview = ['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'].includes(v);
       const isSql = v === 'sql_exercise';
       const isPython = v === 'python_exercise';
       handleUpdateQuestion(q.id, {
@@ -2012,9 +2014,9 @@ const [isSaving, setIsSaving] = useState(false);
                     </div>
                     <div className="flex flex-col gap-1.5 mt-2 ml-5">
                       {(mod.lessons ?? []).map((lesson: any, lessonIdx: number) => {
-                        const typeBg: Record<string, string> = { multiple_choice: '#475569', fill_blank: '#16a34a', arrange: '#d97706', sql_exercise: '#3b82f6', python_exercise: '#f59e0b', code: '#0ea5e9', code_review: '#0891b2', excel_review: '#15803d', dashboard_critique: '#0d9488', document_review: '#b45309' };
-                        const typeLabel: Record<string, string> = { multiple_choice: 'MCQ', fill_blank: 'FILL', arrange: 'ORDER', sql_exercise: 'SQL', python_exercise: 'PYTHON', code: 'CODE', code_review: 'CODE REVIEW', excel_review: 'EXCEL', dashboard_critique: 'DASHBOARD', document_review: 'DOCUMENT' };
-                        const docLessonTypes = ['multiple_choice', 'fill_blank', 'arrange', 'sql_exercise', 'python_exercise', 'code', 'code_review', 'excel_review', 'dashboard_critique', 'document_review'];
+                        const typeBg: Record<string, string> = { multiple_choice: '#475569', fill_blank: '#16a34a', arrange: '#d97706', sql_exercise: '#3b82f6', python_exercise: '#f59e0b', code: '#0ea5e9', code_review: '#0891b2', excel_review: '#15803d', dashboard_critique: '#0d9488', document_review: '#b45309', written_response: '#7c2d12' };
+                        const typeLabel: Record<string, string> = { multiple_choice: 'MCQ', fill_blank: 'FILL', arrange: 'ORDER', sql_exercise: 'SQL', python_exercise: 'PYTHON', code: 'CODE', code_review: 'CODE REVIEW', excel_review: 'EXCEL', dashboard_critique: 'DASHBOARD', document_review: 'DOCUMENT', written_response: 'WRITTEN' };
+                        const docLessonTypes = ['multiple_choice', 'fill_blank', 'arrange', 'sql_exercise', 'python_exercise', 'code', 'code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
                         const col = typeBg[lesson.questionType] ?? '#475569';
                         return (
                           <div key={lesson.id || lessonIdx} className="flex items-center gap-2 group">
@@ -3724,7 +3726,7 @@ const [isSaving, setIsSaving] = useState(false);
                           >
                             {busyQuestionId === q.id && aiLoadingLabel === 'Generating lesson...' ? 'Generating…' : 'AI Lesson'}
                           </button>
-                          {!q.lessonOnly && !(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'sql_exercise', 'python_exercise'] as const).includes(qType as any) && (<>
+                          {!q.lessonOnly && !(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response', 'sql_exercise', 'python_exercise'] as const).includes(qType as any) && (<>
                           <button
                             type="button"
                             onClick={() => generateQuestionAsset(q, 'generate_hint')}
@@ -3748,7 +3750,7 @@ const [isSaving, setIsSaving] = useState(false);
                         {!q.lessonOnly && (<>
 
                         {/* Question text -- hidden for review types and exercise types that have their own task field */}
-                        {!(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'sql_exercise', 'python_exercise'] as const).includes(qType as any) && (
+                        {!(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response', 'sql_exercise', 'python_exercise'] as const).includes(qType as any) && (
                         <div>
                           <label className={labelCls} style={labelStyle}>Question</label>
                           <input type="text" value={q.question} onChange={e => handleUpdateQuestion(q.id, { question: e.target.value })} className={inputCls} style={inputStyle}
@@ -3929,21 +3931,21 @@ const [isSaving, setIsSaving] = useState(false);
                         )}
 
                         {/* AI Review config */}
-                        {(['code_review', 'excel_review', 'dashboard_critique', 'document_review'] as const).includes(qType as any) && (
+                        {(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'] as const).includes(qType as any) && (
                           <div className="space-y-3 rounded-xl p-3" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
                             <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
-                              {qType === 'code_review' ? 'Code Review' : qType === 'excel_review' ? 'Excel Review' : qType === 'dashboard_critique' ? 'Dashboard Critique' : 'Document Review'} Config
+                              {qType === 'code_review' ? 'Code Review' : qType === 'excel_review' ? 'Excel Review' : qType === 'dashboard_critique' ? 'Dashboard Critique' : qType === 'written_response' ? 'Written Response' : 'Document Review'} Config
                             </p>
 
                             {/* Project prompt / brief */}
                             <div>
-                              <label className={labelCls} style={labelStyle}>Project brief / prompt</label>
+                              <label className={labelCls} style={labelStyle}>{qType === 'written_response' ? 'Question / prompt' : 'Project brief / prompt'}</label>
                               <AiTextarea
                                 value={q.question}
                                 onValueChange={value => handleUpdateQuestion(q.id, { question: value })}
                                 className={`${inputCls} min-h-[72px] resize-y`}
                                 style={inputStyle}
-                                placeholder={qType === 'document_review' ? 'Describe the report the student must write...' : 'Describe the project the student must complete...'}
+                                placeholder={qType === 'document_review' ? 'Describe the report the student must write...' : qType === 'written_response' ? 'Ask the question the student must answer in their own words...' : 'Describe the project the student must complete...'}
                               />
                             </div>
 
@@ -3978,21 +3980,47 @@ const [isSaving, setIsSaving] = useState(false);
                               </div>
                             )}
 
-                            {/* Context (excel_review / dashboard_critique / document_review) */}
-                            {(qType === 'excel_review' || qType === 'dashboard_critique' || qType === 'document_review') && (
+                            {/* Context (excel_review / dashboard_critique / document_review / written_response) */}
+                            {(qType === 'excel_review' || qType === 'dashboard_critique' || qType === 'document_review' || qType === 'written_response') && (
                               <div>
                                 <label className={labelCls} style={labelStyle}>
-                                  {qType === 'document_review' ? 'Report scope / context' : 'Dataset / context'} <span style={{ color: C.faint }}>(optional)</span>
+                                  {qType === 'document_review' ? 'Report scope / context' : qType === 'written_response' ? 'Context for the AI reviewer' : 'Dataset / context'} <span style={{ color: C.faint }}>(optional)</span>
                                 </label>
                                 <AiTextarea
                                   value={q.context || ''}
                                   onValueChange={value => handleUpdateQuestion(q.id, { context: value })}
                                   className={`${inputCls} min-h-[60px] resize-y`}
                                   style={inputStyle}
-                                  placeholder={qType === 'document_review' ? 'Describe what the report should cover, the market, industry, or company context...' : 'Describe the dataset or context the student works with...'}
+                                  placeholder={qType === 'document_review' ? 'Describe what the report should cover, the market, industry, or company context...' : qType === 'written_response' ? 'Background the AI should judge the answer against. Students do not see this.' : 'Describe the dataset or context the student works with...'}
                                 />
                               </div>
                             )}
+
+                            {/* Model answer + length floor (written_response only) */}
+                            {qType === 'written_response' && (<>
+                              <div>
+                                <label className={labelCls} style={labelStyle}>Model answer <span style={{ color: C.faint }}>(optional, never shown to students)</span></label>
+                                <AiTextarea
+                                  value={q.expectedAnswer || ''}
+                                  onValueChange={value => handleUpdateQuestion(q.id, { expectedAnswer: value })}
+                                  className={`${inputCls} min-h-[72px] resize-y`}
+                                  style={inputStyle}
+                                  placeholder="What a strong answer covers. The AI grades against this instead of guessing."
+                                />
+                              </div>
+                              <div>
+                                <label className={labelCls} style={labelStyle}>Maximum words <span style={{ color: C.faint }}>(0 for no limit)</span></label>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={2000}
+                                  value={q.writtenMaxWords ?? 0}
+                                  onChange={e => handleUpdateQuestion(q.id, { writtenMaxWords: Math.max(0, Number(e.target.value) || 0) })}
+                                  className={`${inputCls} w-24`}
+                                  style={inputStyle}
+                                />
+                              </div>
+                            </>)}
 
                             {/* Review mode (document_review only) */}
                             {qType === 'document_review' && (
@@ -4353,7 +4381,7 @@ const [isSaving, setIsSaving] = useState(false);
                         )}
 
                         {/* Hint and explanation -- not shown for AI review types or exercise types */}
-                        {!(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'sql_exercise', 'python_exercise'] as const).includes(qType as any) && (<>
+                        {!(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response', 'sql_exercise', 'python_exercise'] as const).includes(qType as any) && (<>
                         <div>
                           <label className={labelCls} style={labelStyle}>Hint <span style={{ color: C.faint }}>(optional)</span></label>
                           <input

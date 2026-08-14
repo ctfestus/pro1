@@ -506,11 +506,12 @@ const DOC_COURSE_TYPE_GUIDE = `Choose the most fitting exercise type for each le
 - excel_review: the learner builds a spreadsheet and an AI reviewer grades it. Use for Excel, spreadsheets, or formula-based analysis.
 - dashboard_critique: the learner builds a dashboard/visualization and an AI reviewer critiques it. Use for BI, reporting, analytics, or data visualization.
 - document_review: the learner writes a report/document and an AI reviewer grades it. Use for writing, business analysis, strategy, or deliverables.
+- written_response: the learner answers a question in their own words (a few paragraphs, typed in the browser) and an AI reviewer grades it against a rubric. Use when the skill is judgement, reasoning, or explanation - recommending an approach, justifying a decision, interpreting a result - rather than producing a document.
 - multiple_choice: a scenario-based knowledge check with 4 options. Use for conceptual understanding.
 - fill_blank: complete a key term, command, or value. Use for precise recall of syntax or terminology.
 - arrange: order the steps of a real process or workflow. Use for procedures and sequences.
 - python_exercise: the learner writes and runs real Python code in the browser (Pyodide). Use whenever the material involves Python programming, data analysis with pandas/numpy, automation, or scripting tasks.
-STRONGLY honor the creator's focus: if they ask for SQL, make SQL lessons sql_exercise; if they ask for hands-on practice, favor the applied types (sql_exercise, code_review, excel_review, dashboard_critique, document_review) over plain knowledge checks. Use multiple_choice/fill_blank/arrange for genuinely conceptual lessons or to vary pacing.`;
+STRONGLY honor the creator's focus: if they ask for SQL, make SQL lessons sql_exercise; if they ask for hands-on practice, favor the applied types (sql_exercise, code_review, excel_review, dashboard_critique, document_review, written_response) over plain knowledge checks. Use multiple_choice/fill_blank/arrange for genuinely conceptual lessons or to vary pacing.`;
 
 export async function POST(req: NextRequest) {
   // 1. Authentication + RBAC -- instructors and admins only
@@ -1551,7 +1552,7 @@ ${JSON.stringify(lessonInput, null, 2)}`;
       :                             'Use a balanced scope: 4-8 modules, 3-6 lessons each.';
 
       const practiceGuidance =
-        practice === 'hands_on'  ? 'Strongly favor applied, hands-on exercise types (sql_exercise, code_review, excel_review, dashboard_critique, document_review). Use knowledge checks only occasionally.'
+        practice === 'hands_on'  ? 'Strongly favor applied, hands-on exercise types (sql_exercise, code_review, excel_review, dashboard_critique, document_review, written_response). Use knowledge checks only occasionally.'
       : practice === 'knowledge' ? 'Favor knowledge-check types (multiple_choice, fill_blank, arrange); use applied exercises only where the content clearly calls for hands-on work.'
       :                            'Use a balanced mix of applied exercises and knowledge checks.';
 
@@ -1565,7 +1566,7 @@ ${JSON.stringify(lessonInput, null, 2)}`;
           id:           { type: Type.STRING, description: 'short random id like l_ab12cd' },
           title:        { type: Type.STRING },
           summary:      { type: Type.STRING, description: 'one sentence on what this lesson teaches' },
-          questionType: { type: Type.STRING, description: 'one of: sql_exercise, python_exercise, code_review, excel_review, dashboard_critique, document_review, multiple_choice, fill_blank, arrange' },
+          questionType: { type: Type.STRING, description: 'one of: sql_exercise, python_exercise, code_review, excel_review, dashboard_critique, document_review, written_response, multiple_choice, fill_blank, arrange' },
         },
         required: ['id', 'title', 'summary', 'questionType'],
       };
@@ -1727,7 +1728,7 @@ STRICT FORMATTING: Plain ASCII only. No em dashes, no curly quotes, no ellipsis,
       const questionSchema = {
         type: Type.OBJECT,
         properties: {
-          type:          { type: Type.STRING, description: 'Must equal the lesson planned questionType: sql_exercise, code_review, excel_review, dashboard_critique, document_review, multiple_choice, fill_blank, or arrange.' },
+          type:          { type: Type.STRING, description: 'Must equal the lesson planned questionType: sql_exercise, code_review, excel_review, dashboard_critique, document_review, written_response, multiple_choice, fill_blank, or arrange.' },
           question:      { type: Type.STRING, description: 'The question, task, or brief. For fill_blank put ___ where the blank goes. For applied types this is the task/brief the learner must complete.' },
           options:       { type: Type.ARRAY, items: { type: Type.STRING }, description: 'multiple_choice: exactly 4 options. arrange: items in correct order. Empty for all other types.' },
           correctAnswer: { type: Type.STRING, description: 'multiple_choice: exact correct option text. fill_blank: the answer word(s). Empty for arrange and all applied types.' },
@@ -1735,9 +1736,10 @@ STRICT FORMATTING: Plain ASCII only. No em dashes, no curly quotes, no ellipsis,
           hint:          { type: Type.STRING, description: 'Optional subtle hint (knowledge-check types).' },
           codeSnippet:   { type: Type.STRING, description: 'Optional code shown with the question (code type only).' },
           codeLanguage:  { type: Type.STRING, description: 'Language of codeSnippet, e.g. javascript, python (code type only).' },
-          // AI reviewer types (code_review, excel_review, dashboard_critique, document_review)
+          // AI reviewer types (code_review, excel_review, dashboard_critique, document_review, written_response)
           rubric:        { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For reviewer types: 3-5 specific grading criteria the AI should assess.' },
           context:       { type: Type.STRING, description: 'For reviewer types: dataset, scope, or context the learner works with.' },
+          expectedAnswer:{ type: Type.STRING, description: 'For written_response: a model answer covering what a strong response includes. Grounding for the AI reviewer only - never shown to the learner.' },
           reviewLanguage:{ type: Type.STRING, description: 'For code_review: the programming language, e.g. python, javascript, sql.' },
           // sql_exercise
           scenario:      { type: Type.STRING, description: 'For sql_exercise: a short HTML business scenario (2-3 sentences, <p> and <strong> only) that frames the task in a realistic workplace situation, naming a specific role, team, or report and why the data is needed.' },
@@ -1895,6 +1897,7 @@ For the module, produce:
     - excel_review: question is a spreadsheet task/brief. Provide a rubric of 3-5 criteria and context describing the dataset. Leave options/correctAnswer empty.
     - dashboard_critique: question is a dashboard/visualization task/brief. Provide a rubric of 3-5 criteria and context. Leave options/correctAnswer empty.
     - document_review: question is a report/document brief. Provide a rubric of 3-5 criteria and context describing scope. Leave options/correctAnswer empty.
+    - written_response: question is one open question the learner answers in their own words in a few paragraphs - ask for a judgement, a justification, or an interpretation, never a definition to recite. Provide a rubric of 3-5 criteria, context the AI should judge against, and expectedAnswer (a model answer, reviewer grounding only). Leave options/correctAnswer empty.
     - python_exercise: question is a realistic Python task grounded in the lesson content. Provide pythonStarterCode (a skeleton with # TODO comments where learner fills in logic), pythonSolution (complete correct Python), pythonExpectedOutput (exact stdout from running the solution, newline-separated), pythonSetupCode (import statements only, no output), and 1-3 pythonHints. Note: available packages are pandas, numpy, matplotlib, scipy, scikit-learn. Do not use file I/O or network calls. Leave options/correctAnswer empty.
 
 For each lesson's "body", also produce a "blocks" array that builds the same content as interactive TipTap nodes:
@@ -1953,7 +1956,7 @@ ${clamp(sourceText, 60_000)}`;
             lesson:        { title: lesson.title || '', body: lesson.body || '', ...(lessonDoc ? { doc: lessonDoc } : {}), imageUrl: lessonImage, videoUrl: '' },
           });
 
-          const ALL_TYPES = ['multiple_choice', 'fill_blank', 'arrange', 'code', 'sql_exercise', 'python_exercise', 'code_review', 'excel_review', 'dashboard_critique', 'document_review'];
+          const ALL_TYPES = ['multiple_choice', 'fill_blank', 'arrange', 'code', 'sql_exercise', 'python_exercise', 'code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
           const toStrArray = (v: any): string[] => Array.isArray(v) ? v.map((x: any) => String(x)).filter(Boolean) : [];
 
           for (const q of lesson.questions ?? []) {
@@ -2002,12 +2005,16 @@ ${clamp(sourceText, 60_000)}`;
               base.pythonHints          = toStrArray(q.pythonHints);
               base.pythonDatasets       = [];
             } else {
-              // AI reviewer types: code_review, excel_review, dashboard_critique, document_review
+              // AI reviewer types: code_review, excel_review, dashboard_critique, document_review, written_response
               base.rubric  = toStrArray(q.rubric);
               base.context = String(q.context ?? '');
               base.minScore = 70;
               if (type === 'code_review') base.reviewLanguage = String(q.reviewLanguage ?? 'javascript');
               if (type === 'document_review') base.documentReviewMode = 'ai_only';
+              if (type === 'written_response') {
+                base.expectedAnswer = String(q.expectedAnswer ?? '');
+                base.writtenMaxWords = 200;   // same default both authoring editors seed
+              }
             }
 
             questions.push(base);

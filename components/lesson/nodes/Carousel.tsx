@@ -19,7 +19,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewP
 import { ChevronLeft, ChevronRight, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
-import { ColorField, Segmented, StyleMenu, MenuRow, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
+import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 
 const MAX_SLIDES = 20;
@@ -45,12 +45,16 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
   const radius = (node.attrs.radius as RadiusKey) in CARD_RADIUS ? (node.attrs.radius as RadiusKey) : 'md';
   const borderStyle = (node.attrs.borderStyle as BorderStyle) || 'none';
   const borderColor = (node.attrs.borderColor as string) || '';
+  const accentColor = (node.attrs.accentColor as string) || '';
+  // Drives the slide dots and the visited check.
+  const accent = accentScope(accentColor);
   const cardVars = {
     '--card-radius': `${CARD_RADIUS[radius]}px`,
     '--cover-radius': `${COVER_RADIUS[radius]}px`,
     '--card-border-style': borderStyle === 'none' ? 'none' : borderStyle,
     '--card-border-width': borderStyle === 'none' ? '0' : '1px',
     ...(borderColor ? { '--card-border-color': borderColor } : {}),
+    ...accent.style,
   } as React.CSSProperties;
 
   const go = (i: number) => {
@@ -99,7 +103,7 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
   };
 
   return (
-    <NodeViewWrapper className="lesson-carousel" data-active={current} data-hint={!editable && !hasNavigated && count > 1 ? 'true' : 'false'} style={cardVars}>
+    <NodeViewWrapper className={`lesson-carousel ${accent.className}`.trim()} data-active={current} data-hint={!editable && !hasNavigated && count > 1 ? 'true' : 'false'} style={cardVars}>
       <div className="lesson-carousel__viewport">
         <button
           type="button"
@@ -173,6 +177,7 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
               {borderStyle !== 'none' && (
                 <MenuRow label="Color"><ColorField value={borderColor} onChange={(v) => updateAttributes({ borderColor: v })} /></MenuRow>
               )}
+              <MenuRow label="Accent"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Carousel accent" /></MenuRow>
             </StyleMenu>
             <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="carousel" />
           </div>
@@ -286,6 +291,12 @@ export const Carousel = Node.create({
       radius: { default: 'md' },
       borderStyle: { default: 'none' },
       borderColor: { default: '' },
+      // Empty = follow the tenant accent, so untouched blocks are unchanged.
+      accentColor: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-accent-color') || '',
+        renderHTML: (attrs) => ({ 'data-accent-color': attrs.accentColor }),
+      },
     };
   },
 

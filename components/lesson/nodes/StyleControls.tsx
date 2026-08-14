@@ -64,6 +64,55 @@ export function Segmented<T extends string>({ options, value, onChange, title }:
   );
 }
 
+/**
+ * Grid of icon choices for a block that shows one. `value` empty means "use the block's default",
+ * which the first option should represent so an author can always get back to it.
+ */
+export function IconPicker<T extends string>({ options, value, onChange }: {
+  options: { value: T; label: string; Icon: React.ComponentType<{ width?: number; height?: number }> }[];
+  value: T;
+  onChange: (value: T) => void;
+}) {
+  return (
+    <span className="lesson-style__icons">
+      {options.map((o) => (
+        <button
+          key={o.value || 'default'}
+          type="button"
+          title={o.label}
+          aria-label={o.label}
+          aria-pressed={o.value === value}
+          data-active={o.value === value ? 'true' : 'false'}
+          onMouseDown={(e) => { e.preventDefault(); onChange(o.value); }}
+        >
+          <o.Icon width={14} height={14} />
+        </button>
+      ))}
+    </span>
+  );
+}
+
+/**
+ * Inline style + class that give ONE block its own accent colour.
+ *
+ * Setting `--lesson-accent-base` alone is not enough: the derived shades (`--lesson-accent`,
+ * `--lesson-accent-ink`, `--lesson-accent-ring`) are computed where they are declared, on
+ * `.lesson-content`, so a descendant that overrides only the base keeps inheriting the
+ * container's shades. `.lesson-accent-scope` re-declares the whole set from the local base
+ * (see LessonContentStyles), which is why the class travels with the variable.
+ *
+ * Returns nothing when no colour is set, so an unstyled block is untouched and keeps following
+ * the tenant accent.
+ */
+export function accentScope(color: string | undefined | null): { className: string; style: React.CSSProperties } {
+  const value = (color || '').trim();
+  if (!value) return { className: '', style: {} };
+  return {
+    className: 'lesson-accent-scope',
+    style: { '--lesson-accent-base': value } as React.CSSProperties,
+  };
+}
+
 export type BorderStyle = 'none' | 'solid' | 'dashed';
 
 export const BORDER_STYLE_OPTIONS: { value: BorderStyle; label: string }[] = [

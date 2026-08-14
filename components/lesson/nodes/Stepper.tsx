@@ -16,9 +16,17 @@ import { Fragment } from '@tiptap/pm/model';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { Plus, Check, ChevronDown, ChevronUp, Copy, RotateCcw, Trash2 } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
+import { ColorField, Segmented, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
 
 const MAX_STEPS = 12;
+
+type RevealMode = 'sequential' | 'all';
+
+const REVEAL_OPTIONS: { value: RevealMode; label: string }[] = [
+  { value: 'sequential', label: 'One at a time' },
+  { value: 'all', label: 'Show all' },
+];
 
 function StepView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
@@ -102,11 +110,19 @@ function StepView({ node, getPos, editor, updateAttributes }: NodeViewProps) {
   );
 }
 
-function StepperView({ node, editor, getPos }: NodeViewProps) {
+function StepperView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
   const count = node.childCount;
+  const revealMode = (node.attrs.reveal as RevealMode) === 'all' ? 'all' : 'sequential';
+  // Drives every accent-derived part of the rail at once: the numbered markers, the connector
+  // line, the Continue button, and the completion icon.
+  const accent = accentScope(node.attrs.accentColor as string);
   const [revealed, setRevealed] = useState(1);
-  const shown = editable ? count : Math.min(revealed, count);
+  // 'all' shows the whole rail at once (no Continue button, no completion line) -- the right
+  // shape when the steps are reference instructions to scan rather than a walkthrough to work
+  // through. The editor already shows every step regardless.
+  const shown = editable || revealMode === 'all' ? count : Math.min(revealed, count);
+  const sequential = !editable && revealMode === 'sequential';
 
   const addStep = () => {
     if (count >= MAX_STEPS) return;
@@ -117,9 +133,12 @@ function StepperView({ node, editor, getPos }: NodeViewProps) {
   };
 
   return (
-    <NodeViewWrapper className="lesson-stepper" data-revealed={shown} data-complete={!editable && shown >= count ? 'true' : 'false'} data-editable={editable ? 'true' : 'false'}>
+    // data-reveal scopes the walkthrough-only CSS (the "current step" highlight and the
+    // numbers-become-checks rules). In 'all' mode every step keeps its number, which is the
+    // point: the rail is reference instructions, not progress.
+    <NodeViewWrapper className={`lesson-stepper ${accent.className}`.trim()} style={accent.style} data-revealed={shown} data-reveal={revealMode} data-complete={sequential && shown >= count ? 'true' : 'false'} data-editable={editable ? 'true' : 'false'}>
       <NodeViewContent className="lesson-stepper__steps" />
-      {!editable && shown < count && (
+      {sequential && shown < count && (
         <button type="button" className="lesson-stepper__next" onClick={() => setRevealed((r) => Math.min(r + 1, count))}>
           <span className="lesson-stepper__next-dot" aria-hidden="true" />
           <span>Continue</span>
@@ -127,7 +146,7 @@ function StepperView({ node, editor, getPos }: NodeViewProps) {
           <ChevronDown width={15} height={15} aria-hidden="true" />
         </button>
       )}
-      {!editable && shown >= count && count > 1 && (
+      {sequential && shown >= count && count > 1 && (
         <div className="lesson-stepper__done">
           <span className="lesson-stepper__done-label" role="status"><span className="lesson-stepper__done-icon"><Check width={14} height={14} /></span> All steps complete</span>
           <button type="button" className="lesson-stepper__restart" onClick={() => setRevealed(1)}><RotateCcw width={13} height={13} aria-hidden="true" /> Restart</button>
@@ -140,7 +159,27 @@ function StepperView({ node, editor, getPos }: NodeViewProps) {
               <Plus width={13} height={13} /> Add step
             </button>
           )}
-          <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="guided steps" />
+          {/* Grouped so the footer stays "add on the left, controls on the right" -- it is a
+              space-between row, and a bare third child would sit stranded in the middle. */}
+          <span className="lesson-block-actions">
+            <StyleMenu width={230}>
+              <MenuRow label="Steps">
+                <Segmented<RevealMode>
+                  value={revealMode}
+                  onChange={(v) => updateAttributes({ reveal: v })}
+                  options={REVEAL_OPTIONS}
+                />
+              </MenuRow>
+              <MenuRow label="Accent">
+                <ColorField
+                  value={(node.attrs.accentColor as string) || ''}
+                  onChange={(v) => updateAttributes({ accentColor: v })}
+                  title="Step accent"
+                />
+              </MenuRow>
+            </StyleMenu>
+            <NodeDeleteButton editor={editor} getPos={getPos} nodeSize={node.nodeSize} label="guided steps" />
+          </span>
         </div>
       )}
     </NodeViewWrapper>
@@ -189,6 +228,24 @@ export const Stepper = Node.create({
   content: 'step+',
   defining: true,
   isolating: true,
+
+  addAttributes() {
+    return {
+      // 'sequential' is the default so every stepper authored before this option keeps
+      // revealing one step at a time.
+      reveal: {
+        default: 'sequential',
+        parseHTML: (el) => el.getAttribute('data-reveal') || 'sequential',
+        renderHTML: (attrs) => ({ 'data-reveal': attrs.reveal }),
+      },
+      // Empty = follow the tenant accent, so untouched steppers are unchanged.
+      accentColor: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-accent-color') || '',
+        renderHTML: (attrs) => ({ 'data-accent-color': attrs.accentColor }),
+      },
+    };
+  },
 
   parseHTML() {
     return [{ tag: 'div[data-stepper]' }];

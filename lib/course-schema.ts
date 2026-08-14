@@ -34,7 +34,7 @@ export interface FormField {
 export type QuestionType =
   | 'multiple_choice' | 'fill_blank' | 'arrange' | 'image' | 'image_choice' | 'code'
   | 'code_review' | 'excel_review' | 'dashboard_critique' | 'sql_exercise' | 'document_review'
-  | 'python_exercise';
+  | 'python_exercise' | 'written_response';
 
 export interface DownloadItem {
   id: string;
@@ -96,13 +96,17 @@ export interface CourseQuestion {
     audioUrl?: string;      // standard media attachment: uploaded (Cloudinary) or a direct audio URL
     audioName?: string;
   };
-  // AI review fields (code_review | excel_review | dashboard_critique | document_review)
+  // AI review fields (code_review | excel_review | dashboard_critique | document_review | written_response)
   rubric?: string[];
   schema?: string;
   context?: string;
   minScore?: number;
   reviewLanguage?: string;
   documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
+  // written_response: the student types a free-text answer and the AI grades it against `rubric`.
+  // `expectedAnswer` is grounding for the reviewer (a model answer), never rendered to the student.
+  expectedAnswer?: string;
+  writtenMaxWords?: number;   // word ceiling on the answer; 0/unset = no limit
   sqlTables?: { id?: string; tableName: string; fileName?: string; fileUrl?: string; csvUrl?: string; seedSql?: string }[];
   sqlStarterCode?: string;
   sqlSolution?: string;

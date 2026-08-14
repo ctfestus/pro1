@@ -9,13 +9,15 @@ const CodeReviewPlayer        = dynamic(() => import('@/components/CodeReviewPla
 const ExcelReviewPlayer       = dynamic(() => import('@/components/ExcelReviewPlayer'), { ssr: false });
 const DocumentReviewPlayer    = dynamic(() => import('@/components/DocumentReviewPlayer'), { ssr: false });
 const DashboardCritiquePlayer = dynamic(() => import('@/components/DashboardCritiquePlayer'), { ssr: false });
+const WrittenResponsePlayer   = dynamic(() => import('@/components/WrittenResponsePlayer'), { ssr: false });
 
-export const REVIEW_TYPES = ['code_review', 'excel_review', 'dashboard_critique', 'document_review'];
+export const REVIEW_TYPES = ['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
 export const REVIEW_LABELS: Record<string, string> = {
   code_review: 'AI Code Review',
   excel_review: 'AI Excel Review',
   dashboard_critique: 'AI Dashboard Critique',
   document_review: 'AI Document Review',
+  written_response: 'AI Written Response',
 };
 
 // Renders a saved AI review report read-only (no further attempts) by reusing the student player.
@@ -43,6 +45,8 @@ export function ReviewReportView({ rec, isDark }: { rec: any; isDark: boolean })
     // Renders the holistic report even without a screenshot (assignment/VE store report-only).
     else if (type === 'dashboard_critique') body = <DashboardCritiquePlayer {...base} savedResult={rec.report} savedImageUrl={rec.imageUrl} />;
     else if (type === 'document_review')    body = <DocumentReviewPlayer {...base} savedResult={rec.report} documentReviewMode={rec.documentReviewMode ?? 'ai_only'} />;
+    // Shows the submitted text above the report, so staff read the answer that was graded.
+    else if (type === 'written_response')   body = <WrittenResponsePlayer {...base} savedResult={rec.report} savedAnswer={rec.answerText} />;
   }
 
   return <>{countBadge}{body}</>;
