@@ -1,21 +1,106 @@
 /**
- * POST /api/bulk-message
- * Sends a custom email to a filtered segment of students across the instructor's content.
+ * /api/bulk-message
+ *
+ * GET  - how many distinct students each segment holds, plus the content in scope. The dashboard's
+ *        compose panel reads its counts from here rather than from /api/tracking so the number on
+ *        the button is produced by the same scoping and the same status classification as the send.
+ *        When those were two implementations they disagreed: completed virtual experiences were
+ *        counted as Completed and emailed as Failed.
+ * POST - sends a custom email to one segment.
+ *
+ * Sending stays owner-scoped even for admins (ownerScoped: true). The tracking table is a
+ * read-only report and shows admins all published content; this route puts mail in inboxes, so it
+ * keeps the narrower scope -- and GET applies the same one, so a count never promises recipients
+ * the send would refuse.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { blastEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import {
+  buildStatusRows, loadStudents, loadTrackedContent, type StatusRow, type TrackedItem,
+} from '@/lib/tracking-report';
 
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const STALL_DAYS = 7;
 
-function daysSince(d: string | null) {
-  if (!d) return null;
-  return Math.floor((Date.now() - new Date(d).getTime()) / 86400000);
+const SEGMENTS = ['not_started', 'in_progress', 'stalled', 'failed', 'completed'] as const;
+
+const zeroCounts = () => ({
+  all: 0, not_started: 0, in_progress: 0, stalled: 0, failed: 0, completed: 0,
+});
+
+/** Content this caller may message, and the rows behind the requested cohort/content selection. */
+async function loadSegmentData(
+  supabase: any,
+  userId: string,
+  role: string,
+  cohortId: string | undefined,
+  formId: string | undefined,
+): Promise<{ items: TrackedItem[]; activeCohortIds: string[]; rows: StatusRow[] }> {
+  // publishedOnly as well as ownerScoped: a draft is invisible to students, so counting them
+  // against it or mailing them about it is wrong however it was reached.
+  const items = await loadTrackedContent(supabase, { userId, role, ownerScoped: true, publishedOnly: true });
+  if (!items.length) return { items, activeCohortIds: [], rows: [] };
+
+  const allCohortIds = [...new Set(items.flatMap(i => i.cohortIds))];
+  const activeCohortIds = cohortId && cohortId !== 'all'
+    ? allCohortIds.filter(id => id === cohortId)
+    : allCohortIds;
+  if (!activeCohortIds.length) return { items, activeCohortIds, rows: [] };
+
+  const students = await loadStudents(supabase, activeCohortIds);
+  if (!students.length) return { items, activeCohortIds, rows: [] };
+
+  // Narrowing to one piece of content narrows the rows, never the content list the panel offers.
+  const scoped = formId && formId !== 'all' ? items.filter(i => i.id === formId) : items;
+  const rows = scoped.length
+    ? await buildStatusRows(supabase, { items: scoped, students, cohortNames: new Map(), activeCohortIds })
+    : [];
+  return { items, activeCohortIds, rows };
+}
+
+const validEmail = (email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+
+/** Distinct, deliverable recipients in one segment. A student appears once however many rows they hold. */
+function recipientsFor(rows: StatusRow[], segment: string) {
+  const seen = new Set<string>();
+  const out: { email: string; name: string }[] = [];
+  for (const row of rows) {
+    if (segment !== 'all' && row.status !== segment) continue;
+    const email = (row.studentEmail ?? '').trim().toLowerCase();
+    if (!email || !validEmail(email) || seen.has(email)) continue;
+    seen.add(email);
+    out.push({ email, name: row.studentName || 'there' });
+  }
+  return out;
+}
+
+export async function GET(req: NextRequest) {
+  const auth = await requireRole(req, ['instructor', 'admin']);
+  if (isAuthError(auth)) return auth.error;
+  const { user, supabase, role } = auth;
+
+  const url = new URL(req.url);
+  const cohortId = url.searchParams.get('cohortId') ?? 'all';
+  const formId   = url.searchParams.get('formId') ?? 'all';
+
+  const { items, activeCohortIds, rows } = await loadSegmentData(supabase, user.id, role, cohortId, formId);
+
+  const counts = zeroCounts();
+  for (const segment of [...SEGMENTS, 'all'] as const) {
+    (counts as any)[segment] = recipientsFor(rows, segment).length;
+  }
+
+  const inScope = new Set(activeCohortIds);
+  const forms = items
+    .filter(i => i.cohortIds.some(id => inScope.has(id)))
+    .map(i => ({ id: i.id, title: i.title }))
+    .sort((a, b) => a.title.localeCompare(b.title));
+
+  return NextResponse.json({ counts, forms });
 }
 
 export async function POST(req: NextRequest) {
@@ -28,7 +113,7 @@ export async function POST(req: NextRequest) {
   // instructors and admins are allowed through.
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, supabase, role } = auth;
 
   const t = await getTenantSettings();
   const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
@@ -45,114 +130,20 @@ export async function POST(req: NextRequest) {
   if (!segment)             return NextResponse.json({ error: 'Segment is required' }, { status: 400 });
   if (subject.length > 200)      return NextResponse.json({ error: 'Subject must be 200 characters or fewer' }, { status: 400 });
   if (messageBody.length > 5000) return NextResponse.json({ error: 'Message body must be 5 000 characters or fewer' }, { status: 400 });
+  if (segment !== 'all' && !SEGMENTS.includes(segment)) {
+    return NextResponse.json({ error: 'Unknown segment' }, { status: 400 });
+  }
 
-  // 1. Fetch instructor's courses and VEs -- optionally scoped to a single item
-  const [{ data: coursesRaw }, { data: vesRaw }] = await Promise.all([
-    formId
-      ? supabase.from('courses').select('id, title, content_type:id, cohort_ids, slug').eq('user_id', user.id).eq('id', formId)
-      : supabase.from('courses').select('id, title, cohort_ids, slug').eq('user_id', user.id),
-    formId
-      ? supabase.from('virtual_experiences').select('id, title, cohort_ids, slug').eq('user_id', user.id).eq('id', formId)
-      : supabase.from('virtual_experiences').select('id, title, cohort_ids, slug').eq('user_id', user.id),
-  ]);
-
-  type ContentItem = { id: string; title: string; cohort_ids: string[]; slug: string; content_type: string };
-  const allContent: ContentItem[] = [
-    ...(coursesRaw ?? []).map((c: any) => ({ ...c, content_type: 'course' })),
-    ...(vesRaw     ?? []).map((v: any) => ({ ...v, content_type: 'virtual_experience' })),
-  ];
-
-  if (!allContent.length) return NextResponse.json({ error: 'No content found' }, { status: 404 });
-
-  // 2. Collect relevant cohort IDs
-  const allCohortIds = [...new Set(allContent.flatMap(f => Array.isArray(f.cohort_ids) ? f.cohort_ids : []))];
-  const activeCohortIds = cohortId && cohortId !== 'all'
-    ? allCohortIds.filter(id => id === cohortId)
-    : allCohortIds;
-
+  const { items, activeCohortIds, rows } = await loadSegmentData(supabase, user.id, role, cohortId, formId);
+  if (!items.length)          return NextResponse.json({ error: 'No content found' }, { status: 404 });
   if (!activeCohortIds.length) return NextResponse.json({ error: 'No cohorts assigned' }, { status: 404 });
 
-  // 3. Fetch students
-  const { data: students } = await supabase
-    .from('students')
-    .select('id, email, full_name, cohort_id')
-    .in('cohort_id', activeCohortIds);
-
-  if (!students?.length) return NextResponse.json({ error: 'No students found' }, { status: 404 });
-
-  const courseIds = allContent.filter(f => f.content_type === 'course').map(f => f.id);
-  const veIds     = allContent.filter(f => f.content_type === 'virtual_experience').map(f => f.id);
-
-  // 4. Fetch attempts
-  const [{ data: courseAttempts }, { data: gpAttempts }] = await Promise.all([
-    courseIds.length
-      ? supabase.from('course_attempts').select('student_id, course_id, completed_at, passed, updated_at').in('course_id', courseIds)
-      : Promise.resolve({ data: [] as any[] }),
-    veIds.length
-      ? supabase.from('guided_project_attempts').select('student_id, ve_id, completed_at, updated_at').in('ve_id', veIds)
-      : Promise.resolve({ data: [] as any[] }),
-  ]);
-
-  // Build attempt map: "studentId|contentId"
-  // Passed+completed always wins over in-progress (student may retake after passing).
-  const attemptMap = new Map<string, { completed: boolean; passed: boolean; lastActive: string | null }>();
-  for (const a of courseAttempts ?? []) {
-    const key = `${a.student_id}|${a.course_id}`;
-    const existing = attemptMap.get(key);
-    if (!existing) { attemptMap.set(key, { completed: !!a.completed_at, passed: !!a.passed, lastActive: a.updated_at ?? null }); continue; }
-    if (a.passed && a.completed_at && !existing.completed) { attemptMap.set(key, { completed: true, passed: true, lastActive: a.updated_at ?? null }); continue; }
-    if (existing.passed && existing.completed && !a.completed_at) continue;
-    if (!a.completed_at && existing.completed && !existing.passed) { attemptMap.set(key, { completed: false, passed: false, lastActive: a.updated_at ?? null }); continue; }
-    if (a.completed_at && !a.passed && !existing.completed) continue;
-    const isNewer = a.updated_at && (!existing.lastActive || a.updated_at > existing.lastActive);
-    if (isNewer && (!existing.completed || (a.completed_at && !a.passed))) attemptMap.set(key, { completed: !!a.completed_at, passed: !!a.passed, lastActive: a.updated_at ?? null });
-  }
-  for (const a of gpAttempts ?? []) {
-    const key = `${a.student_id}|${a.ve_id}`;
-    const existing = attemptMap.get(key);
-    const isNewer = !existing || (a.updated_at && (!existing.lastActive || a.updated_at > existing.lastActive));
-    if (isNewer) attemptMap.set(key, { completed: !!a.completed_at, passed: false, lastActive: a.updated_at ?? null });
-  }
-
-  // 5. Build recipient list filtered by segment
-  const seen     = new Set<string>();
-  const recipients: { email: string; name: string }[] = [];
-
-  for (const item of allContent) {
-    const itemCohortIds = (Array.isArray(item.cohort_ids) ? item.cohort_ids : [])
-      .filter((id: string) => activeCohortIds.includes(id));
-    const itemStudents = students.filter(s => itemCohortIds.includes(s.cohort_id));
-
-    for (const student of itemStudents) {
-      const key     = `${student.id}|${item.id}`;
-      const attempt = attemptMap.get(key);
-
-      let status: string;
-      if (!attempt) {
-        status = 'not_started';
-      } else if (attempt.completed) {
-        status = attempt.passed ? 'completed' : 'failed';
-      } else {
-        const days = daysSince(attempt.lastActive);
-        status = days !== null && days >= STALL_DAYS ? 'stalled' : 'in_progress';
-      }
-
-      if (segment !== 'all' && status !== segment) continue;
-
-      const email = (student.email ?? '').trim().toLowerCase();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
-      if (seen.has(email)) continue;
-      seen.add(email);
-
-      recipients.push({ email, name: student.full_name || 'there' });
-    }
-  }
-
+  const recipients = recipientsFor(rows, segment);
   if (!recipients.length) {
     return NextResponse.json({ error: 'No recipients match this segment', sent: 0 }, { status: 200 });
   }
 
-  // 6. Send in batches of 100
+  // Send in batches of 100
   let sent = 0;
   for (let i = 0; i < recipients.length; i += 100) {
     const batch = recipients.slice(i, i + 100).map(({ email, name }) => {
