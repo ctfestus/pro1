@@ -2,7 +2,8 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { computeAccess, EnrollmentState } from './enrollment-access';
 import { Resend } from 'resend';
 import { getTenantSettings } from './get-tenant-settings';
-import { overdueNotificationEmail, paymentReceiptEmail } from './email-templates';
+import { paymentReceiptEmail } from './email-templates';
+import { sendOverdueNotice, loadOverdueNoticeSettings } from './overdue-notice';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -53,11 +54,14 @@ export interface RecordPaymentInput {
 // Single source of truth for move/restore rules.
 // ---
 
-type CohortAction =
+export type CohortAction =
   | { type: 'move';    studentId: string; fromCohortId: string; toCohortId: string }
   | { type: 'restore'; studentId: string; toCohortId: string };
 
-function getOutstandingCohortAction(input: {
+// Exported for the daily outstanding sweep (app/api/cron/outstanding-sweep). The sweep applies the
+// same move/restore rules as the Payments page rather than restating them, so the two can never
+// disagree about who belongs in the outstanding cohort.
+export function getOutstandingCohortAction(input: {
   studentId: string | null;
   accessStatus: string;
   studentCohortId: string;
@@ -88,7 +92,7 @@ function getOutstandingCohortAction(input: {
   return null;
 }
 
-async function applyCohortAction(db: SupabaseClient, action: CohortAction): Promise<void> {
+export async function applyCohortAction(db: SupabaseClient, action: CohortAction): Promise<void> {
   if (action.type === 'move') {
     const { error } = await db.from('students').update({
       original_cohort_id: action.fromCohortId,
@@ -860,43 +864,23 @@ async function recomputeEnrollmentAccess(
 
     if (action) await applyCohortAction(db, action).catch(() => {});
 
-    // Fire-and-forget overdue notification (once per enrollment per 14 days)
-    if (access.access_status === 'overdue' && studentResult.data?.email && process.env.RESEND_API_KEY) {
+    // Fire-and-forget overdue notification. Claimed per overdue episode by the same helper the
+    // daily sweep uses, so the two paths cannot both mail one debt: whichever reaches it first
+    // takes the claim and the other stands down. access_until is the due date of the installment
+    // that caused the overdue status, which is what identifies the episode.
+    const episodeDueDate = access.access_until ? access.access_until.toISOString().slice(0, 10) : null;
+    if (access.access_status === 'overdue' && episodeDueDate && studentResult.data?.email) {
       const studentEmail = (studentResult.data.email as string).trim().toLowerCase();
       const studentName  = (studentResult.data.full_name as string | null) || 'there';
       ;(async () => {
         try {
-          const since14 = new Date(Date.now() - 14 * 86400000).toISOString();
-          const { data: existing } = await db
-            .from('sent_nudges')
-            .select('id')
-            .eq('student_id', enroll.student_id)
-            .eq('form_id', enrollmentId)
-            .eq('nudge_type', 'overdue_alert')
-            .gte('sent_at', since14)
-            .limit(1)
-            .maybeSingle();
-          if (existing) return;
-
-          const t = await getTenantSettings();
-          const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-          const dashboardUrl = t.appUrl || process.env.APP_URL || '';
-          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-
-          // Resend reports API failures by resolving with { error }, not by throwing.
-          const { error: sendErr } = await resend.emails.send({
-            from:    FROM,
-            to:      studentEmail,
-            subject: 'Your account has an overdue payment',
-            html:    overdueNotificationEmail({ name: studentName, dashboardUrl, branding }),
-          });
-          // Record the nudge ONLY when Resend accepted the email -- recording a failed
-          // send would suppress the overdue alert for the next 14 days.
-          if (sendErr) {
-            console.error('[db-payments] overdue alert email failed', sendErr);
-            return;
-          }
-          await db.from('sent_nudges').insert({ student_id: enroll.student_id, form_id: enrollmentId, nudge_type: 'overdue_alert' });
+          const settings = await loadOverdueNoticeSettings();
+          await sendOverdueNotice(db, {
+            enrollmentId,
+            studentName,
+            email:   studentEmail,
+            dueDate: episodeDueDate,
+          }, settings);
         } catch { /* non-blocking */ }
       })();
     }
