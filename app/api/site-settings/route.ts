@@ -3,6 +3,7 @@
  * POST /api/site-settings  -- upserts (admin/instructor only)
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { revalidateTag } from 'next/cache';
 import { adminClient } from '@/lib/admin-client';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 
@@ -46,5 +47,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Failed to save site settings.' }, { status: 500 });
   }
 
+  revalidateTag('landing-site-settings');
   return NextResponse.json({ ok: true });
 }
