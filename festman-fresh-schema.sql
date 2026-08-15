@@ -3141,6 +3141,20 @@ CREATE TABLE public.bootcamp_enrollments (
   -- Set when a student is explicitly removed from their cohort. The row is kept as
   -- financial history with student_id intact; payment enforcement skips released rows.
   released_at          timestamptz,
+  -- Overdue notice delivery, per episode, at most once (migration 181). An episode is the due
+  -- date of the installment that caused it: matching for_due_date means this student has been
+  -- told and never will be again for that debt, while a later installment falling due is a new
+  -- episode and notifiable. The claim is taken before the send so two workers cannot both mail,
+  -- and carries a token so a stalled worker cannot act on the claim that replaced it.
+  -- send_started_for_due_date is written before Resend is contacted: still set when a later
+  -- worker claims, the outcome was never recorded, and that episode is finalized without sending.
+  overdue_notice_for_due_date              date,
+  overdue_notice_claimed_at                timestamptz,
+  overdue_notice_claim_token               uuid,
+  overdue_notice_send_started_for_due_date date,
+  overdue_notice_attempts                  integer     NOT NULL DEFAULT 0,
+  overdue_notice_attempted_for_due_date    date,
+  overdue_notice_last_error                text,
   created_at           timestamptz   NOT NULL DEFAULT now(),
   updated_at           timestamptz   NOT NULL DEFAULT now()
 );
@@ -5024,3 +5038,131 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) TO service_role;
+
+-- ── overdue notice delivery (migration 181) ───────────────────
+-- Delivery policy: AT MOST ONCE. A payment demand sent twice is worse than one not sent, because
+-- the student is also shown the restriction banner in the app. "Already told" is a fact about the
+-- episode rather than about time, so a standing debt is never re-mailed while a later installment
+-- falling due still is.
+--
+-- The claim is taken before the send and carries a token, so neither a concurrent worker nor a
+-- stalled one that has been taken over can mail or finalize the same episode. The send is marked
+-- as begun before Resend is contacted: a later worker finding that marker still set knows the
+-- outcome was never recorded, and finalizes without sending rather than risk a second demand.
+
+CREATE FUNCTION public.claim_overdue_notice(
+  p_enrollment_id uuid,
+  p_due_date date,
+  p_ttl_seconds integer DEFAULT 300,
+  p_max_attempts integer DEFAULT 5
+) RETURNS TABLE (claim_token uuid, resume_ambiguous boolean)
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_token uuid := gen_random_uuid();
+BEGIN
+  RETURN QUERY
+  UPDATE public.bootcamp_enrollments e
+  SET overdue_notice_claimed_at = now(),
+      overdue_notice_claim_token = v_token
+  WHERE e.id = p_enrollment_id
+    AND e.overdue_notice_for_due_date IS DISTINCT FROM p_due_date
+    AND (
+      e.overdue_notice_claimed_at IS NULL
+      OR e.overdue_notice_claimed_at < now() - make_interval(secs => p_ttl_seconds)
+    )
+    AND (
+      e.overdue_notice_attempted_for_due_date IS DISTINCT FROM p_due_date
+      OR e.overdue_notice_attempts < p_max_attempts
+    )
+  RETURNING v_token,
+            e.overdue_notice_send_started_for_due_date IS NOT DISTINCT FROM p_due_date;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_overdue_notice(uuid, date, integer, integer)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_overdue_notice(uuid, date, integer, integer) TO service_role;
+
+CREATE FUNCTION public.begin_overdue_notice_send(
+  p_enrollment_id uuid,
+  p_due_date date,
+  p_claim_token uuid
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_updated uuid;
+BEGIN
+  UPDATE public.bootcamp_enrollments
+  SET overdue_notice_send_started_for_due_date = p_due_date
+  WHERE id = p_enrollment_id
+    AND overdue_notice_claim_token = p_claim_token
+  RETURNING id INTO v_updated;
+
+  RETURN v_updated IS NOT NULL;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.begin_overdue_notice_send(uuid, date, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.begin_overdue_notice_send(uuid, date, uuid) TO service_role;
+
+CREATE FUNCTION public.release_overdue_notice_claim(
+  p_enrollment_id uuid,
+  p_due_date date,
+  p_claim_token uuid,
+  p_error text DEFAULT NULL
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_updated uuid;
+BEGIN
+  UPDATE public.bootcamp_enrollments
+  SET overdue_notice_claimed_at = NULL,
+      overdue_notice_claim_token = NULL,
+      overdue_notice_send_started_for_due_date = NULL,
+      overdue_notice_attempts = CASE
+        WHEN overdue_notice_attempted_for_due_date IS DISTINCT FROM p_due_date THEN 1
+        ELSE overdue_notice_attempts + 1
+      END,
+      overdue_notice_attempted_for_due_date = p_due_date,
+      overdue_notice_last_error = left(COALESCE(p_error, 'Unknown error'), 500)
+  WHERE id = p_enrollment_id
+    AND overdue_notice_claim_token = p_claim_token
+  RETURNING id INTO v_updated;
+
+  RETURN v_updated IS NOT NULL;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.release_overdue_notice_claim(uuid, date, uuid, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.release_overdue_notice_claim(uuid, date, uuid, text) TO service_role;
+
+CREATE FUNCTION public.mark_overdue_notice_sent(
+  p_enrollment_id uuid,
+  p_due_date date,
+  p_claim_token uuid
+) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_updated uuid;
+BEGIN
+  UPDATE public.bootcamp_enrollments
+  SET overdue_notice_for_due_date = p_due_date,
+      overdue_notice_claimed_at = NULL,
+      overdue_notice_claim_token = NULL,
+      overdue_notice_send_started_for_due_date = NULL,
+      overdue_notice_attempts = 0,
+      overdue_notice_attempted_for_due_date = NULL,
+      overdue_notice_last_error = NULL
+  WHERE id = p_enrollment_id
+    AND overdue_notice_claim_token = p_claim_token
+  RETURNING id INTO v_updated;
+
+  RETURN v_updated IS NOT NULL;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.mark_overdue_notice_sent(uuid, date, uuid)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_overdue_notice_sent(uuid, date, uuid) TO service_role;

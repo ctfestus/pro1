@@ -30,9 +30,21 @@ function makeBuilder(getResult: () => QueryResult) {
   return builder;
 }
 
-export function makeSupabaseStub(byTable: Record<string, QueryResult | QueryResult[]>) {
+/**
+ * `rpc` is optional and only needed by routes that call one. Supply a handler to model the
+ * function's real semantics -- a claim that a second caller loses, for instance -- rather than a
+ * fixed result, since that behavior is usually the point of the test.
+ */
+export function makeSupabaseStub(
+  byTable: Record<string, QueryResult | QueryResult[]>,
+  rpcHandler?: (fn: string, args: Record<string, any>) => QueryResult,
+) {
   const cursors: Record<string, number> = {};
   return {
+    rpc(fn: string, args?: Record<string, any>) {
+      if (!rpcHandler) throw new Error(`makeSupabaseStub: unexpected rpc call "${fn}"`);
+      return Promise.resolve(rpcHandler(fn, args ?? {}));
+    },
     from(table: string) {
       const entry = byTable[table];
       if (entry === undefined) {
