@@ -1,5 +1,6 @@
 'use client';
 
+
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, useInView, AnimatePresence, useMotionValue, useSpring, useScroll, useReducedMotion } from 'motion/react';
@@ -8,18 +9,18 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { useTheme } from '@/components/ThemeProvider';
 import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
-import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { ArrowRight, Check, LayoutDashboard, ChevronDown, ChevronLeft, ChevronRight, User, Settings, LogOut, BookOpen, Calendar, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { getToolIcon } from '@/lib/tool-icons';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
+import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 
 // --- FadeIn on scroll ---
 function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-60px' });
   return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 32 }}
+    <motion.div ref={ref} initial={false}
       animate={inView ? { opacity: 1, y: 0 } : {}}
       transition={{ duration: 0.6, delay, ease: [0.23, 1, 0.32, 1] }}
       className={className}>
@@ -171,75 +172,32 @@ const OFFERING_ICONS = [BookOpen, Calendar, Briefcase, Award];
 // Icon map for highlights (fixed set, text comes from config)
 const HIGHLIGHT_ICONS = [BookOpen, Award, Calendar, Briefcase, TrendingUp, User, Check, Zap];
 
-type PathCourse = { id: string; title: string; imageUrl: string; slug: string; type?: 'course' | 've' | 'certification' };
-
-type ProgrammeItem = {
-  id: string; title: string; description: string;
-  imageUrl: string; badge: string; difficulty?: string; type: 'course' | 've' | 'path'; slug: string;
-  category?: string;
-  partnerName?: string;
-  partnerLogoUrl?: string;
-  pathCourses?: PathCourse[];
-};
-
-function useProgrammes() {
-  const [items, setItems] = useState<ProgrammeItem[]>([]);
-  useEffect(() => {
-    Promise.all([
-      supabase.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').limit(20),
-      supabase.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').limit(12),
-      supabase.from('published_learning_paths').select('id,title,description,cover_image').limit(8),
-    ]).then(async ([c, v, lp]) => {
-      const courses: ProgrammeItem[] = (c.data ?? []).map((r: any) => ({
-        id: r.id, title: r.title, description: r.description ?? '',
-        imageUrl: resolveCoverUrl(r.cover_image), badge: 'Course', type: 'course', slug: r.slug,
-        category: r.category ?? '',
-        partnerName: r.partner_name ?? undefined,
-        partnerLogoUrl: r.partner_logo_url ?? undefined,
-      }));
-      const ves: ProgrammeItem[] = (v.data ?? []).map((r: any) => ({
-        id: r.id, title: r.title, description: r.tagline ?? r.industry ?? '',
-        imageUrl: resolveCoverUrl(r.cover_image), badge: 'Guided Project',
-        difficulty: r.difficulty ? r.difficulty.charAt(0).toUpperCase() + r.difficulty.slice(1) : undefined,
-        type: 've', slug: r.slug, category: r.industry ? r.industry.charAt(0).toUpperCase() + r.industry.slice(1) : '',
-      }));
-
-      const lpData = lp.data ?? [];
-      const pathIds = lpData.map((r: any) => r.id);
-      let pathCourseMap: Record<string, PathCourse[]> = {};
-      if (pathIds.length > 0) {
-        const { data: piData } = await supabase
-          .from('published_path_items')
-          .select('path_id,id,title,cover_image,slug,type,position')
-          .in('path_id', pathIds)
-          .order('position');
-        const byPath: Record<string, PathCourse[]> = {};
-        (piData ?? []).forEach((r: any) => {
-          if (!byPath[r.path_id]) byPath[r.path_id] = [];
-          byPath[r.path_id].push({ id: r.id, title: r.title, imageUrl: resolveCoverUrl(r.cover_image), slug: r.slug, type: r.type });
-        });
-        pathCourseMap = byPath;
-      }
-
-      const paths: ProgrammeItem[] = lpData.map((r: any) => ({
-        id: r.id, title: r.title, description: r.description ?? '',
-        imageUrl: resolveCoverUrl(r.cover_image), badge: 'Learning Path', type: 'path', slug: '', category: '',
-        pathCourses: pathCourseMap[r.id] ?? [],
-      }));
-      const merged = [...courses, ...ves, ...paths];
-      if (merged.length > 0) setItems(merged);
-    });
-  }, []);
-  return items;
+function ProgrammeLoadError({ dark = false }: { dark?: boolean }) {
+  return (
+    <div
+      role="alert"
+      className="mx-auto my-8 max-w-xl px-5 py-4 text-center rounded-lg border"
+      style={{
+        color: dark ? 'rgba(255,255,255,0.82)' : '#344054',
+        borderColor: dark ? 'rgba(255,255,255,0.18)' : '#d0d5dd',
+        background: dark ? 'rgba(255,255,255,0.06)' : '#ffffff',
+      }}
+    >
+      <p className="text-sm">Some programmes could not be loaded.</p>
+      <button type="button" onClick={() => window.location.reload()} className="mt-2 text-sm font-bold underline">
+        Try again
+      </button>
+    </div>
+  );
 }
 
 // --- Elevate Template ---
-function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName }: {
+function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, programmes, programmesError }: {
   user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
+  programmes: ProgrammeItem[]; programmesError: boolean;
 }) {
   const [hoveredTrack, setHoveredTrack] = useState<number | null>(null);
   const [hoveredSlide, setHoveredSlide] = useState<number | null>(null);
-  const programmes = useProgrammes();
   const [activeFilter, setActiveFilter] = useState<'all' | 'course' | 've' | 'path'>('all');
   const [sliderIdx, setSliderIdx] = useState(0);
   const PAGE = 3;
@@ -349,7 +307,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
 
       {/* NAV */}
       <motion.nav
-        initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
+        initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
         className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 md:px-10 py-4 transition-all duration-300"
         style={{ background: nav_bg, boxShadow: scrolled ? '0 1px 24px rgba(0,0,0,0.10)' : `0 1px 0 rgba(0,0,0,0.06)` }}
       >
@@ -372,19 +330,26 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
       {/* HERO */}
       <section className="relative min-h-screen flex flex-col items-center justify-center px-6 pt-24 md:pt-28 pb-14 md:pb-20 overflow-hidden text-white"
         style={{
-          background: heroImageUrl
-            ? `url(${heroImageUrl}) center/cover no-repeat`
-            : `linear-gradient(145deg, #0f0c29 0%, ${primaryColor} 50%, #302b63 100%)`,
+          background: `linear-gradient(145deg, #0f0c29 0%, ${primaryColor} 50%, #302b63 100%)`,
         }}>
+        {heroImageUrl && (
+          <img
+            src={heroImageUrl}
+            alt=""
+            aria-hidden="true"
+            fetchPriority="high"
+            className="absolute inset-0 w-full h-full object-cover"
+          />
+        )}
         <div className="absolute inset-0" style={{ background: (() => { const c = heroOverlayColor || '#000000'; const r = parseInt(c.slice(1,3),16), g = parseInt(c.slice(3,5),16), b = parseInt(c.slice(5,7),16); return `rgba(${r},${g},${b},${parseFloat(heroOverlayOpacity||'58')/100})`; })() }} />
         <div className="relative z-10 max-w-4xl mx-auto text-center space-y-6 md:space-y-8">
-          <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.15 }}
+          <motion.h1 initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, delay: 0.15 }}
             className="leading-[1.2] md:leading-[1.05]"
             style={{ fontFamily: hFont, fontWeight: 900, letterSpacing: '-0.02em', fontSize: `clamp(${Math.round(parseInt(heroFontSize||'62')*0.39)}px, ${(parseInt(heroFontSize||'62')/1200*100).toFixed(2)}vw, ${heroFontSize||'62'}px)` }}>
             <span style={{ color: 'white' }}>{heroTitle}</span><br />
             <span style={{ color: accentColor }}>{heroTitleAccent}</span>
           </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
+          <motion.p initial={false} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
             className="text-base md:text-[18px] max-w-xl mx-auto" style={{ color: 'rgba(255,255,255,0.72)', lineHeight: 1.75, fontFamily: bFont }}>
             {heroSubheadline}
           </motion.p>
@@ -446,6 +411,8 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
           </FadeIn>
         </div>
 
+        {programmesError && <ProgrammeLoadError />}
+
         {filteredProgrammes.length > 0 ? (<>
           {/* -- Mobile: horizontal snap scroll -- */}
           <div className="md:hidden overflow-x-auto pb-4 -mx-6" style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
@@ -492,7 +459,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
               return (
                 <motion.div
                   key={p.id}
-                  initial={{ opacity: 0, y: 24 }}
+                  initial={false}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.5, delay: i * 0.1, ease: [0.23, 1, 0.32, 1] }}
                   className="relative rounded-2xl overflow-hidden"
@@ -650,7 +617,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
                 return (
                   <motion.div
                     key={i}
-                    initial={{ opacity: 0, y: 24 }}
+                    initial={false}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: i * 0.1, ease: [0.23, 1, 0.32, 1] }}
                     className="relative rounded-2xl overflow-hidden"
@@ -935,7 +902,7 @@ function MReveal({ children, delay = 0, y = 26, blur = false, className = '' }: 
   const reduced = useReducedMotion();
   return (
     <motion.div ref={ref}
-      initial={reduced ? false : { opacity: 0, y, ...(blur ? { filter: 'blur(7px)' } : {}) }}
+      initial={false}
       animate={inView ? { opacity: 1, y: 0, ...(blur ? { filter: 'blur(0px)' } : {}) } : undefined}
       transition={{ duration: 0.7, delay, ease: EASE_OUT }}
       className={className}>
@@ -958,10 +925,10 @@ function WordReveal({ text, delay = 0, className = '', style }: {
       {words.map((w, i) => (
         <span key={i} className="inline-block overflow-hidden align-bottom">
           <motion.span className="inline-block"
-            initial={{ y: '112%' }}
+            initial={false}
             animate={inView ? { y: '0%' } : undefined}
             transition={{ duration: 0.65, delay: delay + i * 0.055, ease: EASE_OUT }}>
-            {w + (i < words.length - 1 ? ' ' : '')}
+            {w + (i < words.length - 1 ? '\u00a0' : '')}
           </motion.span>
         </span>
       ))}
@@ -1600,10 +1567,10 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
 }
 
 // --- Modern template ---
-function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName }: {
+function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, programmes, programmesError }: {
   user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
+  programmes: ProgrammeItem[]; programmesError: boolean;
 }) {
-  const programmes = useProgrammes();
   const reduced = useReducedMotion();
 
   const {
@@ -1697,7 +1664,7 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
 
       {/* NAV */}
       <motion.nav
-        initial={reduced ? false : { y: -16, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.55, ease: EASE_OUT }}
+        initial={false} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.55, ease: EASE_OUT }}
         className="fixed top-0 left-0 right-0 z-50 transition-shadow duration-300"
         style={{
           background: scrolled ? (isPageDark ? 'rgba(13,17,23,0.82)' : 'rgba(255,255,255,0.85)') : (isPageDark ? '#0d1117' : 'white'),
@@ -1820,7 +1787,9 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
         </section>
       )}
 
-      {programmes.length === 0 && (
+      {programmesError && <ProgrammeLoadError dark={isPageDark} />}
+
+      {!programmesError && programmes.length === 0 && (
         <div className="min-h-[40vh] flex items-center justify-center text-sm" style={{ color: isPageDark ? 'rgba(255,255,255,0.40)' : '#6E7383' }}>
           No programmes yet. Check back soon.
         </div>
@@ -1958,48 +1927,49 @@ function LandingPageSkeleton() {
 }
 
 // --- Page ---
-export default function LandingPage() {
+type LandingPageClientProps = {
+  initialTemplateId: string;
+  initialSiteConfig: Partial<SiteConfig>;
+  initialProgrammes: ProgrammeItem[];
+  programmesError: boolean;
+  isPreview: boolean;
+};
+
+export default function LandingPageClient({
+  initialTemplateId,
+  initialSiteConfig,
+  initialProgrammes,
+  programmesError,
+  isPreview,
+}: LandingPageClientProps) {
   const { logoUrl, logoDarkUrl, appName } = useTenant();
 
   const [user, setUser]         = useState<any>(null);
   const [profile, setProfile]   = useState<any>(null);
   const [scrolled, setScrolled] = useState(false);
   const [pastHero, setPastHero] = useState(false);
-  const [loading, setLoading]   = useState(true);
+  const [loading, setLoading]   = useState(isPreview);
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [hoveredCard, setHoveredCard] = useState<number | null>(null);
-  const [siteConfig, setSiteConfig] = useState<SiteConfig>(resolveConfig('modern', {}));
-  const [templateId, setTemplateId] = useState('modern');
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => resolveConfig(initialTemplateId, initialSiteConfig));
+  const [templateId, setTemplateId] = useState(initialTemplateId);
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    // Preview mode: config passed via localStorage from dashboard
-    const params = new URLSearchParams(window.location.search);
-    if (params.has('_preview')) {
-      try {
-        const raw = localStorage.getItem('_site_preview');
-        if (raw) {
-          const { template, config } = JSON.parse(raw);
-          const t = template ?? 'modern';
-          setTemplateId(t);
-          setSiteConfig(resolveConfig(t, config ?? {}));
-        }
-      } catch {}
-      setLoading(false);
-      return;
-    }
-    fetch('/api/site-settings')
-      .then(r => r.ok ? r.json() : null)
-      .then(json => {
-        if (json?.data) {
-          const t = json.data.template ?? 'modern';
-          setTemplateId(t);
-          setSiteConfig(resolveConfig(t, json.data.config ?? {}));
-        }
-      })
-      .catch(e => console.error('[site-settings]', e))
-      .finally(() => setLoading(false));
-  }, []);
+    if (!isPreview) return;
+
+    // Dashboard preview config must override the server-rendered settings.
+    try {
+      const raw = localStorage.getItem('_site_preview');
+      if (raw) {
+        const { template, config } = JSON.parse(raw);
+        const nextTemplate = template ?? 'modern';
+        setTemplateId(nextTemplate);
+        setSiteConfig(resolveConfig(nextTemplate, config ?? {}));
+      }
+    } catch {}
+    setLoading(false);
+  }, [isPreview]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Live preview: receive config updates from dashboard iframe via postMessage
@@ -2107,9 +2077,9 @@ export default function LandingPage() {
   if (loading) return <LandingPageSkeleton />;
 
   if (templateId === 'elevate') {
-    return <ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} />;
+    return <ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} programmes={initialProgrammes} programmesError={programmesError} />;
   }
 
-  return <ModernTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} />;
+  return <ModernTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} programmes={initialProgrammes} programmesError={programmesError} />;
 
 }
