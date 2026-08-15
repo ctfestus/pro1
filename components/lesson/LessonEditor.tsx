@@ -19,7 +19,7 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   Bold, Italic, Underline as UnderlineIcon, Strikethrough, Code2, FileCode2,
   List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Quote,
-  Image as ImageIcon, Table as TableIcon, BookMarked, AudioLines,
+  Image as ImageIcon, Table as TableIcon, BookMarked, AudioLines, Paperclip,
   Eye, Monitor, Pencil, Smartphone, Tablet,
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
@@ -34,6 +34,7 @@ import { LessonRuntimeProvider } from '@/components/lesson/LessonRuntimeContext'
 import { useTenant } from '@/components/TenantProvider';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { AudioPicker } from '@/components/lesson/AudioPicker';
+import { AttachmentPicker } from '@/components/lesson/AttachmentPicker';
 import { InteractiveInsertMenu } from '@/components/lesson/InteractiveInsertMenu';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { sanitizeRichText } from '@/lib/sanitize';
@@ -71,6 +72,7 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
   const dark = isDark ?? theme === 'dark';
   const [showLibrary, setShowLibrary] = useState(false);
   const [showAudioPicker, setShowAudioPicker] = useState(false);
+  const [showAttachmentPicker, setShowAttachmentPicker] = useState(false);
   const [glossaryEditor, setGlossaryEditor] = useState<GlossaryEditorState | null>(null);
   const [linkEditor, setLinkEditor] = useState<LinkEditorState | null>(null);
   const [previewMode, setPreviewMode] = useState(false);
@@ -241,6 +243,7 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
           <Btn dark={dark} title="Table" onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><TableIcon /></Btn>
           <Btn dark={dark} title="Insert image" onClick={() => setShowLibrary(true)}><ImageIcon /></Btn>
           <Btn dark={dark} title="Insert audio" onClick={() => setShowAudioPicker(true)}><AudioLines /></Btn>
+          <Btn dark={dark} title="Insert file" onClick={() => setShowAttachmentPicker(true)}><Paperclip /></Btn>
         </div>
         <div className="lesson-editor-toolbar__more">
           <StyleMenu width={244} triggerLabel="More" accentColor={lessonAccent}>
@@ -257,6 +260,7 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
               <ToolbarMenuBtn onClick={() => editor.chain().focus().insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run()}><TableIcon /> Table</ToolbarMenuBtn>
               <ToolbarMenuBtn onClick={() => setShowLibrary(true)}><ImageIcon /> Image</ToolbarMenuBtn>
               <ToolbarMenuBtn onClick={() => setShowAudioPicker(true)}><AudioLines /> Audio</ToolbarMenuBtn>
+              <ToolbarMenuBtn onClick={() => setShowAttachmentPicker(true)}><Paperclip /> File</ToolbarMenuBtn>
             </MenuRow>
           </StyleMenu>
         </div>
@@ -393,6 +397,12 @@ export function LessonEditor({ doc, bodyFallback, onChange, placeholder = 'Write
         <AudioPicker
           onSelect={url => editor.chain().focus().insertContent({ type: 'lessonAudio', attrs: { src: url } }).run()}
           onClose={() => setShowAudioPicker(false)}
+        />
+      )}
+      {showAttachmentPicker && (
+        <AttachmentPicker
+          onSelect={picked => editor.chain().focus().insertContent({ type: 'lessonAttachment', attrs: picked }).run()}
+          onClose={() => setShowAttachmentPicker(false)}
         />
       )}
     </div>

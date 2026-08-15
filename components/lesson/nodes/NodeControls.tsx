@@ -8,17 +8,19 @@ interface NodeDeleteButtonProps {
   getPos: NodeViewProps['getPos'];
   nodeSize: number;
   label: string;
+  onDelete?: () => void;
 }
 
 /** Consistent editor-only removal action for a complete interactive block. */
-export function NodeDeleteButton({ editor, getPos, nodeSize, label }: NodeDeleteButtonProps) {
+export function NodeDeleteButton({ editor, getPos, nodeSize, label, onDelete }: NodeDeleteButtonProps) {
   if (!editor.isEditable) return null;
 
   const remove = () => {
     if (typeof getPos !== 'function') return;
     const pos = getPos();
     if (pos == null) return;
-    editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
+    const removed = editor.chain().focus().deleteRange({ from: pos, to: pos + nodeSize }).run();
+    if (removed) onDelete?.();
   };
 
   return (
