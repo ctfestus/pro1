@@ -36,7 +36,7 @@ export type LandingPageData = {
   programmesError: boolean;
 };
 
-const getSiteSettings = unstable_cache(
+export const getLandingSiteSettings = unstable_cache(
   async (): Promise<{ template: string; config: Partial<SiteConfig> }> => {
     const { data, error } = await adminClient()
       .from('site_settings')
@@ -53,6 +53,14 @@ const getSiteSettings = unstable_cache(
   ['landing-site-settings'],
   { revalidate: 60, tags: ['landing-site-settings'] },
 );
+
+export async function getLandingSiteSettingsOrDefault() {
+  try {
+    return await getLandingSiteSettings();
+  } catch {
+    return { template: 'modern', config: {} as Partial<SiteConfig> };
+  }
+}
 
 const getProgrammes = unstable_cache(
   async (): Promise<ProgrammeItem[]> => {
@@ -143,7 +151,7 @@ const getProgrammes = unstable_cache(
 
 export async function getLandingPageData(): Promise<LandingPageData> {
   const [settingsResult, programmesResult] = await Promise.allSettled([
-    getSiteSettings(),
+    getLandingSiteSettings(),
     getProgrammes(),
   ]);
 
