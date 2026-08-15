@@ -21,6 +21,7 @@ import type { EditorView } from '@tiptap/pm/view';
 import type { LessonDoc } from '@/lib/lesson-doc';
 import { LessonImage } from '@/components/lesson/nodes/LessonImage';
 import { LessonAudio } from '@/components/lesson/nodes/LessonAudio';
+import { LessonAttachment } from '@/components/lesson/nodes/LessonAttachment';
 import { Callout } from '@/components/lesson/nodes/Callout';
 import { Accordion, AccordionItem } from '@/components/lesson/nodes/Accordion';
 import { Tabs, TabPanel } from '@/components/lesson/nodes/Tabs';
@@ -151,6 +152,8 @@ export const lessonExtensions: Extensions = [
   LessonImage.configure({ inline: false, allowBase64: false }),
   // Audio player block (uploaded Cloudinary file or pasted direct URL).
   LessonAudio,
+  // Downloadable file block (uploaded to Supabase Storage or pasted direct URL).
+  LessonAttachment,
   LessonTable.configure({ resizable: true, View: LessonTableView }),
   TableRow,
   LessonTableHeader,

@@ -8,6 +8,8 @@
 // Palette stays within the platform guardrails: neutral / emerald / amber only.
 // No indigo, purple, or blue accents.
 
+import { ATTACHMENT_EXTENSIONS } from '@/lib/lesson-attachment';
+
 export function LessonContentStyles() {
   // Stepper progressive reveal: when N steps are revealed, show steps 0..N-1. Generated
   // (rather than hand-written) so the cumulative selectors don't bloat the source.
@@ -29,6 +31,29 @@ export function LessonContentStyles() {
     ).join(',\n');
     return `${show} { display: flex; }\n${last} { animation: lesson-step-in 0.34s cubic-bezier(0.2,0.7,0.3,1); }\n${last}::after { display: none; }\n${current} .lesson-step__main { background: color-mix(in oklab, var(--lesson-accent-base) 5%, transparent); }\n${current} .lesson-step__num { box-shadow: 0 0 0 5px var(--lesson-accent-ring); }${completed ? `\n${completed} .lesson-step__num { display: none; }\n${completed} .lesson-step__check { display: inline-flex; }` : ''}`;
   }).join('\n');
+
+  // Authored inline links get a marker chosen by where they lead, so it carries
+  // information: a file pulls down, an outside site points away, an in-app path stays
+  // bare. Generated rather than hand-written because each type needs three forms --
+  // bare, `?query` (Supabase download URLs) and `#fragment` (pdf page anchors) -- and
+  // because the extension list is shared with the attachment block, so the two can
+  // never disagree about what counts as a file.
+  const authoredLink = '.lesson-content .ProseMirror a:not([class])';
+  // An absolute link back to this same app is not leaving it, so it earns no marker.
+  // The tenant domain is only knowable at runtime; this stylesheet renders on the client
+  // only (both lesson surfaces return null until their editor exists), so reading
+  // location here cannot cause a hydration mismatch.
+  // Wrapped in :where() so the exclusion costs no specificity -- a bare :not() would
+  // outrank the file rules below and steal the download glyph from every external file.
+  const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  const notThisApp = origin ? `:where(:not([href="${origin}"]):not([href^="${origin}/"]))` : '';
+  const externalLink = `${authoredLink}[href^="http"]${notThisApp}::after`;
+  const fileLink = ATTACHMENT_EXTENSIONS.flatMap((ext) => [
+    `${authoredLink}[href$=".${ext}" i]::after`,
+    `${authoredLink}[href*=".${ext}?" i]::after`,
+    `${authoredLink}[href*=".${ext}#" i]::after`,
+  ]).join(',\n');
+
   return (
     <style>{`
 .lesson-content { font-size: 15.5px; line-height: 1.6; color: #3f3f46; }
@@ -768,6 +793,44 @@ export function LessonContentStyles() {
   .lesson-content .lesson-audio__stage, .lesson-content .lesson-audio__authoring, .lesson-content .lesson-audio__caption { max-width: 100%; }
 }
 
+/* File attachment: borderless accent-washed card. The whole card is the download target
+   in the player, so the button inside it is a span -- a nested button would be invalid
+   markup and would swallow the click on touch. */
+.lesson-content .lesson-attachment { position: relative; width: 100%; max-width: 560px; margin: 1rem 0; }
+.lesson-content .lesson-attachment__card { position: relative; display: flex; align-items: center; gap: 13px; padding: 13px 15px; border-radius: 11px; background: color-mix(in oklab, var(--lesson-accent-base) 8%, transparent); text-decoration: none; }
+.lesson-content a.lesson-attachment__card:hover { background: color-mix(in oklab, var(--lesson-accent-base) 13%, transparent); }
+.lesson-content a.lesson-attachment__card:focus-visible { outline: 2px solid var(--lesson-accent) !important; outline-offset: 2px; }
+.lesson-content .lesson-attachment__tile { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; flex: 0 0 38px; border-radius: 9px; color: var(--lesson-accent-ink); background: #fff; }
+.lesson-content.dark .lesson-attachment__tile { background: rgba(255,255,255,0.07); }
+/* Basis 0, not auto: a long filename must not claim its full width and push the icon
+   onto its own row when the card wraps on a phone -- it should ellipsize instead. */
+.lesson-content .lesson-attachment__meta { display: flex; min-width: 0; flex: 1 1 0; flex-direction: column; gap: 2px; }
+.lesson-content .lesson-attachment__name { overflow: hidden; color: #27272a; font-size: 14px; font-weight: 640; line-height: 1.35; text-overflow: ellipsis; white-space: nowrap; }
+.lesson-content.dark .lesson-attachment__name { color: #f4f4f5; }
+.lesson-content .lesson-attachment__detail { color: #71717a; font-size: 11.5px; letter-spacing: 0.03em; font-variant-numeric: tabular-nums; }
+.lesson-content.dark .lesson-attachment__detail { color: #a1a1aa; }
+/* The accent ink is a deep green on light and a pale mint on dark, so the label flips
+   with it -- white on the dark-mode fill would be unreadable. */
+.lesson-content .lesson-attachment__grab { display: inline-flex; align-items: center; gap: 6px; flex: 0 0 auto; padding: 7px 13px; border-radius: 8px; color: #fff; background: var(--lesson-accent-ink); font-size: 12.5px; font-weight: 620; }
+.lesson-content.dark .lesson-attachment__grab { color: #0b1f17; }
+.lesson-content .lesson-attachment__controls { position: static; gap: 1px; padding: 0; background: transparent; box-shadow: none; }
+.lesson-content .lesson-attachment__control { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; border: 0; border-radius: 7px; color: #71717a; background: transparent; cursor: pointer; }
+.lesson-content .lesson-attachment__control:hover { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
+.lesson-content .lesson-attachment__caption { margin-top: 7px; color: #71717a; font-size: 12px; line-height: 1.5; }
+.lesson-content.dark .lesson-attachment__caption { color: #a1a1aa; }
+.lesson-content .lesson-attachment__authoring { display: flex; flex-direction: column; gap: 2px; }
+.lesson-content .lesson-attachment__name-input,
+.lesson-content .lesson-attachment__caption-input { width: 100%; margin-top: 7px; padding: 2px 0; border: 0; border-bottom: 1px dashed #d4d4d8; outline: 0; color: #71717a; background: transparent; font: inherit; font-size: 12px; }
+.lesson-content.dark .lesson-attachment__name-input,
+.lesson-content.dark .lesson-attachment__caption-input { color: #a1a1aa; border-bottom-color: #3f3f46; }
+.lesson-content .lesson-attachment__name-input::placeholder,
+.lesson-content .lesson-attachment__caption-input::placeholder { color: #c4c4c8; }
+@media (max-width: 560px) {
+  .lesson-content .lesson-attachment { max-width: 100%; }
+  .lesson-content .lesson-attachment__card { flex-wrap: wrap; }
+  .lesson-content .lesson-attachment__grab { width: 100%; justify-content: center; }
+}
+
 .lesson-content .lesson-carousel { --card-border-default: #e4e4e7; position: relative; margin: 1rem 0; container-type: inline-size; color: #3f3f46; }
 .lesson-content.dark .lesson-carousel { --card-border-default: rgba(255,255,255,0.09); color: #d4d4d8; }
 .lesson-content .lesson-carousel__hint { position: absolute; top: 18px; left: 20px; z-index: 3; display: flex; align-items: center; justify-content: flex-start; gap: 7px; max-width: calc(100% - 40px); color: #71717a; pointer-events: none; white-space: nowrap; font-size: 10.5px; font-weight: 680; letter-spacing: 0.015em; }
@@ -1116,7 +1179,13 @@ ${stepReveal}
 .lesson-content .ProseMirror a:not([class]) { color: var(--lesson-accent-ink); font-weight: 620; text-decoration-color: color-mix(in oklab, var(--lesson-accent-base) 48%, transparent); text-decoration-line: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; transition: color 0.14s ease, text-decoration-color 0.14s ease; }
 .lesson-content .ProseMirror a:not([class]):hover { color: var(--lesson-accent-strong); text-decoration-color: var(--lesson-accent); }
 .lesson-content .ProseMirror a:not([class]):focus-visible { border-radius: 3px; outline: 2px solid var(--lesson-accent) !important; outline-offset: 2px; }
-.lesson-content .ProseMirror a:not([class])[target="_blank"]::after { content: ' [new]'; display: inline-block; margin-left: 2px; font-size: 0.78em; line-height: 1; transform: translateY(-0.12em); }
+/* Destination markers. Drawn, not text, so they cannot read as a "new" badge, and never
+   applied to same-origin paths -- an in-app link needs no warning. File rules come last
+   so a link that is both external and a file shows the download glyph. */
+${externalLink},
+${fileLink} { content: ''; display: inline-block; width: 0.58em; height: 0.58em; margin-left: 3px; background: currentColor; transform: translateY(-0.1em); -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; -webkit-mask-position: center; mask-position: center; -webkit-mask-size: contain; mask-size: contain; }
+${externalLink} { -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17 17 7'/%3E%3Cpath d='M8 7h9v9'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 17 17 7'/%3E%3Cpath d='M8 7h9v9'/%3E%3C/svg%3E"); }
+${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12'/%3E%3Cpath d='m7 11 5 5 5-5'/%3E%3Cpath d='M4 20h16'/%3E%3C/svg%3E"); mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12'/%3E%3Cpath d='m7 11 5 5 5-5'/%3E%3Cpath d='M4 20h16'/%3E%3C/svg%3E"); }
 
 .lesson-link-editor { padding: 13px 14px 14px; border-bottom: 1px solid rgba(0,0,0,0.07); color: #3f3f46; background: #fafafa; }
 .lesson-link-editor.dark { border-bottom-color: rgba(255,255,255,0.07); color: #d4d4d8; background: rgba(255,255,255,0.025); }
