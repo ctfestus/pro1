@@ -5,7 +5,8 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import { pdfPageImageUrl } from '@/lib/cloudinary-pdf';
-import type { LessonDoc } from '@/lib/lesson-doc';
+import { buildLessonDoc } from '@/lib/lesson-blocks';
+import { LESSON_BLOCK_GUIDE, lessonBlockSchema } from '@/lib/lesson-blocks-ai';
 import { normalizePythonCodeInput } from '@/lib/python-engine';
 
 // Full-course generation fans out many LLM calls; use the platform's maximum window.
@@ -397,96 +398,16 @@ async function checkPythonCourseRateLimit(userId: string, role: string): Promise
   return null;
 }
 
-// Shared JSON schema shape for interactive lesson blocks (used by multiple actions).
-const blockItemSchema = {
-  type: Type.OBJECT,
-  properties: {
-    type:         { type: Type.STRING, description: 'paragraph | heading | bulletList | blockquote | callout | knowledgeCheck | runnableCode' },
-    text:         { type: Type.STRING, description: 'For paragraph, heading, blockquote, callout: main text content' },
-    level:        { type: Type.NUMBER, description: 'For heading only: always 4' },
-    items:        { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For bulletList: the list items as plain strings' },
-    variant:      { type: Type.STRING, description: 'For callout: info | warning | success | danger' },
-    title:        { type: Type.STRING, description: 'For callout: short header label (3-5 words)' },
-    question:     { type: Type.STRING, description: 'For knowledgeCheck: the question text' },
-    options:      { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For knowledgeCheck: exactly 4 answer options' },
-    correctIndex: { type: Type.NUMBER, description: 'For knowledgeCheck: 0-based index of the correct answer' },
-    explanation:  { type: Type.STRING, description: 'For knowledgeCheck: one sentence explaining why the answer is correct' },
-    language:     { type: Type.STRING, description: 'For runnableCode: sql | python | javascript' },
-    code:         { type: Type.STRING, description: 'For runnableCode: the main code snippet the learner sees and can edit/run' },
-    setupSql:     { type: Type.STRING, description: 'For runnableCode sql: CREATE TABLE + INSERT INTO to seed sample data (compact, 3-5 rows)' },
-    setupPython:  { type: Type.STRING, description: 'For runnableCode python: import statements and helper setup (no output)' },
-  },
-  required: ['type'],
-};
-
-// Convert AI-generated block list to a ProseMirror/TipTap doc (dependency-free, runs server-side).
-function buildLessonDoc(blocks: unknown[]): LessonDoc {
-  const makeText = (t: string): LessonDoc => ({ type: 'text', text: t });
-  const makePara = (text: string): LessonDoc => ({ type: 'paragraph', content: [makeText(text)] });
-
-  const nodes: LessonDoc[] = [];
-  for (const block of blocks) {
-    if (!block || typeof block !== 'object') continue;
-    const b = block as Record<string, unknown>;
-    switch (b.type) {
-      case 'paragraph':
-        nodes.push(makePara(String(b.text ?? '')));
-        break;
-      case 'heading':
-        nodes.push({ type: 'heading', attrs: { level: Number(b.level) || 4 }, content: [makeText(String(b.text ?? ''))] });
-        break;
-      case 'bulletList': {
-        const items = Array.isArray(b.items) ? b.items : [];
-        if (items.length) {
-          nodes.push({
-            type: 'bulletList',
-            content: items.map((item) => ({ type: 'listItem', content: [makePara(String(item))] })),
-          });
-        }
-        break;
-      }
-      case 'blockquote':
-        nodes.push({ type: 'blockquote', content: [makePara(String(b.text ?? ''))] });
-        break;
-      case 'callout':
-        nodes.push({
-          type: 'callout',
-          attrs: { variant: String(b.variant ?? 'info'), title: String(b.title ?? ''), borderStyle: 'solid', borderColor: '' },
-          content: [makePara(String(b.text ?? ''))],
-        });
-        break;
-      case 'knowledgeCheck': {
-        const opts = Array.isArray(b.options) ? b.options.map(String) : [];
-        nodes.push({
-          type: 'knowledgeCheck',
-          attrs: {
-            question:     String(b.question ?? ''),
-            options:      opts,
-            correctIndex: Number(b.correctIndex ?? 0),
-            explanation:  String(b.explanation ?? ''),
-            borderStyle:  'solid',
-            borderColor:  '',
-          },
-        });
-        break;
-      }
-      case 'runnableCode':
-        nodes.push({
-          type: 'runnableCode',
-          attrs: {
-            language:    String(b.language ?? 'sql'),
-            code:        String(b.code ?? ''),
-            setupSql:    String(b.setupSql ?? ''),
-            setupPython: String(b.setupPython ?? ''),
-          },
-        });
-        break;
-      default:
-        break;
-    }
-  }
-  return { type: 'doc', content: nodes.length ? nodes : [makePara('')] };
-}
+// Interactive lesson blocks (used by multiple actions). Shape, schema, and the prompt guide
+// that lists every available block type live in lib/lesson-blocks + lib/lesson-blocks-ai,
+// shared with the inline "Ask AI" assistant so both AI surfaces know the same element set.
+//
+// A discriminated union, one branch per block type. These generators cannot drop the
+// response schema the way the inline assistant does -- blocks are one field of a much larger
+// object here -- and a single all-optional block shape makes the model fill plausible-looking
+// fields instead of the ones the block needs (a promptBlock with no prompt, tabs with no
+// bodies). Requiring each type's own fields in its own branch is what prevents that.
+const blockItemSchema = lessonBlockSchema();
 
 // Shared instructional-design persona for the document-to-course engine.
 const DOC_COURSE_PERSONA = `You are a world-class course creator and instructional designer with deep expertise in adult learning, backward design, and skills-based training. Your specialty is transforming documents, documentation, and product guides into JOB-READY, hands-on courses that build real, applicable workplace skills.
@@ -687,21 +608,14 @@ The lesson must be lightweight, scannable, and use interactive components where 
 
 Produce two things:
 1. "body": a compact HTML fallback using only <p>, <strong>, <ul>, <li>, <h4>, <blockquote>. 80-140 words. No <hr> dividers.
-2. "blocks": an interactive lesson as an ordered array of block nodes for the rich lesson player. Use these types:
-   - paragraph: { "type": "paragraph", "text": "..." }
-   - heading: { "type": "heading", "level": 4, "text": "Sub-section title" }
-   - bulletList: { "type": "bulletList", "items": ["point 1", "point 2", ...] }
-   - blockquote: { "type": "blockquote", "text": "A standout rule or tip" }
-   - callout: { "type": "callout", "variant": "info"|"warning"|"success"|"danger", "title": "Label", "text": "..." }
-   - knowledgeCheck: { "type": "knowledgeCheck", "question": "...", "options": ["A","B","C","D"], "correctIndex": 0, "explanation": "..." }
-   - runnableCode: { "type": "runnableCode", "language": "sql"|"python"|"javascript", "code": "...", "setupSql": "...", "setupPython": "..." }
+2. "blocks": an interactive lesson as an ordered array of block nodes for the rich lesson player.
+
+${LESSON_BLOCK_GUIDE}
 
 Blocks structure rules:
-- Start with a hook: a callout (info/success) or paragraph that frames WHY this matters.
-- Use a bulletList or heading + paragraphs for 2-4 key points or steps.
+- Start with a hook: a callout (info/tip/success) or paragraph that frames WHY this matters.
+- Use at least one interactive block beyond the callout and the closing check when the content supports it: flipCards for terms, stepCards or guidedSteps for a procedure, tabs for alternatives, timeline for a sequence, accordion for optional detail, table for a comparison.
 - Include runnableCode ONLY when the concept involves SQL or Python -- skip it for purely conceptual topics.
-  - SQL runnableCode: always include setupSql with CREATE TABLE + INSERT (3-5 rows) so the query is actually runnable.
-  - Python runnableCode: include setupPython with imports if needed.
 - End with exactly one knowledgeCheck testing the core concept.
 - Keep total prose under 150 words across all blocks.
 
@@ -1900,14 +1814,16 @@ For the module, produce:
     - written_response: question is one open question the learner answers in their own words in a few paragraphs - ask for a judgement, a justification, or an interpretation, never a definition to recite. Provide a rubric of 3-5 criteria, context the AI should judge against, and expectedAnswer (a model answer, reviewer grounding only). Leave options/correctAnswer empty.
     - python_exercise: question is a realistic Python task grounded in the lesson content. Provide pythonStarterCode (a skeleton with # TODO comments where learner fills in logic), pythonSolution (complete correct Python), pythonExpectedOutput (exact stdout from running the solution, newline-separated), pythonSetupCode (import statements only, no output), and 1-3 pythonHints. Note: available packages are pandas, numpy, matplotlib, scipy, scikit-learn. Do not use file I/O or network calls. Leave options/correctAnswer empty.
 
-For each lesson's "body", also produce a "blocks" array that builds the same content as interactive TipTap nodes:
-- Start with a hook: a callout (info/success) or paragraph framing WHY this concept matters on the job.
-- Use heading (level 4), paragraph, bulletList, and blockquote for structure.
+For each lesson's "body", also produce a "blocks" array that builds the same content as interactive lesson nodes:
+
+${LESSON_BLOCK_GUIDE}
+
+- Start with a hook: a callout (info/tip/success) or paragraph framing WHY this concept matters on the job.
+- Use the interactive block that fits the content rather than defaulting to paragraphs: flipCards for terminology, stepCards or guidedSteps for a procedure, tabs for alternatives or a before/after, timeline for a sequence, accordion for detail the learner opens on demand, table for a comparison, promptBlock when the skill is applied by prompting an AI tool.
 - Include runnableCode (sql or python) ONLY when the lesson content involves code or queries -- skip for conceptual/process lessons.
   - SQL runnableCode: include setupSql with CREATE TABLE + INSERT (3-5 rows, exact column names from the shared dataset) so the example is runnable.
-  - Python runnableCode: include setupPython with import statements if needed.
-- End with exactly one knowledgeCheck testing the core concept (4 options, correctIndex 0-3, one-sentence explanation).
-For the intro "blocks": same rules; use callout for module overview, bulletList for what learners will be able to do, and runnableCode for a motivating demo if relevant.
+- End with exactly one knowledgeCheck testing the core concept.
+For the intro "blocks": same rules; use callout for module overview, bulletList or stepCards for what learners will be able to do, and runnableCode for a motivating demo if relevant.
 ${hasSqlLessons && sqlSchemaBlock ? `
 SHARED SQL DATASET (use ONLY these tables and exact column names for every sql_exercise; never invent columns):
 ${sqlSchemaBlock}

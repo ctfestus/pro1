@@ -364,6 +364,7 @@ export default function PublicFormPage() {
           lessonTiming: course.lesson_timing ?? undefined,
           showAnswers:  course.show_answers  ?? 'per_question',
           maxAttempts:  course.max_attempts  ?? 0,
+          enableAiTutor: course.ai_tutor_enabled ?? false,
         }};
       } else if (event) {
         data = { ...event, content_type: 'event', config: {

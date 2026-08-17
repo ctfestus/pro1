@@ -4,18 +4,20 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import {
-  ALLOWED_ACTIONS, INTERACTIVE_ACTIONS, FORMAT_SET, MAX_TEXT, MAX_INSTRUCTION, MAX_CONTEXT,
-  SCHEMAS, TEXT_SCHEMA, FORMAT_PICK_SCHEMA,
-  buildTextPrompt, formatPrompt, classifyPrompt, normalize, type Format,
+  ALLOWED_ACTIONS, INTERACTIVE_ACTIONS, BLOCK_KIND_SET, MAX_TEXT, MAX_INSTRUCTION, MAX_CONTEXT,
+  BLOCK_CALL_OPTS, TEXT_SCHEMA,
+  buildTextPrompt, buildBlockPrompt, buildInstructionPrompt, usableBlocks, type BlockKind,
 } from '@/lib/ai-assist-server';
 
 // Inline "Ask AI" assistant for the authoring editors (lesson / VE / assignment).
 // Acts on a SELECTION the instructor made -- distinct from the bulk generators
 // (/api/ai-course, /api/ai-guided-project) which scaffold whole fields. Instructor/admin only.
 //
-// Text actions return { result: string }. Interactive actions return
-// { kind: InteractiveKind, interactive: <payload> } -- one payload shape per lesson node type.
-// make_auto classifies the selection server-side, then generates the chosen format.
+// Text actions return { result: string }. Interactive actions return { kind: 'blocks',
+// blocks: AiBlock[] } -- the shared lesson block tree (lib/lesson-blocks), so one response
+// can carry any node the lesson editor supports, nested. A free instruction ("custom")
+// answers either way when the caller sets allowBlocks, which only the lesson editor does;
+// the contentEditable surfaces have nowhere to put a block, so they stay text-only.
 // Prompt construction, schemas, and validation live in lib/ai-assist-server (unit-tested).
 
 async function checkRateLimit(userId: string): Promise<NextResponse | null> {
@@ -64,24 +66,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Enter an instruction.' }, { status: 400 });
   }
   const context = String(body?.contextText ?? '').slice(0, MAX_CONTEXT);
+  const allowBlocks = body?.allowBlocks === true;
+
+  const blockError = 'Could not build that block from the selection. Try a longer or different passage.';
 
   try {
     if (INTERACTIVE_ACTIONS.has(action)) {
-      let format: Format;
-      if (action === 'make_auto') {
-        const cls = await generateJSON(classifyPrompt(text, context), FORMAT_PICK_SCHEMA, { temperature: 0.2 });
-        const picked = String(cls?.format ?? '').trim().toLowerCase();
-        format = (FORMAT_SET.has(picked) ? picked : 'quiz') as Format;
-      } else {
-        format = action.replace('make_', '') as Format;
+      const kind = action.replace('make_', '');
+      if (!BLOCK_KIND_SET.has(kind)) {
+        return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
       }
+      const raw = await generateJSON(buildBlockPrompt(kind as BlockKind, text, context), undefined, BLOCK_CALL_OPTS);
+      const blocks = usableBlocks(raw?.blocks);
+      if (!blocks) return NextResponse.json({ error: blockError }, { status: 502 });
+      return NextResponse.json({ kind: 'blocks', blocks });
+    }
 
-      const raw = await generateJSON(formatPrompt(format, text, context), SCHEMAS[format], { temperature: 0.6 });
-      const payload = normalize(format, raw ?? {});
-      if (!payload) {
-        return NextResponse.json({ error: 'Could not build that block from the selection. Try a longer or different passage.' }, { status: 502 });
+    // A free instruction on the lesson editor may ask for a block instead of a rewrite.
+    if (action === 'custom' && allowBlocks) {
+      const out = await generateJSON(buildInstructionPrompt(text, instruction, context), undefined, BLOCK_CALL_OPTS);
+      if (String(out?.mode ?? '').trim() === 'blocks') {
+        const blocks = usableBlocks(out?.blocks);
+        if (blocks) return NextResponse.json({ kind: 'blocks', blocks });
       }
-      return NextResponse.json({ kind: format, interactive: payload });
+      const written = String(out?.result ?? '').trim();
+      if (written) return NextResponse.json({ result: written });
+      return NextResponse.json({ error: blockError }, { status: 502 });
     }
 
     const out = await generateJSON(buildTextPrompt(action, text, instruction, context), TEXT_SCHEMA, { temperature: action === 'grammar' ? 0.2 : 0.6 });

@@ -28,6 +28,7 @@ import { saveMyLinkedInProfileUrl, shareClaimErrorMessage } from '@/lib/linkedin
 import { sanitizeRichText } from '@/lib/sanitize';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
+import { LessonTutorPanel, TutorSignalMark } from '@/components/lesson/LessonTutorPanel';
 import { supabase } from '@/lib/supabase';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import {
@@ -292,6 +293,13 @@ export function CourseTaker({
   // Feature 3: hint system
   const [hintsUsed, setHintsUsed] = useState<Set<string>>(new Set());
   const [hintVisible, setHintVisible] = useState(false);
+
+  // Lesson AI tutor (opt-in per course). Session-only -- the pane drops its thread
+  // whenever the slide changes, so it is never grounded in a lesson it is not showing.
+  const [tutorOpen, setTutorOpen] = useState(false);
+  const [signedIn, setSignedIn] = useState(false);
+  // The pane belongs to the lesson it was opened from, so navigating away closes it.
+  useEffect(() => { setTutorOpen(false); }, [currentQuestionIndex]);
 
   // Feature 4: 'auto' appearance mode follows the app theme the viewer selected.
   const { theme: appTheme } = useTheme();
@@ -831,10 +839,19 @@ export function CourseTaker({
     await runCourseChecks(studentEmail.trim().toLowerCase());
   }, [studentName, studentEmail, runCourseChecks]);
 
-  // Keep sessionTokenRef in sync whenever Supabase refreshes the access token
+  // Keep sessionTokenRef in sync whenever Supabase refreshes the access token.
+  // `signedIn` is the reactive mirror of it: a ref cannot gate rendering, and the tutor
+  // button has to be hidden for a signed-out viewer because /api/lesson-tutor requires a
+  // user and would 401 on every ask. Courses open to everyone are readable without a
+  // session, so this is a real state, not a theoretical one.
   useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.access_token) sessionTokenRef.current = session.access_token;
+      setSignedIn(Boolean(session?.access_token));
+    });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.access_token) sessionTokenRef.current = session.access_token;
+      setSignedIn(Boolean(session?.access_token));
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -2835,6 +2852,23 @@ export function CourseTaker({
     return createPortal(modal, document.body);
   }
 
+  // The tutor sits beside the lesson as a sibling of the content column, so whether it is
+  // available has to be known out here rather than inside the lesson slide's own render.
+  //
+  // ONE condition gates both the launch button and the pane. They were separate before, which
+  // is exactly how the button ended up rendering in places the pane did not: signed out (every
+  // ask 401s) and in inlineMode (no pane row to dock into, so clicking did nothing).
+  const tutorLesson = currentQuestion?.lessonOnly ? (currentQuestion.lesson || {}) : null;
+  const tutorAvailable = Boolean(
+    (config as any).enableAiTutor
+    && formId
+    && signedIn
+    && !inlineMode
+    // It answers from the lesson text, so it is only offered where there is text to answer
+    // from (a video-only slide has nothing to read).
+    && tutorLesson && (tutorLesson.doc || tutorLesson.body),
+  );
+
   const quizUI = (
     <>
       {/* -- Confetti canvas -- */}
@@ -3781,9 +3815,30 @@ export function CourseTaker({
                           style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#F2F5FA'}` }}
                         >
                           <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>Lesson</p>
-                          <h1 className="text-xl font-bold leading-snug" style={{ color: isDark ? '#ACB8C5' : '#111' }}>
-                            {lesson.title || 'Lesson Content'}
-                          </h1>
+                          <div className="flex items-start justify-between gap-3">
+                            <h1 className="text-xl font-bold leading-snug" style={{ color: isDark ? '#ACB8C5' : '#111' }}>
+                              {lesson.title || 'Lesson Content'}
+                            </h1>
+                            {tutorAvailable && (
+                              <button
+                                onClick={() => setTutorOpen(true)}
+                                aria-expanded={tutorOpen}
+                                aria-label="Open AI Assistant"
+                                className="group flex-shrink-0 inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[11px] font-semibold transition-all duration-200 hover:-translate-y-0.5"
+                                style={{
+                                  color: accent,
+                                  background: `color-mix(in oklab, ${accent} 9%, ${isDark ? '#1E1F26' : '#ffffff'})`,
+                                  border: 'none',
+                                  boxShadow: `0 8px 22px color-mix(in oklab, ${accent} 10%, transparent)`,
+                                }}
+                              >
+                                <span className="relative grid place-items-center w-5 h-5 rounded-lg" style={{ background: `color-mix(in oklab, ${accent} 14%, transparent)` }}>
+                                  <TutorSignalMark accent={accent} size={16} />
+                                </span>
+                                AI Assistant
+                              </button>
+                            )}
+                          </div>
                         </div>
 
                         {/* Video */}
@@ -3858,6 +3913,7 @@ export function CourseTaker({
                             <ChevronRight className="w-4 h-4" />
                           </button>
                         </div>
+
                       </div>
                     );
                   })() : <div
@@ -4369,6 +4425,21 @@ export function CourseTaker({
             </div>
           </div>
         </div>{/* end main column */}
+
+        {/* -- TUTOR PANE -- a sibling of the content column, so it is a pane at the same level
+             as the outline and the lesson rather than an overlay floating above them. On wide
+             screens it takes its own column and the lesson reflows beside it; below that it
+             slides over the content the way the outline drawer does. */}
+        {tutorAvailable && (
+          <LessonTutorPanel
+            isDark={isDark}
+            accent={accent}
+            courseId={formId}
+            slideId={currentQuestion.id}
+            open={tutorOpen}
+            onOpenChange={setTutorOpen}
+          />
+        )}
         </div>{/* end body row */}
       </div>{/* end main container */}
 

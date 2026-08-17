@@ -2,7 +2,9 @@ import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
 
 // All model names come from env -- no hardcoding
-export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+// The 2.x line is closed to new API keys: it returns 404 NOT_FOUND rather than degrading, so a
+// deployment that relied on an older default would fail outright on every AI call.
+export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
 export const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 
 // Applied as a system instruction on every call so no individual prompt can miss it.
@@ -16,8 +18,11 @@ const FORMATTING_SYSTEM_INSTRUCTION =
   'Do not open any sentence with filler phrases such as "Certainly!", "Absolutely!", "Of course!", or "Great!". ' +
   'Write plainly and directly.';
 
-function geminiClient() {
-  const apiKey = process.env.GEMINI_API_KEY;
+// `key` lets a caller run on its OWN Gemini project instead of the platform key -- used by
+// the student-facing lesson tutor so its free-tier quota is billed and exhausted separately
+// from the authoring generators. Falls back to the platform key when unset.
+function geminiClient(key?: string) {
+  const apiKey = key || process.env.GEMINI_API_KEY;
   if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
   return new GoogleGenAI({ apiKey });
 }
@@ -38,6 +43,25 @@ export type GenerateJSONOpts = {
   // older models reject thinkingLevel. Unbounded thinking adds 10-100s of latency
   // per call and can starve the output budget, truncating the JSON mid-string.
   thinkingLevel?: 'minimal' | 'low';
+  // Run this call on a different Gemini project / model than the platform default.
+  // Both fall back to the platform values when unset.
+  geminiApiKey?: string;
+  geminiModel?: string;
+  // Skip the OpenAI fallback. Routes on a dedicated free-tier key set this so a
+  // quota exhaustion surfaces as an error instead of silently spending paid credit.
+  noFallback?: boolean;
+  // Hard ceiling on generated tokens. Without one, a runaway generation is billed in full --
+  // and on a metered free tier that is the difference between one costly answer and a dead
+  // feature for the rest of the day.
+  maxOutputTokens?: number;
+  // Replace the default anti-slop system instruction for this call only.
+  //
+  // The default forbids every non-ASCII character and tells the model to write plainly,
+  // which is right for authored course content but suppresses markdown structure and
+  // emoji on a chat surface -- and a system instruction outranks the prompt, so a route
+  // cannot ask for structure without replacing this. Only override where the output is
+  // rendered as rich text and is never persisted as course content.
+  systemInstruction?: string;
 };
 
 function isRetryableGeminiError(err: unknown) {
@@ -65,7 +89,7 @@ async function generateGeminiJSON(
   const retries = Math.max(0, opts.geminiRetries ?? 1);
   const config: any = {
     responseMimeType: 'application/json',
-    systemInstruction: FORMATTING_SYSTEM_INSTRUCTION,
+    systemInstruction: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION,
   };
   if (geminiSchema) config.responseSchema = geminiSchema;
   if (opts.temperature !== undefined) config.temperature = opts.temperature;
@@ -74,8 +98,8 @@ async function generateGeminiJSON(
   let lastError: unknown;
   for (let attempt = 0; attempt <= retries; attempt += 1) {
     try {
-      const result = await geminiClient().models.generateContent({
-        model: GEMINI_MODEL,
+      const result = await geminiClient(opts.geminiApiKey).models.generateContent({
+        model: opts.geminiModel || GEMINI_MODEL,
         contents: prompt,
         config,
       });
@@ -94,7 +118,75 @@ async function generateGeminiJSON(
   throw lastError;
 }
 
-// ---- 1. Text JSON (primary: Gemini, fallback: OpenAI) ----
+async function generateGeminiText(prompt: string, opts: GenerateJSONOpts = {}) {
+  const retries = Math.max(0, opts.geminiRetries ?? 1);
+  const config: any = {
+    systemInstruction: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION,
+  };
+  if (opts.temperature !== undefined) config.temperature = opts.temperature;
+  if (opts.thinkingLevel) config.thinkingConfig = { thinkingLevel: opts.thinkingLevel.toUpperCase() };
+  if (opts.maxOutputTokens) config.maxOutputTokens = opts.maxOutputTokens;
+
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
+    try {
+      const result = await geminiClient(opts.geminiApiKey).models.generateContent({
+        model: opts.geminiModel || GEMINI_MODEL,
+        contents: prompt,
+        config,
+      });
+      // Deliberately NOT treating a MAX_TOKENS finish as an error the way the JSON path must:
+      // a cut-off sentence is still a usable answer, while cut-off JSON is unparseable. That
+      // difference is most of the reason this path exists -- it removes a retry trigger.
+      const text = (result.text ?? '').trim();
+      if (!text) throw new Error('Gemini returned an empty response');
+      return text;
+    } catch (err) {
+      lastError = err;
+      if (attempt >= retries || !isRetryableGeminiError(err)) throw err;
+      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
+  }
+
+  throw lastError;
+}
+
+// ---- 1. Plain text (primary: Gemini, fallback: OpenAI) ----
+//
+// For calls whose answer IS prose -- the lesson tutor. Asking those for JSON actively hurts:
+// the model has to escape every newline inside the string, one literal newline makes the whole
+// reply unparseable, and both that and a truncated string are classified retryable, so a
+// formatting slip silently doubles the request count against the AI quota.
+//
+// Kept as its own path rather than a flag on generateJSON so the JSON path every other route
+// depends on is left exactly as it was.
+export async function generateText(prompt: string, opts: GenerateJSONOpts = {}): Promise<string> {
+  try {
+    return await generateGeminiText(prompt, opts);
+  } catch (err) {
+    if (opts.noFallback) throw err;
+    const client = openaiClient();
+    if (!client) {
+      console.warn('[AI] Gemini text failed and no OpenAI fallback is configured:', (err as Error).message);
+      throw err;
+    }
+    console.warn('[AI] Gemini text failed, falling back to OpenAI:', (err as Error).message);
+    const res = await client.chat.completions.create({
+      model: OPENAI_MODEL,
+      messages: [
+        { role: 'system', content: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION },
+        { role: 'user', content: prompt },
+      ],
+      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
+      ...(opts.maxOutputTokens ? { max_tokens: opts.maxOutputTokens } : {}),
+    });
+    const text = (res.choices[0]?.message?.content ?? '').trim();
+    if (!text) throw err;
+    return text;
+  }
+}
+
+// ---- 2. Text JSON (primary: Gemini, fallback: OpenAI) ----
 export async function generateJSON(
   prompt: string,
   geminiSchema?: any,
@@ -103,6 +195,7 @@ export async function generateJSON(
   try {
     return await generateGeminiJSON(prompt, geminiSchema, opts);
   } catch (err) {
+    if (opts.noFallback) throw err;
     const client = openaiClient();
     if (!client) {
       console.warn('[AI] Gemini failed and no OpenAI fallback is configured:', (err as Error).message);
@@ -113,7 +206,7 @@ export async function generateJSON(
       model: OPENAI_MODEL,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: FORMATTING_SYSTEM_INSTRUCTION },
+        { role: 'system', content: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION },
         { role: 'user', content: prompt },
       ],
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
@@ -122,7 +215,7 @@ export async function generateJSON(
   }
 }
 
-// ---- 2. Vision + Text JSON (primary: Gemini, fallback: OpenAI) ----
+// ---- 3. Vision + Text JSON (primary: Gemini, fallback: OpenAI) ----
 export async function generateVisionJSON(
   prompt: string,
   image: { data: string; mimeType: string },
@@ -169,7 +262,7 @@ export async function generateVisionJSON(
   }
 }
 
-// ---- 3. Text Streaming JSON (primary: Gemini, fallback: OpenAI) ----
+// ---- 4. Text Streaming JSON (primary: Gemini, fallback: OpenAI) ----
 export async function generateStream(
   prompt: string,
   geminiSchema?: any,

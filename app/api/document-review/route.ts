@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 const RATE_LIMIT = 3;
 const RATE_WINDOW_SECONDS = 86400;
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
 
 const SUPPORTED_MIME: Record<string, string> = {
   pdf:  'application/pdf',
