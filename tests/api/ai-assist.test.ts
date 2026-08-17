@@ -93,33 +93,53 @@ describe('POST /api/ai-assist - generation', () => {
     expect(await res.json()).toEqual({ result: 'better text' });
   });
 
-  it('returns { kind, interactive } for an explicit format', async () => {
-    mockGenerateJSON.mockResolvedValue({ cards: [{ front: 'F', back: 'B' }] });
-    const res = await post({ action: 'make_flashcards', text: 'term: definition' });
+  it('returns { kind: blocks } for an explicit block kind, in one model call', async () => {
+    const blocks = [{ type: 'flipCards', parts: [{ front: 'F', back: 'B' }] }];
+    mockGenerateJSON.mockResolvedValue({ blocks });
+    const res = await post({ action: 'make_flipCards', text: 'term: definition' });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ kind: 'flashcards', interactive: { cards: [{ front: 'F', back: 'B' }] } });
+    expect(await res.json()).toEqual({ kind: 'blocks', blocks });
+    expect(mockGenerateJSON).toHaveBeenCalledTimes(1);
   });
 
-  it('classifies then generates for make_auto', async () => {
-    mockGenerateJSON
-      .mockResolvedValueOnce({ format: 'steps' })
-      .mockResolvedValueOnce({ steps: [{ title: 'Step 1', body: 'do x' }] });
+  it('lets make_auto choose the block type itself', async () => {
+    const blocks = [{ type: 'guidedSteps', parts: [{ title: 'Step 1', body: 'do x' }] }];
+    mockGenerateJSON.mockResolvedValue({ blocks });
     const res = await post({ action: 'make_auto', text: 'first do x then y' });
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ kind: 'steps', interactive: { steps: [{ title: 'Step 1', body: 'do x' }] } });
-    expect(mockGenerateJSON).toHaveBeenCalledTimes(2);
+    expect(await res.json()).toEqual({ kind: 'blocks', blocks });
   });
 
-  it('falls back to quiz when make_auto returns an unknown format', async () => {
-    mockGenerateJSON
-      .mockResolvedValueOnce({ format: 'banana' })
-      .mockResolvedValueOnce({ question: 'Q', options: ['a', 'b'], correctIndex: 0, explanation: 'E' });
-    const res = await post({ action: 'make_auto', text: 'x' });
-    expect((await res.json()).kind).toBe('quiz');
+  it('keeps a nested block tree intact', async () => {
+    const blocks = [{
+      type: 'tabs',
+      parts: [{ label: 'Practice', children: [{ type: 'knowledgeCheck', question: 'Q', options: ['a', 'b'], correctIndex: 0 }] }],
+    }];
+    mockGenerateJSON.mockResolvedValue({ blocks });
+    expect((await (await post({ action: 'make_tabs', text: 'x' })).json()).blocks).toEqual(blocks);
   });
 
-  it('returns 502 when the model output cannot be normalized', async () => {
-    mockGenerateJSON.mockResolvedValue({ cards: [] });
-    expect((await post({ action: 'make_flashcards', text: 'x' })).status).toBe(502);
+  it('returns 502 when the model output builds no lesson node', async () => {
+    mockGenerateJSON.mockResolvedValue({ blocks: [{ type: 'tabs', parts: [] }] });
+    expect((await post({ action: 'make_flipCards', text: 'x' })).status).toBe(502);
+  });
+
+  it('answers a free instruction with blocks only when the surface allows them', async () => {
+    const blocks = [{ type: 'tabs', parts: [{ label: 'One', body: 'B' }] }];
+    mockGenerateJSON.mockResolvedValue({ mode: 'blocks', blocks, result: 'fallback prose' });
+
+    const allowed = await post({ action: 'custom', text: 'x', instruction: 'make this three tabs', allowBlocks: true });
+    expect(await allowed.json()).toEqual({ kind: 'blocks', blocks });
+
+    // No allowBlocks (the contentEditable editors) -> the text path, which has nowhere to
+    // put a block and would otherwise drop the answer on the floor.
+    mockGenerateJSON.mockResolvedValue({ result: 'rewritten' });
+    const textOnly = await post({ action: 'custom', text: 'x', instruction: 'make this three tabs' });
+    expect(await textOnly.json()).toEqual({ result: 'rewritten' });
+  });
+
+  it('falls back to the written answer when an instruction returns unusable blocks', async () => {
+    mockGenerateJSON.mockResolvedValue({ mode: 'blocks', blocks: [{ type: 'tabs' }], result: 'rewritten instead' });
+    const res = await post({ action: 'custom', text: 'x', instruction: 'do something', allowBlocks: true });
+    expect(await res.json()).toEqual({ result: 'rewritten instead' });
   });
 });

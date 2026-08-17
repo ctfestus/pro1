@@ -21,39 +21,9 @@ import {
   askAi, textToParagraphNodes, TEXT_ACTIONS, INTERACTIVE_ACTIONS,
   type AiAction, type AiResult,
 } from '@/lib/ai-assist';
+import { buildLessonNodes } from '@/lib/lesson-blocks';
 
 const ACTIONS = [...TEXT_ACTIONS, ...INTERACTIVE_ACTIONS];
-
-// At least one block is required by the step/accordion/timeline/tab/slide content models.
-const bodyParas = (text: string): JSONContent[] => {
-  const p = textToParagraphNodes(text || '');
-  return p.length ? p : [{ type: 'paragraph' }];
-};
-
-// Build the TipTap node for a generated interactive result. Attrs/content mirror the
-// lesson node schemas (see components/lesson/nodes/*).
-function interactiveNode(result: Exclude<AiResult, { kind: 'text' }>): JSONContent {
-  switch (result.kind) {
-    case 'callout':
-      return { type: 'callout', attrs: { variant: result.data.variant, title: result.data.title }, content: bodyParas(result.data.body) };
-    case 'quiz': {
-      const k = result.data;
-      return { type: 'knowledgeCheck', attrs: { question: k.question, options: k.options, correctIndex: k.correctIndex, explanation: k.explanation } };
-    }
-    case 'flashcards':
-      return { type: 'flipCardDeck', content: result.data.cards.map((c) => ({ type: 'flipCard', attrs: { front: c.front, back: c.back } })) };
-    case 'steps':
-      return { type: 'stepper', content: result.data.steps.map((s) => ({ type: 'step', attrs: { title: s.title }, content: bodyParas(s.body) })) };
-    case 'accordion':
-      return { type: 'accordion', content: result.data.sections.map((s) => ({ type: 'accordionItem', attrs: { title: s.title, open: false }, content: bodyParas(s.body) })) };
-    case 'tabs':
-      return { type: 'tabs', content: result.data.tabs.map((t) => ({ type: 'tabPanel', attrs: { label: t.label }, content: bodyParas(t.body) })) };
-    case 'carousel':
-      return { type: 'carousel', content: result.data.slides.map((s) => ({ type: 'carouselSlide', attrs: { title: s.title }, content: bodyParas(s.body) })) };
-    case 'timeline':
-      return { type: 'timeline', content: result.data.entries.map((e) => ({ type: 'timelineEntry', attrs: { date: e.date, title: e.title }, content: bodyParas(e.body) })) };
-  }
-}
 
 interface Captured { from: number; to: number; text: string; contextText: string; }
 
@@ -124,15 +94,18 @@ export function LessonAiMenu({ editor, dark }: { editor: Editor; dark: boolean }
   const onRun = useCallback(async (action: AiAction, instruction: string): Promise<AiResult> => {
     const s = sel.current;
     if (!s) throw new Error('Selection lost. Select the text again.');
-    return askAi({ action, text: s.text, instruction, contextText: s.contextText });
+    // Only this surface can hold interactive nodes, so only it lets a free instruction
+    // ("turn this into three tabs") come back as blocks instead of a rewrite.
+    return askAi({ action, text: s.text, instruction, contextText: s.contextText, allowBlocks: true });
   }, []);
 
   const onApply = useCallback((mode: ApplyMode, result: AiResult) => {
     const s = sel.current;
     if (!s) return;
-    if (result.kind !== 'text') {
+    if (result.kind === 'blocks') {
       // Interactive blocks are inserted after the selection (the source text is kept).
-      editor.chain().focus().insertContentAt(s.to, interactiveNode(result)).run();
+      const nodes = buildLessonNodes(result.blocks) as JSONContent[];
+      if (nodes.length) editor.chain().focus().insertContentAt(s.to, nodes).run();
       return;
     }
     const nodes = textToParagraphNodes(result.text);

@@ -110,6 +110,140 @@ export function inlineGlossaryDefinitions<T extends LessonDoc | null | undefined
   return visit(doc as LessonDoc) as T;
 }
 
+// Node attrs that carry author-written prose. Most block bodies live in child `content`
+// (those nodes are `block+`), so the text walk already picks those up -- this list is for
+// text a node keeps on itself: a callout's title, and the two faces of a flip card, which
+// is an atom node with no child content at all.
+const TEXT_ATTRS = new Set([
+  'title', 'label', 'prompt', 'question', 'date', 'alt', 'caption', 'name', 'summary',
+  'front', 'back',
+]);
+
+// knowledgeCheck attrs the tutor must never see. A lesson knowledge check is formative,
+// but a tutor that can read the marked answer would simply hand it over when asked.
+// `question` is allowed through so the tutor can still discuss what the check is testing.
+const ANSWER_ATTRS = new Set(['correctIndex', 'acceptedAnswers', 'expectedAnswer', 'rubric', 'explanation', 'options']);
+
+// Total budget for runnable-code content across the WHOLE lesson, and only when the learner
+// actually asked about code. A per-block cap is not enough: a lesson with eight exercises would
+// multiply it and swamp the prose.
+const MAX_CODE_TOTAL_CHARS = 900;
+
+/**
+ * Table shapes without the rows. Seed scripts are mostly INSERT statements -- thousands of
+ * characters of literal data that tell the tutor nothing it needs, so those statements are
+ * dropped and only the DDL survives.
+ */
+function sqlSchemaOnly(sql: string): string {
+  return sql
+    .split(';')
+    .map((s) => s.trim())
+    .filter((s) => s && !/^insert\b/i.test(s))
+    .map((s) => `${s};`)
+    .join('\n');
+}
+
+/** Just the imports, so the tutor knows which library the exercise is built on. */
+function pythonImportsOnly(py: string): string {
+  return py
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => /^(import|from)\s/.test(l))
+    .join('\n');
+}
+
+/**
+ * Flatten a lesson doc to plain text for grounding an AI call (the lesson tutor).
+ *
+ * Walks the ProseMirror JSON collecting text nodes and the prose attrs listed above, one line
+ * per block, and drops the answer-bearing attrs of a knowledge check so the extracted text can
+ * be put in a prompt without leaking marked answers. Pure JSON traversal -- DOM-free /
+ * server-safe, like the rest of this module.
+ *
+ * `includeCode` opts in the runnable-code content, and is meant to be set ONLY when the
+ * learner's question is actually about code. It is off by default because that content is
+ * bulky and is resent on every question: including it unconditionally is what makes a tutor
+ * expensive. Even when on, it admits only the learner-visible `code`, the schema shape of a
+ * SQL seed script, and the import lines of a Python one -- never the seed rows -- and the whole
+ * lot shares one character budget.
+ */
+export function lessonPlainText(
+  doc: LessonDoc | null | undefined,
+  maxChars = 12000,
+  { includeCode = false }: { includeCode?: boolean } = {},
+): string {
+  // Tracked as prose-or-code rather than one flat list, so the final trim can protect the code
+  // the learner actually asked about. See the assembly at the end.
+  const parts: { text: string; isCode: boolean }[] = [];
+  const push = (v: unknown) => {
+    if (typeof v !== 'string') return;
+    const t = v.replace(/\s+/g, ' ').trim();
+    if (t) parts.push({ text: t, isCode: false });
+  };
+
+  // Code keeps its line breaks: flattening a script to one line makes it much harder to
+  // explain, and "walk me through this query" is the whole reason it is here.
+  let codeLeft = includeCode ? MAX_CODE_TOTAL_CHARS : 0;
+  const pushCode = (v: unknown, transform?: (s: string) => string) => {
+    if (codeLeft <= 0 || typeof v !== 'string') return;
+    let t = v.trim();
+    if (transform) t = transform(t).trim();
+    if (!t) return;
+    if (t.length > codeLeft) t = `${t.slice(0, codeLeft)}\n(code truncated)`;
+    codeLeft -= t.length;
+    parts.push({ text: t, isCode: true });
+  };
+
+  const visit = (node: unknown) => {
+    if (Array.isArray(node)) { node.forEach(visit); return; }
+    if (!isObject(node)) return;
+
+    const isCheck = node.type === 'knowledgeCheck';
+    if (isObject(node.attrs)) {
+      for (const [key, value] of Object.entries(node.attrs)) {
+        if (isCheck && ANSWER_ATTRS.has(key)) continue;
+        if (TEXT_ATTRS.has(key)) push(value);
+      }
+      if (includeCode && node.type === 'runnableCode') {
+        pushCode(node.attrs.code);
+        pushCode(node.attrs.setupSql, sqlSchemaOnly);
+        pushCode(node.attrs.setupPython, pythonImportsOnly);
+      }
+    }
+    push(node.text);
+    if (Array.isArray(node.content)) node.content.forEach(visit);
+  };
+
+  visit(doc as unknown);
+
+  // Code gets its space reserved out of the budget BEFORE prose is measured against it.
+  // Trimming the joined text from the end instead would cut whichever content came last, and a
+  // runnable block sitting near the end of a long lesson is precisely the case where the
+  // learner asked about the code and it is the code that would be dropped. Prose is still
+  // trimmed in document order; code is always emitted whole, in place. Its own
+  // MAX_CODE_TOTAL_CHARS cap keeps this reservation small enough that prose is never starved.
+  const codeChars = parts.reduce((n, p) => (p.isCode ? n + p.text.length + 1 : n), 0);
+  let proseLeft = Math.max(0, maxChars - codeChars);
+  let truncated = false;
+  const out: string[] = [];
+
+  for (const part of parts) {
+    if (part.isCode) { out.push(part.text); continue; }
+    if (proseLeft <= 0) { truncated = true; continue; }
+    if (part.text.length > proseLeft) {
+      out.push(part.text.slice(0, proseLeft));
+      proseLeft = 0;
+      truncated = true;
+      continue;
+    }
+    out.push(part.text);
+    proseLeft -= part.text.length + 1;
+  }
+
+  const text = out.join('\n');
+  return truncated ? `${text}\n(lesson truncated)` : text;
+}
+
 /**
  * Collect the SQL and Python setup scripts from every SHARED runnable-code block in a
  * lesson, so all shared blocks can run against one combined per-lesson runtime (define a

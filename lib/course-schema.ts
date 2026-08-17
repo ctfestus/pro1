@@ -222,6 +222,7 @@ export interface FormConfig {
   learnOutcomes?: string[];
   showAnswers?: 'per_question' | 'after_quiz' | 'none';
   lessonTiming?: 'before' | 'after';
+  enableAiTutor?: boolean;        // opt-in AI tutor on lesson slides (column: courses.ai_tutor_enabled)
   passmark?: number;
   courseTimer?: number;           // canonical (legacy alias: `timer`)
   maxAttempts?: number;

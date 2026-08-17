@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 const MAX_URL_BYTES = 512 * 1024; // URL imports only need enough HTML/text to extract source material
 const MAX_SOURCE_CHARS = 100_000;
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-2.0-flash';
+const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
 
 // Document types Gemini can read directly as inlineData.
 const SUPPORTED_MIME: Record<string, string> = {

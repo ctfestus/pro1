@@ -15,8 +15,10 @@ import {
   Wand2, Expand, Minimize2, SpellCheck, Sparkles, Briefcase, PenLine,
   AlignLeft, HelpCircle, Send, Loader2, Check, X,
   Info, Layers, ListChecks, ChevronsUpDown, LayoutGrid, GalleryHorizontal, History,
+  PanelsTopLeft, MessageSquareCode, Terminal, Braces, Table,
 } from 'lucide-react';
 import type { AiAction, AiActionDef, AiResult } from '@/lib/ai-assist';
+import { blockLabel, type AiBlock } from '@/lib/lesson-blocks';
 
 export type ApplyMode = 'replace' | 'insertBelow';
 
@@ -45,20 +47,22 @@ const ACTION_ICONS: Record<AiAction, React.ComponentType<{ width?: number; heigh
   formal: Briefcase,
   continue: PenLine,
   custom: Wand2,
+  // Icons match components/lesson/InteractiveInsertMenu, so an element looks the same
+  // whether it is inserted by hand or asked for.
   make_auto: Sparkles,
   make_callout: Info,
-  make_quiz: HelpCircle,
-  make_flashcards: Layers,
-  make_steps: ListChecks,
+  make_knowledgeCheck: HelpCircle,
+  make_flipCards: Layers,
+  make_stepCards: PanelsTopLeft,
+  make_guidedSteps: ListChecks,
   make_accordion: ChevronsUpDown,
   make_tabs: LayoutGrid,
   make_carousel: GalleryHorizontal,
   make_timeline: History,
-};
-
-const FORMAT_NAME: Record<string, string> = {
-  callout: 'Callout', quiz: 'Knowledge check', flashcards: 'Flashcards', steps: 'Steps',
-  accordion: 'Accordion', tabs: 'Tabs', carousel: 'Carousel', timeline: 'Timeline',
+  make_table: Table,
+  make_promptBlock: MessageSquareCode,
+  make_sql: Terminal,
+  make_python: Braces,
 };
 
 const PANEL_WIDTH = 300;
@@ -264,13 +268,13 @@ export function AiAssistPanel({ anchor, actions, dark, onRun, onApply, onClose }
         </div>
       )}
 
-      {phase.kind === 'preview' && phase.result.kind !== 'text' && (
+      {phase.kind === 'preview' && phase.result.kind === 'blocks' && (
         <div style={{ padding: '10px 12px' }}>
           <div style={{ fontSize: 10.5, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: palette.sub, marginBottom: 6 }}>
-            {FORMAT_NAME[phase.result.kind] ?? 'Interactive block'}
+            {phase.result.blocks.length === 1 ? blockLabel(phase.result.blocks[0]?.type) : `${phase.result.blocks.length} blocks`}
           </div>
           <div style={{ maxHeight: 230, overflowY: 'auto', background: palette.field, borderRadius: 8, padding: '10px 11px', marginBottom: 10 }}>
-            <InteractivePreview result={phase.result} sub={palette.sub} green={GREEN} />
+            <BlockPreview blocks={phase.result.blocks} sub={palette.sub} green={GREEN} />
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
             <PanelBtn style={primaryBtn} onClick={() => apply('insertBelow', phase.result)}>
@@ -307,106 +311,97 @@ function PanelBtn({ style, onClick, children }: { style: React.CSSProperties; on
   );
 }
 
-type InteractiveResult = Exclude<AiResult, { kind: 'text' }>;
-
-// Read-only preview of a generated interactive block, one render per format.
-function InteractivePreview({ result, sub, green }: { result: InteractiveResult; sub: string; green: string }) {
+// Read-only outline of a generated block tree. One renderer for every block type, and it
+// recurses through nested sections, so a tabs block holding a knowledge check previews as
+// what it is instead of needing a hand-written case per format.
+function BlockPreview({ blocks, sub, green, depth = 0 }: { blocks: AiBlock[]; sub: string; green: string; depth?: number }) {
   const title: React.CSSProperties = { fontWeight: 600, fontSize: 12.5, margin: '0 0 2px' };
   const bodyText: React.CSSProperties = { fontSize: 12, lineHeight: 1.45, margin: 0, whiteSpace: 'pre-wrap' };
-  const muted: React.CSSProperties = { fontSize: 11.5, color: sub };
-  const list: React.CSSProperties = { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 9 };
+  const muted: React.CSSProperties = { fontSize: 11.5, color: sub, margin: 0 };
+  const eyebrow: React.CSSProperties = { fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: sub, margin: '0 0 3px' };
+  const stack: React.CSSProperties = { listStyle: 'none', margin: 0, padding: 0, display: 'flex', flexDirection: 'column', gap: 9 };
 
-  switch (result.kind) {
-    case 'callout':
-      return (
-        <div>
-          {result.data.title && <p style={title}>{result.data.title}</p>}
-          <p style={bodyText}>{result.data.body}</p>
-        </div>
-      );
-    case 'quiz':
-      return (
-        <div>
-          <p style={{ ...title, marginBottom: 8 }}>{result.data.question}</p>
-          <ul style={{ ...list, gap: 5 }}>
-            {result.data.options.map((opt, i) => {
-              const correct = i === result.data.correctIndex;
-              return (
-                <li key={i} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: correct ? green : 'inherit' }}>
-                  {correct ? <Check width={13} height={13} /> : <span style={{ width: 13, display: 'inline-block' }} />}
-                  <span>{opt}</span>
-                </li>
-              );
-            })}
-          </ul>
-          {result.data.explanation && <p style={{ ...muted, margin: '9px 0 0', lineHeight: 1.45 }}>{result.data.explanation}</p>}
-        </div>
-      );
-    case 'flashcards':
-      return (
-        <ul style={list}>
-          {result.data.cards.map((c, i) => (
-            <li key={i}>
-              <p style={title}>{c.front}</p>
-              <p style={bodyText}>{c.back}</p>
-            </li>
-          ))}
-        </ul>
-      );
-    case 'steps':
-      return (
-        <ol style={{ ...list, paddingLeft: 0, counterReset: 'step' }}>
-          {result.data.steps.map((s, i) => (
-            <li key={i}>
-              <p style={title}>{i + 1}. {s.title}</p>
-              {s.body && <p style={bodyText}>{s.body}</p>}
-            </li>
-          ))}
-        </ol>
-      );
-    case 'accordion':
-      return (
-        <ul style={list}>
-          {result.data.sections.map((s, i) => (
-            <li key={i}>
-              <p style={title}>{s.title}</p>
-              {s.body && <p style={bodyText}>{s.body}</p>}
-            </li>
-          ))}
-        </ul>
-      );
-    case 'tabs':
-      return (
-        <ul style={list}>
-          {result.data.tabs.map((t, i) => (
-            <li key={i}>
-              <p style={title}>{t.label}</p>
-              {t.body && <p style={bodyText}>{t.body}</p>}
-            </li>
-          ))}
-        </ul>
-      );
-    case 'carousel':
-      return (
-        <ul style={list}>
-          {result.data.slides.map((s, i) => (
-            <li key={i}>
-              <p style={title}>{s.title || `Slide ${i + 1}`}</p>
-              {s.body && <p style={bodyText}>{s.body}</p>}
-            </li>
-          ))}
-        </ul>
-      );
-    case 'timeline':
-      return (
-        <ul style={list}>
-          {result.data.entries.map((e, i) => (
-            <li key={i}>
-              <p style={title}>{[e.date, e.title].filter(Boolean).join(' - ')}</p>
-              {e.body && <p style={bodyText}>{e.body}</p>}
-            </li>
-          ))}
-        </ul>
-      );
-  }
+  return (
+    <ul style={stack}>
+      {blocks.map((b, i) => {
+        const heading = b.title || b.question || '';
+        const parts = Array.isArray(b.parts) ? b.parts : [];
+        const items = Array.isArray(b.items) ? b.items : [];
+        const options = Array.isArray(b.options) ? b.options : [];
+        const rows = Array.isArray(b.rows) ? b.rows : [];
+        const children = Array.isArray(b.children) ? b.children : [];
+        return (
+          <li key={i}>
+            {depth === 0 && blocks.length > 1 && <p style={eyebrow}>{blockLabel(b.type)}</p>}
+            {heading && <p style={title}>{heading}</p>}
+            {b.text && <p style={bodyText}>{b.text}</p>}
+
+            {options.length > 0 && (
+              <ul style={{ ...stack, gap: 5, marginTop: 6 }}>
+                {options.map((opt, o) => {
+                  const correct = o === Number(b.correctIndex ?? 0);
+                  return (
+                    <li key={o} style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 12.5, color: correct ? green : 'inherit' }}>
+                      {correct ? <Check width={13} height={13} /> : <span style={{ width: 13, display: 'inline-block' }} />}
+                      <span>{opt}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {items.length > 0 && (
+              <ul style={{ margin: '4px 0 0', paddingLeft: 16 }}>
+                {items.map((item, n) => <li key={n} style={bodyText}>{item}</li>)}
+              </ul>
+            )}
+
+            {(b.code || b.prompt) && (
+              <pre style={{ ...bodyText, fontFamily: 'ui-monospace, monospace', fontSize: 11.5, margin: '4px 0 0', overflowX: 'auto' }}>
+                {b.code || b.prompt}
+              </pre>
+            )}
+
+            {rows.length > 0 && (
+              <ul style={{ ...stack, gap: 3, marginTop: 4 }}>
+                {rows.map((row, r) => (
+                  <li key={r} style={{ ...bodyText, color: r === 0 ? undefined : sub }}>
+                    {(row?.cells ?? []).join('  |  ')}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {parts.length > 0 && (
+              <ul style={{ ...stack, marginTop: 6, paddingLeft: 9, borderLeft: `1px solid ${sub}33` }}>
+                {parts.map((p, n) => {
+                  const label = [p.date, p.title || p.label || p.front].filter(Boolean).join(' - ');
+                  const nested = Array.isArray(p.children) ? p.children : [];
+                  return (
+                    <li key={n}>
+                      <p style={title}>{label || `Item ${n + 1}`}</p>
+                      {(p.body || p.back) && <p style={bodyText}>{p.body || p.back}</p>}
+                      {nested.length > 0 && (
+                        <div style={{ marginTop: 5 }}>
+                          <BlockPreview blocks={nested} sub={sub} green={green} depth={depth + 1} />
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {children.length > 0 && (
+              <div style={{ marginTop: 5 }}>
+                <BlockPreview blocks={children} sub={sub} green={green} depth={depth + 1} />
+              </div>
+            )}
+
+            {b.explanation && <p style={{ ...muted, marginTop: 8, lineHeight: 1.45 }}>{b.explanation}</p>}
+          </li>
+        );
+      })}
+    </ul>
+  );
 }

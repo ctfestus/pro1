@@ -1,67 +1,38 @@
 import { describe, it, expect } from 'vitest';
 
 import {
-  normalize, ALLOWED_ACTIONS, FORMATS,
-  buildTextPrompt, formatPrompt, classifyPrompt,
+  ALLOWED_ACTIONS, INTERACTIVE_ACTIONS, BLOCK_KINDS, usableBlocks,
+  buildTextPrompt, buildBlockPrompt, buildInstructionPrompt,
 } from '@/lib/ai-assist-server';
+import { INTERACTIVE_ACTIONS as MENU_ACTIONS } from '@/lib/ai-assist';
 
 describe('ALLOWED_ACTIONS', () => {
-  it('covers text actions, make_auto, and one make_<format> per format', () => {
+  it('covers text actions and one make_<kind> per block kind', () => {
     expect(ALLOWED_ACTIONS.has('improve')).toBe(true);
     expect(ALLOWED_ACTIONS.has('make_auto')).toBe(true);
-    for (const f of FORMATS) expect(ALLOWED_ACTIONS.has(`make_${f}`)).toBe(true);
+    for (const k of BLOCK_KINDS) expect(ALLOWED_ACTIONS.has(`make_${k}`)).toBe(true);
     expect(ALLOWED_ACTIONS.has('make_bogus')).toBe(false);
     expect(ALLOWED_ACTIONS.has('delete')).toBe(false);
   });
+
+  it('accepts exactly the actions the editor menu offers', () => {
+    // A menu entry the route rejects is a dead button; a kind with no menu entry is an
+    // element the author can never ask for. Both are how the two lists drifted before.
+    expect(MENU_ACTIONS.map((a) => a.action).sort()).toEqual([...INTERACTIVE_ACTIONS].sort());
+  });
 });
 
-describe('normalize', () => {
-  it('callout: defaults an unknown variant to note', () => {
-    expect(normalize('callout', { variant: 'purple', title: 'T', body: 'B' }))
-      .toEqual({ variant: 'note', title: 'T', body: 'B' });
+describe('usableBlocks', () => {
+  it('accepts a block list that converts to lesson nodes', () => {
+    const blocks = [{ type: 'tabs', parts: [{ label: 'One', body: 'Body' }] }];
+    expect(usableBlocks(blocks)).toEqual(blocks);
   });
 
-  it('callout: rejects when both title and body are empty', () => {
-    expect(normalize('callout', { variant: 'tip', title: '', body: '' })).toBeNull();
-  });
-
-  it('quiz: rejects an out-of-range correctIndex', () => {
-    expect(normalize('quiz', { question: 'Q', options: ['a', 'b'], correctIndex: 5, explanation: '' })).toBeNull();
-  });
-
-  it('quiz: rejects fewer than two options', () => {
-    expect(normalize('quiz', { question: 'Q', options: ['a'], correctIndex: 0, explanation: '' })).toBeNull();
-  });
-
-  it('quiz: accepts a valid question', () => {
-    expect(normalize('quiz', { question: 'Q', options: ['a', 'b', 'c'], correctIndex: 1, explanation: 'E' }))
-      .toEqual({ question: 'Q', options: ['a', 'b', 'c'], correctIndex: 1, explanation: 'E' });
-  });
-
-  it('flashcards: drops cards missing a side, and rejects when none remain', () => {
-    expect(normalize('flashcards', { cards: [{ front: 'f', back: '' }] })).toBeNull();
-    expect(normalize('flashcards', { cards: [{ front: 'f', back: 'b' }, { front: '', back: 'x' }] }))
-      .toEqual({ cards: [{ front: 'f', back: 'b' }] });
-  });
-
-  it('tabs: backfills a missing label', () => {
-    expect(normalize('tabs', { tabs: [{ label: '', body: 'hello' }] }))
-      .toEqual({ tabs: [{ label: 'Tab 1', body: 'hello' }] });
-  });
-
-  it('timeline: keeps an entry that has any field', () => {
-    expect(normalize('timeline', { entries: [{ date: '2020', title: '', body: '' }] }))
-      .toEqual({ entries: [{ date: '2020', title: '', body: '' }] });
-  });
-
-  it('steps / accordion / carousel: reject empty arrays', () => {
-    expect(normalize('steps', { steps: [] })).toBeNull();
-    expect(normalize('accordion', { sections: [] })).toBeNull();
-    expect(normalize('carousel', { slides: [] })).toBeNull();
-  });
-
-  it('tolerates a completely empty payload', () => {
-    expect(normalize('flashcards', {})).toBeNull();
+  it('rejects a list where nothing converts', () => {
+    expect(usableBlocks([{ type: 'tabs', parts: [] }, { type: 'unknown' }])).toBeNull();
+    expect(usableBlocks([])).toBeNull();
+    expect(usableBlocks('nope')).toBeNull();
+    expect(usableBlocks(undefined)).toBeNull();
   });
 });
 
@@ -72,15 +43,41 @@ describe('prompts carry the JSON contract (so the schema-less OpenAI fallback st
     expect(p.toLowerCase()).toContain('json');
   });
 
-  it('classify prompt names the format field and says JSON', () => {
-    const p = classifyPrompt('hello', '');
-    expect(p).toContain('"format"');
-    expect(p.toLowerCase()).toContain('json');
+  it('block prompts name the blocks field, the block library, and the requested kind', () => {
+    for (const kind of BLOCK_KINDS) {
+      const p = buildBlockPrompt(kind, 'x', '');
+      expect(p).toContain('"blocks"');
+      expect(p.toLowerCase()).toContain('json');
+      expect(p).toContain('BLOCK LIBRARY');
+    }
+    expect(buildBlockPrompt('timeline', 'x', '')).toContain('timeline');
+    expect(buildBlockPrompt('sql', 'x', '')).toContain('setupSql');
   });
 
-  it('format prompts include their expected keys', () => {
-    expect(formatPrompt('flashcards', 'x', '')).toContain('"cards"');
-    expect(formatPrompt('quiz', 'x', '')).toContain('"correctIndex"');
-    expect(formatPrompt('timeline', 'x', '')).toContain('"entries"');
+  it('tells restructuring blocks to keep the author wording, and generative ones to write fresh', () => {
+    // Without this the model returns a polished paraphrase, which lands directly under the
+    // author's own paragraph (blocks insert after the selection) and reads as a duplicate.
+    for (const kind of ['tabs', 'stepCards', 'callout', 'flipCards', 'accordion', 'timeline', 'table'] as const) {
+      expect(buildBlockPrompt(kind, 'x', ''), kind).toContain("Keep the author's wording");
+    }
+    for (const kind of ['knowledgeCheck', 'sql', 'python'] as const) {
+      expect(buildBlockPrompt(kind, 'x', ''), kind).toContain('does not already contain');
+    }
+  });
+
+  it('tells the AI prompt block to copy the selection verbatim', () => {
+    // The block wraps a prompt the author already wrote, so an "improved" prompt is a
+    // different prompt, and the author cannot spot the edit without a side-by-side read.
+    const p = buildBlockPrompt('promptBlock', 'x', '');
+    expect(p).toContain('word for word');
+    expect(p).not.toContain('does not already contain');
+  });
+
+  it('instruction prompt offers both answer modes and repeats the instruction', () => {
+    const p = buildInstructionPrompt('x', 'turn this into three tabs', '');
+    expect(p).toContain('turn this into three tabs');
+    expect(p).toContain('"mode": "text"');
+    expect(p).toContain('"mode": "blocks"');
+    expect(p).toContain('BLOCK LIBRARY');
   });
 });

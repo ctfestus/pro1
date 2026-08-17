@@ -373,7 +373,7 @@ const [isSaving, setIsSaving] = useState(false);
     } else if (editId) {
       // Load existing content from purpose-built tables
       Promise.all([
-        supabase.from('courses').select('id, title, description, slug, status, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts').eq('id', editId).maybeSingle(),
+        supabase.from('courses').select('id, title, description, slug, status, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled').eq('id', editId).maybeSingle(),
         supabase.from('events').select('id, title, description, slug, status, cohort_ids, fields, event_date, event_time, timezone, location, event_type, capacity, meeting_link, is_private, post_submission, cover_image, deadline_days, theme, mode, font, custom_accent, speakers, recurrence, recurrence_end_date, recurrence_days').eq('id', editId).maybeSingle(),
       ]).then(([{ data: course }, { data: event }]) => {
         let id: string | null = null;
@@ -396,6 +396,7 @@ const [isSaving, setIsSaving] = useState(false);
             learnOutcomes: course.learn_outcomes,
             showAnswers: course.show_answers ?? undefined,
             lessonTiming: course.lesson_timing ?? undefined,
+            enableAiTutor: course.ai_tutor_enabled ?? false,
             maxAttempts: course.max_attempts ?? undefined,
             // Partial by design: see app/[id]/page.tsx -- normalizing to a full
             pointsSystem: pointsSystemFromCourseRow(course),
@@ -3107,6 +3108,32 @@ const [isSaving, setIsSaving] = useState(false);
                       {(formConfig.lessonTiming ?? 'after') === 'before'
                         ? 'Lesson opens automatically before each question. Students read first, then answer.'
                         : 'Lesson is offered after answering. "Why?" if wrong, "Review Lesson" if right.'}
+                    </p>
+                  </div>
+
+                  {/* AI tutor */}
+                  <div className="space-y-3 border-t pt-5" style={{ borderColor: C.divider }}>
+                    <label className={labelCls} style={labelStyle}>AI tutor</label>
+                    <div className="flex w-fit max-w-full flex-wrap gap-1 rounded-xl p-1" style={{ background: C.groupBg }}>
+                      {([
+                        { value: true, label: 'On' },
+                        { value: false, label: 'Off' },
+                      ] as const).map(({ value, label }) => (
+                        <button
+                          key={String(value)}
+                          type="button"
+                          onClick={() => updateConfig({ enableAiTutor: value })}
+                          className="min-h-9 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all"
+                          style={{ background: (formConfig.enableAiTutor ?? false) === value ? accentColor : 'transparent', color: (formConfig.enableAiTutor ?? false) === value ? '#fff' : C.muted }}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[10px] leading-relaxed" style={{ color: C.faint }}>
+                      {formConfig.enableAiTutor
+                        ? 'Lesson slides show an Ask AI button. The tutor answers from that lesson only and never gives away knowledge-check answers.'
+                        : 'Students read lesson slides on their own. No AI help is offered.'}
                     </p>
                   </div>
 

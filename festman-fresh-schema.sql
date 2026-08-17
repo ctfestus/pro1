@@ -244,6 +244,9 @@ CREATE TABLE public.courses (
                               CHECK (show_answers IN ('per_question', 'after_quiz', 'none')),
   partner_id      uuid        REFERENCES public.partners(id) ON DELETE SET NULL,
   max_attempts    integer     CHECK (max_attempts IS NULL OR max_attempts > 0),
+  -- migration 182: per-course opt-in for the lesson AI tutor. Off by default --
+  -- /api/lesson-tutor refuses every request for a course where this is false.
+  ai_tutor_enabled boolean    NOT NULL DEFAULT false,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now()
 );
