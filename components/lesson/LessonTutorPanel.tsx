@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { parseTutorMarkdown } from '@/lib/tutor-markdown';
 
 type Msg = { who: 'student' | 'tutor'; text: string };
 
@@ -72,53 +73,27 @@ function inline(text: string, isDark: boolean): React.ReactNode[] {
 }
 
 function TutorMarkdown({ text, isDark }: { text: string; isDark: boolean }) {
-  const blocks: React.ReactNode[] = [];
-  const lines = text.split('\n');
-  let para: string[] = [];
-  let list: { ordered: boolean; items: string[] } | null = null;
+  return (
+    <div className="lesson-tutor-prose">
+      {parseTutorMarkdown(text).map((block, index) => {
+        if (block.kind === 'heading') {
+          return <p key={index} className="lesson-tutor-h">{inline(block.text, isDark)}</p>;
+        }
+        if (block.kind === 'paragraph') {
+          return <p key={index} style={{ margin: 0 }}>{inline(block.text, isDark)}</p>;
+        }
 
-  const flushPara = () => {
-    if (!para.length) return;
-    blocks.push(<p key={`p${blocks.length}`} style={{ margin: 0 }}>{inline(para.join(' '), isDark)}</p>);
-    para = [];
-  };
-  const flushList = () => {
-    if (!list) return;
-    const { ordered, items } = list;
-    const Tag = ordered ? 'ol' : 'ul';
-    blocks.push(
-      <Tag key={`l${blocks.length}`} style={{ margin: 0, paddingLeft: 22, listStyleType: ordered ? 'decimal' : 'disc', listStylePosition: 'outside' }}>
-        {items.map((it, i) => (
-          <li key={i} style={{ display: 'list-item', marginTop: i ? 7 : 0, paddingLeft: 3 }}>{inline(it, isDark)}</li>
-        ))}
-      </Tag>,
-    );
-    list = null;
-  };
-
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line) { flushPara(); flushList(); continue; }
-    const heading = /^#{1,3}\s+(.*)$/.exec(line);
-    const bullet = /^[-*]\s+(.*)$/.exec(line);
-    const numbered = /^\d+[.)]\s+(.*)$/.exec(line);
-    if (heading) {
-      flushPara(); flushList();
-      blocks.push(<p key={`h${blocks.length}`} className="lesson-tutor-h">{inline(heading[1], isDark)}</p>);
-    } else if (bullet || numbered) {
-      flushPara();
-      const ordered = Boolean(numbered);
-      if (list && list.ordered !== ordered) flushList();
-      if (!list) list = { ordered, items: [] };
-      list.items.push((numbered ?? bullet)![1]);
-    } else {
-      flushList();
-      para.push(line);
-    }
-  }
-  flushPara();
-  flushList();
-  return <div className="lesson-tutor-prose">{blocks}</div>;
+        const Tag = block.ordered ? 'ol' : 'ul';
+        return (
+          <Tag key={index} style={{ margin: 0, paddingLeft: 22, listStyleType: block.ordered ? 'decimal' : 'disc', listStylePosition: 'outside' }}>
+            {block.items.map((item, itemIndex) => (
+              <li key={itemIndex} style={{ display: 'list-item', marginTop: itemIndex ? 7 : 0, paddingLeft: 3 }}>{inline(item, isDark)}</li>
+            ))}
+          </Tag>
+        );
+      })}
+    </div>
+  );
 }
 
 export function LessonTutorPanel({ isDark, accent, courseId, slideId, open, onOpenChange }: {
