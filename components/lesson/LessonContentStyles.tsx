@@ -276,11 +276,11 @@ export function LessonContentStyles() {
    without this reset those margins add about 24px to the header height. */
 .lesson-content .lesson-accordion__logo { width: 100%; height: 100%; margin: 0; object-fit: contain; border: 0; border-radius: 9px; background: transparent; }
 /* Roughly the height of the title + subtitle stack beside it, so the tile anchors the row. */
-.lesson-content .lesson-accordion__head > .lesson-accordion__logo { width: 46px; height: 46px; flex: 0 0 46px; }
+.lesson-content .lesson-accordion__head > .lesson-accordion__logo { width: 40px; height: 40px; flex: 0 0 40px; }
 /* The clear control is pinned to the tile's corner rather than nudged with margins, so it
    cannot shift the header row as the logo is added or removed. */
 .lesson-content .lesson-accordion__logo-slot { position: relative; display: inline-flex; flex: 0 0 auto; }
-.lesson-content .lesson-accordion__logo-btn { display: inline-flex; align-items: center; justify-content: center; width: 46px; height: 46px; flex: 0 0 46px; padding: 0; overflow: hidden; border: 0; border-radius: 12px; color: #a1a1aa; background: transparent; cursor: pointer; }
+.lesson-content .lesson-accordion__logo-btn { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; flex: 0 0 40px; padding: 0; overflow: hidden; border: 0; border-radius: 12px; color: #a1a1aa; background: transparent; cursor: pointer; }
 .lesson-content .lesson-accordion__logo-btn[data-empty="true"] { border: 1px dashed var(--acc-border-color, var(--acc-border-default, #e2e8f0)); }
 .lesson-content .lesson-accordion__logo-btn[data-empty="true"]:hover { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
 .lesson-content .lesson-accordion__logo-clear { position: absolute; top: -6px; right: -6px; display: inline-flex; align-items: center; justify-content: center; width: 18px; height: 18px; padding: 0; border: 0; border-radius: 999px; color: #71717a; background: #ffffff; box-shadow: 0 1px 4px rgba(15,23,42,0.2); cursor: pointer; }
