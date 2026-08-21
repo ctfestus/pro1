@@ -1,4 +1,5 @@
 import type {NextConfig} from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 // CSP is set per-request in middleware.ts using a cryptographic nonce.
 // Only non-CSP security headers are defined here.
@@ -84,4 +85,23 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry wraps the build to upload source maps, so a minified production stack trace
+// resolves back to real files and line numbers. org and project come from the
+// environment rather than being hardcoded, because this codebase is deployed per
+// tenant and each tenant reports to its own Sentry project.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Source map upload needs a write token that only CI and the deploy environment
+  // hold. Disabling it locally keeps 'npm run build' quiet on a dev machine instead
+  // of warning about a missing credential on every run.
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+
+  // Uploads a wider set of client maps, which is what makes browser stack traces
+  // readable rather than a list of chunk hashes.
+  widenClientFileUpload: true,
+
+  silent: !process.env.CI,
+  telemetry: false,
+});

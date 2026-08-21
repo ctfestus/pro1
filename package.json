@@ -29,6 +29,7 @@
     "@hookform/resolvers": "^5.2.1",
     "@marsidev/react-turnstile": "^1.5.0",
     "@remotion/cli": "^4.0.455",
+    "@sentry/nextjs": "^10.70.0",
     "@supabase/ssr": "^0.10.0",
     "@supabase/supabase-js": "^2.99.1",
     "@tiptap/extension-image": "3.23.5",

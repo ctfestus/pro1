@@ -25,6 +25,16 @@ function needsSessionLookup(req: NextRequest): boolean {
   return hasSupabaseSessionCookie(req);
 }
 
+// The browser SDK POSTs error reports to the DSN's own host, which this CSP would
+// otherwise block -- silently, since a blocked report cannot report itself. Derived
+// from the DSN so a region-specific or self-hosted ingest host needs no second
+// variable, and so an unconfigured deploy widens the policy by nothing at all.
+const sentryIngest = (() => {
+  const dsn = process.env.NEXT_PUBLIC_SENTRY_DSN;
+  if (!dsn) return '';
+  try { return ` ${new URL(dsn).origin}`; } catch { return ''; }
+})();
+
 const isDev = process.env.NODE_ENV === 'development';
 
 // Web Crypto API -- available in Edge runtime (no Node.js crypto needed)
@@ -68,7 +78,7 @@ export async function middleware(req: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src https: data: blob:",
-    `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://api.resend.com wss://*.supabase.co https://cdn.jsdelivr.net https://challenges.cloudflare.com https://raw.githubusercontent.com`,
+    `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://api.resend.com wss://*.supabase.co https://cdn.jsdelivr.net https://challenges.cloudflare.com https://raw.githubusercontent.com${sentryIngest}`,
     "worker-src 'self' blob: https://cdn.jsdelivr.net",
     // Allow <audio>/<video> from any https source (Supabase Storage, Cloudinary, and
     // author-pasted media URLs). Mirrors the permissive img-src https: policy.
