@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
@@ -109,6 +110,15 @@ export async function GET(request: NextRequest) {
   // denial is a lasting mark on a real person's account.
   const refuse = async (reason: string, errorParam: string) => {
     console.warn(`[auth/callback] denying signup: ${reason}`, user.id);
+    // A denial is the policy working, not a fault, so it is reported as a warning
+    // rather than an exception. Once signups open, uninvited attempts become ordinary
+    // traffic, and filing each one as an error would bury the failures below that do
+    // need a person. Account id only -- no email, no token, no cookie.
+    Sentry.captureMessage(`auth/callback denied signup: ${reason}`, {
+      level: 'warning',
+      user: { id: user.id },
+      tags: { flow: 'signup_callback', outcome: 'denied', reason },
+    });
     await markSelfSignupDenied(db, user.id);
     await supabase.auth.signOut();
     return NextResponse.redirect(new URL(`/auth?error=${errorParam}`, request.url));
@@ -119,6 +129,18 @@ export async function GET(request: NextRequest) {
   // the only retry credential after the one-time auth code had already been consumed.
   const retryLater = async (reason: string, detail?: unknown) => {
     console.error(`[auth/callback] leaving signup pending: ${reason}`, user.id, detail ?? '');
+    // THE failure this route exists to survive, and the one nobody finds out about:
+    // the account is eligible, something broke, and the student is left pending with
+    // no way to say why. Report the original error where there is one, so the stack
+    // points at the real call rather than at this helper.
+    Sentry.captureException(
+      detail instanceof Error ? detail : new Error(`auth/callback: ${reason}`),
+      {
+        user: { id: user.id },
+        tags: { flow: 'signup_callback', outcome: 'pending', reason },
+        ...(typeof detail === 'string' && detail ? { extra: { detail } } : {}),
+      },
+    );
     return NextResponse.redirect(new URL('/auth?error=try_again', request.url));
   };
 
