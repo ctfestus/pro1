@@ -1,4 +1,5 @@
 import type {NextConfig} from 'next';
+import { withSentryConfig } from '@sentry/nextjs';
 
 // CSP is set per-request in middleware.ts using a cryptographic nonce.
 // Only non-CSP security headers are defined here.
@@ -31,6 +32,20 @@ const nextConfig: NextConfig = {
   // server uses -- no separate NEXT_PUBLIC_ variable to set or keep in sync.
   env: {
     CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+    // The deploy environment Sentry labels events with. VERCEL_ENV is server-only, so
+    // without inlining it the browser SDK reads undefined and falls through to NODE_ENV:
+    // a preview deploy would file its BROWSER errors under production while its server
+    // errors correctly said preview, putting one deploy in two places and leaking preview
+    // noise into the production feed. Inlined rather than copied into a NEXT_PUBLIC_
+    // variable because Vercel already sets VERCEL_ENV per deployment -- nothing to
+    // remember, nothing to keep in sync.
+    //
+    // Deliberately a SEPARATE key rather than inlining VERCEL_ENV itself. This block
+    // substitutes at build time in server code too, and process.env.VERCEL_ENV gates the
+    // cron auth fallback in lib/qstash.ts and app/api/email/route.ts -- those must keep
+    // reading it at runtime, not have a security decision frozen into the bundle so an
+    // error label could be prettier.
+    SENTRY_DEPLOY_ENV: process.env.VERCEL_ENV ?? '',
   },
   async redirects() {
     return [
@@ -84,4 +99,32 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Sentry wraps the build to upload source maps, so a minified production stack trace
+// resolves back to real files and line numbers. org and project come from the
+// environment rather than being hardcoded, because this codebase is deployed per
+// tenant and each tenant reports to its own Sentry project.
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+
+  // Source map upload needs a write token that only CI and the deploy environment
+  // hold. Disabling it locally keeps 'npm run build' quiet on a dev machine instead
+  // of warning about a missing credential on every run.
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+
+  // Left at the SDK default. This flag does NOT control whether our own stack
+  // traces are readable -- our maps upload either way. What it adds is Next.js
+  // internals and dependency code, which is most of the app's bytes, and mapping
+  // those turned each deploy into a multi-minute upload for frames nobody reads.
+  widenClientFileUpload: false,
+
+  // Tree-shakes the SDK's own debug logging out of the client bundle. Safe here
+  // because that logging only prints when debug mode is on, which it never is in
+  // a deploy. excludeTracing is deliberately NOT set: tracing is off by default
+  // but NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE can turn it on, and shaking the code
+  // out would make that variable silently do nothing.
+  bundleSizeOptimizations: { excludeDebugStatements: true },
+
+  silent: !process.env.CI,
+  telemetry: false,
+});
