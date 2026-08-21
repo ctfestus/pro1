@@ -13,3 +13,12 @@ mcp-student/
 review/
 # Per-user default tenant for the review scripts (local preference, not a shared default).
 .review-tenant
+
+# Generated lint output. The stray root-level one had a mangled filename that could not be
+# checked out on Windows at all, so keep the pattern rather than relying on nobody re-running it.
+*eslint_out.json
+# Security-scan runs: regenerable reports, not source.
+.codex-security-scans/
+# Local build/export artifacts: the Next export dir and one-off demo/presentation exports.
+out/
+outputs/
