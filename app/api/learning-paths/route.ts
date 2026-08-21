@@ -3,6 +3,9 @@ import { requireStudentUser, requireRole, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 import { sendPathNotification } from '@/lib/send-path-notification';
 import { reconcilePathCompletion } from '@/lib/learning-path-progress';
+import { countPathLearners } from '@/lib/learning-path-learners';
+import { courseProgressPct } from '@/lib/course-progress';
+import { veProgressPct } from '@/lib/ve-completion';
 
 function adminClient() {
   return createClient(
@@ -34,14 +37,19 @@ export async function GET(req: NextRequest) {
   const user = await getInstructorUser(req);
   if (user instanceof NextResponse) return user;
 
-  const { data: paths, error } = await adminClient()
+  const supabase = adminClient();
+  const { data: paths, error } = await supabase
     .from('learning_paths')
     .select('*')
     .eq('instructor_id', user.id)
     .order('created_at', { ascending: false });
 
   if (error) { console.error('[learning-paths] GET error:', error); return NextResponse.json({ error: 'Failed to fetch learning paths.' }, { status: 500 }); }
-  return NextResponse.json({ paths: paths ?? [] });
+
+  const learnerCounts = await countPathLearners(supabase, paths ?? []);
+  return NextResponse.json({
+    paths: (paths ?? []).map((path: any) => ({ ...path, learner_count: learnerCounts[path.id] ?? 0 })),
+  });
 }
 
 export async function POST(req: NextRequest) {
@@ -226,37 +234,59 @@ export async function POST(req: NextRequest) {
     // metadata to students (it falls back to the Unknown placeholder below).
     const [{ data: coursesRaw }, { data: vesRaw }, { data: certsRaw }] = allItemIds.length
       ? await Promise.all([
-          supabase.from('courses').select('id, title, slug, cover_image, description').in('id', allItemIds).eq('status', 'published'),
-          supabase.from('virtual_experiences').select('id, title, slug, cover_image, description').in('id', allItemIds).eq('status', 'published'),
+          supabase.from('courses').select('id, title, slug, cover_image, description, questions').in('id', allItemIds).eq('status', 'published'),
+          supabase.from('virtual_experiences').select('id, title, slug, cover_image, description, modules').in('id', allItemIds).eq('status', 'published'),
           supabase.from('certifications').select('id, title, slug, cover_image, description').in('id', allItemIds).eq('status', 'published'),
         ])
       : [{ data: [] }, { data: [] }, { data: [] }];
 
     const formMap: Record<string, any> = {};
-    for (const c of coursesRaw ?? []) formMap[c.id] = { ...c, content_type: 'course' };
-    for (const v of vesRaw     ?? []) formMap[v.id] = { ...v, content_type: 'virtual_experience' };
+    const courseQuestions = new Map<string, any[]>();
+    const veModules = new Map<string, any[]>();
+    for (const c of coursesRaw ?? []) {
+      courseQuestions.set(c.id, c.questions ?? []);
+      const { questions, ...course } = c;
+      formMap[c.id] = { ...course, content_type: 'course' };
+    }
+    for (const v of vesRaw ?? []) {
+      veModules.set(v.id, v.modules ?? []);
+      const { modules, ...ve } = v;
+      formMap[v.id] = { ...ve, content_type: 'virtual_experience' };
+    }
     for (const t of certsRaw   ?? []) formMap[t.id] = { ...t, content_type: 'certification' };
 
     // Determine which items the student has actually completed by checking
     // course_attempts, guided_project_attempts and certification_attempts directly -- this
     // covers items completed before they were added to a learning path.
-    const [{ data: courseAttempts }, { data: veAttempts }, { data: certAttempts }] = await Promise.all([
+    const [{ data: courseAttempts }, { data: veAttempts }, { data: certAttempts }, learnerCounts] = await Promise.all([
       allItemIds.length
-        ? supabase.from('course_attempts').select('course_id').eq('student_id', user.id).eq('passed', true).not('completed_at', 'is', null).in('course_id', allItemIds)
+        ? supabase.from('course_attempts').select('course_id, answers, completed_at, passed, updated_at').eq('student_id', user.id).in('course_id', allItemIds).order('updated_at', { ascending: false })
         : { data: [] },
       allItemIds.length
-        ? supabase.from('guided_project_attempts').select('ve_id').eq('student_id', user.id).not('completed_at', 'is', null).in('ve_id', allItemIds)
+        ? supabase.from('guided_project_attempts').select('ve_id, progress, completed_at, updated_at').eq('student_id', user.id).in('ve_id', allItemIds).order('updated_at', { ascending: false })
         : { data: [] },
       allItemIds.length
         ? supabase.from('certification_attempts').select('certification_id').eq('student_id', user.id).eq('passed', true).in('certification_id', allItemIds)
         : { data: [] },
+      countPathLearners(supabase, paths),
     ]);
 
     const actuallyCompleted = new Set([
-      ...(courseAttempts ?? []).map((a: any) => a.course_id),
-      ...(veAttempts ?? []).map((a: any) => a.ve_id),
+      ...(courseAttempts ?? []).filter((a: any) => a.passed === true && a.completed_at).map((a: any) => a.course_id),
+      ...(veAttempts ?? []).filter((a: any) => a.completed_at).map((a: any) => a.ve_id),
       ...(certAttempts ?? []).map((a: any) => a.certification_id),
     ]);
+    const inProgressPct = new Map<string, number>();
+    for (const attempt of courseAttempts ?? []) {
+      if (!attempt.completed_at && !inProgressPct.has(attempt.course_id)) {
+        inProgressPct.set(attempt.course_id, courseProgressPct(courseQuestions.get(attempt.course_id) ?? [], attempt.answers ?? {}));
+      }
+    }
+    for (const attempt of veAttempts ?? []) {
+      if (!attempt.completed_at && !inProgressPct.has(attempt.ve_id)) {
+        inProgressPct.set(attempt.ve_id, veProgressPct(veModules.get(attempt.ve_id) ?? [], attempt.progress ?? {}));
+      }
+    }
 
     const result = paths.map((path: any) => {
       const prog = progressMap[path.id] ?? null;
@@ -268,10 +298,15 @@ export async function POST(req: NextRequest) {
       ])];
       return {
         ...path,
+        learner_count: learnerCounts[path.id] ?? 0,
         progress: prog
           ? { ...prog, completed_item_ids: effectiveCompleted }
           : effectiveCompleted.length ? { completed_item_ids: effectiveCompleted, completed_at: null, cert_id: null } : null,
-        items: (path.item_ids ?? []).map((id: string) => formMap[id] ?? { id, title: 'Unknown' }),
+        items: (path.item_ids ?? []).map((id: string) => {
+          const item = formMap[id] ?? { id, title: 'Unknown' };
+          const pct = inProgressPct.get(id);
+          return typeof pct === 'number' ? { ...item, in_progress_pct: pct } : item;
+        }),
       };
     });
 

@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, GraduationCap, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { ImageLibrary } from '@/components/ImageLibrary';
@@ -577,6 +577,8 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
           <div ref={pathCarouselRef} className="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-1" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
           {paths.map((path: any) => {
             const assignedCohortNames = (path.cohort_ids ?? []).map((id: string) => cohorts.find((c: any) => c.id === id)?.name).filter(Boolean);
+            // Active learners in the cohorts this path is assigned to (counted by the API).
+            const learnerCount: number = path.learner_count ?? 0;
             return (
               <article key={path.id} className="group flex-none w-[280px] sm:w-[330px] snap-start rounded-2xl overflow-hidden transition-transform hover:-translate-y-0.5" style={{ ...cardStyle(C) }}>
                 {path.cover_image
@@ -591,6 +593,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                       {path.status}
                     </span>
                     <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><Layers3 className="w-3 h-3"/>{(path.item_ids ?? []).length} milestones</span>
+                    <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><GraduationCap className="w-3 h-3"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}</span>
                   </div>
                   <p className="font-bold text-base" style={{ color: C.text }}>{path.title}</p>
                   {path.description && <p className="text-sm line-clamp-2 leading-relaxed" style={{ color: C.muted }}>{path.description}</p>}

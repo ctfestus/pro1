@@ -9,7 +9,7 @@
 // If a route queries the same table more than once with different results, pass an array;
 // results are consumed in call order.
 
-export type QueryResult = { data?: unknown; error?: unknown };
+export type QueryResult = { data?: unknown; error?: unknown; count?: number | null };
 
 function makeBuilder(getResult: () => QueryResult) {
   const handler: ProxyHandler<any> = {

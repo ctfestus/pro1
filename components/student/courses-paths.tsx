@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, Search, Layers, Lock, ShieldCheck,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -330,6 +330,14 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
 export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
   const [paths, setPaths]         = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncSelectedPath = () => setSelectedPathId(new URLSearchParams(window.location.search).get('path'));
+    syncSelectedPath();
+    window.addEventListener('popstate', syncSelectedPath);
+    return () => window.removeEventListener('popstate', syncSelectedPath);
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -357,18 +365,79 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
     </div>
   );
 
-  return (
-    <div className="space-y-6">
-      {paths.map((path: any) => (
-        <PathRow key={path.id} path={path} C={C} />
-      ))}
+  const selectedPath = paths.find((path: any) => path.id === selectedPathId) ?? null;
+  const openPath = (pathId: string) => {
+    const url = new URL(window.location.href);
+    url.searchParams.set('path', pathId);
+    window.history.pushState({}, '', url);
+    setSelectedPathId(pathId);
+  };
+  if (selectedPath) return (
+    <div>
+      <PathRow path={selectedPath} C={C}/>
     </div>
+  );
+
+  return (
+    <LearningPathCarousel paths={paths} C={C} onOpen={openPath}/>
   );
 }
 
-// One learning path rendered as a titled, horizontally-scrolling carousel of course cards
-function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
+function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LIGHT_C; onOpen: (id: string) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
+
+  return (
+    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
+      {paths.length > 1 && (
+        <div className="mb-4 flex justify-end">
+          <div className="flex flex-shrink-0 items-center gap-2">
+            <button onClick={() => scrollByCards(-1)} aria-label="Previous learning path"
+              className="grid h-9 w-9 place-items-center rounded-full transition-opacity hover:opacity-70"
+              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
+              <ChevronLeft className="h-4 w-4"/>
+            </button>
+            <button onClick={() => scrollByCards(1)} aria-label="Next learning path"
+              className="grid h-9 w-9 place-items-center rounded-full transition-opacity hover:opacity-70"
+              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
+              <ChevronRight className="h-4 w-4"/>
+            </button>
+          </div>
+        </div>
+      )}
+      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+        {paths.map((path: any) => {
+          const totalItems = (path.item_ids ?? []).length;
+          const completedIds: string[] = path.progress?.completed_item_ids ?? [];
+          const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
+          const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
+          const complete = totalItems > 0 && completedCount === totalItems;
+          const started = !complete && completedCount > 0;
+          return (
+            <div key={path.id} className="w-[220px] flex-shrink-0 snap-start">
+              <button onClick={() => onOpen(path.id)} className="group block w-full text-left transition-transform hover:-translate-y-0.5">
+                <CoverThumbnail cover={path.cover_image} alt={path.title} Icon={Layers}>
+                  {complete ? (
+                    <span className="absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-full shadow-sm" style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed"><Check className="h-3 w-3" strokeWidth={3}/></span>
+                  ) : started ? (
+                    <span className="absolute top-2 left-2 rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: '#22c55e', color: '#ffffff' }}>In progress</span>
+                  ) : null}
+                </CoverThumbnail>
+                <p className="mt-2 text-xs" style={{ color: C.faint }}>Learning path</p>
+                <p className="mt-0.5 line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{path.title}</p>
+                <ProgressBar value={pct} color="#22c55e"/>
+                <p className="mt-1 text-[11px]" style={{ color: C.faint }}>{complete ? 'Completed' : `${completedCount} of ${totalItems} complete`}</p>
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
+// One learning path rendered as an ordered, open-access course timeline.
+function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
   const totalItems     = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
   const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
@@ -377,26 +446,8 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
   const items: any[]   = path.items ?? [];
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
   const currentIndex   = items.findIndex((item: any) => !completedIds.includes(item.id));
-
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
-
-  // Hover preview (desktop / hover-capable pointers only)
-  const [hover, setHover] = useState<{ data: any; left: number; top: number; originX: number; originY: number } | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setHover(null), 120); };
-  const openHover = (data: any, el: HTMLElement) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-    cancelClose();
-    const r = el.getBoundingClientRect();
-    const W = 320, H = 420;
-    const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
-    const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
-    const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
-    const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
-    setHover({ data, left, top, originX, originY });
-  };
-  useEffect(() => () => cancelClose(), []);
+  const learnerCount: number = path.learner_count ?? 0;
+  const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
 
   return (
     <section className="rounded-[22px] overflow-hidden" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
@@ -405,8 +456,14 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
         <div className="min-w-0 flex-1">
           <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>{path.title}</h3>
           {path.description && <p className="text-sm mt-2 max-w-3xl leading-relaxed" style={{ color: C.muted }}>{path.description}</p>}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-xs" style={{ color: C.faint }}>
-            <span>{completedCount} of {totalItems} milestones complete</span>
+          {/* empty:hidden -- an empty path with no learners has nothing to say here, so the
+              row must not leave its top margin behind. */}
+          <div className="empty:hidden flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-xs" style={{ color: C.faint }}>
+            {learnerCount > 0 && (
+              <span className="flex items-center gap-1.5">
+                <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
+              </span>
+            )}
             {currentIndex >= 0 && !allDone && (
               <motion.span key={items[currentIndex]?.id ?? currentIndex}
                 initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
@@ -428,16 +485,6 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
               <Award className="w-3 h-3"/> Certificate
             </a>
           )}
-          <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronLeft className="w-4 h-4"/>
-          </button>
-          <button onClick={() => scrollByCards(1)} aria-label="Scroll right"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronRight className="w-4 h-4"/>
-          </button>
         </div>
       </div>
 
@@ -474,85 +521,112 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
         </div>
       </div>
 
-      {/* Carousel */}
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-5 snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+      <div className="relative mt-7">
+        <div className="space-y-3 sm:space-y-4">
         {items.map((item: any, idx: number) => {
           const done      = completedIds.includes(item.id);
-          const isCurrent = !done && (idx === 0 || completedIds.includes(items[idx - 1]?.id));
-          const isLocked  = !done && !isCurrent;
+          const isCurrent = idx === currentIndex;
           const isVE = item.content_type === 'virtual_experience' || item.content_type === 'guided_project' || item.config?.isVirtualExperience || item.config?.isGuidedProject;
           const isCert = item.content_type === 'certification';
           // Direct link for every type: a path item may not be listed in its own section until
           // it has been attempted, so the card must be the way in (VEs resolve at /{slug} too).
           const href = `/${item.slug || item.id}`;
           const cover = item.cover_image;
-
-          const card = (
-            <>
-              <CoverThumbnail cover={cover} Icon={isCert ? ShieldCheck : isVE ? Layers : BookOpen}>
-                {/* Status -- check indicator when done, "In progress" pill otherwise */}
-                {!isLocked && (done ? (
-                  <span className="absolute top-2 left-2 flex items-center justify-center w-5 h-5 rounded-full shadow-sm"
-                    style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
-                    <Check className="w-3 h-3" strokeWidth={3}/>
-                  </span>
-                ) : (
-                  <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md"
-                    style={{ background: '#22c55e', color: '#ffffff' }}>
-                    In progress
-                  </span>
-                ))}
-                {/* Locked -- small lock chip top-right, cover stays bright */}
-                {isLocked && (
-                  <span className="absolute top-2 right-2 w-6 h-6 rounded-full grid place-items-center shadow-sm" style={{ background: 'rgba(255,255,255,0.92)' }}>
-                    <Lock className="w-3 h-3" style={{ color: '#475569' }}/>
-                  </span>
-                )}
-              </CoverThumbnail>
-              <p className="text-xs mt-2" style={{ color: C.faint }}>{isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}</p>
-              <p className="text-[15px] font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
-            </>
-          );
+          const inProgressPct = !done && typeof item.in_progress_pct === 'number' ? item.in_progress_pct : null;
 
           return (
-            <div key={item.id} className="flex-shrink-0 w-[230px] snap-start rounded-2xl p-3 transition-all"
-              style={{ background: isCurrent ? 'rgba(34,197,94,0.07)' : C.pill, boxShadow: isCurrent ? 'inset 0 0 0 2px #22c55e' : 'none', opacity: isLocked ? 0.72 : 1 }}
-              onMouseEnter={(e) => openHover({ item, isVE, isCert, done, isCurrent, isLocked, href }, e.currentTarget)}
-              onMouseLeave={scheduleClose}>
-              {isLocked
-                ? <div className="cursor-not-allowed">{card}</div>
-                : <a href={href} target="_blank" rel="noreferrer" className="block transition-transform hover:-translate-y-0.5">{card}</a>}
+            <div key={item.id} className="relative flex gap-3 sm:gap-4">
+              <div className="relative z-10 flex w-5 flex-shrink-0 justify-center sm:w-6">
+                {items.length > 0 && (
+                  <span aria-hidden="true" className="absolute left-1/2 top-10 -bottom-6 w-0.5 -translate-x-1/2 sm:top-11"
+                    style={{ background: connectorColor }}/>
+                )}
+                <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6"
+                  style={{
+                    background: done ? '#16a34a' : 'transparent',
+                    color: done ? '#ffffff' : C.muted,
+                    boxShadow: done ? '0 5px 12px rgba(22,163,74,0.16)' : 'none',
+                  }}>
+                  {done ? <Check className="w-3 h-3" strokeWidth={3}/> : <span className={isCurrent ? 'h-3 w-3 rounded-full' : 'h-1.5 w-1.5 rounded-full'} style={{ background: isCurrent ? '#16a34a' : C.faint }}/>}
+                </span>
+              </div>
+              <a href={href} target="_blank" rel="noreferrer"
+                className="group relative block min-w-0 flex-1 overflow-hidden rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:flex sm:h-[184px] sm:items-center sm:p-4"
+                style={{
+                  background: isCurrent ? 'rgba(34,197,94,0.055)' : C.page === LIGHT_C.page ? '#f8fafc' : C.pill,
+                  boxShadow: 'none',
+                }}>
+                <div className="flex flex-col gap-3 sm:w-full sm:flex-row sm:items-stretch sm:gap-4">
+                  <div className="relative w-full flex-shrink-0 overflow-hidden rounded-lg aspect-video sm:w-40 sm:aspect-auto">
+                    <CoverThumbnail cover={cover} Icon={isCert ? ShieldCheck : isVE ? Layers : BookOpen} className="sm:h-full sm:aspect-auto"/>
+                    {done ? (
+                      <span className="absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-full shadow-sm" style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
+                        <Check className="w-3 h-3" strokeWidth={3}/>
+                      </span>
+                    ) : isCurrent ? (
+                      <span className="absolute top-2 left-2 rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: '#22c55e', color: '#ffffff' }}>In progress</span>
+                    ) : null}
+                  </div>
+                  <div className="min-w-0 flex-1 sm:flex sm:h-full sm:flex-col">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" style={{ color: C.faint }}>
+                      <span>{isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}</span>
+                    </div>
+                    <h4 className="mt-1 text-base font-bold leading-snug sm:text-lg" style={{ color: C.text }}>{item.title}</h4>
+                    <div className="mt-1.5 sm:min-h-[63px]">
+                      {inProgressPct !== null ? (
+                        <div className="flex h-[63px] max-w-md flex-col justify-center">
+                          <div className="mb-1.5 flex items-center justify-between text-xs" style={{ color: C.faint }}>
+                            <span>In progress</span><span>{inProgressPct}%</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full" style={{ background: C.page === LIGHT_C.page ? '#e6ebf1' : C.card }}>
+                            <motion.div className="h-full rounded-full" initial={{ width: 0 }} animate={{ width: `${inProgressPct}%` }} transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }} style={{ background: '#16a34a' }}/>
+                          </div>
+                        </div>
+                      ) : item.description ? (
+                        <p className="line-clamp-3 text-sm leading-relaxed" style={{ color: C.muted }}>{item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}</p>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              </a>
             </div>
           );
         })}
+        <div className="relative flex gap-3 sm:gap-4">
+          <div className="relative z-10 flex w-5 flex-shrink-0 justify-center sm:w-6">
+            <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6" style={{ background: 'transparent' }}>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: allDone ? '#16a34a' : '#d6b46c' }}/>
+            </span>
+          </div>
+          <div className="flex min-w-0 flex-1 flex-col gap-4 rounded-xl border p-4 sm:flex-row sm:items-center sm:p-5"
+            style={{
+              background: C.page === LIGHT_C.page ? '#fffcf5' : C.pill,
+              borderColor: C.page === LIGHT_C.page ? '#efe1ba' : C.cardBorder,
+            }}>
+            <div className="flex h-16 w-16 flex-shrink-0 items-center justify-center rounded-lg" style={{ background: C.page === LIGHT_C.page ? '#fff4d8' : 'rgba(212,175,55,0.14)' }}>
+              <Award className="h-8 w-8" style={{ color: '#c8962d' }}/>
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold uppercase" style={{ color: '#b08020' }}>Completion credential</p>
+              <h4 className="mt-1 text-lg font-bold" style={{ color: C.text }}>Earn Your Certificate</h4>
+              <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
+                {allDone ? 'You have completed this learning path. Your credential is ready to celebrate and share.' : 'Complete every item in this learning path to unlock your completion credential.'}
+              </p>
+            </div>
+            {allDone && pathCertId ? (
+              <a href={`/certificate/${pathCertId}`} target="_blank" rel="noreferrer"
+                className="inline-flex flex-shrink-0 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold transition-opacity hover:opacity-80"
+                style={{ background: '#16a34a', color: '#ffffff' }}>
+                <Award className="h-4 w-4"/> View certificate
+              </a>
+            ) : (
+              <span className="text-sm font-semibold" style={{ color: '#b08020' }}>{completedCount}/{totalItems} complete</span>
+            )}
+          </div>
+        </div>
+        </div>
       </div>
       </div>
-
-      {/* Hover preview -- grows out of the hovered card */}
-      {typeof document !== 'undefined' && hover && createPortal(
-        <HoverPreviewCard
-          key={hover.data.item.id}
-          left={hover.left}
-          top={hover.top}
-          originX={hover.originX}
-          originY={hover.originY}
-          onEnter={cancelClose}
-          onLeave={scheduleClose}
-        >
-          <PathItemPreview
-            item={hover.data.item}
-            isVE={hover.data.isVE}
-            isCert={hover.data.isCert}
-            done={hover.data.done}
-            isCurrent={hover.data.isCurrent}
-            isLocked={hover.data.isLocked}
-            href={hover.data.href}
-            C={C}
-          />
-        </HoverPreviewCard>,
-        document.body,
-      )}
     </section>
   );
 }
@@ -572,19 +646,20 @@ function groupCoursesByTool(courses: any[]): [string, any[]][] {
   });
 }
 
-function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8 h-8', children }: {
+function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8 h-8', children, className = '' }: {
   cover?: string | null;
   alt?: string;
   Icon?: any;
   iconClassName?: string;
   children?: any;
+  className?: string;
 }) {
   const [imgErr, setImgErr] = useState(false);
   const showImage = !!cover && !imgErr;
 
   return (
     <div
-      className="relative rounded-xl overflow-hidden w-full aspect-video flex items-center justify-center"
+      className={`relative rounded-xl overflow-hidden w-full aspect-video flex items-center justify-center ${className}`}
       style={{ background: showImage ? '#0b0b0d' : 'rgba(34,197,94,0.10)' }}
     >
       {showImage ? (
@@ -601,51 +676,6 @@ function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8
         </div>
       )}
       {children}
-    </div>
-  );
-}
-
-function PathItemPreview({ item, isVE, isCert, done, isCurrent, isLocked, href, C }: {
-  item: any; isVE: boolean; isCert?: boolean; done: boolean; isCurrent: boolean; isLocked: boolean; href: string; C: typeof LIGHT_C;
-}) {
-  const cover = item.cover_image;
-  const desc = (item.description || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
-  return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: C.card, boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)' }}>
-      <CoverThumbnail cover={cover} Icon={isCert ? ShieldCheck : isVE ? Layers : BookOpen} iconClassName="w-9 h-9">
-        {!isLocked && (done ? (
-          <span className="absolute top-2 left-2 flex items-center justify-center w-5 h-5 rounded-full shadow-sm"
-            style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
-            <Check className="w-3 h-3" strokeWidth={3}/>
-          </span>
-        ) : (
-          <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md"
-            style={{ background: '#22c55e', color: '#ffffff' }}>
-            In progress
-          </span>
-        ))}
-        {isLocked && (
-          <span className="absolute top-2 right-2 w-6 h-6 rounded-full grid place-items-center shadow-sm" style={{ background: 'rgba(255,255,255,0.92)' }}>
-            <Lock className="w-3 h-3" style={{ color: '#475569' }}/>
-          </span>
-        )}
-      </CoverThumbnail>
-      <div className="p-5">
-        <p className="text-xs mb-1" style={{ color: C.faint }}>{isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}</p>
-        <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
-        {desc && <p className="text-sm leading-relaxed line-clamp-4 mb-4" style={{ color: C.muted }}>{desc}</p>}
-        {isLocked ? (
-          <span className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl" style={{ background: C.pill, color: C.faint }}>
-            <Lock className="w-3.5 h-3.5"/> Locked
-          </span>
-        ) : (
-          <a href={href} target="_blank" rel="noreferrer"
-            className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
-            style={{ background: done ? C.pill : '#16a34a', color: done ? C.muted : '#ffffff' }}>
-            <Play className="w-3.5 h-3.5"/>{done ? 'Review' : isCurrent ? 'Start' : 'Open'}
-          </a>
-        )}
-      </div>
     </div>
   );
 }
