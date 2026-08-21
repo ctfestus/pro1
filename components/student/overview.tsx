@@ -6,6 +6,7 @@
 
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -138,10 +139,14 @@ function InProgressRow({ items, C }: { items: any[]; C: typeof LIGHT_C }) {
         })}
       </div>
 
-      {typeof document !== 'undefined' && hover && createPortal(
-        <HoverPreviewCard key={hover.data.form.id} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
-          <InProgressPreview form={hover.data.form} isProject={hover.data.isProject} pct={hover.data.pct} done={hover.data.done} total={hover.data.total} href={hover.data.href} C={C} />
-        </HoverPreviewCard>,
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {hover && (
+            <HoverPreviewCard key={hover.data.form.id} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
+              <InProgressPreview form={hover.data.form} isProject={hover.data.isProject} pct={hover.data.pct} done={hover.data.done} total={hover.data.total} href={hover.data.href} C={C} />
+            </HoverPreviewCard>
+          )}
+        </AnimatePresence>,
         document.body,
       )}
     </section>

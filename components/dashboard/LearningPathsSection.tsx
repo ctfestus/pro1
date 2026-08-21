@@ -439,7 +439,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                   <div className="space-y-2 mt-5">{[
                     ['Path title', !!editing.title?.trim(), 'overview'], ['Description', !!editing.description?.trim(), 'overview'], ['Cover image', !!editing.cover_image, 'overview'], ['Learning sequence', selectedIds.length > 0, 'content'], ['Audience', selectedCohorts.length > 0, 'audience'],
                   ].map(([label, ready, target]) => <button key={String(label)} onClick={() => setLpSection(target as typeof lpSection)} className="w-full flex items-center gap-2 text-left text-xs py-1.5" style={{ color: ready ? C.muted : C.text }}>{ready ? <CheckCircle2 className="w-4 h-4" style={{ color: C.green }}/> : <Circle className="w-4 h-4" style={{ color: C.faint }}/>}<span className="flex-1">{label}</span>{!ready && <ChevronRight className="w-3.5 h-3.5"/>}</button>)}</div>
-                  <div className="mt-5 pt-4 space-y-2 text-xs" style={{ borderTop: `1px solid ${C.divider}`, color: C.faint }}><p>{selectedIds.length} milestones</p><p>{selectedCohorts.length} assigned cohorts</p><p>{editing.badge_image_url ? 'Custom completion badge' : 'Default completion credential'}</p></div>
+                  <div className="mt-5 pt-4 space-y-2 text-xs" style={{ borderTop: `1px solid ${C.divider}`, color: C.faint }}><p>{selectedIds.length} content{selectedIds.length === 1 ? '' : 's'}</p><p>{selectedCohorts.length} assigned cohorts</p><p>{editing.badge_image_url ? 'Custom completion badge' : 'Default completion credential'}</p></div>
                 </aside>
               </div>
             )}
@@ -486,7 +486,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
         {/* Order selected items */}
         {selectedIds.length > 0 && (
           <div className="space-y-3 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
-            <div><h3 className="text-sm font-bold" style={{ color: C.text }}>Path sequence</h3><p className="text-xs mt-1" style={{ color: C.faint }}>{selectedIds.length} ordered milestone{selectedIds.length === 1 ? '' : 's'}</p></div>
+            <div><h3 className="text-sm font-bold" style={{ color: C.text }}>Path sequence</h3><p className="text-xs mt-1" style={{ color: C.faint }}>{selectedIds.length} ordered content{selectedIds.length === 1 ? '' : 's'}</p></div>
             <div className="space-y-1.5">
               {selectedIds.map((id, idx) => {
                 const f = allOptions.find((x: any) => x.id === id);
@@ -592,7 +592,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                       style={{ background: path.status === 'published' ? `${C.green}18` : `${C.faint}18`, color: path.status === 'published' ? C.green : C.faint }}>
                       {path.status}
                     </span>
-                    <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><Layers3 className="w-3 h-3"/>{(path.item_ids ?? []).length} milestones</span>
+                    <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><Layers3 className="w-3 h-3"/>{(path.item_ids ?? []).length} content{(path.item_ids ?? []).length === 1 ? '' : 's'}</span>
                     <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><GraduationCap className="w-3 h-3"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}</span>
                   </div>
                   <p className="font-bold text-base" style={{ color: C.text }}>{path.title}</p>

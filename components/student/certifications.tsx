@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, DARK_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -142,8 +142,10 @@ function LearningPathPreview({ paths, C }: { paths: any[]; C: typeof LIGHT_C }) 
         </div>
       </div>
     </section>
-    {typeof document !== 'undefined' && hover && createPortal(
-      <HoverPreviewCard left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
+    {typeof document !== 'undefined' && createPortal(
+      <AnimatePresence>
+      {hover && (
+      <HoverPreviewCard key={hover.path.id} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
         <div className="overflow-hidden rounded-2xl" style={{ background: C.card, boxShadow: isDark ? '0 18px 55px rgba(0,0,0,0.38)' : '0 16px 44px rgba(15,23,42,0.14)' }}>
           <div className="p-4 pb-0">
             <span className="mb-2 inline-block rounded-md bg-[#FF9933] px-2 py-0.5 text-[10px] font-bold text-white">Learning Path</span>
@@ -164,7 +166,9 @@ function LearningPathPreview({ paths, C }: { paths: any[]; C: typeof LIGHT_C }) 
             </div>
           </div>
         </div>
-      </HoverPreviewCard>,
+      </HoverPreviewCard>
+      )}
+      </AnimatePresence>,
       document.body,
     )}
     </>
