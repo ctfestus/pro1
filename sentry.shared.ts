@@ -11,12 +11,15 @@
  */
 export const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN ?? '';
 
-// Vercel distinguishes production from preview, which NODE_ENV cannot: to a build both
-// are simply "production". Prefer VERCEL_ENV so preview errors stay out of the
-// production feed.
+// Vercel distinguishes production from preview; NODE_ENV cannot. SENTRY_DEPLOY_ENV is
+// next.config.ts's build-time copy of VERCEL_ENV, which is server-only and so reads as
+// undefined in the browser -- without that copy this line silently degrades to NODE_ENV
+// on the client and preview errors arrive labelled production. Read the copy, never
+// VERCEL_ENV directly: inlining that name would freeze the cron auth gates that depend
+// on it into build-time constants.
 export const SENTRY_ENVIRONMENT =
   process.env.NEXT_PUBLIC_SENTRY_ENVIRONMENT
-  || process.env.VERCEL_ENV
+  || process.env.SENTRY_DEPLOY_ENV
   || process.env.NODE_ENV
   || 'development';
 

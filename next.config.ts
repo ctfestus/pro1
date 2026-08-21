@@ -32,6 +32,20 @@ const nextConfig: NextConfig = {
   // server uses -- no separate NEXT_PUBLIC_ variable to set or keep in sync.
   env: {
     CLOUDINARY_CLOUD_NAME: process.env.CLOUDINARY_CLOUD_NAME ?? '',
+    // The deploy environment Sentry labels events with. VERCEL_ENV is server-only, so
+    // without inlining it the browser SDK reads undefined and falls through to NODE_ENV:
+    // a preview deploy would file its BROWSER errors under production while its server
+    // errors correctly said preview, putting one deploy in two places and leaking preview
+    // noise into the production feed. Inlined rather than copied into a NEXT_PUBLIC_
+    // variable because Vercel already sets VERCEL_ENV per deployment -- nothing to
+    // remember, nothing to keep in sync.
+    //
+    // Deliberately a SEPARATE key rather than inlining VERCEL_ENV itself. This block
+    // substitutes at build time in server code too, and process.env.VERCEL_ENV gates the
+    // cron auth fallback in lib/qstash.ts and app/api/email/route.ts -- those must keep
+    // reading it at runtime, not have a security decision frozen into the bundle so an
+    // error label could be prettier.
+    SENTRY_DEPLOY_ENV: process.env.VERCEL_ENV ?? '',
   },
   async redirects() {
     return [
