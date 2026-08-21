@@ -9,14 +9,16 @@
 // and theming are handled by CSS keyed off `.lesson-accordion__item[data-open]` (see
 // LessonContentStyles).
 //
-// The logo goes through ImageLibrary / Cloudinary like every other lesson image, and is collected
-// by extractDocImageUrls (lib/lesson-doc.ts) so deleting the lesson does not orphan the upload.
+// Logos may come from Brandfetch's live Logo API or ImageLibrary / Cloudinary. Both are stored as
+// full URLs; uploaded images are collected by extractDocImageUrls for cleanup.
 
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { ImagePlus, Minus, Plus, X } from 'lucide-react';
 import { ImageLibrary } from '@/components/ImageLibrary';
+import { BrandfetchLogoPicker } from '@/components/BrandfetchLogoPicker';
+import { BRANDFETCH_CLIENT_ID, resolveBrandLogoUrl } from '@/lib/brandfetch';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -27,11 +29,16 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
   const title = (node.attrs.title as string) || '';
   const subtitle = (node.attrs.subtitle as string) || '';
   const logoUrl = (node.attrs.logoUrl as string) || '';
+  const brandDomain = (node.attrs.brandDomain as string) || '';
+  // Rebuilt from the brand domain where there is one, so a rotated client id cannot break logos
+  // already saved in published lessons.
+  const logoSrc = resolveBrandLogoUrl(logoUrl, brandDomain);
   const accentColor = (node.attrs.accentColor as string) || '';
   // Per ITEM, not per accordion: in the app-card pattern each section is a different product, so
   // each carries its own brand colour for its logo tile and toggle.
   const accent = accentScope(accentColor);
   const [showLibrary, setShowLibrary] = useState(false);
+  const [showBrandPicker, setShowBrandPicker] = useState(false);
   const toggle = () => setOpen((current) => !current);
 
   // Deliberately does NOT delete the image it displaces. The picker is the shared library, so the
@@ -42,7 +49,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
   // (lib/lesson-doc.ts) already collects logoUrl.
   const setLogo = (next: string) => {
     if (next === logoUrl) return;
-    updateAttributes({ logoUrl: next });
+    updateAttributes({ logoUrl: next, brandName: '', brandDomain: '' });
   };
   const canRemove = useEditorState({
     editor,
@@ -69,8 +76,8 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
     </span>
   );
 
-  const logoImage = logoUrl
-    ? <img className="lesson-accordion__logo" src={logoUrl} alt="" draggable={false} />
+  const logoImage = logoSrc
+    ? <img className="lesson-accordion__logo" src={logoSrc} alt="" draggable={false} />
     : null;
 
   return (
@@ -85,7 +92,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
               aria-label={logoUrl ? 'Replace section logo' : 'Add a section logo'}
               title={logoUrl ? 'Replace logo' : 'Add logo'}
               onMouseDown={(event) => event.preventDefault()}
-              onClick={() => setShowLibrary(true)}
+              onClick={() => (BRANDFETCH_CLIENT_ID ? setShowBrandPicker(true) : setShowLibrary(true))}
             >
               {logoImage ?? <ImagePlus width={15} height={15} aria-hidden="true" />}
             </button>
@@ -147,6 +154,18 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
           initialFolder="lesson-images"
           onSelect={(url) => { setLogo(url); setShowLibrary(false); }}
           onClose={() => setShowLibrary(false)}
+        />
+      )}
+      {showBrandPicker && (
+        <BrandfetchLogoPicker
+          onSelect={(brand) => updateAttributes({
+            logoUrl: brand.logoUrl,
+            brandName: brand.name,
+            brandDomain: brand.domain,
+            ...(title.trim() ? {} : { title: brand.name }),
+          })}
+          onOpenLibrary={() => setShowLibrary(true)}
+          onClose={() => setShowBrandPicker(false)}
         />
       )}
     </NodeViewWrapper>
@@ -230,6 +249,18 @@ export const AccordionItem = Node.create({
         default: '',
         parseHTML: (el) => el.getAttribute('data-logo-url') || '',
         renderHTML: (attrs) => ({ 'data-logo-url': attrs.logoUrl }),
+      },
+      // Brand metadata accompanies Brandfetch selections. It lets future editor features refresh
+      // or relabel the logo without a paid Brand API call; manual uploads leave both fields empty.
+      brandName: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-brand-name') || '',
+        renderHTML: (attrs) => ({ 'data-brand-name': attrs.brandName }),
+      },
+      brandDomain: {
+        default: '',
+        parseHTML: (el) => el.getAttribute('data-brand-domain') || '',
+        renderHTML: (attrs) => ({ 'data-brand-domain': attrs.brandDomain }),
       },
       // Empty = follow the tenant accent, so untouched sections are unchanged.
       accentColor: {
