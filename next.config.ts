@@ -112,9 +112,18 @@ export default withSentryConfig(nextConfig, {
   // of warning about a missing credential on every run.
   sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
 
-  // Uploads a wider set of client maps, which is what makes browser stack traces
-  // readable rather than a list of chunk hashes.
-  widenClientFileUpload: true,
+  // Left at the SDK default. This flag does NOT control whether our own stack
+  // traces are readable -- our maps upload either way. What it adds is Next.js
+  // internals and dependency code, which is most of the app's bytes, and mapping
+  // those turned each deploy into a multi-minute upload for frames nobody reads.
+  widenClientFileUpload: false,
+
+  // Tree-shakes the SDK's own debug logging out of the client bundle. Safe here
+  // because that logging only prints when debug mode is on, which it never is in
+  // a deploy. excludeTracing is deliberately NOT set: tracing is off by default
+  // but NEXT_PUBLIC_SENTRY_TRACES_SAMPLE_RATE can turn it on, and shaking the code
+  // out would make that variable silently do nothing.
+  bundleSizeOptimizations: { excludeDebugStatements: true },
 
   silent: !process.env.CI,
   telemetry: false,
