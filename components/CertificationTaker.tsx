@@ -1581,10 +1581,14 @@ function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, 
           </article>
         ))}
       </div>
-      {typeof document !== 'undefined' && hover && createPortal(
-        <HoverPreviewCard key={`${hover.item.type}:${hover.item.id}`} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
-          <PrepPreview item={hover.item} brandColor={brandColor} actionColor={actionColor} ov={ov} />
-        </HoverPreviewCard>,
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {hover && (
+            <HoverPreviewCard key={`${hover.item.type}:${hover.item.id}`} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
+              <PrepPreview item={hover.item} brandColor={brandColor} actionColor={actionColor} ov={ov} />
+            </HoverPreviewCard>
+          )}
+        </AnimatePresence>,
         document.body,
       )}
     </div>

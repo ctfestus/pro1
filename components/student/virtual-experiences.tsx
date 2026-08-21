@@ -455,25 +455,29 @@ function IndustryRow({ industry, items, attempts, deadlines, C, onDetails }: {
         })}
       </div>
 
-      {/* Hover preview -- grows out of the hovered card */}
-      {typeof document !== 'undefined' && hover && createPortal(
-        <HoverPreviewCard
-          key={hover.form.id}
-          left={hover.left}
-          top={hover.top}
-          originX={hover.originX}
-          originY={hover.originY}
-          onEnter={cancelClose}
-          onLeave={scheduleClose}
-        >
-          <VirtualExperienceCard
-            form={hover.form}
-            attempt={attempts[hover.form.id]}
-            deadline={deadlines[hover.form.id]}
-            C={C}
-            onDetails={() => { setHover(null); onDetails(hover.form); }}
-          />
-        </HoverPreviewCard>,
+      {/* Hover preview -- pops out of the hovered card, and back into it on close */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {hover && (
+            <HoverPreviewCard
+              key={hover.form.id}
+              left={hover.left}
+              top={hover.top}
+              originX={hover.originX}
+              originY={hover.originY}
+              onEnter={cancelClose}
+              onLeave={scheduleClose}
+            >
+              <VirtualExperienceCard
+                form={hover.form}
+                attempt={attempts[hover.form.id]}
+                deadline={deadlines[hover.form.id]}
+                C={C}
+                onDetails={() => { setHover(null); onDetails(hover.form); }}
+              />
+            </HoverPreviewCard>
+          )}
+        </AnimatePresence>,
         document.body,
       )}
     </section>

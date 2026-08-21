@@ -387,6 +387,27 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
 
+  // Hover preview: the path opened up -- the contents inside it and how far along the learner
+  // is -- in a floating popover, the same detail-on-hover the landing page gives its path cards.
+  // Hover-capable pointers only; on touch the card itself is still the way in.
+  const [hover, setHover] = useState<{ path: any; left: number; top: number; originX: number; originY: number } | null>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setHover(null), 120); };
+  const openHover = (path: any, el: HTMLElement) => {
+    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
+    cancelClose();
+    const r = el.getBoundingClientRect();
+    const W = pathPreviewWidth(path), H = 420;
+    const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
+    const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
+    // Grow from the hovered card: transform-origin = the card's center relative to the popover box
+    const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
+    const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
+    setHover({ path, left, top, originX, originY });
+  };
+  useEffect(() => () => cancelClose(), []);
+
   return (
     <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
       {paths.length > 1 && (
@@ -414,7 +435,8 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
           const complete = totalItems > 0 && completedCount === totalItems;
           const started = !complete && completedCount > 0;
           return (
-            <div key={path.id} className="w-[220px] flex-shrink-0 snap-start">
+            <div key={path.id} className="w-[220px] flex-shrink-0 snap-start"
+              onMouseEnter={(e) => openHover(path, e.currentTarget)} onMouseLeave={scheduleClose}>
               <button onClick={() => onOpen(path.id)} className="group block w-full text-left transition-transform hover:-translate-y-0.5">
                 <CoverThumbnail cover={path.cover_image} alt={path.title} Icon={Layers}>
                   {complete ? (
@@ -432,7 +454,106 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
           );
         })}
       </div>
+
+      {/* Hover preview -- the path's contents and the learner's place in them */}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {hover && (
+            <HoverPreviewCard
+              key={hover.path.id}
+              left={hover.left}
+              top={hover.top}
+              originX={hover.originX}
+              originY={hover.originY}
+              width={pathPreviewWidth(hover.path)}
+              onEnter={cancelClose}
+              onLeave={scheduleClose}
+            >
+              <PathPreview path={hover.path} C={C} onOpen={() => { setHover(null); onOpen(hover.path.id); }}/>
+            </HoverPreviewCard>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
     </section>
+  );
+}
+
+// Popover width grows with the number of contents so their thumbnails lay out in one or two
+// rows instead of a single cramped column, capped so it never dominates the screen.
+const PATH_PREVIEW_MAX_ITEMS = 8;
+function pathPreviewWidth(path: any) {
+  const shown = Math.min((path.items ?? []).length, PATH_PREVIEW_MAX_ITEMS);
+  return Math.min(560, Math.max(320, shown * 122 + 32));
+}
+
+// What the 220px card cannot show: the contents inside the path, which of them are done, and
+// one way in. Mirrors the learning-path hover popup the landing page gives visitors.
+function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen: () => void }) {
+  const items: any[] = path.items ?? [];
+  const completedIds: string[] = path.progress?.completed_item_ids ?? [];
+  const completedCount = items.filter((item: any) => completedIds.includes(item.id)).length;
+  const total = items.length;
+  const pct = total ? Math.round((completedCount / total) * 100) : 0;
+  const allDone = total > 0 && completedCount === total;
+  const shown = items.slice(0, PATH_PREVIEW_MAX_ITEMS);
+  const hiddenCount = total - shown.length;
+  const desc = (path.description || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+
+  return (
+    <button type="button" onClick={onOpen}
+      aria-label={`${allDone ? 'Review' : completedCount > 0 ? 'Continue' : 'Start'} ${path.title}`}
+      className="block w-full cursor-pointer overflow-hidden rounded-2xl text-left"
+      style={{ background: C.card, boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)' }}>
+      <div className="p-4 pb-0">
+        <span className="inline-block rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: '#16a34a', color: '#ffffff' }}>Learning path</span>
+        <h3 className="mt-2 line-clamp-2 text-lg font-bold leading-snug" style={{ color: C.text }}>{path.title}</h3>
+        {desc && <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed" style={{ color: C.muted }}>{desc}</p>}
+        <div className="mt-3">
+          <ProgressBar value={pct} color="#22c55e"/>
+          <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>
+            {allDone ? 'Completed' : `${completedCount} of ${total} complete`}
+          </p>
+        </div>
+      </div>
+      <div className="p-4">
+        {total > 0 && (
+          <>
+            <p className="mb-3 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>
+              <Layers className="h-3 w-3 flex-shrink-0"/>{total} content{total !== 1 ? 's' : ''}
+            </p>
+            <div className="flex flex-wrap gap-2.5">
+              {shown.map((item: any) => {
+                const done = completedIds.includes(item.id);
+                const isVE = item.content_type === 'virtual_experience' || item.content_type === 'guided_project';
+                const isCert = item.content_type === 'certification';
+                return (
+                  <div key={item.id} className="flex-shrink-0" style={{ width: 110 }}>
+                    <div className="relative">
+                      <CoverThumbnail cover={item.cover_image} alt={item.title} Icon={isCert ? ShieldCheck : isVE ? Layers : BookOpen} iconClassName="w-5 h-5"/>
+                      {done && (
+                        <span className="absolute top-1.5 left-1.5 flex h-4 w-4 items-center justify-center rounded-full shadow-sm"
+                          style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
+                          <Check className="h-2.5 w-2.5" strokeWidth={3}/>
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 line-clamp-2 text-[11px] font-medium leading-snug" style={{ color: C.text }}>{item.title}</p>
+                  </div>
+                );
+              })}
+            </div>
+            {hiddenCount > 0 && (
+              <p className="mt-2.5 text-[11px]" style={{ color: C.faint }}>+{hiddenCount} more</p>
+            )}
+          </>
+        )}
+        <span className="mt-4 inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold"
+          style={{ background: allDone ? C.pill : '#16a34a', color: allDone ? C.muted : '#ffffff' }}>
+          <Play className="h-3.5 w-3.5"/>{allDone ? 'Review path' : completedCount > 0 ? 'Continue path' : 'Start path'}
+        </span>
+      </div>
+    </button>
   );
 }
 
@@ -471,7 +592,7 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
                 <motion.span aria-hidden="true" className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }}
                   animate={{ scale: [0.85, 1.15, 0.85], opacity: [0.65, 1, 0.65] }} transition={{ duration: 1.8, repeat: Infinity }}/>
                 <span className="flex-shrink-0">Currently learning:</span>
-                <strong className="font-semibold truncate max-w-[min(56vw,420px)]" style={{ color: C.muted }}>{items[currentIndex]?.title ?? 'Current milestone'}</strong>
+                <strong className="font-semibold truncate max-w-[min(56vw,420px)]" style={{ color: C.muted }}>{items[currentIndex]?.title ?? 'Current content'}</strong>
               </motion.span>
             )}
             {allDone && <span className="font-bold" style={{ color: '#16a34a' }}>Completed</span>}
@@ -779,24 +900,28 @@ function ToolRow({ tool, courses, deadlines, C, onDetails }: { tool: string; cou
       </div>
 
       {/* Hover preview -- the full course card in a floating popover */}
-      {typeof document !== 'undefined' && hover && createPortal(
-        <HoverPreviewCard
-          key={hover.course.form_id}
-          left={hover.left}
-          top={hover.top}
-          originX={hover.originX}
-          originY={hover.originY}
-          onEnter={cancelClose}
-          onLeave={scheduleClose}
-        >
-          <CourseCard
-            course={hover.course}
-            deadline={deadlines[hover.course.form_id]}
-            C={C}
-            onDetails={() => { setHover(null); onDetails(hover.course); }}
-            hideCategory
-          />
-        </HoverPreviewCard>,
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {hover && (
+            <HoverPreviewCard
+              key={hover.course.form_id}
+              left={hover.left}
+              top={hover.top}
+              originX={hover.originX}
+              originY={hover.originY}
+              onEnter={cancelClose}
+              onLeave={scheduleClose}
+            >
+              <CourseCard
+                course={hover.course}
+                deadline={deadlines[hover.course.form_id]}
+                C={C}
+                onDetails={() => { setHover(null); onDetails(hover.course); }}
+                hideCategory
+              />
+            </HoverPreviewCard>
+          )}
+        </AnimatePresence>,
         document.body,
       )}
     </section>

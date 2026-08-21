@@ -1548,18 +1548,22 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
         ))}
       </div>
 
-      {typeof document !== 'undefined' && hover && createPortal(
-        <HoverPreviewCard
-          key={hover.item.id}
-          left={hover.left}
-          top={hover.top}
-          originX={hover.originX}
-          originY={hover.originY}
-          onEnter={cancelClose}
-          onLeave={scheduleClose}
-        >
-          <LandingCoursePreview item={hover.item} typeColor={typeColor} user={user} hFont={hFont} bFont={bFont} isDark={popupDark !== undefined ? popupDark : isDark} />
-        </HoverPreviewCard>,
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {hover && (
+            <HoverPreviewCard
+              key={hover.item.id}
+              left={hover.left}
+              top={hover.top}
+              originX={hover.originX}
+              originY={hover.originY}
+              onEnter={cancelClose}
+              onLeave={scheduleClose}
+            >
+              <LandingCoursePreview item={hover.item} typeColor={typeColor} user={user} hFont={hFont} bFont={bFont} isDark={popupDark !== undefined ? popupDark : isDark} />
+            </HoverPreviewCard>
+          )}
+        </AnimatePresence>,
         document.body,
       )}
     </section>
