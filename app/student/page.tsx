@@ -173,7 +173,11 @@ export default function StudentDashboard() {
   function goSection(id: SectionId) {
     setActiveSection(id);
     sessionStorage.setItem('student-section', id);
-    history.replaceState(null, '', `#${id}`);
+    const url = new URL(window.location.href);
+    if (id === 'learning_paths') url.searchParams.delete('path');
+    url.hash = id;
+    history.replaceState(null, '', url);
+    if (id === 'learning_paths') window.dispatchEvent(new PopStateEvent('popstate'));
   }
 
   useEffect(() => {

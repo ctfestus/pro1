@@ -145,7 +145,8 @@ describe('POST /api/learning-paths student read path', () => {
   it('returns certification items and counts an earlier passing attempt as completed', async () => {
     mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, supabase: {}, token: 't' } as any);
     h.db = makeSupabaseStub({
-      students: { data: { cohort_id: 'co1' }, error: null },
+      // Two reads in order: the caller's own cohort, then the head count of learners in it.
+      students: [{ data: { cohort_id: 'co1' }, error: null }, { count: 4, error: null }],
       learning_paths: { data: [{ id: 'lp1', title: 'Path', status: 'published', cohort_ids: ['co1'], item_ids: ['cert1'] }], error: null },
       learning_path_progress: { data: [], error: null },
       courses: { data: [], error: null },
@@ -164,6 +165,8 @@ describe('POST /api/learning-paths student read path', () => {
     expect(paths).toHaveLength(1);
     expect(paths[0].items[0]).toMatchObject({ id: 'cert1', title: 'SQL Associate', content_type: 'certification' });
     expect(paths[0].progress.completed_item_ids).toContain('cert1');
+    // Enrolled learners on the path, so the dashboard can show "4 learners".
+    expect(paths[0].learner_count).toBe(4);
     // Every item is complete but the stored progress was never finalized (no completed_at /
     // cert_id) -- the route must schedule the completion reconciliation for this path.
     expect(mockReconcile).toHaveBeenCalledWith(
