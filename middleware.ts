@@ -68,7 +68,7 @@ export async function middleware(req: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src https: data: blob:",
-    `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://api.resend.com wss://*.supabase.co https://cdn.jsdelivr.net https://challenges.cloudflare.com https://raw.githubusercontent.com`,
+    `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://api.resend.com wss://*.supabase.co https://cdn.jsdelivr.net https://challenges.cloudflare.com https://raw.githubusercontent.com https://api.brandfetch.io`,
     "worker-src 'self' blob: https://cdn.jsdelivr.net",
     // Allow <audio>/<video> from any https source (Supabase Storage, Cloudinary, and
     // author-pasted media URLs). Mirrors the permissive img-src https: policy.
