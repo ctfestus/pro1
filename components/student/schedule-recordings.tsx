@@ -10,7 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { LIGHT_C, DARK_C } from '@/lib/theme';
-import { DataPlaygroundGrid } from '@/components/data-playground/DataPlayground';
+import { DataPlaygroundGrid } from '@/components/data-playground/lazy';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {

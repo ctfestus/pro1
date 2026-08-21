@@ -7,7 +7,7 @@
 
 import { useState } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
-import { LessonEditor } from '@/components/lesson/LessonEditor';
+import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { LIGHT_C } from '@/lib/theme';
 import { TaskFields } from '@/components/create/TaskFields';
 import {

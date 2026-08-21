@@ -29,7 +29,7 @@ import { FormPreview } from '@/components/create/FormPreview';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
-import { LessonEditor } from '@/components/lesson/LessonEditor';
+import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { lessonHtmlToDoc } from '@/components/lesson/extensions';

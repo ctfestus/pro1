@@ -24,7 +24,7 @@ import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { ImageCropModal } from '@/components/ImageCropModal';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
-import { LessonEditor } from '@/components/lesson/LessonEditor';
+import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
 import { lessonHtmlToDoc } from '@/components/lesson/extensions';
 import { QuestionTypePicker, TYPE_LABELS } from '@/components/create/QuestionTypePicker';
