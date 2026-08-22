@@ -8,6 +8,7 @@ import { supabase } from '@/lib/supabase';
 import { reportExportCSV } from '@/lib/dashboard-export';
 import { LIGHT_C, DARK_C, cardStyle } from '@/lib/theme';
 import { isIndividualCohort } from '@/lib/cohort-kind';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 async function dashboardAuthFetch(url: string, init?: RequestInit) {
   const { data: { session } } = await supabase.auth.getSession();
@@ -244,17 +245,27 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
 
   const load = async () => {
     const { data: { session } } = await supabase.auth.getSession();
-    const [{ data: stu }, { data: coh }, statsRes] = await Promise.all([
-      supabase
+    const [stu, { data: coh }, statsRes] = await Promise.all([
+      // Paged. The roster grows with the tenant, and PostgREST caps a single response at the
+      // project's row limit, which truncates SILENTLY -- past that point the list simply stops
+      // with no error anywhere, and staff read a partial roster as the whole school. Ordered by
+      // (full_name, id) because page boundaries are only stable under a total order, and names
+      // are not unique.
+      fetchAllRows<any>((from, to) => supabase
         .from('students')
-        .select('id, full_name, email, cohort_id, enrollment_model, onboarding_done, account_provisioned_at, setup_email_sent_at, password_setup_started_at, password_set_at, onboarding_completed_at, last_login_at')
+        .select('id, full_name, email, cohort_id, enrollment_model, onboarding_done, account_provisioned_at, setup_email_sent_at, password_setup_started_at, password_set_at, onboarding_completed_at, last_login_at', { count: 'exact' })
         .eq('role', 'student')
-        .order('full_name'),
+        .order('full_name')
+        .order('id')
+        .range(from, to))
+        // fetchAllRows throws where the old single query resolved to { data: null }. Swallow it
+        // the same way, so a failed roster load does not leave the section stuck on its spinner.
+        .catch(err => { console.error('[StudentsSection] roster load failed', err); return []; }),
       supabase.from('cohorts').select('id, name, cohort_kind'),
       fetch('/api/admin/students-stats', { headers: { Authorization: `Bearer ${session?.access_token}` } }),
     ]);
     const stats = statsRes.ok ? await statsRes.json() : { completedCount: {}, cohortContentCount: {} };
-    setStudents(stu ?? []);
+    setStudents(stu);
     setCohorts(coh ?? []);
     setCourseCounts(stats.cohortContentCount ?? {});
     setCompletedCounts(stats.completedCount ?? {});
