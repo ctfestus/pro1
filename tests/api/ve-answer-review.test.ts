@@ -96,6 +96,24 @@ describe('POST /api/ve-answer-review - auth, rate limit, validation', () => {
     expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 
+  // Fail CLOSED on both unreachable-limiter paths. Safe here, unlike written-review, because
+  // the players record completed:true with an error marker rather than blocking progression.
+  // Asserting the model is never called is the point: that is what the daily cap protects.
+  it('fails closed when Redis is missing', async () => {
+    mockGetRedis.mockReturnValue(null as any);
+    expect((await post(answerBody())).status).toBe(503);
+    expect(mockGenerateJSON).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the limiter throws', async () => {
+    mockGetRedis.mockReturnValue({
+      incr: vi.fn(async () => { throw new Error('redis down'); }),
+      expire: vi.fn(), del: vi.fn(), ttl: vi.fn(),
+    } as any);
+    expect((await post(answerBody())).status).toBe(503);
+    expect(mockGenerateJSON).not.toHaveBeenCalled();
+  });
+
   it('returns 429 once over the daily cap', async () => {
     mockGetRedis.mockReturnValue(redisStub(11) as any);
     expect((await post(answerBody())).status).toBe(429);

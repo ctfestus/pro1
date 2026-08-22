@@ -104,6 +104,15 @@ describe('POST /api/ve-brief-chat - auth and rate limiting', () => {
     expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 
+  it('fails closed when the limiter throws', async () => {
+    mockGetRedis.mockReturnValue({
+      incr: vi.fn(async () => { throw new Error('redis down'); }),
+      expire: vi.fn(), del: vi.fn(), ttl: vi.fn(),
+    } as any);
+    expect((await post(askBody())).status).toBe(503);
+    expect(mockGenerateJSON).not.toHaveBeenCalled();
+  });
+
   it('returns 429 once over the daily cap', async () => {
     mockGetRedis.mockReturnValue(redisStub(21) as any);
     const res = await post(askBody());
