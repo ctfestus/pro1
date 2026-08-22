@@ -9,6 +9,7 @@ import { ArrowLeft, ArrowRight, BookOpen, Check, ChevronRight, Edit2, Graduation
 import { supabase } from '@/lib/supabase';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { LIGHT_C, cardStyle, modalStyle } from '@/lib/theme';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 function formatAdmissionDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '--';
@@ -176,19 +177,29 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
     setAddAdmissionSaving(false);
   };
 
+  // Paged, and shared by both loaders below. A single select is capped by PostgREST's row
+  // limit and truncates silently, so on a large tenant a staff member assigning students to a
+  // cohort simply would not find anyone past the cap -- no error, no empty state, just a name
+  // that is not there. Ordered by (full_name, id) since page boundaries need a total order.
+  const fetchAllStudents = () => fetchAllRows<any>((from, to) => supabase
+    .from('students')
+    .select('id, full_name, email, cohort_id, role', { count: 'exact' })
+    .eq('role', 'student')
+    .order('full_name')
+    .order('id')
+    .range(from, to));
+
   const refreshStudents = async () => {
-    const { data } = await supabase
-      .from('students')
-      .select('id, full_name, email, cohort_id, role')
-      .eq('role', 'student')
-      .order('full_name');
-    setStudents(data ?? []);
+    setStudents(await fetchAllStudents().catch(err => {
+      console.error('[CohortsSection] student refresh failed', err);
+      return [];
+    }));
   };
 
   const load = async () => {
-    const [{ data: c }, { data: s }, { data: cr }, { data: veData }, { data: lpData }, { data: asgnData }] = await Promise.all([
+    const [{ data: c }, s, { data: cr }, { data: veData }, { data: lpData }, { data: asgnData }] = await Promise.all([
       supabase.from('cohorts').select('*').eq('cohort_kind', 'bootcamp').order('created_at', { ascending: false }),
-      supabase.from('students').select('id, full_name, email, cohort_id, role').eq('role', 'student').order('full_name'),
+      fetchAllStudents().catch(err => { console.error('[CohortsSection] student load failed', err); return []; }),
       supabase.from('courses').select('id, title, status, cohort_ids, available_to_everyone').order('created_at', { ascending: false }),
       supabase.from('virtual_experiences').select('id, title, status, cohort_ids').order('created_at', { ascending: false }),
       supabase.from('learning_paths').select('id, title, status, cohort_ids').order('created_at', { ascending: false }),
@@ -196,7 +207,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
     ]);
     if (asgnData === null) console.error('[assignments list fetch] returned null - check error in Promise.all');
     setCohorts(c ?? []);
-    setStudents(s ?? []);
+    setStudents(s);
     setCourses(cr ?? []);
     setVes(veData ?? []);
     setLearningPaths(lpData ?? []);

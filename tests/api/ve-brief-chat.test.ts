@@ -95,10 +95,22 @@ describe('POST /api/ve-brief-chat - auth and rate limiting', () => {
     expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 
-  it('fails open when the rate limiter is unavailable', async () => {
+  // Fail CLOSED, deliberately. An unreachable limiter used to wave requests through, which
+  // removed the spend cap at the exact moment infrastructure was already failing. Asserting the
+  // AI is never called matters more than the status code: that is what the cap protects.
+  it('fails closed when the rate limiter is unavailable', async () => {
     mockGetRedis.mockReturnValue(null as any);
-    mockGenerateJSON.mockResolvedValue({ reply: 'Q3 only.' });
-    expect((await post(askBody())).status).toBe(200);
+    expect((await post(askBody())).status).toBe(503);
+    expect(mockGenerateJSON).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the limiter throws', async () => {
+    mockGetRedis.mockReturnValue({
+      incr: vi.fn(async () => { throw new Error('redis down'); }),
+      expire: vi.fn(), del: vi.fn(), ttl: vi.fn(),
+    } as any);
+    expect((await post(askBody())).status).toBe(503);
+    expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 
   it('returns 429 once over the daily cap', async () => {

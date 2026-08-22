@@ -42,9 +42,15 @@ const MAX_PROMPT_FIELD_CHARS = 4000;
 const MAX_RUBRIC_ITEMS = 20;
 const MAX_RUBRIC_ITEM_CHARS = 300;
 
-// Fails OPEN when Redis is unavailable: this route can be the last step of a graded submission, and
-// blocking a student's assessed work on an infrastructure blip is worse than a few uncounted AI
-// calls. (/api/document-review fails closed; that one is upload-heavy and far more expensive.)
+// Fails OPEN when Redis is unavailable -- DELIBERATELY, and unlike its siblings ve-brief-chat and
+// ve-answer-review, which fail closed. The difference is what a refusal costs the student:
+// WrittenResponsePlayer only calls onComplete() after a successful review, so a 503 here leaves a
+// graded written_response question uncompletable until Redis returns. Blocking assessed work on an
+// infrastructure blip is worse than a few uncounted AI calls. ve-answer-review can fail closed
+// because its players record completed:true with an error marker and never block progression.
+// (/api/document-review also fails closed; that one is upload-heavy and far more expensive.)
+//
+// Do not "make this consistent" with the other AI routes without checking the caller first.
 async function checkRateLimit(userId: string, depth: keyof typeof RATE_LIMITS): Promise<NextResponse | null> {
   const redis = getRedis();
   if (!redis) return null;
@@ -58,7 +64,7 @@ async function checkRateLimit(userId: string, depth: keyof typeof RATE_LIMITS): 
       );
     }
   } catch {
-    // fail open if Redis is unavailable
+    // fail open if Redis is unavailable -- see the note above the function
   }
   return null;
 }
