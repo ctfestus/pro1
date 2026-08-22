@@ -16,7 +16,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tip
 import { Play, Copy, Check, Loader2, Database, X, ChevronDown } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
-import { CodeMirrorEditor } from '@/components/lesson/CodeMirrorEditor';
+import { CodeMirrorEditor } from '@/components/lesson/CodeMirrorEditorLazy';
 import { LayeredBadgeIcon } from '@/components/lesson/LayeredBadgeIcon';
 import { useLessonRuntime } from '@/components/lesson/LessonRuntimeContext';
 import { useTheme } from '@/components/ThemeProvider';

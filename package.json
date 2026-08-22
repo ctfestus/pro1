@@ -11,7 +11,7 @@
     "check:chars:all": "node scripts/check-user-visible-ascii.mjs --all",
     "test": "node scripts/check-user-visible-ascii.mjs && vitest run",
     "test:watch": "vitest",
-    "clean": "next clean"
+    "clean": "node scripts/clean.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "^6.20.2",
