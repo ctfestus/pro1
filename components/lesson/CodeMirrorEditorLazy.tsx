@@ -4,18 +4,32 @@
 //
 // CodeMirrorEditor pulls in the whole CodeMirror 6 stack -- state, view, commands,
 // autocomplete, language, lang-sql, lang-python and @lezer/highlight. Its two consumers
-// both reach students through paths that render for every lesson, not just the ones with
-// code in them:
+// both imported it statically, so every route that could reach either one paid for it up
+// front:
 //
-//   RunnableCode is registered unconditionally in lessonExtensions, so LessonRenderer --
-//   and therefore /student -- bundled CodeMirror for every lesson even when no lesson on
-//   the page had a runnable block.
+//   RunnableCode is registered unconditionally in lessonExtensions, so anything rendering
+//   a lesson through LessonRenderer bundled CodeMirror even when no lesson on the page had
+//   a runnable block. In practice that is CourseTaker, which is where lessons are actually
+//   read, plus the authoring editors.
 //
 //   CertificationPlayground is only reached inside a certification attempt.
 //
-// Loading it on demand means the chunk arrives when a runnable block actually mounts.
-// In RunnableCode that is already gated behind `canRun`, so a read-only code block never
-// pays for it at all.
+// Loading it on demand means the chunk arrives when a runnable block actually mounts. In
+// RunnableCode that is already gated behind `canRun`, so a read-only code block never pays
+// for it at all.
+//
+// Measured First Load JS, main d92360c vs this change:
+//
+//   /[id]                    1.08 MB -> 939 kB
+//   /create                    740 kB -> 600 kB
+//   /create/guided-project     693 kB -> 553 kB
+//   /dashboard/[id]            744 kB -> 605 kB
+//   /student                   829 kB -> 827 kB
+//
+// /student is deliberately in that list as a caution: it barely moves. It is the hub that
+// lists courses and sections, it does not render lesson bodies, and LessonRenderer is not
+// on it -- lessons are read on /[id] via CourseTaker. Do not reach for this wrapper
+// expecting it to lighten /student.
 //
 // Behavior is unchanged: props pass straight through, and the editor stays uncontrolled
 // after mount exactly as before -- the wrapper adds no state of its own.
