@@ -51,7 +51,7 @@ function SortableVEShell({ id, children }: {
   );
   return <div ref={setNodeRef} style={style}>{children({ dragHandle, isDragging })}</div>;
 }
-import { LessonEditor } from '@/components/lesson/LessonEditor';
+import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { AiTextarea } from '@/components/AiTextarea';
 import { lessonHtmlToDoc } from '@/components/lesson/extensions';
 import Link from 'next/link';
