@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Play, Loader2 } from 'lucide-react';
-import { CodeMirrorEditor } from '@/components/lesson/CodeMirrorEditor';
+import { CodeMirrorEditor } from '@/components/lesson/CodeMirrorEditorLazy';
 import { initSQLRuntime, executeQuery, type SQLResult, type SQLRuntime } from '@/lib/sql-engine';
 import { initPythonRuntime, runPython, loadPythonDatasets, type PythonResult, type PythonRuntime } from '@/lib/python-engine';
 
