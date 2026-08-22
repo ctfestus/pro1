@@ -14,7 +14,7 @@ const StandardAssignmentPlayer = dynamic(() => import('@/components/StandardAssi
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { RichTextEditor } from '@/components/RichTextEditor';
-import { LessonEditor } from '@/components/lesson/LessonEditor';
+import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { sanitizeRichText, sanitizePlainText } from '@/lib/sanitize';
 import { ScenariosEditor } from '@/components/create/ScenariosEditor';
 import type { AssignmentScenario } from '@/lib/assignment-scenarios';

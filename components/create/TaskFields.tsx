@@ -8,7 +8,7 @@
 import { useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
-import { LessonEditor } from '@/components/lesson/LessonEditor';
+import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { LIGHT_C } from '@/lib/theme';
 import { Plus, X, Upload, Loader2, Check } from 'lucide-react';
 import type { AssignmentTask } from '@/lib/assignment-scenarios';

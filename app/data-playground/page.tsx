@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { Sun, Moon } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
-import { DataPlaygroundGrid, WhatsAppCommunityBanner } from '@/components/data-playground/DataPlayground';
+import { DataPlaygroundGrid, WhatsAppCommunityBanner } from '@/components/data-playground/lazy';
 import { useC } from '@/lib/theme';
 
 export default function DataPlaygroundPage() {
