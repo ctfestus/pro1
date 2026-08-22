@@ -47,28 +47,30 @@ import {
 // together, as do the three schedule/recordings panels and the three badges panels. Two
 // heavy children come along for free: assignments pulls GroupForum, and
 // subscription-payments pulls payments.
+// The options object has to be written out at every call site: Next's SWC transform reads
+// `ssr` statically, so hoisting it into a shared constant fails the build with
+// "next/dynamic options must be an object literal". Only the loading component is shared.
 const sectionLoading = () => (
   <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin" style={{ color: '#888' }}/></div>
 );
-const lazySection = { ssr: false as const, loading: sectionLoading };
 
-const CalendarSection           = dynamic(() => import('@/components/StudentCalendar'), lazySection);
-const StudentPaymentsSection    = dynamic(() => import('@/components/student/subscription-payments').then(m => m.StudentPaymentsSection), lazySection);
-const CoursesSection            = dynamic(() => import('@/components/student/courses-paths').then(m => m.CoursesSection), lazySection);
-const LearningPathsSection      = dynamic(() => import('@/components/student/courses-paths').then(m => m.LearningPathsSection), lazySection);
-const EventsSection             = dynamic(() => import('@/components/student/events').then(m => m.EventsSection), lazySection);
-const AssignmentsSection        = dynamic(() => import('@/components/student/assignments').then(m => m.AssignmentsSection), lazySection);
-const CommunitySection          = dynamic(() => import('@/components/student/community-announcements').then(m => m.CommunitySection), lazySection);
-const AnnouncementsSection      = dynamic(() => import('@/components/student/community-announcements').then(m => m.AnnouncementsSection), lazySection);
-const VirtualExperiencesSection = dynamic(() => import('@/components/student/virtual-experiences').then(m => m.VirtualExperiencesSection), lazySection);
-const CertificationsSection     = dynamic(() => import('@/components/student/certifications').then(m => m.CertificationsSection), lazySection);
-const DataCenterSection         = dynamic(() => import('@/components/student/schedule-recordings').then(m => m.DataCenterSection), lazySection);
-const RecordingsSection         = dynamic(() => import('@/components/student/schedule-recordings').then(m => m.RecordingsSection), lazySection);
-const ScheduleSection           = dynamic(() => import('@/components/student/schedule-recordings').then(m => m.ScheduleSection), lazySection);
-const StudentBadgesSection      = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.StudentBadgesSection), lazySection);
-const LeaderboardSection        = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.LeaderboardSection), lazySection);
-const CertificatesSection       = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.CertificatesSection), lazySection);
-const AiCareerToolkitSection    = dynamic(() => import('@/components/student/ai-career-toolkit').then(m => m.AiCareerToolkitSection), lazySection);
+const CalendarSection           = dynamic(() => import('@/components/StudentCalendar'), { ssr: false, loading: sectionLoading });
+const StudentPaymentsSection    = dynamic(() => import('@/components/student/subscription-payments').then(m => m.StudentPaymentsSection), { ssr: false, loading: sectionLoading });
+const CoursesSection            = dynamic(() => import('@/components/student/courses-paths').then(m => m.CoursesSection), { ssr: false, loading: sectionLoading });
+const LearningPathsSection      = dynamic(() => import('@/components/student/courses-paths').then(m => m.LearningPathsSection), { ssr: false, loading: sectionLoading });
+const EventsSection             = dynamic(() => import('@/components/student/events').then(m => m.EventsSection), { ssr: false, loading: sectionLoading });
+const AssignmentsSection        = dynamic(() => import('@/components/student/assignments').then(m => m.AssignmentsSection), { ssr: false, loading: sectionLoading });
+const CommunitySection          = dynamic(() => import('@/components/student/community-announcements').then(m => m.CommunitySection), { ssr: false, loading: sectionLoading });
+const AnnouncementsSection      = dynamic(() => import('@/components/student/community-announcements').then(m => m.AnnouncementsSection), { ssr: false, loading: sectionLoading });
+const VirtualExperiencesSection = dynamic(() => import('@/components/student/virtual-experiences').then(m => m.VirtualExperiencesSection), { ssr: false, loading: sectionLoading });
+const CertificationsSection     = dynamic(() => import('@/components/student/certifications').then(m => m.CertificationsSection), { ssr: false, loading: sectionLoading });
+const DataCenterSection         = dynamic(() => import('@/components/student/schedule-recordings').then(m => m.DataCenterSection), { ssr: false, loading: sectionLoading });
+const RecordingsSection         = dynamic(() => import('@/components/student/schedule-recordings').then(m => m.RecordingsSection), { ssr: false, loading: sectionLoading });
+const ScheduleSection           = dynamic(() => import('@/components/student/schedule-recordings').then(m => m.ScheduleSection), { ssr: false, loading: sectionLoading });
+const StudentBadgesSection      = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.StudentBadgesSection), { ssr: false, loading: sectionLoading });
+const LeaderboardSection        = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.LeaderboardSection), { ssr: false, loading: sectionLoading });
+const CertificatesSection       = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.CertificatesSection), { ssr: false, loading: sectionLoading });
+const AiCareerToolkitSection    = dynamic(() => import('@/components/student/ai-career-toolkit').then(m => m.AiCareerToolkitSection), { ssr: false, loading: sectionLoading });
 
 const ACTIVITY_POLL_MIN_GAP_MS = 30_000;
 const MY_LEARNING_SECTIONS: SectionId[] = ['learning_paths', 'courses', 'virtual_experiences'];
