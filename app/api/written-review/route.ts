@@ -47,7 +47,10 @@ const MAX_RUBRIC_ITEM_CHARS = 300;
 // calls. (/api/document-review fails closed; that one is upload-heavy and far more expensive.)
 async function checkRateLimit(userId: string, depth: keyof typeof RATE_LIMITS): Promise<NextResponse | null> {
   const redis = getRedis();
-  if (!redis) return null;
+  // Fail closed. This route spends a metered AI quota, so a limiter that cannot be
+  // reached must not silently become no limiter at all -- an outage is exactly when an
+  // unbounded bill would be run up.
+  if (!redis) return NextResponse.json({ error: 'AI review is unavailable right now. Please try again shortly.' }, { status: 503 });
   const limit = RATE_LIMITS[depth];
   try {
     if (await bumpRateLimit(redis, `rate:written-review:${depth}:${userId}`, limit, RATE_WINDOW_SECONDS)) {
@@ -58,7 +61,8 @@ async function checkRateLimit(userId: string, depth: keyof typeof RATE_LIMITS): 
       );
     }
   } catch {
-    // fail open if Redis is unavailable
+    // Same reasoning as above: an unreachable limiter refuses rather than waves through.
+    return NextResponse.json({ error: 'AI review is unavailable right now. Please try again shortly.' }, { status: 503 });
   }
   return null;
 }

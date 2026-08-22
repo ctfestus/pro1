@@ -37,7 +37,10 @@ const VE_COLUMNS = 'user_id, modules, company, role, industry';
 
 async function checkRateLimit(userId: string): Promise<NextResponse | null> {
   const redis = getRedis();
-  if (!redis) return null;
+  // Fail closed. This route spends a metered AI quota, so a limiter that cannot be
+  // reached must not silently become no limiter at all -- an outage is exactly when an
+  // unbounded bill would be run up.
+  if (!redis) return NextResponse.json({ error: 'AI review is unavailable right now. Please try again shortly.' }, { status: 503 });
   try {
     if (await bumpRateLimit(redis, `rate:ve-answer-review:${userId}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
       return NextResponse.json(
@@ -46,7 +49,8 @@ async function checkRateLimit(userId: string): Promise<NextResponse | null> {
       );
     }
   } catch {
-    // fail open if Redis is unavailable
+    // Same reasoning as above: an unreachable limiter refuses rather than waves through.
+    return NextResponse.json({ error: 'AI review is unavailable right now. Please try again shortly.' }, { status: 503 });
   }
   return null;
 }
