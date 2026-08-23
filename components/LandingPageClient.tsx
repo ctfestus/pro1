@@ -192,8 +192,9 @@ function ProgrammeLoadError({ dark = false }: { dark?: boolean }) {
 }
 
 // --- Elevate Template ---
-function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, programmes, programmesError }: {
+function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError }: {
   user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
+  publicSignupEnabled: boolean;
   programmes: ProgrammeItem[]; programmesError: boolean;
 }) {
   const [hoveredTrack, setHoveredTrack] = useState<number | null>(null);
@@ -315,13 +316,31 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
         <div className="flex items-center gap-3">
           {user ? <NavProfileMenu user={user} profile={profile} /> : (
             <>
-              <Link href="/auth" className="text-sm font-medium hidden sm:block transition-opacity hover:opacity-60" style={{ color: nav_text }}>Log in</Link>
-              <Link href="/auth" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 sm:hidden" style={{ background: nav_text, color: nav_bg }}>
-                Sign In
+              {/* Signups open: the pill becomes Sign up at every width, and Log in stops being
+                  desktop-only -- on a phone the pill was the ONLY control, so there was no way to
+                  reach the signup form at all. Signups closed: this is exactly the old markup,
+                  where "Get started" leads to the invite-only explanation. */}
+              <Link
+                href="/auth"
+                className={`text-sm font-medium transition-opacity hover:opacity-60 ${publicSignupEnabled ? 'block' : 'hidden sm:block'}`}
+                style={{ color: nav_text }}
+              >
+                Log in
               </Link>
-              <Link href="/auth?mode=signup" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 hidden sm:block" style={{ background: nav_text, color: nav_bg }}>
-                Get started
-              </Link>
+              {publicSignupEnabled ? (
+                <Link href="/auth?mode=signup" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90" style={{ background: nav_text, color: nav_bg }}>
+                  Sign up
+                </Link>
+              ) : (
+                <>
+                  <Link href="/auth" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 sm:hidden" style={{ background: nav_text, color: nav_bg }}>
+                    Sign In
+                  </Link>
+                  <Link href="/auth?mode=signup" className="px-5 py-2.5 rounded-full text-sm font-bold transition-all hover:opacity-90 hidden sm:block" style={{ background: nav_text, color: nav_bg }}>
+                    Get started
+                  </Link>
+                </>
+              )}
             </>
           )}
         </div>
@@ -853,7 +872,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
             </div>
             <div className="space-y-3">
               <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: on_dark, opacity: 0.3 }}>Account</p>
-              {[{ label: 'Log in', href: '/auth' }, { label: 'Sign up', href: '/auth' }, { label: 'Dashboard', href: user ? '/student' : '/auth' }].map(l => (
+              {[{ label: 'Log in', href: '/auth' }, { label: 'Sign up', href: '/auth?mode=signup' }, { label: 'Dashboard', href: user ? '/student' : '/auth' }].map(l => (
                 <Link key={l.label} href={l.href} className="block text-sm transition-colors" style={{ color: on_dark, opacity: 0.5 }}>{l.label}</Link>
               ))}
             </div>
@@ -1571,8 +1590,9 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
 }
 
 // --- Modern template ---
-function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, programmes, programmesError }: {
+function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError }: {
   user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
+  publicSignupEnabled: boolean;
   programmes: ProgrammeItem[]; programmesError: boolean;
 }) {
   const reduced = useReducedMotion();
@@ -1714,6 +1734,13 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
                   Log in
                 </Link>
+                {publicSignupEnabled && (
+                  <Link href="/auth?mode=signup"
+                    className="px-3 sm:px-4 py-2 text-sm font-bold rounded-md transition-opacity hover:opacity-90"
+                    style={{ background: isPageDark ? '#ffffff' : '#1C1D1F', color: isPageDark ? '#1C1D1F' : '#ffffff' }}>
+                    Sign up
+                  </Link>
+                )}
               </>
             )}
           </div>
@@ -1946,7 +1973,7 @@ export default function LandingPageClient({
   programmesError,
   isPreview,
 }: LandingPageClientProps) {
-  const { logoUrl, logoDarkUrl, appName } = useTenant();
+  const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
 
   const [user, setUser]         = useState<any>(null);
   const [profile, setProfile]   = useState<any>(null);
@@ -2081,9 +2108,9 @@ export default function LandingPageClient({
   if (loading) return <LandingPageSkeleton />;
 
   if (templateId === 'elevate') {
-    return <ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} programmes={initialProgrammes} programmesError={programmesError} />;
+    return <ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />;
   }
 
-  return <ModernTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} programmes={initialProgrammes} programmesError={programmesError} />;
+  return <ModernTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />;
 
 }
