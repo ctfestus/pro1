@@ -18,7 +18,7 @@ vi.mock('@supabase/ssr', () => ({
 import { middleware } from '@/middleware';
 
 const OWES_PASSWORD = { app_metadata: { needs_password_setup: true } };
-const NOT_APPROVED  = { app_metadata: { access_state: 'pending' } };
+const PENDING       = { app_metadata: { access_state: 'pending' } };
 const DENIED        = { app_metadata: { access_state: 'denied' } };
 const UNRESTRICTED  = { app_metadata: { access_state: 'active' } };
 
@@ -80,24 +80,27 @@ describe('middleware account gate', () => {
     });
   });
 
+  // Both are equally locked out of the app. What differs is what they are TOLD, because one of
+  // them can fix it without a person: an unconfirmed email lands on the request-a-new-link form,
+  // a refused admission does not.
   describe.each([
-    ['a pending account', NOT_APPROVED],
-    ['a denied account',  DENIED],
-  ])('%s', (_label, user) => {
+    ['a pending account', PENDING, 'confirm_email', 'Please confirm your email address to finish signing up.'],
+    ['a denied account',  DENIED,  'not_allowed',   'This account has not been approved.'],
+  ])('%s', (_label, user, errorParam, apiMessage) => {
     beforeEach(() => signedInAs(user));
 
     it('is redirected away from the app with a reason', async () => {
       const response = await go('/student');
 
       expect(response.status).toBe(307);
-      expect(response.headers.get('location')).toBe('http://localhost/auth?error=not_allowed');
+      expect(response.headers.get('location')).toBe(`http://localhost/auth?error=${errorParam}`);
     });
 
     it('gets 403 JSON on an API call', async () => {
       const response = await go('/api/forms');
 
       expect(response.status).toBe(403);
-      expect(await response.json()).toEqual({ error: 'This account has not been approved.' });
+      expect(await response.json()).toEqual({ error: apiMessage });
     });
 
     // The Route Handler verifies the bearer token and applies this same restriction.
@@ -113,7 +116,7 @@ describe('middleware account gate', () => {
   // what went wrong.
   describe.each([
     ['a session that owes a password', OWES_PASSWORD],
-    ['an unapproved account',          NOT_APPROVED],
+    ['an unapproved account',          PENDING],
   ])('%s can still reach the auth area', (_label, user) => {
     beforeEach(() => signedInAs(user));
 

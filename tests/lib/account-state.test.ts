@@ -55,8 +55,10 @@ describe('restrictionFor', () => {
     expect(restrictionFor(OWES_PW)).toBe('password_setup');
   });
 
-  it('reports an unadmitted account', () => {
-    expect(restrictionFor(PENDING)).toBe('not_approved');
+  // Pending and denied are both closed, but a person can resolve pending themselves and cannot
+  // resolve denied at all, so they must not collapse into one message.
+  it('separates an unconfirmed signup from a refused one', () => {
+    expect(restrictionFor(PENDING)).toBe('awaiting_confirmation');
     expect(restrictionFor(DENIED)).toBe('not_approved');
   });
 
@@ -77,7 +79,7 @@ describe('isPathOpenTo (cookie boundary)', () => {
 
   // Closing /auth would make the restriction impossible to resolve or even read.
   it('always leaves the auth area reachable', () => {
-    for (const restriction of ['password_setup', 'not_approved'] as const) {
+    for (const restriction of ['password_setup', 'not_approved', 'awaiting_confirmation'] as const) {
       expect(isPathOpenTo(restriction, '/auth')).toBe(true);
       expect(isPathOpenTo(restriction, '/auth/reset-password')).toBe(true);
       expect(isPathOpenTo(restriction, '/auth/confirm')).toBe(true);
@@ -101,6 +103,10 @@ describe('isPathOpenTo (cookie boundary)', () => {
     expect(isPathOpenTo('not_approved', '/onboarding')).toBe(false);
     expect(isPathOpenTo('not_approved', '/student')).toBe(false);
     expect(isPathOpenTo('not_approved', '/')).toBe(false);
+    // Awaiting confirmation is exactly as closed as refused. Only the message differs.
+    expect(isPathOpenTo('awaiting_confirmation', PASSWORD_SETUP_COMPLETION_PATH)).toBe(false);
+    expect(isPathOpenTo('awaiting_confirmation', '/student')).toBe(false);
+    expect(isPathOpenTo('awaiting_confirmation', '/')).toBe(false);
   });
 });
 
@@ -116,6 +122,8 @@ describe('isPathOpenToBearer (token boundary)', () => {
   it('refuses an unadmitted account everything', () => {
     expect(isPathOpenToBearer('not_approved', PASSWORD_SETUP_COMPLETION_PATH)).toBe(false);
     expect(isPathOpenToBearer('not_approved', '/api/forms')).toBe(false);
+    expect(isPathOpenToBearer('awaiting_confirmation', PASSWORD_SETUP_COMPLETION_PATH)).toBe(false);
+    expect(isPathOpenToBearer('awaiting_confirmation', '/api/forms')).toBe(false);
   });
 
   it('lets an unrestricted session through', () => {
@@ -127,5 +135,8 @@ describe('redirectPathFor', () => {
   it('sends each restriction somewhere that explains it', () => {
     expect(redirectPathFor('password_setup')).toBe('/auth/reset-password');
     expect(redirectPathFor('not_approved')).toBe('/auth?error=not_allowed');
+    // Its own destination, because /auth?error=confirm_email opens the request-a-new-link form
+    // instead of telling the person to contact staff.
+    expect(redirectPathFor('awaiting_confirmation')).toBe('/auth?error=confirm_email');
   });
 });

@@ -72,6 +72,11 @@ export default function AuthPage() {
   const [message, setMessage]   = useState('');
   const [showPass, setShowPass] = useState(false);
   const [canRetrySignup, setCanRetrySignup] = useState(false);
+  // Arrived here because the email was never confirmed. The form looks like the password-reset
+  // form, but it must send a SIGNUP confirmation, not a recovery link -- resend({type:'signup'})
+  // is the API built for exactly this, and it does not depend on recovery working for an
+  // unconfirmed address.
+  const [needsConfirm, setNeedsConfirm] = useState(false);
   // CAPTCHA SUSPENDED -- const [captchaToken, setCaptchaToken] = useState('');
   // CAPTCHA SUSPENDED -- const turnstileRef = useRef<TurnstileInstance>(null);
 
@@ -86,6 +91,14 @@ export default function AuthPage() {
       // request form so a fresh link is one step away instead of a dead end.
       setIsForgot(true);
       setMessage('That setup link has already been used or has expired. Enter your email below and we will send you a new one.');
+    }
+    if (error === 'confirm_email') {
+      // Same escape hatch as an expired setup link: the forgot form sends a fresh one, and
+      // clicking a recovery link also confirms the address. Sending someone to their Learning
+      // Advisor because an email link timed out is a dead end for a problem they can fix.
+      setIsForgot(true);
+      setNeedsConfirm(true);
+      setMessage('Your email address is not confirmed yet, so the account is not active. Enter your email below and we will send you a fresh confirmation link.');
     }
     if (error === 'email_not_supported') {
       setMessage('That email provider is not supported. Please sign up with a permanent email address.');
@@ -115,6 +128,18 @@ export default function AuthPage() {
     setLoading(true);
     setMessage('');
     try {
+      if (isForgot && needsConfirm) {
+        // An unconfirmed account needs its confirmation link again, not a password reset. Both
+        // Supabase calls are rate-limited server-side, so this cannot be used to mail-bomb anyone.
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        });
+        if (error) throw error;
+        setMessage('Check your email for a new confirmation link. If you do not see it, please check your spam folder.');
+        return;
+      }
       if (isForgot) {
         // Supabase sends and rate-limits the recovery email. The exact destination must
         // be listed under Authentication -> URL Configuration -> Redirect URLs.
@@ -245,7 +270,7 @@ export default function AuthPage() {
               className="mb-7"
             >
               <h1 className="text-[22px] font-bold tracking-tight mb-1" style={{ color: t.headingColor }}>
-                {isForgot ? 'Reset your password' : isLogin ? 'Welcome back' : 'Create your account'}
+                {isForgot ? (needsConfirm ? 'Confirm your email' : 'Reset your password') : isLogin ? 'Welcome back' : 'Create your account'}
               </h1>
               <p className="text-sm" style={{ color: t.subColor }}>
                 {isForgot
@@ -304,7 +329,7 @@ export default function AuthPage() {
                   {isLogin && (
                     <button
                       type="button"
-                      onClick={() => { setIsForgot(true); setMessage(''); }}
+                      onClick={() => { setIsForgot(true); setNeedsConfirm(false); setMessage(''); }}
                       className="text-xs transition-colors"
                       style={{ color: t.forgotColor }}
                       onMouseEnter={e => (e.currentTarget.style.color = t.forgotHoverColor)}
@@ -380,7 +405,7 @@ export default function AuthPage() {
             >
               {loading
                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <>{isForgot ? 'Send Reset Link' : isLogin ? 'Sign In' : 'Create Account'} <ArrowRight className="w-3.5 h-3.5" /></>}
+                : <>{isForgot ? (needsConfirm ? 'Resend Confirmation' : 'Send Reset Link') : isLogin ? 'Sign In' : 'Create Account'} <ArrowRight className="w-3.5 h-3.5" /></>}
             </button>
 
             {canRetrySignup && (
@@ -401,7 +426,7 @@ export default function AuthPage() {
               <>
                 Remember your password?{' '}
                 <button
-                  onClick={() => { setIsForgot(false); setMessage(''); }}
+                  onClick={() => { setIsForgot(false); setNeedsConfirm(false); setMessage(''); }}
                   className="font-semibold transition-colors"
                   style={{ color: t.accentText }}
                 >
