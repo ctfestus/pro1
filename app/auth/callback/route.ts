@@ -1,11 +1,8 @@
-import * as Sentry from '@sentry/nextjs';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
-import { activateEnrollment } from '@/lib/db-payments';
-import { markSelfSignupApproved, markSelfSignupDenied } from '@/lib/account-state-server';
-import { isDisposableEmailDomain } from '@/lib/disposable-email-domains';
+import { admitConfirmedSignup } from '@/lib/signup-admission';
 
 // Signup confirmation is the normal responsibility. Password recovery has its own
 // direct token-hash route and never reaches this handler, except for compatibility with
@@ -103,117 +100,22 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(new URL(landing, request.url));
   }
 
-  // Refuse the account rather than remove it, and end the session so the refusal takes
-  // effect immediately instead of only on the next request.
-  //
-  // ONLY a confirmed negative eligibility result may land here. A database or network
-  // failure looks identical to "not allowed" if you only check the returned value, and
-  // denial is a lasting mark on a real person's account.
-  const refuse = async (reason: string, errorParam: string) => {
-    console.warn(`[auth/callback] denying signup: ${reason}`, user.id);
-    // A denial is the policy working, not a fault, so it is reported as a warning
-    // rather than an exception. Once signups open, uninvited attempts become ordinary
-    // traffic, and filing each one as an error would bury the failures below that do
-    // need a person. Account id only -- no email, no token, no cookie.
-    Sentry.captureMessage(`auth/callback denied signup: ${reason}`, {
-      level: 'warning',
-      user: { id: user.id },
-      tags: { flow: 'signup_callback', outcome: 'denied', reason },
-    });
-    await markSelfSignupDenied(db, user.id);
+  // The decision itself lives in lib/signup-admission, so this route and /auth/confirm/verify
+  // cannot drift apart about who gets in. What stays here is only what this route alone knows:
+  // the session to end on a refusal, and where to send the browser next.
+  const outcome = await admitConfirmedSignup(db, user, 'signup_callback');
+
+  if (outcome.status === 'denied') {
+    // End the session so the refusal takes effect immediately, rather than only on the next
+    // request. The account is refused, not removed -- losing a real learner is unrecoverable.
     await supabase.auth.signOut();
-    return NextResponse.redirect(new URL(`/auth?error=${errorParam}`, request.url));
-  };
+    return NextResponse.redirect(new URL(`/auth?error=${outcome.errorParam}`, request.url));
+  }
 
-  // Something broke. Change nothing: the account stays pending and the restricted
-  // session stays available for /auth/callback?retry=1. Signing out here would destroy
-  // the only retry credential after the one-time auth code had already been consumed.
-  const retryLater = async (reason: string, detail?: unknown) => {
-    console.error(`[auth/callback] leaving signup pending: ${reason}`, user.id, detail ?? '');
-    // THE failure this route exists to survive, and the one nobody finds out about:
-    // the account is eligible, something broke, and the student is left pending with
-    // no way to say why. Report the original error where there is one, so the stack
-    // points at the real call rather than at this helper.
-    Sentry.captureException(
-      detail instanceof Error ? detail : new Error(`auth/callback: ${reason}`),
-      {
-        user: { id: user.id },
-        tags: { flow: 'signup_callback', outcome: 'pending', reason },
-        ...(typeof detail === 'string' && detail ? { extra: { detail } } : {}),
-      },
-    );
+  if (outcome.status === 'retry') {
+    // Deliberately NOT signing out. Once the one-time code has been consumed, the restricted
+    // session is the only credential left for /auth/callback?retry=1.
     return NextResponse.redirect(new URL('/auth?error=try_again', request.url));
-  };
-
-  if (!user.email) return refuse('authenticated user has no email', 'not_allowed');
-
-  const { data: cohortId, error: allowlistError } = await db.rpc(
-    'check_email_allowlist', { p_email: user.email },
-  );
-  if (allowlistError) return retryLater('allowlist lookup failed', allowlistError.message);
-
-  // No allowlist entry used to be the end of it. It still is, unless the platform has public
-  // signup switched on -- in which case this becomes a FREE account: active, but with no cohort,
-  // which limits it to content tagged available_to_everyone.
-  //
-  // Read straight from the table rather than through getTenantSettings(), which caches for 60
-  // seconds. This is an access gate: switching signups off must take effect immediately, not
-  // within the minute, or a flood keeps being admitted after someone has already pulled the lever.
-  if (!cohortId) {
-    const { data: settings, error: settingsError } = await db
-      .from('platform_settings')
-      .select('public_signup_enabled')
-      .eq('id', 'default')
-      .maybeSingle();
-    // A failed lookup is not a refusal. Denial is a lasting mark on a real person's account, and
-    // "the settings query broke" is no evidence at all about who they are.
-    if (settingsError) return retryLater('public signup lookup failed', settingsError.message);
-    if (!settings?.public_signup_enabled) return refuse('not on any cohort allowlist', 'not_allowed');
-
-    if (isDisposableEmailDomain(user.email)) {
-      return refuse('disposable email domain', 'email_not_supported');
-    }
-
-    // No cohort, and deliberately no enrollment_model claim: this account is neither a bootcamp
-    // admission nor a subscriber. Leaving that column null keeps both doors open, and
-    // claim_student_enrollment_model already treats null as unclaimed if one is bought later.
-    try {
-      await markSelfSignupApproved(db, user.id);
-    } catch (e: any) {
-      return retryLater('could not record public signup', e?.message ?? e);
-    }
-    return NextResponse.redirect(new URL('/onboarding', request.url));
-  }
-
-  try {
-    await activateEnrollment(db, user.email, cohortId, user.id);
-  } catch (e: any) {
-    // Their email IS on an allowlist, so this is a data or infrastructure problem, not
-    // a verdict on their eligibility. Leave them pending and recoverable either way.
-    // no_admission_record = allowlisted but with no bootcamp_enrollments pre-signup row.
-    const isNoRecord = typeof e?.message === 'string' && e.message.includes('No admission record');
-    return isNoRecord
-      ? retryLater('allowlisted but no admission record', e?.message)
-      : retryLater('enrollment activation failed', e?.message ?? e);
-  }
-
-  // The account is only marked active once it actually has its cohort, or an activation
-  // that half-failed would leave an active student with nothing to study.
-  const { error: cohortError } = await db
-    .from('students').update({ cohort_id: cohortId }).eq('id', user.id);
-  if (cohortError) return retryLater('cohort assignment failed', cohortError.message);
-
-  const { error: allowlistCleanupError } = await db
-    .from('cohort_allowed_emails').delete().eq('email', user.email.toLowerCase());
-  // Cleanup only -- a stale allowlist row does not affect this student's access.
-  if (allowlistCleanupError) {
-    console.error('[auth/callback] allowlist cleanup failed', allowlistCleanupError.message);
-  }
-
-  try {
-    await markSelfSignupApproved(db, user.id);
-  } catch (e: any) {
-    return retryLater('could not record admission', e?.message ?? e);
   }
 
   return NextResponse.redirect(new URL('/onboarding', request.url));
