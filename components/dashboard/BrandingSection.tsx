@@ -22,6 +22,9 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
     teamName:        '',
     supportEmail:    '',
     appDescription:  '',
+    // Access. The only non-string field here, so it is set from the row explicitly below rather
+    // than falling through the ?? '' pattern the text fields use.
+    publicSignupEnabled: false,
     // Landing page
     primaryColor:    '',
     accentColor:     '',
@@ -65,6 +68,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           teamName:        data.team_name        ?? '',
           supportEmail:    data.support_email    ?? '',
           appDescription:  data.app_description  ?? '',
+          publicSignupEnabled: data.public_signup_enabled === true,
           primaryColor:    data.primary_color    ?? '',
           accentColor:     data.accent_color     ?? '',
           heroTitle:       data.hero_title       ?? '',
@@ -160,7 +164,11 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
     }
   };
 
-  const field = (key: keyof typeof form, label: string, placeholder: string, hint?: string, type = 'text') => (
+  // Only the TEXT keys. The form also carries a boolean (publicSignupEnabled) which has its own
+  // control, and handing that to an <input value> is a type error rather than a runtime surprise.
+  type TextKey = { [K in keyof typeof form]: (typeof form)[K] extends string ? K : never }[keyof typeof form];
+
+  const field = (key: TextKey, label: string, placeholder: string, hint?: string, type = 'text') => (
     <div className="space-y-1">
       <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
       <input
@@ -339,6 +347,51 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           {field('senderName', 'Email Sender Name', 'e.g. Your Team - Learning Experience', 'Shown as sender label in emails.')}
           {field('teamName',   'Team Sign-off Name', 'e.g. The Team',                        'Used in email footers.')}
         </div>
+      </div>
+
+      {/* Access */}
+      <div className="rounded-2xl p-5 space-y-4" style={{ ...cardStyle(C) }}>
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Access</h2>
+          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
+            Controls who can create an account on this deployment.
+          </p>
+        </div>
+
+        <div className="flex items-start justify-between gap-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold" style={{ color: C.muted }}>Public signups</label>
+            <p className="text-[11px] leading-relaxed" style={{ color: C.faint }}>
+              Off means only people an admin has admitted can create an account. On means anyone can
+              sign up and gets a free account with no cohort, which sees only content marked
+              available to everyone. Turning this off takes effect immediately.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.publicSignupEnabled}
+            aria-label="Public signups"
+            onClick={() => setForm(prev => ({ ...prev, publicSignupEnabled: !prev.publicSignupEnabled }))}
+            className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors"
+            style={{
+              background: form.publicSignupEnabled ? '#10b981' : C.pill,
+              border: `1px solid ${form.publicSignupEnabled ? '#10b981' : C.cardBorder}`,
+            }}
+          >
+            <span
+              className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all"
+              style={{ left: form.publicSignupEnabled ? 23 : 3, background: '#ffffff' }}
+            />
+          </button>
+        </div>
+
+        {form.publicSignupEnabled && (
+          <div className="text-[11px] leading-relaxed px-3 py-2.5 rounded-xl" style={{ background: 'rgba(16,185,129,0.08)', color: '#047857' }}>
+            Signups are open once you save. New accounts must confirm their email address before
+            they can sign in.
+          </div>
+        )}
       </div>
 
       {/* Landing Page */}
