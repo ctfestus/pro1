@@ -3016,13 +3016,31 @@ CREATE TABLE IF NOT EXISTS public.platform_settings (
   favicon_url       text,
   email_banner_url  text,
   whatsapp_community_url text,
+  -- migration 183. Off by default: deploying the column opens nothing, and turning it back off
+  -- closes public signups again with no deploy. app/auth/callback reads it per request.
+  public_signup_enabled boolean NOT NULL DEFAULT false,
   updated_at      timestamptz DEFAULT now()
 );
 
 ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "instructor_or_admin" ON public.platform_settings FOR ALL
+-- migration 052 split the original single "instructor_or_admin" ALL policy in two. Branding
+-- (logo, colours, app name) has to be readable by an unauthenticated visitor or the login page
+-- renders with the wrong identity, so SELECT is public while writes stay restricted. The fresh
+-- schema carried the pre-052 version, which made a new deploy behave differently from every
+-- migrated one.
+CREATE POLICY "platform_settings: public select"
+  ON public.platform_settings FOR SELECT
+  USING (true);
+
+CREATE POLICY "platform_settings: instructor or admin write"
+  ON public.platform_settings FOR ALL
   USING (EXISTS (
+    SELECT 1 FROM public.students
+    WHERE students.id = auth.uid()
+    AND students.role IN ('admin', 'instructor')
+  ))
+  WITH CHECK (EXISTS (
     SELECT 1 FROM public.students
     WHERE students.id = auth.uid()
     AND students.role IN ('admin', 'instructor')

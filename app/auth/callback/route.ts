@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { activateEnrollment } from '@/lib/db-payments';
 import { markSelfSignupApproved, markSelfSignupDenied } from '@/lib/account-state-server';
+import { isDisposableEmailDomain } from '@/lib/disposable-email-domains';
 
 // Signup confirmation is the normal responsibility. Password recovery has its own
 // direct token-hash route and never reaches this handler, except for compatibility with
@@ -150,7 +151,39 @@ export async function GET(request: NextRequest) {
     'check_email_allowlist', { p_email: user.email },
   );
   if (allowlistError) return retryLater('allowlist lookup failed', allowlistError.message);
-  if (!cohortId)      return refuse('not on any cohort allowlist', 'not_allowed');
+
+  // No allowlist entry used to be the end of it. It still is, unless the platform has public
+  // signup switched on -- in which case this becomes a FREE account: active, but with no cohort,
+  // which limits it to content tagged available_to_everyone.
+  //
+  // Read straight from the table rather than through getTenantSettings(), which caches for 60
+  // seconds. This is an access gate: switching signups off must take effect immediately, not
+  // within the minute, or a flood keeps being admitted after someone has already pulled the lever.
+  if (!cohortId) {
+    const { data: settings, error: settingsError } = await db
+      .from('platform_settings')
+      .select('public_signup_enabled')
+      .eq('id', 'default')
+      .maybeSingle();
+    // A failed lookup is not a refusal. Denial is a lasting mark on a real person's account, and
+    // "the settings query broke" is no evidence at all about who they are.
+    if (settingsError) return retryLater('public signup lookup failed', settingsError.message);
+    if (!settings?.public_signup_enabled) return refuse('not on any cohort allowlist', 'not_allowed');
+
+    if (isDisposableEmailDomain(user.email)) {
+      return refuse('disposable email domain', 'email_not_supported');
+    }
+
+    // No cohort, and deliberately no enrollment_model claim: this account is neither a bootcamp
+    // admission nor a subscriber. Leaving that column null keeps both doors open, and
+    // claim_student_enrollment_model already treats null as unclaimed if one is bought later.
+    try {
+      await markSelfSignupApproved(db, user.id);
+    } catch (e: any) {
+      return retryLater('could not record public signup', e?.message ?? e);
+    }
+    return NextResponse.redirect(new URL('/onboarding', request.url));
+  }
 
   try {
     await activateEnrollment(db, user.email, cohortId, user.id);

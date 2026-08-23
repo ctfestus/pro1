@@ -63,7 +63,7 @@ function buildTheme(brand: string, accent: string) {
 // ---
 
 export default function AuthPage() {
-  const { logoUrl, logoDarkUrl, emailBannerUrl, appName, brandColor, accentColor } = useTenant();
+  const { logoUrl, logoDarkUrl, emailBannerUrl, appName, brandColor, accentColor, publicSignupEnabled } = useTenant();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin]   = useState(true);
@@ -72,6 +72,11 @@ export default function AuthPage() {
   const [message, setMessage]   = useState('');
   const [showPass, setShowPass] = useState(false);
   const [canRetrySignup, setCanRetrySignup] = useState(false);
+  // Arrived here because the email was never confirmed. The form looks like the password-reset
+  // form, but it must send a SIGNUP confirmation, not a recovery link -- resend({type:'signup'})
+  // is the API built for exactly this, and it does not depend on recovery working for an
+  // unconfirmed address.
+  const [needsConfirm, setNeedsConfirm] = useState(false);
   // CAPTCHA SUSPENDED -- const [captchaToken, setCaptchaToken] = useState('');
   // CAPTCHA SUSPENDED -- const turnstileRef = useRef<TurnstileInstance>(null);
 
@@ -87,6 +92,17 @@ export default function AuthPage() {
       setIsForgot(true);
       setMessage('That setup link has already been used or has expired. Enter your email below and we will send you a new one.');
     }
+    if (error === 'confirm_email') {
+      // Same escape hatch as an expired setup link: the forgot form sends a fresh one, and
+      // clicking a recovery link also confirms the address. Sending someone to their Learning
+      // Advisor because an email link timed out is a dead end for a problem they can fix.
+      setIsForgot(true);
+      setNeedsConfirm(true);
+      setMessage('Your email address is not confirmed yet, so the account is not active. Enter your email below and we will send you a fresh confirmation link.');
+    }
+    if (error === 'email_not_supported') {
+      setMessage('That email provider is not supported. Please sign up with a permanent email address.');
+    }
     if (error === 'no_admission_record') {
       setMessage('We could not find an admission record for that email. Contact your Learning Advisor.');
     }
@@ -98,9 +114,12 @@ export default function AuthPage() {
       setMessage('We could not finish setting up your account just now. Please try again in a few minutes.');
     }
     if (params.get('mode') === 'signup') {
-      setMessage('If your Learning Advisor has added you, use the setup link in your email, then sign in here.');
+      // With signups open this is a real destination -- landing pages and invite emails link
+      // straight here. Invite-only keeps the explanation, because there is no form to open.
+      if (publicSignupEnabled) setIsLogin(false);
+      else setMessage('If your Learning Advisor has added you, use the setup link in your email, then sign in here.');
     }
-  }, []);
+  }, [publicSignupEnabled]);
 
   // CAPTCHA SUSPENDED -- const resetCaptcha = () => { turnstileRef.current?.reset(); setCaptchaToken(''); };
 
@@ -109,6 +128,18 @@ export default function AuthPage() {
     setLoading(true);
     setMessage('');
     try {
+      if (isForgot && needsConfirm) {
+        // An unconfirmed account needs its confirmation link again, not a password reset. Both
+        // Supabase calls are rate-limited server-side, so this cannot be used to mail-bomb anyone.
+        const { error } = await supabase.auth.resend({
+          type: 'signup',
+          email,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        });
+        if (error) throw error;
+        setMessage('Check your email for a new confirmation link. If you do not see it, please check your spam folder.');
+        return;
+      }
       if (isForgot) {
         // Supabase sends and rate-limits the recovery email. The exact destination must
         // be listed under Authentication -> URL Configuration -> Redirect URLs.
@@ -131,10 +162,17 @@ export default function AuthPage() {
         else if (student.role === 'student' || student.role === 'staff') window.location.href = '/student';
         else window.location.href = '/dashboard';
       } else {
-        const res = await fetch(`/api/cohort-allowlist?email=${encodeURIComponent(email)}`);
-        const { allowed } = await res.json();
-        if (!allowed) {
-          throw new Error('This email is not eligible for a new signup. If you already have an account, please use the sign in option below. If you are a new student, contact your Learning Advisor.');
+        // Invite-only mode checks eligibility BEFORE creating anything, so an uninvited person
+        // gets a plain answer instead of an account that is created and then denied when they
+        // click the confirmation link. With public signup on there is nothing to pre-check --
+        // /auth/callback decides server-side -- and calling this endpoint would only broadcast
+        // whether a given address happens to be on an allowlist.
+        if (!publicSignupEnabled) {
+          const res = await fetch(`/api/cohort-allowlist?email=${encodeURIComponent(email)}`);
+          const { allowed } = await res.json();
+          if (!allowed) {
+            throw new Error('This email is not eligible for a new signup. If you already have an account, please use the sign in option below. If you are a new student, contact your Learning Advisor.');
+          }
         }
         const { data: signUpData, error } = await supabase.auth.signUp({
           email,
@@ -232,7 +270,7 @@ export default function AuthPage() {
               className="mb-7"
             >
               <h1 className="text-[22px] font-bold tracking-tight mb-1" style={{ color: t.headingColor }}>
-                {isForgot ? 'Reset your password' : isLogin ? 'Welcome back' : 'Create your account'}
+                {isForgot ? (needsConfirm ? 'Confirm your email' : 'Reset your password') : isLogin ? 'Welcome back' : 'Create your account'}
               </h1>
               <p className="text-sm" style={{ color: t.subColor }}>
                 {isForgot
@@ -291,7 +329,7 @@ export default function AuthPage() {
                   {isLogin && (
                     <button
                       type="button"
-                      onClick={() => { setIsForgot(true); setMessage(''); }}
+                      onClick={() => { setIsForgot(true); setNeedsConfirm(false); setMessage(''); }}
                       className="text-xs transition-colors"
                       style={{ color: t.forgotColor }}
                       onMouseEnter={e => (e.currentTarget.style.color = t.forgotHoverColor)}
@@ -367,7 +405,7 @@ export default function AuthPage() {
             >
               {loading
                 ? <Loader2 className="w-4 h-4 animate-spin" />
-                : <>{isForgot ? 'Send Reset Link' : isLogin ? 'Sign In' : 'Create Account'} <ArrowRight className="w-3.5 h-3.5" /></>}
+                : <>{isForgot ? (needsConfirm ? 'Resend Confirmation' : 'Send Reset Link') : isLogin ? 'Sign In' : 'Create Account'} <ArrowRight className="w-3.5 h-3.5" /></>}
             </button>
 
             {canRetrySignup && (
@@ -388,13 +426,39 @@ export default function AuthPage() {
               <>
                 Remember your password?{' '}
                 <button
-                  onClick={() => { setIsForgot(false); setMessage(''); }}
+                  onClick={() => { setIsForgot(false); setNeedsConfirm(false); setMessage(''); }}
                   className="font-semibold transition-colors"
                   style={{ color: t.accentText }}
                 >
                   Sign in
                 </button>
               </>
+            ) : publicSignupEnabled ? (
+              isLogin ? (
+                <>
+                  New here?{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setIsLogin(false); setMessage(''); }}
+                    className="font-semibold transition-colors"
+                    style={{ color: t.accentText }}
+                  >
+                    Create an account
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setIsLogin(true); setMessage(''); }}
+                    className="font-semibold transition-colors"
+                    style={{ color: t.accentText }}
+                  >
+                    Sign in
+                  </button>
+                </>
+              )
             ) : (
               <span>Need access? Contact your Learning Advisor.</span>
             )}

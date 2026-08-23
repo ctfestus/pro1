@@ -61,6 +61,9 @@ export async function POST(req: NextRequest) {
   if (body.faviconUrl     !== undefined) record.favicon_url     = safeUrl(body.faviconUrl);
   if (body.emailBannerUrl !== undefined) record.email_banner_url = safeUrl(body.emailBannerUrl);
   if (body.whatsappCommunityUrl !== undefined) record.whatsapp_community_url = safeUrl(body.whatsappCommunityUrl);
+  // Coerced with === true rather than trusted: a form can send the string 'false', which is
+  // truthy, and this one field decides whether strangers can create accounts on the platform.
+  if (body.publicSignupEnabled !== undefined) record.public_signup_enabled = body.publicSignupEnabled === true;
 
   const { error } = await adminClient()
     .from('platform_settings')

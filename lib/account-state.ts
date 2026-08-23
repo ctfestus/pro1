@@ -58,13 +58,24 @@ export function needsPasswordSetup(user: { app_metadata?: unknown } | null | und
 
 export type Restriction =
   | 'none'
-  | 'password_setup' // authenticated, but has never chosen a password
-  | 'not_approved';  // signed up, admission unresolved or refused
+  | 'password_setup'        // authenticated, but has never chosen a password
+  | 'awaiting_confirmation' // signed up, email not confirmed yet -- the PERSON can resolve this
+  | 'not_approved';         // admission refused -- only staff can revisit this
 
-/** What, if anything, is wrong with this session. Order matters: approval outranks setup. */
+/**
+ * What, if anything, is wrong with this session. Order matters: approval outranks setup.
+ *
+ * 'pending' and 'denied' are both non-active, but they are NOT the same situation and must not be
+ * told the same thing. Pending is usually an unconfirmed or expired email link -- something the
+ * person can fix themselves in a minute. Denied is a decision only staff can revisit. Collapsing
+ * the two sent every stranded signup to "contact your Learning Advisor", which is a dead end for
+ * a problem they could have solved and a support ticket that should never have existed.
+ */
 export function restrictionFor(user: { app_metadata?: unknown } | null | undefined): Restriction {
   if (!user) return 'none';
-  if (accessStateOf(user) !== 'active') return 'not_approved';
+  const state = accessStateOf(user);
+  if (state === 'pending') return 'awaiting_confirmation';
+  if (state === 'denied')  return 'not_approved';
   if (needsPasswordSetup(user)) return 'password_setup';
   return 'none';
 }
@@ -85,7 +96,7 @@ export function isPathOpenTo(restriction: Restriction, pathname: string): boolea
   const isAuthArea = pathname === '/auth' || pathname.startsWith('/auth/');
   if (isAuthArea) return true;
 
-  if (restriction === 'not_approved') return false;
+  if (restriction === 'not_approved' || restriction === 'awaiting_confirmation') return false;
   return OPEN_API_PATHS.has(pathname);
 }
 
@@ -98,17 +109,19 @@ export function isPathOpenTo(restriction: Restriction, pathname: string): boolea
  */
 export function isPathOpenToBearer(restriction: Restriction, pathname: string): boolean {
   if (restriction === 'none') return true;
-  if (restriction === 'not_approved') return false;
+  if (restriction === 'not_approved' || restriction === 'awaiting_confirmation') return false;
   return pathname === PASSWORD_SETUP_COMPLETION_PATH;
 }
 
 /** Where a restricted page request is sent. */
 export function redirectPathFor(restriction: Restriction): string {
+  if (restriction === 'awaiting_confirmation') return '/auth?error=confirm_email';
   return restriction === 'not_approved' ? '/auth?error=not_allowed' : PASSWORD_SETUP_PATH;
 }
 
 /** The message an API returns instead of a redirect, so JSON clients get JSON. */
 export function denialMessageFor(restriction: Restriction): string {
+  if (restriction === 'awaiting_confirmation') return 'Please confirm your email address to finish signing up.';
   return restriction === 'not_approved'
     ? 'This account has not been approved.'
     : 'Password setup required.';

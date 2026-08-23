@@ -36,6 +36,10 @@ export const getTenantSettings = unstable_cache(
         faviconUrl:      data.favicon_url      || tenant.faviconUrl,
         emailBannerUrl:  data.email_banner_url || tenant.emailBannerUrl,
         whatsappCommunityUrl: data.whatsapp_community_url || tenant.whatsappCommunityUrl,
+        // ?? not ||, and Boolean() not a bare pass-through: this is the only boolean in the
+        // contract, and || would silently rewrite a stored false into the env fallback -- turning
+        // signups back on for any tenant whose env said true. A stored false must stay false.
+        publicSignupEnabled: data.public_signup_enabled ?? tenant.publicSignupEnabled,
         primaryColor:    data.primary_color    || tenant.primaryColor,
         accentColor:     data.accent_color     || tenant.accentColor,
         heroTitle:       data.hero_title       || tenant.heroTitle,
