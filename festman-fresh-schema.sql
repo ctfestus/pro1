@@ -3016,6 +3016,9 @@ CREATE TABLE IF NOT EXISTS public.platform_settings (
   favicon_url       text,
   email_banner_url  text,
   whatsapp_community_url text,
+  -- migration 183. Off by default: deploying the column opens nothing, and turning it back off
+  -- closes public signups again with no deploy. app/auth/callback reads it per request.
+  public_signup_enabled boolean NOT NULL DEFAULT false,
   updated_at      timestamptz DEFAULT now()
 );
 

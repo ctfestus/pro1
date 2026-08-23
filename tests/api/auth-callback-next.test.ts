@@ -23,16 +23,23 @@ const h = vi.hoisted(() => {
   // Per-operation error stubs so a case can fail one write without failing the others.
   const cohortUpdateError   = vi.fn<() => { message: string } | null>(() => null);
   const allowlistDeleteError = vi.fn<() => { message: string } | null>(() => null);
-  const adminFrom   = vi.fn(() => ({
-    select: () => ({ eq: () => ({ maybeSingle: h.maybeSingle }) }),
-    update: () => ({ eq: async () => ({ error: h.cohortUpdateError() }) }),
-    delete: () => ({ eq: async () => ({ error: h.allowlistDeleteError() }) }),
-  }));
+  // Defaults to signups CLOSED, which is both the migration default and the state every
+  // pre-existing test in this file was written against.
+  const platformSettings = vi.fn<() => { data: { public_signup_enabled: boolean } | null; error: { message: string } | null }>(
+    () => ({ data: { public_signup_enabled: false }, error: null }),
+  );
+  const adminFrom   = vi.fn((table: string) => (table === 'platform_settings'
+    ? { select: () => ({ eq: () => ({ maybeSingle: async () => h.platformSettings() }) }) }
+    : {
+      select: () => ({ eq: () => ({ maybeSingle: h.maybeSingle }) }),
+      update: () => ({ eq: async () => ({ error: h.cohortUpdateError() }) }),
+      delete: () => ({ eq: async () => ({ error: h.allowlistDeleteError() }) }),
+    }));
   const activateEnrollment    = vi.fn(async () => undefined);
   const markSelfSignupApproved = vi.fn(async () => undefined);
   const markSelfSignupDenied   = vi.fn(async () => undefined);
   return {
-    exchangeCodeForSession, getUser, signOut, maybeSingle, rpc, deleteUser, adminFrom,
+    exchangeCodeForSession, getUser, signOut, maybeSingle, rpc, deleteUser, adminFrom, platformSettings,
     cohortUpdateError, allowlistDeleteError,
     activateEnrollment, markSelfSignupApproved, markSelfSignupDenied,
   };
@@ -99,6 +106,8 @@ describe('GET /auth/callback', () => {
     h.cohortUpdateError.mockReturnValue(null);
     h.allowlistDeleteError.mockReset();
     h.allowlistDeleteError.mockReturnValue(null);
+    h.platformSettings.mockReset();
+    h.platformSettings.mockReturnValue({ data: { public_signup_enabled: false }, error: null });
   });
 
   describe('the code exchange', () => {
@@ -219,6 +228,50 @@ describe('GET /auth/callback', () => {
 
   });
 
+  // Public self-serve signup (migration 183). The switch is off by default, so everything above
+  // describes the invite-only behaviour that must survive this feature existing.
+  describe('an unresolved signup when public signup is ON', () => {
+    beforeEach(() => {
+      profile({ id: 'user-1', cohort_id: null, role: 'student', access_state: 'pending' });
+      h.platformSettings.mockReturnValue({ data: { public_signup_enabled: true }, error: null });
+    });
+
+    it('is admitted as a free account with no cohort and no enrollment', async () => {
+      h.rpc.mockResolvedValue({ data: null });
+
+      const response = await GET(callback('code=abc'));
+
+      expect(h.markSelfSignupApproved).toHaveBeenCalledWith(expect.anything(), 'user-1');
+      expect(h.markSelfSignupDenied).not.toHaveBeenCalled();
+      expect(h.signOut).not.toHaveBeenCalled();
+      // A free account is neither a bootcamp admission nor a subscriber: claiming either would
+      // put it in an enrollment model it never asked for and cannot leave.
+      expect(h.activateEnrollment).not.toHaveBeenCalled();
+      expect(location(response)).toBe('http://localhost/onboarding');
+    });
+
+    it('still refuses a throwaway email address', async () => {
+      h.getUser.mockResolvedValue({ data: { user: { id: 'user-1', email: 'nope@mailinator.com' } } });
+      h.rpc.mockResolvedValue({ data: null });
+
+      const response = await GET(callback('code=abc'));
+
+      expect(h.markSelfSignupApproved).not.toHaveBeenCalled();
+      expect(h.markSelfSignupDenied).toHaveBeenCalledWith(expect.anything(), 'user-1');
+      expect(h.signOut).toHaveBeenCalled();
+      expect(location(response)).toBe('http://localhost/auth?error=email_not_supported');
+    });
+
+    it('still admits an allowlisted email through the invited path, not the free one', async () => {
+      h.rpc.mockResolvedValue({ data: 'cohort-9' });
+
+      const response = await GET(callback('code=abc'));
+
+      expect(h.activateEnrollment).toHaveBeenCalled();
+      expect(location(response)).toBe('http://localhost/onboarding');
+    });
+  });
+
   // Denial is a lasting mark on a real person's account, so only a confirmed negative
   // eligibility result may produce it. An outage must not look like a rejection.
   describe('an unresolved signup hitting an operational failure', () => {
@@ -229,6 +282,18 @@ describe('GET /auth/callback', () => {
 
       const response = await GET(callback('code=abc'));
 
+      expect(h.markSelfSignupDenied).not.toHaveBeenCalled();
+      expect(h.signOut).not.toHaveBeenCalled();
+      expect(location(response)).toBe('http://localhost/auth?error=try_again');
+    });
+
+    it('stays pending when the public-signup lookup errors', async () => {
+      h.rpc.mockResolvedValue({ data: null });
+      h.platformSettings.mockReturnValue({ data: null, error: { message: 'connection reset' } });
+
+      const response = await GET(callback('code=abc'));
+
+      // "The settings query broke" is no evidence about who this person is.
       expect(h.markSelfSignupDenied).not.toHaveBeenCalled();
       expect(h.signOut).not.toHaveBeenCalled();
       expect(location(response)).toBe('http://localhost/auth?error=try_again');

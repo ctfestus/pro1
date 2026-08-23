@@ -13,6 +13,12 @@ export const tenant = {
   emailBannerUrl:  process.env.NEXT_PUBLIC_EMAIL_BANNER_URL  ?? '',
   whatsappCommunityUrl: process.env.NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL ?? '',
 
+  // Whether anyone may create their own account, as opposed to admissions being added by staff.
+  // This is the ENV FALLBACK only, used when no platform_settings row exists; the real value lives
+  // in the database so it can be switched without a deploy. Closed is the safe default, so an
+  // unconfigured or brand-new tenant is invite-only rather than accidentally open to the internet.
+  publicSignupEnabled: process.env.NEXT_PUBLIC_PUBLIC_SIGNUP_ENABLED === 'true',
+
   // Landing page branding
   primaryColor:    process.env.NEXT_PUBLIC_PRIMARY_COLOR     ?? '#2563eb',
   accentColor:     process.env.NEXT_PUBLIC_ACCENT_COLOR      ?? '#f59e0b',

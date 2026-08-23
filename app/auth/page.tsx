@@ -63,7 +63,7 @@ function buildTheme(brand: string, accent: string) {
 // ---
 
 export default function AuthPage() {
-  const { logoUrl, logoDarkUrl, emailBannerUrl, appName, brandColor, accentColor } = useTenant();
+  const { logoUrl, logoDarkUrl, emailBannerUrl, appName, brandColor, accentColor, publicSignupEnabled } = useTenant();
   const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
   const [isLogin, setIsLogin]   = useState(true);
@@ -86,6 +86,9 @@ export default function AuthPage() {
       // request form so a fresh link is one step away instead of a dead end.
       setIsForgot(true);
       setMessage('That setup link has already been used or has expired. Enter your email below and we will send you a new one.');
+    }
+    if (error === 'email_not_supported') {
+      setMessage('That email provider is not supported. Please sign up with a permanent email address.');
     }
     if (error === 'no_admission_record') {
       setMessage('We could not find an admission record for that email. Contact your Learning Advisor.');
@@ -131,10 +134,17 @@ export default function AuthPage() {
         else if (student.role === 'student' || student.role === 'staff') window.location.href = '/student';
         else window.location.href = '/dashboard';
       } else {
-        const res = await fetch(`/api/cohort-allowlist?email=${encodeURIComponent(email)}`);
-        const { allowed } = await res.json();
-        if (!allowed) {
-          throw new Error('This email is not eligible for a new signup. If you already have an account, please use the sign in option below. If you are a new student, contact your Learning Advisor.');
+        // Invite-only mode checks eligibility BEFORE creating anything, so an uninvited person
+        // gets a plain answer instead of an account that is created and then denied when they
+        // click the confirmation link. With public signup on there is nothing to pre-check --
+        // /auth/callback decides server-side -- and calling this endpoint would only broadcast
+        // whether a given address happens to be on an allowlist.
+        if (!publicSignupEnabled) {
+          const res = await fetch(`/api/cohort-allowlist?email=${encodeURIComponent(email)}`);
+          const { allowed } = await res.json();
+          if (!allowed) {
+            throw new Error('This email is not eligible for a new signup. If you already have an account, please use the sign in option below. If you are a new student, contact your Learning Advisor.');
+          }
         }
         const { data: signUpData, error } = await supabase.auth.signUp({
           email,
