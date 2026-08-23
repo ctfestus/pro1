@@ -71,6 +71,7 @@ const StudentBadgesSection      = dynamic(() => import('@/components/student/bad
 const LeaderboardSection        = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.LeaderboardSection), { ssr: false, loading: sectionLoading });
 const CertificatesSection       = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.CertificatesSection), { ssr: false, loading: sectionLoading });
 const AiCareerToolkitSection    = dynamic(() => import('@/components/student/ai-career-toolkit').then(m => m.AiCareerToolkitSection), { ssr: false, loading: sectionLoading });
+const ExploreSection            = dynamic(() => import('@/components/student/explore').then(m => m.ExploreSection), { ssr: false, loading: sectionLoading });
 
 const ACTIVITY_POLL_MIN_GAP_MS = 30_000;
 const MY_LEARNING_SECTIONS: SectionId[] = ['learning_paths', 'courses', 'virtual_experiences'];
@@ -100,6 +101,8 @@ export default function StudentDashboard() {
   // Live activity ticker (persists across all tabs)
   const [activeTicker,       setActiveTicker]       = useState<{ name: string; title: string } | null>(null);
   const [cohortIdForTicker,  setCohortIdForTicker]  = useState<string | null>(null);
+  // No cohort means a free self-serve account: the only kind Explore is for. See the nav filter.
+  const showExplore = !loading && !cohortIdForTicker;
   const seenActivityGlobal = useRef<Set<string>>(new Set());
   const tickerTimerGlobal  = useRef<any>(null);
   const pageLoadTimeGlobal = useRef(Date.now());
@@ -428,7 +431,10 @@ export default function StudentDashboard() {
                   </button>
                 </div>
                 {NAV_GROUPS.map(group => {
-                  const groupItems = group.items.map(id => NAV_ITEMS.find(n => n.id === id)!).filter(Boolean);
+                  const groupItems = group.items
+                    .map(id => NAV_ITEMS.find(n => n.id === id)!)
+                    .filter(Boolean)
+                    .filter(item => item.id !== 'explore' || showExplore);
                   return (
                     <div key={group.label} className={navCollapsed ? '' : 'mb-3'}>
                       {!navCollapsed && (
@@ -651,6 +657,9 @@ export default function StudentDashboard() {
             )}
             {activeSection === 'certifications' && user && (
               <CertificationsSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>
+            )}
+            {activeSection === 'explore' && user && (
+              <ExploreSection C={C} onNavigate={goSection} />
             )}
             {activeSection === 'data_center' && user && (
               <DataCenterSection C={C} />
