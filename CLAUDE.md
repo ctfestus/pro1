@@ -82,6 +82,32 @@ for moves/refactors — it catches cross-file symbol and type gaps the linter (w
 unused imports here) misses. Note: the harness covers route/auth behavior, **not** UI interaction
 — exercise UI-heavy changes manually.
 
+## Before opening or merging a PR
+
+Also run **`npm run build`**. It takes 3-5 minutes versus ~20s for the checks above, so it is a
+gate before a PR rather than something to run on every commit — but it is not optional, because
+tsc/eslint/tests all read source and never invoke the bundler. Build-time constraints are
+invisible to them:
+
+- **`next/dynamic` options must be an inline object literal.** Hoisting them into a shared
+  `const` is valid TypeScript and valid React, passes lint, and passes every test — and fails
+  `next build` with `next/dynamic options must be an object literal`, because the SWC transform
+  reads `ssr` statically.
+- **Next resolves some packages itself, whether or not our code imports them.** `autoprefixer` is
+  required by Next's own CSS pipeline (`next/font` via `getPostCssPlugins`). It was once removed
+  as "unused" — nothing references it — and the build passed only because a since-deleted
+  dependency still pulled it into `node_modules`. See the comment in `postcss.config.mjs`.
+- **Bundle-size claims need a build, not reasoning.** Deferred source KB and First Load JS
+  diverge badly, because lazy-loading a component also defers everything only it imported.
+  Measure both sides; do not estimate.
+
+When a change is motivated by bundle size, build `main` and the branch the same way and compare
+the First Load JS column. Commit before switching branches for the baseline — uncommitted work
+follows a checkout and silently produces a build of the branch against itself.
+
+Vercel already builds every PR as a preview, so a red preview build is a stop sign, not
+something to merge past.
+
 ## Worked examples
 
 **Add a "Goals" section to the student dashboard:** create `components/student/goals.tsx`
