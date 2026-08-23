@@ -33,7 +33,12 @@ export const NAV_ITEMS = [
 export type SectionId = typeof NAV_ITEMS[number]['id'];
 
 export const NAV_GROUPS: { label: string; items: SectionId[] }[] = [
-  { label: 'Learn',       items: ['overview', 'courses', 'certifications', 'explore', 'data_center'] },
+  // Dashboard and My Learning are NOT grouped: no heading above them. They are where a student
+  // lands and what they are actually doing, so the two most-used items should not sit under a
+  // category word. An empty label is the signal to render items without a heading -- see the nav
+  // in app/student/page.tsx.
+  { label: '',            items: ['overview', 'courses'] },
+  { label: 'Learn',       items: ['explore', 'certifications', 'data_center'] },
   { label: 'Activities',  items: ['events', 'assignments', 'calendar', 'schedule', 'recordings'] },
   { label: 'Community',   items: ['community', 'announcements'] },
   { label: 'Achievements', items: ['leaderboard', 'certificates', 'badges', 'ai_toolkit'] },

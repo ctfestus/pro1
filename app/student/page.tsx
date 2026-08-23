@@ -437,7 +437,7 @@ export default function StudentDashboard() {
                     .filter(item => item.id !== 'explore' || showExplore);
                   return (
                     <div key={group.label} className={navCollapsed ? '' : 'mb-3'}>
-                      {!navCollapsed && (
+                      {!navCollapsed && group.label && (
                         <p className="px-3 mb-1 text-[11px] font-semibold tracking-widest uppercase"
                           style={{ color: C.faint }}>
                           {group.label}
