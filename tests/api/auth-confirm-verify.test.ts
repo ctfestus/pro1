@@ -89,10 +89,14 @@ describe('/auth/confirm/verify', () => {
     expect(h.eq).toHaveBeenCalledWith('id', 'student-1');
   });
 
+  // Used to be asserted with type=signup, which was an inert pass-through to the password form.
+  // A signup confirmation now runs the admission decision and has its own suite in
+  // auth-confirm-signup.test.ts, so this keeps the original guard using a type that IS still a
+  // pass-through: only 'recovery' may stamp the recovery column.
   it('does not stamp the recovery column for a non-recovery confirmation', async () => {
     h.verifyOtp.mockResolvedValue({ error: null });
 
-    const response = await route.POST(formRequest('token_hash=good&type=signup'));
+    const response = await route.POST(formRequest('token_hash=good&type=email_change'));
 
     expect(response.status).toBe(303);
     expect(response.headers.get('location')).toBe('http://localhost/auth/reset-password');
