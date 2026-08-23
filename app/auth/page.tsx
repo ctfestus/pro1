@@ -101,9 +101,12 @@ export default function AuthPage() {
       setMessage('We could not finish setting up your account just now. Please try again in a few minutes.');
     }
     if (params.get('mode') === 'signup') {
-      setMessage('If your Learning Advisor has added you, use the setup link in your email, then sign in here.');
+      // With signups open this is a real destination -- landing pages and invite emails link
+      // straight here. Invite-only keeps the explanation, because there is no form to open.
+      if (publicSignupEnabled) setIsLogin(false);
+      else setMessage('If your Learning Advisor has added you, use the setup link in your email, then sign in here.');
     }
-  }, []);
+  }, [publicSignupEnabled]);
 
   // CAPTCHA SUSPENDED -- const resetCaptcha = () => { turnstileRef.current?.reset(); setCaptchaToken(''); };
 
@@ -405,6 +408,32 @@ export default function AuthPage() {
                   Sign in
                 </button>
               </>
+            ) : publicSignupEnabled ? (
+              isLogin ? (
+                <>
+                  New here?{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setIsLogin(false); setMessage(''); }}
+                    className="font-semibold transition-colors"
+                    style={{ color: t.accentText }}
+                  >
+                    Create an account
+                  </button>
+                </>
+              ) : (
+                <>
+                  Already have an account?{' '}
+                  <button
+                    type="button"
+                    onClick={() => { setIsLogin(true); setMessage(''); }}
+                    className="font-semibold transition-colors"
+                    style={{ color: t.accentText }}
+                  >
+                    Sign in
+                  </button>
+                </>
+              )
             ) : (
               <span>Need access? Contact your Learning Advisor.</span>
             )}
