@@ -124,7 +124,7 @@ function CourseCard({ course, deadline, C, onDetails, hideCategory }: { course: 
         )}
         <div className="flex items-center justify-between mb-3">
           <span className="text-xs" style={{ color: C.faint }}>
-            {completed ? 'Completed' : currentIdx > 0 ? `${progress}% done` : `${totalQ} questions`}
+            {completed ? 'Completed' : currentIdx > 0 ? `${progress}% done` : 'Not started'}
           </span>
           {completed && score > 0 && (
             <span className="text-xs font-semibold" style={{ color: passed ? '#16a34a' : '#dc2626' }}>Score: {score}%</span>
@@ -433,7 +433,8 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
           const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
           const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
           const complete = totalItems > 0 && completedCount === totalItems;
-          const started = !complete && completedCount > 0;
+          const hasItemProgress = (path.items ?? []).some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
+          const started = !complete && (completedCount > 0 || hasItemProgress);
           return (
             <div key={path.id} className="w-[220px] flex-shrink-0 snap-start"
               onMouseEnter={(e) => openHover(path, e.currentTarget)} onMouseLeave={scheduleClose}>
@@ -448,7 +449,9 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
                 <p className="mt-2 text-xs" style={{ color: C.faint }}>Learning path</p>
                 <p className="mt-0.5 line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{path.title}</p>
                 <ProgressBar value={pct} color="#22c55e"/>
-                <p className="mt-1 text-[11px]" style={{ color: C.faint }}>{complete ? 'Completed' : `${completedCount} of ${totalItems} complete`}</p>
+                <p className="mt-1 text-[11px]" style={{ color: C.faint }}>
+                  {complete ? 'Completed' : completedCount > 0 ? `${completedCount} of ${totalItems} complete` : started ? 'In progress' : 'Not started'}
+                </p>
               </button>
             </div>
           );
@@ -496,6 +499,8 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
   const total = items.length;
   const pct = total ? Math.round((completedCount / total) * 100) : 0;
   const allDone = total > 0 && completedCount === total;
+  const hasItemProgress = items.some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
+  const started = !allDone && (completedCount > 0 || hasItemProgress);
   const shown = items.slice(0, PATH_PREVIEW_MAX_ITEMS);
   const hiddenCount = total - shown.length;
   const desc = (path.description || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
@@ -512,7 +517,7 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
         <div className="mt-3">
           <ProgressBar value={pct} color="#22c55e"/>
           <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>
-            {allDone ? 'Completed' : `${completedCount} of ${total} complete`}
+            {allDone ? 'Completed' : completedCount > 0 ? `${completedCount} of ${total} complete` : started ? 'In progress' : 'Not started'}
           </p>
         </div>
       </div>
@@ -891,7 +896,7 @@ function ToolRow({ tool, courses, deadlines, C, onDetails }: { tool: string; cou
                 <p className={`text-[15px] font-bold leading-snug ${c.form?.partner ? 'mt-1' : 'mt-2'} mb-2.5 line-clamp-2`} style={{ color: C.text }}>{title}</p>
                 <ProgressBar value={progress} color="#22c55e"/>
                 <p className="text-[11px] mt-1" style={{ color: C.faint }}>
-                  {completed ? 'Completed' : currentIdx > 0 ? `${progress}% complete` : `${totalQ} questions`}
+                  {completed ? 'Completed' : currentIdx > 0 ? `${progress}% complete` : 'Not started'}
                 </p>
               </button>
             </div>
