@@ -989,6 +989,31 @@ LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
   SELECT ARRAY(SELECT group_id FROM public.group_members WHERE student_id = (SELECT auth.uid()))
 $$;
 
+CREATE OR REPLACE FUNCTION public.is_bootcamp_cohort_member_for_student(
+  p_student_id uuid,
+  p_cohort_ids uuid[]
+)
+RETURNS boolean
+LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT COALESCE(
+    EXISTS (
+      SELECT 1
+      FROM public.students s
+      JOIN public.cohorts c ON c.id = s.cohort_id
+      WHERE s.id = p_student_id
+        AND c.cohort_kind = 'bootcamp'
+        AND s.cohort_id = ANY(p_cohort_ids)
+    ),
+    false
+  )
+$$;
+
+CREATE OR REPLACE FUNCTION public.is_bootcamp_cohort_member(p_cohort_ids uuid[])
+RETURNS boolean
+LANGUAGE sql SECURITY DEFINER STABLE SET search_path = public AS $$
+  SELECT public.is_bootcamp_cohort_member_for_student((SELECT auth.uid()), p_cohort_ids)
+$$;
+
 CREATE OR REPLACE FUNCTION public.valid_group_participants(
   p_group_id uuid,
   p_participants uuid[]
@@ -1013,12 +1038,16 @@ REVOKE EXECUTE ON FUNCTION public.is_admin()               FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.is_instructor_or_admin() FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.is_staff()               FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.my_group_ids()           FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.is_bootcamp_cohort_member_for_student(uuid, uuid[]) FROM PUBLIC;
+REVOKE EXECUTE ON FUNCTION public.is_bootcamp_cohort_member(uuid[]) FROM PUBLIC;
 REVOKE EXECUTE ON FUNCTION public.valid_group_participants(uuid, uuid[]) FROM PUBLIC;
 GRANT  EXECUTE ON FUNCTION public.get_my_role()            TO authenticated;
 GRANT  EXECUTE ON FUNCTION public.is_admin()               TO authenticated;
 GRANT  EXECUTE ON FUNCTION public.is_instructor_or_admin() TO authenticated;
 GRANT  EXECUTE ON FUNCTION public.is_staff()               TO authenticated;
 GRANT  EXECUTE ON FUNCTION public.my_group_ids()           TO authenticated;
+GRANT  EXECUTE ON FUNCTION public.is_bootcamp_cohort_member_for_student(uuid, uuid[]) TO service_role;
+GRANT  EXECUTE ON FUNCTION public.is_bootcamp_cohort_member(uuid[]) TO authenticated;
 GRANT  EXECUTE ON FUNCTION public.valid_group_participants(uuid, uuid[]) TO authenticated;
 
 -- Returns only public profile fields (name + avatar) for staff — safe for students to call.
@@ -1541,6 +1570,7 @@ BEGIN
         AND  gm.group_id   = p_group_id
         AND  gm.is_leader  = true
         AND  p_group_id    = ANY(a.group_ids)
+        AND  public.is_bootcamp_cohort_member_for_student(p_student_id, a.cohort_ids)
     ) THEN
       RAISE EXCEPTION 'student_access_denied';
     END IF;
@@ -1555,8 +1585,8 @@ BEGIN
   ELSE
     IF NOT EXISTS (
       SELECT 1 FROM assignments a
-      JOIN   students s ON s.cohort_id = ANY(a.cohort_ids)
-      WHERE  a.id = p_assignment_id AND s.id = p_student_id
+      WHERE  a.id = p_assignment_id
+        AND  public.is_bootcamp_cohort_member_for_student(p_student_id, a.cohort_ids)
     ) THEN
       RAISE EXCEPTION 'student_access_denied';
     END IF;
@@ -1814,7 +1844,7 @@ CREATE POLICY "events: participants select"
   USING (
     user_id = (SELECT auth.uid())
     OR (SELECT public.is_admin())
-    OR (SELECT cohort_id FROM public.students WHERE id = (SELECT auth.uid())) = ANY(cohort_ids)
+    OR public.is_bootcamp_cohort_member(cohort_ids)
   );
 
 CREATE POLICY "events: instructor insert"
@@ -2002,10 +2032,7 @@ CREATE POLICY "assignments: select"
     OR (
       status = 'published'
       AND (
-        EXISTS (
-          SELECT 1 FROM public.students s
-          WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(cohort_ids)
-        )
+        public.is_bootcamp_cohort_member(cohort_ids)
         OR (group_ids && public.my_group_ids())
       )
     )
@@ -2051,10 +2078,7 @@ CREATE POLICY "assignment_resources: select"
         a.created_by = (SELECT auth.uid()) OR (SELECT public.is_admin())
         OR (
           a.status = 'published'
-          AND EXISTS (
-            SELECT 1 FROM public.students s
-            WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(a.cohort_ids)
-          )
+          AND public.is_bootcamp_cohort_member(a.cohort_ids)
         )
       )
     )
@@ -2155,10 +2179,9 @@ CREATE POLICY "assignment_submissions: student insert"
     AND (
       EXISTS (
         SELECT 1 FROM public.assignments a
-        JOIN public.students s ON s.id = (SELECT auth.uid())
         WHERE a.id = assignment_submissions.assignment_id
           AND a.status = 'published'
-          AND s.cohort_id = ANY(a.cohort_ids)
+          AND public.is_bootcamp_cohort_member(a.cohort_ids)
           AND assignment_submissions.group_id IS NULL
       )
       OR
@@ -2290,10 +2313,7 @@ CREATE POLICY "communities: select"
   ON public.communities FOR SELECT
   USING (
     created_by = (SELECT auth.uid()) OR (SELECT public.is_admin())
-    OR EXISTS (
-      SELECT 1 FROM public.students s
-      WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(cohort_ids)
-    )
+    OR public.is_bootcamp_cohort_member(cohort_ids)
   );
 
 CREATE POLICY "communities: instructor insert"
@@ -2369,10 +2389,7 @@ CREATE POLICY "schedules: select"
   ON public.schedules FOR SELECT
   USING (
     created_by = (SELECT auth.uid()) OR (SELECT public.is_admin())
-    OR EXISTS (
-      SELECT 1 FROM public.students s
-      WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(cohort_ids)
-    )
+    OR public.is_bootcamp_cohort_member(cohort_ids)
   );
 
 CREATE POLICY "schedules: instructor insert"
@@ -2408,10 +2425,7 @@ CREATE POLICY "schedule_topics: select"
       SELECT 1 FROM public.schedules s
       WHERE s.id = schedule_id AND (
         s.created_by = (SELECT auth.uid()) OR (SELECT public.is_admin())
-        OR EXISTS (
-          SELECT 1 FROM public.students st
-          WHERE st.id = (SELECT auth.uid()) AND st.cohort_id = ANY(s.cohort_ids)
-        )
+        OR public.is_bootcamp_cohort_member(s.cohort_ids)
       )
     )
   );
@@ -2429,10 +2443,7 @@ CREATE POLICY "schedule_resources: select"
       SELECT 1 FROM public.schedules s
       WHERE s.id = schedule_id AND (
         s.created_by = (SELECT auth.uid()) OR (SELECT public.is_admin())
-        OR EXISTS (
-          SELECT 1 FROM public.students st
-          WHERE st.id = (SELECT auth.uid()) AND st.cohort_id = ANY(s.cohort_ids)
-        )
+        OR public.is_bootcamp_cohort_member(s.cohort_ids)
       )
     )
   );
@@ -2590,10 +2601,9 @@ CREATE POLICY "event_registrations: student insert"
     student_id = (SELECT auth.uid())
     AND EXISTS (
       SELECT 1 FROM public.events e
-      JOIN  public.students s ON s.id = (SELECT auth.uid())
       WHERE e.id = event_id
         AND e.status = 'published'
-        AND s.cohort_id = ANY(e.cohort_ids)
+        AND public.is_bootcamp_cohort_member(e.cohort_ids)
         AND (
           e.capacity IS NULL
           OR (SELECT COUNT(*) FROM public.event_registrations er WHERE er.event_id = e.id) < e.capacity
@@ -2628,10 +2638,7 @@ CREATE POLICY "recordings: select"
   USING (
     created_by = (SELECT auth.uid())
     OR (SELECT public.is_admin())
-    OR EXISTS (
-      SELECT 1 FROM public.students s
-      WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(cohort_ids)
-    )
+    OR public.is_bootcamp_cohort_member(cohort_ids)
   );
 
 CREATE POLICY "recordings: instructor insert"
@@ -2669,10 +2676,7 @@ CREATE POLICY "recording_entries: select"
         AND (
           r.created_by = (SELECT auth.uid())
           OR (SELECT public.is_admin())
-          OR EXISTS (
-            SELECT 1 FROM public.students s
-            WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(r.cohort_ids)
-          )
+          OR public.is_bootcamp_cohort_member(r.cohort_ids)
         )
     )
   );

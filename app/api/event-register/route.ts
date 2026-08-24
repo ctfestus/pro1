@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
-import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { confirmationEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+import { requireBootcampCohortAccess } from '@/lib/bootcamp-cohort-access';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -58,6 +51,8 @@ export async function POST(req: NextRequest) {
   if (!student.cohort_id || !(event.cohort_ids ?? []).includes(student.cohort_id)) {
     return NextResponse.json({ error: 'Not enrolled in this event' }, { status: 403 });
   }
+  const access = await requireBootcampCohortAccess(auth, student.cohort_id);
+  if ('error' in access) return access.error;
 
   // Register via RPC
   const { data: result, error: rpcError } = await supabase.rpc('register_event_attendee', {

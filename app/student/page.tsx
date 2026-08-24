@@ -24,7 +24,7 @@ import { NAV_ITEMS, NAV_GROUPS, type SectionId } from '@/components/student/nav'
 import { OverviewSection } from '@/components/student/overview';
 import { type CohortTimeline, CohortTimelineBadge, ProfileMenu } from '@/components/student/header';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
-import { isIndividualCohort } from '@/lib/cohort-kind';
+import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import {
   clearStudentMode,
   getStudentMode,
@@ -71,9 +71,17 @@ const StudentBadgesSection      = dynamic(() => import('@/components/student/bad
 const LeaderboardSection        = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.LeaderboardSection), { ssr: false, loading: sectionLoading });
 const CertificatesSection       = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.CertificatesSection), { ssr: false, loading: sectionLoading });
 const AiCareerToolkitSection    = dynamic(() => import('@/components/student/ai-career-toolkit').then(m => m.AiCareerToolkitSection), { ssr: false, loading: sectionLoading });
+const ExploreSection            = dynamic(() => import('@/components/student/explore').then(m => m.ExploreSection), { ssr: false, loading: sectionLoading });
 
 const ACTIVITY_POLL_MIN_GAP_MS = 30_000;
 const MY_LEARNING_SECTIONS: SectionId[] = ['learning_paths', 'courses', 'virtual_experiences'];
+const COHORT_ONLY_SECTIONS: SectionId[] = ['events', 'assignments', 'calendar', 'schedule', 'recordings', 'community', 'leaderboard'];
+
+function isSectionVisibleForStudent(id: SectionId, showExplore: boolean, showCohortActivities: boolean) {
+  if (id === 'explore') return showExplore;
+  if (COHORT_ONLY_SECTIONS.includes(id)) return showCohortActivities;
+  return true;
+}
 
 export default function StudentDashboard() {
   const [mounted, setMounted] = useState(false);
@@ -99,7 +107,11 @@ export default function StudentDashboard() {
 
   // Live activity ticker (persists across all tabs)
   const [activeTicker,       setActiveTicker]       = useState<{ name: string; title: string } | null>(null);
-  const [cohortIdForTicker,  setCohortIdForTicker]  = useState<string | null>(null);
+  const [bootcampCohortId,   setBootcampCohortId]   = useState<string | null>(null);
+  // Only real cohort students see cohort activity tabs; public and individual students see Explore.
+  const hasBootcampCohort = !loading && !!bootcampCohortId;
+  const showExplore = !loading && !hasBootcampCohort;
+  const showCohortActivities = hasBootcampCohort;
   const seenActivityGlobal = useRef<Set<string>>(new Set());
   const tickerTimerGlobal  = useRef<any>(null);
   const pageLoadTimeGlobal = useRef(Date.now());
@@ -141,10 +153,26 @@ export default function StudentDashboard() {
     document.title = appName ? `${label} - ${appName}` : label;
   }, [activeSection, appName]);
 
+  const goSection = useCallback((id: SectionId) => {
+    setActiveSection(id);
+    sessionStorage.setItem('student-section', id);
+    const url = new URL(window.location.href);
+    if (id === 'learning_paths') url.searchParams.delete('path');
+    url.hash = id;
+    history.replaceState(null, '', url);
+    if (id === 'learning_paths') window.dispatchEvent(new PopStateEvent('popstate'));
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    if (isSectionVisibleForStudent(activeSection, showExplore, showCohortActivities)) return;
+    goSection(showExplore ? 'explore' : 'overview');
+  }, [activeSection, goSection, loading, showCohortActivities, showExplore]);
+
   // Activity feed polling. Background tabs do no network work, and returning to a tab
   // refreshes immediately rather than waiting for the next interval.
   useEffect(() => {
-    if (!cohortIdForTicker) return;
+    if (!bootcampCohortId) return;
     let requestInFlight = false;
 
     const poll = async () => {
@@ -159,7 +187,7 @@ export default function StudentDashboard() {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.access_token) return;
-        const res = await fetch(`/api/activity/feed?cohort_id=${cohortIdForTicker}`, {
+        const res = await fetch(`/api/activity/feed?cohort_id=${bootcampCohortId}`, {
           headers: { Authorization: `Bearer ${session.access_token}` },
         });
         if (!res.ok) return;
@@ -194,17 +222,7 @@ export default function StudentDashboard() {
       document.removeEventListener('visibilitychange', onVisibilityChange);
       clearTimeout(tickerTimerGlobal.current);
     };
-  }, [cohortIdForTicker]);
-
-  function goSection(id: SectionId) {
-    setActiveSection(id);
-    sessionStorage.setItem('student-section', id);
-    const url = new URL(window.location.href);
-    if (id === 'learning_paths') url.searchParams.delete('path');
-    url.hash = id;
-    history.replaceState(null, '', url);
-    if (id === 'learning_paths') window.dispatchEvent(new PopStateEvent('popstate'));
-  }
+  }, [bootcampCohortId]);
 
   useEffect(() => {
     const init = async () => {
@@ -276,16 +294,15 @@ export default function StudentDashboard() {
               .select('id, name, start_date, end_date, cohort_kind')
               .eq('id', s.cohort_id)
               .maybeSingle();
-            // Neither an individual cohort kind has a real bootcamp timeline: the legacy
-            // per-student cohort (migration 165) has no peer group at all, and a
-            // subscription plan cohort (migration 167) has no intake dates. Skip both.
-            if (isIndividualCohort(cohortDates?.cohort_kind)) {
-              setCohortTimeline(null);
-            } else {
-              setCohortIdForTicker(s.cohort_id);
+            if (cohortDates?.cohort_kind === COHORT_KIND_BOOTCAMP) {
+              setBootcampCohortId(s.cohort_id);
               setCohortTimeline(cohortDates ?? null);
+            } else {
+              setBootcampCohortId(null);
+              setCohortTimeline(null);
             }
           } else {
+            setBootcampCohortId(null);
             setCohortTimeline(null);
           }
           const { data: enroll } = await supabase
@@ -428,10 +445,14 @@ export default function StudentDashboard() {
                   </button>
                 </div>
                 {NAV_GROUPS.map(group => {
-                  const groupItems = group.items.map(id => NAV_ITEMS.find(n => n.id === id)!).filter(Boolean);
+                  const groupItems = group.items
+                    .map(id => NAV_ITEMS.find(n => n.id === id)!)
+                    .filter(Boolean)
+                    .filter(item => isSectionVisibleForStudent(item.id, showExplore, showCohortActivities));
+                  if (groupItems.length === 0) return null;
                   return (
                     <div key={group.label} className={navCollapsed ? '' : 'mb-3'}>
-                      {!navCollapsed && (
+                      {!navCollapsed && group.label && (
                         <p className="px-3 mb-1 text-[11px] font-semibold tracking-widest uppercase"
                           style={{ color: C.faint }}>
                           {group.label}
@@ -651,6 +672,9 @@ export default function StudentDashboard() {
             )}
             {activeSection === 'certifications' && user && (
               <CertificationsSection userId={effectiveId} userEmail={effectiveEmail} C={C}/>
+            )}
+            {activeSection === 'explore' && user && (
+              <ExploreSection C={C} onNavigate={goSection} />
             )}
             {activeSection === 'data_center' && user && (
               <DataCenterSection C={C} />
