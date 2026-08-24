@@ -9,8 +9,8 @@ export async function POST(req: NextRequest) {
   if (!body.studentId) return NextResponse.json({ error: 'studentId is required.' }, { status: 400 });
 
   const [{ data: actorProfile }, { data: targetProfile }] = await Promise.all([
-    auth.supabase.from('students').select('role').eq('id', auth.actor.id).maybeSingle(),
-    auth.supabase.from('students').select('id, full_name, email, role').eq('id', body.studentId).maybeSingle(),
+    auth.serviceDb.from('students').select('role').eq('id', auth.actor.id).maybeSingle(),
+    auth.serviceDb.from('students').select('id, full_name, email, role').eq('id', body.studentId).maybeSingle(),
   ]);
   if (!actorProfile || !['admin', 'instructor'].includes(actorProfile.role)) {
     return NextResponse.json({ error: 'Student Mode is restricted to instructors and admins.' }, { status: 403 });
@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
   }
 
   const expiresAt = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString();
-  const { data: modeSession, error: sessionError } = await auth.supabase.from('student_mode_sessions').insert({
+  const { data: modeSession, error: sessionError } = await auth.serviceDb.from('student_mode_sessions').insert({
     actor_id: auth.actor.id,
     student_id: targetProfile.id,
     expires_at: expiresAt,
@@ -31,14 +31,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Could not start Student Mode.' }, { status: 500 });
   }
 
-  const { error: auditError } = await auth.supabase.from('student_mode_audit_log').insert({
+  const { error: auditError } = await auth.serviceDb.from('student_mode_audit_log').insert({
     actor_id: auth.actor.id,
     student_id: targetProfile.id,
     session_id: modeSession.id,
     action: 'student_mode.started',
   });
   if (auditError) {
-    await auth.supabase.from('student_mode_sessions').delete().eq('id', modeSession.id);
+    await auth.serviceDb.from('student_mode_sessions').delete().eq('id', modeSession.id);
     console.error('[student-mode/start-audit]', auditError.message);
     return NextResponse.json({ error: 'Student Mode audit is unavailable.' }, { status: 503 });
   }
@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
   const auth = await requireStudentUser(req);
   if (isAuthError(auth)) return auth.error;
   if (!auth.isStudentMode) return NextResponse.json({ error: 'Student Mode is not active.' }, { status: 400 });
-  const { data: target } = await auth.supabase.from('students').select('full_name, email').eq('id', auth.user.id).single();
+  const { data: target } = await auth.serviceDb.from('students').select('full_name, email').eq('id', auth.user.id).single();
   return NextResponse.json({ ok: true, studentId: auth.user.id, name: target?.full_name || target?.email, email: target?.email });
 }
 
@@ -69,11 +69,11 @@ export async function DELETE(req: NextRequest) {
   if (isAuthError(auth)) return auth.error;
   const sessionId = req.headers.get('x-student-mode-session')?.trim();
   if (!sessionId) return NextResponse.json({ ok: true });
-  const { data: modeSession } = await auth.supabase.from('student_mode_sessions')
+  const { data: modeSession } = await auth.serviceDb.from('student_mode_sessions')
     .select('id, student_id').eq('id', sessionId).eq('actor_id', auth.actor.id).maybeSingle();
   if (modeSession) {
-    await auth.supabase.from('student_mode_sessions').update({ ended_at: new Date().toISOString() }).eq('id', modeSession.id);
-    const { error: auditError } = await auth.supabase.from('student_mode_audit_log').insert({
+    await auth.serviceDb.from('student_mode_sessions').update({ ended_at: new Date().toISOString() }).eq('id', modeSession.id);
+    const { error: auditError } = await auth.serviceDb.from('student_mode_audit_log').insert({
       actor_id: auth.actor.id, student_id: modeSession.student_id, session_id: modeSession.id, action: 'student_mode.exited',
     });
     if (auditError) console.error('[student-mode/exit-audit]', auditError.message);

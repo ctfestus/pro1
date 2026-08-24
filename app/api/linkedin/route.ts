@@ -64,7 +64,7 @@ function buildLinkedInAddUrl(opts: {
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
 
   try {
     const tenant = await getTenantSettings();

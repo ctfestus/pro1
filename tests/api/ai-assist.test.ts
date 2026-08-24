@@ -41,7 +41,7 @@ function redisStub(count = 1) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, supabase: {} as any, token: 't', role: 'instructor' } as any);
+  mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, serviceDb: {} as any, token: 't', role: 'instructor' } as any);
   mockGetRedis.mockReturnValue(redisStub() as any);
 });
 

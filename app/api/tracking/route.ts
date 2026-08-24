@@ -28,7 +28,7 @@ const zeroStats = () => ({
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ['admin', 'instructor', 'staff']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   const url = new URL(req.url);
   const cohortFilter = url.searchParams.get('cohortId') ?? 'all';

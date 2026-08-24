@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   // 1. Verify caller is an authenticated instructor or admin
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   // 2. Parse and validate formId
   let formId: string;

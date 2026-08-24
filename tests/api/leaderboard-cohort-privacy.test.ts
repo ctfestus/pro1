@@ -21,7 +21,7 @@ describe('leaderboard cohort privacy', () => {
     async cohortKind => {
       requireStudentUser.mockResolvedValue({
         user: { id: 'student-1', email: 'one@example.com' },
-        supabase: makeSupabaseStub({
+        serviceDb: makeSupabaseStub({
           students: {
             data: {
               role: 'student', cohort_id: 'shared-cohort', email: 'one@example.com',
@@ -47,7 +47,7 @@ describe('leaderboard cohort privacy', () => {
   it('fails closed when the requested cohort row is missing', async () => {
     requireStudentUser.mockResolvedValue({
       user: { id: 'student-1', email: 'one@example.com' },
-      supabase: makeSupabaseStub({
+      serviceDb: makeSupabaseStub({
         students: {
           data: {
             role: 'student', cohort_id: 'shared-cohort', email: 'one@example.com',

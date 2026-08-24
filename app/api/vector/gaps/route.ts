@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
   if (isAuthError(auth)) {
     return NextResponse.json({ gaps: [] }, { status: auth.error.status });
   }
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
   if (!user.email) return NextResponse.json({ gaps: [] });
 
   // Get student cohort + completed course IDs in parallel

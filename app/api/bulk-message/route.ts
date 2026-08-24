@@ -81,7 +81,7 @@ function recipientsFor(rows: StatusRow[], segment: string) {
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   const url = new URL(req.url);
   const cohortId = url.searchParams.get('cohortId') ?? 'all';
@@ -113,7 +113,7 @@ export async function POST(req: NextRequest) {
   // instructors and admins are allowed through.
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   const t = await getTenantSettings();
   const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;

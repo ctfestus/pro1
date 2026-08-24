@@ -36,7 +36,7 @@ function emptyDb() {
   });
 }
 function authed(role: string, db: any = emptyDb()) {
-  mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, supabase: db, role, token: 't' } as any);
+  mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, serviceDb: db, role, token: 't' } as any);
 }
 
 // One published course shared by two cohorts, five students, no attempts anywhere -- so every

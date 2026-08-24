@@ -30,7 +30,7 @@ import { makeSupabaseStub } from '../helpers/supabaseStub';
 const mockRequireRole = vi.mocked(requireRole);
 
 function authed(db: any, role = 'instructor') {
-  mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, supabase: db, role, token: 't' } as any);
+  mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, serviceDb: db, role, token: 't' } as any);
 }
 
 function get(qs = '') {

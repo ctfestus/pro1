@@ -40,7 +40,7 @@ beforeEach(() => {
     user: { id: 'instructor1' },
     role: 'instructor',
     token: 'test-token',
-    supabase: makeSupabaseStub({
+    serviceDb: makeSupabaseStub({
       courses: { data: { id: 'course1', title: 'Intro to SQL' }, error: null },
     }),
   } as any);

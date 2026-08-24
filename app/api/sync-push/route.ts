@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase: db } = auth;
+  const { user, serviceDb: db } = auth;
 
   const syncUrl = process.env.PLATFORM_SYNC_URL;
   const syncKey = process.env.PLATFORM_SYNC_KEY;

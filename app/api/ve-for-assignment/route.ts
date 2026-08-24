@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
 
   const veId = new URL(req.url).searchParams.get('veId');
   if (!veId) return NextResponse.json({ error: 'veId required' }, { status: 400 });

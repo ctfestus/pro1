@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   if (!cohortId) return NextResponse.json({ error: 'cohort_id required' }, { status: 400 });
 
   try {
-    const supabase = auth.supabase;
+    const serviceDb = auth.serviceDb;
     const access = await requireBootcampCohortAccess(auth, cohortId, { anyCohortRoles: ['instructor', 'admin'] });
     if ('error' in access) return access.error;
     const { profile } = access;
@@ -24,7 +24,7 @@ export async function GET(req: NextRequest) {
     const [
       { data: students, error: sErr },
     ] = await Promise.all([
-      supabase
+      serviceDb
         .from('students')
         .select('id, full_name, email')
         .eq('cohort_id', cohortId)
@@ -41,11 +41,11 @@ export async function GET(req: NextRequest) {
 
     // Fetch XP and completions in parallel -- both use indexed columns
     const [{ data: xpRows }, { data: completions }] = await Promise.all([
-      supabase
+      serviceDb
         .from('student_xp')
         .select('student_id, total_xp')
         .in('student_id', studentIds),
-      supabase
+      serviceDb
         .from('course_attempts')
         .select('student_id')
         .in('student_id', studentIds)

@@ -77,7 +77,7 @@ describe('cohort content assignment access confirmation', () => {
       cohort_ids: [], available_to_everyone: true, user_id: 'owner-1',
     };
     const recorder = makeDb(state);
-    authState.requireUser.mockResolvedValue({ user: { id: 'owner-1' }, supabase: recorder.db });
+    authState.requireUser.mockResolvedValue({ user: { id: 'owner-1' }, serviceDb: recorder.db });
 
     const response = await POST(request());
     const json = await response.json();
@@ -94,7 +94,7 @@ describe('cohort content assignment access confirmation', () => {
       cohort_ids: [], available_to_everyone: true, user_id: 'owner-1',
     };
     const recorder = makeDb(state);
-    authState.requireUser.mockResolvedValue({ user: { id: 'owner-1' }, supabase: recorder.db });
+    authState.requireUser.mockResolvedValue({ user: { id: 'owner-1' }, serviceDb: recorder.db });
 
     const warning = await POST(request());
     expect(warning.status).toBe(409);

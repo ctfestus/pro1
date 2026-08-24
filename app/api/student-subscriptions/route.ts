@@ -19,7 +19,7 @@ function adminClient() {
 async function caller(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth) || !auth.user.email) return null;
-  const { data } = await auth.supabase.from('students').select('role').eq('id', auth.user.id).maybeSingle();
+  const { data } = await auth.serviceDb.from('students').select('role').eq('id', auth.user.id).maybeSingle();
   return { id: auth.user.id, email: auth.user.email.trim().toLowerCase(), role: data?.role ?? 'student' };
 }
 

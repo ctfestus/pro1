@@ -29,7 +29,7 @@ beforeEach(() => {
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
   requireUser.mockResolvedValue({
     user: { id: 'student-1', email: 'student@example.com' },
-    supabase: makeSupabaseStub({ students: { data: { role: 'student' }, error: null } }),
+    serviceDb: makeSupabaseStub({ students: { data: { role: 'student' }, error: null } }),
   });
   rpc.mockResolvedValue({ data: { ok: true, confirmationId: 'conf-1' }, error: null });
   createClient.mockReturnValue({ rpc });

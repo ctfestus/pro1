@@ -18,8 +18,8 @@ export async function GET(req: NextRequest) {
   if (isAuthError(auth)) return auth.error;
 
   const [{ data: guides, error }, { data: instructors }] = await Promise.all([
-    auth.supabase.from('experience_guides').select('*').eq('owner_id', auth.user.id).order('full_name'),
-    auth.supabase.from('students').select('id, full_name, avatar_url, bio, social_links, work_experience, skills').in('role', ['instructor', 'admin']).order('full_name'),
+    auth.serviceDb.from('experience_guides').select('*').eq('owner_id', auth.user.id).order('full_name'),
+    auth.serviceDb.from('students').select('id, full_name, avatar_url, bio, social_links, work_experience, skills').in('role', ['instructor', 'admin']).order('full_name'),
   ]);
   if (error) return NextResponse.json({ error: 'Failed to load experience guides.' }, { status: 500 });
 
@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     consent_status: body?.consent_status === 'confirmed' ? 'confirmed' : 'pending',
     status: 'active',
   };
-  const { data, error } = await auth.supabase.from('experience_guides').insert(row).select('*').single();
+  const { data, error } = await auth.serviceDb.from('experience_guides').insert(row).select('*').single();
   if (error) return NextResponse.json({ error: 'Failed to create experience guide.' }, { status: 500 });
   return NextResponse.json({ guide: data }, { status: 201 });
 }
@@ -99,7 +99,7 @@ export async function PATCH(req: NextRequest) {
   if (['draft', 'active', 'archived'].includes(body?.status)) updates.status = body.status;
   if (['pending', 'confirmed', 'not_required'].includes(body?.consent_status)) updates.consent_status = body.consent_status;
 
-  const { data, error } = await auth.supabase.from('experience_guides').update(updates).eq('id', id).eq('owner_id', auth.user.id).select('*').maybeSingle();
+  const { data, error } = await auth.serviceDb.from('experience_guides').update(updates).eq('id', id).eq('owner_id', auth.user.id).select('*').maybeSingle();
   if (error || !data) return NextResponse.json({ error: 'Experience guide was not found.' }, { status: 404 });
   return NextResponse.json({ guide: data });
 }

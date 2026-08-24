@@ -26,7 +26,7 @@ function request() {
 }
 
 function authedWith(cohortKind: string | null) {
-  const supabase: any = makeSupabaseStub({
+  const serviceDb: any = makeSupabaseStub({
     students: [
       { data: { id: 'student-1', email: 'one@example.com', full_name: 'One', cohort_id: 'cohort-1' }, error: null },
       { data: { role: 'student', cohort_id: 'cohort-1', email: 'one@example.com' }, error: null },
@@ -48,10 +48,10 @@ function authedWith(cohortKind: string | null) {
     },
     cohorts: { data: cohortKind ? { cohort_kind: cohortKind } : null, error: null },
   });
-  supabase.rpc = rpc;
+  serviceDb.rpc = rpc;
   requireStudentUser.mockResolvedValue({
     user: { id: 'student-1', email: 'one@example.com' },
-    supabase,
+    serviceDb,
   });
 }
 

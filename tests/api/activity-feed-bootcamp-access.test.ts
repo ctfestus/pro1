@@ -23,7 +23,7 @@ const request = () => new NextRequest(
 function authedWith(cohortKind: string | null) {
   requireUser.mockResolvedValue({
     user: { id: 'student-1', email: 'one@example.com' },
-    supabase: makeSupabaseStub({
+    serviceDb: makeSupabaseStub({
       students: { data: { role: 'student', cohort_id: 'cohort-1', email: 'one@example.com' }, error: null },
       cohorts: { data: cohortKind ? { cohort_kind: cohortKind } : null, error: null },
     }),

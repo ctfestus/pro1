@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireRole(req, ['admin', 'instructor', 'staff']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   let body: any;
   try { body = await req.json(); } catch {

@@ -26,13 +26,13 @@ async function post(body: Record<string, unknown>): Promise<Response> {
   return res as unknown as Response;
 }
 
-function authed(supabase: any) {
+function authed(serviceDb: any) {
   mockRequireUser.mockResolvedValue({
     user: { id: 'student1', email: 'student@example.com' },
-    supabase,
+    serviceDb,
     token: 'test-token',
   } as any);
-  mockCreateClient.mockReturnValue(supabase);
+  mockCreateClient.mockReturnValue(serviceDb);
 }
 
 const quizQuestion = { id: 'q1', type: 'multiple_choice', options: ['A', 'B'], correctAnswer: 'A' };

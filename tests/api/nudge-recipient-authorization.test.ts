@@ -84,7 +84,7 @@ beforeEach(() => {
 });
 
 function authedAs(client: any, userId = 'owner1') {
-  mockRequireUser.mockResolvedValue({ user: { id: userId }, actor: { id: userId }, isStudentMode: false, supabase: client, token: 't' } as any);
+  mockRequireUser.mockResolvedValue({ user: { id: userId }, actor: { id: userId }, isStudentMode: false, serviceDb: client, token: 't' } as any);
 }
 
 describe('POST /api/nudge-student recipient authorization', () => {

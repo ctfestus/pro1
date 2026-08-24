@@ -29,7 +29,7 @@ function client(byTable: Record<string, QueryResult | QueryResult[]>, rpc?: Quer
   return base;
 }
 function authed(id = 'u1') {
-  mockRequireUser.mockResolvedValue({ user: { id }, supabase: {}, token: 't' } as any);
+  mockRequireUser.mockResolvedValue({ user: { id }, serviceDb: {}, token: 't' } as any);
 }
 function post(body: any) {
   return POST(new Request('http://localhost/api/assignments/group-forum', {

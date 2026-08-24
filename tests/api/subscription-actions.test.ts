@@ -71,7 +71,7 @@ function request(body: Record<string, unknown>) {
 function authenticateAs(role: string) {
   requireUser.mockResolvedValue({
     user: { id: 'admin-1', email: 'admin@example.com' },
-    supabase: makeSupabaseStub({ students: { data: { role }, error: null } }),
+    serviceDb: makeSupabaseStub({ students: { data: { role }, error: null } }),
   });
 }
 
