@@ -2,7 +2,6 @@ import { Type } from '@google/genai';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import { readBoundedJson } from '@/lib/bounded-json';
@@ -22,16 +21,6 @@ const MAX_RAW_ANSWER_CHARS = 20000;
 // Content-Length fast-path when present). Generous vs. the raw answer cap + JSON overhead so a
 // legitimate max-length answer is never falsely rejected, but far tighter than any platform limit.
 const MAX_BODY_BYTES = 128 * 1024;
-
-// RLS-scoped client for the caller: reading the VE through it enforces the same
-// access the standalone player itself has (owner / admin / cohort / learning path).
-function callerClient(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } },
-  );
-}
 
 const VE_COLUMNS = 'user_id, modules, company, role, industry';
 
@@ -117,7 +106,7 @@ export async function POST(req: NextRequest) {
   // the caller's own RLS (standalone-player parity); if that yields nothing,
   // fall back to the assignment-embed access check, mirroring
   // /api/ve-for-assignment.
-  let ve: any = (await callerClient(auth.token)
+  let ve: any = (await auth.getActorDb()
     .from('virtual_experiences').select(VE_COLUMNS).eq('id', veId).maybeSingle()).data;
 
   if (!ve) {

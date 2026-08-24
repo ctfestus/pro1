@@ -8,6 +8,12 @@ const getUser = vi.fn();
 const single = vi.fn();
 const maybeSingle = vi.fn();
 const insert = vi.fn();
+const createClient = vi.hoisted(() => vi.fn(() => ({
+  from: () => {
+    const chain: any = { eq: () => chain, single, maybeSingle };
+    return { select: () => chain, insert };
+  },
+})));
 
 vi.mock('@/lib/admin-client', () => ({
   adminClient: () => ({
@@ -19,6 +25,10 @@ vi.mock('@/lib/admin-client', () => ({
       return { select: () => chain, insert };
     },
   }),
+}));
+
+vi.mock('@supabase/supabase-js', () => ({
+  createClient,
 }));
 
 import { requireUser, requireStudentUser, requireRole, isAuthError } from '@/lib/api-auth';
@@ -36,6 +46,7 @@ beforeEach(() => {
   single.mockReset();
   maybeSingle.mockReset();
   insert.mockReset();
+  createClient.mockClear();
   insert.mockResolvedValue({ error: null });
 });
 
@@ -63,6 +74,12 @@ describe('requireUser', () => {
       expect(r.user.id).toBe('u1');
       expect(r.actor.id).toBe('u1');
       expect(r.isStudentMode).toBe(false);
+      expect(createClient).not.toHaveBeenCalled();
+      expect(r.getActorDb()).toBeTruthy();
+      expect(createClient).toHaveBeenCalledTimes(1);
+      expect(r.getActorDb()).toBe(r.getActorDb());
+      expect(createClient).toHaveBeenCalledTimes(1);
+      expect(r.serviceDb).toBeTruthy();
       expect(r.token).toBe('valid-token');
     }
   });

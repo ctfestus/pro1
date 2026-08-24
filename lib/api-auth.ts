@@ -5,10 +5,29 @@
 // Roles come from students.role -- never the profiles table.
 
 import { NextRequest, NextResponse } from 'next/server';
+import { createClient } from '@supabase/supabase-js';
 import { adminClient } from '@/lib/admin-client';
 import { restrictionFor, isPathOpenToBearer, denialMessageFor } from '@/lib/account-state';
 
 type ServiceRoleClient = ReturnType<typeof adminClient>;
+declare const actorScopedClientBrand: unique symbol;
+type ActorScopedClient = ServiceRoleClient & { readonly [actorScopedClientBrand]: 'actor-scoped' };
+
+function actorScopedClient(token: string): ActorScopedClient {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } },
+  ) as ActorScopedClient;
+}
+
+function lazyActorDb(token: string): () => ActorScopedClient {
+  let db: ActorScopedClient | null = null;
+  return () => {
+    db ??= actorScopedClient(token);
+    return db;
+  };
+}
 
 export interface AuthedUser {
   user: { id: string; email?: string };
@@ -16,6 +35,8 @@ export interface AuthedUser {
   actor: { id: string; email?: string };
   isStudentMode: boolean;
   studentModeSessionId?: string;
+  /** Lazily returns an RLS-scoped client for the JWT actor, not the Student Mode target. */
+  getActorDb: () => ActorScopedClient;
   serviceDb: ServiceRoleClient;
   /** The verified Bearer JWT -- for routes that need a user-scoped (RLS) client. */
   token: string;
@@ -58,7 +79,7 @@ export async function requireUser(req: NextRequest): Promise<AuthedUser | { erro
   }
 
   const actor = { id: user.id, email: user.email ?? undefined };
-  return { user: actor, actor, isStudentMode: false, serviceDb, token: jwt };
+  return { user: actor, actor, isStudentMode: false, getActorDb: lazyActorDb(jwt), serviceDb, token: jwt };
 }
 
 /**
@@ -126,7 +147,7 @@ export async function requireRole(
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth;
 
-  const { data: student } = await auth.serviceDb
+  const { data: student } = await auth.getActorDb()
     .from('students')
     .select('role')
     .eq('id', auth.user.id)
