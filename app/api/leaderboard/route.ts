@@ -1,56 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
-import { createClient } from '@supabase/supabase-js';
+import { requireBootcampCohortAccess } from '@/lib/bootcamp-cohort-access';
 
 export const dynamic = 'force-dynamic';
 
-function adminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  if (!url || !key) throw new Error('Supabase service role key not configured');
-  return createClient(url, key);
-}
-
-async function getSessionUser(req: NextRequest) {
-  const auth = await requireStudentUser(req);
-  return isAuthError(auth) ? null : auth.user;
-}
-
 // GET /api/leaderboard?cohort_id=...
 export async function GET(req: NextRequest) {
-  const user = await getSessionUser(req);
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  const auth = await requireStudentUser(req);
+  if (isAuthError(auth)) return auth.error;
 
   const { searchParams } = new URL(req.url);
   const cohortId = searchParams.get('cohort_id');
   if (!cohortId) return NextResponse.json({ error: 'cohort_id required' }, { status: 400 });
 
   try {
-    const supabase = adminClient();
-
-    // Resolve caller's profile -- single indexed lookup by PK
-    const { data: profile } = await supabase
-      .from('students')
-      .select('role, cohort_id, email, cohort:cohorts!cohort_id(cohort_kind)')
-      .eq('id', user.id)
-      .single();
-
-    if (!profile) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-
+    const supabase = auth.supabase;
+    const access = await requireBootcampCohortAccess(auth, cohortId, { anyCohortRoles: ['instructor', 'admin'] });
+    if ('error' in access) return access.error;
+    const { profile } = access;
     const isInstructorOrAdmin = profile.role === 'instructor' || profile.role === 'admin';
-
-    // --- Access control ---
-    if (!isInstructorOrAdmin) {
-      // Students can only view their own cohort's leaderboard
-      if (profile.cohort_id !== cohortId) {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-      }
-      // Subscription-plan cohorts can contain unrelated subscribers. The student UI
-      // hides their leaderboard, and the API must enforce the same privacy boundary.
-      if ((profile as any).cohort?.cohort_kind !== 'bootcamp') {
-        return NextResponse.json({ error: 'Leaderboard is available only for bootcamp cohorts.' }, { status: 403 });
-      }
-    }
 
     // --- Fetch all data in parallel ---
     const [
@@ -93,7 +61,7 @@ export async function GET(req: NextRequest) {
       completionCount[c.student_id] = (completionCount[c.student_id] ?? 0) + 1;
     }
 
-    const callerEmail = (profile.email ?? user.email ?? '').toLowerCase().trim();
+    const callerEmail = (profile.email ?? auth.user.email ?? '').toLowerCase().trim();
 
     const ranked = students
       .map((s: any) => ({

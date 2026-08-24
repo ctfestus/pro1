@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser, isAuthError }  from '@/lib/api-auth';
 import { getRedis }                  from '@/lib/redis';
 import { activityKey }               from '@/lib/activity';
+import { requireBootcampCohortAccess } from '@/lib/bootcamp-cohort-access';
 
 export async function GET(req: NextRequest) {
   const cohortId = req.nextUrl.searchParams.get('cohort_id');
@@ -16,15 +17,8 @@ export async function GET(req: NextRequest) {
   if (isAuthError(auth)) {
     return NextResponse.json({ events: [] }, { status: auth.error.status });
   }
-  const { user, supabase } = auth;
-
-  const { data: student } = await supabase
-    .from('students')
-    .select('cohort_id')
-    .eq('id', user.id)
-    .single();
-
-  if (student?.cohort_id !== cohortId) return NextResponse.json({ events: [] });
+  const access = await requireBootcampCohortAccess(auth, cohortId);
+  if ('error' in access) return NextResponse.json({ events: [] }, { status: access.error.status });
 
   const redis = getRedis();
   if (!redis) return NextResponse.json({ events: [] });
