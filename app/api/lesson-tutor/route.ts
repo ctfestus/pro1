@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateText, GEMINI_MODEL } from '@/lib/ai';
 import { getRedis } from '@/lib/redis';
@@ -63,16 +62,6 @@ const HOUR_SECONDS = 3600;
 const DAY_SECONDS = 86400;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-// RLS-scoped client for the caller: reading the course through it enforces the same access
-// the player itself has (owner / admin / cohort / learning path / available to everyone).
-function callerClient(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } },
-  );
-}
 
 async function checkRateLimit(userId: string): Promise<NextResponse | null> {
   const redis = getRedis();
@@ -139,7 +128,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const { data: course } = await callerClient(auth.token)
+  const { data: course } = await auth.getActorDb()
     .from('courses')
     .select('title, questions, ai_tutor_enabled')
     .eq(UUID_RE.test(courseId) ? 'id' : 'slug', courseId)

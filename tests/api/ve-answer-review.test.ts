@@ -14,20 +14,14 @@ vi.mock('@/lib/ai', () => ({
   generateJSON: vi.fn(),
 }));
 
-vi.mock('@supabase/supabase-js', () => ({
-  createClient: vi.fn(),
-}));
-
 import { requireUser } from '@/lib/api-auth';
 import { getRedis } from '@/lib/redis';
 import { generateJSON } from '@/lib/ai';
-import { createClient } from '@supabase/supabase-js';
 import { POST } from '@/app/api/ve-answer-review/route';
 
 const mockRequireUser = vi.mocked(requireUser);
 const mockGetRedis = vi.mocked(getRedis);
 const mockGenerateJSON = vi.mocked(generateJSON);
-const mockCreateClient = vi.mocked(createClient);
 
 const VE_ROW = {
   user_id: 'owner-1',
@@ -82,11 +76,11 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockRequireUser.mockResolvedValue({
     user: { id: 'u1' },
+    getActorDb: () => makeSupabaseStub({ virtual_experiences: { data: VE_ROW } }) as any,
     serviceDb: makeSupabaseStub({ virtual_experiences: { data: null } }) as any,
     token: 't',
   } as any);
   mockGetRedis.mockReturnValue(redisStub() as any);
-  mockCreateClient.mockReturnValue(makeSupabaseStub({ virtual_experiences: { data: VE_ROW } }) as any);
 });
 
 describe('POST /api/ve-answer-review - auth, rate limit, validation', () => {
@@ -193,9 +187,9 @@ describe('POST /api/ve-answer-review - auth, rate limit, validation', () => {
   });
 
   it('404s when the caller cannot read the VE and no assignment grants access', async () => {
-    mockCreateClient.mockReturnValue(makeSupabaseStub({ virtual_experiences: { data: null } }) as any);
     mockRequireUser.mockResolvedValue({
       user: { id: 'u1' },
+      getActorDb: () => makeSupabaseStub({ virtual_experiences: { data: null } }) as any,
       serviceDb: makeSupabaseStub({
         virtual_experiences: { data: VE_ROW },
         students: { data: { role: 'student', cohort_id: 'c-9' } },

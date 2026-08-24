@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
-  const { user, serviceDb: supabase } = auth;
+  const { user, serviceDb } = auth;
 
   // Prevent self-deletion of admin accounts via this endpoint
-  const { data: profile } = await supabase
+  const { data: profile } = await auth.getActorDb()
     .from('students')
     .select('role')
     .eq('id', user.id)
@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Admin accounts cannot be self-deleted.' }, { status: 403 });
   }
 
-  const { error: deleteError } = await supabase.auth.admin.deleteUser(user.id);
+  const { error: deleteError } = await serviceDb.auth.admin.deleteUser(user.id);
   if (deleteError) {
     console.error('[account/delete]', deleteError.message);
     return NextResponse.json({ error: 'Failed to delete account. Please try again.' }, { status: 500 });

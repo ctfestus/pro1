@@ -52,7 +52,7 @@ function adminClient() {
 async function getSessionUser(req: NextRequest): Promise<{ id: string; email: string; role: string } | null> {
   const auth = await requireUser(req);
   if (isAuthError(auth) || !auth.user.email) return null;
-  const { data: student } = await auth.serviceDb
+  const { data: student } = await auth.getActorDb()
     .from('students')
     .select('role')
     .eq('id', auth.user.id)

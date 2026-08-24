@@ -2,7 +2,6 @@ import { Type } from '@google/genai';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 
@@ -18,16 +17,6 @@ const MAX_HISTORY_TURNS = 8;
 const MAX_OUTLINE_MISSIONS = 40;
 const MAX_OUTLINE_ITEMS = 20;
 const MAX_PLAN_CHARS = 8000;
-
-// RLS-scoped client for the caller: reading the VE through it enforces the same
-// access the standalone player itself has (owner / admin / cohort / learning path).
-function callerClient(token: string) {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    { global: { headers: { Authorization: `Bearer ${token}` } }, auth: { persistSession: false } },
-  );
-}
 
 const VE_COLUMNS = 'user_id, modules, company, role, industry, manager_name, manager_title, background';
 
@@ -88,7 +77,7 @@ export async function POST(req: NextRequest) {
   // from the VE row, never from the request body. First read under the
   // caller's own RLS (standalone-player parity); if that yields nothing, fall
   // back to the assignment-embed access check, mirroring /api/ve-for-assignment.
-  let ve: any = (await callerClient(auth.token)
+  let ve: any = (await auth.getActorDb()
     .from('virtual_experiences').select(VE_COLUMNS).eq('id', veId).maybeSingle()).data;
 
   if (!ve) {
