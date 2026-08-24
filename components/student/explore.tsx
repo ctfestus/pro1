@@ -177,23 +177,32 @@ export function ExploreSection({ C, onNavigate }: {
         @media (prefers-reduced-motion: reduce) { .explore-card-shine { display: none; } }
       `}</style>
 
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4">
-        <div className="space-y-1">
-          <h2 className="text-xl font-bold" style={{ color: C.text }}>Explore</h2>
-          <p className="text-sm" style={{ color: C.muted }}>
-            Everything on the platform. Locked items are not part of your access yet.
-          </p>
-        </div>
+      <div className="space-y-3">
+        <p className="text-sm" style={{ color: C.muted }}>
+          Everything on the platform. Locked items are not part of your access yet.
+        </p>
 
-        <select
-          value={filter}
-          onChange={e => { setFilter(e.target.value as 'all' | CatalogueType); setHover(null); }}
-          aria-label="Filter by content type"
-          className="px-3 py-2 rounded-xl text-sm outline-none"
-          style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
-        >
-          {FILTERS.map(f => <option key={f.value} value={f.value}>{f.label}</option>)}
-        </select>
+        {/* Buttons rather than a select: the options are few, they fit, and a filter you can see is
+            faster than one you have to open. Wraps on a narrow screen instead of scrolling. */}
+        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by content type">
+          {FILTERS.map(f => {
+            const active = filter === f.value;
+            return (
+              <button
+                key={f.value}
+                type="button"
+                aria-pressed={active}
+                onClick={() => { setFilter(f.value); setHover(null); }}
+                className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
+                style={active
+                  ? { background: primaryColor || '#0056D2', color: '#ffffff' }
+                  : { background: C.pill, color: C.muted, border: `1px solid ${C.cardBorder}` }}
+              >
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {loading && (
@@ -238,7 +247,7 @@ export function ExploreSection({ C, onNavigate }: {
               onEnter={cancelClose}
               onLeave={scheduleClose}
             >
-              <CataloguePreview item={hover.item} accent={typeColor[hover.item.type]} onOpen={open} />
+              <CataloguePreview item={hover.item} accent={typeColor[hover.item.type]} onOpen={open} C={C} />
             </HoverPreviewCard>
           )}
         </AnimatePresence>,
@@ -354,31 +363,40 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   );
 }
 
-function CataloguePreview({ item, accent, onOpen }: {
+function CataloguePreview({ item, accent, onOpen, C }: {
   item: CatalogueItem;
   accent: string;
   onOpen: (item: CatalogueItem) => void;
+  C: typeof LIGHT_C;
 }) {
   return (
-    <div className="p-4 space-y-3">
+    <div
+      className="rounded-2xl overflow-hidden p-4 space-y-3"
+      style={{
+        width: 320,
+        background: C.card,
+        border: `1px solid ${C.cardBorder}`,
+        boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05)',
+      }}
+    >
       <div className="flex items-center gap-2">
         <span className="text-[10px] font-bold uppercase tracking-[0.12em] px-2 py-1 rounded-md"
           style={{ background: `${accent}1a`, color: accent }}>
           {TYPE_LABEL[item.type]}
         </span>
-        {item.locked && <Lock className="w-3.5 h-3.5" style={{ color: '#6E7383' }} />}
+        {item.locked && <Lock className="w-3.5 h-3.5" style={{ color: C.muted }} />}
       </div>
 
-      <h4 className="text-base font-bold leading-snug" style={{ color: '#1C1D1F' }}>{item.title}</h4>
+      <h4 className="text-base font-bold leading-snug" style={{ color: C.text }}>{item.title}</h4>
 
       {item.description && (
-        <p className="text-[13px] leading-relaxed line-clamp-4" style={{ color: '#6E7383' }}>
+        <p className="text-[13px] leading-relaxed line-clamp-4" style={{ color: C.muted }}>
           {item.description}
         </p>
       )}
 
       {item.locked ? (
-        <p className="text-[12px] leading-relaxed" style={{ color: '#6E7383' }}>
+        <p className="text-[12px] leading-relaxed" style={{ color: C.muted }}>
           Not part of your access yet. Talk to your Learning Advisor about opening it up.
         </p>
       ) : (
