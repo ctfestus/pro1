@@ -25,6 +25,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { LIGHT_C } from '@/lib/theme';
+import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { SectionId } from '@/components/student/nav';
 
 type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification';
@@ -134,6 +135,8 @@ function CategoryPill({ category }: { category: string }) {
   );
 }
 
+const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage) || '';
+
 export function ExploreSection({ C, onNavigate }: {
   C: typeof LIGHT_C;
   onNavigate?: (section: SectionId) => void;
@@ -227,6 +230,9 @@ export function ExploreSection({ C, onNavigate }: {
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by content type">
           {FILTERS.map(f => {
             const active = filter === f.value;
+            const inactiveStyle = C.page === LIGHT_C.page
+              ? { background: '#ffffff', color: C.muted, border: `1px solid ${C.cardBorder}` }
+              : { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` };
             return (
               <button
                 key={f.value}
@@ -236,7 +242,7 @@ export function ExploreSection({ C, onNavigate }: {
                 className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
                 style={active
                   ? { background: primaryColor || '#0056D2', color: '#ffffff' }
-                  : { background: '#ffffff', color: C.muted, border: `1px solid ${C.cardBorder}` }}
+                  : inactiveStyle}
               >
                 {f.label}
               </button>
@@ -338,6 +344,9 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
             onMouseEnter={e => onHover(item, e.currentTarget)}
             onMouseLeave={onHoverLeave}
           >
+            {(() => {
+              const coverUrl = resolvedCover(item.coverImage);
+              return (
             <div
               onClick={() => onOpen(item)}
               className="group transition-transform duration-300 hover:-translate-y-1"
@@ -345,11 +354,11 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
             >
               <div
                 className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
-                style={{ background: item.coverImage ? '#0b0b0d' : 'transparent' }}
+                style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}
               >
-                {item.coverImage
-                  ? <img src={item.coverImage} alt={item.title} loading="lazy"
-                      className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07] ${item.locked ? 'saturate-[0.72]' : ''}`} />
+                {coverUrl
+                  ? <img src={coverUrl} alt={item.title} loading="lazy"
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
                   : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
                       style={{ background: TYPE_GRAD[type] }}>
                       <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />
@@ -383,6 +392,8 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                 </div>
               )}
             </div>
+              );
+            })()}
           </div>
         ))}
       </div>
@@ -393,7 +404,11 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
             type="button"
             onClick={() => setVisibleCount(count => Math.min(items.length, count + LOAD_MORE_STEP))}
             className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-0.5"
-            style={{ background: '#ffffff', color: C.text, border: `1px solid ${C.cardBorder}` }}
+            style={{
+              background: C.page === LIGHT_C.page ? '#ffffff' : C.card,
+              color: C.text,
+              border: `1px solid ${C.cardBorder}`,
+            }}
           >
             Load more
             <span className="text-xs font-medium" style={{ color: C.faint }}>
@@ -412,6 +427,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
   onOpen: (item: CatalogueItem) => void;
   C: typeof LIGHT_C;
 }) {
+  const previewShadow = '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)';
   const desc = (item.description ?? '')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
@@ -428,7 +444,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           width: popupW,
           background: C.card,
           border: `1px solid ${C.cardBorder}`,
-          boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05)',
+          boxShadow: previewShadow,
         }}
       >
         <div className="p-4 pb-0">
@@ -457,21 +473,28 @@ function CataloguePreview({ item, accent, onOpen, C }: {
               <div className="flex flex-wrap gap-2.5">
                 {pathItems.map(pathItem => (
                   <div key={pathItem.id} className="flex-shrink-0" style={{ width: 110 }}>
-                    <div
-                      className="rounded-lg overflow-hidden mb-1.5"
-                      style={{ aspectRatio: '16/9', background: pathItem.coverImage ? '#0b0b0d' : C.pill }}
-                    >
-                      {pathItem.coverImage ? (
-                        <img src={pathItem.coverImage} alt={pathItem.title} loading="lazy" className="w-full h-full object-cover" />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <BookOpen className="w-5 h-5" style={{ color: C.faint }} />
-                        </div>
-                      )}
-                    </div>
-                    <p className="text-[11px] font-medium leading-snug line-clamp-2" style={{ color: C.text }}>
-                      {pathItem.title}
-                    </p>
+                    {(() => {
+                      const coverUrl = resolvedCover(pathItem.coverImage);
+                      return (
+                        <>
+                          <div
+                            className="rounded-lg overflow-hidden mb-1.5"
+                            style={{ aspectRatio: '16/9', background: coverUrl ? '#0b0b0d' : C.pill }}
+                          >
+                            {coverUrl ? (
+                              <img src={coverUrl} alt={pathItem.title} loading="lazy" className="w-full h-full object-cover" />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center">
+                                <BookOpen className="w-5 h-5" style={{ color: C.faint }} />
+                              </div>
+                            )}
+                          </div>
+                          <p className="text-[11px] font-medium leading-snug line-clamp-2" style={{ color: C.text }}>
+                            {pathItem.title}
+                          </p>
+                        </>
+                      );
+                    })()}
                   </div>
                 ))}
               </div>
@@ -509,12 +532,15 @@ function CataloguePreview({ item, accent, onOpen, C }: {
       style={{
         background: C.card,
         border: `1px solid ${C.cardBorder}`,
-        boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)',
+        boxShadow: previewShadow,
       }}
     >
-      <div className="relative w-full aspect-video" style={{ background: item.coverImage ? '#0b0b0d' : 'transparent' }}>
-        {item.coverImage ? (
-          <img src={item.coverImage} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
+      {(() => {
+        const coverUrl = resolvedCover(item.coverImage);
+        return (
+      <div className="relative w-full aspect-video" style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}>
+        {coverUrl ? (
+          <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center" style={{ background: TYPE_GRAD[item.type] }}>
             <BookOpen className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />
@@ -529,6 +555,8 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           </span>
         )}
       </div>
+        );
+      })()}
 
       <div className="p-5">
         <p className="text-xs mb-1" style={{ color: C.faint }}>{TYPE_LABEL[item.type]}</p>
