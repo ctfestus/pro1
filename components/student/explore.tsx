@@ -315,10 +315,9 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
               >
                 {item.coverImage
                   ? <img src={item.coverImage} alt={item.title} loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]"
-                      style={{ filter: item.locked ? 'grayscale(0.8)' : 'none' }} />
+                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
                   : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
-                      style={{ background: TYPE_GRAD[type], filter: item.locked ? 'grayscale(0.8)' : 'none' }}>
+                      style={{ background: TYPE_GRAD[type] }}>
                       <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />
                     </div>
                 }
@@ -327,9 +326,9 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                   style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
 
                 {item.locked && (
-                  <span className="absolute top-2 left-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-md"
-                    style={{ background: 'rgba(0,0,0,0.6)', color: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(6px)' }}>
-                    <Lock className="w-3 h-3" /> Locked
+                  <span className="absolute top-2 left-2 w-7 h-7 rounded-full grid place-items-center"
+                    style={{ background: 'rgba(0,0,0,0.55)', color: '#ffffff', backdropFilter: 'blur(6px)' }}>
+                    <Lock className="w-3.5 h-3.5" />
                   </span>
                 )}
 
@@ -367,12 +366,7 @@ function CataloguePreview({ item, accent, onOpen }: {
           style={{ background: `${accent}1a`, color: accent }}>
           {TYPE_LABEL[item.type]}
         </span>
-        {item.locked && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.1em]"
-            style={{ color: '#6E7383' }}>
-            <Lock className="w-3 h-3" /> Locked
-          </span>
-        )}
+        {item.locked && <Lock className="w-3.5 h-3.5" style={{ color: '#6E7383' }} />}
       </div>
 
       <h4 className="text-base font-bold leading-snug" style={{ color: '#1C1D1F' }}>{item.title}</h4>
