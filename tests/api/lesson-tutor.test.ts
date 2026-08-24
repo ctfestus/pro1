@@ -107,7 +107,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   redis = redisStub();
   mockGetRedis.mockReturnValue(redis as any);
-  mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, supabase: {} as any, token: 't' } as any);
+  mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, serviceDb: {} as any, token: 't' } as any);
   mockCreateClient.mockReturnValue(courseStub(COURSE) as any);
   mockGenerateText.mockResolvedValue('An answer.');
 });

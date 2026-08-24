@@ -33,7 +33,7 @@ function sub(score: number, config: any) {
 beforeEach(() => {
   mockRequireUser.mockReset();
   mockAdminClient.mockReset();
-  mockRequireUser.mockResolvedValue({ user: { id: 'stu1' }, supabase: {}, token: 't' } as any);
+  mockRequireUser.mockResolvedValue({ user: { id: 'stu1' }, serviceDb: {}, token: 't' } as any);
 });
 
 describe('POST /api/assignments/resubmit - passing-score threshold', () => {

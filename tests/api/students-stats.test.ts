@@ -39,7 +39,7 @@ describe('GET /api/admin/students-stats', () => {
       courses: { data: [{ id: 'c1', cohort_ids: ['co1'] }], error: null },
       virtual_experiences: { data: [], error: null },
     });
-    mockRequireRole.mockResolvedValue({ user: { id: 'i1' }, supabase, role: 'instructor', token: 't' } as any);
+    mockRequireRole.mockResolvedValue({ user: { id: 'i1' }, serviceDb: supabase, role: 'instructor', token: 't' } as any);
 
     const res = await get();
     expect(res.status).toBe(200);

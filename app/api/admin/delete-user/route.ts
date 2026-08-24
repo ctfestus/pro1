@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function DELETE(req: NextRequest) {
   const auth = await requireRole(req, ['admin', 'instructor']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase: db, role } = auth;
+  const { user, serviceDb: db, role } = auth;
 
   const { userId } = await req.json();
   if (!userId) return NextResponse.json({ error: 'userId is required' }, { status: 400 });

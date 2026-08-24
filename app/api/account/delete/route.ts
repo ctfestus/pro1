@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
 
   // Prevent self-deletion of admin accounts via this endpoint
   const { data: profile } = await supabase

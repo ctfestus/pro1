@@ -80,7 +80,7 @@ describe('POST /api/course save-progress: points are computed, not accepted', ()
       [question('q1'), question('q2')],
       { id: 'attempt1', current_question_index: 0, answers: {}, hints_used: [], points: 0, streak: 0 },
     );
-    mockRequireUser.mockResolvedValue({ user: { id: 'student1', email: 's@example.com' }, supabase, token: 't' } as any);
+    mockRequireUser.mockResolvedValue({ user: { id: 'student1', email: 's@example.com' }, serviceDb: supabase, token: 't' } as any);
     mockCreateClient.mockReturnValue(supabase as any);
 
     const res = await post({
@@ -102,7 +102,7 @@ describe('POST /api/course save-progress: points are computed, not accepted', ()
       [question('q1')],
       { id: 'attempt1', current_question_index: 0, answers: {}, hints_used: [], points: 0, streak: 0 },
     );
-    mockRequireUser.mockResolvedValue({ user: { id: 'student1', email: 's@example.com' }, supabase, token: 't' } as any);
+    mockRequireUser.mockResolvedValue({ user: { id: 'student1', email: 's@example.com' }, serviceDb: supabase, token: 't' } as any);
     mockCreateClient.mockReturnValue(supabase as any);
 
     await post({
@@ -123,7 +123,7 @@ describe('POST /api/course save-progress: points are computed, not accepted', ()
       [question('q1')],
       { id: 'attempt1', current_question_index: 0, answers: {}, hints_used: [], points: 999999, streak: 0 },
     );
-    mockRequireUser.mockResolvedValue({ user: { id: 'student1', email: 's@example.com' }, supabase, token: 't' } as any);
+    mockRequireUser.mockResolvedValue({ user: { id: 'student1', email: 's@example.com' }, serviceDb: supabase, token: 't' } as any);
     mockCreateClient.mockReturnValue(supabase as any);
 
     await post({ action: 'save-progress', course_id: 'course1', answers: { q1: 'A' }, points: 999999 });

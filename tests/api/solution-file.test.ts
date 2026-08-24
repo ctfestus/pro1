@@ -39,7 +39,7 @@ function get(id: string | null = 'sol1') {
   return GET(new Request(url) as any);
 }
 function authed(userId: string) {
-  mockRequireUser.mockResolvedValue({ user: { id: userId }, supabase: {}, token: 't' } as any);
+  mockRequireUser.mockResolvedValue({ user: { id: userId }, serviceDb: {}, token: 't' } as any);
 }
 
 beforeEach(() => { mockRequireUser.mockReset(); mockAdminClient.mockReset(); });

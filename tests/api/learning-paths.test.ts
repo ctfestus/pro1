@@ -50,7 +50,7 @@ function post(body: unknown) {
 }
 const forbidden = { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
 const unauth = { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
-const instructor = { user: { id: 'i1', email: 'i@x.co' }, supabase: {}, role: 'instructor', token: 't' };
+const instructor = { user: { id: 'i1', email: 'i@x.co' }, serviceDb: {}, role: 'instructor', token: 't' };
 
 beforeEach(() => {
   mockRole.mockReset();
@@ -134,7 +134,7 @@ describe('POST /api/learning-paths authoring gate', () => {
 
 describe('POST /api/learning-paths student read path', () => {
   it('lets a student use get-student-paths (same handler, requireUser branch)', async () => {
-    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, supabase: {}, token: 't' } as any);
+    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
     // No cohort -> the handler returns an empty path list (200), proving the student is allowed in.
     h.db = makeSupabaseStub({ students: { data: { cohort_id: null }, error: null } });
     const res = await post({ action: 'get-student-paths' });
@@ -143,7 +143,7 @@ describe('POST /api/learning-paths student read path', () => {
   });
 
   it('returns certification items and counts an earlier passing attempt as completed', async () => {
-    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, supabase: {}, token: 't' } as any);
+    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
     h.db = makeSupabaseStub({
       // Two reads in order: the caller's own cohort, then the head count of learners in it.
       students: [{ data: { cohort_id: 'co1' }, error: null }, { count: 4, error: null }],

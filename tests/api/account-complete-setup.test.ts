@@ -33,7 +33,7 @@ import { POST } from '@/app/api/account/complete-setup/route';
 
 const AUTHED = {
   user: { id: 'student-1', email: 's@example.com' },
-  supabase: {
+  serviceDb: {
     auth: { admin: { updateUserById: h.updateUserById } },
     from: h.from,
   },

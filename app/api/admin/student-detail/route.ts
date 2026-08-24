@@ -7,7 +7,7 @@ export const dynamic = 'force-dynamic';
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ['admin', 'instructor']);
   if (isAuthError(auth)) return auth.error;
-  const { supabase } = auth;
+  const { serviceDb: supabase } = auth;
 
   const studentId = new URL(req.url).searchParams.get('studentId');
   if (!studentId) return NextResponse.json({ error: 'studentId required' }, { status: 400 });

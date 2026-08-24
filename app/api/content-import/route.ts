@@ -165,7 +165,7 @@ async function preflightImportedCourseSql(cfg: any): Promise<{ config: any; warn
 export async function POST(req: NextRequest) {
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
 
   let body: any;
   try { body = await req.json(); } catch {

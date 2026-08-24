@@ -56,7 +56,7 @@ function post(body: any) {
   }) as any);
 }
 function authed(userId: string, role: string) {
-  mockRequireRole.mockResolvedValue({ user: { id: userId }, role, supabase: {}, token: 't' } as any);
+  mockRequireRole.mockResolvedValue({ user: { id: userId }, role, serviceDb: {}, token: 't' } as any);
 }
 
 beforeEach(() => { mockRequireRole.mockReset(); mockAdminClient.mockReset(); });

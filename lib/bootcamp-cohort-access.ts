@@ -22,7 +22,7 @@ export async function requireBootcampCohortAccess(
   cohortId: string,
   options: BootcampCohortAccessOptions = {},
 ): Promise<BootcampCohortAccess> {
-  const { data: profile, error: profileError } = await auth.supabase
+  const { data: profile, error: profileError } = await auth.serviceDb
     .from('students')
     .select('role, cohort_id, email')
     .eq('id', auth.user.id)
@@ -41,7 +41,7 @@ export async function requireBootcampCohortAccess(
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 
-  const { data: cohort, error: cohortError } = await auth.supabase
+  const { data: cohort, error: cohortError } = await auth.serviceDb
     .from('cohorts')
     .select('cohort_kind')
     .eq('id', cohortId)

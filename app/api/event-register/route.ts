@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   // Require authenticated student
   const auth = await requireStudentUser(req);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
 
   // Confirm they are a student
   const { data: student } = await supabase

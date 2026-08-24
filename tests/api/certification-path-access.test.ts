@@ -49,13 +49,13 @@ async function post(body: Record<string, unknown>): Promise<Response> {
   return res as unknown as Response;
 }
 
-function authed(supabase: any) {
+function authed(serviceDb: any) {
   mockRequireUser.mockResolvedValue({
     user: { id: 'student1', email: 'student@example.com' },
-    supabase,
+    serviceDb,
     token: 'test-token',
   } as any);
-  h.db = supabase;
+  h.db = serviceDb;
 }
 
 // Published cert assigned to a cohort the student is NOT in; access must come from the path.

@@ -19,7 +19,7 @@ function progressPercent(modules: any, progress: any): number {
 export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ['instructor', 'staff', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { supabase } = auth;
+  const { serviceDb: supabase } = auth;
 
   const { searchParams } = new URL(req.url);
   const veId = searchParams.get('veId');

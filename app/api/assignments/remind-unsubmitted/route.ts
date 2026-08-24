@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic';
 export async function POST(req: NextRequest) {
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { supabase } = auth;
+  const { serviceDb: supabase } = auth;
 
   let body: any;
   try { body = await req.json(); } catch {

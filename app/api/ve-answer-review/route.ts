@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
     .from('virtual_experiences').select(VE_COLUMNS).eq('id', veId).maybeSingle()).data;
 
   if (!ve) {
-    const svc = auth.supabase;
+    const svc = auth.serviceDb;
     const { data: veSvc } = await svc
       .from('virtual_experiences').select(VE_COLUMNS).eq('id', veId).maybeSingle();
     if (!veSvc) return NextResponse.json({ error: 'Not found.' }, { status: 404 });

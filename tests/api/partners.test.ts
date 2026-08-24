@@ -53,7 +53,7 @@ describe('/api/partners', () => {
       isStudentMode: false,
       role: 'admin',
       token: 'test-token',
-      supabase: {} as any,
+      serviceDb: {} as any,
     });
     mockAdminClient.mockReturnValue(makeSupabaseStub({
       partners: {

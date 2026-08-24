@@ -79,7 +79,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockRequireUser.mockResolvedValue({
     user: { id: 'u1' },
-    supabase: makeSupabaseStub({ virtual_experiences: { data: null } }) as any,
+    serviceDb: makeSupabaseStub({ virtual_experiences: { data: null } }) as any,
     token: 't',
   } as any);
   mockGetRedis.mockReturnValue(redisStub() as any);
@@ -155,7 +155,7 @@ describe('POST /api/ve-brief-chat - validation and access', () => {
     mockCreateClient.mockReturnValue(makeSupabaseStub({ virtual_experiences: { data: null } }) as any);
     mockRequireUser.mockResolvedValue({
       user: { id: 'u1' },
-      supabase: makeSupabaseStub({
+      serviceDb: makeSupabaseStub({
         virtual_experiences: { data: VE_ROW },
         students: { data: { role: 'student', cohort_id: 'c-9' } },
         assignments: { data: [] },
@@ -172,7 +172,7 @@ describe('POST /api/ve-brief-chat - validation and access', () => {
     mockCreateClient.mockReturnValue(makeSupabaseStub({ virtual_experiences: { data: null } }) as any);
     mockRequireUser.mockResolvedValue({
       user: { id: 'u1' },
-      supabase: makeSupabaseStub({
+      serviceDb: makeSupabaseStub({
         virtual_experiences: { data: VE_ROW },
         students: { data: { role: 'student', cohort_id: 'c-9' } },
         assignments: { data: [{ cohort_ids: ['c-9'], group_ids: [] }] },

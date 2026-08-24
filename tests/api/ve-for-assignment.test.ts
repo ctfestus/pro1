@@ -19,8 +19,8 @@ const mockRequireUser = vi.mocked(requireUser);
 function get(veId = 've1') {
   return GET(new Request(`http://localhost/api/ve-for-assignment?veId=${veId}`) as any);
 }
-function authed(userId: string, supabase: any) {
-  mockRequireUser.mockResolvedValue({ user: { id: userId }, supabase, token: 't' } as any);
+function authed(userId: string, serviceDb: any) {
+  mockRequireUser.mockResolvedValue({ user: { id: userId }, serviceDb, token: 't' } as any);
 }
 
 const VE_ROW = {

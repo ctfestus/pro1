@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   // (STAFF_SECTION_IDS excludes 'students'), so this is instructor/admin only.
   const auth = await requireRole(req, ['admin', 'instructor']);
   if (isAuthError(auth)) return auth.error;
-  const { supabase } = auth;
+  const { serviceDb: supabase } = auth;
 
   // Every read here is paged. The attempts tables carry a row per student per completion, so
   // they pass the PostgREST row cap long before the student list does -- and the cap truncates

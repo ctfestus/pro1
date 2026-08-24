@@ -24,7 +24,7 @@ describe('GET /api/admin/student-detail course status', () => {
       user: { id: 'admin1' },
       role: 'admin',
       token: 'test-token',
-      supabase: makeSupabaseStub({
+      serviceDb: makeSupabaseStub({
         students: { data: { id: 'student1', full_name: 'Student One', email: 'student@example.com', cohort_id: 'cohort1' }, error: null },
         course_attempts: {
           data: [

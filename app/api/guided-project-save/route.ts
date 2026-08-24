@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   // not be reachable by students.
   const auth = await requireRole(req, ['instructor', 'admin']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
 
   let body: any;
   try { body = await req.json(); } catch {

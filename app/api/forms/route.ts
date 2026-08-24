@@ -110,7 +110,7 @@ async function upsertCohortAssignments(
 export async function POST(req: NextRequest) {
   const auth = await requireRole(req, ['instructor', 'admin', 'staff']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   let body: any;
   try { body = await req.json(); } catch {
@@ -251,7 +251,7 @@ export async function PUT(req: NextRequest) {
   try {
   const auth = await requireRole(req, ['instructor', 'admin', 'staff']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   let body: any;
   try { body = await req.json(); } catch {
@@ -402,7 +402,7 @@ export async function PUT(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const auth = await requireRole(req, ['instructor', 'admin', 'staff']);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase, role } = auth;
+  const { user, serviceDb: supabase, role } = auth;
 
   let formId: string, status: string;
   try {
@@ -451,7 +451,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
-  const { user, supabase } = auth;
+  const { user, serviceDb: supabase } = auth;
 
   const { searchParams } = new URL(req.url);
   const formId = searchParams.get('id');

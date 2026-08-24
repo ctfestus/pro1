@@ -8,7 +8,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { restrictionFor, isPathOpenToBearer, denialMessageFor } from '@/lib/account-state';
 
-type Supabase = ReturnType<typeof adminClient>;
+type ServiceRoleClient = ReturnType<typeof adminClient>;
 
 export interface AuthedUser {
   user: { id: string; email?: string };
@@ -16,7 +16,7 @@ export interface AuthedUser {
   actor: { id: string; email?: string };
   isStudentMode: boolean;
   studentModeSessionId?: string;
-  supabase: Supabase;
+  serviceDb: ServiceRoleClient;
   /** The verified Bearer JWT -- for routes that need a user-scoped (RLS) client. */
   token: string;
 }
@@ -40,8 +40,8 @@ export async function requireUser(req: NextRequest): Promise<AuthedUser | { erro
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
   const jwt = authHeader.slice(7);
-  const supabase = adminClient();
-  const { data: { user }, error } = await supabase.auth.getUser(jwt);
+  const serviceDb = adminClient();
+  const { data: { user }, error } = await serviceDb.auth.getUser(jwt);
   if (error || !user) {
     return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
   }
@@ -58,7 +58,7 @@ export async function requireUser(req: NextRequest): Promise<AuthedUser | { erro
   }
 
   const actor = { id: user.id, email: user.email ?? undefined };
-  return { user: actor, actor, isStudentMode: false, supabase, token: jwt };
+  return { user: actor, actor, isStudentMode: false, serviceDb, token: jwt };
 }
 
 /**
@@ -73,7 +73,7 @@ export async function requireStudentUser(req: NextRequest): Promise<AuthedUser |
   const sessionId = req.headers.get('x-student-mode-session')?.trim();
   if (!sessionId) return auth;
 
-  const { data: modeSession, error: sessionError } = await auth.supabase
+  const { data: modeSession, error: sessionError } = await auth.serviceDb
     .from('student_mode_sessions')
     .select('id, student_id, expires_at, ended_at')
     .eq('id', sessionId)
@@ -84,7 +84,7 @@ export async function requireStudentUser(req: NextRequest): Promise<AuthedUser |
     return { error: NextResponse.json({ error: 'Student Mode session is invalid or expired.' }, { status: 403 }) };
   }
 
-  const { data: targetProfile } = await auth.supabase
+  const { data: targetProfile } = await auth.serviceDb
     .from('students')
     .select('id, email, role')
     .eq('id', modeSession.student_id)
@@ -94,7 +94,7 @@ export async function requireStudentUser(req: NextRequest): Promise<AuthedUser |
   }
 
   if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
-    const { error: auditError } = await auth.supabase.from('student_mode_audit_log').insert({
+    const { error: auditError } = await auth.serviceDb.from('student_mode_audit_log').insert({
       actor_id: auth.actor.id,
       student_id: targetProfile.id,
       session_id: modeSession.id,
@@ -126,7 +126,7 @@ export async function requireRole(
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth;
 
-  const { data: student } = await auth.supabase
+  const { data: student } = await auth.serviceDb
     .from('students')
     .select('role')
     .eq('id', auth.user.id)
