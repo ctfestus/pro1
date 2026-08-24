@@ -137,6 +137,39 @@ describe('GET /api/student/catalogue', () => {
     expect(JSON.stringify(list)).not.toContain('correctAnswer');
   });
 
+  it('returns display fields only for learning path items', async () => {
+    h.rows.mockImplementation((table) => {
+      if (table === 'courses') return [{
+        id: 'c6', title: 'Nested course', slug: 'nested-course', cover_image: 'course.jpg', description: null, category: 'AI',
+        cohort_ids: [], available_to_everyone: false,
+        questions: [{ prompt: 'Hidden prompt', correctAnswer: 'Hidden answer' }],
+      }];
+      if (table === 'virtual_experiences') return [{
+        id: 'v6', title: 'Nested VE', slug: 'nested-ve', cover_image: 've.jpg', description: null,
+        cohort_ids: [],
+        scenario: { answerKey: 'Hidden VE answer' },
+      }];
+      if (table === 'learning_paths') return [{
+        id: 'p6', title: 'Path', cover_image: null, description: null, cohort_ids: [], item_ids: ['c6', 'v6'],
+      }];
+      return [];
+    });
+
+    const list = await items();
+    const path = byTitle(list, 'Path');
+
+    expect(path.pathItems.map((item: any) => Object.keys(item).sort())).toEqual([
+      ['coverImage', 'id', 'slug', 'title', 'type'],
+      ['coverImage', 'id', 'slug', 'title', 'type'],
+    ]);
+    expect(path.pathItems).toEqual([
+      { id: 'c6', type: 'course', title: 'Nested course', slug: 'nested-course', coverImage: 'course.jpg' },
+      { id: 'v6', type: 'virtual_experience', title: 'Nested VE', slug: 'nested-ve', coverImage: 've.jpg' },
+    ]);
+    expect(JSON.stringify(path.pathItems)).not.toContain('Hidden answer');
+    expect(JSON.stringify(path.pathItems)).not.toContain('Hidden VE answer');
+  });
+
   it('refuses an unauthenticated caller', async () => {
     h.requireStudentUser.mockResolvedValue({ error: new Response('unauthorized', { status: 401 }) });
 

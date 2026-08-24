@@ -32,6 +32,15 @@ export interface CatalogueItem {
   description: string | null;
   category: string | null;
   locked: boolean;
+  pathItems?: CataloguePathItem[];
+}
+
+export interface CataloguePathItem {
+  id: string;
+  type: 'course' | 'virtual_experience' | 'certification';
+  title: string;
+  slug: string | null;
+  coverImage: string | null;
 }
 
 type Row = {
@@ -100,6 +109,35 @@ export async function GET(req: NextRequest) {
 
     const inCohort = (row: Row) => !!cohortId && (row.cohort_ids ?? []).includes(cohortId);
 
+    const displayById = new Map<string, CataloguePathItem>();
+    for (const r of courses) {
+      displayById.set(r.id, {
+        id: r.id,
+        type: 'course',
+        title: r.title ?? 'Untitled',
+        slug: r.slug ?? null,
+        coverImage: r.cover_image ?? null,
+      });
+    }
+    for (const r of ves) {
+      displayById.set(r.id, {
+        id: r.id,
+        type: 'virtual_experience',
+        title: r.title ?? 'Untitled',
+        slug: r.slug ?? null,
+        coverImage: r.cover_image ?? null,
+      });
+    }
+    for (const r of certifications) {
+      displayById.set(r.id, {
+        id: r.id,
+        type: 'certification',
+        title: r.title ?? 'Untitled',
+        slug: r.slug ?? null,
+        coverImage: r.cover_image ?? null,
+      });
+    }
+
     const map = (rows: Row[], type: CatalogueType, viaPath: boolean): CatalogueItem[] =>
       rows.map(r => ({
         id: r.id,
@@ -114,6 +152,9 @@ export async function GET(req: NextRequest) {
           || inCohort(r)
           || (viaPath && grantedByPath.has(r.id))
         ),
+        ...(type === 'learning_path'
+          ? { pathItems: ((r as PathRow).item_ids ?? []).map(id => displayById.get(id)).filter(Boolean) as CataloguePathItem[] }
+          : {}),
       }));
 
     const items: CatalogueItem[] = [

@@ -17,10 +17,10 @@
  * courses and virtual_experiences), and /api/student/catalogue returns display fields only, so a
  * locked card carries no course content to leak.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, BookOpen, ChevronLeft, ChevronRight, Lock, Loader2 } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Play } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
@@ -33,10 +33,20 @@ interface CatalogueItem {
   id: string;
   type: CatalogueType;
   title: string;
+  slug: string | null;
   coverImage: string | null;
   description: string | null;
   category: string | null;
   locked: boolean;
+  pathItems?: CataloguePathItem[];
+}
+
+interface CataloguePathItem {
+  id: string;
+  type: 'course' | 'virtual_experience' | 'certification';
+  title: string;
+  slug: string | null;
+  coverImage: string | null;
 }
 
 const TYPE_LABEL: Record<CatalogueType, string> = {
@@ -72,6 +82,15 @@ const TYPE_SECTION: Record<CatalogueType, SectionId> = {
 };
 
 const TYPE_ORDER: CatalogueType[] = ['course', 'learning_path', 'virtual_experience', 'certification'];
+const INITIAL_VISIBLE = 8;
+const LOAD_MORE_STEP = 8;
+
+const TYPE_ICON: Record<CatalogueType, ElementType> = {
+  course:             Film,
+  learning_path:      Layers,
+  virtual_experience: Briefcase,
+  certification:      Award,
+};
 
 const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'all',                label: 'All content' },
@@ -85,6 +104,35 @@ type HoverState = {
   item: CatalogueItem;
   left: number; top: number; originX: number; originY: number;
 };
+
+const CATEGORY_COLORS = [
+  '#bfdbfe',
+  '#bbf7d0',
+  '#fed7aa',
+  '#bae6fd',
+  '#fde68a',
+  '#fbcfe8',
+  '#ddd6fe',
+  '#cbd5e1',
+];
+
+function categoryColor(category: string) {
+  let hash = 0;
+  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
+  return CATEGORY_COLORS[hash % CATEGORY_COLORS.length];
+}
+
+function CategoryPill({ category }: { category: string }) {
+  const color = categoryColor(category.toLowerCase());
+  return (
+    <span
+      className="inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[11px] font-bold leading-none"
+      style={{ background: color, color: '#101828' }}
+    >
+      <span className="truncate">{category}</span>
+    </span>
+  );
+}
 
 export function ExploreSection({ C, onNavigate }: {
   C: typeof LIGHT_C;
@@ -154,7 +202,10 @@ export function ExploreSection({ C, onNavigate }: {
     if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
     cancelClose();
     const r = el.getBoundingClientRect();
-    const W = 320, H = 420;
+    const W = item.type === 'learning_path'
+      ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32))
+      : 320;
+    const H = 500;
     const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
     const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
     setHover({
@@ -166,17 +217,6 @@ export function ExploreSection({ C, onNavigate }: {
 
   return (
     <div className="space-y-6">
-      <style>{`
-        @keyframes explore-sheen { 0% { transform: translateX(-120%) skewX(-18deg); opacity: 0; }
-          35% { opacity: 0.55; } 100% { transform: translateX(320%) skewX(-18deg); opacity: 0; } }
-        .explore-shine-host { position: relative; }
-        .explore-card-shine { position: absolute; top: 0; bottom: 0; left: 0; width: 45%; opacity: 0;
-          pointer-events: none; z-index: 15;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent); }
-        .explore-shine-host:hover .explore-card-shine { animation: explore-sheen 0.9s ease; }
-        @media (prefers-reduced-motion: reduce) { .explore-card-shine { display: none; } }
-      `}</style>
-
       <div className="space-y-3">
         <p className="text-sm" style={{ color: C.muted }}>
           Everything on the platform. Locked items are not part of your access yet.
@@ -196,7 +236,7 @@ export function ExploreSection({ C, onNavigate }: {
                 className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
                 style={active
                   ? { background: primaryColor || '#0056D2', color: '#ffffff' }
-                  : { background: C.pill, color: C.muted, border: `1px solid ${C.cardBorder}` }}
+                  : { background: '#ffffff', color: C.muted, border: `1px solid ${C.cardBorder}` }}
               >
                 {f.label}
               </button>
@@ -244,6 +284,9 @@ export function ExploreSection({ C, onNavigate }: {
               top={hover.top}
               originX={hover.originX}
               originY={hover.originY}
+              width={hover.item.type === 'learning_path'
+                ? Math.min(640, Math.max(360, (hover.item.pathItems?.length ?? 0) * 120 + 32))
+                : 320}
               onEnter={cancelClose}
               onLeave={scheduleClose}
             >
@@ -267,64 +310,46 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   onHover: (item: CatalogueItem, el: HTMLElement) => void;
   onHoverLeave: () => void;
 }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 380, behavior: 'smooth' });
-
-  const arrowBtn = (dir: number, label: string) => (
-    <button
-      type="button"
-      onClick={() => scrollByCards(dir)}
-      aria-label={label}
-      className="w-9 h-9 rounded-full grid place-items-center transition-all duration-200 hover:scale-105 active:scale-95"
-      style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}
-    >
-      {dir < 0 ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-    </button>
-  );
+  const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const Icon = TYPE_ICON[type];
+  const visibleItems = items.slice(0, visibleCount);
+  const remaining = Math.max(0, items.length - visibleItems.length);
 
   return (
     <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: accent }} />
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: C.text }}>
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="w-7 h-7 rounded-lg grid place-items-center flex-shrink-0" style={{ background: `${accent}16` }}>
+            <Icon className="w-[15px] h-[15px]" style={{ color: accent }} />
+          </span>
+          <h3 className="text-lg sm:text-xl font-bold leading-tight truncate" style={{ color: C.text }}>
             {title}
           </h3>
         </div>
-        <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
-          {arrowBtn(-1, `Scroll ${title} left`)}
-          {arrowBtn(1, `Scroll ${title} right`)}
-        </div>
+        <span className="text-xs font-semibold flex-shrink-0" style={{ color: C.faint }}>
+          {items.length} item{items.length !== 1 ? 's' : ''}
+        </span>
       </div>
 
-      <div
-        ref={scrollRef}
-        className="flex flex-nowrap gap-4 overflow-x-auto pt-4 pb-2 snap-x"
-        style={{
-          scrollbarWidth: 'none', msOverflowStyle: 'none',
-          WebkitMaskImage: 'linear-gradient(90deg, #000 94%, transparent)',
-          maskImage: 'linear-gradient(90deg, #000 94%, transparent)',
-        }}
-      >
-        {items.map(item => (
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pt-4">
+        {visibleItems.map(item => (
           <div
             key={item.id}
-            className="flex-shrink-0 w-[220px] sm:w-[260px] snap-start"
             onMouseEnter={e => onHover(item, e.currentTarget)}
             onMouseLeave={onHoverLeave}
           >
             <div
               onClick={() => onOpen(item)}
               className="group transition-transform duration-300 hover:-translate-y-1"
-              style={{ cursor: item.locked ? 'default' : 'pointer' }}
+              style={{ cursor: item.locked ? 'not-allowed' : 'pointer' }}
             >
               <div
-                className="explore-shine-host relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
+                className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
                 style={{ background: item.coverImage ? '#0b0b0d' : 'transparent' }}
               >
                 {item.coverImage
                   ? <img src={item.coverImage} alt={item.title} loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
+                      className={`w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07] ${item.locked ? 'saturate-[0.72]' : ''}`} />
                   : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
                       style={{ background: TYPE_GRAD[type] }}>
                       <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />
@@ -335,8 +360,10 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                   style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
 
                 {item.locked && (
-                  <span className="absolute top-2 left-2 w-7 h-7 rounded-full grid place-items-center"
-                    style={{ background: 'rgba(0,0,0,0.55)', color: '#ffffff', backdropFilter: 'blur(6px)' }}>
+                  <span
+                    aria-label="Locked"
+                    className="absolute top-2 left-2 w-7 h-7 rounded-full grid place-items-center"
+                    style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
                     <Lock className="w-3.5 h-3.5" />
                   </span>
                 )}
@@ -345,20 +372,36 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                   style={{ background: 'white', color: '#101828' }}>
                   {item.locked ? <Lock className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                 </div>
-
-                <span className="explore-card-shine" />
               </div>
 
               <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: C.text }}>
                 {item.title}
               </p>
               {item.category && (
-                <p className="text-[11px] mt-1" style={{ color: C.muted }}>{item.category}</p>
+                <div className="mt-2">
+                  <CategoryPill category={item.category} />
+                </div>
               )}
             </div>
           </div>
         ))}
       </div>
+
+      {remaining > 0 && (
+        <div className="flex justify-center pt-5">
+          <button
+            type="button"
+            onClick={() => setVisibleCount(count => Math.min(items.length, count + LOAD_MORE_STEP))}
+            className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold transition-all hover:-translate-y-0.5"
+            style={{ background: '#ffffff', color: C.text, border: `1px solid ${C.cardBorder}` }}
+          >
+            Load more
+            <span className="text-xs font-medium" style={{ color: C.faint }}>
+              {remaining}
+            </span>
+          </button>
+        </div>
+      )}
     </section>
   );
 }
@@ -369,46 +412,158 @@ function CataloguePreview({ item, accent, onOpen, C }: {
   onOpen: (item: CatalogueItem) => void;
   C: typeof LIGHT_C;
 }) {
+  const desc = (item.description ?? '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  if (item.type === 'learning_path') {
+    const pathItems = item.pathItems ?? [];
+    const popupW = Math.min(640, Math.max(360, pathItems.length * 120 + 32));
+    return (
+      <div
+        className="rounded-2xl overflow-hidden"
+        style={{
+          width: popupW,
+          background: C.card,
+          border: `1px solid ${C.cardBorder}`,
+          boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05)',
+        }}
+      >
+        <div className="p-4 pb-0">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="inline-block text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
+              Learning Path
+            </span>
+            {item.locked && <Lock className="w-3.5 h-3.5" style={{ color: C.muted }} />}
+          </div>
+          <h3 className="text-lg font-bold leading-snug line-clamp-2 mb-1.5" style={{ color: C.text }}>
+            {item.title}
+          </h3>
+          {desc && (
+            <p className="text-sm leading-relaxed line-clamp-2 mb-0" style={{ color: C.muted }}>
+              {desc}
+            </p>
+          )}
+        </div>
+
+        <div className="p-4">
+          {pathItems.length > 0 ? (
+            <>
+              <p className="text-[11px] font-semibold uppercase tracking-wider mb-3" style={{ color: C.faint }}>
+                {pathItems.length} item{pathItems.length !== 1 ? 's' : ''} in this path
+              </p>
+              <div className="flex flex-wrap gap-2.5">
+                {pathItems.map(pathItem => (
+                  <div key={pathItem.id} className="flex-shrink-0" style={{ width: 110 }}>
+                    <div
+                      className="rounded-lg overflow-hidden mb-1.5"
+                      style={{ aspectRatio: '16/9', background: pathItem.coverImage ? '#0b0b0d' : C.pill }}
+                    >
+                      {pathItem.coverImage ? (
+                        <img src={pathItem.coverImage} alt={pathItem.title} loading="lazy" className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <BookOpen className="w-5 h-5" style={{ color: C.faint }} />
+                        </div>
+                      )}
+                    </div>
+                    <p className="text-[11px] font-medium leading-snug line-clamp-2" style={{ color: C.text }}>
+                      {pathItem.title}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </>
+          ) : (
+            desc && <p className="text-sm leading-relaxed line-clamp-3 mb-1" style={{ color: C.muted }}>{desc}</p>
+          )}
+
+          {item.locked ? (
+            <div className="mt-4 rounded-xl px-4 py-3 text-sm leading-relaxed" style={{ background: C.pill, color: C.muted }}>
+              <span className="flex items-center gap-2 text-xs">
+                <Lock className="w-3.5 h-3.5" />
+                Not part of your access yet.
+              </span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onOpen(item)}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
+              style={{ background: '#00bf63', color: 'white' }}
+            >
+              <Play className="w-3.5 h-3.5" />
+              Start path
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      className="rounded-2xl overflow-hidden p-4 space-y-3"
+      className="rounded-2xl overflow-hidden"
       style={{
-        width: 320,
         background: C.card,
         border: `1px solid ${C.cardBorder}`,
-        boxShadow: '0 4px 24px rgba(0,0,0,0.10), 0 1px 4px rgba(0,0,0,0.05)',
+        boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)',
       }}
     >
-      <div className="flex items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.12em] px-2 py-1 rounded-md"
-          style={{ background: `${accent}1a`, color: accent }}>
+      <div className="relative w-full aspect-video" style={{ background: item.coverImage ? '#0b0b0d' : 'transparent' }}>
+        {item.coverImage ? (
+          <img src={item.coverImage} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center" style={{ background: TYPE_GRAD[item.type] }}>
+            <BookOpen className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />
+          </div>
+        )}
+        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
           {TYPE_LABEL[item.type]}
         </span>
-        {item.locked && <Lock className="w-3.5 h-3.5" style={{ color: C.muted }} />}
+        {item.locked && (
+          <span className="absolute top-2 right-2 w-7 h-7 rounded-full grid place-items-center" style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
+            <Lock className="w-3.5 h-3.5" />
+          </span>
+        )}
       </div>
 
-      <h4 className="text-base font-bold leading-snug" style={{ color: C.text }}>{item.title}</h4>
+      <div className="p-5">
+        <p className="text-xs mb-1" style={{ color: C.faint }}>{TYPE_LABEL[item.type]}</p>
+        <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
 
-      {item.description && (
-        <p className="text-[13px] leading-relaxed line-clamp-4" style={{ color: C.muted }}>
-          {item.description}
-        </p>
-      )}
+        {desc && (
+          <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: C.muted }}>
+            {desc}
+          </p>
+        )}
+        {item.category && (
+          <div className="mb-3">
+            <CategoryPill category={item.category} />
+          </div>
+        )}
 
-      {item.locked ? (
-        <p className="text-[12px] leading-relaxed" style={{ color: C.muted }}>
-          Not part of your access yet. Talk to your Learning Advisor about opening it up.
-        </p>
-      ) : (
-        <button
-          type="button"
-          onClick={() => onOpen(item)}
-          className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-90"
-          style={{ background: accent, color: '#ffffff' }}
-        >
-          Go to {TYPE_LABEL[item.type]} <ArrowRight className="w-3.5 h-3.5" />
-        </button>
-      )}
+        {item.locked ? (
+          <div className="rounded-xl px-4 py-3 text-sm leading-relaxed" style={{ background: C.pill, color: C.muted }}>
+            <span className="flex items-center gap-2 text-xs">
+              <Lock className="w-3.5 h-3.5" />
+              Not part of your access yet.
+            </span>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => onOpen(item)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
+            style={{ background: '#00bf63', color: 'white' }}
+          >
+            <Play className="w-3.5 h-3.5" />
+            {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}
+          </button>
+        )}
+      </div>
     </div>
   );
 }
