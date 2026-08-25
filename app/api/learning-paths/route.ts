@@ -230,62 +230,91 @@ export async function POST(req: NextRequest) {
 
     // Fetch content metadata for all item_ids across all paths
     const allItemIds = [...new Set(paths.flatMap((p: any) => p.item_ids ?? []))];
+    const NO_ROWS = { data: [] as any[] };
+
+    // One wave, and every read in it is narrow. The metadata reads never depended on the
+    // attempt reads, so they no longer wait behind them. A student on a weak connection pays
+    // for this route in bytes, and the authored content behind an item -- a course's
+    // questions, a VE's modules -- is worth megabytes the screen never draws: it shows a
+    // title, a cover, and a bar. Only an item still in progress needs enough of its content
+    // to size that bar, and those are read below once the attempts say which items they are.
+    // Attempts split the same way, so an answers blob only travels for an unfinished attempt.
     // Published only: an item unpublished after being added to a path must not leak its
     // metadata to students (it falls back to the Unknown placeholder below).
-    const [{ data: coursesRaw }, { data: vesRaw }, { data: certsRaw }] = allItemIds.length
-      ? await Promise.all([
-          supabase.from('courses').select('id, title, slug, cover_image, description, questions').in('id', allItemIds).eq('status', 'published'),
-          supabase.from('virtual_experiences').select('id, title, slug, cover_image, description, modules').in('id', allItemIds).eq('status', 'published'),
-          supabase.from('certifications').select('id, title, slug, cover_image, description').in('id', allItemIds).eq('status', 'published'),
-        ])
-      : [{ data: [] }, { data: [] }, { data: [] }];
-
-    const formMap: Record<string, any> = {};
-    const courseQuestions = new Map<string, any[]>();
-    const veModules = new Map<string, any[]>();
-    for (const c of coursesRaw ?? []) {
-      courseQuestions.set(c.id, c.questions ?? []);
-      const { questions, ...course } = c;
-      formMap[c.id] = { ...course, content_type: 'course' };
-    }
-    for (const v of vesRaw ?? []) {
-      veModules.set(v.id, v.modules ?? []);
-      const { modules, ...ve } = v;
-      formMap[v.id] = { ...ve, content_type: 'virtual_experience' };
-    }
-    for (const t of certsRaw   ?? []) formMap[t.id] = { ...t, content_type: 'certification' };
-
-    // Determine which items the student has actually completed by checking
-    // course_attempts, guided_project_attempts and certification_attempts directly -- this
-    // covers items completed before they were added to a learning path.
-    const [{ data: courseAttempts }, { data: veAttempts }, { data: certAttempts }, learnerCounts] = await Promise.all([
+    const [
+      { data: coursesRaw }, { data: vesRaw }, { data: certsRaw },
+      { data: doneCourseAttempts }, { data: openCourseAttempts },
+      { data: doneVeAttempts }, { data: openVeAttempts },
+      { data: certAttempts }, learnerCounts,
+    ] = await Promise.all([
       allItemIds.length
-        ? supabase.from('course_attempts').select('course_id, answers, completed_at, passed, updated_at').eq('student_id', user.id).in('course_id', allItemIds).order('updated_at', { ascending: false })
-        : { data: [] },
+        ? supabase.from('courses').select('id, title, slug, cover_image, description').in('id', allItemIds).eq('status', 'published')
+        : NO_ROWS,
       allItemIds.length
-        ? supabase.from('guided_project_attempts').select('ve_id, progress, completed_at, updated_at').eq('student_id', user.id).in('ve_id', allItemIds).order('updated_at', { ascending: false })
-        : { data: [] },
+        ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, description').in('id', allItemIds).eq('status', 'published')
+        : NO_ROWS,
+      allItemIds.length
+        ? supabase.from('certifications').select('id, title, slug, cover_image, description').in('id', allItemIds).eq('status', 'published')
+        : NO_ROWS,
+      // Finished attempts decide the checkmarks and carry no JSON at all.
+      allItemIds.length
+        ? supabase.from('course_attempts').select('course_id, passed').eq('student_id', user.id).in('course_id', allItemIds).not('completed_at', 'is', null)
+        : NO_ROWS,
+      allItemIds.length
+        ? supabase.from('course_attempts').select('course_id, answers, updated_at').eq('student_id', user.id).in('course_id', allItemIds).is('completed_at', null).order('updated_at', { ascending: false })
+        : NO_ROWS,
+      allItemIds.length
+        ? supabase.from('guided_project_attempts').select('ve_id').eq('student_id', user.id).in('ve_id', allItemIds).not('completed_at', 'is', null)
+        : NO_ROWS,
+      allItemIds.length
+        ? supabase.from('guided_project_attempts').select('ve_id, progress, updated_at').eq('student_id', user.id).in('ve_id', allItemIds).is('completed_at', null).order('updated_at', { ascending: false })
+        : NO_ROWS,
       allItemIds.length
         ? supabase.from('certification_attempts').select('certification_id').eq('student_id', user.id).eq('passed', true).in('certification_id', allItemIds)
-        : { data: [] },
+        : NO_ROWS,
       countPathLearners(supabase, paths),
     ]);
 
+    const formMap: Record<string, any> = {};
+    for (const c of coursesRaw ?? []) formMap[c.id] = { ...c, content_type: 'course' };
+    for (const v of vesRaw     ?? []) formMap[v.id] = { ...v, content_type: 'virtual_experience' };
+    for (const t of certsRaw   ?? []) formMap[t.id] = { ...t, content_type: 'certification' };
+
+    // Which items the student has actually completed, read from the attempt tables directly --
+    // this covers items completed before they were added to a learning path.
     const actuallyCompleted = new Set([
-      ...(courseAttempts ?? []).filter((a: any) => a.passed === true && a.completed_at).map((a: any) => a.course_id),
-      ...(veAttempts ?? []).filter((a: any) => a.completed_at).map((a: any) => a.ve_id),
+      ...(doneCourseAttempts ?? []).filter((a: any) => a.passed === true).map((a: any) => a.course_id),
+      ...(doneVeAttempts ?? []).map((a: any) => a.ve_id),
       ...(certAttempts ?? []).map((a: any) => a.certification_id),
     ]);
+
+    // Most recent unfinished attempt per item, which is the one the ordered scan used to pick.
+    const openCourse = new Map<string, any>();
+    for (const a of openCourseAttempts ?? []) if (!openCourse.has(a.course_id)) openCourse.set(a.course_id, a);
+    const openVe = new Map<string, any>();
+    for (const a of openVeAttempts ?? []) if (!openVe.has(a.ve_id)) openVe.set(a.ve_id, a);
+
+    // The only authored content this route still reads, and only for items mid-flight. A
+    // student with nothing in progress -- the common case -- skips both reads entirely.
+    const openCourseIds = [...openCourse.keys()];
+    const openVeIds     = [...openVe.keys()];
+    const [{ data: courseContent }, { data: veContent }] = await Promise.all([
+      openCourseIds.length
+        ? supabase.from('courses').select('id, questions').in('id', openCourseIds).eq('status', 'published')
+        : NO_ROWS,
+      openVeIds.length
+        ? supabase.from('virtual_experiences').select('id, modules').in('id', openVeIds).eq('status', 'published')
+        : NO_ROWS,
+    ]);
+    const questionsById = new Map<string, any[]>((courseContent ?? []).map((c: any) => [c.id, c.questions ?? []] as [string, any[]]));
+    const modulesById   = new Map<string, any[]>((veContent ?? []).map((v: any) => [v.id, v.modules ?? []] as [string, any[]]));
+
     const inProgressPct = new Map<string, number>();
-    for (const attempt of courseAttempts ?? []) {
-      if (!attempt.completed_at && !inProgressPct.has(attempt.course_id)) {
-        inProgressPct.set(attempt.course_id, courseProgressPct(courseQuestions.get(attempt.course_id) ?? [], attempt.answers ?? {}));
-      }
+    for (const [id, attempt] of openCourse) {
+      inProgressPct.set(id, courseProgressPct(questionsById.get(id) ?? [], attempt.answers ?? {}));
     }
-    for (const attempt of veAttempts ?? []) {
-      if (!attempt.completed_at && !inProgressPct.has(attempt.ve_id)) {
-        inProgressPct.set(attempt.ve_id, veProgressPct(veModules.get(attempt.ve_id) ?? [], attempt.progress ?? {}));
-      }
+    for (const [id, attempt] of openVe) {
+      inProgressPct.set(id, veProgressPct(modulesById.get(id) ?? [], attempt.progress ?? {}));
     }
 
     const result = paths.map((path: any) => {

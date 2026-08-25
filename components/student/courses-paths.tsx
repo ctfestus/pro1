@@ -3,12 +3,12 @@
 // Courses and learning-path journeys shared by the learner dashboard.
 // Only the two section components are exported; the rest are file-internal.
 
-import { useEffect, useState, useMemo, useRef } from 'react';
+import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -326,10 +326,16 @@ function CourseDetailPane({ course, C, onClose }: { course: any; C: typeof LIGHT
   );
 }
 
+// A request that never reached the server is worth distinguishing from one the server
+// refused: the first is usually the learner's connection and retrying often works.
+const LOAD_ERROR_NETWORK = "Couldn't load learning paths. Check your connection and try again.";
+const LOAD_ERROR_SERVER  = "Couldn't load learning paths right now. Try again.";
+
 // --- Learning Paths section (shown above courses) ---
 export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
   const [paths, setPaths]         = useState<any[]>([]);
   const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState('');
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -339,21 +345,43 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
     return () => window.removeEventListener('popstate', syncSelectedPath);
   }, []);
 
-  useEffect(() => {
-    (async () => {
+  // A dropped request on a phone must never leave the skeleton up forever, and it must never
+  // read as "no paths assigned" -- the empty state below is only for a successful empty list.
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError('');
+    try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) { setLoading(false); return; }
+      if (!session?.access_token) { setError(LOAD_ERROR_SERVER); return; }
       const res = await fetch('/api/learning-paths', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ action: 'get-student-paths' }),
       });
-      if (res.ok) { const { paths: p } = await res.json(); setPaths(p ?? []); }
+      if (!res.ok) { setError(LOAD_ERROR_SERVER); return; }
+      const { paths: p } = await res.json();
+      setPaths(p ?? []);
+    } catch {
+      // fetch itself rejected: connection dropped, request cancelled, or timed out.
+      setError(LOAD_ERROR_NETWORK);
+    } finally {
       setLoading(false);
-    })();
+    }
   }, []);
 
+  useEffect(() => { load(); }, [load]);
+
   if (loading) return <CarouselSkeleton C={C}/>;
+
+  if (error) return (
+    <div className="flex flex-col items-center justify-center py-24 text-center">
+      <div className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4" style={{ background: C.pill }}>
+        <AlertCircle className="w-7 h-7" style={{ color: C.faint }}/>
+      </div>
+      <p className="font-semibold text-base mb-1" style={{ color: C.text }}>{error}</p>
+      <button onClick={load} className="mt-5 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Retry</button>
+    </div>
+  );
 
   if (!paths.length) return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
