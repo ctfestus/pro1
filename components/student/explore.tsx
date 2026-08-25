@@ -73,8 +73,8 @@ const TYPE_GRAD: Record<CatalogueType, string> = {
   certification:      'linear-gradient(135deg,#155E75 0%,#06B6D4 100%)',
 };
 
-// Where an unlocked card sends the student. Deep links into players are deliberately avoided --
-// each section already knows how to open its own content, deadlines and attempts.
+// Where unlocked learning cards send the student. Free courses/certifications open their public
+// URL directly, so Explore is a real catalogue entry point instead of another dashboard detour.
 const TYPE_SECTION: Record<CatalogueType, SectionId> = {
   course:             'courses',
   learning_path:      'learning_paths',
@@ -197,6 +197,10 @@ export function ExploreSection({ C, onNavigate }: {
 
   const open = (item: CatalogueItem) => {
     if (item.locked) return;
+    if (item.type === 'course' || item.type === 'certification') {
+      window.location.href = `/${item.slug || item.id}`;
+      return;
+    }
     onNavigate?.(TYPE_SECTION[item.type]);
   };
 
