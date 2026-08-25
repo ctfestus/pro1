@@ -136,12 +136,14 @@ function CategoryPill({ category }: { category: string }) {
 }
 
 const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage) || '';
-// Everything with a public URL gets a real link. Learning paths are the exception: they open
-// through the My Learning section rather than a page of their own.
+// Every card is a real link, so middle-click, open-in-new-tab and copy-link work everywhere.
+// Courses, certifications and virtual experiences have a page of their own. A learning path does
+// not -- it opens inside the My Learning section -- so it links at the section with the path
+// selected, which is the same address that section puts in the URL when you open one from there.
 const directHref = (item: CatalogueItem) =>
-  item.type === 'course' || item.type === 'certification' || item.type === 'virtual_experience'
-    ? `/${item.slug || item.id}`
-    : null;
+  item.type === 'learning_path'
+    ? `/student?path=${encodeURIComponent(item.id)}#learning_paths`
+    : `/${item.slug || item.id}`;
 
 export function ExploreSection({ C, onNavigate }: {
   C: typeof LIGHT_C;

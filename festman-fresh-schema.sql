@@ -325,6 +325,10 @@ CREATE TABLE public.virtual_experiences (
   status          text        NOT NULL DEFAULT 'published'
                                 CHECK (status IN ('draft','published','archived')),
   cohort_ids      uuid[]      NOT NULL DEFAULT '{}',
+  -- migration 186: offered to everyone, including accounts with no cohort. Mutually exclusive
+  -- with cohort targeting, so "everyone" can never quietly mean "everyone plus these cohorts".
+  available_to_everyone boolean NOT NULL DEFAULT false
+    CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
   cover_image     text,
   deadline_days   integer,
   theme           text,
@@ -701,8 +705,15 @@ CREATE TABLE public.learning_paths (
   badge_image_url text,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
+  -- migration 186, as for virtual_experiences above.
+  available_to_everyone boolean NOT NULL DEFAULT false
+    CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
+  -- A public path names no cohort, so open access satisfies the same intent the cohort list did:
+  -- a published path reaches somebody. Without this branch, publishing one fails on a constraint
+  -- the author cannot see.
   CONSTRAINT check_published_requires_cohort CHECK (
     status = 'draft'
+    OR available_to_everyone
     OR (status = 'published' AND array_length(cohort_ids, 1) > 0)
   )
 );
@@ -1823,7 +1834,10 @@ CREATE POLICY "courses: participants select"
       SELECT 1 FROM public.learning_paths lp
       WHERE lp.status = 'published'
         AND courses.id = ANY(lp.item_ids)
-        AND (SELECT cohort_id FROM public.students WHERE id = (SELECT auth.uid())) = ANY(lp.cohort_ids)
+        AND (
+          lp.available_to_everyone
+          OR (SELECT cohort_id FROM public.students WHERE id = (SELECT auth.uid())) = ANY(lp.cohort_ids)
+        )
     )
   );
 
@@ -1967,12 +1981,16 @@ CREATE POLICY "virtual_experiences: participants select"
   USING (
     user_id = (SELECT auth.uid())
     OR (SELECT public.is_admin())
+    OR (status = 'published' AND available_to_everyone)
     OR (SELECT cohort_id FROM public.students WHERE id = (SELECT auth.uid())) = ANY(cohort_ids)
     OR EXISTS (
       SELECT 1 FROM public.learning_paths lp
       WHERE lp.status = 'published'
         AND virtual_experiences.id = ANY(lp.item_ids)
-        AND (SELECT cohort_id FROM public.students WHERE id = (SELECT auth.uid())) = ANY(lp.cohort_ids)
+        AND (
+          lp.available_to_everyone
+          OR (SELECT cohort_id FROM public.students WHERE id = (SELECT auth.uid())) = ANY(lp.cohort_ids)
+        )
     )
   );
 
@@ -2507,9 +2525,12 @@ CREATE POLICY "students_read_published_paths"
   ON public.learning_paths FOR SELECT
   USING (
     status = 'published'
-    AND EXISTS (
-      SELECT 1 FROM public.students s
-      WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(cohort_ids)
+    AND (
+      available_to_everyone
+      OR EXISTS (
+        SELECT 1 FROM public.students s
+        WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(cohort_ids)
+      )
     )
   );
 
