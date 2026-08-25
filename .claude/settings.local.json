@@ -35,7 +35,11 @@
       "Bash(awk -F: '$1>=8400 && $1<=8650')",
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "PowerShell(node \"C:\\\\Users\\\\DELL\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-DELL-Documents-ALL-Apps-App-AI-Skils-AI-Skills-Africa-App\\\\13a3d2bd-1727-4372-ae38-c629424f22f8\\\\scratchpad\\\\smoke-cert-flow.mjs\")",
+      "Bash(git diff *)",
+      "Read(//tmp/**)",
+      "Bash(git fetch *)"
     ],
     "additionalDirectories": [
       "C:\\Users\\DELL\\Documents\\ALL Apps\\Landing pages\\elevate-landing\\lib",
