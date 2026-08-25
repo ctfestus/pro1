@@ -66,7 +66,11 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id } = body;
+    const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone } = body;
+    // Open access replaces cohort targeting rather than adding to it -- the database enforces the
+    // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
+    const openAccess = available_to_everyone === true;
+    const targetCohorts: string[] = openAccess ? [] : (cohort_ids ?? []);
     if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 });
     if (request_id !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(request_id)) {
       return NextResponse.json({ error: 'request_id must be a UUID' }, { status: 400 });
@@ -80,7 +84,8 @@ export async function POST(req: NextRequest) {
       badge_image_url: badge_image_url ?? null,
       instructor_id: user.id,
       item_ids: item_ids ?? [],
-      cohort_ids: cohort_ids ?? [],
+      cohort_ids: targetCohorts,
+      available_to_everyone: openAccess,
       status: status ?? 'draft',
       next_path_id: next_path_id ?? null,
     }).select('id').single();
@@ -105,7 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     let notification: any = null;
-    if ((status ?? 'draft') === 'published' && (cohort_ids ?? []).length > 0) {
+    if ((status ?? 'draft') === 'published' && targetCohorts.length > 0) {
       try {
         notification = await sendPathNotification(
           supabase,
@@ -128,13 +133,19 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id } = body;
+    const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
     // Fetch previous state to detect newly published or newly added cohorts
     const { data: prev } = await supabase.from('learning_paths').select('status, cohort_ids').eq('id', id).single();
 
     const updateData: any = { updated_at: new Date().toISOString() };
+    if (available_to_everyone !== undefined) {
+      updateData.available_to_everyone = available_to_everyone === true;
+      // Clearing the cohorts alongside keeps the row valid in one write; leaving a stale selection
+      // would trip the exclusion constraint.
+      if (available_to_everyone === true) updateData.cohort_ids = [];
+    }
     if (title           !== undefined) updateData.title           = title.trim();
     if (description     !== undefined) updateData.description     = description;
     if (cover_image     !== undefined) updateData.cover_image     = cover_image;

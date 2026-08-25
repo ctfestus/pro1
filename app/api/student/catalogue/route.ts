@@ -85,10 +85,10 @@ export async function GET(req: NextRequest) {
         .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
-        .select('id, title, cover_image, description, cohort_ids, item_ids', { count: 'exact' })
+        .select('id, title, cover_image, description, cohort_ids, item_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
-        .select('id, title, slug, cover_image, description, cohort_ids', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('certifications')
         .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
@@ -99,12 +99,11 @@ export async function GET(req: NextRequest) {
     // that path, which RLS honours. Miss this and a student sees a padlock on something they can
     // already open from their own learning.
     const grantedByPath = new Set<string>();
-    if (cohortId) {
-      for (const p of paths) {
-        if ((p.cohort_ids ?? []).includes(cohortId)) {
-          for (const id of p.item_ids ?? []) grantedByPath.add(id);
-        }
-      }
+    for (const p of paths) {
+      const reaches = p.available_to_everyone === true
+        || (!!cohortId && (p.cohort_ids ?? []).includes(cohortId));
+      if (!reaches) continue;
+      for (const id of p.item_ids ?? []) grantedByPath.add(id);
     }
 
     const inCohort = (row: Row) => !!cohortId && (row.cohort_ids ?? []).includes(cohortId);

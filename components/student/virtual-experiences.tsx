@@ -518,11 +518,20 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
       });
 
       const [{ data: veRows }, { data: attRows }] = await Promise.all([
-        supabase
-          .from('virtual_experiences')
-          .select(veSelect)
-          .eq('status', 'published')
-          .contains('cohort_ids', [profile.cohort_id]),
+        // A virtual experience can now be offered to everyone (migration 186), so a learner with no
+        // cohort still has one to show here. Without this branch a public VE unlocks in Explore and
+        // then never appears in My Learning, which reads as the toggle not working.
+        (profile.cohort_id
+          ? supabase
+              .from('virtual_experiences')
+              .select(veSelect)
+              .eq('status', 'published')
+              .or(`available_to_everyone.eq.true,cohort_ids.cs.{${profile.cohort_id}}`)
+          : supabase
+              .from('virtual_experiences')
+              .select(veSelect)
+              .eq('status', 'published')
+              .eq('available_to_everyone', true)),
         supabase
           .from('guided_project_attempts')
           .select('*')
