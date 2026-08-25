@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react'; // useRef -- CAPTCHA SUSPENDED
+import { toUserFacingError } from '@/lib/user-facing-error';
 // CAPTCHA SUSPENDED -- import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
@@ -62,6 +63,11 @@ function buildTheme(brand: string, accent: string) {
 
 // ---
 
+// A message decides its own colour. This used to be inferred from the text -- green if it
+// contained "Check" -- so rewording a failure into "Check your connection" would have shown
+// it as a success. The tone travels with the message instead.
+type AuthMessage = { text: string; tone: 'success' | 'info' | 'error' };
+
 export default function AuthPage() {
   const { logoUrl, logoDarkUrl, emailBannerUrl, appName, brandColor, accentColor, publicSignupEnabled } = useTenant();
   const [email, setEmail]       = useState('');
@@ -69,7 +75,7 @@ export default function AuthPage() {
   const [isLogin, setIsLogin]   = useState(true);
   const [isForgot, setIsForgot] = useState(false);
   const [loading, setLoading]   = useState(false);
-  const [message, setMessage]   = useState('');
+  const [message, setMessage]   = useState<AuthMessage | null>(null);
   const [showPass, setShowPass] = useState(false);
   const [canRetrySignup, setCanRetrySignup] = useState(false);
   // Arrived here because the email was never confirmed. The form looks like the password-reset
@@ -84,13 +90,13 @@ export default function AuthPage() {
     const params = new URLSearchParams(window.location.search);
     const error  = params.get('error');
     if (error === 'not_allowed') {
-      setMessage('You do not have access to this portal. Contact your Learning Advisor.');
+      setMessage({ text: 'You do not have access to this portal. Contact your Learning Advisor.', tone: 'error' });
     }
     if (error === 'invalid_link') {
       // Setup and reset links work once and then expire. Drop straight into the
       // request form so a fresh link is one step away instead of a dead end.
       setIsForgot(true);
-      setMessage('That setup link has already been used or has expired. Enter your email below and we will send you a new one.');
+      setMessage({ text: 'That setup link has already been used or has expired. Enter your email below and we will send you a new one.', tone: 'info' });
     }
     if (error === 'confirm_email') {
       // Same escape hatch as an expired setup link: the forgot form sends a fresh one, and
@@ -98,26 +104,26 @@ export default function AuthPage() {
       // Advisor because an email link timed out is a dead end for a problem they can fix.
       setIsForgot(true);
       setNeedsConfirm(true);
-      setMessage('Your email address is not confirmed yet, so the account is not active. Enter your email below and we will send you a fresh confirmation link.');
+      setMessage({ text: 'Your email address is not confirmed yet, so the account is not active. Enter your email below and we will send you a fresh confirmation link.', tone: 'error' });
     }
     if (error === 'email_not_supported') {
-      setMessage('That email provider is not supported. Please sign up with a permanent email address.');
+      setMessage({ text: 'That email provider is not supported. Please sign up with a permanent email address.', tone: 'error' });
     }
     if (error === 'no_admission_record') {
-      setMessage('We could not find an admission record for that email. Contact your Learning Advisor.');
+      setMessage({ text: 'We could not find an admission record for that email. Contact your Learning Advisor.', tone: 'error' });
     }
     if (error === 'try_again') {
       // The original PKCE code was consumed already, but the callback deliberately
       // retained its restricted session. Retry through that session instead of telling
       // the student to click a one-use email link again.
       setCanRetrySignup(true);
-      setMessage('We could not finish setting up your account just now. Please try again in a few minutes.');
+      setMessage({ text: 'We could not finish setting up your account just now. Please try again in a few minutes.', tone: 'error' });
     }
     if (params.get('mode') === 'signup') {
       // With signups open this is a real destination -- landing pages and invite emails link
       // straight here. Invite-only keeps the explanation, because there is no form to open.
       if (publicSignupEnabled) setIsLogin(false);
-      else setMessage('If your Learning Advisor has added you, use the setup link in your email, then sign in here.');
+      else setMessage({ text: 'If your Learning Advisor has added you, use the setup link in your email, then sign in here.', tone: 'info' });
     }
   }, [publicSignupEnabled]);
 
@@ -126,7 +132,7 @@ export default function AuthPage() {
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('');
+    setMessage(null);
     try {
       if (isForgot && needsConfirm) {
         // An unconfirmed account needs its confirmation link again, not a password reset. Both
@@ -137,7 +143,7 @@ export default function AuthPage() {
           options: { emailRedirectTo: `${window.location.origin}/auth/confirm` },
         });
         if (error) throw error;
-        setMessage('Check your email for a new confirmation link. If you do not see it, please check your spam folder.');
+        setMessage({ text: 'Check your email for a new confirmation link. If you do not see it, please check your spam folder.', tone: 'success' });
         return;
       }
       if (isForgot) {
@@ -147,7 +153,7 @@ export default function AuthPage() {
           redirectTo: `${window.location.origin}/auth/recover`,
         });
         if (error) throw error;
-        setMessage('Check your email for the password reset link.');
+        setMessage({ text: 'Check your email for the password reset link.', tone: 'success' });
         return;
       }
       if (isLogin) {
@@ -183,8 +189,8 @@ export default function AuthPage() {
         });
         if (error) throw error;
         if (signUpData.user && signUpData.user.identities?.length === 0) {
-          setMessage('An account with this email already exists. Please sign in instead. You will be directed to the sign in page.');
-          setTimeout(() => { setIsLogin(true); setMessage(''); }, 3000);
+          setMessage({ text: 'An account with this email already exists. Please sign in instead. You will be directed to the sign in page.', tone: 'info' });
+          setTimeout(() => { setIsLogin(true); setMessage(null); }, 3000);
           return;
         }
         // With email confirmation disabled Supabase returns a session immediately and
@@ -194,10 +200,10 @@ export default function AuthPage() {
           window.location.href = '/auth/callback?retry=1';
           return;
         }
-        setMessage('Check your email for the confirmation link. If you do not see it in your inbox, please check your spam.');
+        setMessage({ text: 'Check your email for the confirmation link. If you do not see it in your inbox, please check your spam.', tone: 'success' });
       }
     } catch (err: any) {
-      setMessage(err.message || 'Something went wrong. Please try again.');
+      setMessage({ text: toUserFacingError(err), tone: 'error' });
     } finally {
       setLoading(false);
     }
@@ -207,11 +213,9 @@ export default function AuthPage() {
   const accent = accentColor || '#f59e0b';
   const t      = buildTheme(brand, accent);
 
-  const isSuccess = message.includes('Check');
-  const isInfo    = message.includes('sign in instead') || message.includes('setup link');
-  const msgStyle  = isSuccess
+  const msgStyle  = message?.tone === 'success'
     ? { background: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0' }
-    : isInfo
+    : message?.tone === 'info'
     ? { background: '#eff6ff', color: '#1d4ed8', border: '1px solid #bfdbfe' }
     : { background: '#fef2f2', color: '#991b1b', border: '1px solid #fecaca' };
 
@@ -329,7 +333,7 @@ export default function AuthPage() {
                   {isLogin && (
                     <button
                       type="button"
-                      onClick={() => { setIsForgot(true); setNeedsConfirm(false); setMessage(''); }}
+                      onClick={() => { setIsForgot(true); setNeedsConfirm(false); setMessage(null); }}
                       className="text-xs transition-colors"
                       style={{ color: t.forgotColor }}
                       onMouseEnter={e => (e.currentTarget.style.color = t.forgotHoverColor)}
@@ -391,7 +395,7 @@ export default function AuthPage() {
                   className="text-xs px-3 py-2.5 rounded-lg leading-relaxed"
                   style={msgStyle}
                 >
-                  {message}
+                  {message.text}
                 </motion.p>
               )}
             </AnimatePresence>
@@ -426,7 +430,7 @@ export default function AuthPage() {
               <>
                 Remember your password?{' '}
                 <button
-                  onClick={() => { setIsForgot(false); setNeedsConfirm(false); setMessage(''); }}
+                  onClick={() => { setIsForgot(false); setNeedsConfirm(false); setMessage(null); }}
                   className="font-semibold transition-colors"
                   style={{ color: t.accentText }}
                 >
@@ -439,7 +443,7 @@ export default function AuthPage() {
                   New here?{' '}
                   <button
                     type="button"
-                    onClick={() => { setIsLogin(false); setMessage(''); }}
+                    onClick={() => { setIsLogin(false); setMessage(null); }}
                     className="font-semibold transition-colors"
                     style={{ color: t.accentText }}
                   >
@@ -451,7 +455,7 @@ export default function AuthPage() {
                   Already have an account?{' '}
                   <button
                     type="button"
-                    onClick={() => { setIsLogin(true); setMessage(''); }}
+                    onClick={() => { setIsLogin(true); setMessage(null); }}
                     className="font-semibold transition-colors"
                     style={{ color: t.accentText }}
                   >
