@@ -4,11 +4,16 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, GraduationCap, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, GraduationCap, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { DARK_C, LIGHT_C, cardStyle } from '@/lib/theme';
+
+// A request that never reached the server is worth distinguishing from one the server
+// refused: the first is usually the connection and retrying often works.
+const LOAD_ERROR_NETWORK = "Couldn't load learning paths. Check your connection and try again.";
+const LOAD_ERROR_SERVER  = "Couldn't load learning paths right now. Try again.";
 
 export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: any[] }) {
   const isDark = C.page === DARK_C.page;
@@ -16,10 +21,12 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   const [cohorts, setCohorts]       = useState<any[]>([]);
   const [certOptions, setCertOptions] = useState<any[]>([]);
   const [loading, setLoading]       = useState(true);
+  const [loadError, setLoadError]   = useState('');
   const [editing, setEditing]       = useState<any | null>(null);
   const [saving, setSaving]         = useState(false);
   const [saveMsg, setSaveMsg]       = useState<{ ok: boolean; text: string } | null>(null);
   const [deleting, setDeleting]     = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const [uploadingCover, setUploadingCover] = useState(false);
   const [showCoverLibrary, setShowCoverLibrary] = useState(false);
   const [uploadingBadge, setUploadingBadge] = useState(false);
@@ -43,18 +50,28 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
 
   const load = async () => {
     setLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    // Certifications live in their own table (not `forms`); RLS scopes this read to the
-    // caller's own certifications (admins see all), matching the course options above.
-    const [res, { data: coh }, { data: certs }] = await Promise.all([
-      fetch('/api/learning-paths', { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} }),
-      supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name'),
-      supabase.from('certifications').select('id, title').eq('status', 'published').order('title'),
-    ]);
-    if (res.ok) { const { paths: p } = await res.json(); setPaths(p ?? []); }
-    setCohorts(coh ?? []);
-    setCertOptions((certs ?? []).map((c: any) => ({ ...c, content_type: 'certification' })));
-    setLoading(false);
+    setLoadError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      // Certifications live in their own table (not `forms`); RLS scopes this read to the
+      // caller's own certifications (admins see all), matching the course options above.
+      const [res, { data: coh }, { data: certs }] = await Promise.all([
+        fetch('/api/learning-paths', { headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {} }),
+        supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name'),
+        supabase.from('certifications').select('id, title').eq('status', 'published').order('title'),
+      ]);
+      if (!res.ok) { setLoadError(LOAD_ERROR_SERVER); return; }
+      const { paths: p } = await res.json();
+      setPaths(p ?? []);
+      setCohorts(coh ?? []);
+      setCertOptions((certs ?? []).map((c: any) => ({ ...c, content_type: 'certification' })));
+    } catch {
+      // The request never reached the server, so the list below would be misleading rather
+      // than empty. Say so and offer the retry instead of rendering "no learning paths".
+      setLoadError(LOAD_ERROR_NETWORK);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { load(); }, []);
@@ -155,13 +172,26 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
 
   const deletePath = async (id: string) => {
     setDeleting(id);
-    const { data: { session } } = await supabase.auth.getSession();
-    await fetch('/api/learning-paths', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
-      body: JSON.stringify({ action: 'delete', id }),
-    });
-    setDeleting(null);
+    setDeleteError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/learning-paths', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+        body: JSON.stringify({ action: 'delete', id }),
+      });
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        setDeleteError(json.error ?? 'Could not delete that learning path.');
+        return;
+      }
+    } catch {
+      // Deleting the same path twice is harmless, so an unconfirmed request is safe to repeat.
+      setDeleteError('Could not confirm the delete. You can safely try again.');
+      return;
+    } finally {
+      setDeleting(null);
+    }
     await load();
   };
 
@@ -214,6 +244,14 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   const inputStyle = { background: C.input, border: `1px solid ${C.cardBorder}`, color: C.text };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.faint }}/></div>;
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center">
+      <AlertCircle className="w-8 h-8 mb-3" style={{ color: '#dc2626' }}/>
+      <p className="text-sm" style={{ color: C.muted }}>{loadError}</p>
+      <button onClick={load} className="mt-4 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Retry</button>
+    </div>
+  );
 
   // -- Editor ---
   if (editing !== null) {
@@ -529,6 +567,9 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   // -- List ---
   return (
     <div className="space-y-6">
+      {deleteError && (
+        <p role="status" className="px-4 py-3 rounded-xl text-sm" style={{ background: '#ef444412', color: '#ef4444' }}>{deleteError}</p>
+      )}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold tracking-tight" style={{ color: C.text }}>Learning Paths</h1>
