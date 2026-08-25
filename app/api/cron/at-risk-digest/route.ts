@@ -5,7 +5,10 @@
  * Risk signals (additive score):
  *   +2  last_login_at more than 7 days ago
  *   +2  has a stalled course or VE attempt (started, not completed, 7+ days idle)
- *   +3  payment access_status is overdue or grace period active
+ *   +3  payment access_status is overdue. Grace is deliberately not a signal here: it is not
+ *       stored on the enrollment (computeAccess derives it per read), and the daily sweep
+ *       records a student inside grace as active, so this job cannot see it without
+ *       recomputing access from installments.
  *   +1  enrolled 14+ days with zero completed items
  *
  * Students scoring >= 2 are included. Score >= 5 = HIGH RISK.
@@ -60,7 +63,7 @@ export async function POST(req: NextRequest) {
       .lt('updated_at', sevenDaysAgo)
       .in('student_id', idChunk).order('id').range(from, to)),
     fetchAllRowsByIds<any>(studentIds, (idChunk, from, to) => supabase.from('bootcamp_enrollments')
-      .select('student_id, access_status, grace_active', { count: 'exact' })
+      .select('student_id, access_status', { count: 'exact' })
       .is('released_at', null)
       .in('student_id', idChunk).order('id').range(from, to)),
     fetchAllRowsByIds<any>(studentIds, (idChunk, from, to) => supabase.from('course_attempts')
@@ -75,7 +78,7 @@ export async function POST(req: NextRequest) {
   ]);
   const overdueSet   = new Set(
     enrollments
-      .filter((e: any) => e.access_status === 'overdue' || e.grace_active)
+      .filter((e: any) => e.access_status === 'overdue')
       .map((e: any) => e.student_id)
   );
   const completedSet = new Set(completions.map((c: any) => c.student_id));
