@@ -173,4 +173,143 @@ describe('POST /api/learning-paths student read path', () => {
       h.db, 's1', expect.objectContaining({ id: 'lp1', item_ids: ['cert1'] }), ['cert1'],
     );
   });
+
+  // The student read is the one a learner loads on a phone, so what it does NOT read matters as
+  // much as what it returns: a course's questions and a VE's modules are megabytes of authored
+  // content, needed only to size the bar of an item still in progress. These pin both the
+  // numbers and the reads they cost.
+  function countingStub(byTable: Record<string, any>) {
+    const db = makeSupabaseStub(byTable);
+    const from = vi.fn(db.from.bind(db));
+    return { db: { ...db, from }, reads: (table: string) => from.mock.calls.filter(c => c[0] === table).length };
+  }
+
+  const coursePath = (itemIds: string[]) => ({
+    students: [{ data: { cohort_id: 'co1' }, error: null }, { count: 1, error: null }],
+    learning_paths: { data: [{ id: 'lp1', title: 'Path', status: 'published', cohort_ids: ['co1'], item_ids: itemIds }], error: null },
+    learning_path_progress: { data: [], error: null },
+    certifications: { data: [], error: null },
+    certification_attempts: { data: [], error: null },
+    guided_project_attempts: [{ data: [], error: null }, { data: [], error: null }],
+    virtual_experiences: { data: [], error: null },
+  });
+  const asStudent = () => mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
+
+  it('counts a finished passing attempt as complete without reading the course content', async () => {
+    asStudent();
+    const stub = countingStub({
+      ...coursePath(['c1']),
+      // A second entry is offered deliberately: nothing is in progress, so it must go unused.
+      courses: [
+        { data: [{ id: 'c1', title: 'Excel', slug: 'excel', cover_image: null, description: null }], error: null },
+        { data: [{ id: 'c1', questions: [{ id: 'q1' }, { id: 'q2' }] }], error: null },
+      ],
+      course_attempts: [{ data: [{ course_id: 'c1', passed: true }], error: null }, { data: [], error: null }],
+    });
+    h.db = stub.db;
+
+    const { paths } = await (await post({ action: 'get-student-paths' })).json();
+    expect(paths[0].progress.completed_item_ids).toContain('c1');
+    expect(paths[0].items[0]).toMatchObject({ id: 'c1', title: 'Excel', content_type: 'course' });
+    expect(paths[0].items[0]).not.toHaveProperty('in_progress_pct');
+    // The whole point of the narrow read: no authored content fetched for a finished item.
+    expect(stub.reads('courses')).toBe(1);
+  });
+
+  it('does not count a finished failing attempt as complete', async () => {
+    asStudent();
+    h.db = makeSupabaseStub({
+      ...coursePath(['c1']),
+      courses: { data: [{ id: 'c1', title: 'Excel', slug: 'excel', cover_image: null, description: null }], error: null },
+      course_attempts: [{ data: [{ course_id: 'c1', passed: false }], error: null }, { data: [], error: null }],
+    });
+
+    const { paths } = await (await post({ action: 'get-student-paths' })).json();
+    expect(paths[0].progress).toBeNull();
+  });
+
+  it('sizes an in-progress course from the open attempt and the content read it triggers', async () => {
+    asStudent();
+    const stub = countingStub({
+      ...coursePath(['c1']),
+      courses: [
+        { data: [{ id: 'c1', title: 'Excel', slug: 'excel', cover_image: null, description: null }], error: null },
+        { data: [{ id: 'c1', questions: [{ id: 'q1' }, { id: 'q2' }] }], error: null },
+      ],
+      course_attempts: [
+        { data: [], error: null },
+        { data: [{ course_id: 'c1', answers: { q1: 'done' }, updated_at: '2026-08-20T00:00:00Z' }], error: null },
+      ],
+    });
+    h.db = stub.db;
+
+    const { paths } = await (await post({ action: 'get-student-paths' })).json();
+    expect(paths[0].items[0].in_progress_pct).toBe(50);
+    expect(paths[0].progress).toBeNull();
+    // One metadata read plus one content read, and only because an item is mid-flight.
+    expect(stub.reads('courses')).toBe(2);
+  });
+
+  it('takes the most recent open attempt when a course has several', async () => {
+    asStudent();
+    h.db = makeSupabaseStub({
+      ...coursePath(['c1']),
+      courses: [
+        { data: [{ id: 'c1', title: 'Excel', slug: 'excel', cover_image: null, description: null }], error: null },
+        { data: [{ id: 'c1', questions: [{ id: 'q1' }, { id: 'q2' }] }], error: null },
+      ],
+      // Ordered newest first by the query; the stale attempt must not win.
+      course_attempts: [
+        { data: [], error: null },
+        { data: [
+          { course_id: 'c1', answers: { q1: 'x', q2: 'y' }, updated_at: '2026-08-24T00:00:00Z' },
+          { course_id: 'c1', answers: {}, updated_at: '2026-08-01T00:00:00Z' },
+        ], error: null },
+      ],
+    });
+
+    const { paths } = await (await post({ action: 'get-student-paths' })).json();
+    expect(paths[0].items[0].in_progress_pct).toBe(100);
+  });
+
+  it('keeps a retaken course complete while still reporting the open attempt progress', async () => {
+    asStudent();
+    h.db = makeSupabaseStub({
+      ...coursePath(['c1']),
+      courses: [
+        { data: [{ id: 'c1', title: 'Excel', slug: 'excel', cover_image: null, description: null }], error: null },
+        { data: [{ id: 'c1', questions: [{ id: 'q1' }, { id: 'q2' }] }], error: null },
+      ],
+      course_attempts: [
+        { data: [{ course_id: 'c1', passed: true }], error: null },
+        { data: [{ course_id: 'c1', answers: { q1: 'x' }, updated_at: '2026-08-24T00:00:00Z' }], error: null },
+      ],
+    });
+
+    const { paths } = await (await post({ action: 'get-student-paths' })).json();
+    expect(paths[0].progress.completed_item_ids).toContain('c1');
+    expect(paths[0].items[0].in_progress_pct).toBe(50);
+  });
+
+  it('sizes an in-progress virtual experience from its own open attempt', async () => {
+    asStudent();
+    const stub = countingStub({
+      ...coursePath(['ve1']),
+      courses: { data: [], error: null },
+      course_attempts: [{ data: [], error: null }, { data: [], error: null }],
+      virtual_experiences: [
+        { data: [{ id: 've1', title: 'Analyst week', slug: 'analyst-week', cover_image: null, description: null }], error: null },
+        { data: [{ id: 've1', modules: [{ lessons: [{ requirements: [{ id: 'r1', type: 'task' }, { id: 'r2', type: 'task' }] }] }] }], error: null },
+      ],
+      guided_project_attempts: [
+        { data: [], error: null },
+        { data: [{ ve_id: 've1', progress: { r1: { completed: true } }, updated_at: '2026-08-24T00:00:00Z' }], error: null },
+      ],
+    });
+    h.db = stub.db;
+
+    const { paths } = await (await post({ action: 'get-student-paths' })).json();
+    expect(paths[0].items[0]).toMatchObject({ id: 've1', content_type: 'virtual_experience', in_progress_pct: 50 });
+    expect(stub.reads('virtual_experiences')).toBe(2);
+  });
 });
