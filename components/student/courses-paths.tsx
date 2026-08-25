@@ -13,7 +13,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
-import { getToolIcon } from '@/lib/tool-icons';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import { computeAccess } from '@/lib/enrollment-access';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -36,7 +36,8 @@ function CourseCard({ course, deadline, C, onDetails, hideCategory }: { course: 
   const coverImage = course.config?.coverImage ?? course.form?.config?.coverImage;
   const description: string = course.form?.config?.description ?? course.form?.description ?? '';
   const category: string | null = course.form?.category ?? null;
-  const categoryIcon = category ? getToolIcon(category) : null;
+  const toolIcon = useToolIcons();
+  const categoryIcon = category ? toolIcon(category) : null;
   const certId: string | null = course.cert_id ?? null;
   const [imgErr, setImgErr] = useState(false);
 
@@ -837,7 +838,8 @@ function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8
 // One tool group rendered as a titled, horizontally-scrolling carousel of course cards
 function ToolRow({ tool, courses, deadlines, C, onDetails }: { tool: string; courses: any[]; deadlines: Record<string, Date | null>; C: typeof LIGHT_C; onDetails: (c: any) => void }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const icon = getToolIcon(tool);
+  const toolIcon = useToolIcons();
+  const icon = toolIcon(tool);
   const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
 
   // Hover preview: show the full course card in a floating popover (desktop / hover-capable pointers only)

@@ -189,7 +189,7 @@ describe('fresh schema structure', () => {
   const schema = readFileSync(join(process.cwd(), 'festman-fresh-schema.sql'), 'utf8');
 
   it('parses every CREATE TABLE block', () => {
-    expect(parseTables(schema).size).toBe(70);
+    expect(parseTables(schema).size).toBe(71);
   });
 
   it('has no key or foreign key naming a column its table does not declare', () => {

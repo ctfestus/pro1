@@ -11,7 +11,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Check, LayoutDashboard, ChevronDown, ChevronLeft, ChevronRight, User, Settings, LogOut, BookOpen, Calendar, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
-import { getToolIcon } from '@/lib/tool-icons';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 
@@ -1488,6 +1488,7 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
   };
   useEffect(() => () => cancelClose(), []);
 
+  const toolIcon = useToolIcons();
   const rowBg    = bg ?? (transparentBg ? 'transparent' : (isDark ? '#1E1F26' : 'white'));
   const rowText  = isDark ? 'white' : LAND_C.text;
   const rowMuted = isDark ? 'rgba(255,255,255,0.65)' : LAND_C.muted;
@@ -1508,7 +1509,7 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
         return !hideTitle ? (
           <div className="flex items-center justify-between gap-4 mb-0">
             <MReveal y={14} className="flex items-center gap-2.5 min-w-0">
-              {(() => { const icon = getToolIcon(title);
+              {(() => { const icon = toolIcon(title);
                 if (icon) return <img src={icon} alt="" className="w-6 h-6 object-contain flex-shrink-0" />;
                 const Fallback = getCategoryIcon(title, type);
                 return <Fallback className="w-5 h-5 flex-shrink-0" strokeWidth={2.2} style={{ color: rowText }} />;

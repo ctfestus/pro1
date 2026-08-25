@@ -945,6 +945,21 @@ CREATE TABLE public.site_settings (
   updated_at  timestamptz NOT NULL DEFAULT now()
 );
 
+-- ── tool_icons (instructor-managed tool logos, migration 185) ──
+--
+-- `name` is stored already normalized (trimmed, lower-cased): the lookup is an exact match on
+-- typed text (a course's category, a learner's skill), so one row per tool name and an upsert
+-- replaces a logo instead of accumulating duplicates. `image` holds a Cloudinary public_id,
+-- resolved at render -- never a baked URL, which is what broke every cover when the Cloudinary
+-- account changed. The code defaults in lib/tool-icons.ts still cover the built-in thirteen.
+CREATE TABLE public.tool_icons (
+  name        text        PRIMARY KEY CHECK (name = lower(btrim(name)) AND length(name) BETWEEN 1 AND 80),
+  image       text        NOT NULL CHECK (length(btrim(image)) > 0),
+  created_by  uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
+  created_at  timestamptz NOT NULL DEFAULT now(),
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+
 
 -- ─────────────────────────────────────────────────────────────
 --  4. SECURITY HELPER FUNCTIONS
@@ -1100,6 +1115,7 @@ ALTER TABLE public.sent_nudges                ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.learning_path_progress     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.meeting_integrations       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.site_settings              ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.tool_icons                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_mode_sessions      ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.student_mode_audit_log     ENABLE ROW LEVEL SECURITY;
 
@@ -1278,6 +1294,8 @@ CREATE TRIGGER trg_schedules_updated_at
   BEFORE UPDATE ON public.schedules FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_learning_paths_updated_at
   BEFORE UPDATE ON public.learning_paths FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+CREATE TRIGGER trg_tool_icons_updated_at
+  BEFORE UPDATE ON public.tool_icons FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_guided_project_attempts_updated_at
   BEFORE UPDATE ON public.guided_project_attempts FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_certificate_defaults_updated_at
@@ -2747,6 +2765,21 @@ CREATE POLICY "admin_write_site_settings"
         AND students.role IN ('admin', 'instructor')
     )
   );
+
+-- ── tool_icons ─────────────────────────────────────
+-- Readable signed in or not: these logos render on the public landing page and on public
+-- profile pages, and a logo attached to a tool name reveals nothing about a learner, a cohort
+-- or unpublished content.
+CREATE POLICY "tool_icons: public select"
+  ON public.tool_icons FOR SELECT
+  USING (true);
+
+CREATE POLICY "tool_icons: staff write"
+  ON public.tool_icons FOR ALL
+  USING ((SELECT public.is_instructor_or_admin()))
+  WITH CHECK ((SELECT public.is_instructor_or_admin()));
+
+GRANT SELECT ON public.tool_icons TO anon, authenticated;
 
 INSERT INTO public.site_settings (singleton, template, config)
 VALUES (true, 'momentum', '{}')

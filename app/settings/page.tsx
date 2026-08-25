@@ -13,7 +13,7 @@ import {
 import { ImageCropModal } from '@/components/ImageCropModal';
 import { sanitizePlainText } from '@/lib/sanitize';
 import { uploadToCloudinary, deleteFromCloudinary } from '@/lib/uploadToCloudinary';
-import { getToolIcon } from '@/lib/tool-icons';
+import { useToolIcons } from '@/lib/use-tool-icons';
 
 const INDUSTRIES = [
   'Accounting & Finance', 'Advertising & Marketing', 'Aerospace & Defence',
@@ -307,6 +307,7 @@ function SelectField({ value, onChange, options, placeholder }: { value: string;
 
 // --- Settings Page ---
 export default function SettingsPage() {
+  const toolIcon = useToolIcons();
   const C = useC();
   const { toggle: toggleTheme, theme } = useTheme();
   const { logoUrl, logoDarkUrl } = useTenant();
@@ -836,7 +837,7 @@ export default function SettingsPage() {
                   {skills.map(skill => (
                     <span key={skill} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold"
                       style={{ background: C.lime, color: C.text }}>
-                      {getToolIcon(skill) && <img src={getToolIcon(skill)} alt="" style={{ width: 13, height: 13, objectFit: 'contain', flexShrink: 0 }}/>}
+                      {toolIcon(skill) && <img src={toolIcon(skill)} alt="" style={{ width: 13, height: 13, objectFit: 'contain', flexShrink: 0 }}/>}
                       {skill}
                       <button onClick={() => setSkills(prev => prev.filter(s => s !== skill))}
                         className="hover:opacity-60 transition-opacity leading-none">
@@ -889,7 +890,7 @@ export default function SettingsPage() {
                       <button key={s} onClick={() => addSkill(s)}
                         className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-opacity hover:opacity-70"
                         style={{ background: C.input, color: C.muted }}>
-                        + {getToolIcon(s) && <img src={getToolIcon(s)} alt="" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }}/>}{s}
+                        + {toolIcon(s) && <img src={toolIcon(s)} alt="" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }}/>}{s}
                       </button>
                     ))}
                   </div>
@@ -947,7 +948,7 @@ export default function SettingsPage() {
                             background: active ? C.lime : C.card,
                             color:      active ? C.text : C.muted,
                           }}>
-                          {getToolIcon(tool) && <img src={getToolIcon(tool)} alt="" style={{ width: 16, height: 16, objectFit: 'contain', flexShrink: 0 }}/>}
+                          {toolIcon(tool) && <img src={toolIcon(tool)} alt="" style={{ width: 16, height: 16, objectFit: 'contain', flexShrink: 0 }}/>}
                           {tool}
                         </button>
                       );

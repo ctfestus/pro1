@@ -2,11 +2,12 @@
 
 // Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
 
-import { useState, useEffect, useRef } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Loader2, Upload, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
+import { ToolIconsPanel } from '@/components/dashboard/ToolIconsPanel';
 
 export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
   const [form, setForm] = useState({
@@ -37,6 +38,10 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
     statsRating:     '',
   });
   const [loading, setLoading]         = useState(true);
+  // Why the section could not load, so an expired session reads differently from a dropped
+  // request. Without this the early return below left `loading` true forever and the whole
+  // section was a spinner with no message and nothing to click.
+  const [loadError, setLoadError]     = useState<'signed-out' | 'failed' | null>(null);
   const [saving, setSaving]           = useState(false);
   const [logoUploading, setLogoUploading]               = useState(false);
   const [logoDarkUploading, setLogoDarkUploading]       = useState(false);
@@ -48,12 +53,15 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
   const faviconInputRef               = useRef<HTMLInputElement>(null);
   const emailBannerInputRef           = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    (async () => {
+  const load = useCallback(async () => {
+    setLoading(true);
+    setLoadError(null);
+    try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
+      if (!session) { setLoadError('signed-out'); return; }
       const res = await fetch('/api/platform-settings', { headers: { Authorization: `Bearer ${session.access_token}` } });
-      if (res.ok) {
+      if (!res.ok) { setLoadError('failed'); return; }
+      {
         const { data } = await res.json();
         if (data) setForm({
           appName:         data.app_name         ?? '',
@@ -80,9 +88,15 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           statsRating:     data.stats_rating     ?? '',
         });
       }
+    } catch {
+      setLoadError('failed');
+    } finally {
+      // In a finally so every path clears it, including the two that used to return early.
       setLoading(false);
-    })();
+    }
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -186,6 +200,19 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
   if (loading) return (
     <div className="flex items-center justify-center py-20">
       <Loader2 className="w-5 h-5 animate-spin" style={{ color: C.faint }}/>
+    </div>
+  );
+
+  if (loadError) return (
+    <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
+      <p className="text-sm max-w-xs" style={{ color: C.muted }}>
+        {loadError === 'signed-out'
+          ? 'Your session has expired. Sign in again to change platform settings.'
+          : 'Could not load platform settings. Check your connection and try again.'}
+      </p>
+      <button onClick={load}
+        className="px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+        style={{ background: C.cta, color: C.ctaText }}>Retry</button>
     </div>
   );
 
@@ -491,6 +518,12 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           style={{ background: C.cta, color: C.ctaText }}>
           {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : 'Save Platform Settings'}
         </button>
+      </div>
+
+      {/* Tool logos live in their own table with their own save, so they are never caught up
+          in the platform-settings form above. */}
+      <div className="rounded-2xl p-5 mt-8" style={{ ...cardStyle(C) }}>
+        <ToolIconsPanel C={C}/>
       </div>
 
     </div>
