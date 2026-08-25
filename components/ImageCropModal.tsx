@@ -19,7 +19,10 @@ async function getCroppedBlob(imageSrc: string, area: Area): Promise<Blob> {
   const img = new Image();
   img.crossOrigin = 'anonymous';
   img.src = imageSrc;
-  await new Promise<void>((res, rej) => { img.onload = () => res(); img.onerror = rej; });
+  await new Promise<void>((res, rej) => {
+    img.onload = () => res();
+    img.onerror = () => rej(new Error('Could not load the selected image.'));
+  });
   const canvas = document.createElement('canvas');
   canvas.width = area.width;
   canvas.height = area.height;
@@ -41,6 +44,7 @@ export function ImageCropModal({ src, aspect = 1, aspectOptions, shape = 'round'
   const [automaticCropSize, setAutomaticCropSize] = useState<Size | null>(null);
   const [croppedArea, setCroppedArea] = useState<Area | null>(null);
   const [processing, setProcessing] = useState(false);
+  const [error, setError] = useState('');
 
   const onCropComplete = useCallback((_: Area, pixels: Area) => {
     setCroppedArea(pixels);
@@ -115,9 +119,13 @@ export function ImageCropModal({ src, aspect = 1, aspectOptions, shape = 'round'
   const handleConfirm = async () => {
     if (!croppedArea) return;
     setProcessing(true);
+    setError('');
     try {
       const blob = await getCroppedBlob(src, croppedArea);
       await onConfirm(blob, activeAspect);
+    } catch (err) {
+      console.error('[ImageCropModal]', err);
+      setError('Could not process this image. Try another image.');
     } finally {
       setProcessing(false);
     }
@@ -216,6 +224,7 @@ export function ImageCropModal({ src, aspect = 1, aspectOptions, shape = 'round'
 
           {/* Hint */}
           <p style={{ fontSize: 11, color: '#777', margin: 0 }}>Drag to reposition | pinch or scroll to zoom</p>
+          {error && <p role="status" style={{ fontSize: 12, color: '#fca5a5', margin: 0 }}>{error}</p>}
 
           {/* Actions */}
           <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
