@@ -53,7 +53,10 @@ describe('certification open access is explicit', () => {
     expect(migration).not.toMatch(/UPDATE public\.courses/);
   });
 
-  it('is mirrored in the fresh schema for both tables', () => {
-    expect(schema.match(/available_to_everyone boolean NOT NULL DEFAULT false/g)?.length).toBe(2);
+  // Four tables now: courses and certifications from migration 174, plus virtual_experiences and
+  // learning_paths from migration 186. Bump this when another content type gains open access -- a
+  // drop means the fresh schema has stopped matching what the migrations build.
+  it('is mirrored in the fresh schema for every table with open access', () => {
+    expect(schema.match(/available_to_everyone boolean NOT NULL DEFAULT false/g)?.length).toBe(4);
   });
 });

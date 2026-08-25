@@ -395,6 +395,9 @@ function VirtualExperienceCreatePageInner() {
   const [title,       setTitle]       = useState('');
   const [cohorts,     setCohorts]     = useState<any[]>([]);
   const [selectedCohorts, setSelectedCohorts] = useState<string[]>([]);
+  // Offered to everyone, including accounts with no cohort. Mutually exclusive with cohort
+  // targeting, matching courses and certifications and the database constraint behind them.
+  const [availableToEveryone, setAvailableToEveryone] = useState(false);
 
   const [deadlineDays, setDeadlineDays] = useState<string>('');
   const [coverImage,  setCoverImage]  = useState('');
@@ -485,6 +488,7 @@ function VirtualExperienceCreatePageInner() {
           setTitle(ve.title || '');
           setCoverImage(cfg.coverImage || '');
           setSelectedCohorts(ve.cohort_ids || []);
+          setAvailableToEveryone(ve.available_to_everyone === true);
           setDeadlineDays(cfg.deadline_days ? String(cfg.deadline_days) : '');
           const knownIndustry = INDUSTRIES.find(i => i.id === cfg.industry);
           if (knownIndustry) {
@@ -1145,7 +1149,8 @@ function VirtualExperienceCreatePageInner() {
           title: title.trim(),
           config,
           coverImage,
-          cohort_ids: selectedCohorts,
+          cohort_ids: availableToEveryone ? [] : selectedCohorts,
+          available_to_everyone: availableToEveryone,
           group_ids:  [],
           deadline_days: deadlineDays ? Number(deadlineDays) : null,
           status,
@@ -2901,7 +2906,34 @@ function VirtualExperienceCreatePageInner() {
                 {/* Target Audience card */}
                 <div style={card} className="p-5 space-y-3">
                   <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Target Audience</p>
-                  {cohorts.length === 0
+
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={availableToEveryone}
+                    onClick={() => setAvailableToEveryone(v => !v)}
+                    className="w-full flex items-start justify-between gap-4 px-3 py-3 rounded-xl text-left transition-all"
+                    style={{ background: availableToEveryone ? `${C.cta}14` : C.card, boxShadow: availableToEveryone ? `0 0 0 2px ${C.cta}` : 'none' }}
+                  >
+                    <span className="space-y-1">
+                      <span className="block text-[13px] font-semibold" style={{ color: availableToEveryone ? C.cta : C.text }}>
+                        Available to everyone
+                      </span>
+                      <span className="block text-[11px] leading-relaxed" style={{ color: C.faint }}>
+                        Anyone with an account can open this, including learners who are not in a cohort.
+                        Cohort targeting is replaced while this is on.
+                      </span>
+                    </span>
+                    <span className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors"
+                      style={{ background: availableToEveryone ? C.cta : C.pill }}>
+                      <span className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all"
+                        style={{ left: availableToEveryone ? 23 : 3, background: '#ffffff' }} />
+                    </span>
+                  </button>
+
+                  {availableToEveryone
+                    ? <p className="text-[13px]" style={{ color: C.faint }}>Open to every account, so no cohort is selected.</p>
+                    : cohorts.length === 0
                     ? <p className="text-[13px]" style={{ color: C.faint }}>No cohorts available.</p>
                     : <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                         {cohorts.map(c => {

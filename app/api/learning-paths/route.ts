@@ -66,7 +66,11 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id } = body;
+    const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone } = body;
+    // Open access replaces cohort targeting rather than adding to it -- the database enforces the
+    // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
+    const openAccess = available_to_everyone === true;
+    const targetCohorts: string[] = openAccess ? [] : (cohort_ids ?? []);
     if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 });
     if (request_id !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(request_id)) {
       return NextResponse.json({ error: 'request_id must be a UUID' }, { status: 400 });
@@ -80,7 +84,8 @@ export async function POST(req: NextRequest) {
       badge_image_url: badge_image_url ?? null,
       instructor_id: user.id,
       item_ids: item_ids ?? [],
-      cohort_ids: cohort_ids ?? [],
+      cohort_ids: targetCohorts,
+      available_to_everyone: openAccess,
       status: status ?? 'draft',
       next_path_id: next_path_id ?? null,
     }).select('id').single();
@@ -105,7 +110,7 @@ export async function POST(req: NextRequest) {
     }
 
     let notification: any = null;
-    if ((status ?? 'draft') === 'published' && (cohort_ids ?? []).length > 0) {
+    if ((status ?? 'draft') === 'published' && targetCohorts.length > 0) {
       try {
         notification = await sendPathNotification(
           supabase,
@@ -128,7 +133,7 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id } = body;
+    const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
     // Fetch previous state to detect newly published or newly added cohorts
@@ -141,6 +146,13 @@ export async function POST(req: NextRequest) {
     if (badge_image_url !== undefined) updateData.badge_image_url = badge_image_url ?? null;
     if (item_ids        !== undefined) updateData.item_ids        = item_ids;
     if (cohort_ids      !== undefined) updateData.cohort_ids      = cohort_ids;
+    // LAST word on access, deliberately after cohort_ids above: open access and cohort targeting
+    // are mutually exclusive in the database, so a path being opened up must not also resubmit the
+    // cohorts it used to target.
+    if (available_to_everyone !== undefined) {
+      updateData.available_to_everyone = available_to_everyone === true;
+      if (available_to_everyone === true) updateData.cohort_ids = [];
+    }
     if (status          !== undefined) updateData.status          = status;
     if (next_path_id    !== undefined) updateData.next_path_id    = next_path_id ?? null;
 
@@ -154,12 +166,18 @@ export async function POST(req: NextRequest) {
     // Send assignment emails to cohorts that are newly added (or path just published).
     // As with create, the update remains successful when delivery is only partial.
     let notification: any = null;
-    if ((status ?? 'draft') === 'published' && (cohort_ids ?? []).length > 0) {
+    // The cohorts this path ACTUALLY targets after the write, not the ones the request happened to
+    // carry: a path being opened to everyone targets none, and must not email the cohorts it used
+    // to belong to about an assignment it no longer has.
+    const notifyCohorts: string[] = updateData.available_to_everyone === true
+      ? []
+      : (cohort_ids ?? []);
+    if ((status ?? 'draft') === 'published' && notifyCohorts.length > 0) {
       const prevCohorts: string[] = prev?.cohort_ids ?? [];
       const wasPublished = prev?.status === 'published';
       const newCohorts = wasPublished
-        ? (cohort_ids ?? []).filter((cid: string) => !prevCohorts.includes(cid))
-        : cohort_ids ?? [];
+        ? notifyCohorts.filter((cid: string) => !prevCohorts.includes(cid))
+        : notifyCohorts;
       if (newCohorts.length > 0) {
         try {
           notification = await sendPathNotification(
@@ -206,14 +224,16 @@ export async function POST(req: NextRequest) {
       .eq('id', user.id)
       .single();
 
-    if (!student?.cohort_id) return NextResponse.json({ paths: [] });
-
-    // Fetch published paths that include student's cohort
-    const { data: paths } = await supabase
+    // Published paths this student can reach: their cohort's, plus any offered to everyone.
+    // No cohort is not the same as no access -- a free account still gets the public ones.
+    const cohortId = student?.cohort_id ?? null;
+    const publishedPaths = supabase
       .from('learning_paths')
       .select('*')
-      .eq('status', 'published')
-      .contains('cohort_ids', [student.cohort_id]);
+      .eq('status', 'published');
+    const { data: paths } = await (cohortId
+      ? publishedPaths.or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohortId}}`)
+      : publishedPaths.eq('available_to_everyone', true));
 
     if (!paths?.length) return NextResponse.json({ paths: [] });
 

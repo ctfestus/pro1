@@ -206,7 +206,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
 
   const openNewEditor = () => openEditor({
     request_id: crypto.randomUUID(), title: '', description: '', cover_image: '',
-    item_ids: [], cohort_ids: [], status: 'draft', next_path_id: null,
+    item_ids: [], cohort_ids: [], available_to_everyone: false, status: 'draft', next_path_id: null,
   });
 
   const closeEditor = () => {
@@ -257,6 +257,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   if (editing !== null) {
     const selectedIds: string[]    = editing.item_ids ?? [];
     const selectedCohorts: string[] = editing.cohort_ids ?? [];
+    const openToEveryone: boolean = editing.available_to_everyone === true;
     const matchesContent = (item: any) => {
       const isVE = item.content_type === 'virtual_experience' || item.content_type === 'guided_project' || item.config?.isVirtualExperience || item.config?.isGuidedProject;
       const type = item.content_type === 'certification' ? 'certification' : isVE ? 'virtual_experience' : 'course';
@@ -462,7 +463,30 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                   <div><p className="text-sm font-bold" style={{ color: C.text }}>Assigned cohorts</p><p className="text-xs mt-1" style={{ color: C.faint }}>Learners in these cohorts receive the path when it is published.</p></div>
                   <span className="text-xs font-bold px-3 py-1.5 rounded-full" style={{ background: `${C.green}12`, color: C.green }}>{selectedCohorts.length} selected</span>
                 </div>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={openToEveryone}
+                  onClick={() => setEditing((prev: any) => ({ ...prev, available_to_everyone: !prev.available_to_everyone, cohort_ids: !prev.available_to_everyone ? [] : (prev.cohort_ids ?? []) }))}
+                  className="w-full flex items-start justify-between gap-4 p-4 rounded-2xl text-left transition-all mb-3"
+                  style={{ background: openToEveryone ? `${C.green}10` : C.pill, boxShadow: openToEveryone ? `inset 0 0 0 1.5px ${C.green}` : 'none' }}
+                >
+                  <span className="space-y-1">
+                    <span className="block text-sm font-bold" style={{ color: C.text }}>Available to everyone</span>
+                    <span className="block text-xs leading-relaxed" style={{ color: C.faint }}>
+                      Anyone with an account can open this path and the content inside it, including learners
+                      with no cohort. Cohort assignment is replaced while this is on.
+                    </span>
+                  </span>
+                  <span className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors"
+                    style={{ background: openToEveryone ? C.green : C.card }}>
+                    <span className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all"
+                      style={{ left: openToEveryone ? 23 : 3, background: '#ffffff' }} />
+                  </span>
+                </button>
+                <div style={openToEveryone ? { opacity: 0.45, pointerEvents: 'none' } : undefined} aria-hidden={openToEveryone}>
                 {cohorts.length === 0 ? <div className="rounded-2xl py-16 text-center" style={{ background: C.pill }}><Users className="w-7 h-7 mx-auto mb-3" style={{ color: C.faint }}/><p className="text-sm font-semibold" style={{ color: C.text }}>No cohorts found</p><p className="text-xs mt-1" style={{ color: C.faint }}>Create a cohort before assigning this path.</p></div> : <div className="grid sm:grid-cols-2 gap-3">{cohorts.map((cohort: any) => { const selected = selectedCohorts.includes(cohort.id); return <button key={cohort.id} onClick={() => toggleCohort(cohort.id)} className="p-4 rounded-2xl flex items-center gap-3 text-left transition-all" style={{ background: selected ? `${C.green}10` : C.pill, boxShadow: selected ? `inset 0 0 0 1.5px ${C.green}` : 'none' }}><span className="w-10 h-10 rounded-xl grid place-items-center" style={{ background: selected ? `${C.green}18` : C.card }}><Users className="w-4 h-4" style={{ color: selected ? C.green : C.faint }}/></span><span className="text-sm font-semibold flex-1" style={{ color: C.text }}>{cohort.name}</span><span className="w-5 h-5 rounded-full grid place-items-center" style={{ background: selected ? C.green : 'transparent', border: `1.5px solid ${selected ? C.green : C.cardBorder}` }}>{selected && <Check className="w-3 h-3 text-white"/>}</span></button>; })}</div>}
+                </div>
               </div>
             )}
 
@@ -475,7 +499,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                 <aside className="rounded-2xl p-5" style={{ background: C.pill }}>
                   <div className="flex items-center justify-between"><div><p className="text-sm font-bold" style={{ color: C.text }}>Path readiness</p><p className="text-xs mt-1" style={{ color: C.faint }}>Essentials for a strong launch.</p></div><span className="text-sm font-bold" style={{ color: C.green }}>{[editing.title?.trim(), editing.description?.trim(), editing.cover_image, selectedIds.length, selectedCohorts.length].filter(Boolean).length}/5</span></div>
                   <div className="space-y-2 mt-5">{[
-                    ['Path title', !!editing.title?.trim(), 'overview'], ['Description', !!editing.description?.trim(), 'overview'], ['Cover image', !!editing.cover_image, 'overview'], ['Learning sequence', selectedIds.length > 0, 'content'], ['Audience', selectedCohorts.length > 0, 'audience'],
+                    ['Path title', !!editing.title?.trim(), 'overview'], ['Description', !!editing.description?.trim(), 'overview'], ['Cover image', !!editing.cover_image, 'overview'], ['Learning sequence', selectedIds.length > 0, 'content'], ['Audience', openToEveryone || selectedCohorts.length > 0, 'audience'],
                   ].map(([label, ready, target]) => <button key={String(label)} onClick={() => setLpSection(target as typeof lpSection)} className="w-full flex items-center gap-2 text-left text-xs py-1.5" style={{ color: ready ? C.muted : C.text }}>{ready ? <CheckCircle2 className="w-4 h-4" style={{ color: C.green }}/> : <Circle className="w-4 h-4" style={{ color: C.faint }}/>}<span className="flex-1">{label}</span>{!ready && <ChevronRight className="w-3.5 h-3.5"/>}</button>)}</div>
                   <div className="mt-5 pt-4 space-y-2 text-xs" style={{ borderTop: `1px solid ${C.divider}`, color: C.faint }}><p>{selectedIds.length} content{selectedIds.length === 1 ? '' : 's'}</p><p>{selectedCohorts.length} assigned cohorts</p><p>{editing.badge_image_url ? 'Custom completion badge' : 'Default completion credential'}</p></div>
                 </aside>

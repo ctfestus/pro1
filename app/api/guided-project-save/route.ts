@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
   }
 
-  const { editId, title, config, coverImage, cohort_ids, group_ids, deadline_days, status: bodyStatus, is_short_course } = body;
+  const { editId, title, config, coverImage, cohort_ids, group_ids, deadline_days, status: bodyStatus, is_short_course, available_to_everyone } = body;
   const formStatus = bodyStatus === 'draft' ? 'draft' : 'published';
   if (!title?.trim()) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
   if (!config)        return NextResponse.json({ error: 'Config is required' }, { status: 400 });
@@ -63,7 +63,13 @@ export async function POST(req: NextRequest) {
     throw error;
   }
 
-  const newCohortIds: string[] = Array.isArray(cohort_ids) ? cohort_ids : [];
+  const openAccess = available_to_everyone === true;
+  // Open access and cohort targeting are mutually exclusive -- the database enforces it, so send a
+  // shape the database can accept rather than letting a stale cohort selection reach the insert and
+  // fail on a constraint the author cannot see.
+  const newCohortIds: string[] = openAccess
+    ? []
+    : (Array.isArray(cohort_ids) ? cohort_ids : []);
   // Standalone VEs are cohort-only. Group targeting applies only through the assignment system
   // (assignments.config.ve_form_id). Persisting group_ids here would create VEs that RLS hides
   // from students (migration 100_remove_ve_group_rls.sql removed group visibility).
@@ -74,6 +80,7 @@ export async function POST(req: NextRequest) {
     description:    config.tagline || '',
     status:         formStatus,
     cohort_ids:     newCohortIds,
+    available_to_everyone: openAccess,
     group_ids:      [],
     cover_image:    coverImage || config.coverImage || null,
     deadline_days:  deadline_days ? Number(deadline_days) : (config.deadline_days ? Number(config.deadline_days) : null),

@@ -136,6 +136,14 @@ function CategoryPill({ category }: { category: string }) {
 }
 
 const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage) || '';
+// Every card is a real link, so middle-click, open-in-new-tab and copy-link work everywhere.
+// Courses, certifications and virtual experiences have a page of their own. A learning path does
+// not -- it opens inside the My Learning section -- so it links at the section with the path
+// selected, which is the same address that section puts in the URL when you open one from there.
+const directHref = (item: CatalogueItem) =>
+  item.type === 'learning_path'
+    ? `/student?path=${encodeURIComponent(item.id)}#learning_paths`
+    : `/${item.slug || item.id}`;
 
 export function ExploreSection({ C, onNavigate }: {
   C: typeof LIGHT_C;
@@ -197,10 +205,6 @@ export function ExploreSection({ C, onNavigate }: {
 
   const open = (item: CatalogueItem) => {
     if (item.locked) return;
-    if (item.type === 'course' || item.type === 'certification') {
-      window.location.href = `/${item.slug || item.id}`;
-      return;
-    }
     onNavigate?.(TYPE_SECTION[item.type]);
   };
 
@@ -350,52 +354,69 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
           >
             {(() => {
               const coverUrl = resolvedCover(item.coverImage);
-              return (
-            <div
-              onClick={() => onOpen(item)}
-              className="group transition-transform duration-300 hover:-translate-y-1"
-              style={{ cursor: item.locked ? 'not-allowed' : 'pointer' }}
-            >
-              <div
-                className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
-                style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}
-              >
-                {coverUrl
-                  ? <img src={coverUrl} alt={item.title} loading="lazy"
-                      className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
-                  : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
-                      style={{ background: TYPE_GRAD[type] }}>
-                      <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />
+              const href = item.locked ? null : directHref(item);
+              const inner = (
+                <>
+                  <div
+                    className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
+                    style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}
+                  >
+                    {coverUrl
+                      ? <img src={coverUrl} alt={item.title} loading="lazy"
+                          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
+                      : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
+                          style={{ background: TYPE_GRAD[type] }}>
+                          <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />
+                        </div>
+                    }
+
+                    <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+                      style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
+
+                    {item.locked && (
+                      <span
+                        aria-label="Locked"
+                        className="absolute top-2 left-2 w-7 h-7 rounded-full grid place-items-center"
+                        style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
+                        <Lock className="w-3.5 h-3.5" />
+                      </span>
+                    )}
+
+                    <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full grid place-items-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md pointer-events-none"
+                      style={{ background: 'white', color: '#101828' }}>
+                      {item.locked ? <Lock className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
                     </div>
-                }
+                  </div>
 
-                <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
-                  style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
-
-                {item.locked && (
-                  <span
-                    aria-label="Locked"
-                    className="absolute top-2 left-2 w-7 h-7 rounded-full grid place-items-center"
-                    style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
-                    <Lock className="w-3.5 h-3.5" />
-                  </span>
-                )}
-
-                <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full grid place-items-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md pointer-events-none"
-                  style={{ background: 'white', color: '#101828' }}>
-                  {item.locked ? <Lock className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                  <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: C.text }}>
+                    {item.title}
+                  </p>
+                  {item.category && (
+                    <div className="mt-2">
+                      <CategoryPill category={item.category} />
+                    </div>
+                  )}
+                </>
+              );
+              if (href) {
+                return (
+                  <a
+                    href={href}
+                    className="group block transition-transform duration-300 hover:-translate-y-1"
+                    style={{ textDecoration: 'none' }}
+                  >
+                    {inner}
+                  </a>
+                );
+              }
+              return (
+                <div
+                  onClick={() => onOpen(item)}
+                  className="group transition-transform duration-300 hover:-translate-y-1"
+                  style={{ cursor: item.locked ? 'not-allowed' : 'pointer' }}
+                >
+                  {inner}
                 </div>
-              </div>
-
-              <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: C.text }}>
-                {item.title}
-              </p>
-              {item.category && (
-                <div className="mt-2">
-                  <CategoryPill category={item.category} />
-                </div>
-              )}
-            </div>
               );
             })()}
           </div>
@@ -584,17 +605,22 @@ function CataloguePreview({ item, accent, onOpen, C }: {
               Not part of your access yet.
             </span>
           </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => onOpen(item)}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
-            style={{ background: '#00bf63', color: 'white' }}
-          >
-            <Play className="w-3.5 h-3.5" />
-            {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}
-          </button>
-        )}
+        ) : (() => {
+          const label = (
+            <>
+              <Play className="w-3.5 h-3.5" />
+              {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}
+            </>
+          );
+          const cta = 'inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90';
+          const ctaStyle = { background: '#00bf63', color: 'white' };
+          const href = directHref(item);
+          // A link where one exists, for the same reason the card is one: middle-click, open in a
+          // new tab, copy link address, and a screen reader announcing it as a link.
+          return href
+            ? <a href={href} className={cta} style={{ ...ctaStyle, textDecoration: 'none' }}>{label}</a>
+            : <button type="button" onClick={() => onOpen(item)} className={cta} style={ctaStyle}>{label}</button>;
+        })()}
       </div>
     </div>
   );
