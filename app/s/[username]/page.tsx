@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
-import { getToolIcon } from '@/lib/tool-icons';
+import { useToolIcons } from '@/lib/use-tool-icons';
 
 /* --- Tokens (original) --- */
 const LIGHT = {
@@ -118,6 +118,7 @@ function GradientMeshBg({ t, isDark }: { t: typeof LIGHT; isDark: boolean }) {
 
 /* --- Skill pills with stagger --- */
 function SkillPillGrid({ skills, t }: { skills: string[]; t: typeof LIGHT }) {
+  const toolIcon = useToolIcons();
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: '-20px' });
   const container = { hidden: {}, show: { transition: { staggerChildren: 0.05 } } };
@@ -129,7 +130,7 @@ function SkillPillGrid({ skills, t }: { skills: string[]; t: typeof LIGHT }) {
     <motion.div ref={ref} variants={container} initial="hidden" animate={inView ? 'show' : 'hidden'}
       style={{ display: 'flex', flexWrap: 'wrap', gap: 7 }}>
       {skills.map((skill: string) => {
-        const icon = getToolIcon(skill);
+        const icon = toolIcon(skill);
         return (
           <motion.span key={skill} variants={pill}
             style={{ fontSize: 12, fontWeight: 500, padding: '5px 11px', borderRadius: 999, background: t.card, color: t.sub, display: 'inline-flex', alignItems: 'center', gap: 5, boxShadow: '0 1px 4px rgba(0,0,0,0.08)' }}>
@@ -374,6 +375,7 @@ function AnimatedTimelineItem({ icon: Icon, title, sub, meta, description, index
 
 /* --- 3D tilt project card --- */
 function TiltProjectCard({ item, t, isDark, onOpen }: { item: any; t: typeof LIGHT; isDark: boolean; onOpen: () => void }) {
+  const toolIcon = useToolIcons();
   const embedUrl = safePortfolioEmbed(item.url);
   const linkUrl  = safeLinkUrl(item.url);
   const tools: string[] = Array.isArray(item.tools) && item.tools.length > 0 ? item.tools : item.tool ? [item.tool] : [];
@@ -437,7 +439,7 @@ function TiltProjectCard({ item, t, isDark, onOpen }: { item: any; t: typeof LIG
           {tools.length > 0 && (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: 9 }}>
               {tools.map(tool => {
-                const icon = getToolIcon(tool);
+                const icon = toolIcon(tool);
                 return (
                   <span key={tool} style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', padding: '3px 7px', borderRadius: 6, background: t.accentSoft, color: t.accent, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     {icon && <img src={icon} alt="" style={{ width: 11, height: 11, objectFit: 'contain' }} />}
@@ -515,6 +517,7 @@ function EmptySection({ label, t }: { label: string; t: typeof LIGHT }) {
 
 /* --- Project modal (unchanged) --- */
 function ProjectModal({ item, profile, t, isDark, onClose }: { item: any; profile: any; t: typeof LIGHT; isDark: boolean; onClose: () => void }) {
+  const toolIcon = useToolIcons();
   const embedUrl = safePortfolioEmbed(item.url);
   const linkUrl  = safeLinkUrl(item.url);
   const tools: string[] = Array.isArray(item.tools) && item.tools.length > 0 ? item.tools : item.tool ? [item.tool] : [];
@@ -533,7 +536,7 @@ function ProjectModal({ item, profile, t, isDark, onClose }: { item: any; profil
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 10 }}>
                 {tools.map(tool => (
                   <span key={tool} style={{ fontSize: 11, fontWeight: 600, letterSpacing: '0.04em', textTransform: 'uppercase', padding: '4px 10px', borderRadius: 100, background: t.pill, color: t.sub, display: 'inline-flex', alignItems: 'center', gap: 5 }}>
-                    {(() => { const icon = getToolIcon(tool); return icon ? <img src={icon} alt="" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }} /> : null; })()}
+                    {(() => { const icon = toolIcon(tool); return icon ? <img src={icon} alt="" style={{ width: 14, height: 14, objectFit: 'contain', flexShrink: 0 }} /> : null; })()}
                     {tool}
                   </span>
                 ))}
