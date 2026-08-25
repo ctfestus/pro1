@@ -52,14 +52,18 @@ async function loadAccessibleCertification(
   // even when the certification's own cohort list does not include that cohort. Mirror the
   // course-route rule here because this service-role client bypasses RLS.
   let learningPathAllowed = false;
-  if (!isOwner && !isAdmin && !elevatedPublished && isPublished && !cohortAllowed && (student as any)?.cohort_id) {
-    const { data: path } = await supabase.from('learning_paths')
+  if (!isOwner && !isAdmin && !elevatedPublished && isPublished && !cohortAllowed) {
+    const studentCohort = (student as any)?.cohort_id as string | undefined;
+    const inPath = supabase.from('learning_paths')
       .select('id')
       .eq('status', 'published')
-      .contains('item_ids', [(cert as any).id])
-      .contains('cohort_ids', [(student as any).cohort_id])
-      .limit(1)
-      .maybeSingle();
+      .contains('item_ids', [(cert as any).id]);
+    // A path offered to everyone grants its contents to everyone, cohort or not -- otherwise a
+    // certification shown inside a public path links out and then refuses the student.
+    const { data: path } = await (studentCohort
+      ? inPath.or(`available_to_everyone.eq.true,cohort_ids.cs.{${studentCohort}}`)
+      : inPath.eq('available_to_everyone', true)
+    ).limit(1).maybeSingle();
     learningPathAllowed = !!path;
   }
   if (!(isOwner || isAdmin || elevatedPublished || (isPublished && (cohortAllowed || learningPathAllowed)))) {

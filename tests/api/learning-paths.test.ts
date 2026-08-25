@@ -135,11 +135,39 @@ describe('POST /api/learning-paths authoring gate', () => {
 describe('POST /api/learning-paths student read path', () => {
   it('lets a student use get-student-paths (same handler, requireUser branch)', async () => {
     mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
-    // No cohort -> the handler returns an empty path list (200), proving the student is allowed in.
-    h.db = makeSupabaseStub({ students: { data: { cohort_id: null }, error: null } });
+    // No cohort and nothing published to everyone -> an empty list, proving the student is allowed
+    // in. The handler no longer short-circuits on a missing cohort: it asks for the public paths
+    // first, because a free account HAS access to those.
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: null }, error: null },
+      learning_paths: { data: [], error: null },
+    });
     const res = await post({ action: 'get-student-paths' });
     expect(res.status).toBe(200);
     expect((await res.json()).paths).toEqual([]);
+  });
+
+  // The reason the early return had to go: a free account clicked an unlocked path in Explore and
+  // landed on an empty Learning Paths section.
+  it('returns a path offered to everyone to a student with no cohort', async () => {
+    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
+    h.db = makeSupabaseStub({
+      students: [{ data: { cohort_id: null }, error: null }, { count: 0, error: null }],
+      learning_paths: { data: [{ id: 'lp-open', title: 'Open Path', status: 'published', cohort_ids: [], available_to_everyone: true, item_ids: ['c1'] }], error: null },
+      learning_path_progress: { data: [], error: null },
+      courses: { data: [{ id: 'c1', title: 'Free course', slug: 'free-course', cover_image: null, description: null }], error: null },
+      virtual_experiences: { data: [], error: null },
+      certifications: { data: [], error: null },
+      course_attempts: { data: [], error: null },
+      guided_project_attempts: { data: [], error: null },
+      certification_attempts: { data: [], error: null },
+    });
+
+    const res = await post({ action: 'get-student-paths' });
+    expect(res.status).toBe(200);
+    const { paths } = await res.json();
+    expect(paths).toHaveLength(1);
+    expect(paths[0].id).toBe('lp-open');
   });
 
   it('returns certification items and counts an earlier passing attempt as completed', async () => {

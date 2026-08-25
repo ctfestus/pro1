@@ -136,8 +136,10 @@ function CategoryPill({ category }: { category: string }) {
 }
 
 const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage) || '';
+// Everything with a public URL gets a real link. Learning paths are the exception: they open
+// through the My Learning section rather than a page of their own.
 const directHref = (item: CatalogueItem) =>
-  item.type === 'course' || item.type === 'certification'
+  item.type === 'course' || item.type === 'certification' || item.type === 'virtual_experience'
     ? `/${item.slug || item.id}`
     : null;
 
