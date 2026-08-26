@@ -8,7 +8,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -338,6 +338,8 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
   const [loading, setLoading]     = useState(true);
   const [error, setError]         = useState('');
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
+  const [lockedPath, setLockedPath] = useState<any>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     const syncSelectedPath = () => setSelectedPathId(new URLSearchParams(window.location.search).get('path'));
@@ -372,7 +374,57 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   useEffect(() => { load(); }, [load]);
 
+  useEffect(() => {
+    if (!selectedPathId) { setLockedPath(null); return; }
+    let cancelled = false;
+    setPreviewLoading(true);
+    (async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch(`/api/student/catalogue?ref=${encodeURIComponent(selectedPathId)}&type=learning_path`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (!res.ok) return;
+        const { item } = await res.json();
+        if (!cancelled && item?.locked) {
+          setLockedPath({
+            id: item.id,
+            title: item.title,
+            description: item.description,
+            cover_image: item.coverImage,
+            item_ids: (item.pathItems ?? []).map((pathItem: any) => pathItem.id),
+            items: (item.pathItems ?? []).map((pathItem: any) => ({
+              id: pathItem.id,
+              title: pathItem.title,
+              slug: pathItem.slug,
+              cover_image: pathItem.coverImage,
+              content_type: pathItem.type,
+            })),
+            locked: true,
+          });
+        }
+      } catch {
+        if (!cancelled) setLockedPath(null);
+      } finally {
+        if (!cancelled) setPreviewLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedPathId]);
+
   if (loading) return <CarouselSkeleton C={C}/>;
+
+  const selectedPath = paths.find((path: any) => path.id === selectedPathId)
+    ?? (lockedPath?.id === selectedPathId ? lockedPath : null);
+
+  if (selectedPath) return (
+    <div>
+      <PathRow path={selectedPath} C={C}/>
+    </div>
+  );
+
+  if (previewLoading && selectedPathId) return <CarouselSkeleton C={C}/>;
 
   if (error) return (
     <div className="flex flex-col items-center justify-center py-24 text-center">
@@ -394,19 +446,12 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
     </div>
   );
 
-  const selectedPath = paths.find((path: any) => path.id === selectedPathId) ?? null;
   const openPath = (pathId: string) => {
     const url = new URL(window.location.href);
     url.searchParams.set('path', pathId);
     window.history.pushState({}, '', url);
     setSelectedPathId(pathId);
   };
-  if (selectedPath) return (
-    <div>
-      <PathRow path={selectedPath} C={C}/>
-    </div>
-  );
-
   return (
     <LearningPathCarousel paths={paths} C={C} onOpen={openPath}/>
   );
@@ -600,7 +645,7 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
   const pathCertId     = path.progress?.cert_id ?? null;
   const items: any[]   = path.items ?? [];
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
-  const currentIndex   = items.findIndex((item: any) => !completedIds.includes(item.id));
+  const currentIndex   = path.locked ? -1 : items.findIndex((item: any) => !completedIds.includes(item.id));
   const learnerCount: number = path.learner_count ?? 0;
   const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
 
@@ -619,7 +664,7 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
                 <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
               </span>
             )}
-            {currentIndex >= 0 && !allDone && (
+            {!path.locked && currentIndex >= 0 && !allDone && (
               <motion.span key={items[currentIndex]?.id ?? currentIndex}
                 initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                 className="flex items-center gap-1.5 min-w-0 max-w-full">
@@ -633,6 +678,15 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {path.locked && (
+            <Link
+              href={`/student?contentTable=learning_paths&contentId=${encodeURIComponent(path.id)}#payments`}
+              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
+              style={{ background: C.cta, color: C.ctaText }}
+            >
+              <Lock className="h-4 w-4" /> Purchase or enroll
+            </Link>
+          )}
           {pathCertId && (
             <a href={`/certificate/${pathCertId}`} target="_blank" rel="noreferrer"
               className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80"
@@ -705,11 +759,12 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
                   {done ? <Check className="w-3 h-3" strokeWidth={3}/> : <span className={isCurrent ? 'h-3 w-3 rounded-full' : 'h-1.5 w-1.5 rounded-full'} style={{ background: isCurrent ? '#16a34a' : C.faint }}/>}
                 </span>
               </div>
-              <a href={href} target="_blank" rel="noreferrer"
+              <a href={path.locked ? undefined : href} target={path.locked ? undefined : '_blank'} rel={path.locked ? undefined : 'noreferrer'} aria-disabled={path.locked || undefined}
                 className="group relative block min-w-0 flex-1 overflow-hidden rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:flex sm:h-[184px] sm:items-center sm:p-4"
                 style={{
                   background: isCurrent ? 'rgba(34,197,94,0.055)' : C.page === LIGHT_C.page ? '#f8fafc' : C.pill,
                   boxShadow: 'none',
+                  cursor: path.locked ? 'default' : 'pointer',
                 }}>
                 <div className="flex flex-col gap-3 sm:w-full sm:flex-row sm:items-stretch sm:gap-4">
                   <div className="relative w-full flex-shrink-0 overflow-hidden rounded-lg aspect-video sm:w-40 sm:aspect-auto">
