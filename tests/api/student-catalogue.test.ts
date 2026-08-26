@@ -33,6 +33,7 @@ vi.mock('@/lib/admin-client', () => ({
         eq: () => page,
         order: () => page,
         range: async () => result,
+        maybeSingle: async () => ({ data: data[0] ?? null, error: null }),
       };
       return { select: () => page };
     },
@@ -41,7 +42,7 @@ vi.mock('@/lib/admin-client', () => ({
 
 import { GET } from '@/app/api/student/catalogue/route';
 
-const request = () => new NextRequest('http://localhost/api/student/catalogue');
+const request = (query = '') => new NextRequest(`http://localhost/api/student/catalogue${query}`);
 
 async function items() {
   const res = await GET(request());
@@ -119,6 +120,23 @@ describe('GET /api/student/catalogue', () => {
     expect(byTitle(list, 'Not mine').locked).toBe(true);
   });
 
+  it('unlocks a certification reachable through an assigned learning path', async () => {
+    h.cohortId.mockReturnValue('cohort-9');
+    h.rows.mockImplementation((table) => {
+      if (table === 'certifications') return [
+        { id: 'cert-path', title: 'Path certification', cover_image: null, description: null, cohort_ids: [], available_to_everyone: false },
+      ];
+      if (table === 'learning_paths') return [
+        { id: 'p-cert', title: 'Certification path', cover_image: null, description: null, cohort_ids: ['cohort-9'], item_ids: ['cert-path'] },
+      ];
+      return [];
+    });
+
+    const list = await items();
+
+    expect(byTitle(list, 'Path certification').locked).toBe(false);
+  });
+
   // The guard that matters: this route bypasses RLS, so its projection is the only thing standing
   // between a locked course and its answers.
   it('returns display fields only, never course content', async () => {
@@ -168,6 +186,32 @@ describe('GET /api/student/catalogue', () => {
     ]);
     expect(JSON.stringify(path.pathItems)).not.toContain('Hidden answer');
     expect(JSON.stringify(path.pathItems)).not.toContain('Hidden VE answer');
+  });
+
+  it('returns one safe item when a detail route requests a catalogue preview', async () => {
+    h.rows.mockImplementation((table) => table === 'courses' ? [{
+      id: 'c7', title: 'Locked course', slug: 'locked-course', cover_image: 'cover.jpg',
+      description: 'Overview', category: 'Data', cohort_ids: ['another-cohort'],
+      available_to_everyone: false,
+      questions: [
+        { id: 'section-1', isSection: true, sectionTitle: 'Foundations' },
+        { id: 'lesson-1', lesson: { title: 'Introduction', body: 'Hidden lesson body' }, correctAnswer: 'secret' },
+      ],
+    }] : []);
+
+    const res = await GET(request('?ref=locked-course&type=course'));
+    const { item } = await res.json();
+
+    expect(item).toEqual({
+      id: 'c7', type: 'course', title: 'Locked course', slug: 'locked-course',
+      coverImage: 'cover.jpg', description: 'Overview', category: 'Data', locked: true,
+      outline: [
+        { id: 'section-1', type: 'section', title: 'Foundations' },
+        { id: 'lesson-1', type: 'lesson', title: 'Introduction' },
+      ],
+    });
+    expect(JSON.stringify(item)).not.toContain('secret');
+    expect(JSON.stringify(item)).not.toContain('Hidden lesson body');
   });
 
   it('refuses an unauthenticated caller', async () => {

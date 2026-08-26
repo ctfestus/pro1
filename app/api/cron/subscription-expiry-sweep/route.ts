@@ -10,6 +10,7 @@ import { expireSubscription } from '@/lib/db-subscriptions';
 import { notifySubscriptionActivatedBatch } from '@/lib/notify-subscription-activated';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
 import { notifySubscriptionExpiring } from '@/lib/notify-subscription-expiring';
+import { retryPaystackIncidentNotifications, retryStoredPaystackWebhookEvents } from '@/lib/paystack-webhook-processing';
 import { verifyQStashRequest } from '@/lib/qstash';
 
 export const dynamic = 'force-dynamic';
@@ -39,6 +40,18 @@ export async function POST(req: NextRequest) {
   const startedAt = Date.now();
   const outOfTime = () => Date.now() - startedAt > TIME_BUDGET_MS;
   const db = adminClient();
+  let paystackEventsRetried = 0;
+  let paystackEventFailures = 0;
+  let reconciliationAlertsSent = 0;
+  let paystackEventsPurged = 0;
+  let paystackRecoverySkipped = false;
+  // Paystack recovery runs AFTER the expiry pass, further down. Expiring access is the reason
+  // this job exists and it is the only thing that ever revokes it, so cleanup must never get to
+  // spend the budget first: 25 webhook retries each calling out to Paystack, plus 50 emails, can
+  // exhaust it between them, and the expiry pass would then be skipped with the run still
+  // reporting success.
+  // No reversal polling either. Refunds and disputes arrive as webhook events, are recorded, and
+  // are alerted to support; acting on them is a person's job. See migration 191.
   const { data: candidates, error } = await db
     .from('individual_subscriptions')
     .select('id')
@@ -52,9 +65,13 @@ export async function POST(req: NextRequest) {
   let expired = 0;
   let skipped = 0;
   let failed = 0;
+  let expiryPassCompleted = true;
 
   for (const candidate of candidates ?? []) {
-    if (outOfTime()) break;
+    if (outOfTime()) {
+      expiryPassCompleted = false;
+      break;
+    }
     try {
       const result = await expireSubscription(db, candidate.id);
       if (result.skipped) skipped++;
@@ -189,9 +206,50 @@ export async function POST(req: NextRequest) {
     console.error('[cron/subscription-expiry-sweep] expiry warning sweep', err);
   }
 
+  // Paystack recovery last, and only with budget left. Every step here is retried on the next
+  // run, so dropping it costs an hour; letting it run long costs the expiry pass entirely.
+  if (outOfTime()) {
+    paystackRecoverySkipped = true;
+  } else {
+    try {
+      const webhookRetry = await retryStoredPaystackWebhookEvents(db, REQUEST_EMAIL_RETRY_BATCH, outOfTime);
+      paystackEventsRetried = webhookRetry.processed;
+      paystackEventFailures = webhookRetry.failed;
+      if (!outOfTime()) {
+        const alerts = await retryPaystackIncidentNotifications(db, REQUEST_EMAIL_RETRY_BATCH, outOfTime);
+        reconciliationAlertsSent = alerts.sent;
+      } else {
+        paystackRecoverySkipped = true;
+      }
+      if (!outOfTime()) {
+        const { data: purged, error: purgeError } = await db.rpc('purge_paystack_operational_data', {
+          p_before: new Date(Date.now() - 90 * 86_400_000).toISOString(),
+        });
+        if (purgeError) throw purgeError;
+        paystackEventsPurged = Number(purged || 0);
+      } else {
+        paystackRecoverySkipped = true;
+      }
+    } catch (err) {
+      paystackEventFailures++;
+      console.error('[cron/subscription-expiry-sweep] Paystack recovery', err);
+    }
+  }
+
+  const sweepSucceeded = expiryPassCompleted && failed === 0;
+  if (sweepSucceeded) {
+    const { error: heartbeatError } = await db.from('cron_heartbeats').upsert({
+      job_name: 'subscription-expiry-sweep',
+      last_success_at: new Date().toISOString(),
+      last_summary: { expired, failed, paystackEventsRetried, paystackRecoverySkipped },
+    }, { onConflict: 'job_name' });
+    if (heartbeatError) console.error('[cron/subscription-expiry-sweep] heartbeat', heartbeatError);
+  }
+
   return NextResponse.json({
-    ok: failed === 0,
+    ok: sweepSucceeded,
     timedOut: outOfTime(),
+    paystackRecoverySkipped,
     processed: (candidates ?? []).length,
     expired,
     skipped,
@@ -202,6 +260,10 @@ export async function POST(req: NextRequest) {
     requestEmailRetriesFailed,
     expiryWarningsSent,
     expiryWarningsFailed,
+    paystackEventsRetried,
+    paystackEventFailures,
+    reconciliationAlertsSent,
+    paystackEventsPurged,
     emailRetryError,
-  });
+  }, { status: sweepSucceeded ? 200 : 500 });
 }

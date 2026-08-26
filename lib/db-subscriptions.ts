@@ -117,23 +117,27 @@ export async function createSubscriptionPlan(
   return data;
 }
 
-export async function getSubscriptionPlans(db: SupabaseClient, activeOnly = false) {
+export async function getSubscriptionPlans(db: SupabaseClient, activeOnly = false, planIds: string[] | null = null) {
+  if (planIds && planIds.length === 0) return [];
   let query = db
     .from('subscription_plans')
-    .select('id, name, description, cohort_id, status, created_by, created_at, updated_at')
+    .select('id, name, description, cohort_id, status, created_by, created_at, updated_at, subscription_plan_prices(id, duration_months, amount, currency, is_active, sort_order)')
     .order('name');
   if (activeOnly) query = query.eq('status', 'active');
+  if (planIds) query = query.in('id', planIds);
   const { data, error } = await query;
   if (error) throw error;
   return data ?? [];
 }
 
-export async function getSubscriptions(db: SupabaseClient) {
-  const { data, error } = await db
+export async function getSubscriptions(db: SupabaseClient, planIds: string[] | null = null) {
+  if (planIds && planIds.length === 0) return [];
+  let query = db
     .from('individual_subscriptions')
     .select('id, student_id, plan_id, cohort_id, status, duration_months, amount, currency, current_period_start, current_period_end, cancelled_at, created_at, updated_at, students!individual_subscriptions_student_id_fkey ( id, full_name, email, cohort_id, enrollment_model ), subscription_plans!individual_subscriptions_plan_id_fkey ( id, name, description, status )')
-    .not('student_id', 'is', null)
-    .order('current_period_end', { ascending: true });
+    .not('student_id', 'is', null);
+  if (planIds) query = query.in('plan_id', planIds);
+  const { data, error } = await query.order('current_period_end', { ascending: true });
   if (error) throw error;
   return data ?? [];
 }
@@ -188,8 +192,9 @@ export async function createSubscriptionPaymentRequest(
   return data;
 }
 
-export async function getSubscriptionPaymentRequests(db: SupabaseClient) {
-  const { data, error } = await db
+export async function getSubscriptionPaymentRequests(db: SupabaseClient, planIds: string[] | null = null) {
+  if (planIds && planIds.length === 0) return [];
+  let query = db
     .from('subscription_payment_requests')
     .select(`
       id, student_id, subscription_id, plan_id, plan_name, kind, duration_months,
@@ -200,8 +205,9 @@ export async function getSubscriptionPaymentRequests(db: SupabaseClient) {
         receipt_url, status, admin_notes, reviewed_at, created_at
       )
     `)
-    .not('student_id', 'is', null)
-    .order('created_at', { ascending: false });
+    .not('student_id', 'is', null);
+  if (planIds) query = query.in('plan_id', planIds);
+  const { data, error } = await query.order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
 }

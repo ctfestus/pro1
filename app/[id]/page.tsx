@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, Zap, Clock } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, Zap, Clock, Lock } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseXpOnOffer } from '@/lib/course-progress';
@@ -229,6 +229,7 @@ export default function PublicFormPage() {
   const { logoUrl, logoDarkUrl } = useTenant();
   const { id } = useParams();
   const [form, setForm] = useState<any>(null);
+  const [lockedPreview, setLockedPreview] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [studentMode, setStudentModeContext] = useState<StudentModeContext | null>(() => getStudentMode());
   const [studentTheme, setStudentTheme] = useState<'light' | 'dark'>(() => {
@@ -319,6 +320,7 @@ export default function PublicFormPage() {
 
   useEffect(() => {
     const fetchForm = async () => {
+      setLockedPreview(null);
       // Restore session first so the auth token is attached to the forms query.
       // Running the query in parallel with getUser() meant it fired as anon,
       // which blocked RLS on courses/VEs.
@@ -340,6 +342,7 @@ export default function PublicFormPage() {
 
       const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id as string);
       const lookupField = isUUID ? 'id' : 'slug';
+      const requestedType = new URLSearchParams(window.location.search).get('catalogueType');
 
       // Query all content tables. Certifications are resolved separately via the service-role API
       // (their base table denies student SELECT because it holds exam answer keys).
@@ -351,7 +354,7 @@ export default function PublicFormPage() {
 
       // Reconstruct a form-compatible object with config shape for the viewer
       let data: any = null;
-      if (course) {
+      if (course && (!requestedType || requestedType === 'course')) {
         data = { ...course, content_type: 'course', config: {
           title: course.title, description: course.description,
           isCourse: true, questions: stripExerciseSecrets(course.questions ?? []), fields: course.fields ?? [],
@@ -366,7 +369,7 @@ export default function PublicFormPage() {
           maxAttempts:  course.max_attempts  ?? 0,
           enableAiTutor: course.ai_tutor_enabled ?? false,
         }};
-      } else if (event) {
+      } else if (event && !requestedType) {
         data = { ...event, content_type: 'event', config: {
           title: event.title, description: event.description,
           fields: event.fields ?? [],
@@ -378,7 +381,7 @@ export default function PublicFormPage() {
           deadline_days: event.deadline_days, theme: event.theme, mode: event.mode,
           font: event.font, customAccent: event.custom_accent,
         }};
-      } else if (ve) {
+      } else if (ve && (!requestedType || requestedType === 'virtual_experience')) {
         data = { ...ve, content_type: 'virtual_experience', config: {
           title: ve.title, description: ve.description,
           isVirtualExperience: true, modules: ve.modules ?? [],
@@ -393,7 +396,7 @@ export default function PublicFormPage() {
 
       // Certifications: resolved through the service-role API, which access-checks the student and
       // returns answer-stripped questions (the base table is not student-readable).
-      if (!data) {
+      if (!data && (!requestedType || requestedType === 'certification')) {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           const res = await fetch('/api/certification-attempt', {
@@ -404,6 +407,42 @@ export default function PublicFormPage() {
           if (res.ok) {
             const { certification } = await res.json();
             if (certification) data = { id: certification.id, slug: certification.slug, user_id: certification.user_id, content_type: 'certification', config: certification.config };
+          }
+        } catch { /* fall through to not-found */ }
+      }
+
+      // RLS correctly hides the authored row when this learner has no access. In that case, ask
+      // the catalogue endpoint for display-only metadata so this existing detail route can show
+      // its locked state without exposing lessons, modules, questions, or answer keys.
+      if (!data && authSession?.access_token) {
+        try {
+          const typeQuery = requestedType ? `&type=${encodeURIComponent(requestedType)}` : '';
+          const previewRes = await fetch(`/api/student/catalogue?ref=${encodeURIComponent(id as string)}${typeQuery}`, {
+            headers: { Authorization: `Bearer ${authSession.access_token}` },
+          });
+          if (previewRes.ok) {
+            const { item } = await previewRes.json();
+            if (item?.locked && item.type === 'course') {
+              data = {
+                id: item.id,
+                slug: item.slug,
+                content_type: 'course',
+                locked: true,
+                config: {
+                  title: item.title,
+                  description: item.description,
+                  category: item.category,
+                  coverImage: item.coverImage,
+                  isCourse: true,
+                  questions: (item.outline ?? []).map((entry: any) => entry.type === 'section'
+                    ? { id: entry.id, isSection: true, sectionTitle: entry.title }
+                    : { id: entry.id, lesson: { title: entry.title } }),
+                },
+              };
+              setCourseStarted(false);
+            } else if (item?.locked && item.type !== 'learning_path') {
+              setLockedPreview(item);
+            }
           }
         } catch { /* fall through to not-found */ }
       }
@@ -694,6 +733,7 @@ export default function PublicFormPage() {
   }
 
   if (!form) {
+    if (lockedPreview) return <LockedContentPreview item={lockedPreview} />;
     return (
       <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
@@ -1264,12 +1304,21 @@ export default function PublicFormPage() {
                     )}
                   </div>
                   {/* CTA */}
-                  <button onClick={() => setCourseStarted(true)}
-                    style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
-                    onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
-                    onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
-                    Start Course <ArrowRight style={{ width: 15, height: 15 }} />
-                  </button>
+                  {form.locked ? (
+                    <Link
+                      href={`/student?contentTable=courses&contentId=${encodeURIComponent(form.id)}#payments`}
+                      style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                    >
+                      Purchase or enroll <ArrowRight style={{ width: 15, height: 15 }} />
+                    </Link>
+                  ) : (
+                    <button onClick={() => setCourseStarted(true)}
+                      style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                      onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
+                      onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
+                      Start Course <ArrowRight style={{ width: 15, height: 15 }} />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2131,5 +2180,68 @@ export default function PublicFormPage() {
       </main>
 
     </div>
+  );
+}
+
+function LockedContentPreview({ item }: { item: any }) {
+  const cover = resolveCoverUrl(item.coverImage) || '';
+  const label = item.type === 'virtual_experience'
+    ? 'Virtual Experience'
+    : item.type === 'certification' ? 'Certification' : 'Course';
+  const contentTable = item.type === 'virtual_experience' ? 'virtual_experiences' : `${item.type}s`;
+  const paymentHref = `/student?contentTable=${encodeURIComponent(contentTable)}&contentId=${encodeURIComponent(item.id)}#payments`;
+
+  return (
+    <main className="ff-pub min-h-screen bg-[#f4f6f8] text-[#101828]">
+      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
+      <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
+        <Link href="/student#explore" className="inline-flex items-center text-sm font-semibold text-[#475467] hover:text-[#101828]">
+          Back to Explore
+        </Link>
+
+        <section className="mt-6 overflow-hidden bg-white">
+          <div className="relative aspect-[16/7] min-h-56 bg-[#0b0b0d]">
+            {cover ? <img src={cover} alt={item.title} className="h-full w-full object-cover" /> : null}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
+              <span className="inline-flex items-center gap-2 rounded-md bg-white/95 px-2.5 py-1 text-xs font-bold text-[#344054]">
+                <Lock className="h-3.5 w-3.5" />
+                {label}
+              </span>
+              <h1 className="mt-4 max-w-4xl text-3xl font-bold leading-tight text-white sm:text-5xl">{item.title}</h1>
+            </div>
+          </div>
+
+          <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1fr_300px]">
+            <div>
+              <h2 className="text-xl font-bold">About this {label.toLowerCase()}</h2>
+              {item.description ? (
+                <div
+                  className="prose prose-slate mt-4 max-w-none text-sm leading-relaxed"
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.description) }}
+                />
+              ) : (
+                <p className="mt-4 text-sm leading-relaxed text-[#667085]">This content is available through a subscription plan.</p>
+              )}
+              {item.category ? <p className="mt-5 text-sm font-semibold text-[#475467]">Category: {item.category}</p> : null}
+            </div>
+
+            <aside className="h-fit bg-[#f8fafc] p-5">
+              <h2 className="text-lg font-bold">Unlock this content</h2>
+              <p className="mt-2 text-sm leading-relaxed text-[#667085]">
+                Choose a 1 month, 3 month, or 1 year plan to enroll and get access.
+              </p>
+              <Link
+                href={paymentHref}
+                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00bf63] px-4 py-3 text-sm font-bold text-white hover:opacity-90"
+              >
+                Purchase or enroll
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </aside>
+          </div>
+        </section>
+      </div>
+    </main>
   );
 }

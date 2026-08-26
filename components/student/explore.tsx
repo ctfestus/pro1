@@ -73,15 +73,6 @@ const TYPE_GRAD: Record<CatalogueType, string> = {
   certification:      'linear-gradient(135deg,#155E75 0%,#06B6D4 100%)',
 };
 
-// Where unlocked learning cards send the student. Free courses/certifications open their public
-// URL directly, so Explore is a real catalogue entry point instead of another dashboard detour.
-const TYPE_SECTION: Record<CatalogueType, SectionId> = {
-  course:             'courses',
-  learning_path:      'learning_paths',
-  virtual_experience: 'virtual_experiences',
-  certification:      'certifications',
-};
-
 const TYPE_ORDER: CatalogueType[] = ['course', 'learning_path', 'virtual_experience', 'certification'];
 const INITIAL_VISIBLE = 8;
 const LOAD_MORE_STEP = 8;
@@ -143,9 +134,9 @@ const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage)
 const directHref = (item: CatalogueItem) =>
   item.type === 'learning_path'
     ? `/student?path=${encodeURIComponent(item.id)}#learning_paths`
-    : `/${item.slug || item.id}`;
+    : `/${item.slug || item.id}?catalogueType=${encodeURIComponent(item.type)}`;
 
-export function ExploreSection({ C, onNavigate }: {
+export function ExploreSection({ C }: {
   C: typeof LIGHT_C;
   onNavigate?: (section: SectionId) => void;
 }) {
@@ -204,8 +195,8 @@ export function ExploreSection({ C, onNavigate }: {
   }, [items, filter]);
 
   const open = (item: CatalogueItem) => {
-    if (item.locked) return;
-    onNavigate?.(TYPE_SECTION[item.type]);
+    setHover(null);
+    window.location.href = directHref(item);
   };
 
   // Desktop only. The popover is a hover affordance, and on touch there is no hover to close it.
@@ -230,7 +221,7 @@ export function ExploreSection({ C, onNavigate }: {
     <div className="space-y-6">
       <div className="space-y-3">
         <p className="text-sm" style={{ color: C.muted }}>
-          Everything on the platform. Locked items are not part of your access yet.
+          Explore the full catalogue. Purchase access or enroll to unlock more learning.
         </p>
 
         {/* Buttons rather than a select: the options are few, they fit, and a filter you can see is
@@ -310,6 +301,7 @@ export function ExploreSection({ C, onNavigate }: {
         </AnimatePresence>,
         document.body,
       )}
+
     </div>
   );
 }
@@ -354,7 +346,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
           >
             {(() => {
               const coverUrl = resolvedCover(item.coverImage);
-              const href = item.locked ? null : directHref(item);
+              const href = directHref(item);
               const inner = (
                 <>
                   <div
@@ -384,7 +376,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
 
                     <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full grid place-items-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md pointer-events-none"
                       style={{ background: 'white', color: '#101828' }}>
-                      {item.locked ? <Lock className="w-4 h-4" /> : <ArrowRight className="w-4 h-4" />}
+                      <ArrowRight className="w-4 h-4" />
                     </div>
                   </div>
 
@@ -398,25 +390,14 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                   )}
                 </>
               );
-              if (href) {
-                return (
-                  <a
-                    href={href}
-                    className="group block transition-transform duration-300 hover:-translate-y-1"
-                    style={{ textDecoration: 'none' }}
-                  >
-                    {inner}
-                  </a>
-                );
-              }
               return (
-                <div
-                  onClick={() => onOpen(item)}
-                  className="group transition-transform duration-300 hover:-translate-y-1"
-                  style={{ cursor: item.locked ? 'not-allowed' : 'pointer' }}
+                <a
+                  href={href}
+                  className="group block transition-transform duration-300 hover:-translate-y-1"
+                  style={{ textDecoration: 'none' }}
                 >
                   {inner}
-                </div>
+                </a>
               );
             })()}
           </div>
@@ -529,12 +510,15 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           )}
 
           {item.locked ? (
-            <div className="mt-4 rounded-xl px-4 py-3 text-sm leading-relaxed" style={{ background: C.pill, color: C.muted }}>
-              <span className="flex items-center gap-2 text-xs">
-                <Lock className="w-3.5 h-3.5" />
-                Not part of your access yet.
-              </span>
-            </div>
+            <button
+              type="button"
+              onClick={() => onOpen(item)}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
+              style={{ background: C.cta, color: C.ctaText }}
+            >
+              <ArrowRight className="w-3.5 h-3.5" />
+              View details
+            </button>
           ) : (
             <button
               type="button"
@@ -599,12 +583,15 @@ function CataloguePreview({ item, accent, onOpen, C }: {
         )}
 
         {item.locked ? (
-          <div className="rounded-xl px-4 py-3 text-sm leading-relaxed" style={{ background: C.pill, color: C.muted }}>
-            <span className="flex items-center gap-2 text-xs">
-              <Lock className="w-3.5 h-3.5" />
-              Not part of your access yet.
-            </span>
-          </div>
+          <button
+            type="button"
+            onClick={() => onOpen(item)}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
+            style={{ background: C.cta, color: C.ctaText }}
+          >
+            <ArrowRight className="w-3.5 h-3.5" />
+            View details
+          </button>
         ) : (() => {
           const label = (
             <>

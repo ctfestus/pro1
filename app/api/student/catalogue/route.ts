@@ -163,8 +163,31 @@ export async function GET(req: NextRequest) {
       ...map(courses, 'course', true),
       ...map(paths, 'learning_path', false),
       ...map(ves, 'virtual_experience', true),
-      ...map(certifications, 'certification', false),
+      ...map(certifications, 'certification', true),
     ];
+
+    const ref = req.nextUrl.searchParams.get('ref')?.trim();
+    if (ref) {
+      const requestedType = req.nextUrl.searchParams.get('type') as CatalogueType | null;
+      const item = items.find(candidate =>
+        (candidate.id === ref || candidate.slug === ref)
+        && (!requestedType || candidate.type === requestedType),
+      ) ?? null;
+      if (item?.type === 'course' && item.locked) {
+        const { data: course } = await db.from('courses').select('questions').eq('id', item.id).maybeSingle();
+        const outline = ((course?.questions ?? []) as any[]).flatMap(question => {
+          if (question?.isSection && question.sectionTitle) {
+            return [{ id: String(question.id), type: 'section', title: String(question.sectionTitle) }];
+          }
+          if (question?.lesson?.title) {
+            return [{ id: String(question.id), type: 'lesson', title: String(question.lesson.title) }];
+          }
+          return [];
+        });
+        return NextResponse.json({ item: { ...item, outline } });
+      }
+      return NextResponse.json({ item });
+    }
 
     return NextResponse.json({ items });
   } catch (e: any) {
