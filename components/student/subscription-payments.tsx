@@ -1,10 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle, ArrowRight, BadgeCheck, Banknote, CalendarClock, Check, CheckCircle2,
   Clock3, Copy, CreditCard, ExternalLink, FileCheck2, ReceiptText, Send,
-  ShieldCheck, Smartphone, WalletCards,
+  ShieldCheck, Smartphone, WalletCards, Loader2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
@@ -12,6 +12,7 @@ import { PaymentsSection } from '@/components/student/payments';
 import { Sk } from '@/components/student/shared';
 
 type Tab = 'pay' | 'confirm' | 'history';
+const PAYSTACK_RETURN_REFERENCE_KEY = 'paystack:return-reference';
 
 function fmtDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : '--';
@@ -19,6 +20,14 @@ function fmtDate(value?: string | null) {
 
 function money(currency: string, amount: number | string) {
   return `${currency || 'GHS'} ${Number(amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+}
+
+function contentTarget() {
+  if (typeof window === 'undefined') return null;
+  const params = new URLSearchParams(window.location.search);
+  const contentTable = params.get('contentTable');
+  const contentId = params.get('contentId');
+  return contentTable && contentId ? { contentTable, contentId } : null;
 }
 
 function CopyValue({ value, C }: { value: string; C: typeof LIGHT_C }) {
@@ -41,7 +50,10 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   const [selectedOption, setSelectedOption] = useState('');
   const [form, setForm] = useState({ paidAt: new Date().toISOString().slice(0, 10), method: '', reference: '', notes: '', receiptUrl: '' });
   const [busy, setBusy] = useState(false);
+  const [paystackBusy, setPaystackBusy] = useState(false);
+  const [planBusyId, setPlanBusyId] = useState('');
   const [message, setMessage] = useState('');
+  const returnVerificationStarted = useRef(false);
 
   const load = useCallback(async () => {
     setLoading(true); setError(''); setFailureEnrollmentModel(null);
@@ -52,7 +64,11 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         .from('students').select('enrollment_model').eq('id', userId).maybeSingle();
       if (studentError) throw studentError;
       enrollmentModel = student?.enrollment_model ?? null;
-      const res = await fetch(`/api/student-subscriptions?studentId=${encodeURIComponent(userId)}`, { headers: { Authorization: `Bearer ${session?.access_token}` } });
+      const target = contentTarget();
+      const targetQuery = target
+        ? `&contentTable=${encodeURIComponent(target.contentTable)}&contentId=${encodeURIComponent(target.contentId)}`
+        : '';
+      const res = await fetch(`/api/student-subscriptions?studentId=${encodeURIComponent(userId)}${targetQuery}`, { headers: { Authorization: `Bearer ${session?.access_token}` } });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Failed to load subscription payments');
       setData(body);
@@ -61,6 +77,84 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   }, [userId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Kept in state rather than only in the URL. Stripping the reference on the way out meant a
+  // learner whose verification timed out, or whose payment was still settling after four checks,
+  // had no way to ask again -- their only route was contacting support about money they had
+  // already paid. The reference survives so the button below can retry for as long as it takes.
+  const [returnReference, setReturnReference] = useState('');
+  const [returnBusy, setReturnBusy] = useState(false);
+  const [returnResolved, setReturnResolved] = useState(false);
+
+  const verifyReturn = useCallback(async (reference: string, poll: boolean) => {
+    if (!reference) return;
+    setReturnBusy(true);
+    setMessage('Checking your payment with Paystack...');
+    const inFlight = new Set(['pending', 'ongoing', 'processing', 'queued', 'initialized']);
+    try {
+      const attempts = poll ? 4 : 1;
+      for (let attempt = 0; attempt < attempts; attempt += 1) {
+        if (attempt > 0) await new Promise(resolve => setTimeout(resolve, 10_000));
+        const { data: { session } } = await supabase.auth.getSession();
+        const response = await fetch('/api/student-subscriptions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ action: 'verify-paystack-return', reference }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || 'Payment verification is temporarily unavailable');
+        if (result.status === 'success') {
+          window.sessionStorage.removeItem(PAYSTACK_RETURN_REFERENCE_KEY);
+          setMessage('Payment confirmed. Your access has been updated.');
+          setReturnResolved(true);
+          await load();
+          return;
+        }
+        if (result.status === 'needs_review') {
+          window.sessionStorage.removeItem(PAYSTACK_RETURN_REFERENCE_KEY);
+          setMessage('Your payment was received and is being reviewed by our team. You do not need to pay again.');
+          setReturnResolved(true);
+          await load();
+          return;
+        }
+        if (!inFlight.has(result.status)) {
+          window.sessionStorage.removeItem(PAYSTACK_RETURN_REFERENCE_KEY);
+          setMessage(`Payment ${String(result.status || 'was not completed').replaceAll('_', ' ')}.`);
+          setReturnResolved(true);
+          await load();
+          return;
+        }
+      }
+      // Still settling. Bank transfer and mobile money can take a while, so this is not a
+      // failure -- it just means the answer has not arrived yet.
+      setMessage('Your payment is still being processed. Use Check payment status below in a few minutes; there is no need to pay again.');
+    } catch (err: any) {
+      setMessage(err.message || 'We could not reach Paystack just now. Use Check payment status to try again.');
+    } finally {
+      setReturnBusy(false);
+    }
+  }, [load]);
+
+  useEffect(() => {
+    if (returnVerificationStarted.current || readOnly) return;
+    const returnParams = new URLSearchParams(window.location.search);
+    const reference = returnParams.get('paystack_reference')
+      || returnParams.get('reference')
+      || returnParams.get('trxref')
+      || window.sessionStorage.getItem(PAYSTACK_RETURN_REFERENCE_KEY);
+    if (!reference) return;
+    returnVerificationStarted.current = true;
+    setReturnReference(reference);
+    window.sessionStorage.setItem(PAYSTACK_RETURN_REFERENCE_KEY, reference);
+    // The reference leaves the address bar so a refresh or a shared link does not replay it, but
+    // it stays in state so the learner can still ask again.
+    const url = new URL(window.location.href);
+    url.searchParams.delete('paystack_reference');
+    url.searchParams.delete('reference');
+    url.searchParams.delete('trxref');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+    void verifyReturn(reference, true);
+  }, [readOnly, verifyReturn]);
 
   const requests = useMemo(() => data?.requests ?? [], [data?.requests]);
   const subscription = data?.subscription;
@@ -86,7 +180,9 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   if (loading) return <div className="space-y-4"><Sk h={220}/><div className="grid sm:grid-cols-3 gap-3">{[1,2,3].map(i => <Sk key={i} h={110}/>)}</div></div>;
   if (error && failureEnrollmentModel !== 'individual') return <PaymentsSection userId={userId} C={C} readOnly={readOnly}/>;
   if (error) return <div className="rounded-3xl py-20 text-center" style={cardStyle(C)}><AlertCircle className="w-9 h-9 mx-auto mb-3" style={{ color: '#dc2626' }}/><p className="text-sm font-bold" style={{ color: C.text }}>We could not load your subscription</p><p className="text-xs mt-1" style={{ color: C.muted }}>{error}</p><button onClick={load} className="mt-4 rounded-xl px-4 py-2 text-sm font-bold" style={{ background: C.cta, color: C.ctaText }}>Try again</button></div>;
-  if (!subscription && requests.length === 0) return <PaymentsSection userId={userId} C={C} readOnly={readOnly}/>;
+  if (data?.subscriptionEligible === false) return <PaymentsSection userId={userId} C={C} readOnly={readOnly}/>;
+  if (data?.purchaseTarget && !data?.plans?.length && !subscription && requests.length === 0) return <div className="py-20 text-center" style={cardStyle(C)}><AlertCircle className="w-9 h-9 mx-auto mb-3" style={{ color: C.faint }}/><p className="text-sm font-bold" style={{ color: C.text }}>No subscription plan is available for this content</p><p className="text-xs mt-1" style={{ color: C.muted }}>Contact the learning team to ask about enrollment.</p></div>;
+  if (!subscription && requests.length === 0 && !data?.plans?.length) return <PaymentsSection userId={userId} C={C} readOnly={readOnly}/>;
 
   const inputStyle = { background: C.input, color: C.text, border: `1px solid ${C.cardBorder}` };
   const inputClass = 'w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2';
@@ -112,8 +208,55 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     } catch (err: any) { setMessage(err.message); } finally { setBusy(false); }
   }
 
+  async function startPaystackCheckout() {
+    if (!openRequest || pendingConfirmation) return;
+    setPaystackBusy(true); setMessage('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/student-subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'start-paystack-checkout', requestId: openRequest.id }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to start online payment');
+      if (!body.authorizationUrl) throw new Error('Paystack did not return a checkout link');
+      window.location.href = body.authorizationUrl;
+    } catch (err: any) {
+      setMessage(err.message || 'Failed to start online payment');
+      setPaystackBusy(false);
+    }
+  }
+
+  async function purchasePlan(priceId: string) {
+    setPlanBusyId(priceId); setMessage('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const target = contentTarget();
+      const res = await fetch('/api/student-subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'purchase-plan', priceId, paystack: data?.paystackEnabled === true, ...(target ?? {}) }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to start subscription');
+      if (body.checkout?.authorizationUrl) {
+        window.location.href = body.checkout.authorizationUrl;
+        return;
+      }
+      setMessage('Payment request created. Choose a payment method and submit your confirmation.');
+      await load();
+      setTab('pay');
+    } catch (err: any) {
+      setMessage(err.message || 'Failed to start subscription');
+    } finally {
+      setPlanBusyId('');
+    }
+  }
+
   return <div className="subscription-typography space-y-5 pb-12">
     <style>{`.subscription-typography .font-black{font-weight:700!important}.subscription-typography .font-bold{font-weight:600!important}`}</style>
+    {message && <div className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3" style={{ background: message.includes('confirmed') ? C.successBg : C.pill, color: message.includes('confirmed') ? C.successText : C.text }}><Clock3 className="w-5 h-5 flex-shrink-0"/><p className="text-sm font-bold flex-1">{message}</p>{returnReference && !returnResolved && !readOnly && <button onClick={() => verifyReturn(returnReference, false)} disabled={returnBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black flex-shrink-0 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{returnBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ShieldCheck className="w-4 h-4"/>}Check payment status</button>}</div>}
     <section className="relative overflow-hidden rounded-[30px] p-5 sm:p-6 text-white" style={heroStyle}>
       <div className="absolute right-[-55px] bottom-[-95px] w-64 h-64 rounded-full border border-white/10"/><div className="absolute right-8 top-7 w-20 h-20 rounded-full border border-white/10"/>
       <div className="relative grid lg:grid-cols-[1fr_auto] gap-5 items-end">
@@ -125,6 +268,8 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     {overdue && <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, color: C.errorText }}><AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5"/><div><p className="text-sm font-bold">Your payment deadline has passed</p><p className="text-xs mt-1 opacity-80">You can still send your confirmation. Contact support if your payment terms need to be updated.</p></div></div>}
     {pendingConfirmation && <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: 'rgba(217,119,6,0.10)', border: '1px solid rgba(217,119,6,0.18)', color: '#b45309' }}><Clock3 className="w-5 h-5 flex-shrink-0 mt-0.5"/><div className="flex-1"><p className="text-sm font-bold">Payment review in progress</p><p className="text-xs mt-1 opacity-80">Submitted {fmtDate(pendingConfirmation.created_at)}. Your access updates automatically after approval.</p></div><span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider">Pending</span></div>}
 
+    {!!data?.plans?.length && !pendingConfirmation && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-4"><div><p className="font-black" style={{ color: C.text }}>{hasActiveAccess ? 'Renew your access' : 'Choose a subscription plan'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{openRequest ? 'Complete your current payment before choosing another plan.' : 'Purchase a fixed access period. Renewal is manual when it expires.'}</p></div><WalletCards className="w-5 h-5" style={{ color: C.cta }}/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{data.plans.map((plan: any) => <div key={plan.id} className="rounded-2xl p-4" style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}><div className="flex items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{plan.name}</p>{plan.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: C.faint }}>{plan.description}</p>}</div><ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/></div><div className="mt-4 space-y-2">{plan.prices.map((price: any) => <button key={price.id} onClick={() => purchasePlan(price.id)} disabled={!!openRequest || !!planBusyId || readOnly} className="w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.card, color: C.text }}><span><span className="block text-sm font-black">{price.durationMonths === 12 ? '1 year' : `${price.durationMonths} month${price.durationMonths > 1 ? 's' : ''}`}</span><span className="block text-[11px] mt-0.5" style={{ color: C.faint }}>{data.paystackEnabled ? 'Subscribe and pay online' : 'Subscribe with payment request'}</span></span><span className="inline-flex items-center gap-2 text-sm font-black" style={{ color: C.cta }}>{money(price.currency, price.amount)}{planBusyId === price.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</span></button>)}</div></div>)}</div></section>}
+
     <nav className="grid grid-cols-3 gap-1 p-1.5 rounded-2xl" style={{ background: C.card }}>
       {([
         ['pay','Pay',WalletCards],['confirm','Confirm',FileCheck2],['history','Activity',ReceiptText],
@@ -132,7 +277,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     </nav>
 
     {tab === 'pay' && <section className="grid lg:grid-cols-[1fr_320px] gap-5">
-      <div className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-5"><div><p className="font-black" style={{ color: C.text }}>Choose how to pay</p><p className="text-xs mt-1" style={{ color: C.faint }}>Select an option to reveal verified payment details.</p></div><CreditCard className="w-5 h-5" style={{ color: C.cta }}/></div>{options.length ? <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{options.map((row: any) => { const Icon = row.type === 'mobile_money' ? Smartphone : row.type === 'bank_transfer' ? Banknote : CreditCard; return <button key={row.id} onClick={() => { setSelectedOption(row.id); setForm(v => ({ ...v, method: row.label })); }} className="relative rounded-2xl p-4 text-left min-h-28 transition-all hover:-translate-y-0.5" style={{ background: selectedOption === row.id ? `${C.cta}10` : C.page, outline: selectedOption === row.id ? `2px solid ${C.cta}` : '2px solid transparent' }}>{selectedOption === row.id && <span className="absolute top-3 right-3 w-5 h-5 rounded-full grid place-items-center" style={{ background: C.cta, color: C.ctaText }}><Check className="w-3 h-3"/></span>}{row.logo_url ? <img src={row.logo_url} alt="" className="h-8 max-w-20 object-contain mb-4"/> : <div className="w-9 h-9 rounded-xl grid place-items-center mb-4" style={{ background: C.card, color: C.cta }}><Icon className="w-4 h-4"/></div>}<p className="text-sm font-bold" style={{ color: C.text }}>{row.label}</p><p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: C.faint }}>{row.type?.replaceAll('_',' ') || 'Payment option'}</p></button>; })}</div> : <div className="rounded-2xl py-14 text-center" style={{ background: C.page }}><WalletCards className="w-8 h-8 mx-auto" style={{ color: C.faint }}/><p className="text-sm font-bold mt-3" style={{ color: C.text }}>No payment options yet</p><p className="text-xs mt-1" style={{ color: C.faint }}>Contact your administrator for payment instructions.</p></div>}</div>
+      <div className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-5"><div><p className="font-black" style={{ color: C.text }}>Choose how to pay</p><p className="text-xs mt-1" style={{ color: C.faint }}>Pay online or use the verified manual details below.</p></div><CreditCard className="w-5 h-5" style={{ color: C.cta }}/></div>{data?.paystackEnabled && openRequest && !pendingConfirmation && !readOnly && <div className="mb-5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4" style={{ background: `${C.cta}10`, border: `1px solid ${C.cardBorder}` }}><div className="flex-1"><p className="text-sm font-black" style={{ color: C.text }}>Pay online with Paystack</p><p className="text-xs mt-1" style={{ color: C.faint }}>Card, bank, and mobile money options are confirmed automatically after payment.</p></div><button onClick={startPaystackCheckout} disabled={paystackBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{paystackBusy ? 'Opening...' : `Pay ${money(openRequest.currency, openRequest.amount)}`}<ExternalLink className="w-4 h-4"/></button></div>}{options.length ? <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{options.map((row: any) => { const Icon = row.type === 'mobile_money' ? Smartphone : row.type === 'bank_transfer' ? Banknote : CreditCard; return <button key={row.id} onClick={() => { setSelectedOption(row.id); setForm(v => ({ ...v, method: row.label })); }} className="relative rounded-2xl p-4 text-left min-h-28 transition-all hover:-translate-y-0.5" style={{ background: selectedOption === row.id ? `${C.cta}10` : C.page, outline: selectedOption === row.id ? `2px solid ${C.cta}` : '2px solid transparent' }}>{selectedOption === row.id && <span className="absolute top-3 right-3 w-5 h-5 rounded-full grid place-items-center" style={{ background: C.cta, color: C.ctaText }}><Check className="w-3 h-3"/></span>}{row.logo_url ? <img src={row.logo_url} alt="" className="h-8 max-w-20 object-contain mb-4"/> : <div className="w-9 h-9 rounded-xl grid place-items-center mb-4" style={{ background: C.card, color: C.cta }}><Icon className="w-4 h-4"/></div>}<p className="text-sm font-bold" style={{ color: C.text }}>{row.label}</p><p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: C.faint }}>{row.type?.replaceAll('_',' ') || 'Payment option'}</p></button>; })}</div> : <div className="rounded-2xl py-14 text-center" style={{ background: C.page }}><WalletCards className="w-8 h-8 mx-auto" style={{ color: C.faint }}/><p className="text-sm font-bold mt-3" style={{ color: C.text }}>No payment options yet</p><p className="text-xs mt-1" style={{ color: C.faint }}>Contact your administrator for payment instructions.</p></div>}</div>
       <aside className="rounded-2xl p-5 min-h-64" style={cardStyle(C)}>{option ? <div><div className="flex items-center gap-3 pb-4" style={{ borderBottom: `1px solid ${C.divider}` }}><div className="w-11 h-11 rounded-xl grid place-items-center" style={{ background: `${C.cta}12`, color: C.cta }}><ShieldCheck className="w-5 h-5"/></div><div><p className="font-black" style={{ color: C.text }}>{option.label}</p><p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: C.faint }}>Verified details</p></div></div><div className="space-y-3 py-5 text-sm">{option.bank_name && <Detail label="Bank" value={option.bank_name} C={C}/>} {option.network && <Detail label="Network" value={option.network} C={C}/>} {option.account_name && <Detail label="Account name" value={option.account_name} C={C}/>} {option.account_number && <div><p className="text-[10px] uppercase font-bold" style={{ color: C.faint }}>Account number</p><div className="mt-1"><CopyValue value={option.account_number} C={C}/></div></div>} {option.mobile_money_number && <div><p className="text-[10px] uppercase font-bold" style={{ color: C.faint }}>Mobile number</p><div className="mt-1"><CopyValue value={option.mobile_money_number} C={C}/></div></div>}{option.instructions && <p className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: C.page, color: C.muted }}>{option.instructions}</p>}{option.payment_link && <a href={option.payment_link} target="_blank" rel="noreferrer" className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: C.cta, color: C.ctaText }}>Open secure payment<ExternalLink className="w-4 h-4"/></a>}</div>{openRequest && <button onClick={() => setTab('confirm')} className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: C.pill, color: C.cta }}>I have paid<ArrowRight className="w-4 h-4"/></button>}</div> : <div className="h-full min-h-60 grid place-items-center text-center"><div><CreditCard className="w-8 h-8 mx-auto" style={{ color: C.faint }}/><p className="text-sm font-bold mt-3" style={{ color: C.text }}>Select a payment option</p><p className="text-xs mt-1" style={{ color: C.faint }}>Account details will appear here.</p></div></div>}</aside>
     </section>}
 

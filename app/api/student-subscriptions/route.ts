@@ -4,6 +4,10 @@ import { Resend } from 'resend';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { adminPaymentConfirmationEmail, paymentConfirmationAcknowledgedEmail } from '@/lib/email-templates';
+import { createPaystackSubscriptionCheckout, processPaystackSubscriptionReference } from '@/lib/paystack-subscriptions';
+import { createSubscriptionPaymentRequest } from '@/lib/db-subscriptions';
+import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
+import { paystackIsConfigured } from '@/lib/paystack';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +44,77 @@ async function resolveContent(db: ReturnType<typeof adminClient>, planId?: strin
   return resolved;
 }
 
+const PURCHASABLE_CONTENT_TABLES = new Set(['courses', 'learning_paths', 'virtual_experiences', 'certifications']);
+
+async function eligiblePlanIds(db: ReturnType<typeof adminClient>, contentTable: string, contentId: string) {
+  const { data: direct, error: directError } = await db.from('subscription_plan_content')
+    .select('plan_id').eq('content_table', contentTable).eq('content_id', contentId);
+  if (directError) throw directError;
+  const planIds = new Set((direct ?? []).map(row => row.plan_id));
+
+  // A plan can grant a course, VE, or certification through a learning path rather than by
+  // attaching the item directly. Include those plans so the payment choice matches RLS access.
+  if (contentTable !== 'learning_paths') {
+    const { data: paths, error: pathError } = await db.from('learning_paths')
+      .select('id').eq('status', 'published').contains('item_ids', [contentId]);
+    if (pathError) throw pathError;
+    const pathIds = (paths ?? []).map(path => path.id);
+    if (pathIds.length) {
+      const { data: viaPaths, error: coverageError } = await db.from('subscription_plan_content')
+        .select('plan_id').eq('content_table', 'learning_paths').in('content_id', pathIds);
+      if (coverageError) throw coverageError;
+      for (const row of viaPaths ?? []) planIds.add(row.plan_id);
+    }
+  }
+  return [...planIds];
+}
+
+async function loadStudentPlans(
+  db: ReturnType<typeof adminClient>,
+  target?: { contentTable: string; contentId: string } | null,
+) {
+  const allowedPlanIds = target ? await eligiblePlanIds(db, target.contentTable, target.contentId) : null;
+  if (allowedPlanIds && allowedPlanIds.length === 0) return [];
+  let priceQuery = db
+    .from('subscription_plan_prices')
+    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id)')
+    .eq('is_active', true);
+  if (allowedPlanIds) priceQuery = priceQuery.in('plan_id', allowedPlanIds);
+  const { data: prices, error } = await priceQuery
+    .order('sort_order')
+    .order('duration_months');
+  if (error) throw error;
+
+  const cohortIds = [...new Set((prices ?? []).map((row: any) => row.subscription_plans?.cohort_id).filter(Boolean))];
+  const { data: cohorts, error: cohortError } = cohortIds.length
+    ? await db.from('cohorts').select('id, cohort_kind').in('id', cohortIds)
+    : { data: [], error: null };
+  if (cohortError) throw cohortError;
+  const eligibleCohorts = new Set((cohorts ?? [])
+    .filter(row => ['legacy_individual', 'subscription_plan'].includes(row.cohort_kind))
+    .map(row => row.id));
+
+  const byPlan = new Map<string, any>();
+  for (const row of prices ?? []) {
+    const plan = (row as any).subscription_plans;
+    if (!plan || plan.status !== 'active' || !eligibleCohorts.has(plan.cohort_id)) continue;
+    const current = byPlan.get(plan.id) ?? {
+      id: plan.id,
+      name: plan.name,
+      description: plan.description,
+      prices: [],
+    };
+    current.prices.push({
+      id: row.id,
+      durationMonths: row.duration_months,
+      amount: Number(row.amount),
+      currency: row.currency || 'GHS',
+    });
+    byPlan.set(plan.id, current);
+  }
+  return [...byPlan.values()];
+}
+
 export async function GET(req: NextRequest) {
   const session = await caller(req);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -49,9 +124,19 @@ export async function GET(req: NextRequest) {
   }
   const studentId = requestedId || session.id;
   const db = adminClient();
+  const contentTable = req.nextUrl.searchParams.get('contentTable');
+  const contentId = req.nextUrl.searchParams.get('contentId');
+  const target = contentTable && contentId && PURCHASABLE_CONTENT_TABLES.has(contentTable)
+    ? { contentTable, contentId }
+    : null;
 
   try {
-    const [subscriptionRes, requestsRes, optionsRes] = await Promise.all([
+    const { data: student, error: studentError } = await db.from('students')
+      .select('enrollment_model').eq('id', studentId).maybeSingle();
+    if (studentError) throw studentError;
+    if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 });
+    const subscriptionEligible = student.enrollment_model !== 'bootcamp';
+    const [subscriptionRes, requestsRes, optionsRes, plans] = await Promise.all([
       db.from('individual_subscriptions')
         .select('id, student_id, plan_id, status, duration_months, amount, currency, current_period_start, current_period_end, subscription_plans!individual_subscriptions_plan_id_fkey(id,name,description,status)')
         .eq('student_id', studentId).maybeSingle(),
@@ -62,6 +147,7 @@ export async function GET(req: NextRequest) {
       db.from('payment_options')
         .select('id, label, type, instructions, bank_name, account_name, account_number, branch, country, mobile_money_number, network, payment_link, platform, logo_url, sort_order')
         .eq('is_active', true).order('sort_order'),
+      subscriptionEligible ? loadStudentPlans(db, target) : Promise.resolve([]),
     ]);
     if (subscriptionRes.error) throw subscriptionRes.error;
     if (requestsRes.error) throw requestsRes.error;
@@ -82,19 +168,152 @@ export async function GET(req: NextRequest) {
       requests: requestsRes.data ?? [],
       payments,
       paymentOptions: optionsRes.data ?? [],
+      paystackEnabled: paystackIsConfigured(),
+      plans,
+      enrollmentModel: student.enrollment_model,
+      subscriptionEligible,
+      purchaseTarget: target,
       content: await resolveContent(db, displayPlanId),
     });
   } catch (err: any) {
     console.error('[student-subscriptions/GET]', err);
-    return NextResponse.json({ error: err.message ?? 'Failed to load subscription payments' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to load subscription payments' }, { status: 500 });
   }
 }
+
+// Scoped so return-verification polling cannot spend the checkout budget and lock a learner
+// out of retrying a payment that failed.
+async function enforcePaystackRateLimit(
+  db: ReturnType<typeof adminClient>,
+  studentId: string,
+  scope: 'checkout' | 'verify' = 'checkout',
+  limit = 5,
+) {
+  const { data, error } = await db.rpc('claim_paystack_checkout_attempt', {
+    p_student_id: studentId,
+    p_limit: limit,
+    p_window_seconds: 600,
+    p_scope: scope,
+  });
+  if (error) throw error;
+  if (data === false) throw new PaymentError('rate_limited', 'Too many payment attempts. Please wait a few minutes and try again.', 429);
+}
+
+// Return verification is the one student-triggered action that calls Paystack on every hit,
+// and the page polls it up to four times per return. The ceiling is well above normal use and
+// only exists so a loop cannot spend the whole account's Paystack API budget.
+const RETURN_VERIFY_ATTEMPT_LIMIT = 20;
 
 export async function POST(req: NextRequest) {
   const session = await caller(req);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 }); }
+  if (body.action === 'start-paystack-checkout') {
+    if (!body.requestId) return NextResponse.json({ error: 'requestId is required' }, { status: 400 });
+    const db = adminClient();
+    try {
+      await enforcePaystackRateLimit(db, session.id);
+      const checkout = await createPaystackSubscriptionCheckout(db, {
+        requestId: String(body.requestId),
+        studentId: session.id,
+        email: session.email,
+      });
+      return NextResponse.json(checkout);
+    } catch (err: any) {
+      const failure = paymentErrorResponse(err, 'Failed to start online payment');
+      return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
+
+  if (body.action === 'verify-paystack-return') {
+    const reference = String(body.reference || '').trim();
+    if (!reference) return NextResponse.json({ error: 'reference is required' }, { status: 400 });
+    const db = adminClient();
+    try {
+      const { data: transaction, error } = await db.from('paystack_subscription_transactions')
+        .select('student_id').eq('reference', reference).maybeSingle();
+      if (error) throw error;
+      if (!transaction || transaction.student_id !== session.id) {
+        throw new PaymentError('not_found', 'Payment could not be found.', 404);
+      }
+      await enforcePaystackRateLimit(db, session.id, 'verify', RETURN_VERIFY_ATTEMPT_LIMIT);
+      const result = await processPaystackSubscriptionReference(db, reference);
+      return NextResponse.json(result);
+    } catch (err) {
+      const failure = paymentErrorResponse(err, 'We could not verify this payment yet.');
+      return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
+
+  if (body.action === 'purchase-plan') {
+    if (!body.priceId) return NextResponse.json({ error: 'priceId is required' }, { status: 400 });
+    const db = adminClient();
+    try {
+      const { data: student, error: studentError } = await db.from('students')
+        .select('enrollment_model').eq('id', session.id).maybeSingle();
+      if (studentError) throw studentError;
+      if (student?.enrollment_model === 'bootcamp') {
+        throw new PaymentError('forbidden', 'Your bootcamp payment plan is managed separately.', 403);
+      }
+      const { data: price, error } = await db
+        .from('subscription_plan_prices')
+        .select('id, plan_id, duration_months, amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(id, status, cohort_id)')
+        .eq('id', String(body.priceId))
+        .maybeSingle();
+      if (error) throw error;
+      const plan = (price as any)?.subscription_plans;
+      if (!price || price.is_active !== true || plan?.status !== 'active') {
+        return NextResponse.json({ error: 'Subscription price not found' }, { status: 404 });
+      }
+      const { data: cohort, error: cohortError } = await db.from('cohorts')
+        .select('cohort_kind').eq('id', plan.cohort_id).maybeSingle();
+      if (cohortError) throw cohortError;
+      if (!cohort || !['legacy_individual', 'subscription_plan'].includes(cohort.cohort_kind)) {
+        throw new PaymentError('conflict', 'This plan is not available for individual subscription.', 409);
+      }
+      if (body.contentTable || body.contentId) {
+        const contentTable = String(body.contentTable || '');
+        const contentId = String(body.contentId || '');
+        if (!PURCHASABLE_CONTENT_TABLES.has(contentTable) || !contentId) {
+          return NextResponse.json({ error: 'Invalid subscription content target' }, { status: 400 });
+        }
+        const allowedPlanIds = await eligiblePlanIds(db, contentTable, contentId);
+        if (!allowedPlanIds.includes(price.plan_id)) {
+          return NextResponse.json({ error: 'This plan does not include the selected content' }, { status: 409 });
+        }
+      }
+
+      const dueDate = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
+      if (body.paystack === true) await enforcePaystackRateLimit(db, session.id);
+      const requestResult = await createSubscriptionPaymentRequest(db, {
+        studentId: session.id,
+        planId: price.plan_id,
+        durationMonths: price.duration_months,
+        amount: Number(price.amount),
+        currency: price.currency || 'GHS',
+        dueDate,
+        createdBy: session.id,
+      });
+      if (body.paystack === true) {
+        const checkout = await createPaystackSubscriptionCheckout(db, {
+          requestId: requestResult.requestId,
+          studentId: session.id,
+          email: session.email,
+        });
+        return NextResponse.json({ ...requestResult, checkout });
+      }
+      return NextResponse.json(requestResult);
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        const failure = new PaymentError('conflict', 'A payment request is already open for this subscription.', 409);
+        return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+      }
+      const failure = paymentErrorResponse(err, 'Failed to purchase subscription plan');
+      return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
+
   if (body.action !== 'submit-confirmation') return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
 
   const amount = Number(body.amount);
@@ -143,7 +362,10 @@ export async function POST(req: NextRequest) {
     }
     return NextResponse.json(data);
   } catch (err: any) {
-    const conflict = err?.code === '23505' || String(err?.message ?? '').includes('not open');
-    return NextResponse.json({ error: err.message ?? 'Failed to submit confirmation' }, { status: conflict ? 409 : 500 });
+    if (err?.code === '23505') {
+      return NextResponse.json({ error: 'This payment confirmation has already been submitted.', code: 'conflict' }, { status: 409 });
+    }
+    console.error('[student-subscriptions/submit-confirmation]', err);
+    return NextResponse.json({ error: 'Failed to submit payment confirmation', code: 'internal_error' }, { status: 500 });
   }
 }

@@ -19,6 +19,12 @@ const notifySubscriptionPaymentRequest = vi.hoisted(() => vi.fn().mockResolvedVa
 const notifySubscriptionActivated = vi.hoisted(() => vi.fn().mockResolvedValue({ sent: true }));
 const addToResendAudience = vi.hoisted(() => vi.fn());
 const createClient = vi.hoisted(() => vi.fn());
+const getSubscriptionPlans = vi.hoisted(() => vi.fn());
+const getSubscriptions = vi.hoisted(() => vi.fn());
+const getEligibleSubscriptionStudents = vi.hoisted(() => vi.fn());
+const getSubscriptionForStudent = vi.hoisted(() => vi.fn());
+const getSubscriptionHistory = vi.hoisted(() => vi.fn());
+const getSubscriptionPaymentRequests = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api-auth', () => ({ requireUser, isAuthError: (value: any) => Boolean(value?.error) }));
 vi.mock('@/lib/db-subscriptions', () => ({
@@ -31,9 +37,12 @@ vi.mock('@/lib/db-subscriptions', () => ({
   cancelSubscriptionPaymentRequest,
   deleteSubscriptionPlan,
   bulkAssignSubscriptionStudents,
-  getSubscriptionForStudent: vi.fn(),
-  getSubscriptionHistory: vi.fn(),
-  getSubscriptionPaymentRequests: vi.fn(),
+  getSubscriptionPlans,
+  getSubscriptions,
+  getEligibleSubscriptionStudents,
+  getSubscriptionForStudent,
+  getSubscriptionHistory,
+  getSubscriptionPaymentRequests,
 }));
 vi.mock('@supabase/supabase-js', () => ({ createClient }));
 // after() schedules work for once the response is sent and needs a Next request context,
@@ -58,13 +67,19 @@ vi.mock('@/lib/provision-individual-student', () => ({
 }));
 vi.mock('@/lib/resend-audience', () => ({ addToResendAudience }));
 
-import { POST } from '@/app/api/payments/route';
+import { GET, POST } from '@/app/api/payments/route';
 
 function request(body: Record<string, unknown>) {
   return new NextRequest('http://localhost/api/payments', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: 'Bearer token' },
     body: JSON.stringify(body),
+  });
+}
+
+function getRequest(action: string, params = '') {
+  return new NextRequest(`http://localhost/api/payments?action=${action}${params}`, {
+    headers: { authorization: 'Bearer token' },
   });
 }
 
@@ -90,9 +105,74 @@ beforeEach(() => {
   provisionIndividualStudent.mockResolvedValue({ studentId: 'student-new', isNewAccount: true });
   sendIndividualStudentSetupEmail.mockResolvedValue(undefined);
   addToResendAudience.mockResolvedValue(undefined);
+  getSubscriptionPlans.mockResolvedValue([]);
+  getSubscriptions.mockResolvedValue([]);
+  getEligibleSubscriptionStudents.mockResolvedValue([]);
+  getSubscriptionPaymentRequests.mockResolvedValue([]);
+  getSubscriptionForStudent.mockResolvedValue(null);
+  getSubscriptionHistory.mockResolvedValue([]);
+});
+
+describe('subscription read authorization', () => {
+  it('passes only instructor-owned plan ids to service-role list reads', async () => {
+    authenticateAs('instructor');
+    const db = makeSupabaseStub({
+      subscription_plans: { data: [{ id: 'plan-owned' }], error: null },
+    });
+    createClient.mockReturnValue(db);
+
+    const response = await GET(getRequest('subscription-list'));
+    expect(response.status).toBe(200);
+    expect(getSubscriptions).toHaveBeenCalledWith(db, ['plan-owned']);
+    expect(getEligibleSubscriptionStudents).not.toHaveBeenCalled();
+  });
+
+  it('refuses an instructor reading a student subscription on another plan', async () => {
+    authenticateAs('instructor');
+    const db = makeSupabaseStub({
+      subscription_plans: { data: [{ id: 'plan-owned' }], error: null },
+    });
+    createClient.mockReturnValue(db);
+    getSubscriptionForStudent.mockResolvedValue({ id: 'subscription-1', plan_id: 'plan-other' });
+
+    const response = await GET(getRequest('subscription-status', '&studentId=student-1'));
+    expect(response.status).toBe(403);
+  });
+
+  it('keeps the global subscription view for admins', async () => {
+    authenticateAs('admin');
+    const db = makeSupabaseStub({});
+    createClient.mockReturnValue(db);
+
+    const response = await GET(getRequest('subscription-list'));
+    expect(response.status).toBe(200);
+    expect(getSubscriptions).toHaveBeenCalledWith(db, null);
+    expect(getEligibleSubscriptionStudents).toHaveBeenCalledWith(db);
+  });
 });
 
 describe('subscription payment actions', () => {
+  it('resolves an owned payment incident through the atomic database function', async () => {
+    authenticateAs('instructor');
+    const rpc = vi.fn((fn: string) => {
+      expect(fn).toBe('resolve_paystack_review_incident');
+      return { data: { ok: true }, error: null };
+    });
+    const db = makeSupabaseStub({
+      paystack_review_incidents: { data: { id: 'incident-1', plan_id: 'plan-1', status: 'open' }, error: null },
+      subscription_plans: { data: { id: 'plan-1', created_by: 'admin-1' }, error: null },
+    }, rpc);
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({
+      action: 'resolve-paystack-incident', incidentId: 'incident-1', resolutionNote: 'Handled in Paystack',
+    }));
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith('resolve_paystack_review_incident', expect.objectContaining({
+      p_incident_id: 'incident-1', p_actor_id: 'admin-1', p_resolution_note: 'Handled in Paystack',
+    }));
+  });
+
   it('rejects a student role', async () => {
     authenticateAs('student');
     const response = await POST(request({ action: 'create-subscription' }));
@@ -111,14 +191,56 @@ describe('subscription payment actions', () => {
 
   it.each(['create-subscription', 'renew-subscription'])('%s reaches the same transactional function', async action => {
     authenticateAs('instructor');
+    const db = makeSupabaseStub({ subscription_plans: { data: { id: 'plan-1', created_by: 'admin-1' }, error: null } });
+    createClient.mockReturnValue(db);
     const response = await POST(request({
       action, studentId: 'student-1', planId: 'plan-1', durationMonths: 3, amount: 250,
       currency: 'GHS', idempotencyKey: 'attempt-1',
     }));
     expect(response.status).toBe(200);
-    expect(purchaseOrRenewSubscription).toHaveBeenCalledWith({}, expect.objectContaining({
+    expect(purchaseOrRenewSubscription).toHaveBeenCalledWith(db, expect.objectContaining({
       studentId: 'student-1', planId: 'plan-1', durationMonths: 3, idempotencyKey: 'attempt-1', createdBy: 'admin-1',
     }));
+  });
+
+  // Every subscription action here reaches the database through the service role, which bypasses
+  // RLS, and the role gate at the top of the handler admits any instructor. Without an owner
+  // check an instructor can move money on another instructor's plans.
+  it('refuses to credit a subscription on a plan owned by another instructor', async () => {
+    authenticateAs('instructor');
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'someone-else' }, error: null },
+    }));
+    const response = await POST(request({
+      action: 'create-subscription', studentId: 'student-1', planId: 'plan-1', durationMonths: 3,
+      amount: 250, currency: 'GHS', idempotencyKey: 'attempt-1',
+    }));
+    expect(response.status).toBe(403);
+    expect(purchaseOrRenewSubscription).not.toHaveBeenCalled();
+  });
+
+  it('lets an admin act on any plan', async () => {
+    authenticateAs('admin');
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'someone-else' }, error: null },
+    }));
+    const response = await POST(request({
+      action: 'create-subscription', studentId: 'student-1', planId: 'plan-1', durationMonths: 3,
+      amount: 250, currency: 'GHS', idempotencyKey: 'attempt-1',
+    }));
+    expect(response.status).toBe(200);
+    expect(purchaseOrRenewSubscription).toHaveBeenCalled();
+  });
+
+  it('refuses to cancel a subscription on a plan owned by another instructor', async () => {
+    authenticateAs('instructor');
+    createClient.mockReturnValue(makeSupabaseStub({
+      individual_subscriptions: { data: { id: 'sub-1', plan_id: 'plan-1' }, error: null },
+      subscription_plans: { data: { id: 'plan-1', created_by: 'someone-else' }, error: null },
+    }));
+    const response = await POST(request({ action: 'cancel-subscription', subscriptionId: 'sub-1' }));
+    expect(response.status).toBe(403);
+    expect(cancelSubscription).not.toHaveBeenCalled();
   });
 
   it('maps model or idempotency conflicts to 409', async () => {
@@ -295,5 +417,42 @@ describe('subscription payment actions', () => {
     const response = await POST(request({ action: 'delete-subscription-plan', planId: 'plan-1' }));
     expect(response.status).toBe(200);
     expect(deleteSubscriptionPlan).toHaveBeenCalledWith({}, 'plan-1');
+  });
+
+  it('saves public plan prices through admin-only payments route', async () => {
+    authenticateAs('admin');
+    const db = makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'someone-else' }, error: null },
+    }, (fn, args) => {
+      expect(fn).toBe('replace_subscription_plan_prices');
+      expect(args.p_prices).toHaveLength(4);
+      return { data: { ok: true, count: 4 }, error: null };
+    });
+    createClient.mockReturnValue(db);
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices',
+      planId: 'plan-1',
+      prices: [
+        { durationMonths: 1, amount: 120, currency: 'ghs', isActive: true },
+        { durationMonths: 3, amount: 300, currency: 'GHS', isActive: true },
+        { durationMonths: 6, amount: 560, currency: 'GHS', isActive: true },
+        { durationMonths: 12, amount: 1000, currency: 'GHS', isActive: true },
+      ],
+    }));
+    expect(response.status).toBe(200);
+  });
+
+  it('prevents non-owner instructors from changing public plan prices', async () => {
+    authenticateAs('instructor');
+    const db = makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'someone-else' }, error: null },
+    });
+    createClient.mockReturnValue(db);
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices',
+      planId: 'plan-1',
+      prices: [{ durationMonths: 1, amount: 120, currency: 'GHS', isActive: true }],
+    }));
+    expect(response.status).toBe(403);
   });
 });

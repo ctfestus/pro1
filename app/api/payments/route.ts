@@ -19,6 +19,8 @@ import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-paym
 import { notifySubscriptionActivated } from '@/lib/notify-subscription-activated';
 import { provisionIndividualStudent } from '@/lib/provision-individual-student';
 import { addToResendAudience } from '@/lib/resend-audience';
+import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
+import { getPaystackReviewQueue } from '@/lib/paystack-review-queue';
 import {
   cancelSubscription,
   cancelSubscriptionPaymentRequest,
@@ -47,6 +49,13 @@ function adminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
   if (!url || !key) throw new Error('Supabase service role key not configured');
   return createClient(url, key);
+}
+
+async function ownedPlanIds(db: ReturnType<typeof adminClient>, user: { id: string; role: string }) {
+  if (user.role === 'admin') return null;
+  const { data, error } = await db.from('subscription_plans').select('id').eq('created_by', user.id);
+  if (error) throw error;
+  return (data ?? []).map(plan => plan.id as string);
 }
 
 async function getSessionUser(req: NextRequest): Promise<{ id: string; email: string; role: string } | null> {
@@ -84,6 +93,24 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ installments: data ?? [] });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load installments' }, { status: 500 });
+    }
+  }
+
+  if (action === 'payment-review') {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['instructor', 'admin'].includes(sessionUser.role)) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    try {
+      const db = adminClient();
+      // Instructors see the payments on plans they own; admins see everything, including events
+      // that could not be matched to any plan.
+      const planIds = await ownedPlanIds(db, sessionUser);
+      return NextResponse.json(await getPaystackReviewQueue(db, { planIds }));
+    } catch (err: any) {
+      console.error('[payments/payment-review]', err);
+      return NextResponse.json({ error: 'Failed to load the payment review queue' }, { status: 500 });
     }
   }
 
@@ -208,7 +235,9 @@ export async function GET(req: NextRequest) {
     if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!['instructor', 'admin'].includes(sessionUser.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
-      return NextResponse.json({ plans: await getSubscriptionPlans(adminClient(), req.nextUrl.searchParams.get('activeOnly') === 'true') });
+      const db = adminClient();
+      const planIds = await ownedPlanIds(db, sessionUser);
+      return NextResponse.json({ plans: await getSubscriptionPlans(db, req.nextUrl.searchParams.get('activeOnly') === 'true', planIds) });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load subscription plans' }, { status: 500 });
     }
@@ -220,9 +249,10 @@ export async function GET(req: NextRequest) {
     if (!['instructor', 'admin'].includes(sessionUser.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
       const db = adminClient();
+      const planIds = await ownedPlanIds(db, sessionUser);
       const [subscriptions, eligibleStudents] = await Promise.all([
-        getSubscriptions(db),
-        getEligibleSubscriptionStudents(db),
+        getSubscriptions(db, planIds),
+        planIds === null ? getEligibleSubscriptionStudents(db) : Promise.resolve([]),
       ]);
       return NextResponse.json({ subscriptions, eligibleStudents });
     } catch (err: any) {
@@ -235,7 +265,9 @@ export async function GET(req: NextRequest) {
     if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!['instructor', 'admin'].includes(sessionUser.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     try {
-      return NextResponse.json({ requests: await getSubscriptionPaymentRequests(adminClient()) });
+      const db = adminClient();
+      const planIds = await ownedPlanIds(db, sessionUser);
+      return NextResponse.json({ requests: await getSubscriptionPaymentRequests(db, planIds) });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load subscription payment requests' }, { status: 500 });
     }
@@ -254,13 +286,20 @@ export async function GET(req: NextRequest) {
 
     try {
       const db = adminClient();
+      const planIds = await ownedPlanIds(db, sessionUser);
       const subscription = studentId ? await getSubscriptionForStudent(db, studentId) : null;
+      if (planIds && subscription && !planIds.includes(subscription.plan_id)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       if (action === 'subscription-status') return NextResponse.json({ subscription });
       if (action === 'subscription-history' && !subscription) return NextResponse.json({ payments: [] });
       if (action === 'subscription-history') {
         return NextResponse.json({ payments: await getSubscriptionHistory(db, subscription!.id) });
       }
 
+      if (planIds && !planIds.includes(planId!)) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
       const { data: coverage, error } = await db
         .from('subscription_plan_content')
         .select('id, content_table, content_id, added_at, notified_at')
@@ -308,6 +347,80 @@ export async function POST(req: NextRequest) {
 
   const db = adminClient();
 
+  // Every subscription action below reaches the database through the service role, which bypasses
+  // RLS entirely. The role check at the top of this handler admits any instructor, so without an
+  // owner check here an instructor can rename, deactivate, delete, reprice, or cancel another
+  // instructor's plans and subscriptions. Admins keep full reach.
+  async function assertPlanAccess(planId: string) {
+    if (sessionUser!.role === 'admin') return;
+    const { data: plan, error } = await db.from('subscription_plans')
+      .select('id, created_by').eq('id', planId).maybeSingle();
+    if (error) throw error;
+    if (!plan) throw new PaymentError('not_found', 'Subscription plan not found', 404);
+    if (plan.created_by !== sessionUser!.id) {
+      throw new PaymentError('forbidden', 'This subscription plan belongs to another instructor.', 403);
+    }
+  }
+
+  async function assertSubscriptionAccess(subscriptionId: string) {
+    if (sessionUser!.role === 'admin') return;
+    const { data: subscription, error } = await db.from('individual_subscriptions')
+      .select('id, plan_id').eq('id', subscriptionId).maybeSingle();
+    if (error) throw error;
+    if (!subscription) throw new PaymentError('not_found', 'Subscription not found', 404);
+    await assertPlanAccess(subscription.plan_id);
+  }
+
+  async function assertRequestAccess(requestId: string) {
+    if (sessionUser!.role === 'admin') return;
+    const { data: request, error } = await db.from('subscription_payment_requests')
+      .select('id, plan_id').eq('id', requestId).maybeSingle();
+    if (error) throw error;
+    if (!request) throw new PaymentError('not_found', 'Payment request not found', 404);
+    await assertPlanAccess(request.plan_id);
+  }
+
+  async function assertConfirmationAccess(confirmationId: string) {
+    if (sessionUser!.role === 'admin') return;
+    const { data: confirmation, error } = await db.from('subscription_payment_confirmations')
+      .select('id, request_id').eq('id', confirmationId).maybeSingle();
+    if (error) throw error;
+    if (!confirmation) throw new PaymentError('not_found', 'Payment confirmation not found', 404);
+    await assertRequestAccess(confirmation.request_id);
+  }
+
+  function ownershipFailure(err: unknown, fallback: string) {
+    const failure = paymentErrorResponse(err, fallback);
+    return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+  }
+
+  if (body.action === 'resolve-paystack-incident') {
+    if (!body.incidentId) return NextResponse.json({ error: 'incidentId is required' }, { status: 400 });
+    try {
+      const { data: incident, error } = await db.from('paystack_review_incidents')
+        .select('id, plan_id, status')
+        .eq('id', body.incidentId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!incident) throw new PaymentError('not_found', 'Payment incident not found', 404);
+      if (sessionUser.role !== 'admin') {
+        if (!incident.plan_id) throw new PaymentError('forbidden', 'This incident requires an administrator.', 403);
+        await assertPlanAccess(incident.plan_id);
+      }
+      const { data: result, error: resolveError } = await db.rpc('resolve_paystack_review_incident', {
+        p_incident_id: incident.id,
+        p_actor_id: sessionUser.id,
+        p_resolution_note: String(body.resolutionNote || '').trim() || null,
+      });
+      if (resolveError) throw resolveError;
+      return NextResponse.json(result);
+    } catch (err) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to resolve payment incident');
+      console.error('[payments/resolve-paystack-incident]', err);
+      return NextResponse.json({ error: 'Failed to resolve payment incident' }, { status: 500 });
+    }
+  }
+
   if (body.action === 'create-subscription-plan') {
     if (!body.name?.trim()) return NextResponse.json({ error: 'Plan name is required' }, { status: 400 });
     try {
@@ -324,8 +437,10 @@ export async function POST(req: NextRequest) {
   if (body.action === 'delete-subscription-plan') {
     if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
     try {
+      await assertPlanAccess(String(body.planId));
       return NextResponse.json(await deleteSubscriptionPlan(db, body.planId));
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to delete subscription plan');
       const conflict = String(err?.message ?? '').includes('cannot be deleted');
       return NextResponse.json({ error: err.message ?? 'Failed to delete subscription plan' }, { status: conflict ? 409 : 500 });
     }
@@ -350,11 +465,59 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'No plan changes were provided' }, { status: 400 });
     }
     try {
+      await assertPlanAccess(String(body.planId));
       const { error } = await db.from('subscription_plans').update(updates).eq('id', body.planId);
       if (error) throw error;
       return NextResponse.json({ ok: true });
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to update subscription plan');
       return NextResponse.json({ error: err.message ?? 'Failed to update subscription plan' }, { status: 500 });
+    }
+  }
+
+  if (body.action === 'save-subscription-plan-prices') {
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    if (!Array.isArray(body.prices)) return NextResponse.json({ error: 'prices must be an array' }, { status: 400 });
+    if (body.prices.some((row: any) => ![1, 3, 6, 12].includes(Number(row.durationMonths)))) {
+      return NextResponse.json({ error: 'Price duration must be 1, 3, 6, or 12 months.' }, { status: 400 });
+    }
+    const rows = body.prices
+      .map((row: any) => ({
+        duration_months: Number(row.durationMonths),
+        amount: Number(row.amount),
+        currency: String(row.currency || 'GHS').trim().toUpperCase(),
+        is_active: row.isActive === true,
+        sort_order: Number(row.sortOrder ?? row.durationMonths ?? 0),
+      }))
+      .filter((row: any) => row.is_active);
+    if (rows.some((row: any) => !Number.isFinite(row.amount) || row.amount <= 0)) {
+      return NextResponse.json({ error: 'Active prices must have an amount greater than 0.' }, { status: 400 });
+    }
+    if (rows.some((row: any) => !row.currency)) {
+      return NextResponse.json({ error: 'Currency is required for active prices.' }, { status: 400 });
+    }
+    try {
+      const { data: plan, error: planError } = await db
+        .from('subscription_plans')
+        .select('id, created_by')
+        .eq('id', body.planId)
+        .maybeSingle();
+      if (planError) throw planError;
+      if (!plan) return NextResponse.json({ error: 'Subscription plan not found' }, { status: 404 });
+      if (sessionUser.role !== 'admin' && plan.created_by !== sessionUser.id) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+      }
+
+      const { error: replaceError } = await db.rpc('replace_subscription_plan_prices', {
+        p_plan_id: body.planId,
+        p_prices: rows,
+        p_actor_id: sessionUser.id,
+      });
+      if (replaceError) throw replaceError;
+      return NextResponse.json({ ok: true });
+    } catch (err: any) {
+      console.error('[payments/save-subscription-plan-prices]', err);
+      return NextResponse.json({ error: 'Failed to save plan prices' }, { status: 500 });
     }
   }
 
@@ -388,6 +551,9 @@ export async function POST(req: NextRequest) {
 
     let provisioned: { studentId: string; isNewAccount: boolean } | null = null;
     try {
+      // Before provisioning: this creates a learner account, so a rejected request should not
+      // leave one behind.
+      await assertPlanAccess(String(body.planId));
       provisioned = await provisionIndividualStudent(db, {
         email,
         fullName,
@@ -453,6 +619,7 @@ export async function POST(req: NextRequest) {
         activationWarning,
       });
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to assign the new subscriber');
       if (provisioned?.isNewAccount) {
         await db.auth.admin.deleteUser(provisioned.studentId).catch(() => {});
       }
@@ -477,6 +644,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'idempotencyKey is required' }, { status: 400 });
     }
     try {
+      await assertPlanAccess(String(body.planId));
       const result = await purchaseOrRenewSubscription(db, {
         studentId: body.studentId,
         planId: body.planId,
@@ -503,6 +671,7 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json({ ...result, activationWarning });
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to create subscription payment request');
       const conflict = err?.code === '23505'
         || String(err?.message ?? '').includes('already belongs')
         || String(err?.message ?? '').includes('idempotency key');
@@ -525,6 +694,7 @@ export async function POST(req: NextRequest) {
     }
     if (!String(body.currency || '').trim()) return NextResponse.json({ error: 'Currency is required' }, { status: 400 });
     try {
+      await assertPlanAccess(String(body.planId));
       const result = await createSubscriptionPaymentRequest(db, {
         studentId: body.studentId,
         planId: body.planId,
@@ -541,6 +711,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ ...result, notificationSent: false, notificationWarning: notificationError.message ?? 'Notification email failed' });
       }
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to assign subscription payment');
       const conflict = err?.code === '23505' || String(err?.message ?? '').includes('before assigning');
       return NextResponse.json({ error: err.message ?? 'Failed to assign subscription payment' }, { status: conflict ? 409 : 500 });
     }
@@ -567,6 +738,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'batchId is required when recording paid subscriptions' }, { status: 400 });
     }
     try {
+      await assertPlanAccess(String(body.planId));
       return NextResponse.json(await bulkAssignSubscriptionStudents(db, {
         planId: body.planId,
         mode,
@@ -584,6 +756,7 @@ export async function POST(req: NextRequest) {
         createdBy: sessionUser.id,
       }));
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to import subscription students');
       return NextResponse.json({ error: err.message ?? 'Failed to import subscription students' }, { status: 500 });
     }
   }
@@ -594,6 +767,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'A rejection reason is required' }, { status: 400 });
     }
     try {
+      await assertConfirmationAccess(String(body.confirmationId));
       const result = body.action === 'approve-subscription-confirmation'
         ? await approveSubscriptionPaymentConfirmation(db, { confirmationId: body.confirmationId, reviewedBy: sessionUser.id, adminNotes: body.adminNotes })
         : await rejectSubscriptionPaymentConfirmation(db, { confirmationId: body.confirmationId, reviewedBy: sessionUser.id, adminNotes: body.adminNotes });
@@ -639,6 +813,7 @@ export async function POST(req: NextRequest) {
       }
       return NextResponse.json(result);
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to review subscription confirmation');
       const conflict = err?.code === '23505' || String(err?.message ?? '').includes('already been processed');
       return NextResponse.json({ error: err.message ?? 'Failed to review subscription confirmation' }, { status: conflict ? 409 : 500 });
     }
@@ -647,8 +822,10 @@ export async function POST(req: NextRequest) {
   if (body.action === 'cancel-subscription-payment-request') {
     if (!body.requestId) return NextResponse.json({ error: 'requestId is required' }, { status: 400 });
     try {
+      await assertRequestAccess(String(body.requestId));
       return NextResponse.json(await cancelSubscriptionPaymentRequest(db, body.requestId));
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to cancel payment request');
       return NextResponse.json({ error: err.message ?? 'Failed to cancel payment request' }, { status: 409 });
     }
   }
@@ -658,6 +835,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'subscriptionId and planId are required' }, { status: 400 });
     }
     try {
+      // Both ends: the subscription being moved and the plan it is moving to.
+      await assertSubscriptionAccess(String(body.subscriptionId));
+      await assertPlanAccess(String(body.planId));
       return NextResponse.json(await changeSubscriptionPlan(db, {
         subscriptionId: body.subscriptionId,
         planId: body.planId,
@@ -665,6 +845,7 @@ export async function POST(req: NextRequest) {
         notes: body.notes,
       }));
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to change subscription plan');
       const conflict = err?.code === '23505' || String(err?.message ?? '').includes('not active');
       return NextResponse.json({ error: err.message ?? 'Failed to change subscription plan' }, { status: conflict ? 409 : 500 });
     }
@@ -675,8 +856,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'subscriptionId is required' }, { status: 400 });
     }
     try {
+      await assertSubscriptionAccess(String(body.subscriptionId));
       return NextResponse.json(await cancelSubscription(db, body.subscriptionId));
     } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to cancel subscription');
       return NextResponse.json({ error: err.message ?? 'Failed to cancel subscription' }, { status: 500 });
     }
   }

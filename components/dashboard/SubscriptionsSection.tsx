@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type CSSProperties, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import {
+  AlertCircle,
   ArrowRight,
   BadgeCheck,
   CalendarClock,
@@ -15,6 +16,7 @@ import {
   FileCheck2,
   History,
   Layers3,
+  ShieldAlert,
   LayoutDashboard,
   FileSpreadsheet,
   MoreHorizontal,
@@ -51,7 +53,19 @@ const freshPayment = () => ({
   notes: "",
 });
 
-type Tab = "overview" | "subscribers" | "payments" | "plans";
+const PLAN_PRICE_DURATIONS = [1, 3, 6, 12] as const;
+
+function freshPlanPrices() {
+  return PLAN_PRICE_DURATIONS.map((durationMonths) => ({
+    durationMonths: String(durationMonths),
+    amount: "",
+    currency: "GHS",
+    isActive: false,
+    sortOrder: durationMonths,
+  }));
+}
+
+type Tab = "overview" | "subscribers" | "payments" | "plans" | "review";
 
 async function authFetch(url: string, init?: RequestInit) {
   const {
@@ -99,7 +113,7 @@ function Modal({
   eyebrow?: string;
   onClose: () => void;
   C: typeof LIGHT_C;
-  children: React.ReactNode;
+  children: ReactNode;
   error?: string;
   wide?: boolean;
 }) {
@@ -174,6 +188,58 @@ function StatusPill({ status, C }: { status: string; C: typeof LIGHT_C }) {
   );
 }
 
+function PlanPriceFields({
+  prices,
+  setPrices,
+  C,
+  fieldClass,
+  inputStyle,
+}: {
+  prices: ReturnType<typeof freshPlanPrices>;
+  setPrices: Dispatch<SetStateAction<ReturnType<typeof freshPlanPrices>>>;
+  C: typeof LIGHT_C;
+  fieldClass: string;
+  inputStyle: CSSProperties;
+}) {
+  return (
+    <div>
+      <p className="text-xs font-bold mb-2" style={{ color: C.muted }}>
+        Public purchase prices
+      </p>
+      <div className="space-y-2">
+        {prices.map((price, index) => (
+          <div key={price.durationMonths} className="grid grid-cols-[auto_1fr_90px] gap-2 items-center rounded-xl p-2" style={{ background: C.page }}>
+            <label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.text }}>
+              <input
+                type="checkbox"
+                checked={price.isActive}
+                onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, isActive: e.target.checked } : row))}
+              />
+              {price.durationMonths} mo
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={price.amount}
+              onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, amount: e.target.value } : row))}
+              placeholder="Amount"
+              className={fieldClass}
+              style={inputStyle}
+            />
+            <input
+              value={price.currency}
+              onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, currency: e.target.value.toUpperCase() } : row))}
+              className={fieldClass}
+              style={inputStyle}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const dark = C.page === "#17181E";
   const [tab, setTab] = useState<Tab>("overview");
@@ -181,6 +247,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [eligibleStudents, setEligibleStudents] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
+  // Paystack items waiting on a person, and whether the job that revokes expired access is still
+  // running. Neither has any other surface: until this list existed the only signal was an email.
+  const [reviewQueue, setReviewQueue] = useState<any[]>([]);
+  const [sweepHeartbeat, setSweepHeartbeat] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -223,12 +293,14 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [planContent, setPlanContent] = useState<any[]>([]);
   const [newPlanName, setNewPlanName] = useState("");
   const [newPlanDescription, setNewPlanDescription] = useState("");
+  const [newPlanPrices, setNewPlanPrices] = useState(freshPlanPrices);
   const [planMenuOpen, setPlanMenuOpen] = useState(false);
   const [planCardMenuId, setPlanCardMenuId] = useState<string | null>(null);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [editPlan, setEditPlan] = useState<any>(null);
   const [editPlanName, setEditPlanName] = useState("");
   const [editPlanDescription, setEditPlanDescription] = useState("");
+  const [editPlanPrices, setEditPlanPrices] = useState(freshPlanPrices);
   const [contentOptions, setContentOptions] = useState<any[]>([]);
   const [selectedContentKeys, setSelectedContentKeys] = useState<string[]>([]);
   const [contentSearch, setContentSearch] = useState("");
@@ -259,16 +331,24 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setLoading(true);
     setError("");
     try {
-      const [listRes, plansRes, requestsRes] = await Promise.all([
+      const [listRes, plansRes, requestsRes, reviewRes] = await Promise.all([
         authFetch("/api/payments?action=subscription-list"),
         authFetch("/api/payments?action=subscription-plans"),
         authFetch("/api/payments?action=subscription-payment-requests"),
+        authFetch("/api/payments?action=payment-review"),
       ]);
-      const [listData, plansData, requestsData] = await Promise.all([
+      const [listData, plansData, requestsData, reviewData] = await Promise.all([
         listRes.json(),
         plansRes.json(),
         requestsRes.json(),
+        reviewRes.json(),
       ]);
+      // Deliberately not fatal. The review list is a safety net, and failing to load it must not
+      // take down the page an admin uses to run subscriptions.
+      if (reviewRes.ok) {
+        setReviewQueue(reviewData.items ?? []);
+        setSweepHeartbeat(reviewData.heartbeat ?? null);
+      }
       if (!listRes.ok)
         throw new Error(listData.error || "Failed to load subscriptions");
       if (!plansRes.ok)
@@ -294,6 +374,32 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function resolveIncident(item: any) {
+    const resolutionNote = window.prompt("Optional resolution note", "");
+    if (resolutionNote === null) return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "resolve-paystack-incident",
+          incidentId: item.id,
+          resolutionNote,
+        }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || "Failed to resolve payment incident");
+      setReviewQueue((current) => current.filter((row) => row.id !== item.id));
+      setSuccess("Payment incident marked as resolved.");
+    } catch (err: any) {
+      setError(err.message || "Failed to resolve payment incident");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -859,8 +965,26 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create plan");
+      const priceRes = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-subscription-plan-prices",
+          planId: data.planId,
+          prices: newPlanPrices.map((price) => ({
+            durationMonths: Number(price.durationMonths),
+            amount: Number(price.amount),
+            currency: price.currency,
+            isActive: price.isActive,
+            sortOrder: price.sortOrder,
+          })),
+        }),
+      });
+      const priceData = await priceRes.json();
+      if (!priceRes.ok) throw new Error(priceData.error || "Failed to save plan prices");
       setNewPlanName("");
       setNewPlanDescription("");
+      setNewPlanPrices(freshPlanPrices());
       setCreatePlanOpen(false);
       setPlanMenuOpen(false);
       await load(data.planId);
@@ -877,6 +1001,17 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setEditPlan(plan);
     setEditPlanName(plan.name ?? "");
     setEditPlanDescription(plan.description ?? "");
+    const existing = new Map((plan.subscription_plan_prices ?? []).map((price: any) => [Number(price.duration_months), price]));
+    setEditPlanPrices(PLAN_PRICE_DURATIONS.map((durationMonths) => {
+      const price: any = existing.get(durationMonths);
+      return {
+        durationMonths: String(durationMonths),
+        amount: price?.amount == null ? "" : String(price.amount),
+        currency: price?.currency || "GHS",
+        isActive: price?.is_active === true,
+        sortOrder: durationMonths,
+      };
+    }));
   }
 
   async function savePlanDetails() {
@@ -896,6 +1031,23 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to update plan");
+      const priceRes = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "save-subscription-plan-prices",
+          planId: editPlan.id,
+          prices: editPlanPrices.map((price) => ({
+            durationMonths: Number(price.durationMonths),
+            amount: Number(price.amount),
+            currency: price.currency,
+            isActive: price.isActive,
+            sortOrder: price.sortOrder,
+          })),
+        }),
+      });
+      const priceData = await priceRes.json();
+      if (!priceRes.ok) throw new Error(priceData.error || "Failed to update plan prices");
       const updatedPlanId = editPlan.id;
       setEditPlan(null);
       setSuccess("Plan details updated.");
@@ -1192,7 +1344,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       </section>
 
       <nav
-        className="grid grid-cols-4 gap-1 p-1.5 rounded-2xl w-full"
+        className="grid grid-cols-5 gap-1 p-1.5 rounded-2xl w-full"
         style={{ background: C.card }}
       >
         {(
@@ -1201,6 +1353,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             ["subscribers", "Subscribers", Users],
             ["payments", "Payments", WalletCards],
             ["plans", "Plans", Layers3],
+            ["review", "Review", ShieldAlert],
           ] as const
         ).map(([id, label, Icon]) => (
           <button
@@ -1214,6 +1367,14 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           >
             <Icon className="w-4 h-4 flex-shrink-0" />
             <span className="truncate">{label}</span>
+            {id === "review" && reviewQueue.length > 0 && (
+              <span
+                className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[10px] text-white"
+                style={{ background: "#dc2626" }}
+              >
+                {reviewQueue.length}
+              </span>
+            )}
             {id === "payments" && awaitingReview.length > 0 && (
               <span
                 className="grid place-items-center min-w-5 h-5 px-1 rounded-full text-[10px] text-white"
@@ -1717,6 +1878,126 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             </div>
           )}
 
+          {tab === "review" && (
+            <div className="space-y-5">
+              {sweepHeartbeat?.stale && (
+                <div
+                  className="rounded-2xl p-4 flex items-start gap-3"
+                  style={{ background: "rgba(220,38,38,0.10)", border: "1px solid rgba(220,38,38,0.20)", color: "#b91c1c" }}
+                >
+                  <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-bold">Subscription expiry has not run recently</p>
+                    <p className="text-xs mt-1 opacity-80">
+                      {sweepHeartbeat.lastSuccessAt
+                        ? `Last completed ${Math.round(sweepHeartbeat.staleHours)} hours ago. `
+                        : "It has never completed on this environment. "}
+                      Expired subscriptions keep their access until it runs. Check the hourly
+                      schedule for /api/cron/subscription-expiry-sweep in the Upstash console.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              <div className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}>
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <div>
+                    <p className="font-black" style={{ color: C.text }}>
+                      Payments needing a person
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: C.faint }}>
+                      Refunds, disputes, payments that could not be applied, and checkouts that
+                      were never completed. The platform does not act on these on its own.
+                    </p>
+                  </div>
+                  <ShieldAlert className="w-5 h-5" style={{ color: C.cta }} />
+                </div>
+
+                {reviewQueue.length === 0 ? (
+                  <div className="rounded-2xl py-14 text-center" style={{ background: C.page }}>
+                    <BadgeCheck className="w-8 h-8 mx-auto" style={{ color: "#16a34a" }} />
+                    <p className="text-sm font-bold mt-3" style={{ color: C.text }}>
+                      Nothing needs attention
+                    </p>
+                    <p className="text-xs mt-1" style={{ color: C.faint }}>
+                      Every Paystack payment is either applied or still in progress.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {reviewQueue.map((item: any) => (
+                      <div
+                        key={`${item.kind}-${item.id}`}
+                        className="rounded-2xl p-4"
+                        style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span
+                                className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-white"
+                                style={{
+                                  background:
+                                    item.kind === "stalled" ? "#d97706" : "#0ea5e9",
+                                }}
+                              >
+                                {item.kind === "stalled" ? "Never completed" : "Needs review"}
+                              </span>
+                              <p className="text-sm font-black truncate" style={{ color: C.text }}>
+                                {item.studentName || item.studentEmail || item.reference || "Unmatched payment"}
+                              </p>
+                            </div>
+                            <p className="text-xs mt-1.5" style={{ color: C.muted }}>
+                              {(item.reason || "review required").replaceAll("_", " ")}
+                              {item.planName ? ` on ${item.planName}` : ""}
+                            </p>
+                            <p className="text-[11px] mt-1 font-mono truncate" style={{ color: C.faint }}>
+                              {item.reference || "no reference"}
+                            </p>
+                            {item.notificationError && (
+                              <p className="text-[11px] mt-1" style={{ color: "#b91c1c" }}>
+                                Alert email failed: {item.notificationError}
+                              </p>
+                            )}
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            {item.amount != null && (
+                              <p className="text-sm font-black" style={{ color: C.text }}>
+                                {item.currency ? `${item.currency} ` : ""}
+                                {Number(item.amount).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                              </p>
+                            )}
+                            <p className="text-[11px] mt-1" style={{ color: C.faint }}>
+                              {new Date(item.occurredAt).toLocaleDateString("en-GB", {
+                                day: "numeric", month: "short", year: "numeric",
+                              })}
+                            </p>
+                            {!item.notifiedAt && item.kind !== "stalled" && (
+                              <p className="text-[10px] mt-1 uppercase tracking-wider font-bold" style={{ color: "#d97706" }}>
+                                Not yet emailed
+                              </p>
+                            )}
+                            {item.kind === "incident" && (
+                              <button
+                                onClick={() => resolveIncident(item)}
+                                disabled={busy}
+                                className="mt-2 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-bold disabled:opacity-50"
+                                style={{ background: C.pill, color: C.cta }}
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Mark resolved
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {tab === "payments" && (
             <div className="space-y-5">
               <div className="grid sm:grid-cols-3 gap-4">
@@ -2152,6 +2433,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         >
                           {plan.description ||
                             "Reusable subscription access plan"}
+                        </p>
+                        <p className="text-[11px] mt-2" style={{ color: C.muted }}>
+                          {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length
+                            ? (plan.subscription_plan_prices ?? [])
+                                .filter((price: any) => price.is_active)
+                                .sort((a: any, b: any) => a.duration_months - b.duration_months)
+                                .map((price: any) => `${money(price.currency, price.amount)} / ${price.duration_months} mo`)
+                                .join(" | ")
+                            : "No public prices"}
                         </p>
                       </div>
                       <div
@@ -2833,6 +3123,13 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 style={inputStyle}
               />
             </label>
+            <PlanPriceFields
+              prices={newPlanPrices}
+              setPrices={setNewPlanPrices}
+              C={C}
+              fieldClass={fieldClass}
+              inputStyle={inputStyle}
+            />
             <button
               onClick={createPlan}
               disabled={busy || !newPlanName.trim()}
@@ -2879,6 +3176,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 style={inputStyle}
               />
             </label>
+            <div>
+              <PlanPriceFields
+                prices={editPlanPrices}
+                setPrices={setEditPlanPrices}
+                C={C}
+                fieldClass={fieldClass}
+                inputStyle={inputStyle}
+              />
+            </div>
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
               <button
                 onClick={() => {

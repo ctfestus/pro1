@@ -6,12 +6,18 @@ const expireSubscription = vi.hoisted(() => vi.fn());
 const adminClient = vi.hoisted(() => vi.fn());
 const notifySubscriptionActivatedBatch = vi.hoisted(() => vi.fn());
 const notifySubscriptionPaymentRequest = vi.hoisted(() => vi.fn());
+const retryStoredPaystackWebhookEvents = vi.hoisted(() => vi.fn());
+const retryPaystackIncidentNotifications = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/qstash', () => ({ verifyQStashRequest }));
 vi.mock('@/lib/db-subscriptions', () => ({ expireSubscription }));
 vi.mock('@/lib/admin-client', () => ({ adminClient }));
 vi.mock('@/lib/notify-subscription-activated', () => ({ notifySubscriptionActivatedBatch }));
 vi.mock('@/lib/notify-subscription-payment-request', () => ({ notifySubscriptionPaymentRequest }));
+vi.mock('@/lib/paystack-webhook-processing', () => ({
+  retryStoredPaystackWebhookEvents,
+  retryPaystackIncidentNotifications,
+}));
 
 import { POST } from '@/app/api/cron/subscription-expiry-sweep/route';
 
@@ -24,6 +30,8 @@ beforeEach(() => {
   verifyQStashRequest.mockResolvedValue({ valid: true, body: '' });
   notifySubscriptionActivatedBatch.mockResolvedValue({ sent: 0, skipped: 0, failed: 0 });
   notifySubscriptionPaymentRequest.mockResolvedValue({ sent: false });
+  retryStoredPaystackWebhookEvents.mockResolvedValue({ processed: 0, failed: 0 });
+  retryPaystackIncidentNotifications.mockResolvedValue({ sent: 0 });
 });
 
 describe('subscription expiry sweep', () => {
@@ -58,7 +66,7 @@ describe('subscription expiry sweep', () => {
       .mockRejectedValueOnce(new Error('temporary failure'));
 
     const response = await POST(request());
-    expect(response.status).toBe(200);
+    expect(response.status).toBe(500);
     await expect(response.json()).resolves.toMatchObject({ processed: 3, expired: 1, skipped: 1, failed: 1 });
     expect(expireSubscription).toHaveBeenCalledTimes(3);
   });
