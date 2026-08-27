@@ -481,20 +481,29 @@ export async function POST(req: NextRequest) {
     if (body.prices.some((row: any) => ![1, 3, 6, 12].includes(Number(row.durationMonths)))) {
       return NextResponse.json({ error: 'Price duration must be 1, 3, 6, or 12 months.' }, { status: 400 });
     }
-    const rows = body.prices
-      .map((row: any) => ({
-        duration_months: Number(row.durationMonths),
-        amount: Number(row.amount),
-        currency: String(row.currency || 'GHS').trim().toUpperCase(),
-        is_active: row.isActive === true,
-        sort_order: Number(row.sortOrder ?? row.durationMonths ?? 0),
-      }))
-      .filter((row: any) => row.is_active);
-    if (rows.some((row: any) => !Number.isFinite(row.amount) || row.amount <= 0)) {
-      return NextResponse.json({ error: 'Active prices must have an amount greater than 0.' }, { status: 400 });
+    // Nothing an admin filled in gets dropped without being told. Dropping unticked rows deleted
+    // an amount someone had just typed, leaving a plan that looked active and could not be bought;
+    // dropping blank rows before validating did the same to a duration they had ticked but not
+    // priced. So: complain about a ticked row with no amount, keep an unticked row that has one as
+    // inactive, and only discard a row that is genuinely empty.
+    const submitted = body.prices.map((row: any) => ({
+      duration_months: Number(row.durationMonths),
+      amount: Number(row.amount),
+      currency: String(row.currency || 'GHS').trim().toUpperCase(),
+      is_active: row.isActive === true,
+      sort_order: Number(row.sortOrder ?? row.durationMonths ?? 0),
+    }));
+    const priced = (row: any) => Number.isFinite(row.amount) && row.amount > 0;
+    const unpricedButActive = submitted.filter((row: any) => row.is_active && !priced(row));
+    if (unpricedButActive.length) {
+      const durations = unpricedButActive.map((row: any) => `${row.duration_months} mo`).join(', ');
+      return NextResponse.json({
+        error: `Enter an amount greater than 0 for the durations you switched on (${durations}), or switch them off.`,
+      }, { status: 400 });
     }
+    const rows = submitted.filter(priced);
     if (rows.some((row: any) => !row.currency)) {
-      return NextResponse.json({ error: 'Currency is required for active prices.' }, { status: 400 });
+      return NextResponse.json({ error: 'Currency is required for a price.' }, { status: 400 });
     }
     try {
       const { data: plan, error: planError } = await db

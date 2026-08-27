@@ -222,7 +222,12 @@ function PlanPriceFields({
               min="0"
               step="0.01"
               value={price.amount}
-              onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, amount: e.target.value } : row))}
+              // Typing an amount is what someone means by adding a price. The box starts
+              // unticked, so entering a figure and saving used to discard it without a word --
+              // the plan then looked perfectly active while being unbuyable.
+              onChange={(e) => setPrices((current) => current.map((row, i) => i === index
+                ? { ...row, amount: e.target.value, isActive: Number(e.target.value) > 0 ? true : row.isActive }
+                : row))}
               placeholder="Amount"
               className={fieldClass}
               style={inputStyle}
@@ -2434,15 +2439,25 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           {plan.description ||
                             "Reusable subscription access plan"}
                         </p>
-                        <p className="text-[11px] mt-2" style={{ color: C.muted }}>
-                          {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length
-                            ? (plan.subscription_plan_prices ?? [])
-                                .filter((price: any) => price.is_active)
-                                .sort((a: any, b: any) => a.duration_months - b.duration_months)
-                                .map((price: any) => `${money(price.currency, price.amount)} / ${price.duration_months} mo`)
-                                .join(" | ")
-                            : "No public prices"}
-                        </p>
+                        {/* An active plan with no active price is invisible to learners, and
+                            nothing else on this screen says so -- the plan reads as ready. */}
+                        {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length ? (
+                          <p className="text-[11px] mt-2" style={{ color: C.muted }}>
+                            {(plan.subscription_plan_prices ?? [])
+                              .filter((price: any) => price.is_active)
+                              .sort((a: any, b: any) => a.duration_months - b.duration_months)
+                              .map((price: any) => `${money(price.currency, price.amount)} / ${price.duration_months} mo`)
+                              .join(" | ")}
+                          </p>
+                        ) : (
+                          <p
+                            className="text-[11px] mt-2 inline-flex items-center gap-1.5 font-bold"
+                            style={{ color: "#b45309" }}
+                          >
+                            <AlertCircle className="w-3.5 h-3.5" />
+                            No price set, so learners cannot buy this plan
+                          </p>
+                        )}
                       </div>
                       <div
                         className="flex items-center justify-between mt-3 pt-2 text-[11px]"

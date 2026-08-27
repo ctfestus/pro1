@@ -74,6 +74,15 @@ export async function GET(req: NextRequest) {
     if (studentError) throw studentError;
     if (!student) return NextResponse.json({ error: 'Student not found' }, { status: 404 });
     const subscriptionEligible = student.enrollment_model !== 'bootcamp';
+    // Whether this learner actually has bootcamp installments to pay. Used to decide who sees the
+    // bootcamp payments screen: falling back to it merely because no plans are on sale showed an
+    // installment page to people who had never been near a bootcamp.
+    const { count: bootcampEnrollments, error: bootcampError } = await db
+      .from('bootcamp_enrollments')
+      .select('id', { count: 'exact', head: true })
+      .eq('student_id', studentId)
+      .is('released_at', null);
+    if (bootcampError) throw bootcampError;
     const [subscriptionRes, requestsRes, optionsRes, plans] = await Promise.all([
       db.from('individual_subscriptions')
         .select('id, student_id, plan_id, status, duration_months, amount, currency, current_period_start, current_period_end, subscription_plans!individual_subscriptions_plan_id_fkey(id,name,description,status)')
@@ -110,6 +119,7 @@ export async function GET(req: NextRequest) {
       plans,
       enrollmentModel: student.enrollment_model,
       subscriptionEligible,
+      hasBootcampPayments: Number(bootcampEnrollments ?? 0) > 0,
       purchaseTarget: target,
       content: await resolveContent(db, displayPlanId),
     });
