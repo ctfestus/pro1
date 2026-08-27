@@ -277,6 +277,9 @@ describe('student subscription payment confirmation', () => {
     expect(response.status).toBe(409);
     expect(data.error).toContain('Starter');
     expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
+    // The online path calls the direct function, so this is the assertion that actually proves
+    // no checkout opened. The request-scoped one is asserted too, to cover the manual path.
+    expect(createPaystackDirectCheckout).not.toHaveBeenCalled();
     expect(createPaystackSubscriptionCheckout).not.toHaveBeenCalled();
   });
 
