@@ -5582,10 +5582,12 @@ BEGIN
   END IF;
   IF v_transaction.status<>'success' THEN RAISE EXCEPTION 'Paystack transaction has not been verified successfully'; END IF;
 
-  SELECT * INTO v_request FROM public.subscription_payment_requests WHERE id=v_transaction.request_id FOR UPDATE;
-  IF v_request.id IS NULL OR v_request.status<>'pending' THEN
-    PERFORM public.open_paystack_transaction_incident(p_reference,'payment_request_not_open','payment_request_not_open',true);
-    RETURN jsonb_build_object('ok',true,'status','needs_review','reason','payment_request_not_open');
+  IF v_transaction.request_id IS NOT NULL THEN
+    SELECT * INTO v_request FROM public.subscription_payment_requests WHERE id=v_transaction.request_id FOR UPDATE;
+    IF v_request.id IS NULL OR v_request.status<>'pending' THEN
+      PERFORM public.open_paystack_transaction_incident(p_reference,'payment_request_not_open','payment_request_not_open',true);
+      RETURN jsonb_build_object('ok',true,'status','needs_review','reason','payment_request_not_open');
+    END IF;
   END IF;
 
   BEGIN
@@ -5599,8 +5601,10 @@ BEGIN
     RETURN jsonb_build_object('ok',true,'status','needs_review','reason','crediting_failed');
   END;
 
-  UPDATE public.subscription_payment_requests
-  SET status='paid',subscription_id=(v_result->>'subscriptionId')::uuid,paid_at=now() WHERE id=v_request.id;
+  IF v_request.id IS NOT NULL THEN
+    UPDATE public.subscription_payment_requests
+    SET status='paid',subscription_id=(v_result->>'subscriptionId')::uuid,paid_at=now() WHERE id=v_request.id;
+  END IF;
   UPDATE public.paystack_subscription_transactions
   SET status='success',processed_payment_id=(v_result->>'paymentId')::uuid,processed_at=now(),processing_error=NULL
   WHERE id=v_transaction.id;
@@ -5609,6 +5613,88 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.finalize_paystack_subscription_transaction(text,text,text,boolean) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.finalize_paystack_subscription_transaction(text,text,text,boolean) TO service_role;
+
+-- Reserving a direct checkout, atomically.
+--
+-- The payment request used to make this safe as a side effect: one open request per learner was a
+-- unique index, so a second checkout could not exist. Removing the request removed that, and a
+-- check-then-insert in application code does not replace it -- two tabs both pass the check, both
+-- insert, and the learner ends up holding two payable Paystack links.
+--
+-- Serialized on the learner's own row, so concurrent calls queue rather than race. The partial
+-- unique index below is the backstop if anything ever inserts without going through here.
+--
+-- "Money may already have moved" deliberately excludes a success that has been credited. A
+-- credited payment is finished history, and treating it as in-flight blocked every renewal a
+-- learner would ever make after their first payment.
+CREATE OR REPLACE FUNCTION public.open_paystack_direct_checkout(
+  p_student_id uuid,p_reference text,p_plan_id uuid,p_plan_name text,
+  p_duration_months integer,p_amount numeric,p_currency text,
+  p_link_stale_after interval DEFAULT interval '30 minutes',
+  p_initializing_grace interval DEFAULT interval '5 minutes'
+) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE
+  v_live public.paystack_subscription_transactions%ROWTYPE;
+  v_request_status text;
+BEGIN
+  PERFORM 1 FROM public.students WHERE id=p_student_id FOR UPDATE;
+
+  SELECT status INTO v_request_status FROM public.subscription_payment_requests
+  WHERE student_id=p_student_id AND status IN('pending','confirmation_submitted') LIMIT 1;
+  IF FOUND THEN
+    RETURN jsonb_build_object('status','open_request','requestStatus',v_request_status);
+  END IF;
+
+  SELECT * INTO v_live FROM public.paystack_subscription_transactions
+  WHERE student_id=p_student_id
+    AND (status IN('initialized','pending','ongoing','processing','queued','needs_review')
+         OR (status='success' AND processed_payment_id IS NULL))
+  ORDER BY created_at DESC LIMIT 1;
+
+  IF FOUND THEN
+    IF v_live.status<>'initialized' OR v_live.request_id IS NOT NULL THEN
+      RETURN jsonb_build_object('status','payment_in_progress','blockingStatus',v_live.status);
+    END IF;
+    IF v_live.authorization_url IS NOT NULL AND v_live.updated_at > now()-p_link_stale_after THEN
+      IF v_live.plan_id=p_plan_id AND v_live.duration_months=p_duration_months
+         AND v_live.amount=p_amount AND v_live.currency=upper(btrim(COALESCE(p_currency,'GHS'))) THEN
+        RETURN jsonb_build_object(
+          'status','existing','reference',v_live.reference,'authorizationUrl',v_live.authorization_url
+        );
+      END IF;
+      RETURN jsonb_build_object('status','payment_in_progress','blockingStatus','initialized');
+    END IF;
+    -- A row with no link yet, reserved moments ago, is another tab still talking to Paystack. The
+    -- lock is released as soon as this returns, so that gap is real and lasts as long as the
+    -- provider call. Handing it out as 'unverified' let the second tab ask Paystack, get a 404
+    -- purely because the first had not finished, release the first tab's row and start its own --
+    -- and both tabs would come back holding a payable link.
+    IF v_live.authorization_url IS NULL AND v_live.updated_at > now()-p_initializing_grace THEN
+      RETURN jsonb_build_object('status','payment_in_progress','blockingStatus','initializing');
+    END IF;
+
+    -- No usable link, and old enough that Paystack is the only authority on it.
+    RETURN jsonb_build_object('status','unverified','reference',v_live.reference);
+  END IF;
+
+  INSERT INTO public.paystack_subscription_transactions(
+    reference,student_id,request_id,plan_id,plan_name,duration_months,amount,currency,status
+  ) VALUES(
+    p_reference,p_student_id,NULL,p_plan_id,p_plan_name,p_duration_months,p_amount,
+    upper(btrim(COALESCE(p_currency,'GHS'))),'initialized'
+  );
+  RETURN jsonb_build_object('status','created','reference',p_reference);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.open_paystack_direct_checkout(uuid,text,uuid,text,integer,numeric,text,interval,interval) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.open_paystack_direct_checkout(uuid,text,uuid,text,integer,numeric,text,interval,interval) TO service_role;
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_paystack_direct_checkout_one_live
+  ON public.paystack_subscription_transactions(student_id)
+  WHERE request_id IS NULL
+    AND (status IN('initialized','pending','ongoing','processing','queued','needs_review')
+         OR (status='success' AND processed_payment_id IS NULL));
+
 
 CREATE OR REPLACE FUNCTION public.resolve_paystack_review_incident(
   p_incident_id uuid,p_actor_id uuid,p_resolution_note text DEFAULT NULL

@@ -244,6 +244,15 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         window.location.href = body.checkout.authorizationUrl;
         return;
       }
+      // A checkout that could not be resumed turned out to be already paid. Reload so they see the
+      // access they bought, rather than an error that would have them pay for it twice.
+      if (body.settled) {
+        setMessage(body.settled === 'success'
+          ? 'You had already paid for this. Your access is up to date.'
+          : 'You had already paid for this. Our team is confirming it and will update your access.');
+        await load();
+        return;
+      }
       setMessage('Payment request created. Choose a payment method and submit your confirmation.');
       await load();
       setTab('pay');
