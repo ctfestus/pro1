@@ -173,6 +173,64 @@ describe('subscription payment actions', () => {
     }));
   });
 
+  // The tick box starts off, and the save used to keep only ticked rows -- so typing an amount and
+  // saving silently discarded it, leaving a plan that looked active and could not be bought.
+  it('keeps a price amount that was typed but not ticked', async () => {
+    authenticateAs('admin');
+    const rpc = vi.fn(() => ({ data: { ok: true }, error: null }));
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'admin-1' }, error: null },
+    }, rpc));
+
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices',
+      planId: 'plan-1',
+      prices: [{ durationMonths: 3, amount: 300, currency: 'GHS', isActive: false }],
+    }));
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices', expect.objectContaining({
+      p_prices: [expect.objectContaining({ duration_months: 3, amount: 300, is_active: false })],
+    }));
+  });
+
+  // The mirror of the bug above: filtering blank rows before validating meant ticking a duration
+  // and forgetting its amount also vanished on save, with Save reporting success.
+  it('refuses to save a duration switched on with no amount', async () => {
+    authenticateAs('admin');
+    const rpc = vi.fn(() => ({ data: { ok: true }, error: null }));
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'admin-1' }, error: null },
+    }, rpc));
+
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices',
+      planId: 'plan-1',
+      prices: [{ durationMonths: 3, amount: '', currency: 'GHS', isActive: true }],
+    }));
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(/3 mo/);
+    expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('drops a row with no amount rather than failing the save', async () => {
+    authenticateAs('admin');
+    const rpc = vi.fn(() => ({ data: { ok: true }, error: null }));
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'admin-1' }, error: null },
+    }, rpc));
+
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices',
+      planId: 'plan-1',
+      prices: [{ durationMonths: 1, amount: '', currency: 'GHS', isActive: false }],
+    }));
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices', expect.objectContaining({ p_prices: [] }));
+  });
+
   it('rejects a student role', async () => {
     authenticateAs('student');
     const response = await POST(request({ action: 'create-subscription' }));

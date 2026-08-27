@@ -68,6 +68,29 @@ describe('student subscription payment confirmation', () => {
     expect(component).toContain('if (data?.subscriptionEligible === false) return <PaymentsSection');
   });
 
+  // A learner who has never bought anything was shown "Expired" and an amber "awaiting payment"
+  // pill, because a null subscription fell through the branch meant for ended ones.
+  it('does not tell a learner with no subscription that their access expired', () => {
+    const component = readFileSync(join(process.cwd(), 'components/student/subscription-payments.tsx'), 'utf8');
+    expect(component).toContain("!subscription ? 'Not started'");
+    expect(component).toContain("openRequest ? 'awaiting payment' : 'no plan yet'");
+  });
+
+  // The bootcamp installment screen used to appear whenever no plans were on sale, so an admin
+  // forgetting to price a plan showed it to learners who had never joined a bootcamp -- and hid
+  // the real cause completely.
+  it('only shows the bootcamp payment screen to learners who owe installments', () => {
+    const component = readFileSync(join(process.cwd(), 'components/student/subscription-payments.tsx'), 'utf8');
+    expect(component).toContain('if (data?.hasBootcampPayments) return <PaymentsSection');
+    // Same rule on the error path: a failed request must not be dressed up as a bootcamp screen
+    // for a learner whose enrollment model is simply not set yet.
+    expect(component).toContain("if (error && failureEnrollmentModel === 'bootcamp')");
+    expect(component).not.toContain("if (error && failureEnrollmentModel !== 'individual')");
+    expect(component).toContain('No plans are on sale yet');
+    const route = readFileSync(join(process.cwd(), 'app/api/student-subscriptions/route.ts'), 'utf8');
+    expect(route).toContain('hasBootcampPayments');
+  });
+
   it('derives student identity from the authenticated session', async () => {
     const response = await POST(request({
       action: 'submit-confirmation', requestId: 'request-1', studentId: 'someone-else',
