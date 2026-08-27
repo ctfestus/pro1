@@ -4,7 +4,11 @@ import { Resend } from 'resend';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { adminPaymentConfirmationEmail, paymentConfirmationAcknowledgedEmail } from '@/lib/email-templates';
-import { createPaystackSubscriptionCheckout, processPaystackSubscriptionReference } from '@/lib/paystack-subscriptions';
+import {
+  createPaystackDirectCheckout,
+  createPaystackSubscriptionCheckout,
+  processPaystackSubscriptionReference,
+} from '@/lib/paystack-subscriptions';
 import { createSubscriptionPaymentRequest } from '@/lib/db-subscriptions';
 import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
 import { paystackIsConfigured } from '@/lib/paystack';
@@ -258,7 +262,7 @@ export async function POST(req: NextRequest) {
       }
       const { data: price, error } = await db
         .from('subscription_plan_prices')
-        .select('id, plan_id, duration_months, amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(id, status, cohort_id)')
+        .select('id, plan_id, duration_months, amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, status, cohort_id)')
         .eq('id', String(body.priceId))
         .maybeSingle();
       if (error) throw error;
@@ -284,8 +288,34 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // Paying online raises no payment request. A request means someone asked this learner to
+      // pay: it carries a deadline, a chasing email, and a place in the admin's receivables, and
+      // only one can be open at a time. Creating one because somebody clicked a plan turned an
+      // abandoned checkout into a debt they could not clear and locked them out of every other
+      // plan. The transaction alone is the record of a checkout they started.
+      if (body.paystack === true) {
+        await enforcePaystackRateLimit(db, session.id);
+        const outcome = await createPaystackDirectCheckout(db, {
+          studentId: session.id,
+          email: session.email,
+          planId: price.plan_id,
+          planName: (plan as any)?.name ?? 'Subscription',
+          durationMonths: price.duration_months,
+          amount: Number(price.amount),
+          currency: price.currency || 'GHS',
+        });
+        // Recovering a stuck checkout can find that Paystack already took the payment. There is
+        // nothing left to buy, so this is a success the page reloads on -- not an error that
+        // leaves them looking at a stale screen and clicking pay again.
+        if (outcome.kind === 'settled') {
+          return NextResponse.json({ ok: true, settled: outcome.status, reference: outcome.reference });
+        }
+        return NextResponse.json({ ok: true, checkout: outcome });
+      }
+
+      // Bank transfer and mobile money still raise one, because that is the flow where the
+      // learner needs somewhere to submit a receipt and an admin needs something to approve.
       const dueDate = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
-      if (body.paystack === true) await enforcePaystackRateLimit(db, session.id);
       const requestResult = await createSubscriptionPaymentRequest(db, {
         studentId: session.id,
         planId: price.plan_id,
@@ -295,14 +325,6 @@ export async function POST(req: NextRequest) {
         dueDate,
         createdBy: session.id,
       });
-      if (body.paystack === true) {
-        const checkout = await createPaystackSubscriptionCheckout(db, {
-          requestId: requestResult.requestId,
-          studentId: session.id,
-          email: session.email,
-        });
-        return NextResponse.json({ ...requestResult, checkout });
-      }
       return NextResponse.json(requestResult);
     } catch (err: any) {
       if (err?.code === '23505') {

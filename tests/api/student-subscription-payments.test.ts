@@ -8,6 +8,7 @@ const requireUser = vi.hoisted(() => vi.fn());
 const createClient = vi.hoisted(() => vi.fn());
 const rpc = vi.hoisted(() => vi.fn());
 const createPaystackSubscriptionCheckout = vi.hoisted(() => vi.fn());
+const createPaystackDirectCheckout = vi.hoisted(() => vi.fn());
 const processPaystackSubscriptionReference = vi.hoisted(() => vi.fn());
 const createSubscriptionPaymentRequest = vi.hoisted(() => vi.fn());
 
@@ -16,6 +17,7 @@ vi.mock('@supabase/supabase-js', () => ({ createClient }));
 vi.mock('resend', () => ({ Resend: class { batch = { send: vi.fn() }; } }));
 vi.mock('@/lib/paystack-subscriptions', () => ({
   createPaystackSubscriptionCheckout,
+  createPaystackDirectCheckout,
   processPaystackSubscriptionReference,
 }));
 vi.mock('@/lib/db-subscriptions', () => ({ createSubscriptionPaymentRequest }));
@@ -42,6 +44,10 @@ beforeEach(() => {
   });
   rpc.mockResolvedValue({ data: { ok: true, confirmationId: 'conf-1' }, error: null });
   createClient.mockReturnValue({ rpc });
+  createPaystackDirectCheckout.mockResolvedValue({
+    reference: 'sub-ref',
+    authorizationUrl: 'https://checkout.paystack.com/sub-ref',
+  });
   createPaystackSubscriptionCheckout.mockResolvedValue({
     reference: 'sub-ref',
     authorizationUrl: 'https://checkout.paystack.com/sub-ref',
@@ -166,7 +172,11 @@ describe('student subscription payment confirmation', () => {
     expect(createPaystackSubscriptionCheckout).not.toHaveBeenCalled();
   });
 
-  it('can create a request and immediately start Paystack checkout', async () => {
+  // A payment request means someone asked this learner to pay. Raising one because they clicked a
+  // plan gave them a deadline, a chasing email, and a place in the admin's receivables -- and
+  // since only one can be open at a time, abandoning the checkout locked them out of every other
+  // plan with no way to clear it.
+  it('buys online without raising a payment request', async () => {
     const db = makeSupabaseStub({
       students: { data: { enrollment_model: null }, error: null },
       subscription_plan_prices: {
@@ -188,11 +198,15 @@ describe('student subscription payment confirmation', () => {
     const data = await response.json();
     expect(response.status).toBe(200);
     expect(data.checkout.authorizationUrl).toBe('https://checkout.paystack.com/sub-ref');
-    expect(createPaystackSubscriptionCheckout).toHaveBeenCalledWith(db, {
-      requestId: 'request-1',
+    expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
+    expect(createPaystackDirectCheckout).toHaveBeenCalledWith(db, expect.objectContaining({
       studentId: 'student-1',
       email: 'student@example.com',
-    });
+      planId: 'plan-1',
+      durationMonths: 12,
+      amount: 1000,
+      currency: 'GHS',
+    }));
   });
 
   it('rejects a plan that does not include the selected content', async () => {

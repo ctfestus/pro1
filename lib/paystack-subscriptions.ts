@@ -13,6 +13,16 @@ export interface PaystackCheckoutResult {
   authorizationUrl: string;
 }
 
+/**
+ * A direct checkout does not always end with somewhere to send the learner. Recovering a stuck one
+ * can discover that Paystack already took the payment, in which case there is nothing left to buy
+ * and the page needs to reload rather than show an error -- telling them it is "still processing"
+ * after crediting them invites a second payment for something they already own.
+ */
+export type PaystackDirectCheckoutOutcome =
+  | ({ kind: 'checkout' } & PaystackCheckoutResult)
+  | { kind: 'settled'; reference: string; status: string };
+
 export interface PaystackProcessResult {
   ok: boolean;
   reference: string;
@@ -45,6 +55,138 @@ async function openCheckoutForRequest(db: SupabaseClient, requestId: string) {
     .maybeSingle();
   if (error) throw error;
   return data ?? null;
+}
+
+export interface PaystackDirectCheckoutInput {
+  studentId: string;
+  email: string;
+  planId: string;
+  planName: string;
+  durationMonths: number;
+  amount: number;
+  currency: string;
+}
+
+/**
+ * Buying a plan online, with no payment request attached.
+ *
+ * A payment request means someone asked the learner to pay -- it carries a deadline, a chasing
+ * email, and a place in the admin's receivables, and only one can be open per learner. Raising one
+ * because somebody clicked a plan turned an abandoned checkout into a debt they could not clear
+ * and locked them out of every other plan. Choosing a plan now records only this transaction.
+ *
+ * A request is still created for bank transfer and mobile money, where the learner needs somewhere
+ * to submit a receipt, and that path is unchanged.
+ */
+export async function createPaystackDirectCheckout(
+  db: SupabaseClient,
+  input: PaystackDirectCheckoutInput,
+  // One retry only, after a checkout with no usable link has been verified dead at Paystack.
+  attempt = 0,
+): Promise<PaystackDirectCheckoutOutcome> {
+  const reference = makePaystackReference('sub');
+  const callbackUrl = paystackCallbackUrl(reference);
+  const currency = String(input.currency || 'GHS').toUpperCase();
+
+  // Reserved in one database call, under a lock on the learner's own row. Checking for an
+  // in-flight payment and then inserting from here would let two tabs both pass the check and
+  // walk away holding two payable Paystack links -- the protection the payment request used to
+  // provide as a side effect of being one-per-learner.
+  const { data: reservation, error: reservationError } = await db.rpc('open_paystack_direct_checkout', {
+    p_student_id: input.studentId,
+    p_reference: reference,
+    p_plan_id: input.planId,
+    p_plan_name: input.planName,
+    p_duration_months: input.durationMonths,
+    p_amount: input.amount,
+    p_currency: currency,
+  });
+  if (reservationError) throw reservationError;
+
+  // Already holding a checkout for this plan: the same link comes back and Paystack is not asked
+  // for a second one. This is what keeps it a cart rather than a pile of half-started payments.
+  if (reservation?.status === 'existing') {
+    return { kind: 'checkout', reference: reservation.reference, authorizationUrl: reservation.authorizationUrl };
+  }
+  if (reservation?.status === 'open_request') {
+    throw new PaymentError(
+      'conflict',
+      'You have a payment awaiting confirmation. Complete or cancel it before starting another.',
+      409,
+    );
+  }
+
+  // A checkout with no usable link -- most often a provider timeout, where the row is deliberately
+  // left alone because we cannot know whether Paystack created anything. Paystack is the only
+  // authority, so ask it, exactly as the payment-request path already does for a stale checkout.
+  // Without this the learner is stuck for good: no link to continue, and no way to choose again.
+  if (reservation?.status === 'unverified') {
+    if (attempt >= 1) {
+      throw new PaymentError('conflict', 'This payment is still being confirmed. Please try again shortly.', 409);
+    }
+    let verifiedStatus: string | null = null;
+    try {
+      const verified = await verifyPaystackTransaction(reservation.reference);
+      verifiedStatus = String(verified.status || '').toLowerCase();
+    } catch (error) {
+      // Paystack has never heard of it, so nothing was created and the row is safe to release.
+      if (!(error instanceof PaystackApiError) || error.status !== 404) throw error;
+    }
+    if (verifiedStatus && !PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(verifiedStatus)) {
+      // Real, and possibly already paid. Processing settles the row -- and what it settles to
+      // decides what the learner is told. Crediting them and then reporting "still processing"
+      // showed an error, left the page stale, and invited a second payment for what they now own.
+      const settled = await processPaystackSubscriptionReference(db, reservation.reference);
+      if (settled.status === 'success' || settled.status === 'needs_review') {
+        return { kind: 'settled', reference: reservation.reference, status: settled.status };
+      }
+      throw new PaymentError('conflict', 'A payment is already being processed for your account. Please wait for it to finish.', 409);
+    }
+    const { error: releaseError } = await db.from('paystack_subscription_transactions').update({
+      status: verifiedStatus || 'failed',
+      processing_error: verifiedStatus ? `paystack_${verifiedStatus}` : 'transaction_not_found_at_paystack',
+    }).eq('reference', reservation.reference).eq('status', 'initialized');
+    if (releaseError) throw releaseError;
+    return createPaystackDirectCheckout(db, input, attempt + 1);
+  }
+
+  if (reservation?.status === 'payment_in_progress') {
+    throw new PaymentError(
+      'conflict',
+      reservation.blockingStatus === 'initializing'
+        ? 'Your checkout is being prepared. Give it a moment and try again.'
+        : reservation.blockingStatus === 'initialized'
+        ? 'You already have a checkout open for another plan. Finish it or remove it before choosing a different one.'
+        : 'A payment is already being processed for your account. Please wait for it to finish before starting another.',
+      409,
+    );
+  }
+
+  try {
+    const initialized = await initializePaystackTransaction({
+      email: input.email,
+      amount: input.amount,
+      currency,
+      reference,
+      callbackUrl,
+      metadata: {
+        kind: 'individual_subscription',
+        studentId: input.studentId,
+        planId: input.planId,
+        durationMonths: input.durationMonths,
+      },
+    });
+    const { error: updateError } = await db.from('paystack_subscription_transactions').update({
+      authorization_url: initialized.authorizationUrl,
+    }).eq('reference', reference);
+    if (updateError) throw updateError;
+    return { kind: 'checkout', ...initialized };
+  } catch (err) {
+    if (err instanceof PaystackApiError && err.status >= 400 && err.status < 500) {
+      await db.from('paystack_subscription_transactions').update({ status: 'failed' }).eq('reference', reference);
+    }
+    throw err;
+  }
 }
 
 export async function createPaystackSubscriptionCheckout(
