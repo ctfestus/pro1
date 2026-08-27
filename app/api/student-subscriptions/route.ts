@@ -276,6 +276,31 @@ export async function POST(req: NextRequest) {
       if (!cohort || !['legacy_individual', 'subscription_plan'].includes(cohort.cohort_kind)) {
         throw new PaymentError('conflict', 'This plan is not available for individual subscription.', 409);
       }
+
+      // One plan per learner is a database rule, and until now nothing checked it before
+      // taking the learner to a checkout. The mismatch surfaced only once the purchase RPC
+      // raised, which reaches the learner as a bare "Failed to purchase subscription plan"
+      // -- and on any path that opens a payment provider before crediting, the card is
+      // charged first and the credit is refused afterwards, leaving them out of pocket with
+      // an incident only a person can clear. Refuse here, before money can move, and name
+      // the plan they already hold so the message is actionable.
+      const { data: existing, error: existingError } = await db
+        .from('individual_subscriptions')
+        .select('plan_id, subscription_plans!individual_subscriptions_plan_id_fkey(name)')
+        .eq('student_id', session.id)
+        .maybeSingle();
+      if (existingError) throw existingError;
+      if (existing && existing.plan_id !== price.plan_id) {
+        const currentName = (existing as any).subscription_plans?.name;
+        throw new PaymentError(
+          'conflict',
+          currentName
+            ? `You are subscribed to ${currentName}. You can renew that plan here, but moving to a different plan needs the learning team.`
+            : 'You are already subscribed to a different plan. Moving to another plan needs the learning team.',
+          409,
+        );
+      }
+
       if (body.contentTable || body.contentId) {
         const contentTable = String(body.contentTable || '');
         const contentId = String(body.contentId || '');

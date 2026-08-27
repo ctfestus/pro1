@@ -151,6 +151,7 @@ describe('student subscription payment confirmation', () => {
         error: null,
       },
       cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      individual_subscriptions: { data: null, error: null },
     });
     createClient.mockReturnValue(db);
     const response = await POST(request({
@@ -192,6 +193,7 @@ describe('student subscription payment confirmation', () => {
         error: null,
       },
       cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      individual_subscriptions: { data: null, error: null },
     }, () => ({ data: true, error: null }));
     createClient.mockReturnValue(db);
     const response = await POST(request({ action: 'purchase-plan', priceId: 'price-1', paystack: true }));
@@ -220,6 +222,7 @@ describe('student subscription payment confirmation', () => {
         error: null,
       },
       cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      individual_subscriptions: { data: null, error: null },
       subscription_plan_content: { data: [{ plan_id: 'plan-2' }], error: null },
       learning_paths: { data: [], error: null },
     });
@@ -245,5 +248,62 @@ describe('student subscription payment confirmation', () => {
 
     expect(response.status).toBe(403);
     expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
+  });
+
+  // A learner may hold one plan at a time. This has to be refused before any checkout opens:
+  // once a payment provider has been handed the learner, the charge succeeds and crediting is
+  // refused afterwards, which costs them real money and needs a person to unpick.
+  it('refuses a different plan before any checkout can open', async () => {
+    const db = makeSupabaseStub({
+      students: { data: { enrollment_model: 'individual' }, error: null },
+      subscription_plan_prices: {
+        data: {
+          id: 'price-2', plan_id: 'plan-2', duration_months: 3, amount: 300,
+          currency: 'GHS', is_active: true, subscription_plans: { id: 'plan-2', status: 'active', cohort_id: 'cohort-2' },
+        },
+        error: null,
+      },
+      cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      individual_subscriptions: {
+        data: { plan_id: 'plan-1', subscription_plans: { name: 'Starter' } },
+        error: null,
+      },
+    });
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({ action: 'purchase-plan', priceId: 'price-2', paystack: true }));
+    const data = await response.json();
+
+    expect(response.status).toBe(409);
+    expect(data.error).toContain('Starter');
+    expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
+    expect(createPaystackSubscriptionCheckout).not.toHaveBeenCalled();
+  });
+
+  it('still allows renewing the plan the learner already holds', async () => {
+    const db = makeSupabaseStub({
+      students: { data: { enrollment_model: 'individual' }, error: null },
+      subscription_plan_prices: {
+        data: {
+          id: 'price-1', plan_id: 'plan-1', duration_months: 12, amount: 1000,
+          currency: 'GHS', is_active: true, subscription_plans: { id: 'plan-1', status: 'active', cohort_id: 'cohort-1' },
+        },
+        error: null,
+      },
+      cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      individual_subscriptions: {
+        data: { plan_id: 'plan-1', subscription_plans: { name: 'Starter' } },
+        error: null,
+      },
+    });
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({ action: 'purchase-plan', priceId: 'price-1', paystack: false }));
+
+    expect(response.status).toBe(200);
+    expect(createSubscriptionPaymentRequest).toHaveBeenCalledWith(db, expect.objectContaining({
+      studentId: 'student-1',
+      planId: 'plan-1',
+    }));
   });
 });
