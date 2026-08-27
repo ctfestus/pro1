@@ -21,6 +21,13 @@ import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/ve/guide';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
+import {
+  lowestUnlockPrice,
+  sellablePlans,
+  unlockDurationLabel,
+  unlockMoney,
+  type UnlockInfo,
+} from '@/lib/unlock-pricing';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -428,6 +435,7 @@ export default function PublicFormPage() {
                 slug: item.slug,
                 content_type: 'course',
                 locked: true,
+                unlock: item.unlock,
                 config: {
                   title: item.title,
                   description: item.description,
@@ -1305,12 +1313,24 @@ export default function PublicFormPage() {
                   </div>
                   {/* CTA */}
                   {form.locked ? (
+                    <>
+                    {(() => {
+                      const from = lowestUnlockPrice(form.unlock);
+                      return from ? (
+                        <div style={{ width: '100%', marginBottom: 9, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6 }}>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted }}>From</span>
+                          <span style={{ fontSize: 17, fontWeight: 800, color: cp.title, fontVariantNumeric: 'tabular-nums' }}>{unlockMoney(from.currency, from.amount)}</span>
+                          <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted }}>for {unlockDurationLabel(from.durationMonths)}</span>
+                        </div>
+                      ) : null;
+                    })()}
                     <Link
                       href={`/student?contentTable=courses&contentId=${encodeURIComponent(form.id)}#payments`}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                     >
                       Purchase or enroll <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
+                    </>
                   ) : (
                     <button onClick={() => setCourseStarted(true)}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
@@ -2183,6 +2203,36 @@ export default function PublicFormPage() {
   );
 }
 
+function UnlockPrices({ unlock }: { unlock: UnlockInfo }) {
+  const plans = sellablePlans(unlock);
+  if (!plans.length) {
+    return (
+      <p className="mt-2 text-sm leading-relaxed text-[#667085]">
+        This content is part of a subscription plan. Contact the learning team to ask about access.
+      </p>
+    );
+  }
+  return (
+    <div className="mt-3 space-y-4">
+      {plans.map(plan => (
+        <div key={plan.id}>
+          <p className="text-sm font-bold text-[#101828]">{plan.name}</p>
+          <ul className="mt-2 space-y-1.5">
+            {(plan.prices ?? []).map(price => (
+              <li key={price.id} className="flex items-baseline justify-between gap-3 text-sm">
+                <span className="text-[#667085]">{unlockDurationLabel(price.durationMonths)}</span>
+                <span className="font-bold text-[#101828]" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                  {unlockMoney(price.currency, price.amount)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function LockedContentPreview({ item }: { item: any }) {
   const cover = resolveCoverUrl(item.coverImage) || '';
   const label = item.type === 'virtual_experience'
@@ -2228,9 +2278,7 @@ function LockedContentPreview({ item }: { item: any }) {
 
             <aside className="h-fit bg-[#f8fafc] p-5">
               <h2 className="text-lg font-bold">Unlock this content</h2>
-              <p className="mt-2 text-sm leading-relaxed text-[#667085]">
-                Choose a 1 month, 3 month, or 1 year plan to enroll and get access.
-              </p>
+              <UnlockPrices unlock={item.unlock} />
               <Link
                 href={paymentHref}
                 className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00bf63] px-4 py-3 text-sm font-bold text-white hover:opacity-90"
