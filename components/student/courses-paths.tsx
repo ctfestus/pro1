@@ -18,6 +18,7 @@ import { computeAccess } from '@/lib/enrollment-access';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
+import { lowestUnlockPrice, unlockDurationLabel, unlockMoney } from '@/lib/unlock-pricing';
 import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard, stripSqlSolutions } from '@/components/student/shared';
 
 // --- Course card ---
@@ -394,6 +395,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
             description: item.description,
             cover_image: item.coverImage,
             item_ids: (item.pathItems ?? []).map((pathItem: any) => pathItem.id),
+            unlock: item.unlock,
             items: (item.pathItems ?? []).map((pathItem: any) => ({
               id: pathItem.id,
               title: pathItem.title,
@@ -678,6 +680,16 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-shrink-0">
+          {path.locked && (() => {
+            const from = lowestUnlockPrice(path.unlock);
+            return from ? (
+              <span className="hidden sm:flex items-baseline gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
+                From
+                <strong className="text-sm font-bold" style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>{unlockMoney(from.currency, from.amount)}</strong>
+                for {unlockDurationLabel(from.durationMonths)}
+              </span>
+            ) : null;
+          })()}
           {path.locked && (
             <Link
               href={`/student?contentTable=learning_paths&contentId=${encodeURIComponent(path.id)}#payments`}

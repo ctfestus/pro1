@@ -12,6 +12,11 @@ import {
 import { createSubscriptionPaymentRequest } from '@/lib/db-subscriptions';
 import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
 import { paystackIsConfigured } from '@/lib/paystack';
+import {
+  PURCHASABLE_CONTENT_TABLES,
+  eligiblePlanIds,
+  loadPlansForContent,
+} from '@/lib/subscription-plan-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,77 +53,6 @@ async function resolveContent(db: ReturnType<typeof adminClient>, planId?: strin
   return resolved;
 }
 
-const PURCHASABLE_CONTENT_TABLES = new Set(['courses', 'learning_paths', 'virtual_experiences', 'certifications']);
-
-async function eligiblePlanIds(db: ReturnType<typeof adminClient>, contentTable: string, contentId: string) {
-  const { data: direct, error: directError } = await db.from('subscription_plan_content')
-    .select('plan_id').eq('content_table', contentTable).eq('content_id', contentId);
-  if (directError) throw directError;
-  const planIds = new Set((direct ?? []).map(row => row.plan_id));
-
-  // A plan can grant a course, VE, or certification through a learning path rather than by
-  // attaching the item directly. Include those plans so the payment choice matches RLS access.
-  if (contentTable !== 'learning_paths') {
-    const { data: paths, error: pathError } = await db.from('learning_paths')
-      .select('id').eq('status', 'published').contains('item_ids', [contentId]);
-    if (pathError) throw pathError;
-    const pathIds = (paths ?? []).map(path => path.id);
-    if (pathIds.length) {
-      const { data: viaPaths, error: coverageError } = await db.from('subscription_plan_content')
-        .select('plan_id').eq('content_table', 'learning_paths').in('content_id', pathIds);
-      if (coverageError) throw coverageError;
-      for (const row of viaPaths ?? []) planIds.add(row.plan_id);
-    }
-  }
-  return [...planIds];
-}
-
-async function loadStudentPlans(
-  db: ReturnType<typeof adminClient>,
-  target?: { contentTable: string; contentId: string } | null,
-) {
-  const allowedPlanIds = target ? await eligiblePlanIds(db, target.contentTable, target.contentId) : null;
-  if (allowedPlanIds && allowedPlanIds.length === 0) return [];
-  let priceQuery = db
-    .from('subscription_plan_prices')
-    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id)')
-    .eq('is_active', true);
-  if (allowedPlanIds) priceQuery = priceQuery.in('plan_id', allowedPlanIds);
-  const { data: prices, error } = await priceQuery
-    .order('sort_order')
-    .order('duration_months');
-  if (error) throw error;
-
-  const cohortIds = [...new Set((prices ?? []).map((row: any) => row.subscription_plans?.cohort_id).filter(Boolean))];
-  const { data: cohorts, error: cohortError } = cohortIds.length
-    ? await db.from('cohorts').select('id, cohort_kind').in('id', cohortIds)
-    : { data: [], error: null };
-  if (cohortError) throw cohortError;
-  const eligibleCohorts = new Set((cohorts ?? [])
-    .filter(row => ['legacy_individual', 'subscription_plan'].includes(row.cohort_kind))
-    .map(row => row.id));
-
-  const byPlan = new Map<string, any>();
-  for (const row of prices ?? []) {
-    const plan = (row as any).subscription_plans;
-    if (!plan || plan.status !== 'active' || !eligibleCohorts.has(plan.cohort_id)) continue;
-    const current = byPlan.get(plan.id) ?? {
-      id: plan.id,
-      name: plan.name,
-      description: plan.description,
-      prices: [],
-    };
-    current.prices.push({
-      id: row.id,
-      durationMonths: row.duration_months,
-      amount: Number(row.amount),
-      currency: row.currency || 'GHS',
-    });
-    byPlan.set(plan.id, current);
-  }
-  return [...byPlan.values()];
-}
-
 export async function GET(req: NextRequest) {
   const session = await caller(req);
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -151,7 +85,7 @@ export async function GET(req: NextRequest) {
       db.from('payment_options')
         .select('id, label, type, instructions, bank_name, account_name, account_number, branch, country, mobile_money_number, network, payment_link, platform, logo_url, sort_order')
         .eq('is_active', true).order('sort_order'),
-      subscriptionEligible ? loadStudentPlans(db, target) : Promise.resolve([]),
+      subscriptionEligible ? loadPlansForContent(db, target) : Promise.resolve([]),
     ]);
     if (subscriptionRes.error) throw subscriptionRes.error;
     if (requestsRes.error) throw requestsRes.error;

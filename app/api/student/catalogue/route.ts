@@ -18,6 +18,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
+import {
+  loadPlansForContent,
+  type PlanWithPrices,
+  type PurchasableContentTable,
+} from '@/lib/subscription-plan-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -33,6 +38,8 @@ export interface CatalogueItem {
   category: string | null;
   locked: boolean;
   pathItems?: CataloguePathItem[];
+  /** Only ever set on a single-item lookup of a locked item. */
+  unlock?: { plans: PlanWithPrices[] };
 }
 
 export interface CataloguePathItem {
@@ -55,6 +62,13 @@ type Row = {
 };
 
 type PathRow = Row & { item_ids?: string[] | null };
+
+const CONTENT_TABLE_BY_TYPE: Record<CatalogueType, PurchasableContentTable> = {
+  course: 'courses',
+  learning_path: 'learning_paths',
+  virtual_experience: 'virtual_experiences',
+  certification: 'certifications',
+};
 
 export async function GET(req: NextRequest) {
   const auth = await requireStudentUser(req);
@@ -173,7 +187,23 @@ export async function GET(req: NextRequest) {
         (candidate.id === ref || candidate.slug === ref)
         && (!requestedType || candidate.type === requestedType),
       ) ?? null;
-      if (item?.type === 'course' && item.locked) {
+      if (!item) return NextResponse.json({ item: null });
+
+      // A locked item is a shop window, so it has to be able to say what opening it costs.
+      // The answer is whatever an admin actually configured -- a plan selling only six months
+      // has exactly one price here -- rather than a sentence naming durations that may not be
+      // on sale. Prices only, never the plan's full contents: this route still describes a
+      // locked item without handing over what is inside it.
+      if (item.locked) {
+        item.unlock = {
+          plans: await loadPlansForContent(db, {
+            contentTable: CONTENT_TABLE_BY_TYPE[item.type],
+            contentId: item.id,
+          }),
+        };
+      }
+
+      if (item.type === 'course' && item.locked) {
         const { data: course } = await db.from('courses').select('questions').eq('id', item.id).maybeSingle();
         const outline = ((course?.questions ?? []) as any[]).flatMap(question => {
           if (question?.isSection && question.sectionTitle) {

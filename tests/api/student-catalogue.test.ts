@@ -13,8 +13,16 @@ const h = vi.hoisted(() => {
   const rows = vi.fn<(table: string) => any[]>(() => []);
   const cohortId = vi.fn<() => string | null>(() => null);
   const requireStudentUser = vi.fn();
-  return { rows, cohortId, requireStudentUser };
+  const loadPlansForContent = vi.fn(async () => [] as any[]);
+  return { rows, cohortId, requireStudentUser, loadPlansForContent };
 });
+
+// The price lookup is shared with the payments route and tested there. What matters here is
+// that a locked preview asks for it, an unlocked one does not, and nothing beyond prices rides
+// along with the answer.
+vi.mock('@/lib/subscription-plan-access', () => ({
+  loadPlansForContent: h.loadPlansForContent,
+}));
 
 vi.mock('@/lib/api-auth', () => ({
   requireStudentUser: h.requireStudentUser,
@@ -55,6 +63,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   h.requireStudentUser.mockResolvedValue({ user: { id: 'student-1' } });
   h.cohortId.mockReturnValue(null);
+  h.loadPlansForContent.mockResolvedValue([]);
   h.rows.mockReturnValue([]);
 });
 
@@ -205,6 +214,7 @@ describe('GET /api/student/catalogue', () => {
     expect(item).toEqual({
       id: 'c7', type: 'course', title: 'Locked course', slug: 'locked-course',
       coverImage: 'cover.jpg', description: 'Overview', category: 'Data', locked: true,
+      unlock: { plans: [] },
       outline: [
         { id: 'section-1', type: 'section', title: 'Foundations' },
         { id: 'lesson-1', type: 'lesson', title: 'Introduction' },
@@ -212,6 +222,47 @@ describe('GET /api/student/catalogue', () => {
     });
     expect(JSON.stringify(item)).not.toContain('secret');
     expect(JSON.stringify(item)).not.toContain('Hidden lesson body');
+  });
+
+  it('quotes the configured prices for a locked item, not a fixed set of durations', async () => {
+    // A tenant selling only six months has exactly one price row. The page must be able to say
+    // so, which it cannot do from hardcoded copy naming 1, 3 and 12 months.
+    h.loadPlansForContent.mockResolvedValue([
+      { id: 'plan-1', name: 'Data Track', description: null, prices: [
+        { id: 'price-6', durationMonths: 6, amount: 600, currency: 'GHS' },
+      ] },
+    ]);
+    h.rows.mockImplementation((table) => table === 'virtual_experiences' ? [{
+      id: 'v9', title: 'Locked VE', slug: 'locked-ve', cover_image: 've.jpg',
+      description: 'Overview', cohort_ids: ['another-cohort'], available_to_everyone: false,
+    }] : []);
+
+    const res = await GET(request('?ref=locked-ve&type=virtual_experience'));
+    const { item } = await res.json();
+
+    expect(item.locked).toBe(true);
+    expect(item.unlock.plans[0].prices).toEqual([
+      { id: 'price-6', durationMonths: 6, amount: 600, currency: 'GHS' },
+    ]);
+    expect(h.loadPlansForContent).toHaveBeenCalledWith(expect.anything(), {
+      contentTable: 'virtual_experiences',
+      contentId: 'v9',
+    });
+  });
+
+  it('does not quote a price for content the learner can already open', async () => {
+    h.cohortId.mockReturnValue('cohort-1');
+    h.rows.mockImplementation((table) => table === 'virtual_experiences' ? [{
+      id: 'v9', title: 'Open VE', slug: 'open-ve', cover_image: 've.jpg',
+      description: 'Overview', cohort_ids: ['cohort-1'], available_to_everyone: false,
+    }] : []);
+
+    const res = await GET(request('?ref=open-ve&type=virtual_experience'));
+    const { item } = await res.json();
+
+    expect(item.locked).toBe(false);
+    expect(item.unlock).toBeUndefined();
+    expect(h.loadPlansForContent).not.toHaveBeenCalled();
   });
 
   it('refuses an unauthenticated caller', async () => {
