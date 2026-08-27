@@ -679,11 +679,11 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
             {allDone && <span className="font-bold" style={{ color: '#16a34a' }}>Completed</span>}
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
+        <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
           {path.locked && (() => {
             const from = lowestUnlockPrice(path.unlock);
             return from ? (
-              <span className="hidden sm:flex items-baseline gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
+              <span className="flex items-baseline gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
                 From
                 <strong className="text-sm font-bold" style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>{unlockMoney(from.currency, from.amount)}</strong>
                 for {unlockDurationLabel(from.durationMonths)}
