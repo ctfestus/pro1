@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
       db.from('payment_options')
         .select('id, label, type, instructions, bank_name, account_name, account_number, branch, country, mobile_money_number, network, payment_link, platform, logo_url, sort_order')
         .eq('is_active', true).order('sort_order'),
-      subscriptionEligible ? loadPlansForContent(db, target) : Promise.resolve([]),
+      subscriptionEligible ? loadPlansForContent(db, target, { withContents: true }) : Promise.resolve([]),
     ]);
     if (subscriptionRes.error) throw subscriptionRes.error;
     if (requestsRes.error) throw requestsRes.error;

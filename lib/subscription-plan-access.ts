@@ -32,11 +32,74 @@ export interface PlanPrice {
   currency: string;
 }
 
+export interface PlanContentItem {
+  contentTable: PurchasableContentTable;
+  contentId: string;
+  title: string;
+}
+
 export interface PlanWithPrices {
   id: string;
   name: string;
   description: string | null;
   prices: PlanPrice[];
+  /** Present only when contents were requested. Capped; `contentCount` is the true total. */
+  contents?: PlanContentItem[];
+  contentCount?: number;
+}
+
+/** Enough to show what a plan is without turning a card into a wall of titles. */
+export const PLAN_CONTENTS_PREVIEW_LIMIT = 12;
+
+const CONTENT_TABLES: PurchasableContentTable[] = [
+  'courses',
+  'virtual_experiences',
+  'certifications',
+  'learning_paths',
+];
+
+/**
+ * Titles of what each plan grants, for several plans at once.
+ *
+ * A learner choosing between plans cannot tell which one holds the course they came for, and
+ * the answer was already in the database -- it was just only ever resolved after purchase, for
+ * the plan they already owned. Batched across plans so a page showing several does not issue a
+ * query per plan per content type.
+ */
+export async function loadPlanContents(
+  db: SupabaseClient,
+  planIds: string[],
+): Promise<Map<string, PlanContentItem[]>> {
+  const byPlan = new Map<string, PlanContentItem[]>();
+  if (!planIds.length) return byPlan;
+
+  const { data: coverage, error } = await db.from('subscription_plan_content')
+    .select('plan_id, content_table, content_id')
+    .in('plan_id', planIds)
+    .order('added_at');
+  if (error) throw error;
+  const rows = (coverage ?? []) as any[];
+  if (!rows.length) return byPlan;
+
+  const titles = new Map<string, string>();
+  for (const table of CONTENT_TABLES) {
+    const ids = [...new Set(rows.filter(row => row.content_table === table).map(row => row.content_id))];
+    if (!ids.length) continue;
+    const { data: named, error: titleError } = await db.from(table).select('id, title').in('id', ids);
+    if (titleError) throw titleError;
+    for (const row of (named ?? []) as any[]) titles.set(`${table}:${row.id}`, row.title);
+  }
+
+  for (const row of rows) {
+    const title = titles.get(`${row.content_table}:${row.content_id}`);
+    // A missing title means the item was deleted out from under the plan. Skip it rather than
+    // advertising a blank line.
+    if (!title) continue;
+    const list = byPlan.get(row.plan_id) ?? [];
+    list.push({ contentTable: row.content_table, contentId: row.content_id, title });
+    byPlan.set(row.plan_id, list);
+  }
+  return byPlan;
 }
 
 export interface ContentTarget {
@@ -83,6 +146,7 @@ export async function eligiblePlanIds(
 export async function loadPlansForContent(
   db: SupabaseClient,
   target?: ContentTarget | null,
+  options?: { withContents?: boolean },
 ): Promise<PlanWithPrices[]> {
   const allowedPlanIds = target ? await eligiblePlanIds(db, target.contentTable, target.contentId) : null;
   if (allowedPlanIds && allowedPlanIds.length === 0) return [];
@@ -122,5 +186,14 @@ export async function loadPlansForContent(
     });
     byPlan.set(plan.id, current);
   }
-  return [...byPlan.values()];
+  const plans = [...byPlan.values()];
+  if (!options?.withContents || !plans.length) return plans;
+
+  const contents = await loadPlanContents(db, plans.map(plan => plan.id));
+  for (const plan of plans) {
+    const all = contents.get(plan.id) ?? [];
+    plan.contentCount = all.length;
+    plan.contents = all.slice(0, PLAN_CONTENTS_PREVIEW_LIMIT);
+  }
+  return plans;
 }
