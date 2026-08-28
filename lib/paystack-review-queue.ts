@@ -19,7 +19,11 @@ export interface PaystackReviewItem {
 }
 
 const STALLED_CHECKOUT_MS = 6 * 60 * 60 * 1000;
-const IN_FLIGHT_STATUSES = ['initialized', 'pending', 'ongoing', 'processing', 'queued'];
+// Deliberately excludes 'initialized'. A checkout that was opened and never taken to Paystack is
+// an abandoned cart -- ordinary, common, and the learner's own to resume or clear. Listing those
+// here buried the payments that genuinely need somebody in a pile of people who changed their mind.
+// What stays are the states where Paystack may be holding money nobody has resolved.
+const IN_FLIGHT_STATUSES = ['pending', 'ongoing', 'processing', 'queued'];
 
 export async function getPaystackReviewQueue(
   db: SupabaseClient,

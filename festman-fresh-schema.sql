@@ -5087,39 +5087,6 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.claim_student_enrollment_model(uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_student_enrollment_model(uuid,text) TO service_role;
 
-CREATE OR REPLACE FUNCTION public.create_individual_subscription_payment_request(
-  p_student_id uuid,p_plan_id uuid,p_duration_months integer,p_amount numeric,
-  p_currency text,p_due_date date,p_created_by uuid DEFAULT NULL
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
-DECLARE
-  v_plan public.subscription_plans%ROWTYPE; v_plan_kind text;
-  v_subscription public.individual_subscriptions%ROWTYPE;
-  v_request_id uuid; v_currency text;
-BEGIN
-  IF p_duration_months NOT IN (1,3,6,12) THEN RAISE EXCEPTION 'durationMonths must be one of 1, 3, 6, or 12'; END IF;
-  IF p_amount IS NULL OR p_amount<=0 THEN RAISE EXCEPTION 'amount must be greater than 0'; END IF;
-  IF p_due_date IS NULL OR p_due_date<current_date THEN RAISE EXCEPTION 'payment deadline cannot be in the past'; END IF;
-  v_currency:=upper(btrim(COALESCE(p_currency,'')));
-  IF v_currency='' THEN RAISE EXCEPTION 'currency is required'; END IF;
-  SELECT * INTO v_plan FROM public.subscription_plans WHERE id=p_plan_id;
-  IF NOT FOUND THEN RAISE EXCEPTION 'subscription plan not found'; END IF;
-  SELECT cohort_kind INTO v_plan_kind FROM public.cohorts WHERE id=v_plan.cohort_id;
-  IF v_plan.status<>'active' OR v_plan_kind NOT IN ('legacy_individual','subscription_plan') THEN
-    RAISE EXCEPTION 'subscription plan is not active or has an invalid access cohort';
-  END IF;
-  SELECT * INTO v_subscription FROM public.individual_subscriptions WHERE student_id=p_student_id;
-  IF FOUND AND v_subscription.plan_id<>p_plan_id THEN RAISE EXCEPTION 'change the student plan before assigning a renewal payment'; END IF;
-  PERFORM public.claim_student_enrollment_model(p_student_id,'individual');
-  INSERT INTO public.subscription_payment_requests(student_id,subscription_id,plan_id,plan_name,kind,duration_months,amount,currency,due_date,created_by)
-  VALUES(p_student_id,CASE WHEN v_subscription.id IS NULL THEN NULL ELSE v_subscription.id END,p_plan_id,v_plan.name,
-    CASE WHEN v_subscription.id IS NULL THEN 'purchase' ELSE 'renewal' END,p_duration_months,p_amount,v_currency,p_due_date,p_created_by)
-  RETURNING id INTO v_request_id;
-  RETURN jsonb_build_object('ok',true,'requestId',v_request_id,'planName',v_plan.name);
-END;
-$$;
-REVOKE EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) TO service_role;
-
 -- ── overdue notice delivery (migration 181) ───────────────────
 -- Delivery policy: AT MOST ONCE. A payment demand sent twice is worse than one not sent, because
 -- the student is also shown the restriction banner in the app. "Already told" is a fact about the
@@ -5283,6 +5250,11 @@ CREATE TABLE IF NOT EXISTS public.paystack_subscription_transactions (
   verified_at             timestamptz,
   processed_at            timestamptz,
   processing_error        text,
+  -- Migration 190: an unfinished checkout is a cart. Nothing new holds one; these record
+  -- that the learner cleared it and how many of the three reminders have gone out.
+  cart_dismissed_at       timestamptz,
+  reminder_count          integer NOT NULL DEFAULT 0 CHECK (reminder_count >= 0),
+  last_reminder_at        timestamptz,
   updated_at              timestamptz NOT NULL DEFAULT now()
 );
 
@@ -5812,9 +5784,10 @@ CREATE TRIGGER trg_subscription_plan_prices_updated_at
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 CREATE OR REPLACE FUNCTION public.create_individual_subscription_payment_request(
-  p_student_id uuid,p_plan_id uuid,p_duration_months integer,p_amount numeric,
-  p_currency text,p_due_date date,p_created_by uuid DEFAULT NULL
-) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+  p_student_id uuid, p_plan_id uuid, p_duration_months integer, p_amount numeric,
+  p_currency text, p_due_date date, p_created_by uuid DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   v_plan public.subscription_plans%ROWTYPE;
   v_plan_kind text;
@@ -5823,10 +5796,10 @@ DECLARE
   v_request_id uuid;
   v_currency text;
 BEGIN
-  IF p_duration_months NOT IN(1,3,6,12) THEN RAISE EXCEPTION 'durationMonths must be one of 1, 3, 6, or 12'; END IF;
-  IF p_amount IS NULL OR p_amount<=0 THEN RAISE EXCEPTION 'amount must be greater than 0'; END IF;
-  IF p_due_date IS NULL OR p_due_date<current_date THEN RAISE EXCEPTION 'payment deadline cannot be in the past'; END IF;
-  v_currency:=upper(btrim(COALESCE(p_currency,'')));
+  IF p_duration_months NOT IN (1,3,6,12) THEN RAISE EXCEPTION 'durationMonths must be one of 1, 3, 6, or 12'; END IF;
+  IF p_amount IS NULL OR p_amount <= 0 THEN RAISE EXCEPTION 'amount must be greater than 0'; END IF;
+  IF p_due_date IS NULL OR p_due_date < current_date THEN RAISE EXCEPTION 'payment deadline cannot be in the past'; END IF;
+  v_currency := upper(btrim(COALESCE(p_currency,'')));
   IF v_currency='' THEN RAISE EXCEPTION 'currency is required'; END IF;
 
   SELECT enrollment_model INTO v_student_model FROM public.students WHERE id=p_student_id FOR UPDATE;
@@ -5834,10 +5807,21 @@ BEGIN
   IF v_student_model='bootcamp' THEN
     RAISE EXCEPTION 'bootcamp learners cannot purchase an individual subscription' USING ERRCODE='unique_violation';
   END IF;
+
+  -- Under the lock above, so a checkout cannot appear between this and the insert below.
+  IF EXISTS(
+    SELECT 1 FROM public.paystack_subscription_transactions t
+    WHERE t.student_id=p_student_id AND t.request_id IS NULL
+      AND (t.status IN('initialized','pending','ongoing','processing','queued','needs_review')
+           OR (t.status='success' AND t.processed_payment_id IS NULL))
+  ) THEN
+    RAISE EXCEPTION 'an online checkout is already open for this learner' USING ERRCODE='55006';
+  END IF;
+
   SELECT * INTO v_plan FROM public.subscription_plans WHERE id=p_plan_id;
   IF NOT FOUND THEN RAISE EXCEPTION 'subscription plan not found'; END IF;
   SELECT cohort_kind INTO v_plan_kind FROM public.cohorts WHERE id=v_plan.cohort_id;
-  IF v_plan.status<>'active' OR v_plan_kind NOT IN('legacy_individual','subscription_plan') THEN
+  IF v_plan.status<>'active' OR v_plan_kind NOT IN ('legacy_individual','subscription_plan') THEN
     RAISE EXCEPTION 'subscription plan is not active or has an invalid access cohort';
   END IF;
   SELECT * INTO v_subscription FROM public.individual_subscriptions WHERE student_id=p_student_id;
@@ -5845,7 +5829,7 @@ BEGIN
 
   INSERT INTO public.subscription_payment_requests(
     student_id,subscription_id,plan_id,plan_name,kind,duration_months,amount,currency,due_date,created_by
-  ) VALUES(
+  ) VALUES (
     p_student_id,CASE WHEN v_subscription.id IS NULL THEN NULL ELSE v_subscription.id END,
     p_plan_id,v_plan.name,CASE WHEN v_subscription.id IS NULL THEN 'purchase' ELSE 'renewal' END,
     p_duration_months,p_amount,v_currency,p_due_date,p_created_by
@@ -5853,7 +5837,7 @@ BEGIN
   RETURN jsonb_build_object('ok',true,'requestId',v_request_id,'planName',v_plan.name);
 END;
 $$;
-REVOKE EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) FROM PUBLIC,anon,authenticated;
+REVOKE EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.create_individual_subscription_payment_request(uuid,uuid,integer,numeric,text,date,uuid) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.replace_subscription_plan_prices(
@@ -5885,3 +5869,85 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.replace_subscription_plan_prices(uuid,jsonb,uuid) FROM PUBLIC,anon,authenticated;
 GRANT EXECUTE ON FUNCTION public.replace_subscription_plan_prices(uuid,jsonb,uuid) TO service_role;
+
+-- Migration 190: abandoned-checkout cart.
+CREATE INDEX IF NOT EXISTS idx_paystack_subscription_transactions_cart_reminders
+  ON public.paystack_subscription_transactions(last_reminder_at NULLS FIRST, created_at)
+  WHERE status='initialized' AND request_id IS NULL
+    AND cart_dismissed_at IS NULL AND reminder_count < 3;
+
+-- Dismissing a cart.
+--
+-- Only ever the learner's own, and only while nothing has been collected: the moment a checkout
+-- reaches any state where Paystack may hold money, this refuses, because clearing it would let
+-- them start a second payment for something they might already have bought. The row itself is
+-- kept -- 'abandoned' rather than deleted -- since it is the record of a real Paystack checkout
+-- and a late payment against it still has to be matched.
+CREATE OR REPLACE FUNCTION public.dismiss_paystack_cart(p_student_id uuid, p_reference text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_transaction public.paystack_subscription_transactions%ROWTYPE;
+BEGIN
+  SELECT * INTO v_transaction FROM public.paystack_subscription_transactions
+  WHERE reference=p_reference AND student_id=p_student_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'status','not_found'); END IF;
+  IF v_transaction.status<>'initialized' OR v_transaction.request_id IS NOT NULL THEN
+    RETURN jsonb_build_object('ok',false,'status','not_dismissable','transactionStatus',v_transaction.status);
+  END IF;
+
+  UPDATE public.paystack_subscription_transactions
+  SET status='abandoned',cart_dismissed_at=now(),processing_error='cart_dismissed_by_learner'
+  WHERE id=v_transaction.id;
+  RETURN jsonb_build_object('ok',true,'status','dismissed');
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.dismiss_paystack_cart(uuid,text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.dismiss_paystack_cart(uuid,text) TO service_role;
+
+-- Claiming a reminder to send.
+--
+-- Taken under a lock and stamped before the mail goes out, so a second worker cannot send the same
+-- nudge and a crash costs one reminder rather than repeating it. The schedule is deliberately
+-- short and finite: roughly an hour, a day, then three days, and never again.
+CREATE OR REPLACE FUNCTION public.claim_paystack_cart_reminder(p_reference text)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path='' AS $$
+DECLARE v_transaction public.paystack_subscription_transactions%ROWTYPE; v_due interval;
+BEGIN
+  SELECT * INTO v_transaction FROM public.paystack_subscription_transactions
+  WHERE reference=p_reference FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('claimed',false,'reason','not_found'); END IF;
+  IF v_transaction.status<>'initialized' OR v_transaction.request_id IS NOT NULL
+     OR v_transaction.cart_dismissed_at IS NOT NULL OR v_transaction.reminder_count>=3 THEN
+    RETURN jsonb_build_object('claimed',false,'reason','not_eligible');
+  END IF;
+
+  -- A learner who has since bought access, by any route, is not chased about a cart.
+  IF EXISTS(
+    SELECT 1 FROM public.individual_subscriptions s
+    WHERE s.student_id=v_transaction.student_id AND s.status='active' AND s.current_period_end>now()
+  ) THEN
+    UPDATE public.paystack_subscription_transactions
+    SET cart_dismissed_at=now(),processing_error='cart_superseded_by_active_subscription'
+    WHERE id=v_transaction.id;
+    RETURN jsonb_build_object('claimed',false,'reason','already_subscribed');
+  END IF;
+
+  v_due:=CASE v_transaction.reminder_count
+    WHEN 0 THEN interval '1 hour'
+    WHEN 1 THEN interval '24 hours'
+    ELSE interval '3 days' END;
+  IF COALESCE(v_transaction.last_reminder_at,v_transaction.created_at) > now()-v_due THEN
+    RETURN jsonb_build_object('claimed',false,'reason','not_due');
+  END IF;
+
+  UPDATE public.paystack_subscription_transactions
+  SET reminder_count=reminder_count+1,last_reminder_at=now() WHERE id=v_transaction.id;
+  RETURN jsonb_build_object(
+    'claimed',true,'reference',v_transaction.reference,'studentId',v_transaction.student_id,
+    'planName',v_transaction.plan_name,'durationMonths',v_transaction.duration_months,
+    'amount',v_transaction.amount,'currency',v_transaction.currency,
+    'authorizationUrl',v_transaction.authorization_url,'reminderNumber',v_transaction.reminder_count+1
+  );
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.claim_paystack_cart_reminder(text) FROM PUBLIC,anon,authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_paystack_cart_reminder(text) TO service_role;

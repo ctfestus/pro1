@@ -91,6 +91,100 @@ describe('student subscription payment confirmation', () => {
     expect(route).toContain('hasBootcampPayments');
   });
 
+  // Resume used to accept any reference this learner had ever owned and reopen it from the row's
+  // remembered price. An old abandoned or already-paid reference would be honoured, at whatever
+  // the plan cost back then.
+  it('will not resume a checkout that is no longer open', async () => {
+    const db = makeSupabaseStub({
+      paystack_subscription_transactions: { data: null, error: null },
+    }, () => ({ data: true, error: null }));
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({ action: 'resume-cart', reference: 'sub-old' }));
+
+    expect(response.status).toBe(404);
+    expect(createPaystackDirectCheckout).not.toHaveBeenCalled();
+  });
+
+  it('reopens a cart at what the plan costs now, not what the row remembers', async () => {
+    const db = makeSupabaseStub({
+      paystack_subscription_transactions: {
+        data: {
+          student_id: 'student-1', plan_id: 'plan-1', duration_months: 3,
+          status: 'initialized', request_id: null,
+        },
+        error: null,
+      },
+      subscription_plan_prices: {
+        data: {
+          amount: 450, currency: 'GHS', is_active: true,
+          subscription_plans: { name: 'Pro', status: 'active', cohort_id: 'cohort-1' },
+        },
+        error: null,
+      },
+      cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      // Resume runs the same account checks the purchase path does: the learner has not moved to a
+      // bootcamp, and is not already on a different plan.
+      students: { data: { enrollment_model: null }, error: null },
+      individual_subscriptions: { data: null, error: null },
+    }, () => ({ data: true, error: null }));
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({ action: 'resume-cart', reference: 'sub-a' }));
+
+    expect(response.status).toBe(200);
+    expect(createPaystackDirectCheckout).toHaveBeenCalledWith(db, expect.objectContaining({
+      planId: 'plan-1', durationMonths: 3, amount: 450, planName: 'Pro',
+    }));
+  });
+
+  it('refuses to reopen a cart for a learner now on a bootcamp', async () => {
+    const db = makeSupabaseStub({
+      paystack_subscription_transactions: {
+        data: {
+          student_id: 'student-1', plan_id: 'plan-1', duration_months: 3,
+          status: 'initialized', request_id: null,
+        },
+        error: null,
+      },
+      subscription_plan_prices: {
+        data: {
+          amount: 450, currency: 'GHS', is_active: true,
+          subscription_plans: { name: 'Pro', status: 'active', cohort_id: 'cohort-1' },
+        },
+        error: null,
+      },
+      cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      students: { data: { enrollment_model: 'bootcamp' }, error: null },
+      individual_subscriptions: { data: null, error: null },
+    }, () => ({ data: true, error: null }));
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({ action: 'resume-cart', reference: 'sub-a' }));
+
+    expect(response.status).toBe(403);
+    expect(createPaystackDirectCheckout).not.toHaveBeenCalled();
+  });
+
+  it('refuses to reopen a cart whose plan is no longer on sale', async () => {
+    const db = makeSupabaseStub({
+      paystack_subscription_transactions: {
+        data: {
+          student_id: 'student-1', plan_id: 'plan-1', duration_months: 3,
+          status: 'initialized', request_id: null,
+        },
+        error: null,
+      },
+      subscription_plan_prices: { data: null, error: null },
+    }, () => ({ data: true, error: null }));
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({ action: 'resume-cart', reference: 'sub-a' }));
+
+    expect(response.status).toBe(409);
+    expect(createPaystackDirectCheckout).not.toHaveBeenCalled();
+  });
+
   it('derives student identity from the authenticated session', async () => {
     const response = await POST(request({
       action: 'submit-confirmation', requestId: 'request-1', studentId: 'someone-else',
@@ -161,6 +255,9 @@ describe('student subscription payment confirmation', () => {
   it('creates a subscription request from the server-side price', async () => {
     const db = makeSupabaseStub({
       students: { data: { enrollment_model: null }, error: null },
+      // No online checkout open: the manual path refuses while one is, so a learner cannot
+      // hold a payable Paystack link and a bank transfer for the same plan at once.
+      paystack_subscription_transactions: { data: null, error: null },
       subscription_plan_prices: {
         data: {
           id: 'price-1',
@@ -203,6 +300,9 @@ describe('student subscription payment confirmation', () => {
   it('buys online without raising a payment request', async () => {
     const db = makeSupabaseStub({
       students: { data: { enrollment_model: null }, error: null },
+      // No online checkout open: the manual path refuses while one is, so a learner cannot
+      // hold a payable Paystack link and a bank transfer for the same plan at once.
+      paystack_subscription_transactions: { data: null, error: null },
       subscription_plan_prices: {
         data: {
           id: 'price-1',
@@ -237,6 +337,9 @@ describe('student subscription payment confirmation', () => {
   it('rejects a plan that does not include the selected content', async () => {
     const db = makeSupabaseStub({
       students: { data: { enrollment_model: null }, error: null },
+      // No online checkout open: the manual path refuses while one is, so a learner cannot
+      // hold a payable Paystack link and a bank transfer for the same plan at once.
+      paystack_subscription_transactions: { data: null, error: null },
       subscription_plan_prices: {
         data: {
           id: 'price-1', plan_id: 'plan-1', duration_months: 1, amount: 100,
@@ -264,6 +367,13 @@ describe('student subscription payment confirmation', () => {
   it('rejects bootcamp learners before creating an individual payment request', async () => {
     const db = makeSupabaseStub({
       students: { data: { enrollment_model: 'bootcamp' }, error: null },
+      subscription_plan_prices: {
+        data: {
+          id: 'price-1', plan_id: 'plan-1', duration_months: 1, amount: 100,
+          currency: 'GHS', is_active: true, subscription_plans: { id: 'plan-1', status: 'active', cohort_id: 'cohort-1' },
+        },
+        error: null,
+      },
     });
     createClient.mockReturnValue(db);
 
@@ -321,6 +431,9 @@ describe('student subscription payment confirmation', () => {
         data: { plan_id: 'plan-1', subscription_plans: { name: 'Starter' } },
         error: null,
       },
+      // No online checkout open: the manual path refuses while one is, so a learner cannot hold a
+      // payable Paystack link and a bank transfer for the same plan at once.
+      paystack_subscription_transactions: { data: null, error: null },
     });
     createClient.mockReturnValue(db);
 

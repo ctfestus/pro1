@@ -8,6 +8,7 @@ import {
   createPaystackDirectCheckout,
   createPaystackSubscriptionCheckout,
   processPaystackSubscriptionReference,
+  settleUnfinishedCheckout,
 } from '@/lib/paystack-subscriptions';
 import { createSubscriptionPaymentRequest } from '@/lib/db-subscriptions';
 import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
@@ -83,7 +84,7 @@ export async function GET(req: NextRequest) {
       .eq('student_id', studentId)
       .is('released_at', null);
     if (bootcampError) throw bootcampError;
-    const [subscriptionRes, requestsRes, optionsRes, plans] = await Promise.all([
+    const [subscriptionRes, requestsRes, optionsRes, plans, cartRes] = await Promise.all([
       db.from('individual_subscriptions')
         .select('id, student_id, plan_id, status, duration_months, amount, currency, current_period_start, current_period_end, subscription_plans!individual_subscriptions_plan_id_fkey(id,name,description,status)')
         .eq('student_id', studentId).maybeSingle(),
@@ -95,6 +96,13 @@ export async function GET(req: NextRequest) {
         .select('id, label, type, instructions, bank_name, account_name, account_number, branch, country, mobile_money_number, network, payment_link, platform, logo_url, sort_order')
         .eq('is_active', true).order('sort_order'),
       subscriptionEligible ? loadPlansForContent(db, target, { withContents: true }) : Promise.resolve([]),
+      // The unfinished checkout, if there is one. The reservation function allows a learner only
+      // one at a time, so this is a single row rather than a list.
+      db.from('paystack_subscription_transactions')
+        .select('reference, plan_id, plan_name, duration_months, amount, currency, authorization_url, created_at')
+        .eq('student_id', studentId).eq('status', 'initialized').is('request_id', null)
+        .is('cart_dismissed_at', null).not('authorization_url', 'is', null)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
     if (subscriptionRes.error) throw subscriptionRes.error;
     if (requestsRes.error) throw requestsRes.error;
@@ -120,12 +128,49 @@ export async function GET(req: NextRequest) {
       enrollmentModel: student.enrollment_model,
       subscriptionEligible,
       hasBootcampPayments: Number(bootcampEnrollments ?? 0) > 0,
+      cart: cartRes.error ? null : cartRes.data,
       purchaseTarget: target,
       content: await resolveContent(db, displayPlanId),
     });
   } catch (err: any) {
     console.error('[student-subscriptions/GET]', err);
     return NextResponse.json({ error: 'Failed to load subscription payments' }, { status: 500 });
+  }
+}
+
+// Whether this learner may buy this plan at all, asked before any path opens Paystack.
+//
+// Both buying and resuming need exactly these answers, and on any path that opens the provider
+// first the card is charged before crediting is refused -- leaving the learner out of pocket with
+// an incident only a person can clear. Resume skipped them entirely, so a tab left open while the
+// account changed could still reach a payment page.
+async function assertLearnerMayBuy(
+  db: ReturnType<typeof adminClient>,
+  studentId: string,
+  planId: string,
+) {
+  const { data: student, error: studentError } = await db.from('students')
+    .select('enrollment_model').eq('id', studentId).maybeSingle();
+  if (studentError) throw studentError;
+  if (student?.enrollment_model === 'bootcamp') {
+    throw new PaymentError('forbidden', 'Your bootcamp payment plan is managed separately.', 403);
+  }
+
+  const { data: existing, error: existingError } = await db
+    .from('individual_subscriptions')
+    .select('plan_id, subscription_plans!individual_subscriptions_plan_id_fkey(name)')
+    .eq('student_id', studentId)
+    .maybeSingle();
+  if (existingError) throw existingError;
+  if (existing && existing.plan_id !== planId) {
+    const currentName = (existing as any).subscription_plans?.name;
+    throw new PaymentError(
+      'conflict',
+      currentName
+        ? `You are subscribed to ${currentName}. You can renew that plan here, but moving to a different plan needs the learning team.`
+        : 'You are already subscribed to a different plan. Moving to another plan needs the learning team.',
+      409,
+    );
   }
 }
 
@@ -174,6 +219,123 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Resuming an unfinished checkout. Deliberately not a link straight to the stored Paystack URL:
+  // a checkout session can time out, so the same reservation path that created it decides whether
+  // that link is still good or a fresh one is needed.
+  if (body.action === 'resume-cart') {
+    const reference = String(body.reference || '').trim();
+    if (!reference) return NextResponse.json({ error: 'reference is required' }, { status: 400 });
+    const db = adminClient();
+    try {
+      await enforcePaystackRateLimit(db, session.id);
+      // The current cart specifically -- not merely a row this learner once owned. Without the
+      // status and dismissal conditions, an old abandoned or already-paid reference would be
+      // accepted and reopened.
+      const { data: cart, error } = await db.from('paystack_subscription_transactions')
+        .select('student_id, plan_id, duration_months, status, request_id')
+        .eq('reference', reference)
+        .eq('status', 'initialized')
+        .is('request_id', null)
+        .is('cart_dismissed_at', null)
+        .maybeSingle();
+      if (error) throw error;
+      if (!cart || cart.student_id !== session.id) {
+        throw new PaymentError('not_found', 'That checkout is no longer open.', 404);
+      }
+
+      // Priced from what the plan costs today, never from what the row remembers. A cart can sit
+      // for days, and reopening it at a stale figure would sell access at a price that no longer
+      // exists -- and would only be noticed after the learner had paid it.
+      const { data: current, error: currentError } = await db.from('subscription_plan_prices')
+        .select('amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(name, status, cohort_id)')
+        .eq('plan_id', cart.plan_id).eq('duration_months', cart.duration_months)
+        .eq('is_active', true).maybeSingle();
+      if (currentError) throw currentError;
+      const currentPlan = (current as any)?.subscription_plans;
+      if (!current || currentPlan?.status !== 'active') {
+        throw new PaymentError('conflict', 'That plan is no longer on sale. Choose one of the current plans instead.', 409);
+      }
+      const { data: cohort, error: cohortError } = await db.from('cohorts')
+        .select('cohort_kind').eq('id', currentPlan.cohort_id).maybeSingle();
+      if (cohortError) throw cohortError;
+      if (!cohort || !['legacy_individual', 'subscription_plan'].includes(cohort.cohort_kind)) {
+        throw new PaymentError('conflict', 'That plan is not available for individual subscription.', 409);
+      }
+      // The account can have changed since the cart was made: a learner moved onto a bootcamp, or
+      // given a different plan. Same checks the purchase path runs, before Paystack opens.
+      await assertLearnerMayBuy(db, session.id, cart.plan_id);
+
+      const outcome = await createPaystackDirectCheckout(db, {
+        studentId: session.id,
+        email: session.email,
+        planId: cart.plan_id,
+        planName: currentPlan.name,
+        durationMonths: cart.duration_months,
+        amount: Number(current.amount),
+        currency: current.currency || 'GHS',
+      });
+      if (outcome.kind === 'settled') {
+        return NextResponse.json({ ok: true, settled: outcome.status, reference: outcome.reference });
+      }
+      return NextResponse.json({ ok: true, checkout: outcome });
+    } catch (err) {
+      const failure = paymentErrorResponse(err, 'Could not reopen that checkout');
+      return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
+
+  // Clearing an unfinished checkout. Guarded in the database rather than here: it refuses the
+  // moment the checkout reaches a state where Paystack may hold money, because clearing it then
+  // would free the learner to start a second payment for something they might already have bought.
+  if (body.action === 'dismiss-cart') {
+    const reference = String(body.reference || '').trim();
+    if (!reference) return NextResponse.json({ error: 'reference is required' }, { status: 400 });
+    const db = adminClient();
+    try {
+      // Our own status is not evidence that nothing was paid. A learner can complete a payment and
+      // have the row still read 'initialized' until the webhook lands, so clearing on the local
+      // value alone would free them to buy the same thing twice. Paystack is asked first, and
+      // anything it has not finished with is credited rather than discarded.
+      const { data: owned, error: ownedError } = await db.from('paystack_subscription_transactions')
+        .select('student_id').eq('reference', reference).maybeSingle();
+      if (ownedError) throw ownedError;
+      if (!owned || owned.student_id !== session.id) {
+        throw new PaymentError('not_found', 'That checkout could not be found.', 404);
+      }
+      const settled = await settleUnfinishedCheckout(db, reference);
+      if (!settled.abandoned) {
+        throw new PaymentError(
+          'conflict',
+          // A null result means Paystack gave us nothing we could place. Refusing is the point:
+          // silence is not evidence that the checkout is free to clear.
+          settled.result?.status === 'success'
+            ? 'That payment already went through, so there is nothing to clear. Your access has been updated.'
+            : 'That payment is still being processed and cannot be cleared. Check its status instead.',
+          409,
+        );
+      }
+
+      const { data, error } = await db.rpc('dismiss_paystack_cart', {
+        p_student_id: session.id,
+        p_reference: reference,
+      });
+      if (error) throw error;
+      if (data?.ok !== true) {
+        throw new PaymentError(
+          'conflict',
+          data?.status === 'not_found'
+            ? 'That checkout could not be found.'
+            : 'This payment is already being processed and cannot be cleared. Check its status instead.',
+          data?.status === 'not_found' ? 404 : 409,
+        );
+      }
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      const failure = paymentErrorResponse(err, 'Could not clear that checkout');
+      return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
+
   if (body.action === 'verify-paystack-return') {
     const reference = String(body.reference || '').trim();
     if (!reference) return NextResponse.json({ error: 'reference is required' }, { status: 400 });
@@ -198,12 +360,6 @@ export async function POST(req: NextRequest) {
     if (!body.priceId) return NextResponse.json({ error: 'priceId is required' }, { status: 400 });
     const db = adminClient();
     try {
-      const { data: student, error: studentError } = await db.from('students')
-        .select('enrollment_model').eq('id', session.id).maybeSingle();
-      if (studentError) throw studentError;
-      if (student?.enrollment_model === 'bootcamp') {
-        throw new PaymentError('forbidden', 'Your bootcamp payment plan is managed separately.', 403);
-      }
       const { data: price, error } = await db
         .from('subscription_plan_prices')
         .select('id, plan_id, duration_months, amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, status, cohort_id)')
@@ -214,35 +370,12 @@ export async function POST(req: NextRequest) {
       if (!price || price.is_active !== true || plan?.status !== 'active') {
         return NextResponse.json({ error: 'Subscription price not found' }, { status: 404 });
       }
+      await assertLearnerMayBuy(db, session.id, price.plan_id);
       const { data: cohort, error: cohortError } = await db.from('cohorts')
         .select('cohort_kind').eq('id', plan.cohort_id).maybeSingle();
       if (cohortError) throw cohortError;
       if (!cohort || !['legacy_individual', 'subscription_plan'].includes(cohort.cohort_kind)) {
         throw new PaymentError('conflict', 'This plan is not available for individual subscription.', 409);
-      }
-
-      // One plan per learner is a database rule, and until now nothing checked it before
-      // taking the learner to a checkout. The mismatch surfaced only once the purchase RPC
-      // raised, which reaches the learner as a bare "Failed to purchase subscription plan"
-      // -- and on any path that opens a payment provider before crediting, the card is
-      // charged first and the credit is refused afterwards, leaving them out of pocket with
-      // an incident only a person can clear. Refuse here, before money can move, and name
-      // the plan they already hold so the message is actionable.
-      const { data: existing, error: existingError } = await db
-        .from('individual_subscriptions')
-        .select('plan_id, subscription_plans!individual_subscriptions_plan_id_fkey(name)')
-        .eq('student_id', session.id)
-        .maybeSingle();
-      if (existingError) throw existingError;
-      if (existing && existing.plan_id !== price.plan_id) {
-        const currentName = (existing as any).subscription_plans?.name;
-        throw new PaymentError(
-          'conflict',
-          currentName
-            ? `You are subscribed to ${currentName}. You can renew that plan here, but moving to a different plan needs the learning team.`
-            : 'You are already subscribed to a different plan. Moving to another plan needs the learning team.',
-          409,
-        );
       }
 
       if (body.contentTable || body.contentId) {
@@ -284,6 +417,11 @@ export async function POST(req: NextRequest) {
 
       // Bank transfer and mobile money still raise one, because that is the flow where the
       // learner needs somewhere to submit a receipt and an admin needs something to approve.
+      //
+      // Never while a checkout is open: a learner holding a payable Paystack link and a bank
+      // transfer for the same plan can settle both. That check lives inside the function below,
+      // under the lock it already takes on the learner's row, because doing it here first and
+      // inserting second let a checkout opened in between slip through.
       const dueDate = new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 10);
       const requestResult = await createSubscriptionPaymentRequest(db, {
         studentId: session.id,
@@ -296,6 +434,14 @@ export async function POST(req: NextRequest) {
       });
       return NextResponse.json(requestResult);
     } catch (err: any) {
+      if (err?.code === '55006') {
+        const failure = new PaymentError(
+          'conflict',
+          'You have an online checkout open. Finish it or remove it before paying another way.',
+          409,
+        );
+        return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+      }
       if (err?.code === '23505') {
         const failure = new PaymentError('conflict', 'A payment request is already open for this subscription.', 409);
         return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
