@@ -44,6 +44,15 @@ function cents(value: number) {
   return Math.round(Number(value || 0) * 100);
 }
 
+/** " for Pro, 3 months" -- or nothing at all if the reservation did not say. */
+function describeOpenCheckout(reservation: { openPlanName?: string | null; openDurationMonths?: number | null }) {
+  const name = String(reservation.openPlanName ?? '').trim();
+  const months = Number(reservation.openDurationMonths);
+  if (!name) return '';
+  if (!Number.isFinite(months) || months <= 0) return ` for ${name}`;
+  return ` for ${name}, ${months === 12 ? '1 year' : `${months} month${months > 1 ? 's' : ''}`}`;
+}
+
 async function openCheckoutForRequest(db: SupabaseClient, requestId: string) {
   const { data, error } = await db
     .from('paystack_subscription_transactions')
@@ -155,8 +164,11 @@ export async function createPaystackDirectCheckout(
       'conflict',
       reservation.blockingStatus === 'initializing'
         ? 'Your checkout is being prepared. Give it a moment and try again.'
+        // Names the unfinished checkout rather than calling it "another plan". Most learners who
+        // hit this are renewing, so the open one is their own plan at a different length, and
+        // being told about another plan sent them looking for something that was not there.
         : reservation.blockingStatus === 'initialized'
-        ? 'You already have a checkout open for another plan. Finish it or remove it before choosing a different one.'
+        ? `You have an unfinished checkout${describeOpenCheckout(reservation)}. Finish it or remove it above before choosing a different option.`
         : 'A payment is already being processed for your account. Please wait for it to finish before starting another.',
       409,
     );

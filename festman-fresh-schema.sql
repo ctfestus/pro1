@@ -5634,7 +5634,13 @@ BEGIN
           'status','existing','reference',v_live.reference,'authorizationUrl',v_live.authorization_url
         );
       END IF;
-      RETURN jsonb_build_object('status','payment_in_progress','blockingStatus','initialized');
+      -- Names what is actually open. Saying "another plan" was wrong and confusing: the most
+      -- common way to reach this is a renewal, where the unfinished checkout is the same plan
+      -- at a different length, so the learner was told about a plan that did not exist.
+      RETURN jsonb_build_object(
+        'status','payment_in_progress','blockingStatus','initialized',
+        'openPlanName',v_live.plan_name,'openDurationMonths',v_live.duration_months
+      );
     END IF;
     -- A row with no link yet, reserved moments ago, is another tab still talking to Paystack. The
     -- lock is released as soon as this returns, so that gap is real and lasts as long as the
@@ -5920,13 +5926,17 @@ BEGIN
     RETURN jsonb_build_object('claimed',false,'reason','not_eligible');
   END IF;
 
-  -- A learner who has since bought access, by any route, is not chased about a cart.
+  -- A learner who has access is not chased about a cart -- but the cart is not taken away from
+  -- them either. Dismissing it here silently undid the fix that lets renewers see their own
+  -- unfinished checkout: the card vanished on the next sweep while the transaction stayed open,
+  -- so they were blocked from a different duration with nothing on screen to remove. Retiring the
+  -- reminders instead stops the nudges and leaves the cart visible and clearable.
   IF EXISTS(
     SELECT 1 FROM public.individual_subscriptions s
     WHERE s.student_id=v_transaction.student_id AND s.status='active' AND s.current_period_end>now()
   ) THEN
     UPDATE public.paystack_subscription_transactions
-    SET cart_dismissed_at=now(),processing_error='cart_superseded_by_active_subscription'
+    SET reminder_count=3,processing_error='cart_reminders_stopped_active_subscription'
     WHERE id=v_transaction.id;
     RETURN jsonb_build_object('claimed',false,'reason','already_subscribed');
   END IF;

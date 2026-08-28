@@ -50,10 +50,20 @@ describe('abandoned checkout cart', () => {
     expect(cart).toContain('SET reminder_count=reminder_count+1,last_reminder_at=now()');
   });
 
-  // Someone who has since bought access, by any route, must never be chased about a cart.
-  it('stops chasing a learner who already has access', () => {
-    expect(cart).toContain("s.status='active' AND s.current_period_end>now()");
-    expect(cart).toContain('cart_superseded_by_active_subscription');
+  // Someone who has since bought access, by any route, must never be chased about a cart -- but
+  // the cart must not be taken away from them either. Dismissing it here silently undid the fix
+  // that lets renewers see their own unfinished checkout: the card vanished on the next sweep
+  // while the transaction stayed open, leaving them blocked with nothing on screen to remove.
+  it('stops chasing a subscriber without hiding their cart', () => {
+    const visible = compact(read('migrations/193_keep_renewal_carts_visible.sql'));
+    for (const sql of [visible, schema]) {
+      expect(sql).toContain("s.status='active' AND s.current_period_end>now()");
+      // Reminders retired, not the cart.
+      expect(sql).toContain("SET reminder_count=3,processing_error='cart_reminders_stopped_active_subscription'");
+      expect(sql).not.toContain("SET cart_dismissed_at=now(),processing_error='cart_superseded_by_active_subscription'");
+    }
+    // Only the sweep sets cart_dismissed_at now, and only when the learner asks.
+    expect(schema).toContain("SET status='abandoned',cart_dismissed_at=now()");
   });
 
   // Our own status is not evidence. A learner can pay and have the row read 'initialized' until
@@ -97,7 +107,26 @@ describe('abandoned checkout cart', () => {
     expect(schema.match(/CREATE OR REPLACE FUNCTION public\.create_individual_subscription_payment_request/g) ?? [])
       .toHaveLength(1);
     const component = read('components/student/subscription-payments.tsx');
-    expect(component).toContain('{data?.cart && !hasActiveAccess && !openRequest && !readOnly');
+    expect(component).toContain('{data?.cart && !openRequest && !readOnly');
+  });
+
+  // Gating the card on not having access looked sensible and was exactly backwards. A renewal
+  // creates a checkout like any other, so the only people the card refused to appear for were the
+  // ones most likely to be holding one -- blocked by their own cart, with no way to see or clear
+  // it, and told the block was about "another plan".
+  it('shows the cart to a renewing subscriber too', () => {
+    const component = read('components/student/subscription-payments.tsx');
+    expect(component).not.toContain('data?.cart && !hasActiveAccess');
+    expect(component).toContain("{hasActiveAccess ? 'You started renewing' : 'You were considering'}");
+  });
+
+  // "another plan" was wrong for the commonest case: the same plan at a different length.
+  it('names the unfinished checkout instead of calling it another plan', () => {
+    const lib = read('lib/paystack-subscriptions.ts');
+    expect(lib).toContain('You have an unfinished checkout${describeOpenCheckout(reservation)}');
+    expect(lib).not.toContain('You already have a checkout open for another plan');
+    const naming = compact(read('migrations/192_name_the_open_checkout.sql'));
+    expect(naming).toContain("'openPlanName',v_live.plan_name,'openDurationMonths',v_live.duration_months");
   });
 
   // A Paystack session can time out, so neither Continue nor a reminder days later may lead
