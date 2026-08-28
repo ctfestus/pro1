@@ -14,6 +14,7 @@ import { HoverPreviewCard } from '@/components/student/shared';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
+import { landingHref } from '@/lib/landing-href';
 
 // --- FadeIn on scroll ---
 function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -558,17 +559,23 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
                           transitionDelay: expanded ? '0.15s' : '0s',
                           flexShrink: 0,
                         }}>
-                          <Link
-                            href={landingHref(p, user)}
+                          <span
                             className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
                             style={{ background: accentColor }}
                           >
                             <ArrowRight className="w-5 h-5 text-white" />
-                          </Link>
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
+                  {/* The whole card is the target. The arrow above is decoration: it only shows
+                      on hover, which a touch device never sends, leaving the card unreachable. */}
+                  <Link
+                    href={landingHref(p, user)}
+                    aria-label={p.title}
+                    className="absolute inset-0 z-20"
+                  />
                 </motion.div>
               );
             })}
@@ -1375,16 +1382,6 @@ function LandingMidAdBanner({ ads, hFont, bFont, isDark }: { ads: AdCard[]; hFon
 }
 
 // Hover popup content for landing page items
-// Where a landing card leads. Courses and guided projects have a public page that shows a
-// signed-out visitor the cover, the blurb and the price; learning paths have no page of their
-// own yet, so they still route to sign-in. Kept in one place because the page has several card
-// layouts and they were disagreeing -- only the desktop hover popup led anywhere useful.
-function landingHref(item: { type?: string; slug?: string | null }, user: any) {
-  const hasPublicPage = (item.type === 've' || item.type === 'course') && !!item.slug;
-  if (hasPublicPage) return `/${item.slug}`;
-  return user ? '/student' : '/auth';
-}
-
 function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
   // Courses and guided projects have a public page of their own, which now shows a signed-out
   // visitor the cover, the blurb and the price. Learning paths have no such page, so they still
