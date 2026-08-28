@@ -11,6 +11,7 @@ import { notifySubscriptionActivatedBatch } from '@/lib/notify-subscription-acti
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
 import { notifySubscriptionExpiring } from '@/lib/notify-subscription-expiring';
 import { retryPaystackIncidentNotifications, retryStoredPaystackWebhookEvents } from '@/lib/paystack-webhook-processing';
+import { sendPaystackCartReminders } from '@/lib/notify-paystack-cart';
 import { verifyQStashRequest } from '@/lib/qstash';
 
 export const dynamic = 'force-dynamic';
@@ -44,6 +45,7 @@ export async function POST(req: NextRequest) {
   let paystackEventFailures = 0;
   let reconciliationAlertsSent = 0;
   let paystackEventsPurged = 0;
+  let cartRemindersSent = 0;
   let paystackRecoverySkipped = false;
   // Paystack recovery runs AFTER the expiry pass, further down. Expiring access is the reason
   // this job exists and it is the only thing that ever revokes it, so cleanup must never get to
@@ -221,6 +223,11 @@ export async function POST(req: NextRequest) {
       } else {
         paystackRecoverySkipped = true;
       }
+      // Last of the recovery work and the least urgent: a nudge that waits an hour costs nothing.
+      if (!outOfTime()) {
+        const reminders = await sendPaystackCartReminders(db, REQUEST_EMAIL_RETRY_BATCH, outOfTime);
+        cartRemindersSent = reminders.sent;
+      }
       if (!outOfTime()) {
         const { data: purged, error: purgeError } = await db.rpc('purge_paystack_operational_data', {
           p_before: new Date(Date.now() - 90 * 86_400_000).toISOString(),
@@ -264,6 +271,7 @@ export async function POST(req: NextRequest) {
     paystackEventFailures,
     reconciliationAlertsSent,
     paystackEventsPurged,
+    cartRemindersSent,
     emailRetryError,
   }, { status: sweepSucceeded ? 200 : 500 });
 }

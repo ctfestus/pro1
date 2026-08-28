@@ -429,3 +429,38 @@ export async function processPaystackSubscriptionReference(
     alreadyProcessed: finalized?.alreadyProcessed,
   };
 }
+
+/**
+ * Asks Paystack what really became of a checkout we still hold as unfinished.
+ *
+ * Our own status is not evidence. A learner can pay and have the row still read 'initialized'
+ * for as long as the webhook takes to arrive, so anything that acts on "this was abandoned" --
+ * clearing a cart, or nudging someone to pay again -- has to confirm it with the provider first.
+ * Both of those were trusting the local row, which meant a learner could be told to pay for
+ * something they had already bought, or could clear a paid checkout and be free to buy it twice.
+ *
+ * Anything the provider does not call finished is handed to the normal crediting path rather than
+ * merely reported, so a payment discovered here is applied instead of noticed and dropped.
+ */
+export async function settleUnfinishedCheckout(
+  db: SupabaseClient,
+  reference: string,
+): Promise<{ abandoned: true } | { abandoned: false; result: PaystackProcessResult | null }> {
+  let verifiedStatus: string | null = null;
+  try {
+    const verified = await verifyPaystackTransaction(reference);
+    verifiedStatus = String(verified.status || '').toLowerCase();
+  } catch (error) {
+    // Paystack has never heard of it, so nothing was ever collected against it.
+    if (error instanceof PaystackApiError && error.status === 404) return { abandoned: true };
+    throw error;
+  }
+  // Released only on an explicit terminal failure. A blank or unrecognised status is Paystack
+  // telling us nothing, and reading silence as "nothing was collected" is how a paid checkout gets
+  // cleared and bought a second time. Anything we cannot place is left alone rather than freed.
+  if (PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(verifiedStatus)) return { abandoned: true };
+  if (!PAYSTACK_IN_FLIGHT_STATUSES.includes(verifiedStatus) && verifiedStatus !== 'success') {
+    return { abandoned: false, result: null };
+  }
+  return { abandoned: false, result: await processPaystackSubscriptionReference(db, reference) };
+}

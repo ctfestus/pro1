@@ -632,6 +632,11 @@ export async function POST(req: NextRequest) {
       if (provisioned?.isNewAccount) {
         await db.auth.admin.deleteUser(provisioned.studentId).catch(() => {});
       }
+      if (err?.code === '55006') {
+        return NextResponse.json({
+          error: 'This learner has an online checkout open. Ask them to finish or clear it before assigning payment terms.',
+        }, { status: 409 });
+      }
       const conflict = err?.code === '23505'
         || String(err?.message ?? '').includes('already belongs')
         || String(err?.message ?? '').includes('before assigning')
@@ -721,7 +726,13 @@ export async function POST(req: NextRequest) {
       }
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to assign subscription payment');
-      const conflict = err?.code === '23505' || String(err?.message ?? '').includes('before assigning');
+      if (err?.code === '55006') {
+        return NextResponse.json({
+          error: 'This learner has an online checkout open. Ask them to finish or clear it before assigning payment terms.',
+        }, { status: 409 });
+      }
+      const conflict = err?.code === '23505'
+        || String(err?.message ?? '').includes('before assigning');
       return NextResponse.json({ error: err.message ?? 'Failed to assign subscription payment' }, { status: conflict ? 409 : 500 });
     }
   }

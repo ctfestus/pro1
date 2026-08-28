@@ -52,6 +52,10 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   const [busy, setBusy] = useState(false);
   const [paystackBusy, setPaystackBusy] = useState(false);
   const [planBusyId, setPlanBusyId] = useState('');
+  // Paying by transfer used to be unreachable whenever Paystack was configured: the button always
+  // went straight to the card page. This is the learner saying they would rather not.
+  const [payManually, setPayManually] = useState(false);
+  const [cartBusy, setCartBusy] = useState(false);
   const [message, setMessage] = useState('');
   const returnVerificationStarted = useRef(false);
 
@@ -244,6 +248,53 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     }
   }
 
+  async function resumeCart(reference: string) {
+    setCartBusy(true); setMessage('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/student-subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'resume-cart', reference }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not reopen that checkout');
+      if (body.checkout?.authorizationUrl) {
+        window.location.href = body.checkout.authorizationUrl;
+        return;
+      }
+      if (body.settled) {
+        setMessage(body.settled === 'success'
+          ? 'You had already paid for this. Your access is up to date.'
+          : 'You had already paid for this. Our team is confirming it and will update your access.');
+      }
+      await load();
+    } catch (err: any) {
+      setMessage(err.message || 'Could not reopen that checkout');
+    } finally {
+      setCartBusy(false);
+    }
+  }
+
+  async function dismissCart(reference: string) {
+    setCartBusy(true); setMessage('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/student-subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'dismiss-cart', reference }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not clear that checkout');
+      await load();
+    } catch (err: any) {
+      setMessage(err.message || 'Could not clear that checkout');
+    } finally {
+      setCartBusy(false);
+    }
+  }
+
   async function purchasePlan(priceId: string) {
     setPlanBusyId(priceId); setMessage('');
     try {
@@ -252,7 +303,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
       const res = await fetch('/api/student-subscriptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ action: 'purchase-plan', priceId, paystack: data?.paystackEnabled === true, ...(target ?? {}) }),
+        body: JSON.stringify({ action: 'purchase-plan', priceId, paystack: data?.paystackEnabled === true && !payManually, ...(target ?? {}) }),
       });
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Failed to start subscription');
@@ -298,7 +349,12 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         left them on a page with no plans and no reason why, which reads as a bug. */}
     {!purchasablePlans.length && !pendingConfirmation && subscription && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-start gap-3"><ShieldCheck className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: C.cta }}/><div><p className="font-black" style={{ color: C.text }}>{data?.purchaseTarget ? 'This content needs a different plan' : 'No plan is available to renew right now'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{data?.purchaseTarget ? `Your subscription covers ${planName}, which does not include this content. Moving to another plan needs the learning team, so please contact them to ask about access.` : `Your subscription covers ${planName}. Contact the learning team to ask about renewing it.`}</p></div></div></section>}
 
-    {!!purchasablePlans.length && !pendingConfirmation && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-4"><div><p className="font-black" style={{ color: C.text }}>{hasActiveAccess ? 'Renew your access' : 'Choose a subscription plan'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{openRequest ? 'Complete your current payment before choosing another plan.' : subscription ? 'Extend your current plan. To move to a different plan, contact the learning team.' : 'Purchase a fixed access period. Renewal is manual when it expires.'}</p></div><WalletCards className="w-5 h-5" style={{ color: C.cta }}/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{purchasablePlans.map((plan: any) => <div key={plan.id} className="rounded-2xl p-4" style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}><div className="flex items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{plan.name}</p>{plan.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: C.faint }}>{plan.description}</p>}</div><ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/></div><PlanContents plan={plan} C={C}/><div className="mt-4 space-y-2">{plan.prices.map((price: any) => <button key={price.id} onClick={() => purchasePlan(price.id)} disabled={!!openRequest || !!planBusyId || readOnly} className="w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.card, color: C.text }}><span><span className="block text-sm font-black">{price.durationMonths === 12 ? '1 year' : `${price.durationMonths} month${price.durationMonths > 1 ? 's' : ''}`}</span><span className="block text-[11px] mt-0.5" style={{ color: C.faint }}>{data.paystackEnabled ? 'Subscribe and pay online' : 'Subscribe with payment request'}</span></span><span className="inline-flex items-center gap-2 text-sm font-black" style={{ color: C.cta }}>{money(price.currency, price.amount)}{planBusyId === price.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</span></button>)}</div></div>)}</div></section>}
+    {/* An unfinished checkout, offered back rather than left as a dead end. Not a debt and not a
+        deadline: nothing is owed, the learner simply started something. Continue goes back through
+        the reservation path rather than a stored link, since a checkout session can expire. */}
+    {data?.cart && !hasActiveAccess && !openRequest && !readOnly && <section className="rounded-2xl p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col sm:flex-row sm:items-center gap-4"><div className="flex-1 min-w-0"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>You were considering</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{data.cart.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{data.cart.duration_months === 12 ? '1 year' : `${data.cart.duration_months} month${data.cart.duration_months > 1 ? 's' : ''}`} &middot; {money(data.cart.currency, data.cart.amount)}</p></div><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => dismissCart(data.cart.reference)} disabled={cartBusy} className="rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>Remove</button><button onClick={() => resumeCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>Continue{cartBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</button></div></div></section>}
+
+    {!!purchasablePlans.length && !pendingConfirmation && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-4"><div><p className="font-black" style={{ color: C.text }}>{hasActiveAccess ? 'Renew your access' : 'Choose a subscription plan'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{openRequest ? 'Complete your current payment before choosing another plan.' : subscription ? 'Extend your current plan. To move to a different plan, contact the learning team.' : 'Purchase a fixed access period. Renewal is manual when it expires.'}</p></div><WalletCards className="w-5 h-5" style={{ color: C.cta }}/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{purchasablePlans.map((plan: any) => <div key={plan.id} className="rounded-2xl p-4" style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}><div className="flex items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{plan.name}</p>{plan.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: C.faint }}>{plan.description}</p>}</div><ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/></div><PlanContents plan={plan} C={C}/><div className="mt-4 space-y-2">{plan.prices.map((price: any) => <button key={price.id} onClick={() => purchasePlan(price.id)} disabled={!!openRequest || !!planBusyId || readOnly} className="w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.card, color: C.text }}><span><span className="block text-sm font-black">{price.durationMonths === 12 ? '1 year' : `${price.durationMonths} month${price.durationMonths > 1 ? 's' : ''}`}</span><span className="block text-[11px] mt-0.5" style={{ color: C.faint }}>{data.paystackEnabled ? 'Subscribe and pay online' : 'Subscribe with payment request'}</span></span><span className="inline-flex items-center gap-2 text-sm font-black" style={{ color: C.cta }}>{money(price.currency, price.amount)}{planBusyId === price.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</span></button>)}</div></div>)}</div>{data?.paystackEnabled && <p className="text-xs mt-4" style={{ color: C.faint }}>{payManually ? 'Paying by bank transfer or mobile money. ' : 'Prefer to pay by bank transfer or mobile money? '}<button onClick={() => setPayManually(v => !v)} className="font-bold underline" style={{ color: C.cta }}>{payManually ? 'Pay by card instead' : 'Choose that instead'}</button></p>}</section>}
 
     <nav className="grid grid-cols-3 gap-1 p-1.5 rounded-2xl" style={{ background: C.card }}>
       {([

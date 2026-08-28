@@ -338,6 +338,41 @@ describe('subscription payment actions', () => {
     expect(purchaseOrRenewSubscription).not.toHaveBeenCalled();
   });
 
+  it('reports an open online checkout as a conflict when assigning payment terms', async () => {
+    authenticateAs('admin');
+    createSubscriptionPaymentRequest.mockRejectedValue({
+      code: '55006',
+      message: 'an online checkout is already open for this learner',
+    });
+
+    const response = await POST(request({
+      action: 'create-subscription-payment-request', studentId: 'student-1', planId: 'plan-1',
+      durationMonths: 3, amount: 250, currency: 'GHS',
+      dueDate: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('finish or clear it') });
+  });
+
+  it('reports an existing learner open checkout as a conflict during assignment', async () => {
+    authenticateAs('admin');
+    provisionIndividualStudent.mockResolvedValue({ studentId: 'student-1', isNewAccount: false });
+    createSubscriptionPaymentRequest.mockRejectedValue({
+      code: '55006',
+      message: 'an online checkout is already open for this learner',
+    });
+
+    const response = await POST(request({
+      action: 'assign-new-subscription-student', mode: 'request', email: 'student@example.com',
+      fullName: 'Student One', planId: 'plan-1', durationMonths: 3, amount: 250,
+      currency: 'GHS', dueDate: new Date(Date.now() + 86_400_000).toISOString().slice(0, 10),
+    }));
+
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toMatchObject({ error: expect.stringContaining('finish or clear it') });
+  });
+
   it('creates a learner account and payment request in one action', async () => {
     authenticateAs('admin');
     const response = await POST(request({
