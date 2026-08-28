@@ -14,6 +14,7 @@ import { HoverPreviewCard } from '@/components/student/shared';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
+import { landingHref } from '@/lib/landing-href';
 
 // --- FadeIn on scroll ---
 function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -439,7 +440,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
               {filteredProgrammes.map((p, i) => {
                 const typeLabel = p.type === 've' ? 'Guided Project' : p.type === 'path' ? 'Learning Path' : 'Course';
                 return (
-                  <Link key={p.id} href={user ? '/student' : '/auth'}
+                  <Link key={p.id} href={landingHref(p, user)}
                     className="relative flex-shrink-0 rounded-2xl overflow-hidden"
                     style={{ width: '80vw', maxWidth: 320, height: 380, scrollSnapAlign: 'start' }}>
                     <div className="absolute inset-0" style={{
@@ -558,17 +559,23 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
                           transitionDelay: expanded ? '0.15s' : '0s',
                           flexShrink: 0,
                         }}>
-                          <Link
-                            href={user ? '/student' : '/auth'}
+                          <span
                             className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg"
                             style={{ background: accentColor }}
                           >
                             <ArrowRight className="w-5 h-5 text-white" />
-                          </Link>
+                          </span>
                         </div>
                       </div>
                     </div>
                   </div>
+                  {/* The whole card is the target. The arrow above is decoration: it only shows
+                      on hover, which a touch device never sends, leaving the card unreachable. */}
+                  <Link
+                    href={landingHref(p, user)}
+                    aria-label={p.title}
+                    className="absolute inset-0 z-20"
+                  />
                 </motion.div>
               );
             })}
@@ -1376,9 +1383,11 @@ function LandingMidAdBanner({ ads, hFont, bFont, isDark }: { ads: AdCard[]; hFon
 
 // Hover popup content for landing page items
 function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
-  const href = (item.type === 've' || item.type === 'course')
-    ? `/${item.slug}`
-    : user ? '/student' : '/auth';
+  // Courses and guided projects have a public page of their own, which now shows a signed-out
+  // visitor the cover, the blurb and the price. Learning paths have no such page, so they still
+  // route to sign-in.
+  const hasPublicPage = (item.type === 've' || item.type === 'course') && !!item.slug;
+  const href = landingHref(item, user);
   const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
   if (item.type === 'path') {
@@ -1416,11 +1425,11 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
           ) : (
             desc && <p className="text-sm leading-relaxed line-clamp-3 mb-1" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : '#555', fontFamily: bFont }}>{desc}</p>
           )}
-          <Link href={user ? href : '/auth'}
+          <Link href={href}
             className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
             style={{ background: '#00bf63', color: 'white' }}>
             <Play className="w-3.5 h-3.5" />
-            {user ? 'Start path' : 'Log in to access'}
+            {user ? 'Start path' : hasPublicPage ? 'View course' : 'Log in to access'}
           </Link>
         </div>
       </div>
@@ -1453,11 +1462,11 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
         )}
         {desc && <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : '#555', fontFamily: bFont }}>{desc}</p>}
         {item.difficulty && <p className="text-xs mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#888' }}>{item.difficulty}</p>}
-        <Link href={user ? href : '/auth'}
+        <Link href={href}
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
           style={{ background: '#00bf63', color: 'white' }}>
           <Play className="w-3.5 h-3.5"/>
-          {user ? 'Start learning' : 'Log in to access'}
+          {user ? 'Start learning' : hasPublicPage ? 'View course' : 'Log in to access'}
         </Link>
       </div>
     </div>
@@ -1538,7 +1547,7 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
             onMouseEnter={e => openHover(item, e.currentTarget)}
             onMouseLeave={scheduleClose}>
             <MReveal delay={Math.min(i, 6) * 0.055} y={18}>
-              <div className="group cursor-pointer transition-transform duration-300 hover:-translate-y-1">
+              <Link href={landingHref(item, user)} className="block group cursor-pointer transition-transform duration-300 hover:-translate-y-1">
                 <div className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
                   style={{ background: item.imageUrl ? '#0b0b0d' : 'transparent' }}>
                   {item.imageUrl
@@ -1562,7 +1571,7 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
                   </div>
                 )}
                 {item.difficulty && <p className="text-[11px] mt-1" style={{ color: rowMuted }}>{item.difficulty}</p>}
-              </div>
+              </Link>
             </MReveal>
           </div>
         ))}

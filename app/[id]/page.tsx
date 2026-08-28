@@ -237,6 +237,7 @@ export default function PublicFormPage() {
   const { id } = useParams();
   const [form, setForm] = useState<any>(null);
   const [lockedPreview, setLockedPreview] = useState<any>(null);
+  const [signedOut, setSignedOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studentMode, setStudentModeContext] = useState<StudentModeContext | null>(() => getStudentMode());
   const [studentTheme, setStudentTheme] = useState<'light' | 'dark'>(() => {
@@ -332,6 +333,11 @@ export default function PublicFormPage() {
       // Running the query in parallel with getUser() meant it fired as anon,
       // which blocked RLS on courses/VEs.
       const { data: { session: authSession } } = await supabase.auth.getSession();
+      setSignedOut(!authSession?.access_token);
+      // Content offered to everyone is readable without an account, so a course would otherwise
+      // open straight into its material for a signed-out visitor. Hold the overview instead --
+      // they can see what it is, and starting it asks them to sign in.
+      if (!authSession?.access_token) setCourseStarted(false);
       const { data: { user } } = await supabase.auth.getUser();
       // Validate any persisted Student Mode session; a stale one (e.g. left by a
       // prior admin on a shared browser) is cleared so it cannot drive this page.
@@ -465,7 +471,7 @@ export default function PublicFormPage() {
           const publicRes = await fetch(`/api/catalogue-preview?ref=${encodeURIComponent(id as string)}${typeQuery}`);
           if (publicRes.ok) {
             const { item } = await publicRes.json();
-            if (item?.locked) setLockedPreview(item);
+            if (item) setLockedPreview(item);
           }
         } catch { /* fall through to not-found */ }
       }
@@ -756,7 +762,21 @@ export default function PublicFormPage() {
   }
 
   if (!form) {
-    if (lockedPreview) return <LockedContentPreview item={lockedPreview} />;
+    if (lockedPreview) return <LockedContentPreview item={lockedPreview} signedOut={signedOut} />;
+    // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
+    // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
+    // the only useful next step, and it is what they used to be sent to anyway.
+    if (signedOut) return (
+      <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center' }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
+        <h1 className="ff-pub" style={{ fontSize: 20, fontWeight: 700, color: '#111' }}>Sign in to view this</h1>
+        <p className="ff-pub" style={{ fontSize: 14, color: '#555', maxWidth: 420 }}>This content is not open to everyone. Sign in with the account it was shared with, or go back to browse what is available.</p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="/auth" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, background: '#00bf63', color: '#fff', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Sign in</Link>
+          <Link href="/" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, color: '#344054', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Browse courses</Link>
+        </div>
+      </div>
+    );
     return (
       <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
@@ -1098,12 +1118,21 @@ export default function PublicFormPage() {
                 )}
 
                 {/* CTA */}
+                {signedOut ? (
+                  <Link
+                    href="/auth"
+                    style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                  >
+                    Start for free <ArrowRight style={{ width: 15, height: 15 }} />
+                  </Link>
+                ) : (
                 <button onClick={handleStartProject}
                   style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
                   {isShortCourse ? 'Start Course' : 'Start Virtual Experience'} <ArrowRight style={{ width: 15, height: 15 }} />
                 </button>
+                )}
 
                 {/* Dataset download (VE only) */}
                 {!isShortCourse && (dataset?.csvContent || dataset?.url) && (
@@ -1346,6 +1375,13 @@ export default function PublicFormPage() {
                       Purchase or enroll <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
                     </>
+                  ) : signedOut ? (
+                    <Link
+                      href="/auth"
+                      style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                    >
+                      Start for free <ArrowRight style={{ width: 15, height: 15 }} />
+                    </Link>
                   ) : (
                     <button onClick={() => setCourseStarted(true)}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
@@ -2248,7 +2284,7 @@ function UnlockPrices({ unlock }: { unlock: UnlockInfo }) {
   );
 }
 
-function LockedContentPreview({ item }: { item: any }) {
+function LockedContentPreview({ item, signedOut }: { item: any; signedOut?: boolean }) {
   const cover = resolveCoverUrl(item.coverImage) || '';
   const label = item.type === 'virtual_experience'
     ? 'Virtual Experience'
@@ -2261,8 +2297,11 @@ function LockedContentPreview({ item }: { item: any }) {
     <main className="ff-pub min-h-screen bg-[#f4f6f8] text-[#101828]">
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
       <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-        <Link href="/student#explore" className="inline-flex items-center text-sm font-semibold text-[#475467] hover:text-[#101828]">
-          Back to Explore
+        <Link
+          href={signedOut ? '/' : '/student#explore'}
+          className="inline-flex items-center text-sm font-semibold text-[#475467] hover:text-[#101828]"
+        >
+          {signedOut ? 'Browse courses' : 'Back to Explore'}
         </Link>
 
         <section className="mt-6 overflow-hidden bg-white">
