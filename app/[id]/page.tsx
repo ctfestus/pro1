@@ -237,6 +237,7 @@ export default function PublicFormPage() {
   const { id } = useParams();
   const [form, setForm] = useState<any>(null);
   const [lockedPreview, setLockedPreview] = useState<any>(null);
+  const [signedOut, setSignedOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studentMode, setStudentModeContext] = useState<StudentModeContext | null>(() => getStudentMode());
   const [studentTheme, setStudentTheme] = useState<'light' | 'dark'>(() => {
@@ -332,6 +333,7 @@ export default function PublicFormPage() {
       // Running the query in parallel with getUser() meant it fired as anon,
       // which blocked RLS on courses/VEs.
       const { data: { session: authSession } } = await supabase.auth.getSession();
+      setSignedOut(!authSession?.access_token);
       const { data: { user } } = await supabase.auth.getUser();
       // Validate any persisted Student Mode session; a stale one (e.g. left by a
       // prior admin on a shared browser) is cleared so it cannot drive this page.
@@ -757,6 +759,20 @@ export default function PublicFormPage() {
 
   if (!form) {
     if (lockedPreview) return <LockedContentPreview item={lockedPreview} />;
+    // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
+    // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
+    // the only useful next step, and it is what they used to be sent to anyway.
+    if (signedOut) return (
+      <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 14, padding: 24, textAlign: 'center' }}>
+        <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
+        <h1 className="ff-pub" style={{ fontSize: 20, fontWeight: 700, color: '#111' }}>Sign in to view this</h1>
+        <p className="ff-pub" style={{ fontSize: 14, color: '#555', maxWidth: 420 }}>This content is not open to everyone. Sign in with the account it was shared with, or go back to browse what is available.</p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
+          <Link href="/auth" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, background: '#00bf63', color: '#fff', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Sign in</Link>
+          <Link href="/" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, color: '#344054', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Browse courses</Link>
+        </div>
+      </div>
+    );
     return (
       <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
         <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>

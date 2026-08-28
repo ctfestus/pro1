@@ -1376,7 +1376,11 @@ function LandingMidAdBanner({ ads, hFont, bFont, isDark }: { ads: AdCard[]; hFon
 
 // Hover popup content for landing page items
 function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
-  const href = (item.type === 've' || item.type === 'course')
+  // Courses and guided projects have a public page of their own, which now shows a signed-out
+  // visitor the cover, the blurb and the price. Learning paths have no such page, so they still
+  // route to sign-in.
+  const hasPublicPage = item.type === 've' || item.type === 'course';
+  const href = hasPublicPage
     ? `/${item.slug}`
     : user ? '/student' : '/auth';
   const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
@@ -1416,11 +1420,11 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
           ) : (
             desc && <p className="text-sm leading-relaxed line-clamp-3 mb-1" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : '#555', fontFamily: bFont }}>{desc}</p>
           )}
-          <Link href={user ? href : '/auth'}
+          <Link href={href}
             className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
             style={{ background: '#00bf63', color: 'white' }}>
             <Play className="w-3.5 h-3.5" />
-            {user ? 'Start path' : 'Log in to access'}
+            {user ? 'Start path' : hasPublicPage ? 'View details' : 'Log in to access'}
           </Link>
         </div>
       </div>
@@ -1453,11 +1457,11 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
         )}
         {desc && <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.65)' : '#555', fontFamily: bFont }}>{desc}</p>}
         {item.difficulty && <p className="text-xs mb-3" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#888' }}>{item.difficulty}</p>}
-        <Link href={user ? href : '/auth'}
+        <Link href={href}
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
           style={{ background: '#00bf63', color: 'white' }}>
           <Play className="w-3.5 h-3.5"/>
-          {user ? 'Start learning' : 'Log in to access'}
+          {user ? 'Start learning' : hasPublicPage ? 'View details' : 'Log in to access'}
         </Link>
       </div>
     </div>
