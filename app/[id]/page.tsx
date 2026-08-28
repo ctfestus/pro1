@@ -455,6 +455,21 @@ export default function PublicFormPage() {
         } catch { /* fall through to not-found */ }
       }
 
+      // Signed out. RLS hides paid rows and the student catalogue needs a session, so a shared
+      // link to paid content used to render "Not found" -- a broken page where the sales page
+      // belongs. Ask the public preview, which returns the cover, the blurb and the price and
+      // deliberately no outline.
+      if (!data && !authSession?.access_token) {
+        try {
+          const typeQuery = requestedType ? `&type=${encodeURIComponent(requestedType)}` : '';
+          const publicRes = await fetch(`/api/catalogue-preview?ref=${encodeURIComponent(id as string)}${typeQuery}`);
+          if (publicRes.ok) {
+            const { item } = await publicRes.json();
+            if (item?.locked) setLockedPreview(item);
+          }
+        } catch { /* fall through to not-found */ }
+      }
+
       if (data) {
         setForm(data);
         if (data.config?.isCertification && user && effectiveUserId) {
@@ -2237,7 +2252,8 @@ function LockedContentPreview({ item }: { item: any }) {
   const cover = resolveCoverUrl(item.coverImage) || '';
   const label = item.type === 'virtual_experience'
     ? 'Virtual Experience'
-    : item.type === 'certification' ? 'Certification' : 'Course';
+    : item.type === 'certification' ? 'Certification'
+    : item.type === 'learning_path' ? 'Learning Path' : 'Course';
   const contentTable = item.type === 'virtual_experience' ? 'virtual_experiences' : `${item.type}s`;
   const paymentHref = `/student?contentTable=${encodeURIComponent(contentTable)}&contentId=${encodeURIComponent(item.id)}#payments`;
 

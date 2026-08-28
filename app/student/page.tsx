@@ -25,6 +25,7 @@ import { OverviewSection } from '@/components/student/overview';
 import { type CohortTimeline, CohortTimelineBadge, ProfileMenu } from '@/components/student/header';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
+import { rememberPurchaseIntent, takePurchaseIntent, purchaseIntentHref } from '@/lib/pending-purchase';
 import {
   clearStudentMode,
   getStudentMode,
@@ -227,7 +228,7 @@ export default function StudentDashboard() {
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { router.replace('/auth'); return; }
+      if (!session?.user) { rememberPurchaseIntent(window.location.search); router.replace('/auth'); return; }
 
       const [{ data: { user: authUser } }, { data: studentData }] = await Promise.all([
         supabase.auth.getUser(),
@@ -238,8 +239,18 @@ export default function StudentDashboard() {
           .single(),
       ]);
 
-      if (!authUser) { router.replace('/auth'); return; }
-      if (!studentData?.onboarding_done) { router.replace('/onboarding'); return; }
+      if (!authUser) { rememberPurchaseIntent(window.location.search); router.replace('/auth'); return; }
+      if (!studentData?.onboarding_done) { rememberPurchaseIntent(window.location.search); router.replace('/onboarding'); return; }
+
+      // They asked to buy something before signing in. Put them back where they were going.
+      // Single use, and an explicit target in the URL always wins over a remembered one.
+      // Skipped while an admin is viewing as a student: redirecting would drop the viewAs
+      // parameter and silently end their session as that learner.
+      const currentParams = new URLSearchParams(window.location.search);
+      if (!currentParams.get('contentTable') && !currentParams.get('viewAs')) {
+        const intent = takePurchaseIntent();
+        if (intent) { window.location.replace(purchaseIntentHref(intent)); return; }
+      }
 
       // Resolve a new or persisted Student Mode context.
       const viewAsId = new URLSearchParams(window.location.search).get('viewAs');
