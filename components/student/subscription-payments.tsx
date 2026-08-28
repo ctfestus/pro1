@@ -89,6 +89,8 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   const [returnReference, setReturnReference] = useState('');
   const [returnBusy, setReturnBusy] = useState(false);
   const [returnResolved, setReturnResolved] = useState(false);
+  // Only a real activation, not a rejection or a review -- this is what earns the moment below.
+  const [justPurchased, setJustPurchased] = useState(false);
 
   const verifyReturn = useCallback(async (reference: string, poll: boolean) => {
     if (!reference) return;
@@ -111,6 +113,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
           window.sessionStorage.removeItem(PAYSTACK_RETURN_REFERENCE_KEY);
           setMessage('Payment confirmed. Your access has been updated.');
           setReturnResolved(true);
+          setJustPurchased(true);
           await load();
           return;
         }
@@ -332,7 +335,8 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
 
   return <div className="subscription-typography space-y-5 pb-12">
     <style>{`.subscription-typography .font-black{font-weight:700!important}.subscription-typography .font-bold{font-weight:600!important}`}</style>
-    {message && <div className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3" style={{ background: message.includes('confirmed') ? C.successBg : C.pill, color: message.includes('confirmed') ? C.successText : C.text }}><Clock3 className="w-5 h-5 flex-shrink-0"/><p className="text-sm font-bold flex-1">{message}</p>{returnReference && !returnResolved && !readOnly && <button onClick={() => verifyReturn(returnReference, false)} disabled={returnBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black flex-shrink-0 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{returnBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ShieldCheck className="w-4 h-4"/>}Check payment status</button>}</div>}
+    {justPurchased && <PurchaseSuccess planName={planName} until={subscription?.current_period_end} contents={data?.content ?? []} C={C}/>}
+    {message && !justPurchased && <div className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3" style={{ background: message.includes('confirmed') ? C.successBg : C.pill, color: message.includes('confirmed') ? C.successText : C.text }}><Clock3 className="w-5 h-5 flex-shrink-0"/><p className="text-sm font-bold flex-1">{message}</p>{returnReference && !returnResolved && !readOnly && <button onClick={() => verifyReturn(returnReference, false)} disabled={returnBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black flex-shrink-0 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{returnBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ShieldCheck className="w-4 h-4"/>}Check payment status</button>}</div>}
     <section className="relative overflow-hidden rounded-[30px] p-5 sm:p-6 text-white" style={heroStyle}>
       <div className="absolute right-[-55px] bottom-[-95px] w-64 h-64 rounded-full border border-white/10"/><div className="absolute right-8 top-7 w-20 h-20 rounded-full border border-white/10"/>
       <div className="relative grid lg:grid-cols-[1fr_auto] gap-5 items-end">
@@ -359,7 +363,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         cart, with no way to see or clear it. */}
     {data?.cart && !openRequest && !readOnly && <section className="rounded-2xl p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col sm:flex-row sm:items-center gap-4"><div className="flex-1 min-w-0"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>{hasActiveAccess ? 'You started renewing' : 'You were considering'}</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{data.cart.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{data.cart.duration_months === 12 ? '1 year' : `${data.cart.duration_months} month${data.cart.duration_months > 1 ? 's' : ''}`} &middot; {money(data.cart.currency, data.cart.amount)}</p></div><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => dismissCart(data.cart.reference)} disabled={cartBusy} className="rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>Remove</button><button onClick={() => resumeCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>Continue{cartBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</button></div></div></section>}
 
-    {!!purchasablePlans.length && !pendingConfirmation && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-4"><div><p className="font-black" style={{ color: C.text }}>{hasActiveAccess ? 'Renew your access' : 'Choose a subscription plan'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{openRequest ? 'Complete your current payment before choosing another plan.' : subscription ? 'Extend your current plan. To move to a different plan, contact the learning team.' : 'Purchase a fixed access period. Renewal is manual when it expires.'}</p></div><WalletCards className="w-5 h-5" style={{ color: C.cta }}/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{purchasablePlans.map((plan: any) => <div key={plan.id} className="rounded-2xl p-4" style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}><div className="flex items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{plan.name}</p>{plan.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: C.faint }}>{plan.description}</p>}</div><ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/></div><PlanContents plan={plan} C={C}/><div className="mt-4 space-y-2">{plan.prices.map((price: any) => <button key={price.id} onClick={() => purchasePlan(price.id)} disabled={!!openRequest || !!planBusyId || readOnly} className="w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.card, color: C.text }}><span><span className="block text-sm font-black">{price.durationMonths === 12 ? '1 year' : `${price.durationMonths} month${price.durationMonths > 1 ? 's' : ''}`}</span><span className="block text-[11px] mt-0.5" style={{ color: C.faint }}>{data.paystackEnabled ? 'Subscribe and pay online' : 'Subscribe with payment request'}</span></span><span className="inline-flex items-center gap-2 text-sm font-black" style={{ color: C.cta }}>{money(price.currency, price.amount)}{planBusyId === price.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</span></button>)}</div></div>)}</div>{data?.paystackEnabled && <p className="text-xs mt-4" style={{ color: C.faint }}>{payManually ? 'Paying by bank transfer or mobile money. ' : 'Prefer to pay by bank transfer or mobile money? '}<button onClick={() => setPayManually(v => !v)} className="font-bold underline" style={{ color: C.cta }}>{payManually ? 'Pay by card instead' : 'Choose that instead'}</button></p>}</section>}
+    {!!purchasablePlans.length && !pendingConfirmation && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-4"><div><p className="font-black" style={{ color: C.text }}>{hasActiveAccess ? 'Renew your access' : 'Choose a subscription plan'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{openRequest ? 'Complete your current payment before choosing another plan.' : subscription ? 'Extend your current plan. To move to a different plan, contact the learning team.' : 'Purchase a fixed access period. Renewal is manual when it expires.'}</p></div><WalletCards className="w-5 h-5" style={{ color: C.cta }}/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{purchasablePlans.map((plan: any) => <div key={plan.id} className="rounded-2xl p-4" style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}><div className="flex items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{plan.name}</p>{plan.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: C.faint }}>{plan.description}</p>}</div><ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/></div><PlanContents plan={plan} C={C}/><div className="mt-4 space-y-2">{plan.prices.map((price: any) => { const perMonth = price.amount / price.durationMonths; const shortest = plan.prices.reduce((a: any, b: any) => (a.durationMonths <= b.durationMonths ? a : b)); const base = shortest.amount / shortest.durationMonths; const saving = price.durationMonths > shortest.durationMonths && base > 0 ? Math.round((1 - perMonth / base) * 100) : 0; return <button key={price.id} onClick={() => purchasePlan(price.id)} disabled={!!openRequest || !!planBusyId || readOnly} className="w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.card, color: C.text }}><span><span className="block text-sm font-black">{price.durationMonths === 12 ? '1 year' : `${price.durationMonths} month${price.durationMonths > 1 ? 's' : ''}`}</span><span className="block text-[11px] mt-0.5" style={{ color: C.faint }}>{money(price.currency, Math.round(perMonth))} a month{saving > 0 ? ' - ' : ''}{saving > 0 && <span style={{ color: '#16a34a', fontWeight: 700 }}>save {saving}%</span>}</span></span><span className="inline-flex items-center gap-2 text-sm font-black" style={{ color: C.cta }}>{money(price.currency, price.amount)}{planBusyId === price.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</span></button>; })}</div></div>)}</div>{data?.paystackEnabled && <p className="text-xs mt-4" style={{ color: C.faint }}>{payManually ? 'Paying by bank transfer or mobile money. ' : 'Prefer to pay by bank transfer or mobile money? '}<button onClick={() => setPayManually(v => !v)} className="font-bold underline" style={{ color: C.cta }}>{payManually ? 'Pay by card instead' : 'Choose that instead'}</button></p>}</section>}
 
     <nav className="grid grid-cols-3 gap-1 p-1.5 rounded-2xl" style={{ background: C.card }}>
       {([
@@ -397,6 +401,47 @@ function PlanContents({ plan, C }: { plan: any; C: typeof LIGHT_C }) {
     </ul>
     {rest > 0 && <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>and {rest} more</p>}
   </div>;
+}
+
+// The moment someone has just paid is the highest-intent point in the whole journey, and it was
+// spending it on a single grey line of text. They have no receipt, no confirmation of what they
+// bought, and no way into it without going hunting through a nav menu.
+function PurchaseSuccess({ planName, until, contents, C }: {
+  planName: string; until?: string | null; contents: any[]; C: typeof LIGHT_C;
+}) {
+  // Learning paths have no page of their own, so a link to one would be a dead end. Send those
+  // to My Learning, where a path can actually be opened.
+  const CATALOGUE_TYPE: Record<string, string> = {
+    courses: 'course', virtual_experiences: 'virtual_experience', certifications: 'certification',
+  };
+  const openable = contents.find(row => CATALOGUE_TYPE[row.content_table]);
+  const startHref = openable
+    ? `/${openable.content_id}?catalogueType=${CATALOGUE_TYPE[openable.content_table]}`
+    : '/student#learning_paths';
+  const shown = contents.slice(0, 5);
+  const rest = contents.length - shown.length;
+
+  return <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.successBg, border: `1px solid ${C.cardBorder}` }}>
+    <div className="flex items-start gap-3">
+      <CheckCircle2 className="w-6 h-6 flex-shrink-0" style={{ color: '#16a34a' }}/>
+      <div className="flex-1 min-w-0">
+        <p className="font-black text-lg" style={{ color: C.text }}>You are in</p>
+        <p className="text-sm mt-1" style={{ color: C.muted }}>
+          {planName} is active{until ? ` until ${fmtDate(until)}` : ''}. Here is what you can open now.
+        </p>
+        {!!shown.length && <ul className="mt-3 space-y-1.5">
+          {shown.map(row => <li key={`${row.content_table}:${row.content_id}`} className="flex items-start gap-2 text-sm" style={{ color: C.text }}>
+            <Check className="w-3.5 h-3.5 flex-shrink-0 mt-1" style={{ color: '#16a34a' }}/>
+            <span className="line-clamp-1">{row.title}</span>
+          </li>)}
+          {rest > 0 && <li className="text-xs pl-5.5" style={{ color: C.faint }}>and {rest} more</li>}
+        </ul>}
+        <a href={startHref} className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black" style={{ background: C.cta, color: C.ctaText }}>
+          Start learning <ArrowRight className="w-4 h-4"/>
+        </a>
+      </div>
+    </div>
+  </section>;
 }
 
 function Detail({ label, value, C }: { label: string; value: string; C: typeof LIGHT_C }) {
