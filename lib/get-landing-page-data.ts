@@ -70,16 +70,29 @@ const getProgrammes = unstable_cache(
       { auth: { persistSession: false } },
     );
 
-    const [coursesResult, experiencesResult, pathsResult] = await Promise.all([
+    const [coursesResult, experiencesResult, pathsResult, offeredResult] = await Promise.all([
       publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').limit(20),
       publicClient.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').limit(12),
       publicClient.from('published_learning_paths').select('id,title,description,cover_image').limit(8),
+      // What a visitor without an account can actually obtain. The published_* views list every
+      // published row, so without this the page advertises bootcamp-cohort content nobody
+      // outside that cohort can get -- a dead-end click, and private client delivery on a public
+      // marketing page. The view applies the same rule the content page enforces.
+      publicClient.from('publicly_offered_content').select('content_table,content_id'),
     ]);
 
     const catalogueError = coursesResult.error || experiencesResult.error || pathsResult.error;
     if (catalogueError) throw catalogueError;
 
-    const courses: ProgrammeItem[] = (coursesResult.data ?? []).map((row) => ({
+    // A failure here must not blank the marketing page. Falling back to showing everything keeps
+    // the old behaviour, which is a dead-end click at worst -- an empty homepage is worse.
+    const offeredRows = offeredResult.error ? null : (offeredResult.data ?? []);
+    const offered = (table: string, id: string) =>
+      offeredRows === null || offeredRows.some(row => row.content_table === table && row.content_id === id);
+
+    const courses: ProgrammeItem[] = (coursesResult.data ?? [])
+      .filter((row) => offered('courses', row.id))
+      .map((row) => ({
       id: row.id,
       title: row.title,
       description: row.description ?? '',
@@ -92,7 +105,9 @@ const getProgrammes = unstable_cache(
       partnerLogoUrl: row.partner_logo_url ?? undefined,
     }));
 
-    const experiences: ProgrammeItem[] = (experiencesResult.data ?? []).map((row) => ({
+    const experiences: ProgrammeItem[] = (experiencesResult.data ?? [])
+      .filter((row) => offered('virtual_experiences', row.id))
+      .map((row) => ({
       id: row.id,
       title: row.title,
       description: row.tagline ?? row.industry ?? '',
@@ -108,7 +123,7 @@ const getProgrammes = unstable_cache(
         : '',
     }));
 
-    const pathRows = pathsResult.data ?? [];
+    const pathRows = (pathsResult.data ?? []).filter((row) => offered('learning_paths', row.id));
     const pathIds = pathRows.map((row) => row.id);
     const pathCourseMap: Record<string, PathCourse[]> = {};
     if (pathIds.length > 0) {
