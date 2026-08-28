@@ -1119,15 +1119,12 @@ export default function PublicFormPage() {
 
                 {/* CTA */}
                 {signedOut ? (
-                  <>
                   <Link
                     href="/auth"
                     style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                   >
                     Start for free <ArrowRight style={{ width: 15, height: 15 }} />
                   </Link>
-                  <p style={{ fontSize: 11, color: gp.muted, textAlign: 'center', marginTop: 8 }}>Free - a quick account keeps your progress</p>
-                  </>
                 ) : (
                 <button onClick={handleStartProject}
                   style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
@@ -1379,15 +1376,12 @@ export default function PublicFormPage() {
                     </Link>
                     </>
                   ) : signedOut ? (
-                    <>
                     <Link
                       href="/auth"
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                     >
                       Start for free <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
-                    <p style={{ fontSize: 11, color: cp.muted, textAlign: 'center', marginTop: 8 }}>Free - a quick account keeps your progress</p>
-                    </>
                   ) : (
                     <button onClick={() => setCourseStarted(true)}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
