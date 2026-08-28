@@ -471,7 +471,7 @@ export default function PublicFormPage() {
           const publicRes = await fetch(`/api/catalogue-preview?ref=${encodeURIComponent(id as string)}${typeQuery}`);
           if (publicRes.ok) {
             const { item } = await publicRes.json();
-            if (item?.locked) setLockedPreview(item);
+            if (item) setLockedPreview(item);
           }
         } catch { /* fall through to not-found */ }
       }
@@ -762,7 +762,7 @@ export default function PublicFormPage() {
   }
 
   if (!form) {
-    if (lockedPreview) return <LockedContentPreview item={lockedPreview} />;
+    if (lockedPreview) return <LockedContentPreview item={lockedPreview} signedOut={signedOut} />;
     // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
     // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
     // the only useful next step, and it is what they used to be sent to anyway.
@@ -2284,7 +2284,7 @@ function UnlockPrices({ unlock }: { unlock: UnlockInfo }) {
   );
 }
 
-function LockedContentPreview({ item }: { item: any }) {
+function LockedContentPreview({ item, signedOut }: { item: any; signedOut?: boolean }) {
   const cover = resolveCoverUrl(item.coverImage) || '';
   const label = item.type === 'virtual_experience'
     ? 'Virtual Experience'
@@ -2297,8 +2297,11 @@ function LockedContentPreview({ item }: { item: any }) {
     <main className="ff-pub min-h-screen bg-[#f4f6f8] text-[#101828]">
       <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
       <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-        <Link href="/student#explore" className="inline-flex items-center text-sm font-semibold text-[#475467] hover:text-[#101828]">
-          Back to Explore
+        <Link
+          href={signedOut ? '/' : '/student#explore'}
+          className="inline-flex items-center text-sm font-semibold text-[#475467] hover:text-[#101828]"
+        >
+          {signedOut ? 'Browse courses' : 'Back to Explore'}
         </Link>
 
         <section className="mt-6 overflow-hidden bg-white">
