@@ -8,10 +8,13 @@ function db(byTable: Record<string, any[]>, spy?: (table: string) => void) {
   return {
     from(table: string) {
       spy?.(table);
-      const result = { data: byTable[table] ?? [], error: null };
+      const filters: Record<string, unknown> = {};
+      const rows = () => (byTable[table] ?? []).filter((row: any) =>
+        !filters.status || !('status' in row) || row.status === filters.status);
       const builder: any = new Proxy(function () {}, {
         get(_t, prop) {
-          if (prop === 'then') return (r: any) => Promise.resolve(result).then(r);
+          if (prop === 'then') return (r: any) => Promise.resolve({ data: rows(), error: null }).then(r);
+          if (prop === 'eq') return (col: string, value: unknown) => { filters[col] = value; return builder; };
           return () => builder;
         },
       });
@@ -69,6 +72,25 @@ describe('loadPlanContents', () => {
     expect(tables).toContain('courses');
     expect(tables).not.toContain('certifications');
     expect(tables).not.toContain('learning_paths');
+  });
+
+  it('does not advertise content that has since been unpublished', async () => {
+    // Attached to the plan while published, withdrawn later. A learner choosing a plan must not
+    // be shown a title for something the plan no longer effectively grants.
+    const result = await loadPlanContents(db({
+      subscription_plan_content: [
+        { plan_id: 'p1', content_table: 'courses', content_id: 'live' },
+        { plan_id: 'p1', content_table: 'courses', content_id: 'withdrawn' },
+      ],
+      courses: [
+        { id: 'live', title: 'SQL Basics', status: 'published' },
+        { id: 'withdrawn', title: 'Retired Course', status: 'draft' },
+      ],
+      virtual_experiences: [], certifications: [], learning_paths: [],
+    }), ['p1']);
+
+    expect(result.get('p1')?.map(row => row.title)).toEqual(['SQL Basics']);
+    expect(JSON.stringify([...result])).not.toContain('Retired Course');
   });
 
   it('caps what a card can show but keeps the real total', () => {

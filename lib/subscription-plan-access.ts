@@ -85,7 +85,12 @@ export async function loadPlanContents(
   for (const table of CONTENT_TABLES) {
     const ids = [...new Set(rows.filter(row => row.content_table === table).map(row => row.content_id))];
     if (!ids.length) continue;
-    const { data: named, error: titleError } = await db.from(table).select('id, title').in('id', ids);
+    // Published only. Content can be attached to a plan while published and unpublished later,
+    // and these are service-role reads that see past RLS -- without this a learner comparing
+    // plans is shown the title of something withdrawn, advertising what the plan no longer
+    // effectively grants.
+    const { data: named, error: titleError } = await db.from(table)
+      .select('id, title').eq('status', 'published').in('id', ids);
     if (titleError) throw titleError;
     for (const row of (named ?? []) as any[]) titles.set(`${table}:${row.id}`, row.title);
   }
