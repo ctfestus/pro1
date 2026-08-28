@@ -334,6 +334,10 @@ export default function PublicFormPage() {
       // which blocked RLS on courses/VEs.
       const { data: { session: authSession } } = await supabase.auth.getSession();
       setSignedOut(!authSession?.access_token);
+      // Content offered to everyone is readable without an account, so a course would otherwise
+      // open straight into its material for a signed-out visitor. Hold the overview instead --
+      // they can see what it is, and starting it asks them to sign in.
+      if (!authSession?.access_token) setCourseStarted(false);
       const { data: { user } } = await supabase.auth.getUser();
       // Validate any persisted Student Mode session; a stale one (e.g. left by a
       // prior admin on a shared browser) is cleared so it cannot drive this page.
@@ -1114,12 +1118,21 @@ export default function PublicFormPage() {
                 )}
 
                 {/* CTA */}
+                {signedOut ? (
+                  <Link
+                    href="/auth"
+                    style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                  >
+                    Sign in to start <ArrowRight style={{ width: 15, height: 15 }} />
+                  </Link>
+                ) : (
                 <button onClick={handleStartProject}
                   style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
                   {isShortCourse ? 'Start Course' : 'Start Virtual Experience'} <ArrowRight style={{ width: 15, height: 15 }} />
                 </button>
+                )}
 
                 {/* Dataset download (VE only) */}
                 {!isShortCourse && (dataset?.csvContent || dataset?.url) && (
@@ -1362,6 +1375,13 @@ export default function PublicFormPage() {
                       Purchase or enroll <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
                     </>
+                  ) : signedOut ? (
+                    <Link
+                      href="/auth"
+                      style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                    >
+                      Sign in to start <ArrowRight style={{ width: 15, height: 15 }} />
+                    </Link>
                   ) : (
                     <button onClick={() => setCourseStarted(true)}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}

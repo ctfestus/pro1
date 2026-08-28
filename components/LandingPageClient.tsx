@@ -1424,7 +1424,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
             className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
             style={{ background: '#00bf63', color: 'white' }}>
             <Play className="w-3.5 h-3.5" />
-            {user ? 'Start path' : hasPublicPage ? 'View details' : 'Log in to access'}
+            {user ? 'Start path' : hasPublicPage ? 'View course' : 'Log in to access'}
           </Link>
         </div>
       </div>
@@ -1461,7 +1461,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
           style={{ background: '#00bf63', color: 'white' }}>
           <Play className="w-3.5 h-3.5"/>
-          {user ? 'Start learning' : hasPublicPage ? 'View details' : 'Log in to access'}
+          {user ? 'Start learning' : hasPublicPage ? 'View course' : 'Log in to access'}
         </Link>
       </div>
     </div>
