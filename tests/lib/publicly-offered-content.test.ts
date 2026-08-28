@@ -55,16 +55,21 @@ describe('publicly offered content', () => {
     expect(migration).not.toContain('DROP VIEW');
   });
 
-  it('shows everything rather than an empty homepage if the lookup fails', () => {
-    // A failed lookup must degrade to the old behaviour, which is a dead-end click at worst.
-    // An empty marketing page is a far worse outcome than an over-full one.
-    expect(loader).toContain('offeredResult.error ? null');
-    expect(loader).toContain('offeredRows === null ||');
+  it('fails closed when the allowlist cannot be read', () => {
+    // Falling back to showing everything would restore the leak at exactly the moment the guard
+    // is broken or the migration has not been applied. Throwing surfaces programmesError, and
+    // the page says so, rather than quietly publishing private cohort content.
+    expect(loader).toContain('if (offeredResult.error) throw offeredResult.error;');
+    expect(loader).not.toContain('offeredRows === null');
   });
 
-  it('filters every listing the landing page renders', () => {
-    for (const table of ['courses', 'virtual_experiences', 'learning_paths']) {
-      expect(loader).toContain(`offered('${table}'`);
-    }
+  it('constrains the queries by id rather than filtering their results', () => {
+    // Filtering after the row limits lets private rows occupy the budget and pushes genuine
+    // public offerings off the page. The ids have to reach the database.
+    expect(loader).toContain(".in('id', courseIds)");
+    expect(loader).toContain(".in('id', experienceIds)");
+    expect(loader).toContain(".in('id', offeredPathIds)");
+    // And the allowlist must be read before the listings, not alongside them.
+    expect(loader.indexOf('publicly_offered_content')).toBeLessThan(loader.indexOf('published_courses'));
   });
 });
