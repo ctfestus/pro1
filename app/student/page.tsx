@@ -240,7 +240,7 @@ export default function StudentDashboard() {
       ]);
 
       if (!authUser) { rememberPurchaseIntent(window.location.search); router.replace('/auth'); return; }
-      if (!studentData?.onboarding_done) { router.replace('/onboarding'); return; }
+      if (!studentData?.onboarding_done) { rememberPurchaseIntent(window.location.search); router.replace('/onboarding'); return; }
 
       // They asked to buy something before signing in. Put them back where they were going.
       // Single use, and an explicit target in the URL always wins over a remembered one.

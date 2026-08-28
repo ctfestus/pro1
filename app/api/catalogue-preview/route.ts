@@ -82,6 +82,19 @@ export async function GET(req: NextRequest) {
 
       const record = row as any;
       const locked = record.available_to_everyone !== true;
+
+      // "Published and not open to everyone" is not the same as "for sale". Cohort-only content
+      // -- a course built for one client's private cohort, never offered to the public -- is
+      // published too, and RLS previously kept it invisible to anonymous visitors. Revealing its
+      // title, blurb and cover to anyone who guessed a slug would be a leak, not a shop window.
+      //
+      // So the gate is whether anything actually sells it: at least one active plan with an
+      // active price covering this item. Content nobody can buy stays as invisible as before.
+      const plans = locked
+        ? await loadPlansForContent(db, { contentTable: TABLE_BY_TYPE[type], contentId: record.id })
+        : [];
+      if (locked && plans.length === 0) return NextResponse.json({ item: null });
+
       const item = {
         id: record.id as string,
         type,
@@ -91,9 +104,7 @@ export async function GET(req: NextRequest) {
         description: (record.description as string) ?? null,
         category: (record.category as string) ?? null,
         locked,
-        ...(locked
-          ? { unlock: { plans: await loadPlansForContent(db, { contentTable: TABLE_BY_TYPE[type], contentId: record.id }) } }
-          : {}),
+        ...(locked ? { unlock: { plans } } : {}),
       };
       return NextResponse.json({ item });
     }

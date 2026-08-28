@@ -113,6 +113,24 @@ describe('public catalogue preview', () => {
     expect(h.seen).toHaveBeenCalledWith('courses', expect.objectContaining({ status: 'published' }));
   });
 
+  it('keeps cohort-only content invisible, because nothing sells it', async () => {
+    // Published and not open to everyone is not the same as for sale. A course built for one
+    // client's private cohort is published too, and RLS kept it hidden from anonymous visitors.
+    // With no plan covering it there is no shop window to show, so it stays hidden.
+    h.row.mockImplementation((table) => table === 'courses' ? {
+      id: 'c9', title: 'Acme Corp internal onboarding', slug: 'acme-internal',
+      cover_image: null, description: 'Private client programme', category: null,
+      available_to_everyone: false, status: 'published',
+    } : null);
+    h.loadPlansForContent.mockResolvedValue([]);
+
+    const res = await GET(request('?ref=acme-internal&type=course'));
+    const { item } = await res.json();
+
+    expect(item).toBeNull();
+    expect(JSON.stringify(item)).not.toContain('Acme');
+  });
+
   it('requires a ref', async () => {
     const res = await GET(request(''));
     expect(res.status).toBe(400);
