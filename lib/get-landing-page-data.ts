@@ -70,10 +70,39 @@ const getProgrammes = unstable_cache(
       { auth: { persistSession: false } },
     );
 
+    // What a visitor without an account can actually obtain. The published_* views list every
+    // published row, so without this the page advertises bootcamp-cohort content nobody outside
+    // that cohort can get -- a dead-end click, and private client delivery on a public marketing
+    // page. The view applies the same rule the content detail page enforces.
+    //
+    // Read FIRST, and a failure here throws rather than falling back to showing everything.
+    // Failing open would restore the leak precisely when the guard is broken or the migration has
+    // not been applied -- the one moment it has to hold. The caller reports programmesError, and
+    // the page says so, which is the honest outcome.
+    const offeredResult = await publicClient
+      .from('publicly_offered_content')
+      .select('content_table,content_id');
+    if (offeredResult.error) throw offeredResult.error;
+    const offeredRows = offeredResult.data ?? [];
+    const offeredIds = (table: string) =>
+      offeredRows.filter(row => row.content_table === table).map(row => row.content_id);
+    const courseIds = offeredIds('courses');
+    const experienceIds = offeredIds('virtual_experiences');
+    const offeredPathIds = offeredIds('learning_paths');
+
+    // The id filter has to go on the query, not on its results. Filtering afterwards lets private
+    // rows occupy the row budget and pushes genuine public offerings off the page entirely.
+    const empty = { data: [] as any[], error: null };
     const [coursesResult, experiencesResult, pathsResult] = await Promise.all([
-      publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').limit(20),
-      publicClient.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').limit(12),
-      publicClient.from('published_learning_paths').select('id,title,description,cover_image').limit(8),
+      courseIds.length
+        ? publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).limit(20)
+        : empty,
+      experienceIds.length
+        ? publicClient.from('published_virtual_experiences').select('id,title,cover_image,slug,tagline,difficulty,industry').in('id', experienceIds).limit(12)
+        : empty,
+      offeredPathIds.length
+        ? publicClient.from('published_learning_paths').select('id,title,description,cover_image').in('id', offeredPathIds).limit(8)
+        : empty,
     ]);
 
     const catalogueError = coursesResult.error || experiencesResult.error || pathsResult.error;
