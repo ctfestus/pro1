@@ -32,10 +32,12 @@ describe('the purchase moment', () => {
     expect(component).toContain('{message && !justPurchased &&');
   });
 
-  it('uses the resolved plan contents the API already returns', () => {
-    // The endpoint has always returned this and nothing read it -- queries paid for on every
-    // load, spent on nothing. It is what "here is what you can open now" is built from.
-    expect(route).toContain('content: await resolveContent(db, displayPlanId)');
+  it('lists only content the learner can actually open', () => {
+    // The old resolver read titles with no published filter, so the panel could promise
+    // something withdrawn. The shared helper filters to published rows, and using it also
+    // removes the second, drifting copy of this lookup.
+    expect(route).toContain('loadPlanContents(db, [displayPlanId])');
+    expect(route).not.toContain('async function resolveContent');
     expect(component).toContain('contents={data?.content ?? []}');
   });
 
@@ -47,28 +49,21 @@ describe('the purchase moment', () => {
   });
 
   it('carries the content type in the link, since slugs are not unique across tables', () => {
-    expect(component).toContain('?catalogueType=${CATALOGUE_TYPE[openable.content_table]}');
+    expect(component).toContain('?catalogueType=${CATALOGUE_TYPE[openable.contentTable]}');
   });
 });
 
+// The pricing arithmetic itself is exercised with real figures in plan-price-comparison.test.ts.
+// What matters here is only that the screen uses that helper rather than doing its own sums.
 describe('price comparison', () => {
-  it('shows what a plan costs per month, not just the total', () => {
-    // A year of access reads as a big number next to a month of it. The per-month figure is
-    // what makes the longer option legible as the cheaper one.
-    expect(component).toContain('const perMonth = price.amount / price.durationMonths');
-    expect(component).toContain('a month');
+  it('uses the shared, tested calculation rather than inlining its own', () => {
+    expect(component).toContain("import { comparePlanPrice } from '@/lib/plan-price-comparison'");
+    expect(component).toContain('comparePlanPrice(price, plan.prices)');
+    expect(component).not.toContain('Math.round((1 - perMonth');
   });
 
-  it('measures the saving against the shortest plan on offer, not a hardcoded month', () => {
-    // A tenant selling only 6 and 12 months has no monthly price to compare against. Anchoring
-    // on the shortest option they actually sell keeps the figure honest.
-    expect(component).toContain('plan.prices.reduce');
-    expect(component).toContain('price.durationMonths > shortest.durationMonths');
-  });
-
-  it('shows no saving on the shortest option itself', () => {
-    // Guarded by the same comparison: the anchor cannot save against itself, and a zero or
-    // negative figure is never rendered.
-    expect(component).toContain('saving > 0 &&');
+  it('formats the unrounded rate, so a third of a price is not shown as a whole unit', () => {
+    expect(component).toContain('money(price.currency, perMonth)');
+    expect(component).not.toContain('Math.round(perMonth)');
   });
 });
