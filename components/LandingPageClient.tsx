@@ -315,6 +315,13 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
       >
         <img src={logoDarkUrl || logoUrl || undefined} alt="" className="h-9 w-auto" />
         <div className="flex items-center gap-3">
+          <Link
+            href="/pricing"
+            className="text-sm font-medium transition-opacity hover:opacity-60"
+            style={{ color: nav_text }}
+          >
+            Pricing
+          </Link>
           {user ? <NavProfileMenu user={user} profile={profile} /> : (
             <>
               {/* Signups open: the pill becomes Sign up at every width, and Log in stops being
@@ -1734,6 +1741,11 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
             ))}
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+            <Link href="/pricing"
+              className="px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+              style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
+              Pricing
+            </Link>
             {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} /> : (
               <>
                 <Link href="/auth"
