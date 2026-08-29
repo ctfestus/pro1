@@ -212,6 +212,51 @@ export async function getSubscriptionPaymentRequests(db: SupabaseClient, planIds
   return data ?? [];
 }
 
+/**
+ * The unfinished checkouts nobody could see.
+ *
+ * A cart is a Paystack checkout with no payment request behind it, so it appears nowhere in the
+ * receivables list -- and it still stops the learner paying any other way. Staff had no view of
+ * them at all, which meant a learner stuck behind one could only be freed from the database.
+ * Listed beside the payment requests so one screen shows everything holding a learner up.
+ */
+export async function getOpenPaystackCarts(db: SupabaseClient, planIds: string[] | null = null) {
+  if (planIds && planIds.length === 0) return [];
+  let query = db
+    .from('paystack_subscription_transactions')
+    .select(`
+      id, reference, student_id, request_id, plan_id, plan_name, duration_months, amount, currency,
+      status, created_at, reminder_count, last_reminder_at,
+      students!paystack_subscription_transactions_student_id_fkey ( id, full_name, email )
+    `)
+    .eq('status', 'initialized')
+    .is('cart_dismissed_at', null)
+    .not('student_id', 'is', null);
+  if (planIds) query = query.in('plan_id', planIds);
+  const { data, error } = await query.order('created_at', { ascending: false }).limit(200);
+  if (error) throw error;
+  const rows = data ?? [];
+
+  // Two things belong on this list, and one thing does not.
+  //
+  // A cart carries no request. So does a checkout left behind by a request that has since been
+  // cancelled or paid -- once the invoice closed, nothing on either screen could reach it, and
+  // those are the learners who end up blocked with no visible cause. Both are listed.
+  //
+  // A checkout against a request that is still open is not stranded: it is the invoice next to it,
+  // mid-payment. Clearing that from here would pull a live checkout out from under an open bill.
+  const attached = rows.filter(row => row.request_id);
+  if (!attached.length) return rows;
+  const { data: closed, error: requestError } = await db
+    .from('subscription_payment_requests')
+    .select('id')
+    .in('id', [...new Set(attached.map(row => row.request_id as string))])
+    .in('status', ['cancelled', 'paid']);
+  if (requestError) throw requestError;
+  const strandedBy = new Set((closed ?? []).map(row => row.id as string));
+  return rows.filter(row => !row.request_id || strandedBy.has(row.request_id as string));
+}
+
 export async function approveSubscriptionPaymentConfirmation(
   db: SupabaseClient,
   input: { confirmationId: string; reviewedBy: string; adminNotes?: string | null },

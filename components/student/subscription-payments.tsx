@@ -57,6 +57,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   // went straight to the card page. This is the learner saying they would rather not.
   const [payManually, setPayManually] = useState(false);
   const [cartBusy, setCartBusy] = useState(false);
+  const [requestBusy, setRequestBusy] = useState(false);
   const [message, setMessage] = useState('');
   const returnVerificationStarted = useRef(false);
 
@@ -168,6 +169,10 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   const subscription = data?.subscription;
   const openRequest = requests.find((request: any) => ['pending', 'confirmation_submitted'].includes(request.status));
   const pendingConfirmation = openRequest?.subscription_payment_confirmations?.find((row: any) => row.status === 'pending');
+  // The learner's own unpaid invoice: raised by them when they chose bank transfer, rather than
+  // assigned by the learning team. Only that one is theirs to withdraw, and only while nothing
+  // has been submitted against it -- once they have said they paid, it is with staff to review.
+  const ownRequest = openRequest && openRequest.status === 'pending' && openRequest.created_by === userId ? openRequest : null;
   const options = data?.paymentOptions ?? [];
   const option = options.find((row: any) => row.id === selectedOption);
   const plan = subscription?.subscription_plans;
@@ -299,6 +304,30 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     }
   }
 
+  // Withdrawing an invoice the learner raised for themselves. Choosing bank transfer blocks every
+  // other way of paying until the request closes, so without this a wrong plan or a change of mind
+  // meant waiting for staff to notice. The server re-checks whose it is and asks Paystack whether
+  // anything was collected before it closes anything.
+  async function cancelOwnRequest(requestId: string) {
+    if (!window.confirm('Cancel this payment request? You can choose a plan again afterwards.')) return;
+    setRequestBusy(true); setMessage('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/student-subscriptions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'cancel-my-request', requestId }),
+      });
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Could not cancel that payment request');
+      await load();
+    } catch (err: any) {
+      setMessage(err.message || 'Could not cancel that payment request');
+    } finally {
+      setRequestBusy(false);
+    }
+  }
+
   async function purchasePlan(priceId: string) {
     setPlanBusyId(priceId); setMessage('');
     try {
@@ -363,6 +392,11 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         to abandon one were the only people the card refused to appear for -- blocked by their own
         cart, with no way to see or clear it. */}
     {data?.cart && !openRequest && !readOnly && <section className="rounded-2xl p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col sm:flex-row sm:items-center gap-4"><div className="flex-1 min-w-0"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>{hasActiveAccess ? 'You started renewing' : 'You were considering'}</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{data.cart.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{data.cart.duration_months === 12 ? '1 year' : `${data.cart.duration_months} month${data.cart.duration_months > 1 ? 's' : ''}`} &middot; {money(data.cart.currency, data.cart.amount)}</p></div><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => dismissCart(data.cart.reference)} disabled={cartBusy} className="rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>Remove</button><button onClick={() => resumeCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>Continue{cartBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</button></div></div></section>}
+
+    {/* The learner's own unpaid invoice, in the same slot the cart uses -- the two cannot both be
+        open. Bank transfer raises a request, and a request blocks every other way of paying until
+        it closes, so the way out has to be on the screen rather than in a message to staff. */}
+    {ownRequest && !readOnly && <section className="rounded-2xl p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col sm:flex-row sm:items-center gap-4"><div className="flex-1 min-w-0"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>You chose to pay by transfer</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{ownRequest.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{ownRequest.duration_months === 12 ? '1 year' : `${ownRequest.duration_months} month${ownRequest.duration_months > 1 ? 's' : ''}`} &middot; {money(ownRequest.currency, ownRequest.amount)} &middot; by {fmtDate(ownRequest.due_date)}</p></div><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => cancelOwnRequest(ownRequest.id)} disabled={requestBusy} className="rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>{requestBusy ? 'Cancelling...' : 'Cancel'}</button><button onClick={() => setTab('confirm')} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black" style={{ background: C.cta, color: C.ctaText }}>I have paid<ArrowRight className="w-4 h-4"/></button></div></div></section>}
 
     {!!purchasablePlans.length && !pendingConfirmation && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-4"><div><p className="font-black" style={{ color: C.text }}>{hasActiveAccess ? 'Renew your access' : 'Choose a subscription plan'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{openRequest ? 'Complete your current payment before choosing another plan.' : subscription ? 'Extend your current plan. To move to a different plan, contact the learning team.' : 'Purchase a fixed access period. Renewal is manual when it expires.'}</p></div><WalletCards className="w-5 h-5" style={{ color: C.cta }}/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{purchasablePlans.map((plan: any) => <div key={plan.id} className="rounded-2xl p-4" style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}><div className="flex items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{plan.name}</p>{plan.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: C.faint }}>{plan.description}</p>}</div><ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/></div><PlanContents plan={plan} C={C}/><div className="mt-4 space-y-2">{plan.prices.map((price: any) => { const { perMonth, savingPercent: saving } = comparePlanPrice(price, plan.prices); return <button key={price.id} onClick={() => purchasePlan(price.id)} disabled={!!openRequest || !!planBusyId || readOnly} className="w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.card, color: C.text }}><span><span className="block text-sm font-black">{price.durationMonths === 12 ? '1 year' : `${price.durationMonths} month${price.durationMonths > 1 ? 's' : ''}`}</span><span className="block text-[11px] mt-0.5" style={{ color: C.faint }}>{money(price.currency, perMonth)} a month{saving > 0 ? ' - ' : ''}{saving > 0 && <span style={{ color: '#16a34a', fontWeight: 700 }}>save {saving}%</span>}</span></span><span className="inline-flex items-center gap-2 text-sm font-black" style={{ color: C.cta }}>{money(price.currency, price.amount)}{planBusyId === price.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</span></button>; })}</div></div>)}</div>{data?.paystackEnabled && <p className="text-xs mt-4" style={{ color: C.faint }}>{payManually ? 'Paying by bank transfer or mobile money. ' : 'Prefer to pay by bank transfer or mobile money? '}<button onClick={() => setPayManually(v => !v)} className="font-bold underline" style={{ color: C.cta }}>{payManually ? 'Pay by card instead' : 'Choose that instead'}</button></p>}</section>}
 

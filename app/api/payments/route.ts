@@ -21,6 +21,7 @@ import { provisionIndividualStudent } from '@/lib/provision-individual-student';
 import { addToResendAudience } from '@/lib/resend-audience';
 import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
 import { getPaystackReviewQueue } from '@/lib/paystack-review-queue';
+import { assertNothingCollected } from '@/lib/paystack-subscriptions';
 import {
   cancelSubscription,
   cancelSubscriptionPaymentRequest,
@@ -35,6 +36,7 @@ import {
   getSubscriptionPlans,
   getSubscriptions,
   getSubscriptionPaymentRequests,
+  getOpenPaystackCarts,
   approveSubscriptionPaymentConfirmation,
   rejectSubscriptionPaymentConfirmation,
   purchaseOrRenewSubscription,
@@ -267,7 +269,13 @@ export async function GET(req: NextRequest) {
     try {
       const db = adminClient();
       const planIds = await ownedPlanIds(db, sessionUser);
-      return NextResponse.json({ requests: await getSubscriptionPaymentRequests(db, planIds) });
+      // Carts ride along with the requests: both are things holding a learner up, and a cart is
+      // the one staff previously could not see at all.
+      const [requests, carts] = await Promise.all([
+        getSubscriptionPaymentRequests(db, planIds),
+        getOpenPaystackCarts(db, planIds),
+      ]);
+      return NextResponse.json({ requests, carts });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load subscription payment requests' }, { status: 500 });
     }
@@ -843,10 +851,58 @@ export async function POST(req: NextRequest) {
     if (!body.requestId) return NextResponse.json({ error: 'requestId is required' }, { status: 400 });
     try {
       await assertRequestAccess(String(body.requestId));
+
+      // Cancelling releases any checkout this request opened, so the learner is not left blocked
+      // by something neither of you can see. Paystack decides whether that is safe: a checkout it
+      // reports as paid or still in flight is settled here and moves out of 'initialized', which
+      // is the only status the cancel releases. Refuse rather than cancel in that case -- closing
+      // the invoice underneath a payment that went through is how it ends up needing reconciling
+      // by hand.
+      await assertNothingCollected(db, { requestId: String(body.requestId) }, 'Their');
+
       return NextResponse.json(await cancelSubscriptionPaymentRequest(db, body.requestId));
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to cancel payment request');
       return NextResponse.json({ error: err.message ?? 'Failed to cancel payment request' }, { status: 409 });
+    }
+  }
+
+  // Clearing an unfinished checkout on a learner's behalf. Nothing in the dashboard could do this,
+  // so the only remedy for somebody stuck behind their own cart was a database edit. Same rule as
+  // the learner's own Remove button, asked of the same guard: closing it frees them to start
+  // paying again, so nothing may have been collected against it.
+  if (body.action === 'clear-student-cart') {
+    const reference = String(body.reference || '').trim();
+    if (!reference) return NextResponse.json({ error: 'reference is required' }, { status: 400 });
+    try {
+      const { data: cart, error } = await db.from('paystack_subscription_transactions')
+        .select('reference, student_id, plan_id').eq('reference', reference).maybeSingle();
+      if (error) throw error;
+      if (!cart?.student_id) throw new PaymentError('not_found', 'That checkout could not be found.', 404);
+      await assertPlanAccess(cart.plan_id);
+      await assertNothingCollected(db, { reference }, 'Their');
+      // Staff have their own closer. The learner's refuses anything with a request attached, which
+      // is right for them and wrong here: a checkout stranded by an invoice that was cancelled or
+      // paid is exactly the row staff need to clear and the learner cannot see at all.
+      const { data: result, error: clearError } = await db.rpc('clear_paystack_checkout_for_staff', {
+        p_reference: reference,
+        p_actor_id: sessionUser.id,
+      });
+      if (clearError) throw clearError;
+      if (result?.ok !== true) {
+        throw new PaymentError(
+          'conflict',
+          result?.status === 'not_found'
+            ? 'That checkout could not be found.'
+            : result?.status === 'request_still_open'
+            ? 'That checkout belongs to an open payment request. Cancel the request instead.'
+            : 'This payment is already being processed and cannot be cleared.',
+          result?.status === 'not_found' ? 404 : 409,
+        );
+      }
+      return NextResponse.json({ ok: true });
+    } catch (err: any) {
+      return ownershipFailure(err, 'Failed to clear that checkout');
     }
   }
 
