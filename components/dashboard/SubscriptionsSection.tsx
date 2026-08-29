@@ -252,6 +252,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [eligibleStudents, setEligibleStudents] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [paymentRequests, setPaymentRequests] = useState<any[]>([]);
+  // Unfinished checkouts: a learner's cart. No payment request behind one, so it appears in no
+  // receivables list, yet it blocks them from paying any other way until it closes.
+  const [openCarts, setOpenCarts] = useState<any[]>([]);
   // Paystack items waiting on a person, and whether the job that revokes expired access is still
   // running. Neither has any other surface: until this list existed the only signal was an email.
   const [reviewQueue, setReviewQueue] = useState<any[]>([]);
@@ -366,6 +369,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setEligibleStudents(listData.eligibleStudents ?? []);
       setPlans(plansData.plans ?? []);
       setPaymentRequests(requestsData.requests ?? []);
+      setOpenCarts(requestsData.carts ?? []);
       const next =
         (plansData.plans ?? []).find((p: any) => p.id === preferredPlanId) ??
         (selectedPlan &&
@@ -837,6 +841,38 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to cancel request");
       setSuccess("Payment request cancelled.");
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Clearing a learner's unfinished checkout for them. The server asks Paystack whether anything
+  // was collected before it clears anything, so this cannot free somebody to pay a second time for
+  // what they already bought.
+  async function clearCart(cart: any) {
+    if (
+      !confirm(
+        `Clear the unfinished ${cart.plan_name} checkout for ${cart.students?.full_name || "this learner"}? They will be free to start a new payment.`,
+      )
+    )
+      return;
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "clear-student-cart",
+          reference: cart.reference,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to clear checkout");
+      setSuccess("Unfinished checkout cleared.");
       await load();
     } catch (err: any) {
       setError(err.message);
@@ -2049,6 +2085,83 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   </div>
                 ))}
               </div>
+              {openCarts.length > 0 && (
+                <section className="rounded-2xl p-5" style={cardStyle(C)}>
+                  <div className="flex items-start justify-between gap-4 mb-4">
+                    <div>
+                      <p className="font-black" style={{ color: C.text }}>
+                        Unfinished checkouts
+                      </p>
+                      <p
+                        className="text-xs mt-1"
+                        style={{ color: C.faint }}
+                      >
+                        Started online and never completed, or left behind when a
+                        payment request closed. Nothing is owed, but the learner
+                        cannot pay another way until one is cleared.
+                      </p>
+                    </div>
+                    <WalletCards
+                      className="w-5 h-5 flex-shrink-0"
+                      style={{ color: C.cta }}
+                    />
+                  </div>
+                  <div className="grid xl:grid-cols-2 gap-3">
+                    {openCarts.map((cart) => (
+                      <div
+                        key={cart.reference}
+                        className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3"
+                        style={{
+                          background: C.page,
+                          border: `1px solid ${C.cardBorder}`,
+                        }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <p
+                            className="font-bold truncate"
+                            style={{ color: C.text }}
+                          >
+                            {cart.students?.full_name || "Unnamed learner"}
+                          </p>
+                          <p
+                            className="text-xs mt-0.5 truncate"
+                            style={{ color: C.faint }}
+                          >
+                            {cart.students?.email}
+                          </p>
+                          <p
+                            className="text-xs mt-1.5"
+                            style={{ color: C.muted }}
+                          >
+                            {cart.plan_name} - {cart.duration_months} month
+                            {cart.duration_months === 1 ? "" : "s"} -{" "}
+                            {money(cart.currency, cart.amount)}
+                          </p>
+                          <p
+                            className="text-[11px] mt-1"
+                            style={{ color: C.faint }}
+                          >
+                            Started {dateLabel(cart.created_at)} -{" "}
+                            {cart.request_id
+                              ? "left behind by a closed payment request"
+                              : cart.reminder_count === 0
+                                ? "no reminders sent"
+                                : `${cart.reminder_count} reminder${cart.reminder_count === 1 ? "" : "s"} sent`}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => clearCart(cart)}
+                          disabled={busy}
+                          className="text-xs font-bold px-3 py-2 rounded-xl flex-shrink-0 disabled:opacity-50"
+                          style={{ background: C.pill, color: C.muted }}
+                        >
+                          Clear checkout
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              )}
               <div className="grid xl:grid-cols-2 gap-4">
                 {paymentRequests.map((request) => {
                   const conf =

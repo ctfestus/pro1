@@ -81,8 +81,7 @@ describe('abandoned checkout cart', () => {
   // charged, then open another and pay twice.
   it('settles with Paystack before clearing a cart', () => {
     const route = read('app/api/student-subscriptions/route.ts');
-    expect(route).toContain('const settled = await settleUnfinishedCheckout(db, reference);');
-    expect(route).toContain('if (!settled.abandoned) {');
+    expect(route).toContain("await assertNothingCollected(db, { reference }, 'Your');");
   });
 
   // A payable Paystack link and an open bank transfer for the same plan is two ways to pay once.
@@ -127,6 +126,117 @@ describe('abandoned checkout cart', () => {
     expect(lib).not.toContain('You already have a checkout open for another plan');
     const naming = compact(read('migrations/192_name_the_open_checkout.sql'));
     expect(naming).toContain("'openPlanName',v_live.plan_name,'openDurationMonths',v_live.duration_months");
+  });
+
+  // Paying an invoice online opens a checkout carrying that request's id. Cancelling the invoice
+  // used to leave it open, which put the learner somewhere nothing on screen could reach: still
+  // blocked from starting anything new, and never shown as their cart, because a cart is a
+  // checkout with no request attached. The only way out was the database.
+  it('releases the checkout an invoice opened when the invoice is cancelled', () => {
+    const release = compact(read('migrations/195_cancel_request_releases_checkout.sql'));
+    for (const sql of [release, schema]) {
+      expect(sql).toContain("SET status='abandoned',processing_error='released_with_cancelled_request'");
+      expect(sql).toContain("WHERE request_id=p_request_id AND status='initialized'");
+    }
+  });
+
+  // Only 'initialized' is released, and the caller asks Paystack first. Anything the provider
+  // reports as paid or in flight is settled by that check and leaves 'initialized', so a row still
+  // sitting there is one Paystack has confirmed collected nothing.
+  it('refuses to cancel an invoice whose payment actually went through', () => {
+    const route = read('app/api/payments/route.ts');
+    expect(route).toContain("await assertNothingCollected(db, { requestId: String(body.requestId) }, 'Their');");
+    // Asked before the cancel, not after.
+    expect(route.indexOf("assertNothingCollected(db, { requestId: String(body.requestId) }"))
+      .toBeLessThan(route.indexOf('await cancelSubscriptionPaymentRequest(db, body.requestId)'));
+  });
+
+  // Four ways to close a payment, one rule. Each of them frees the learner to start paying again,
+  // so a site that grew its own copy of the check is a site that can drift into letting somebody
+  // pay twice. What the rule itself allows is pinned in tests/lib/paystack-close-guard.test.ts.
+  it('asks the same guard everywhere a payment is closed', () => {
+    const student = read('app/api/student-subscriptions/route.ts');
+    const admin = read('app/api/payments/route.ts');
+    expect(student).toContain("await assertNothingCollected(db, { reference }, 'Your');");
+    expect(student).toContain("await assertNothingCollected(db, { requestId }, 'Your');");
+    expect(admin).toContain("await assertNothingCollected(db, { requestId: String(body.requestId) }, 'Their');");
+    expect(admin).toContain("await assertNothingCollected(db, { reference }, 'Their');");
+    // No site keeps a hand-rolled version alongside it.
+    for (const route of [student, admin]) expect(route).not.toContain('settleUnfinishedCheckout');
+  });
+
+  // A cart carries no payment request, so it showed up in no receivables list -- staff could not
+  // see one at all, and the only way to free a learner stuck behind theirs was a database edit.
+  it('shows staff the carts and lets them clear one', () => {
+    const lib = read('lib/db-subscriptions.ts');
+    expect(lib).toContain('export async function getOpenPaystackCarts');
+    // Scoped like the requests beside them: an instructor sees only their own plans' carts.
+    expect(lib).toContain("if (planIds) query = query.in('plan_id', planIds);");
+    const route = read('app/api/payments/route.ts');
+    expect(route).toContain("body.action === 'clear-student-cart'");
+    // Same authorisation as every other write on that screen, then the same guard.
+    expect(route.indexOf('await assertPlanAccess(cart.plan_id);'))
+      .toBeLessThan(route.indexOf("await assertNothingCollected(db, { reference }, 'Their');"));
+    const section = read('components/dashboard/SubscriptionsSection.tsx');
+    expect(section).toContain('setOpenCarts(requestsData.carts ?? []);');
+    expect(section).toContain('Unfinished checkouts');
+  });
+
+  // Choosing bank transfer raises an invoice, and an invoice blocks every other way of paying
+  // until it closes. Nothing on the learner's side could close it, so a wrong plan or a change of
+  // mind meant waiting for staff to notice.
+  it('lets a learner withdraw the invoice they raised themselves', () => {
+    const route = read('app/api/student-subscriptions/route.ts');
+    expect(route).toContain("body.action === 'cancel-my-request'");
+    // Theirs, and only theirs: one the learning team assigned is a record of what somebody decided
+    // this learner owes, not a basket item.
+    expect(route).toContain('if (request.created_by !== session.id) {');
+    expect(route).toContain("if (!request || request.student_id !== session.id) {");
+    // And not once they have told staff they paid, which would drop a claim under review.
+    expect(route).toContain("if (request.status !== 'pending') {");
+    const component = read('components/student/subscription-payments.tsx');
+    expect(component).toContain("openRequest.status === 'pending' && openRequest.created_by === userId");
+    expect(component).toContain('cancelOwnRequest(ownRequest.id)');
+    // The page can only tell whose invoice it is if the API says so.
+    expect(route).toContain('paid_at, created_by,');
+  });
+
+  // The rows already stuck were nearly freed by a bulk UPDATE in the migration. 'initialized' is
+  // our status, not Paystack's -- it is what a paid checkout reads as until the webhook lands -- so
+  // releasing them with no provider in the loop is the one assumption the whole flow refuses to
+  // make, and it would also put them out of reach of the reminder pass that would have asked.
+  it('does not release historical checkouts without asking Paystack', () => {
+    const release = read('migrations/195_cancel_request_releases_checkout.sql');
+    // Everything outside a function body, which is where a one-off backfill would sit.
+    const topLevel = release.split('$$').filter((_, index) => index % 2 === 0).join(' ');
+    expect(topLevel).not.toMatch(/UPDATE public\.paystack_subscription_transactions/);
+  });
+
+  // Which leaves them to staff -- so they have to be reachable. They carry a request id, and the
+  // cart list filtered those out, so without this they would be stranded and invisible at once.
+  it('lists the checkouts a closed request left behind, and no live ones', () => {
+    const lib = read('lib/db-subscriptions.ts');
+    expect(lib).toContain("in('status', ['cancelled', 'paid'])");
+    expect(lib).toContain("return rows.filter(row => !row.request_id || strandedBy.has(row.request_id as string));");
+    // The staff closer enforces the same boundary in the database, under its own lock.
+    const release = compact(read('migrations/195_cancel_request_releases_checkout.sql'));
+    for (const sql of [release, schema]) {
+      expect(sql).toContain("IF v_request_status IS NULL OR v_request_status NOT IN ('cancelled','paid') THEN");
+      expect(sql).toContain("'request_still_open'");
+      expect(sql).toContain("IF v_transaction.status<>'initialized' THEN");
+    }
+    expect(schema.match(/CREATE OR REPLACE FUNCTION public\.clear_paystack_checkout_for_staff/g) ?? [])
+      .toHaveLength(1);
+  });
+
+  // The row exists before Paystack is asked, so a cancel landing in that window would be followed
+  // by a payable link written onto a checkout nobody expects any more.
+  it('will not attach a payment link to a checkout that was closed meanwhile', () => {
+    const lib = read('lib/paystack-subscriptions.ts');
+    const conditional = lib.match(/authorization_url: initialized\.authorizationUrl,\s*\}\)\.eq\('reference', reference\)\.eq\('status', 'initialized'\)/g) ?? [];
+    // Both entry points: the direct checkout and the one raised against a payment request.
+    expect(conditional).toHaveLength(2);
+    expect(lib).toContain("That checkout was closed while it was being opened.");
   });
 
   // A Paystack session can time out, so neither Continue nor a reminder days later may lead
