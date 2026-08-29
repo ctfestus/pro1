@@ -16,6 +16,7 @@ import { paystackIsConfigured } from '@/lib/paystack';
 import {
   PURCHASABLE_CONTENT_TABLES,
   eligiblePlanIds,
+  loadPlanContents,
   loadPlansForContent,
 } from '@/lib/subscription-plan-access';
 
@@ -35,23 +36,6 @@ async function caller(req: NextRequest) {
   if (isAuthError(auth) || !auth.user.email) return null;
   const { data } = await auth.getActorDb().from('students').select('role').eq('id', auth.user.id).maybeSingle();
   return { id: auth.user.id, email: auth.user.email.trim().toLowerCase(), role: data?.role ?? 'student' };
-}
-
-async function resolveContent(db: ReturnType<typeof adminClient>, planId?: string | null) {
-  if (!planId) return [];
-  const { data: coverage, error } = await db.from('subscription_plan_content')
-    .select('id, content_table, content_id').eq('plan_id', planId).order('added_at');
-  if (error) throw error;
-  const resolved: any[] = [];
-  for (const table of ['courses', 'virtual_experiences', 'certifications', 'learning_paths']) {
-    const rows = (coverage ?? []).filter(row => row.content_table === table);
-    if (!rows.length) continue;
-    const { data: titles, error: titleError } = await db.from(table).select('id, title').in('id', rows.map(row => row.content_id));
-    if (titleError) throw titleError;
-    const names = new Map((titles ?? []).map(row => [row.id, row.title]));
-    rows.forEach(row => { const title = names.get(row.content_id); if (title) resolved.push({ ...row, title }); });
-  }
-  return resolved;
 }
 
 export async function GET(req: NextRequest) {
@@ -130,7 +114,12 @@ export async function GET(req: NextRequest) {
       hasBootcampPayments: Number(bootcampEnrollments ?? 0) > 0,
       cart: cartRes.error ? null : cartRes.data,
       purchaseTarget: target,
-      content: await resolveContent(db, displayPlanId),
+      // Titles of what this plan grants. The shared lookup filters to published rows -- the
+      // panel this feeds says "here is what you can open now", so listing something withdrawn
+      // would be a promise the platform cannot keep.
+      content: displayPlanId
+        ? (await loadPlanContents(db, [displayPlanId])).get(displayPlanId) ?? []
+        : [],
     });
   } catch (err: any) {
     console.error('[student-subscriptions/GET]', err);
