@@ -1,7 +1,6 @@
 'use client';
 
-// Courses and learning-path journeys shared by the learner dashboard.
-// Only the two section components are exported; the rest are file-internal.
+// Courses and learning-path journeys shared by the learner dashboard and public detail pages.
 
 import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -639,7 +638,7 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
 }
 
 // One learning path rendered as an ordered, open-access course timeline.
-function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
+export function PathRow({ path, C, publicPreview = false, hideHeader = false }: { path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean }) {
   const totalItems     = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
   const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
@@ -647,69 +646,72 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
   const pathCertId     = path.progress?.cert_id ?? null;
   const items: any[]   = path.items ?? [];
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
-  const currentIndex   = path.locked ? -1 : items.findIndex((item: any) => !completedIds.includes(item.id));
+  const currentIndex   = path.locked || publicPreview ? -1 : items.findIndex((item: any) => !completedIds.includes(item.id));
   const learnerCount: number = path.learner_count ?? 0;
   const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
 
   return (
     <section className="rounded-[22px] overflow-hidden" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
       <div className="p-5 sm:p-7">
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1">
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>{path.title}</h3>
-          {path.description && <p className="text-sm mt-2 max-w-3xl leading-relaxed" style={{ color: C.muted }}>{path.description}</p>}
-          {/* empty:hidden -- an empty path with no learners has nothing to say here, so the
-              row must not leave its top margin behind. */}
-          <div className="empty:hidden flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-xs" style={{ color: C.faint }}>
-            {learnerCount > 0 && (
-              <span className="flex items-center gap-1.5">
-                <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
-              </span>
+      {!hideHeader && (
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0 flex-1">
+            <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>{path.title}</h3>
+            {path.description && <p className="text-sm mt-2 max-w-3xl leading-relaxed" style={{ color: C.muted }}>{path.description}</p>}
+            {/* empty:hidden -- an empty path with no learners has nothing to say here, so the
+                row must not leave its top margin behind. */}
+            <div className="empty:hidden flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-xs" style={{ color: C.faint }}>
+              {!publicPreview && learnerCount > 0 && (
+                <span className="flex items-center gap-1.5">
+                  <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
+                </span>
+              )}
+              {!publicPreview && !path.locked && currentIndex >= 0 && !allDone && (
+                <motion.span key={items[currentIndex]?.id ?? currentIndex}
+                  initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                  className="flex items-center gap-1.5 min-w-0 max-w-full">
+                  <motion.span aria-hidden="true" className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }}
+                    animate={{ scale: [0.85, 1.15, 0.85], opacity: [0.65, 1, 0.65] }} transition={{ duration: 1.8, repeat: Infinity }}/>
+                  <span className="flex-shrink-0">Currently learning:</span>
+                  <strong className="font-semibold truncate max-w-[min(56vw,420px)]" style={{ color: C.muted }}>{items[currentIndex]?.title ?? 'Current content'}</strong>
+                </motion.span>
+              )}
+              {!publicPreview && allDone && <span className="font-bold" style={{ color: '#16a34a' }}>Completed</span>}
+            </div>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
+            {path.locked && (() => {
+              const from = lowestUnlockPrice(path.unlock);
+              return from ? (
+                <span className="flex items-baseline gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
+                  From
+                  <strong className="text-sm font-bold" style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>{unlockMoney(from.currency, from.amount)}</strong>
+                  for {unlockDurationLabel(from.durationMonths)}
+                </span>
+              ) : null;
+            })()}
+            {path.locked && (
+              <Link
+                href={`/student?contentTable=learning_paths&contentId=${encodeURIComponent(path.id)}#payments`}
+                className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
+                style={{ background: C.cta, color: C.ctaText }}
+              >
+                <Lock className="h-4 w-4" /> Purchase or enroll
+              </Link>
             )}
-            {!path.locked && currentIndex >= 0 && !allDone && (
-              <motion.span key={items[currentIndex]?.id ?? currentIndex}
-                initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-                className="flex items-center gap-1.5 min-w-0 max-w-full">
-                <motion.span aria-hidden="true" className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: '#22c55e' }}
-                  animate={{ scale: [0.85, 1.15, 0.85], opacity: [0.65, 1, 0.65] }} transition={{ duration: 1.8, repeat: Infinity }}/>
-                <span className="flex-shrink-0">Currently learning:</span>
-                <strong className="font-semibold truncate max-w-[min(56vw,420px)]" style={{ color: C.muted }}>{items[currentIndex]?.title ?? 'Current content'}</strong>
-              </motion.span>
+            {pathCertId && (
+              <a href={`/certificate/${pathCertId}`} target="_blank" rel="noreferrer"
+                className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                style={{ background: '#f0fdf4', color: '#16a34a' }}>
+                <Award className="w-3 h-3"/> Certificate
+              </a>
             )}
-            {allDone && <span className="font-bold" style={{ color: '#16a34a' }}>Completed</span>}
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
-          {path.locked && (() => {
-            const from = lowestUnlockPrice(path.unlock);
-            return from ? (
-              <span className="flex items-baseline gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
-                From
-                <strong className="text-sm font-bold" style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>{unlockMoney(from.currency, from.amount)}</strong>
-                for {unlockDurationLabel(from.durationMonths)}
-              </span>
-            ) : null;
-          })()}
-          {path.locked && (
-            <Link
-              href={`/student?contentTable=learning_paths&contentId=${encodeURIComponent(path.id)}#payments`}
-              className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
-              style={{ background: C.cta, color: C.ctaText }}
-            >
-              <Lock className="h-4 w-4" /> Purchase or enroll
-            </Link>
-          )}
-          {pathCertId && (
-            <a href={`/certificate/${pathCertId}`} target="_blank" rel="noreferrer"
-              className="hidden sm:flex items-center gap-1 text-[11px] font-semibold px-2.5 py-1.5 rounded-lg transition-opacity hover:opacity-80"
-              style={{ background: '#f0fdf4', color: '#16a34a' }}>
-              <Award className="w-3 h-3"/> Certificate
-            </a>
-          )}
-        </div>
-      </div>
+      )}
 
-      <div className="mt-5">
+      {!publicPreview && (
+      <div className={hideHeader ? '' : 'mt-5'}>
         <div className="flex items-center justify-between text-[11px] mb-2">
           <span style={{ color: C.faint }}>Overall progress</span>
           <span className="font-bold" style={{ color: allDone ? '#16a34a' : C.text }}>{progressPct}%</span>
@@ -741,8 +743,9 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
           </motion.div>
         </div>
       </div>
+      )}
 
-      <div className="relative mt-7">
+      <div className={`relative ${publicPreview || hideHeader ? '' : 'mt-7'}`}>
         <div className="space-y-3 sm:space-y-4">
         {items.map((item: any, idx: number) => {
           const done      = completedIds.includes(item.id);
@@ -841,6 +844,8 @@ function PathRow({ path, C }: { path: any; C: typeof LIGHT_C }) {
                 style={{ background: '#16a34a', color: '#ffffff' }}>
                 <Award className="h-4 w-4"/> View certificate
               </a>
+            ) : publicPreview ? (
+              <span className="text-sm font-semibold" style={{ color: '#b08020' }}>Included on completion</span>
             ) : (
               <span className="text-sm font-semibold" style={{ color: '#b08020' }}>{completedCount}/{totalItems} complete</span>
             )}
