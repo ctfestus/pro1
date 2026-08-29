@@ -11,15 +11,19 @@ async function findContent(id: string) {
   const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
   const field = isUUID ? 'id' : 'slug';
 
-  const [{ data: course }, { data: event }, { data: ve }] = await Promise.all([
+  const [{ data: course }, { data: event }, { data: ve }, { data: learningPath }] = await Promise.all([
     supabase.from('courses').select('id, title, description, cover_image').eq(field, id).maybeSingle(),
     supabase.from('events').select('id, title, description, cover_image').eq(field, id).maybeSingle(),
     supabase.from('virtual_experiences').select('id, title, description, cover_image').eq(field, id).maybeSingle(),
+    isUUID
+      ? supabase.from('learning_paths').select('id, title, description, cover_image').eq('id', id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
 
   if (course) return { id: course.id, title: course.title, description: course.description, coverImage: course.cover_image };
   if (event)  return { id: event.id,  title: event.title,  description: event.description,  coverImage: event.cover_image };
   if (ve)     return { id: ve.id,     title: ve.title,     description: ve.description,     coverImage: ve.cover_image };
+  if (learningPath) return { id: learningPath.id, title: learningPath.title, description: learningPath.description, coverImage: learningPath.cover_image };
   return null;
 }
 
