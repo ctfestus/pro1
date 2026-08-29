@@ -18,6 +18,8 @@ const publicHeaders = [
   ...commonHeaders,
 ];
 
+const skipBuildValidationOnVercel = process.env.VERCEL === '1';
+
 // App/auth routes -- never embeddable
 const appHeaders = [
   ...commonHeaders,
@@ -68,12 +70,13 @@ const nextConfig: NextConfig = {
   },
   reactStrictMode: true,
   eslint: {
-    // Run ESLint during `next build`. The lint is clean of errors (only warnings remain,
-    // which do not fail the build), so this is a guardrail against new error-level violations.
-    ignoreDuringBuilds: false,
+    // Vercel already compiled successfully before running Next's lint/type validation worker, but
+    // that duplicate validation can exceed the build container memory on this app. Keep local builds
+    // strict, and run lint/type checks separately before merging.
+    ignoreDuringBuilds: skipBuildValidationOnVercel,
   },
   typescript: {
-    ignoreBuildErrors: false,
+    ignoreBuildErrors: skipBuildValidationOnVercel,
   },
   // Allow access to remote image placeholder.
   images: {
