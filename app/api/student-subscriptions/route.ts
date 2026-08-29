@@ -8,9 +8,9 @@ import {
   createPaystackDirectCheckout,
   createPaystackSubscriptionCheckout,
   processPaystackSubscriptionReference,
-  settleUnfinishedCheckout,
+  assertNothingCollected,
 } from '@/lib/paystack-subscriptions';
-import { createSubscriptionPaymentRequest } from '@/lib/db-subscriptions';
+import { cancelSubscriptionPaymentRequest, createSubscriptionPaymentRequest } from '@/lib/db-subscriptions';
 import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
 import { paystackIsConfigured } from '@/lib/paystack';
 import {
@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
         .select('id, student_id, plan_id, status, duration_months, amount, currency, current_period_start, current_period_end, subscription_plans!individual_subscriptions_plan_id_fkey(id,name,description,status)')
         .eq('student_id', studentId).maybeSingle(),
       db.from('subscription_payment_requests')
-        .select(`id, student_id, subscription_id, plan_id, plan_name, kind, duration_months, amount, currency, due_date, status, created_at, paid_at,
+        .select(`id, student_id, subscription_id, plan_id, plan_name, kind, duration_months, amount, currency, due_date, status, created_at, paid_at, created_by,
           subscription_payment_confirmations(id, amount, paid_at, method, reference, notes, receipt_url, status, reviewed_at, created_at)`)
         .eq('student_id', studentId).order('created_at', { ascending: false }),
       db.from('payment_options')
@@ -291,18 +291,7 @@ export async function POST(req: NextRequest) {
       if (!owned || owned.student_id !== session.id) {
         throw new PaymentError('not_found', 'That checkout could not be found.', 404);
       }
-      const settled = await settleUnfinishedCheckout(db, reference);
-      if (!settled.abandoned) {
-        throw new PaymentError(
-          'conflict',
-          // A null result means Paystack gave us nothing we could place. Refusing is the point:
-          // silence is not evidence that the checkout is free to clear.
-          settled.result?.status === 'success'
-            ? 'That payment already went through, so there is nothing to clear. Your access has been updated.'
-            : 'That payment is still being processed and cannot be cleared. Check its status instead.',
-          409,
-        );
-      }
+      await assertNothingCollected(db, { reference }, 'Your');
 
       const { data, error } = await db.rpc('dismiss_paystack_cart', {
         p_student_id: session.id,
@@ -321,6 +310,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     } catch (err) {
       const failure = paymentErrorResponse(err, 'Could not clear that checkout');
+      return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
+    }
+  }
+
+  // Withdrawing an invoice the learner raised for themselves.
+  //
+  // Choosing bank transfer creates a payment request: a due date, a chasing email, and a block on
+  // starting any other payment until it closes. Nothing on the learner's side could close it, so
+  // picking the wrong plan or simply changing their mind meant waiting for staff to notice. They
+  // can withdraw one they raised themselves. One the learning team assigned stays with the team,
+  // because that is a record of what somebody decided this learner owes, not a basket item.
+  if (body.action === 'cancel-my-request') {
+    const requestId = String(body.requestId || '').trim();
+    if (!requestId) return NextResponse.json({ error: 'requestId is required' }, { status: 400 });
+    const db = adminClient();
+    try {
+      const { data: request, error } = await db.from('subscription_payment_requests')
+        .select('id, student_id, status, created_by').eq('id', requestId).maybeSingle();
+      if (error) throw error;
+      if (!request || request.student_id !== session.id) {
+        throw new PaymentError('not_found', 'That payment request could not be found.', 404);
+      }
+      if (request.created_by !== session.id) {
+        throw new PaymentError(
+          'forbidden',
+          'The learning team set up this payment, so they need to cancel it. Message them and they can remove it for you.',
+          403,
+        );
+      }
+      if (request.status !== 'pending') {
+        throw new PaymentError(
+          'conflict',
+          request.status === 'confirmation_submitted'
+            // Withdrawing now would drop a payment they have already told staff about.
+            ? 'You have already sent a payment for this, so the learning team is reviewing it. Ask them to cancel it if it was a mistake.'
+            : 'That payment request is already closed.',
+          409,
+        );
+      }
+      // Same rule as clearing a cart: closing this frees them to start paying again, so nothing
+      // may have been collected against it first.
+      await assertNothingCollected(db, { requestId }, 'Your');
+      await cancelSubscriptionPaymentRequest(db, requestId);
+      return NextResponse.json({ ok: true });
+    } catch (err) {
+      const failure = paymentErrorResponse(err, 'Could not cancel that payment request');
       return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });
     }
   }

@@ -12,11 +12,34 @@
 export type QueryResult = { data?: unknown; error?: unknown; count?: number | null };
 
 function makeBuilder(getResult: () => QueryResult) {
+  // A write that asks for its rows back gets the affected rows, and an empty array when the filter
+  // matched nothing. Code uses that to check a conditional write ("update only if still open"), so
+  // returning the table's configured row unchanged would report every such write as having matched.
+  let mutated = false;
+  let returning = false;
+  let singular = false;
   const handler: ProxyHandler<any> = {
     get(_target, prop) {
       if (prop === 'then' || prop === 'catch' || prop === 'finally') {
-        const p = Promise.resolve(getResult());
+        const result = getResult();
+        const rows = mutated && returning && !singular && !Array.isArray(result.data)
+          ? { ...result, data: result.data == null ? [] : [result.data] }
+          : result;
+        const p = Promise.resolve(rows);
         return (p as any)[prop].bind(p);
+      }
+      if (prop === 'update' || prop === 'insert' || prop === 'upsert' || prop === 'delete') {
+        mutated = true;
+        return () => builder;
+      }
+      if (prop === 'select' && mutated) {
+        returning = true;
+        return () => builder;
+      }
+      // .single()/.maybeSingle() asks for the row itself, not a list of them.
+      if (prop === 'single' || prop === 'maybeSingle') {
+        singular = true;
+        return () => builder;
       }
       // Any query method (.select/.eq/.insert/.update/.delete/.single/.maybeSingle/.order/...)
       // returns the same chainable+awaitable builder.

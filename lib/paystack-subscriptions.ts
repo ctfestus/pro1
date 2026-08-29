@@ -40,6 +40,15 @@ const CHECKOUT_URL_STALE_MS = 30 * 60 * 1000;
 const PAYSTACK_IN_FLIGHT_STATUSES = ['pending', 'ongoing', 'processing', 'queued'];
 const PAYSTACK_TERMINAL_FAILURE_STATUSES = ['failed', 'abandoned', 'reversed'];
 
+// Every status from which money could still turn up. Anything outside it has already been
+// settled one way or the other, so there is nothing left to ask the provider about.
+const PAYSTACK_UNSETTLED_STATUSES = [
+  'initialized',
+  ...PAYSTACK_IN_FLIGHT_STATUSES,
+  'success',
+  'needs_review',
+];
+
 function cents(value: number) {
   return Math.round(Number(value || 0) * 100);
 }
@@ -188,10 +197,16 @@ export async function createPaystackDirectCheckout(
         durationMonths: input.durationMonths,
       },
     });
-    const { error: updateError } = await db.from('paystack_subscription_transactions').update({
+    // Conditional on the row still being open. The row is inserted before Paystack is called, so
+    // a cancel landing in that window would otherwise be followed by a payable link written onto a
+    // checkout nobody expects any more -- money in, and an incident for a person to sort out.
+    const { data: linked, error: updateError } = await db.from('paystack_subscription_transactions').update({
       authorization_url: initialized.authorizationUrl,
-    }).eq('reference', reference);
+    }).eq('reference', reference).eq('status', 'initialized').select('reference');
     if (updateError) throw updateError;
+    if (!linked?.length) {
+      throw new PaymentError('conflict', 'That checkout was closed while it was being opened. Please start it again.', 409);
+    }
     return { kind: 'checkout', ...initialized };
   } catch (err) {
     if (err instanceof PaystackApiError && err.status >= 400 && err.status < 500) {
@@ -331,10 +346,16 @@ export async function createPaystackSubscriptionCheckout(
         durationMonths: request.duration_months,
       },
     });
-    const { error: updateError } = await db.from('paystack_subscription_transactions').update({
+    // Conditional on the row still being open. The row is inserted before Paystack is called, so
+    // a cancel landing in that window would otherwise be followed by a payable link written onto a
+    // checkout nobody expects any more -- money in, and an incident for a person to sort out.
+    const { data: linked, error: updateError } = await db.from('paystack_subscription_transactions').update({
       authorization_url: initialized.authorizationUrl,
-    }).eq('reference', reference);
+    }).eq('reference', reference).eq('status', 'initialized').select('reference');
     if (updateError) throw updateError;
+    if (!linked?.length) {
+      throw new PaymentError('conflict', 'That checkout was closed while it was being opened. Please start it again.', 409);
+    }
     return initialized;
   } catch (err) {
     if (err instanceof PaystackApiError && err.status >= 400 && err.status < 500) {
@@ -457,22 +478,85 @@ export async function processPaystackSubscriptionReference(
 export async function settleUnfinishedCheckout(
   db: SupabaseClient,
   reference: string,
-): Promise<{ abandoned: true } | { abandoned: false; result: PaystackProcessResult | null }> {
+): Promise<{ abandoned: true; status: string | null } | { abandoned: false; result: PaystackProcessResult | null }> {
   let verifiedStatus: string | null = null;
   try {
     const verified = await verifyPaystackTransaction(reference);
     verifiedStatus = String(verified.status || '').toLowerCase();
   } catch (error) {
     // Paystack has never heard of it, so nothing was ever collected against it.
-    if (error instanceof PaystackApiError && error.status === 404) return { abandoned: true };
+    if (error instanceof PaystackApiError && error.status === 404) return { abandoned: true, status: null };
     throw error;
   }
   // Released only on an explicit terminal failure. A blank or unrecognised status is Paystack
   // telling us nothing, and reading silence as "nothing was collected" is how a paid checkout gets
   // cleared and bought a second time. Anything we cannot place is left alone rather than freed.
-  if (PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(verifiedStatus)) return { abandoned: true };
+  if (PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(verifiedStatus)) return { abandoned: true, status: verifiedStatus };
   if (!PAYSTACK_IN_FLIGHT_STATUSES.includes(verifiedStatus) && verifiedStatus !== 'success') {
     return { abandoned: false, result: null };
   }
   return { abandoned: false, result: await processPaystackSubscriptionReference(db, reference) };
+}
+
+/**
+ * Refuses to close anything Paystack may have collected against.
+ *
+ * Four places close a payment: a learner clearing their cart or withdrawing their own request,
+ * and staff clearing a cart or cancelling an invoice. All four free the learner to start paying
+ * again, so all four have to be sure nothing was taken first -- and our own status is not that
+ * assurance, because a completed payment reads 'initialized' until the webhook lands. Written
+ * once rather than at each site: four copies of a rule is four chances for one of them to drift
+ * into letting somebody pay twice.
+ *
+ * Whatever it finds is credited rather than merely reported, so a payment discovered here lands
+ * on the learner's account instead of being noticed and dropped.
+ */
+export async function assertNothingCollected(
+  db: SupabaseClient,
+  scope: { reference: string } | { requestId: string },
+  whose: 'Your' | 'Their',
+): Promise<void> {
+  const base = db
+    .from('paystack_subscription_transactions')
+    .select('reference, status, authorization_url, updated_at')
+    .in('status', PAYSTACK_UNSETTLED_STATUSES);
+  const { data, error } = await ('reference' in scope
+    ? base.eq('reference', scope.reference)
+    : base.eq('request_id', scope.requestId));
+  if (error) throw error;
+  for (const row of data ?? []) {
+    // A row with no link yet is one Paystack is still being asked about. Verifying it now returns
+    // a 404 -- nothing was created -- and reading that as "safe to close" closes a checkout that
+    // is seconds away from becoming payable. Left alone until it goes stale, at which point the
+    // initialization is genuinely dead and the same 404 means what it says.
+    const initializing = row.status === 'initialized' && !row.authorization_url
+      && new Date(String(row.updated_at)).getTime() > Date.now() - INITIALIZATION_STALE_MS;
+    if (initializing) {
+      throw new PaymentError('conflict', 'A checkout is still being opened. Give it a moment and try again.', 409);
+    }
+    const settled = await settleUnfinishedCheckout(db, String(row.reference));
+    if (settled.abandoned) {
+      // Record what the provider said, but only for a row whose local status would otherwise keep
+      // blocking. A checkout stored as 'pending' is released by nothing -- every closer acts on
+      // 'initialized' -- so without this the guard says "safe to close" and the close then refuses,
+      // leaving the learner stuck behind a payment Paystack has already failed. 'initialized' is
+      // deliberately untouched: the closers expect it, and rewriting it here would stop a learner
+      // clearing their own cart.
+      const { error: releaseError } = await db.from('paystack_subscription_transactions').update({
+        status: settled.status && PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(settled.status) ? settled.status : 'abandoned',
+        processing_error: settled.status ? `paystack_${settled.status}` : 'transaction_not_found_at_paystack',
+      }).eq('reference', String(row.reference)).in('status', PAYSTACK_IN_FLIGHT_STATUSES);
+      if (releaseError) throw releaseError;
+      continue;
+    }
+    throw new PaymentError(
+      'conflict',
+      // A null result means Paystack told us nothing we could place. Refusing is the point:
+      // silence is not evidence that the checkout is free to close.
+      settled.result?.status === 'success'
+        ? `That payment went through. ${whose} access has been updated.`
+        : 'That payment is still being processed. Wait for it to finish and try again.',
+      409,
+    );
+  }
 }

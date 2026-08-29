@@ -23,6 +23,9 @@ const learnerProse = quoted
   .split(/\r?\n/)
   .map(line => line.trim())
   .filter(line => /[a-z] [a-z]/.test(line))
+  // Comments are not copy. A quote elsewhere in the file can open a match that runs into
+  // one, so they have to be dropped explicitly.
+  .filter(line => !line.startsWith('//') && !line.startsWith('*'))
   .filter(line => !/[<>{}=]|className|\/api\/|@\/lib\//.test(line));
 
 describe('how access is described to a learner', () => {

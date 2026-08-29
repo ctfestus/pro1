@@ -37,18 +37,22 @@ function stubDb(rpcResult: any, laterResults: any[] = [], readRow: any = null, f
     return Promise.resolve({ data: queue.length > 1 ? queue.shift() : queue[0], error: null });
   });
   const writes: Array<Record<string, any>> = [];
-  const chain = (): any => new Proxy(function () {}, {
+  // A write that asks for its rows back reports what it actually matched. Attaching the checkout
+  // link is conditional on the row still being open, and it reads that answer.
+  const chain = (mutated = false, returning = false): any => new Proxy(function () {}, {
     get(_t, prop) {
       if (prop === 'then' || prop === 'catch' || prop === 'finally') {
-        const p = Promise.resolve({ data: readRow, error: null });
+        const data = mutated && returning ? [{ reference: 'sub-new' }] : readRow;
+        const p = Promise.resolve({ data, error: null });
         return (p as any)[prop].bind(p);
       }
       if (prop === 'update' || prop === 'insert') {
-        return (values: any) => { writes.push(values); return chain(); };
+        return (values: any) => { writes.push(values); return chain(true, returning); };
       }
-      return () => chain();
+      if (prop === 'select' && mutated) return () => chain(mutated, true);
+      return () => chain(mutated, returning);
     },
-    apply: () => chain(),
+    apply: () => chain(mutated, returning),
   });
   return { rpc, writes, db: { rpc, from: () => chain() } as any };
 }

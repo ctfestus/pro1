@@ -108,7 +108,9 @@ describe('Paystack subscription checkout helper', () => {
         },
         { data: null, error: null },
         { data: null, error: null },
-        { data: null, error: null },
+        // Attaching the link is conditional on the row still being open, and reads back what it
+        // matched. A checkout closed underneath must not be handed to the learner as payable.
+        { data: { reference: 'sub-new-ref' }, error: null },
       ],
     }) as any;
 
@@ -142,7 +144,9 @@ describe('Paystack subscription checkout helper', () => {
         },
         { data: null, error: null },
         { data: null, error: null },
-        { data: null, error: null },
+        // Attaching the link is conditional on the row still being open, and reads back what it
+        // matched. A checkout closed underneath must not be handed to the learner as payable.
+        { data: { reference: 'sub-new-ref' }, error: null },
       ],
     }) as any;
 

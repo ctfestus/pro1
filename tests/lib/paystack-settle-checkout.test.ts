@@ -47,14 +47,16 @@ describe('settling an unfinished checkout', () => {
     for (const status of ['failed', 'abandoned', 'reversed']) {
       verifyPaystackTransaction.mockResolvedValue({ status, amount: 300, currency: 'GHS' });
       const { db } = stubDb(TRANSACTION);
-      await expect(settleUnfinishedCheckout(db, 'sub-a')).resolves.toEqual({ abandoned: true });
+      // The verified status comes back with the verdict, so a caller can record what the provider
+      // actually said rather than guessing at it.
+      await expect(settleUnfinishedCheckout(db, 'sub-a')).resolves.toEqual({ abandoned: true, status });
     }
   });
 
   it('releases when Paystack has never heard of the reference', async () => {
     verifyPaystackTransaction.mockRejectedValue(new PaystackApiError(404, 'not found'));
     const { db } = stubDb(TRANSACTION);
-    await expect(settleUnfinishedCheckout(db, 'sub-a')).resolves.toEqual({ abandoned: true });
+    await expect(settleUnfinishedCheckout(db, 'sub-a')).resolves.toEqual({ abandoned: true, status: null });
   });
 
   // Silence is not evidence. An empty or unrecognised status used to release the checkout, which
