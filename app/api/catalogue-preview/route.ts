@@ -11,10 +11,9 @@
  *
  * Two rules keep this safe to serve to anyone:
  *
- * 1. The projection is pinned to display fields and must never be widened. No `questions`, no
- *    lesson bodies, no answer keys, no outline. The authenticated preview may show a lesson
- *    outline because a signed-in learner already sees titles across the catalogue; an anonymous
- *    caller gets the cover, the blurb and the price, and nothing else.
+ * 1. The projection is pinned to display fields and must never be widened. No lesson bodies, no
+ *    answer keys. Course previews may include a title-only outline so the sales page can match
+ *    the normal course overview without leaking the course material.
  * 2. Only `status = 'published'` rows are visible. Draft and archived content stays invisible.
  *
  * An anonymous viewer belongs to no cohort, so `locked` reduces to "is this offered to everyone",
@@ -49,7 +48,7 @@ const HAS_SLUG: Record<PreviewType, boolean> = {
 // Pinned. Widening this is what would turn a sales page into a content leak.
 const COLUMNS: Record<PreviewType, string> = {
   course: 'id, title, slug, cover_image, description, category, available_to_everyone',
-  learning_path: 'id, title, cover_image, description, available_to_everyone',
+  learning_path: 'id, title, cover_image, description, item_ids, badge_image_url, available_to_everyone',
   virtual_experience: 'id, title, slug, cover_image, description, available_to_everyone',
   certification: 'id, title, slug, cover_image, description, available_to_everyone',
 };
@@ -106,6 +105,71 @@ export async function GET(req: NextRequest) {
         locked,
         ...(locked ? { unlock: { plans } } : {}),
       };
+
+      if (type === 'learning_path') {
+        const { data: pathItems, error: pathItemsError } = await db
+          .from('published_path_items')
+          .select('path_id,id,title,cover_image,slug,type,position')
+          .eq('path_id', record.id)
+          .order('position');
+        if (pathItemsError) throw pathItemsError;
+        const pathItemIds = (pathItems ?? []).map((pathItem: any) => pathItem.id);
+        const [
+          { data: courseDescriptions },
+          { data: veDescriptions },
+          { data: certDescriptions },
+        ] = await Promise.all([
+          pathItemIds.length
+            ? db.from('courses').select('id, description').in('id', pathItemIds).eq('status', 'published')
+            : Promise.resolve({ data: [] as any[] }),
+          pathItemIds.length
+            ? db.from('virtual_experiences').select('id, description').in('id', pathItemIds).eq('status', 'published')
+            : Promise.resolve({ data: [] as any[] }),
+          pathItemIds.length
+            ? db.from('certifications').select('id, description').in('id', pathItemIds).eq('status', 'published')
+            : Promise.resolve({ data: [] as any[] }),
+        ]);
+        const descriptionById = new Map<string, string | null>();
+        for (const row of courseDescriptions ?? []) descriptionById.set(row.id, row.description ?? null);
+        for (const row of veDescriptions ?? []) descriptionById.set(row.id, row.description ?? null);
+        for (const row of certDescriptions ?? []) descriptionById.set(row.id, row.description ?? null);
+
+        return NextResponse.json({
+          item: {
+            ...item,
+            itemIds: (record.item_ids ?? []) as string[],
+            badgeImageUrl: (record.badge_image_url as string) ?? null,
+            pathItems: (pathItems ?? []).map((pathItem: any) => ({
+              id: pathItem.id,
+              title: pathItem.title,
+              slug: pathItem.slug,
+              coverImage: pathItem.cover_image,
+              description: descriptionById.get(pathItem.id) ?? null,
+              type: pathItem.type === 've' ? 'virtual_experience' : pathItem.type,
+            })),
+          },
+        });
+      }
+
+      if (type === 'course') {
+        const { data: course, error: outlineError } = await db
+          .from('courses')
+          .select('questions')
+          .eq('id', record.id)
+          .maybeSingle();
+        if (outlineError) throw outlineError;
+        const outline = ((course?.questions ?? []) as any[]).flatMap(question => {
+          if (question?.isSection && question.sectionTitle) {
+            return [{ id: String(question.id), type: 'section', title: String(question.sectionTitle) }];
+          }
+          if (question?.lesson?.title) {
+            return [{ id: String(question.id), type: 'lesson', title: String(question.lesson.title) }];
+          }
+          return [];
+        });
+        return NextResponse.json({ item: { ...item, outline } });
+      }
+
       return NextResponse.json({ item });
     }
     return NextResponse.json({ item: null });

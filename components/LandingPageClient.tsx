@@ -1383,10 +1383,9 @@ function LandingMidAdBanner({ ads, hFont, bFont, isDark }: { ads: AdCard[]; hFon
 
 // Hover popup content for landing page items
 function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
-  // Courses and guided projects have a public page of their own, which now shows a signed-out
-  // visitor the cover, the blurb and the price. Learning paths have no such page, so they still
-  // route to sign-in.
-  const hasPublicPage = (item.type === 've' || item.type === 'course') && !!item.slug;
+  // Courses, virtual experiences and learning paths have public detail pages for signed-out
+  // visitors. Learning paths are addressed by id because they do not have slugs.
+  const hasPublicPage = ((item.type === 've' || item.type === 'course') && !!item.slug) || (item.type === 'path' && !!item.id);
   const href = landingHref(item, user);
   const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -1429,7 +1428,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
             className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
             style={{ background: '#00bf63', color: 'white' }}>
             <Play className="w-3.5 h-3.5" />
-            {user ? 'Start path' : hasPublicPage ? 'View course' : 'Log in to access'}
+            {user ? 'Start path' : hasPublicPage ? 'View details' : 'Log in to access'}
           </Link>
         </div>
       </div>

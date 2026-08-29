@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, Zap, Clock, Lock } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseXpOnOffer } from '@/lib/course-progress';
@@ -19,8 +19,10 @@ import { getFontById } from '@/lib/fonts';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
+import { PathRow } from '@/components/student/courses-paths';
 import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/ve/guide';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
+import { useC } from '@/lib/theme';
 import {
   lowestUnlockPrice,
   sellablePlans,
@@ -232,11 +234,211 @@ const detectPlatform = (url?: string): { name: string; color: string; icon: Reac
   return { name: 'Join Meeting', color: '#555', icon: null };
 };
 
+function lockedCoursePreviewToForm(item: any) {
+  return {
+    id: item.id,
+    slug: item.slug,
+    content_type: 'course',
+    locked: true,
+    unlock: item.unlock,
+    config: {
+      title: item.title,
+      description: item.description,
+      category: item.category,
+      coverImage: item.coverImage,
+      isCourse: true,
+      questions: (item.outline ?? []).map((entry: any) => entry.type === 'section'
+        ? { id: entry.id, isSection: true, sectionTitle: entry.title }
+        : { id: entry.id, lesson: { title: entry.title } }),
+    },
+  };
+}
+
+function cataloguePathToPathRow(item: any) {
+  const items = (item.pathItems ?? []).map((pathItem: any) => ({
+    id: pathItem.id,
+    title: pathItem.title,
+    slug: pathItem.slug,
+    cover_image: pathItem.coverImage,
+    description: pathItem.description,
+    content_type: pathItem.type === 've' ? 'virtual_experience' : pathItem.type,
+  }));
+  const itemIds = Array.isArray(item.itemIds) && item.itemIds.length
+    ? item.itemIds
+    : items.map((pathItem: any) => pathItem.id);
+  return {
+    id: item.id,
+    title: item.title,
+    description: item.description,
+    cover_image: item.coverImage,
+    badge_image_url: item.badgeImageUrl,
+    item_ids: itemIds,
+    items,
+    locked: item.locked,
+    unlock: item.unlock,
+    progress: null,
+  };
+}
+
+function PublicLearningPathOverview({ path, C }: { path: any; C: ReturnType<typeof useC> }) {
+  const { logoUrl, logoDarkUrl } = useTenant();
+  const cover = resolveCoverUrl(path.cover_image) || '';
+  const items = path.items ?? [];
+  const courseCount = items.filter((item: any) => item.content_type === 'course').length;
+  const virtualExperienceCount = items.filter((item: any) => item.content_type === 'virtual_experience').length;
+  const from = lowestUnlockPrice(path.unlock);
+  const href = path.locked
+    ? `/student?contentTable=learning_paths&contentId=${encodeURIComponent(path.id)}#payments`
+    : '/auth';
+  const cta = path.locked ? 'Purchase or enroll' : 'Start for free';
+  const isDark = C.page !== '#F2F5FA';
+  const panelBg = isDark ? 'rgba(30,31,38,0.96)' : '#ffffff';
+  const panelText = isDark ? '#f8fafc' : '#202124';
+  const panelMuted = isDark ? '#cbd5e1' : '#62666d';
+  const panelFaint = isDark ? '#94a3b8' : '#747474';
+  const description = path.description?.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  const statPillClass = 'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold';
+  const statPillStyle = {
+    background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.92)',
+    borderColor: isDark ? 'rgba(255,255,255,0.16)' : '#d0d5dd',
+    color: isDark ? '#e2e8f0' : '#344054',
+  };
+
+  return (
+    <main style={{ minHeight: '100vh', background: C.page, color: C.text }}>
+      <nav style={{ position: 'sticky', top: 0, zIndex: 30, backdropFilter: 'blur(14px)', background: isDark ? 'rgba(13,13,13,0.88)' : 'rgba(255,255,255,0.98)', borderBottom: `1px solid ${isDark ? C.cardBorder : 'rgba(0,0,0,0.07)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56 }}>
+        <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+          <img src={(!isDark ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
+        </Link>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            type="button"
+            onClick={() => {
+              if (window.history.length > 1) window.history.back();
+              else window.location.href = '/';
+            }}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 7, border: 0, borderRadius: 999, background: C.divider, color: C.muted, cursor: 'pointer', fontSize: 12, fontWeight: 700, padding: '7px 12px' }}
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </button>
+        </div>
+      </nav>
+      <section
+        className="relative overflow-hidden sm:min-h-[520px]"
+        style={{
+          background: cover
+            ? '#101828'
+            : `linear-gradient(135deg, ${C.cta} 0%, color-mix(in srgb, ${C.cta} 62%, #111827 38%) 48%, #101828 100%)`,
+        }}
+      >
+        {cover && (
+          <img
+            src={cover}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0" style={{ background: cover ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.12)' }} />
+        <div className="relative mx-auto flex w-full max-w-[1240px] items-stretch justify-center px-4 py-5 sm:min-h-[520px] sm:px-7 sm:py-0">
+          <div
+            className="flex w-full max-w-[900px] items-center px-5 py-7 text-center shadow-[0_24px_70px_rgba(15,23,42,0.20)] sm:px-12 sm:py-9"
+            style={{
+              background: panelBg,
+              border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)'}`,
+              color: panelText,
+              fontFamily: 'var(--font-lato, Lato, sans-serif)',
+            }}
+          >
+            <div className="mx-auto max-w-[840px]">
+              <p className="text-xs font-bold uppercase tracking-[0.16em] sm:text-sm" style={{ color: panelFaint }}>Learning path</p>
+              <h1
+                className="mx-auto mt-2 max-w-5xl text-3xl font-black leading-tight sm:text-5xl"
+                style={{ color: panelText }}
+              >
+                {path.title}
+              </h1>
+              {description && (
+                <p
+                  className="mx-auto mt-4 max-w-4xl text-base leading-relaxed sm:text-lg"
+                  style={{ color: panelMuted }}
+                >
+                  {description}
+                </p>
+              )}
+              <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
+                <span
+                  className="inline-flex items-center gap-2 px-4 py-2 pr-8 text-sm font-bold uppercase"
+                  style={{
+                    background: 'rgba(255,192,0,0.76)',
+                    borderRadius: 6,
+                    clipPath: 'polygon(0 0, 100% 0, calc(100% - 22px) 50%, 100% 100%, 0 100%)',
+                    color: isDark ? '#111827' : '#202124',
+                    letterSpacing: 0,
+                  }}
+                >
+                  <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
+                  Certificate available
+                </span>
+                {courseCount > 0 && (
+                  <span className={statPillClass} style={statPillStyle}>
+                    <span
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md"
+                      style={{ background: isDark ? 'rgba(62,147,255,0.18)' : '#eef4ff', color: isDark ? '#93c5fd' : '#344054' }}
+                    >
+                      <MonitorPlay className="h-4 w-4" strokeWidth={2.1} />
+                    </span>
+                    {courseCount} course{courseCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {virtualExperienceCount > 0 && (
+                  <span className={statPillClass} style={statPillStyle}>
+                    <span
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md"
+                      style={{ background: isDark ? 'rgba(34,197,94,0.16)' : '#ecfdf3', color: isDark ? '#86efac' : '#256b48' }}
+                    >
+                      <Building2 className="h-4 w-4" strokeWidth={2.1} />
+                    </span>
+                    {virtualExperienceCount} virtual experience{virtualExperienceCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+              {path.locked && from && (
+                <p className="mt-5 text-sm font-bold" style={{ color: panelMuted }}>
+                  From {unlockMoney(from.currency, from.amount)} for {unlockDurationLabel(from.durationMonths)}
+                </p>
+              )}
+              <Link
+                href={href}
+                className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-lg px-6 py-3.5 text-base font-bold sm:w-auto sm:px-8"
+                style={{ background: C.cta, color: C.ctaText }}
+              >
+                {path.locked && <Lock className="h-4 w-4" />}
+                {cta}
+                <ArrowRight className="h-5 w-5" />
+              </Link>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section
+        className="mx-auto w-full max-w-[1140px] px-5 py-8 sm:px-7 sm:py-10"
+        style={{ fontFamily: 'var(--font-lato, Lato, sans-serif)' }}
+      >
+        <PathRow path={path} C={C} publicPreview hideHeader />
+      </section>
+    </main>
+  );
+}
+
 export default function PublicFormPage() {
   const { logoUrl, logoDarkUrl } = useTenant();
+  const C = useC();
   const { id } = useParams();
   const [form, setForm] = useState<any>(null);
   const [lockedPreview, setLockedPreview] = useState<any>(null);
+  const [pathPreview, setPathPreview] = useState<any>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [loading, setLoading] = useState(true);
   const [studentMode, setStudentModeContext] = useState<StudentModeContext | null>(() => getStudentMode());
@@ -329,6 +531,7 @@ export default function PublicFormPage() {
   useEffect(() => {
     const fetchForm = async () => {
       setLockedPreview(null);
+      setPathPreview(null);
       // Restore session first so the auth token is attached to the forms query.
       // Running the query in parallel with getUser() meant it fired as anon,
       // which blocked RLS on courses/VEs.
@@ -436,25 +639,11 @@ export default function PublicFormPage() {
           if (previewRes.ok) {
             const { item } = await previewRes.json();
             if (item?.locked && item.type === 'course') {
-              data = {
-                id: item.id,
-                slug: item.slug,
-                content_type: 'course',
-                locked: true,
-                unlock: item.unlock,
-                config: {
-                  title: item.title,
-                  description: item.description,
-                  category: item.category,
-                  coverImage: item.coverImage,
-                  isCourse: true,
-                  questions: (item.outline ?? []).map((entry: any) => entry.type === 'section'
-                    ? { id: entry.id, isSection: true, sectionTitle: entry.title }
-                    : { id: entry.id, lesson: { title: entry.title } }),
-                },
-              };
+              data = lockedCoursePreviewToForm(item);
               setCourseStarted(false);
-            } else if (item?.locked && item.type !== 'learning_path') {
+            } else if (item?.type === 'learning_path') {
+              setPathPreview(cataloguePathToPathRow(item));
+            } else if (item?.locked) {
               setLockedPreview(item);
             }
           }
@@ -471,7 +660,14 @@ export default function PublicFormPage() {
           const publicRes = await fetch(`/api/catalogue-preview?ref=${encodeURIComponent(id as string)}${typeQuery}`);
           if (publicRes.ok) {
             const { item } = await publicRes.json();
-            if (item) setLockedPreview(item);
+            if (item?.locked && item.type === 'course') {
+              data = lockedCoursePreviewToForm(item);
+              setCourseStarted(false);
+            } else if (item?.type === 'learning_path') {
+              setPathPreview(cataloguePathToPathRow(item));
+            } else if (item) {
+              setLockedPreview(item);
+            }
           }
         } catch { /* fall through to not-found */ }
       }
@@ -762,6 +958,9 @@ export default function PublicFormPage() {
   }
 
   if (!form) {
+    if (pathPreview) {
+      return <PublicLearningPathOverview path={pathPreview} C={C} />;
+    }
     if (lockedPreview) return <LockedContentPreview item={lockedPreview} signedOut={signedOut} />;
     // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
     // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
