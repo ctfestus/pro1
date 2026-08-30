@@ -64,8 +64,9 @@ export async function sendPaystackCartReminders(
 
       // Our record can lag a webhook, so Paystack is asked directly -- and whatever it reports is
       // acted on, not merely read. Noticing a completed payment and moving on would leave it
-      // uncredited if the webhook and the callback were both missed, and leave a genuinely
-      // in-flight one sitting at 'initialized', invisible to the review queue and still clearable.
+      // uncredited if the webhook and callback were both missed. A real pending payment is stored
+      // by the processor; `ongoing` only describes the customer's still-open checkout session, so
+      // this pass refuses to nudge or clear it without turning that transient answer into a lock.
       const settled = await settleUnfinishedCheckout(db, cart.reference);
       if (!settled.abandoned) { skipped++; continue; }
 

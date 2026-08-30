@@ -7,7 +7,7 @@ import { adminPaymentConfirmationEmail, paymentConfirmationAcknowledgedEmail } f
 import {
   createPaystackDirectCheckout,
   createPaystackSubscriptionCheckout,
-  processPaystackSubscriptionReference,
+  settleUnfinishedCheckout,
   assertNothingCollected,
 } from '@/lib/paystack-subscriptions';
 import { cancelSubscriptionPaymentRequest, createSubscriptionPaymentRequest } from '@/lib/db-subscriptions';
@@ -372,8 +372,33 @@ export async function POST(req: NextRequest) {
         throw new PaymentError('not_found', 'Payment could not be found.', 404);
       }
       await enforcePaystackRateLimit(db, session.id, 'verify', RETURN_VERIFY_ATTEMPT_LIMIT);
-      const result = await processPaystackSubscriptionReference(db, reference);
-      return NextResponse.json(result);
+      // This endpoint is replayable from session storage and the learner's Check payment status
+      // button. It is therefore a caller-initiated query, not a provider event: an `ongoing`
+      // answer describes the still-open checkout session and must not turn the local cart into a
+      // durable account block. Payment states still pass through the normal processor, while the
+      // webhook remains the authoritative push path and calls that processor directly.
+      const settled = await settleUnfinishedCheckout(db, reference);
+      if (!settled.abandoned) {
+        if (!settled.result) {
+          throw new PaymentError(
+            'conflict',
+            'Paystack has not returned a recognizable payment status yet. Try again shortly.',
+            409,
+          );
+        }
+        return NextResponse.json(settled.result);
+      }
+
+      // Remove deliberately leaves initialized rows for its closer to dismiss. A return check has
+      // no second closer, so preserve the old callback behavior by recording Paystack's terminal
+      // no-payment verdict here. That releases the learner and lets the UI stop retrying it.
+      const terminalStatus = settled.status || 'abandoned';
+      const { error: releaseError } = await db.from('paystack_subscription_transactions').update({
+        status: terminalStatus,
+        processing_error: settled.status ? `paystack_${settled.status}` : 'transaction_not_found_at_paystack',
+      }).eq('reference', reference).in('status', ['initialized', 'pending', 'ongoing', 'processing', 'queued']);
+      if (releaseError) throw releaseError;
+      return NextResponse.json({ ok: true, reference, status: terminalStatus });
     } catch (err) {
       const failure = paymentErrorResponse(err, 'We could not verify this payment yet.');
       return NextResponse.json({ error: failure.message, code: failure.code }, { status: failure.status });

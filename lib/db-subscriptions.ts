@@ -229,7 +229,10 @@ export async function getOpenPaystackCarts(db: SupabaseClient, planIds: string[]
       status, created_at, reminder_count, last_reminder_at,
       students!paystack_subscription_transactions_student_id_fkey ( id, full_name, email )
     `)
-    .eq('status', 'initialized')
+    // Include durable in-flight rows left by callback or webhook processing. They still block the
+    // learner, and staff must be able to reach the same verify-first Clear action instead of
+    // having an invisible checkout that can only be repaired in the database.
+    .in('status', ['initialized', 'pending', 'ongoing', 'processing', 'queued'])
     .is('cart_dismissed_at', null)
     .not('student_id', 'is', null);
   if (planIds) query = query.in('plan_id', planIds);

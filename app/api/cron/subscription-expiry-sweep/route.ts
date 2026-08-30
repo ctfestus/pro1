@@ -12,6 +12,7 @@ import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-paym
 import { notifySubscriptionExpiring } from '@/lib/notify-subscription-expiring';
 import { retryPaystackIncidentNotifications, retryStoredPaystackWebhookEvents } from '@/lib/paystack-webhook-processing';
 import { sendPaystackCartReminders } from '@/lib/notify-paystack-cart';
+import { reconcileStalePaystackTransactions } from '@/lib/paystack-subscriptions';
 import { verifyQStashRequest } from '@/lib/qstash';
 
 export const dynamic = 'force-dynamic';
@@ -45,6 +46,8 @@ export async function POST(req: NextRequest) {
   let paystackEventFailures = 0;
   let reconciliationAlertsSent = 0;
   let paystackEventsPurged = 0;
+  let paystackTransactionsReconciled = 0;
+  let paystackTransactionFailures = 0;
   let cartRemindersSent = 0;
   let paystackRecoverySkipped = false;
   // Paystack recovery runs AFTER the expiry pass, further down. Expiring access is the reason
@@ -223,6 +226,16 @@ export async function POST(req: NextRequest) {
       } else {
         paystackRecoverySkipped = true;
       }
+      // A callback can legitimately persist an in-flight status and then never receive another
+      // event. Age only makes the row eligible to ask Paystack again; it never releases money on
+      // its own. The provider's current verdict still goes through the normal payment processor.
+      if (!outOfTime()) {
+        const stale = await reconcileStalePaystackTransactions(db, REQUEST_EMAIL_RETRY_BATCH, outOfTime);
+        paystackTransactionsReconciled = stale.processed;
+        paystackTransactionFailures = stale.failed;
+      } else {
+        paystackRecoverySkipped = true;
+      }
       // Last of the recovery work and the least urgent: a nudge that waits an hour costs nothing.
       if (!outOfTime()) {
         const reminders = await sendPaystackCartReminders(db, REQUEST_EMAIL_RETRY_BATCH, outOfTime);
@@ -248,7 +261,7 @@ export async function POST(req: NextRequest) {
     const { error: heartbeatError } = await db.from('cron_heartbeats').upsert({
       job_name: 'subscription-expiry-sweep',
       last_success_at: new Date().toISOString(),
-      last_summary: { expired, failed, paystackEventsRetried, paystackRecoverySkipped },
+      last_summary: { expired, failed, paystackEventsRetried, paystackTransactionsReconciled, paystackRecoverySkipped },
     }, { onConflict: 'job_name' });
     if (heartbeatError) console.error('[cron/subscription-expiry-sweep] heartbeat', heartbeatError);
   }
@@ -269,6 +282,8 @@ export async function POST(req: NextRequest) {
     expiryWarningsFailed,
     paystackEventsRetried,
     paystackEventFailures,
+    paystackTransactionsReconciled,
+    paystackTransactionFailures,
     reconciliationAlertsSent,
     paystackEventsPurged,
     cartRemindersSent,
