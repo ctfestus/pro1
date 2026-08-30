@@ -286,7 +286,7 @@ describe('abandoned checkout cart', () => {
   it('lets a learner choose bank transfer while Paystack is configured', () => {
     const component = read('components/student/subscription-payments.tsx');
     expect(component).toContain('paystack: data?.paystackEnabled === true && !payManually');
-    expect(component).toContain('Prefer to pay by bank transfer or mobile money?');
+    expect(component).toContain('Use bank transfer or mobile money');
   });
 
   // Offered back, not chased. Nothing here says owed, due, or overdue.

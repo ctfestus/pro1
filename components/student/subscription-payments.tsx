@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import {
   AlertCircle, ArrowRight, BadgeCheck, Banknote, CalendarClock, Check, CheckCircle2,
-  Clock3, Copy, CreditCard, ExternalLink, FileCheck2, ReceiptText, Send,
+  Clock3, Copy, CreditCard, ExternalLink, ReceiptText, Send,
   ShieldCheck, Smartphone, WalletCards, Loader2,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +24,17 @@ function money(currency: string, amount: number | string) {
   return `${currency || 'GHS'} ${Number(amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
+function durationLabel(months: number) {
+  if (months === 12) return '1 year';
+  return `${months} month${months === 1 ? '' : 's'}`;
+}
+
+function renewalCopy(status?: string) {
+  if (status === 'active') return { heading: 'Extend your access', action: 'Add more time' };
+  if (status === 'cancelled') return { heading: 'Reactivate your plan', action: 'Reactivate plan' };
+  return { heading: 'Renew your plan', action: 'Renew plan' };
+}
+
 function contentTarget() {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
@@ -36,9 +48,9 @@ function CopyValue({ value, C }: { value: string; C: typeof LIGHT_C }) {
   return <button onClick={() => navigator.clipboard.writeText(value).then(() => { setCopied(true); setTimeout(() => setCopied(false), 1500); })} className="inline-flex items-center gap-1.5 font-bold" style={{ color: C.text }}>{value}{copied ? <Check className="w-3.5 h-3.5" style={{ color: '#16a34a' }}/> : <Copy className="w-3.5 h-3.5" style={{ color: C.faint }}/>}</button>;
 }
 
-function StatePill({ status, C }: { status: string; C: typeof LIGHT_C }) {
-  const tone = status === 'active' || status === 'approved' ? '#16a34a' : ['rejected', 'cancelled'].includes(status) ? '#dc2626' : status === 'expired' ? C.muted : '#d97706';
-  return <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold capitalize" style={{ background: `${tone}18`, color: tone }}><span className="w-1.5 h-1.5 rounded-full" style={{ background: tone }}/>{status.replaceAll('_', ' ')}</span>;
+function StatePill({ status, C, inverse = false }: { status: string; C: typeof LIGHT_C; inverse?: boolean }) {
+  const tone = ['active', 'approved', 'paid'].includes(status) ? '#16a34a' : ['rejected', 'failed', 'cancelled'].includes(status) ? '#dc2626' : status === 'expired' ? C.muted : '#d97706';
+  return <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-bold capitalize" style={{ background: inverse ? 'rgba(255,255,255,0.12)' : `${tone}18`, color: inverse ? '#ffffff' : tone }}><span className="w-1.5 h-1.5 rounded-full" style={{ background: inverse ? '#ffffff' : tone }}/>{status.replaceAll('_', ' ')}</span>;
 }
 
 export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId: string; C: typeof LIGHT_C; readOnly?: boolean }) {
@@ -47,7 +59,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   const [error, setError] = useState('');
   const [failureEnrollmentModel, setFailureEnrollmentModel] = useState<string | null>(null);
   const [data, setData] = useState<any>(null);
-  const [tab, setTab] = useState<Tab>('pay');
+  const [tab, setTab] = useState<Tab>('history');
   const [selectedOption, setSelectedOption] = useState('');
   const [form, setForm] = useState({ paidAt: new Date().toISOString().slice(0, 10), method: '', reference: '', notes: '', receiptUrl: '' });
   const [busy, setBusy] = useState(false);
@@ -60,7 +72,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   const [requestBusy, setRequestBusy] = useState(false);
   const [message, setMessage] = useState('');
   const returnVerificationStarted = useRef(false);
-  const tabsRef = useRef<HTMLElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
 
   // Switching tabs from a button somewhere else on the page changes content the learner cannot see.
   // Pressing "I have paid" swapped the panel underneath and left the viewport, and the focus ring,
@@ -221,11 +233,12 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     return subscription?.plan_id ? all.filter((row: any) => row.id === subscription.plan_id) : all;
   }, [data?.plans, subscription?.plan_id]);
   const timeline = useMemo(() => [
-    ...(data?.payments ?? []).map((row: any) => ({ ...row, displayStatus: 'approved', date: row.paid_at })),
+    ...(data?.payments ?? []).map((row: any) => ({ ...row, displayStatus: 'paid', date: row.paid_at })),
     ...requests.flatMap((request: any) => (request.subscription_payment_confirmations ?? [])
       .filter((row: any) => row.status !== 'approved')
-      .map((row: any) => ({ ...row, currency: request.currency, displayStatus: row.status, date: row.paid_at }))),
+      .map((row: any) => ({ ...row, plan_name: request.plan_name, duration_months: request.duration_months, currency: request.currency, displayStatus: row.status === 'rejected' ? 'failed' : row.status, date: row.paid_at }))),
   ].sort((a: any, b: any) => +new Date(b.date) - +new Date(a.date)), [data?.payments, requests]);
+  const showPaymentWorkspace = Boolean(subscription || openRequest || timeline.length);
 
   if (loading) return <div className="space-y-4"><Sk h={220}/><div className="grid sm:grid-cols-3 gap-3">{[1,2,3].map(i => <Sk key={i} h={110}/>)}</div></div>;
   // Only an actual bootcamp learner gets the installment screen. Testing for "not individual" sent
@@ -247,8 +260,9 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   const inputClass = 'w-full mt-1.5 rounded-xl px-3.5 py-2.5 text-sm outline-none focus:ring-2';
   const heroStyle = {
     background: dark
-      ? `radial-gradient(circle at 85% 18%, ${C.cta}38, transparent 30%), linear-gradient(135deg, #20232d 0%, #17181e 75%)`
-      : `radial-gradient(circle at 88% 14%, ${C.cta}47, transparent 30%), linear-gradient(135deg, #0a1220 0%, #122a3f 100%)`,
+      ? `radial-gradient(circle at 85% 16%, color-mix(in srgb, ${C.cta} 46%, transparent), transparent 32%), linear-gradient(135deg, color-mix(in srgb, ${C.cta} 54%, #101218) 0%, color-mix(in srgb, ${C.cta} 28%, #101218) 54%, #17181e 100%)`
+      : C.cta,
+    color: '#ffffff',
   };
 
   async function submit() {
@@ -397,13 +411,20 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     <style>{`.subscription-typography .font-black{font-weight:700!important}.subscription-typography .font-bold{font-weight:600!important}`}</style>
     {justPurchased && <PurchaseSuccess planName={planName} until={subscription?.current_period_end} contents={data?.content ?? []} C={C}/>}
     {message && !justPurchased && <div className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-3" style={{ background: message.includes('confirmed') ? C.successBg : C.pill, color: message.includes('confirmed') ? C.successText : C.text }}><Clock3 className="w-5 h-5 flex-shrink-0"/><p className="text-sm font-bold flex-1">{message}</p>{returnReference && !returnResolved && !readOnly && <button onClick={() => verifyReturn(returnReference, false)} disabled={returnBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-black flex-shrink-0 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{returnBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ShieldCheck className="w-4 h-4"/>}Check payment status</button>}</div>}
-    <section className="relative overflow-hidden rounded-[30px] p-5 sm:p-6 text-white" style={heroStyle}>
-      <div className="absolute right-[-55px] bottom-[-95px] w-64 h-64 rounded-full border border-white/10"/><div className="absolute right-8 top-7 w-20 h-20 rounded-full border border-white/10"/>
-      <div className="relative grid lg:grid-cols-[1fr_auto] gap-5 items-end">
-        <div><div className="flex flex-wrap items-center gap-3"><h2 className="text-2xl sm:text-3xl font-black tracking-tight" style={{ color: '#ffffff' }}>{planName}</h2><StatePill status={subscription?.status || (openRequest ? 'awaiting payment' : 'no plan yet')} C={C}/></div><p className="mt-2 text-sm max-w-xl" style={{ color: 'rgba(255,255,255,0.72)' }}>{plan?.description || (subscription ? `Your access runs until ${fmtDate(subscription.current_period_end)}. It does not renew automatically.` : openRequest ? 'Complete your assigned payment to unlock this learning plan.' : 'Choose a plan below to unlock your learning access.')}</p>{hasActiveAccess ? <div className="mt-4 max-w-xl"><div className="flex justify-between text-[11px] font-bold mb-2" style={{ color: 'rgba(255,255,255,0.72)' }}><span>Access started {fmtDate(subscription.current_period_start)}</span><span>{daysLeft} days remaining</span></div><div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.18)' }}><div className="h-full rounded-full" style={{ width: `${accessProgress}%`, background: dark ? '#83b9ff' : C.cta }}/></div></div> : subscription && <p className="mt-4 text-xs font-bold" style={{ color: 'rgba(255,255,255,0.72)' }}>{subscription.status === 'cancelled' ? 'Your access was cancelled. Contact the learning team if that is not right.' : `Your access ended on ${fmtDate(subscription.current_period_end)}. Renew below to pick up where you left off.`}</p>}</div>
-        <div className="relative min-w-[190px] rounded-2xl p-4" style={{ background: 'rgba(255,255,255,0.09)', border: '1px solid rgba(255,255,255,0.12)', backdropFilter: 'blur(16px)' }}><p className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: 'rgba(255,255,255,0.55)' }}>{openRequest ? 'Payment due' : hasActiveAccess ? 'Access until' : 'Access status'}</p><p className="text-xl font-black mt-1.5" style={{ color: '#ffffff' }}>{openRequest ? money(openRequest.currency,openRequest.amount) : hasActiveAccess ? fmtDate(subscription?.current_period_end) : !subscription ? 'Not started' : subscription.status === 'cancelled' ? 'Cancelled' : 'Ended'}</p><p className="text-xs mt-1.5" style={{ color: overdue ? '#fca5a5' : 'rgba(255,255,255,0.68)' }}>{openRequest ? `${overdue ? 'Past due' : 'Due'} ${fmtDate(openRequest.due_date)}` : hasActiveAccess ? `${daysLeft} days remaining` : !subscription ? 'Pick a plan to get started' : 'Renew below to continue'}</p>{openRequest && !pendingConfirmation && <button onClick={() => goToTab('confirm')} className="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-black" style={{ background: '#fff', color: '#101828' }}>Confirm payment<ArrowRight className="w-3.5 h-3.5"/></button>}</div>
-      </div>
-    </section>
+    <AccessHero
+      C={C}
+      heroStyle={heroStyle}
+      subscription={subscription}
+      plan={plan}
+      planName={planName}
+      openRequest={openRequest}
+      pendingConfirmation={pendingConfirmation}
+      hasActiveAccess={hasActiveAccess}
+      daysLeft={daysLeft}
+      accessProgress={accessProgress}
+      overdue={overdue}
+      onConfirm={() => goToTab('confirm')}
+    />
 
     {overdue && <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.errorBg, border: `1px solid ${C.errorBorder}`, color: C.errorText }}><AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5"/><div><p className="text-sm font-bold">Your payment deadline has passed</p><p className="text-xs mt-1 opacity-80">You can still send your confirmation. Contact support if your payment terms need to be updated.</p></div></div>}
     {pendingConfirmation && <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: 'rgba(217,119,6,0.10)', border: '1px solid rgba(217,119,6,0.18)', color: '#b45309' }}><Clock3 className="w-5 h-5 flex-shrink-0 mt-0.5"/><div className="flex-1"><p className="text-sm font-bold">Payment review in progress</p><p className="text-xs mt-1 opacity-80">Submitted {fmtDate(pendingConfirmation.created_at)}. Your access updates automatically after approval.</p></div><span className="hidden sm:inline text-[10px] font-bold uppercase tracking-wider">Pending</span></div>}
@@ -453,18 +474,24 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     {/* The learner's own unpaid invoice, in the same slot the cart uses -- the two cannot both be
         open. Bank transfer raises a request, and a request blocks every other way of paying until
         it closes, so the way out has to be on the screen rather than in a message to staff. */}
-    {ownRequest && !readOnly && <section className="rounded-2xl p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col sm:flex-row sm:items-center gap-4"><div className="flex-1 min-w-0"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>You chose to pay by transfer</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{ownRequest.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{ownRequest.duration_months === 12 ? '1 year' : `${ownRequest.duration_months} month${ownRequest.duration_months > 1 ? 's' : ''}`} &middot; {money(ownRequest.currency, ownRequest.amount)} &middot; by {fmtDate(ownRequest.due_date)}</p></div><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => cancelOwnRequest(ownRequest.id)} disabled={requestBusy} className="rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>{requestBusy ? 'Cancelling...' : 'Cancel'}</button><button onClick={() => goToTab('confirm')} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black" style={{ background: C.cta, color: C.ctaText }}>I have paid<ArrowRight className="w-4 h-4"/></button></div></div></section>}
+    {ownRequest && !readOnly && <section className="rounded-2xl p-4 sm:p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>You chose to pay by transfer</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{ownRequest.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{ownRequest.duration_months === 12 ? '1 year' : `${ownRequest.duration_months} month${ownRequest.duration_months > 1 ? 's' : ''}`} &middot; {money(ownRequest.currency, ownRequest.amount)} &middot; by {fmtDate(ownRequest.due_date)}</p></div><div className="grid grid-cols-2 gap-2 sm:flex sm:flex-shrink-0"><button onClick={() => cancelOwnRequest(ownRequest.id)} disabled={requestBusy} className="min-h-11 rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>{requestBusy ? 'Cancelling...' : 'Cancel'}</button><button onClick={() => goToTab('confirm')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black" style={{ background: C.cta, color: C.ctaText }}>I have paid<ArrowRight className="w-4 h-4"/></button></div></div></section>}
 
-    {!!purchasablePlans.length && !pendingConfirmation && <section className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-4"><div><p className="font-black" style={{ color: C.text }}>{subscription ? 'Renew your access' : 'Choose a plan'}</p><p className="text-xs mt-1" style={{ color: C.faint }}>{openRequest ? 'Complete your current payment before choosing another plan.' : subscription ? 'Extend your current plan. To move to a different plan, contact the learning team.' : 'Access ends on the date shown. It does not renew automatically.'}</p></div><WalletCards className="w-5 h-5" style={{ color: C.cta }}/></div><div className="grid md:grid-cols-2 xl:grid-cols-3 gap-3">{purchasablePlans.map((plan: any) => <div key={plan.id} className="rounded-2xl p-4" style={{ background: C.page, border: `1px solid ${C.cardBorder}` }}><div className="flex items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{plan.name}</p>{plan.description && <p className="text-xs mt-1 line-clamp-2" style={{ color: C.faint }}>{plan.description}</p>}</div><ShieldCheck className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/></div><PlanContents plan={plan} C={C}/><div className="mt-4 space-y-2">{plan.prices.map((price: any) => { const { perMonth, savingPercent: saving } = comparePlanPrice(price, plan.prices); return <button key={price.id} onClick={() => purchasePlan(price.id)} disabled={!!openRequest || !!planBusyId || readOnly} className="w-full flex items-center justify-between gap-3 rounded-xl px-3.5 py-3 text-left transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.card, color: C.text }}><span><span className="block text-sm font-black">{price.durationMonths === 12 ? '1 year' : `${price.durationMonths} month${price.durationMonths > 1 ? 's' : ''}`} access</span><span className="block text-[11px] mt-0.5" style={{ color: C.faint }}>{money(price.currency, perMonth)} a month{saving > 0 ? ' - ' : ''}{saving > 0 && <span style={{ color: '#16a34a', fontWeight: 700 }}>save {saving}%</span>}</span></span><span className="inline-flex items-center gap-2 text-sm font-black" style={{ color: C.cta }}>{money(price.currency, price.amount)}{planBusyId === price.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</span></button>; })}</div></div>)}</div>{data?.paystackEnabled && <p className="text-xs mt-4" style={{ color: C.faint }}>{payManually ? 'Paying by bank transfer or mobile money. ' : 'Prefer to pay by bank transfer or mobile money? '}<button onClick={() => setPayManually(v => !v)} className="font-bold underline" style={{ color: C.cta }}>{payManually ? 'Pay by card instead' : 'Choose that instead'}</button></p>}</section>}
+    {subscription && !!purchasablePlans.length && !pendingConfirmation && <PricingStage
+      plans={purchasablePlans}
+      subscription={subscription}
+      openRequest={openRequest}
+      planBusyId={planBusyId}
+      paystackEnabled={data?.paystackEnabled === true}
+      payManually={payManually}
+      readOnly={readOnly}
+      C={C}
+      onPurchase={purchasePlan}
+      onToggleManual={() => setPayManually(value => !value)}
+    />}
 
-    <nav ref={tabsRef} tabIndex={-1} className="grid grid-cols-3 gap-1 p-1.5 rounded-2xl outline-none scroll-mt-20" style={{ background: C.card }}>
-      {([
-        ['pay','Pay',WalletCards],['confirm','Confirm',FileCheck2],['history','Activity',ReceiptText],
-      ] as const).map(([id,label,Icon]) => <button key={id} onClick={() => setTab(id)} className="relative flex flex-col sm:flex-row items-center justify-center gap-1.5 sm:gap-2 rounded-xl px-2 py-2.5 text-[11px] sm:text-sm font-bold transition-all" style={{ background: tab === id ? C.pill : 'transparent', color: tab === id ? C.text : C.faint }}><Icon className="w-4 h-4"/>{label}{id === 'confirm' && openRequest && !pendingConfirmation && <span className="absolute top-1.5 right-2 w-2 h-2 rounded-full" style={{ background: '#f97316', boxShadow: `0 0 0 3px ${C.card}` }}/>}</button>)}
-    </nav>
-
-    {tab === 'pay' && <section className="grid lg:grid-cols-[1fr_320px] gap-5">
-      <div className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-5"><div><p className="font-black" style={{ color: C.text }}>Choose how to pay</p><p className="text-xs mt-1" style={{ color: C.faint }}>Pay online or use the verified manual details below.</p></div><CreditCard className="w-5 h-5" style={{ color: C.cta }}/></div>{data?.paystackEnabled && openRequest && !pendingConfirmation && !readOnly && <div className="mb-5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4" style={{ background: `${C.cta}10`, border: `1px solid ${C.cardBorder}` }}><div className="flex-1"><p className="text-sm font-black" style={{ color: C.text }}>Pay online with Paystack</p><p className="text-xs mt-1" style={{ color: C.faint }}>Card, bank, and mobile money options are confirmed automatically after payment.</p></div><button onClick={startPaystackCheckout} disabled={paystackBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{paystackBusy ? 'Opening...' : `Pay ${money(openRequest.currency, openRequest.amount)}`}<ExternalLink className="w-4 h-4"/></button></div>}{options.length ? <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">{options.map((row: any) => { const Icon = row.type === 'mobile_money' ? Smartphone : row.type === 'bank_transfer' ? Banknote : CreditCard; return <button key={row.id} onClick={() => { setSelectedOption(row.id); setForm(v => ({ ...v, method: row.label })); }} className="relative rounded-2xl p-4 text-left min-h-28 transition-all hover:-translate-y-0.5" style={{ background: selectedOption === row.id ? `${C.cta}10` : C.page, outline: selectedOption === row.id ? `2px solid ${C.cta}` : '2px solid transparent' }}>{selectedOption === row.id && <span className="absolute top-3 right-3 w-5 h-5 rounded-full grid place-items-center" style={{ background: C.cta, color: C.ctaText }}><Check className="w-3 h-3"/></span>}{row.logo_url ? <img src={row.logo_url} alt="" className="h-8 max-w-20 object-contain mb-4"/> : <div className="w-9 h-9 rounded-xl grid place-items-center mb-4" style={{ background: C.card, color: C.cta }}><Icon className="w-4 h-4"/></div>}<p className="text-sm font-bold" style={{ color: C.text }}>{row.label}</p><p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: C.faint }}>{row.type?.replaceAll('_',' ') || 'Payment option'}</p></button>; })}</div> : <div className="rounded-2xl py-14 text-center" style={{ background: C.page }}><WalletCards className="w-8 h-8 mx-auto" style={{ color: C.faint }}/><p className="text-sm font-bold mt-3" style={{ color: C.text }}>No payment options yet</p><p className="text-xs mt-1" style={{ color: C.faint }}>Contact your administrator for payment instructions.</p></div>}</div>
+    {showPaymentWorkspace && <div ref={tabsRef} tabIndex={-1} className="space-y-5 outline-none scroll-mt-20">
+    {tab === 'pay' && openRequest && <section className="grid lg:grid-cols-[1fr_320px] gap-5">
+      <div className="rounded-2xl p-4 sm:p-6" style={cardStyle(C)}><div className="flex items-center justify-between gap-4 mb-5"><div><p className="font-black" style={{ color: C.text }}>Choose how to pay</p><p className="text-xs mt-1" style={{ color: C.faint }}>Pay online or use the verified manual details below.</p></div><CreditCard className="w-5 h-5" style={{ color: C.cta }}/></div>{data?.paystackEnabled && openRequest && !pendingConfirmation && !readOnly && <div className="mb-5 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center gap-4" style={{ background: `${C.cta}10`, border: `1px solid ${C.cardBorder}` }}><div className="flex-1"><p className="text-sm font-black" style={{ color: C.text }}>Pay online with Paystack</p><p className="text-xs mt-1" style={{ color: C.faint }}>Card, bank, and mobile money options are confirmed automatically after payment.</p></div><button onClick={startPaystackCheckout} disabled={paystackBusy} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{paystackBusy ? 'Opening...' : `Pay ${money(openRequest.currency, openRequest.amount)}`}<ExternalLink className="w-4 h-4"/></button></div>}{options.length ? <div className="grid grid-cols-1 gap-3 min-[380px]:grid-cols-2 sm:grid-cols-3">{options.map((row: any) => { const Icon = row.type === 'mobile_money' ? Smartphone : row.type === 'bank_transfer' ? Banknote : CreditCard; return <button key={row.id} onClick={() => { setSelectedOption(row.id); setForm(v => ({ ...v, method: row.label })); }} className="relative rounded-2xl p-4 text-left min-h-28 transition-all hover:-translate-y-0.5" style={{ background: selectedOption === row.id ? `${C.cta}10` : C.page, outline: selectedOption === row.id ? `2px solid ${C.cta}` : '2px solid transparent' }}>{selectedOption === row.id && <span className="absolute top-3 right-3 w-5 h-5 rounded-full grid place-items-center" style={{ background: C.cta, color: C.ctaText }}><Check className="w-3 h-3"/></span>}{row.logo_url ? <img src={row.logo_url} alt="" className="h-8 max-w-20 object-contain mb-4"/> : <div className="w-9 h-9 rounded-xl grid place-items-center mb-4" style={{ background: C.card, color: C.cta }}><Icon className="w-4 h-4"/></div>}<p className="text-sm font-bold" style={{ color: C.text }}>{row.label}</p><p className="text-[10px] uppercase tracking-wider mt-1" style={{ color: C.faint }}>{row.type?.replaceAll('_',' ') || 'Payment option'}</p></button>; })}</div> : <div className="rounded-2xl py-14 text-center" style={{ background: C.page }}><WalletCards className="w-8 h-8 mx-auto" style={{ color: C.faint }}/><p className="text-sm font-bold mt-3" style={{ color: C.text }}>No payment options yet</p><p className="text-xs mt-1" style={{ color: C.faint }}>Contact your administrator for payment instructions.</p></div>}</div>
       <aside className="rounded-2xl p-5 min-h-64" style={cardStyle(C)}>{option ? <div><div className="flex items-center gap-3 pb-4" style={{ borderBottom: `1px solid ${C.divider}` }}><div className="w-11 h-11 rounded-xl grid place-items-center" style={{ background: `${C.cta}12`, color: C.cta }}><ShieldCheck className="w-5 h-5"/></div><div><p className="font-black" style={{ color: C.text }}>{option.label}</p><p className="text-[10px] uppercase tracking-wider mt-0.5" style={{ color: C.faint }}>Verified details</p></div></div><div className="space-y-3 py-5 text-sm">{option.bank_name && <Detail label="Bank" value={option.bank_name} C={C}/>} {option.network && <Detail label="Network" value={option.network} C={C}/>} {option.account_name && <Detail label="Account name" value={option.account_name} C={C}/>} {option.account_number && <div><p className="text-[10px] uppercase font-bold" style={{ color: C.faint }}>Account number</p><div className="mt-1"><CopyValue value={option.account_number} C={C}/></div></div>} {option.mobile_money_number && <div><p className="text-[10px] uppercase font-bold" style={{ color: C.faint }}>Mobile number</p><div className="mt-1"><CopyValue value={option.mobile_money_number} C={C}/></div></div>}{option.instructions && <p className="rounded-xl p-3 text-xs leading-relaxed" style={{ background: C.page, color: C.muted }}>{option.instructions}</p>}{option.payment_link && <a href={option.payment_link} target="_blank" rel="noreferrer" className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: C.cta, color: C.ctaText }}>Open secure payment<ExternalLink className="w-4 h-4"/></a>}</div>{openRequest && <button onClick={() => goToTab('confirm')} className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold" style={{ background: C.pill, color: C.cta }}>I have paid<ArrowRight className="w-4 h-4"/></button>}</div> : <div className="h-full min-h-60 grid place-items-center text-center"><div><CreditCard className="w-8 h-8 mx-auto" style={{ color: C.faint }}/><p className="text-sm font-bold mt-3" style={{ color: C.text }}>Select a payment option</p><p className="text-xs mt-1" style={{ color: C.faint }}>Account details will appear here.</p></div></div>}</aside>
     </section>}
 
@@ -473,26 +500,221 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
       <div className="rounded-2xl p-5 sm:p-6" style={cardStyle(C)}>{!openRequest ? <EmptyMessage icon={BadgeCheck} title="No payment awaiting confirmation" body="When a renewal or a new plan is assigned, it will appear here." C={C}/> : pendingConfirmation ? <EmptyMessage icon={Clock3} title="Confirmation under review" body="You have already submitted this payment. We will notify you when the review is complete." C={C}/> : readOnly ? <EmptyMessage icon={ShieldCheck} title="Read-only preview" body="Payment submission is disabled while an administrator is viewing as this student." C={C}/> : <div><div className="mb-6"><p className="font-black" style={{ color: C.text }}>Tell us how you paid</p><p className="text-xs mt-1" style={{ color: C.faint }}>This does not grant access immediately. An administrator verifies the details first.</p></div><div className="grid sm:grid-cols-2 gap-4"><label className="text-xs font-bold" style={{ color: C.muted }}>Date paid<input type="date" max={new Date().toISOString().slice(0,10)} value={form.paidAt} onChange={e => setForm(v => ({ ...v, paidAt: e.target.value }))} className={inputClass} style={inputStyle}/></label><label className="text-xs font-bold" style={{ color: C.muted }}>Payment method<input value={form.method} onChange={e => setForm(v => ({ ...v, method: e.target.value }))} placeholder="Mobile Money or bank transfer" className={inputClass} style={inputStyle}/></label><label className="text-xs font-bold" style={{ color: C.muted }}>Transaction reference<input value={form.reference} onChange={e => setForm(v => ({ ...v, reference: e.target.value }))} placeholder="Transaction ID" className={inputClass} style={inputStyle}/></label><label className="text-xs font-bold" style={{ color: C.muted }}>Receipt link <span className="font-normal" style={{ color: C.faint }}>(optional)</span><input type="url" value={form.receiptUrl} onChange={e => setForm(v => ({ ...v, receiptUrl: e.target.value }))} placeholder="https://..." className={inputClass} style={inputStyle}/></label><label className="sm:col-span-2 text-xs font-bold" style={{ color: C.muted }}>Anything else we should know? <span className="font-normal" style={{ color: C.faint }}>(optional)</span><textarea value={form.notes} onChange={e => setForm(v => ({ ...v, notes: e.target.value }))} className={`${inputClass} min-h-24`} style={inputStyle} placeholder="Add a short note"/></label></div>{message && <div className="rounded-xl p-3 text-xs mt-4" style={{ background: message.startsWith('Payment') ? C.successBg : C.errorBg, color: message.startsWith('Payment') ? C.successText : C.errorText }}>{message}</div>}<button onClick={submit} disabled={busy || !form.paidAt || !form.reference.trim()} className="mt-5 w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-transform hover:-translate-y-0.5 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? 'Sending...' : 'Submit for verification'}<Send className="w-4 h-4"/></button></div>}</div>
     </section>}
 
-    {tab === 'history' && <section className="rounded-2xl overflow-hidden" style={cardStyle(C)}><div className="p-5 sm:p-6 flex items-center justify-between" style={{ borderBottom: `1px solid ${C.divider}` }}><div><p className="font-black" style={{ color: C.text }}>Payment activity</p><p className="text-xs mt-1" style={{ color: C.faint }}>Every submission and approved payment.</p></div><ReceiptText className="w-5 h-5" style={{ color: C.cta }}/></div><div className="p-5 sm:p-6 max-w-3xl">{timeline.map((row: any, index: number) => { const tone = row.displayStatus === 'approved' ? '#16a34a' : row.displayStatus === 'rejected' ? '#dc2626' : '#d97706'; return <div key={row.id} className="relative flex gap-4 pb-6"><div className="relative flex flex-col items-center"><span className="w-9 h-9 rounded-full grid place-items-center z-10" style={{ background: `${tone}14`, color: tone }}>{row.displayStatus === 'approved' ? <Check className="w-4 h-4"/> : row.displayStatus === 'rejected' ? <AlertCircle className="w-4 h-4"/> : <Clock3 className="w-4 h-4"/>}</span>{index < timeline.length - 1 && <span className="absolute top-9 bottom-[-24px] w-px" style={{ background: C.divider }}/>}</div><div className="flex-1 rounded-2xl p-4" style={{ background: C.page }}><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-black" style={{ color: C.text }}>{money(row.currency,row.amount)}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{fmtDate(row.date)}{row.payment_method || row.method ? ` - ${row.payment_method || row.method}` : ''}</p></div><StatePill status={row.displayStatus} C={C}/></div>{row.payment_reference || row.reference ? <p className="text-xs mt-3" style={{ color: C.faint }}>Reference: {row.payment_reference || row.reference}</p> : null}</div></div>; })}{timeline.length === 0 && <EmptyMessage icon={ReceiptText} title="No payment activity yet" body="Your confirmations and approved payments will build a timeline here." C={C}/>}</div></section>}
+    <PaymentHistoryTable timeline={timeline} C={C}/>
+    </div>}
   </div>;
 }
 
-// A plan's name and a clamped blurb never told a learner whether it holds the course they came
-// for -- the one thing they are trying to decide. The titles were already in the database and
-// were only ever resolved after purchase, for the plan they already owned.
-function PlanContents({ plan, C }: { plan: any; C: typeof LIGHT_C }) {
-  const contents = plan.contents ?? [];
-  if (!contents.length) return null;
-  const total = plan.contentCount ?? contents.length;
-  const shown = contents.slice(0, 4);
-  const rest = total - shown.length;
-  return <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${C.divider}` }}>
-    <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>{total} {total === 1 ? 'item' : 'items'} included</p>
-    <ul className="mt-2 space-y-1">
-      {shown.map((entry: any) => <li key={`${entry.contentTable}:${entry.contentId}`} className="flex items-start gap-1.5 text-xs" style={{ color: C.muted }}><Check className="w-3 h-3 flex-shrink-0 mt-0.5" style={{ color: C.cta }}/><span className="line-clamp-1">{entry.title}</span></li>)}
-    </ul>
-    {rest > 0 && <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>and {rest} more</p>}
+function AccessHero({
+  C, heroStyle, subscription, plan, planName, openRequest, pendingConfirmation,
+  hasActiveAccess, daysLeft, accessProgress, overdue, onConfirm,
+}: {
+  C: typeof LIGHT_C;
+  heroStyle: React.CSSProperties;
+  subscription: any;
+  plan: any;
+  planName: string;
+  openRequest: any;
+  pendingConfirmation: any;
+  hasActiveAccess: boolean;
+  daysLeft: number | null;
+  accessProgress: number;
+  overdue: boolean;
+  onConfirm: () => void;
+}) {
+  const choosingPlan = !subscription && !openRequest;
+  const dark = C.page === '#17181E';
+
+  return <section className="relative isolate overflow-hidden rounded-[30px] p-5 sm:p-7 lg:p-8" style={{ ...heroStyle, color: '#ffffff' }}>
+    <div className="pointer-events-none absolute inset-0 opacity-35" style={{ backgroundImage: 'linear-gradient(rgba(255,255,255,0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.055) 1px, transparent 1px)', backgroundSize: '42px 42px', maskImage: 'linear-gradient(to right, transparent, black 48%, black)' }}/>
+    {dark && <>
+      <div className="pointer-events-none absolute -right-20 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: `color-mix(in srgb, ${C.cta} 32%, transparent)` }}/>
+      <div className="pointer-events-none absolute bottom-7 right-16 h-28 w-28 rounded-full opacity-40" style={{ background: `radial-gradient(circle, transparent 44%, color-mix(in srgb, ${C.cta} 48%, transparent) 45%, transparent 48%)` }}/>
+    </>}
+
+    {choosingPlan ? <div className="relative flex w-full flex-col gap-4 py-1 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.64)' }}>Your current plan</p>
+        <h2 className="mt-2 text-2xl font-black tracking-[-0.025em] sm:text-3xl" style={{ color: '#ffffff' }}>Starter plan</h2>
+        <p className="mt-2 max-w-lg text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>Upgrade to Pro to unlock the complete learning experience and accelerate your progress.</p>
+      </div>
+      <Link href="/pricing" className="inline-flex min-h-12 w-full flex-shrink-0 items-center justify-center rounded-xl px-5 py-3 text-sm font-black transition-all duration-200 hover:-translate-y-0.5 hover:scale-[1.02] hover:brightness-110 active:translate-y-0 active:scale-[0.98] sm:w-fit" style={{ background: '#10b981', color: '#ffffff' }}>Upgrade to Pro</Link>
+    </div> : <div className="relative grid items-end gap-5 lg:grid-cols-[1fr_auto]">
+      <div>
+        <div className="flex flex-wrap items-center gap-3">
+          <h2 className="text-2xl font-black tracking-tight sm:text-3xl" style={{ color: '#ffffff' }}>{planName}</h2>
+          <StatePill status={subscription?.status || 'awaiting payment'} C={C} inverse/>
+        </div>
+        <p className="mt-2 max-w-xl text-sm leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>
+          {plan?.description || (subscription ? `Your access runs until ${fmtDate(subscription.current_period_end)}. It does not renew automatically.` : 'Complete your assigned payment to unlock this learning plan.')}
+        </p>
+        {hasActiveAccess ? <div className="mt-5 max-w-xl">
+          <div className="mb-2 flex justify-between text-[11px] font-bold" style={{ color: 'rgba(255,255,255,0.72)' }}><span>Access started {fmtDate(subscription.current_period_start)}</span><span>{daysLeft} days remaining</span></div>
+          <div className="h-1.5 overflow-hidden rounded-full" style={{ background: 'rgba(255,255,255,0.18)' }}><div className="h-full rounded-full transition-[width] duration-700" style={{ width: `${accessProgress}%`, background: C.cta }}/></div>
+        </div> : subscription && <p className="mt-4 text-xs font-bold" style={{ color: 'rgba(255,255,255,0.72)' }}>{subscription.status === 'cancelled' ? 'Your access was cancelled. Contact the learning team if that is not right.' : `Your access ended on ${fmtDate(subscription.current_period_end)}. Renew below to continue.`}</p>}
+      </div>
+      <div className="relative w-full rounded-2xl p-4 sm:min-w-[210px] lg:w-auto" style={{ background: 'rgba(255,255,255,0.09)', backdropFilter: 'blur(16px)' }}>
+        <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.55)' }}>{openRequest ? 'Payment due' : hasActiveAccess ? 'Access until' : 'Access status'}</p>
+        <p className="mt-1.5 text-xl font-black" style={{ color: '#ffffff' }}>{openRequest ? money(openRequest.currency, openRequest.amount) : hasActiveAccess ? fmtDate(subscription?.current_period_end) : subscription?.status === 'cancelled' ? 'Cancelled' : 'Ended'}</p>
+        <p className="mt-1.5 text-xs" style={{ color: overdue ? '#fca5a5' : 'rgba(255,255,255,0.68)' }}>{openRequest ? `${overdue ? 'Past due' : 'Due'} ${fmtDate(openRequest.due_date)}` : hasActiveAccess ? `${daysLeft} days remaining` : 'Renew below to continue'}</p>
+        {openRequest && !pendingConfirmation && <button onClick={onConfirm} className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-white px-3 py-2 text-xs font-black text-[#101828]">Confirm payment<ArrowRight className="h-3.5 w-3.5"/></button>}
+      </div>
+    </div>}
+  </section>;
+}
+
+function PricingStage({
+  plans, subscription, openRequest, planBusyId, paystackEnabled, payManually,
+  readOnly, C, onPurchase, onToggleManual,
+}: {
+  plans: any[];
+  subscription: any;
+  openRequest: any;
+  planBusyId: string;
+  paystackEnabled: boolean;
+  payManually: boolean;
+  readOnly: boolean;
+  C: typeof LIGHT_C;
+  onPurchase: (priceId: string) => void;
+  onToggleManual: () => void;
+}) {
+  const copy = renewalCopy(subscription?.status);
+  return <section id="access-plans" aria-labelledby="access-plans-heading" className="scroll-mt-20 py-2">
+    <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <h3 id="access-plans-heading" className="text-2xl font-black tracking-tight sm:text-3xl" style={{ color: C.text }}>{subscription ? copy.heading : 'Choose your access'}</h3>
+      {paystackEnabled && <button type="button" onClick={onToggleManual} className="inline-flex w-fit items-center gap-2 rounded-full px-3.5 py-2 text-xs font-bold transition-colors" style={{ background: C.card, color: C.muted }}><CreditCard className="h-3.5 w-3.5"/>{payManually ? 'Bank transfer selected' : 'Secure online payment'}<span className="h-2 w-2 rounded-full" style={{ background: payManually ? '#f59e0b' : '#16a34a' }}/></button>}
+    </div>
+
+    <div className="space-y-4">
+      {plans.map(plan => <SubscriptionPlanCard key={plan.id} plan={plan} subscription={subscription} openRequest={openRequest} planBusyId={planBusyId} readOnly={readOnly} C={C} onPurchase={onPurchase}/>)}
+    </div>
+
+    {paystackEnabled && <p className="mt-2 text-xs" style={{ color: C.faint }}>{payManually ? 'You will receive verified bank transfer or mobile money instructions after choosing a plan. ' : 'Checkout opens securely after you choose a plan. '}<button type="button" onClick={onToggleManual} className="font-bold underline underline-offset-4" style={{ color: C.cta }}>{payManually ? 'Pay online instead' : 'Use bank transfer or mobile money'}</button></p>}
+  </section>;
+}
+
+function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, readOnly, C, onPurchase }: {
+  plan: any;
+  subscription: any;
+  openRequest: any;
+  planBusyId: string;
+  readOnly: boolean;
+  C: typeof LIGHT_C;
+  onPurchase: (priceId: string) => void;
+}) {
+  const prices = useMemo(() => [...(plan.prices ?? [])].sort((a: any, b: any) => a.durationMonths - b.durationMonths), [plan.prices]);
+  const bestPrice = useMemo(() => prices.reduce((best: any, price: any) => {
+    const saving = comparePlanPrice(price, prices).savingPercent;
+    const bestSaving = best ? comparePlanPrice(best, prices).savingPercent : -1;
+    return saving > bestSaving || (saving === bestSaving && price.durationMonths > (best?.durationMonths ?? 0)) ? price : best;
+  }, null), [prices]);
+  const [selectedPriceId, setSelectedPriceId] = useState<string>(() => bestPrice?.id ?? prices[0]?.id ?? '');
+  const selectedPrice = prices.find((price: any) => price.id === selectedPriceId) ?? bestPrice ?? prices[0];
+  const selectedPriceIndex = Math.max(0, prices.findIndex((price: any) => price.id === selectedPrice?.id));
+  const comparison = selectedPrice ? comparePlanPrice(selectedPrice, prices) : { perMonth: 0, savingPercent: 0 };
+  const isBusy = selectedPrice?.id === planBusyId;
+  const blocked = Boolean(openRequest || planBusyId || readOnly || !selectedPrice);
+  const copy = renewalCopy(subscription?.status);
+
+  return <div className="space-y-3">
+    {!!prices.length && <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-sm font-bold" style={{ color: C.text }}>Choose duration</p>
+      </div>
+      <div className="relative grid w-fit max-w-full overflow-hidden rounded-full p-1" role="group" aria-label="Renewal duration" style={{ background: C.card, gridTemplateColumns: `repeat(${prices.length}, minmax(0, 1fr))` }}>
+        <span aria-hidden="true" className="absolute bottom-1 left-1 top-1 rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none" style={{ background: C.cta, width: `calc((100% - 0.5rem) / ${prices.length})`, transform: `translateX(${selectedPriceIndex * 100}%)` }}/>
+        {prices.map((price: any) => {
+          const active = price.id === selectedPrice?.id;
+          return <button key={price.id} type="button" aria-pressed={active} onClick={() => setSelectedPriceId(price.id)} className="relative z-10 min-h-9 min-w-16 whitespace-nowrap rounded-full px-3 py-2 text-xs font-bold transition-colors duration-300 focus-visible:outline-none focus-visible:ring-2 motion-reduce:transition-none" style={{ color: active ? C.ctaText : C.muted }}>{durationLabel(price.durationMonths)}</button>;
+        })}
+      </div>
+    </div>}
+
+    <article className="rounded-2xl p-4 sm:p-6" style={{ background: C.card }}>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto_220px] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xl font-black tracking-tight" style={{ color: C.text }}>{plan.name}</p>
+            {subscription && <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: C.successBg, color: C.successText }}>Current plan</span>}
+          </div>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed" style={{ color: C.muted }}>Unlimited courses and learning paths, virtual experiences, certifications, and verifiable credentials.</p>
+        </div>
+
+        <div className="min-w-44 lg:text-right">
+          <p className="text-xs font-semibold" style={{ color: C.faint }}>Renewal total</p>
+          {selectedPrice ? <>
+            <p className="mt-1 text-2xl font-black tracking-tight" style={{ color: C.text }}>{money(selectedPrice.currency, selectedPrice.amount)}</p>
+            <div className="mt-1 flex flex-wrap items-center gap-2 lg:justify-end">
+              <p className="text-xs" style={{ color: C.muted }}>for {durationLabel(selectedPrice.durationMonths)}</p>
+              {comparison.savingPercent > 0 && <span className="rounded-full border px-2.5 py-1 text-[10px] font-bold" style={{ background: C.successBg, borderColor: C.successBorder, color: C.successText }}>Save {comparison.savingPercent}%</span>}
+            </div>
+          </> : <p className="mt-1 text-sm font-bold" style={{ color: C.muted }}>Pricing unavailable</p>}
+        </div>
+
+        <button type="button" onClick={() => selectedPrice && onPurchase(selectedPrice.id)} disabled={blocked} className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.cta, color: C.ctaText }}>
+          {isBusy ? <><Loader2 className="h-4 w-4 animate-spin"/>Opening checkout</> : !selectedPrice ? 'Unavailable' : openRequest ? 'Payment in progress' : readOnly ? 'Preview only' : subscription ? <>{copy.action}<ArrowRight className="h-4 w-4"/></> : <>Unlock this plan<ArrowRight className="h-4 w-4"/></>}
+        </button>
+      </div>
+    </article>
   </div>;
+}
+
+function PaymentHistoryTable({ timeline, C }: { timeline: any[]; C: typeof LIGHT_C }) {
+  return <section className="overflow-hidden rounded-2xl" style={cardStyle(C)}>
+    <div className="flex items-center justify-between p-5 sm:p-6" style={{ borderBottom: `1px solid ${C.divider}` }}>
+      <div>
+        <p className="font-black" style={{ color: C.text }}>Payment history</p>
+        <p className="mt-1 text-xs" style={{ color: C.faint }}>Your renewals and submitted payments.</p>
+      </div>
+      <ReceiptText className="h-5 w-5" style={{ color: C.cta }}/>
+    </div>
+    {timeline.length ? <>
+      <div className="divide-y sm:hidden" style={{ borderColor: C.divider }}>
+        {timeline.map(row => <article key={row.id} className="p-4">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-xs font-semibold" style={{ color: C.muted }}>{fmtDate(row.date)}</p>
+            <StatePill status={row.displayStatus} C={C}/>
+          </div>
+          <p className="mt-3 text-sm font-bold" style={{ color: C.text }}>{row.plan_name || 'Access plan'}</p>
+          <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl p-3" style={{ background: C.pill }}>
+            <div>
+              <dt className="text-[10px] font-semibold" style={{ color: C.faint }}>Duration</dt>
+              <dd className="mt-1 text-sm" style={{ color: C.muted }}>{row.duration_months ? durationLabel(Number(row.duration_months)) : '--'}</dd>
+            </div>
+            <div className="text-right">
+              <dt className="text-[10px] font-semibold" style={{ color: C.faint }}>Amount</dt>
+              <dd className="mt-1 text-sm font-bold" style={{ color: C.text }}>{money(row.currency, row.amount)}</dd>
+            </div>
+          </dl>
+        </article>)}
+      </div>
+      <div className="hidden overflow-x-auto sm:block">
+        <table className="w-full min-w-[680px] border-collapse text-left">
+          <thead style={{ background: C.pill }}>
+            <tr>
+              {['Date', 'Plan', 'Duration', 'Amount', 'Status'].map(label => <th key={label} scope="col" className="px-5 py-3.5 text-xs font-semibold tracking-normal" style={{ color: C.muted }}>{label}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {timeline.map(row => <tr key={row.id} style={{ borderTop: `1px solid ${C.divider}` }}>
+              <td className="whitespace-nowrap px-5 py-4 text-sm" style={{ color: C.muted }}>{fmtDate(row.date)}</td>
+              <td className="max-w-60 px-5 py-4 text-sm font-bold" style={{ color: C.text }}><span className="line-clamp-1">{row.plan_name || 'Access plan'}</span></td>
+              <td className="whitespace-nowrap px-5 py-4 text-sm" style={{ color: C.muted }}>{row.duration_months ? durationLabel(Number(row.duration_months)) : '--'}</td>
+              <td className="whitespace-nowrap px-5 py-4 text-sm font-bold" style={{ color: C.text }}>{money(row.currency, row.amount)}</td>
+              <td className="whitespace-nowrap px-5 py-4"><StatePill status={row.displayStatus} C={C}/></td>
+            </tr>)}
+          </tbody>
+        </table>
+      </div>
+    </> : (
+      <EmptyMessage
+        icon={ReceiptText}
+        title="No payment history yet"
+        body="Completed renewals and submitted payments will appear here."
+        C={C}
+      />
+    )}
+  </section>;
 }
 
 // The moment someone has just paid is the highest-intent point in the whole journey, and it was
