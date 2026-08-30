@@ -120,7 +120,7 @@ export function PricingHero({
     );
   }
 
-  const { plan, price, perMonth, savingPercent, baselinePerMonth, alternative } = offer;
+  const { plan, price, perMonth, savingPercent, monthsPaidFor, baselinePerMonth, alternative } = offer;
   const saving = savingPercent > 0;
 
   return (
@@ -205,11 +205,16 @@ export function PricingHero({
               </p>
             </div>
 
+            {/* The concrete figure, in the same words the plan card and the duration control
+                use. It used to say "a year of savings", which asserted a benefit without a
+                number while the struck-through rate directly above it carried one. */}
             <div className="rounded-xl px-4 py-4 text-center" style={{ background: accentColor }}>
               <p className="text-sm font-bold" style={{ color: '#101828', fontFamily: hFont }}>
-                {saving
-                  ? `${durationLabel(price.durationMonths)} of savings`
-                  : `${durationLabel(price.durationMonths)} of full access`}
+                {monthsPaidFor !== null
+                  ? `Pay for only ${monthsPaidFor} months`
+                  : saving
+                    ? `Save ${savingPercent}%`
+                    : `${durationLabel(price.durationMonths)} of full access`}
               </p>
             </div>
           </div>

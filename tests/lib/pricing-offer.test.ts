@@ -74,4 +74,15 @@ describe('formatting', () => {
     expect(durationLabel(1)).toBe('1 month');
     expect(durationLabel(3)).toBe('3 months');
   });
+  it('carries the months-paid-for figure the hero states', () => {
+    // 900 at the 100-a-month short rate is nine months' worth, so the hero can say "pay for
+    // only 9 months" rather than asserting a saving with no figure behind it.
+    const offer = featuredOffer([plan('Pro', [[1, 100], [12, 900]])]);
+    expect(offer?.monthsPaidFor).toBe(9);
+  });
+
+  it('leaves the months figure null when there is nothing to count against', () => {
+    const offer = featuredOffer([plan('Pro', [[12, 900]])]);
+    expect(offer?.monthsPaidFor).toBeNull();
+  });
 });

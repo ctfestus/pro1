@@ -15,6 +15,8 @@ export interface FeaturedOffer {
   price: PricingPrice;
   perMonth: number;
   savingPercent: number;
+  /** The saving stated as months paid for at the short rate, or null when it cannot be. */
+  monthsPaidFor: number | null;
   /** The rate the saving is measured against, for the struck-through figure. Null when there is no saving to show. */
   baselinePerMonth: number | null;
   /** A shorter option worth naming as the alternative, when one exists. */
@@ -35,7 +37,7 @@ export function featuredOffer(plans: PricingPlan[]): FeaturedOffer | null {
 
   for (const plan of plans) {
     for (const price of plan.prices) {
-      const { perMonth, savingPercent } = comparePlanPrice(price, plan.prices);
+      const { perMonth, savingPercent, monthsPaidFor } = comparePlanPrice(price, plan.prices);
       // Biggest saving wins; where two save the same, the longer run of access does.
       const better = !best
         || savingPercent > best.savingPercent
@@ -52,6 +54,7 @@ export function featuredOffer(plans: PricingPlan[]): FeaturedOffer | null {
         price,
         perMonth,
         savingPercent,
+        monthsPaidFor,
         // Only shown when there is a real saving, so the struck-through figure always means
         // something rather than decorating a single price with a fake discount.
         baselinePerMonth: savingPercent > 0 && shortest ? shortest.amount / shortest.durationMonths : null,
