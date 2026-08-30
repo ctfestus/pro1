@@ -14,6 +14,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { Check, Minus, ArrowRight } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
+import { planBenefits } from '@/lib/pricing-benefits';
 import {
   CONTENT_KINDS,
   type ContentCounts,
@@ -28,6 +29,7 @@ const KIND_LABEL: Record<PurchasableContentTable, string> = {
   virtual_experiences: 'Virtual experiences',
   certifications: 'Certifications',
 };
+
 
 function durationLabel(months: number) {
   if (months === 12) return '1 year';
@@ -132,9 +134,8 @@ export function PricingSection({
           priceNote="No card needed"
           hFont={hFont}
           bullets={[
-            ...CONTENT_KINDS.filter(kind => free[kind] > 0)
-              .map(kind => `${free[kind]} free ${KIND_LABEL[kind].toLowerCase()}`),
-            'Your progress and certificates',
+            ...(free.courses > 0 ? ['Free courses'] : []),
+            'Verifiable certificates',
           ]}
           cta={signedIn
             ? { label: 'Your current access', href: null }
@@ -271,10 +272,10 @@ function PlanCard({
       </Link>
 
       <ul className="mt-6 space-y-2.5">
-        {CONTENT_KINDS.filter(kind => plan.coverage[kind] > 0).map(kind => (
-          <li key={kind} className="flex items-start gap-2 text-sm" style={{ color: '#344054' }}>
+        {planBenefits(plan.coverage).map(line => (
+          <li key={line} className="flex items-start gap-2 text-sm" style={{ color: '#344054' }}>
             <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: primaryColor }} />
-            <span>{plan.coverage[kind]} {KIND_LABEL[kind].toLowerCase()}</span>
+            <span>{line}</span>
           </li>
         ))}
         <li className="flex items-start gap-2 text-sm" style={{ color: '#344054' }}>
@@ -305,11 +306,13 @@ function ComparisonTable({
     { key: 'teams', name: 'Teams', note: 'Coming soon' },
   ];
 
-  const cellFor = (columnKey: string, kind: PurchasableContentTable) => {
-    if (columnKey === 'starter') return free[kind] > 0 ? `${free[kind]} free` : null;
-    if (columnKey === 'teams') return null;
+  // Included or not. A number here reads as a promise about a catalogue that changes weekly,
+  // and it is the kind of promise a visitor can sit down and check.
+  const includes = (columnKey: string, kind: PurchasableContentTable): boolean => {
+    if (columnKey === 'starter') return free[kind] > 0;
+    if (columnKey === 'teams') return false;
     const plan = plans.find(row => row.id === columnKey);
-    return plan && plan.coverage[kind] > 0 ? String(plan.coverage[kind]) : null;
+    return !!plan && plan.coverage[kind] > 0;
   };
 
   return (
@@ -339,25 +342,19 @@ function ComparisonTable({
                 <td className="py-3 pr-4" style={{ color: '#344054', borderBottom: '1px solid #F2F4F7' }}>
                   {KIND_LABEL[kind]}
                 </td>
-                {columns.map(column => {
-                  const value = cellFor(column.key, kind);
-                  return (
-                    <td
-                      key={column.key}
-                      className="py-3 px-3 text-center"
-                      style={{ borderBottom: '1px solid #F2F4F7', fontVariantNumeric: 'tabular-nums' }}
-                    >
-                      {value ? (
-                        <span className="inline-flex items-center gap-1.5 font-bold" style={{ color: '#101828' }}>
-                          <Check className="w-4 h-4" style={{ color: primaryColor }} />
-                          {value}
-                        </span>
-                      ) : (
-                        <Minus className="w-4 h-4 mx-auto" style={{ color: '#98A2B3' }} aria-label="Not included" />
-                      )}
-                    </td>
-                  );
-                })}
+                {columns.map(column => (
+                  <td
+                    key={column.key}
+                    className="py-3 px-3 text-center"
+                    style={{ borderBottom: '1px solid #F2F4F7' }}
+                  >
+                    {includes(column.key, kind) ? (
+                      <Check className="w-4 h-4 mx-auto" style={{ color: primaryColor }} aria-label="Included" />
+                    ) : (
+                      <Minus className="w-4 h-4 mx-auto" style={{ color: '#98A2B3' }} aria-label="Not included" />
+                    )}
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>
