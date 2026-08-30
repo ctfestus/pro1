@@ -410,7 +410,34 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         exactly backwards: a renewal creates a checkout like any other, so the people most likely
         to abandon one were the only people the card refused to appear for -- blocked by their own
         cart, with no way to see or clear it. */}
-    {data?.cart && !openRequest && !readOnly && <section className="rounded-2xl p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col sm:flex-row sm:items-center gap-4"><div className="flex-1 min-w-0"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>{hasActiveAccess ? 'You started renewing' : 'You were considering'}</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{data.cart.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{data.cart.duration_months === 12 ? '1 year' : `${data.cart.duration_months} month${data.cart.duration_months > 1 ? 's' : ''}`} &middot; {money(data.cart.currency, data.cart.amount)}</p></div><div className="flex items-center gap-2 flex-shrink-0"><button onClick={() => dismissCart(data.cart.reference)} disabled={cartBusy} className="rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>Remove</button><button onClick={() => resumeCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>Continue{cartBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</button></div></div></section>}
+    {data?.cart && !openRequest && !readOnly && <section className="relative overflow-hidden rounded-2xl p-3 sm:p-4" style={{ background: dark ? 'linear-gradient(135deg, #101820 0%, #0f2a2a 52%, #10201c 100%)' : 'linear-gradient(135deg, #f8ffff 0%, #ecfeff 54%, #f0fdf4 100%)', boxShadow: dark ? '0 18px 44px rgba(0,0,0,0.26), inset 0 1px 0 rgba(255,255,255,0.08)' : '0 16px 44px rgba(15,118,110,0.11), inset 0 1px 0 rgba(255,255,255,0.92)' }}>
+      <div className="pointer-events-none absolute inset-0" style={{ backgroundImage: dark ? 'radial-gradient(circle at 18% 12%, rgba(34,211,238,0.24), transparent 31%), radial-gradient(circle at 90% 105%, rgba(20,184,166,0.22), transparent 34%)' : 'radial-gradient(circle at 18% 12%, rgba(6,182,212,0.20), transparent 31%), radial-gradient(circle at 90% 105%, rgba(20,184,166,0.18), transparent 34%)' }}/>
+      <div className="pointer-events-none absolute left-0 right-0 top-0 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(34,211,238,0.74), rgba(20,184,166,0.62), transparent)' }}/>
+      <div className="relative grid gap-3 lg:grid-cols-[1fr_auto] lg:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em]" style={{ background: dark ? 'rgba(34,211,238,0.13)' : 'rgba(6,182,212,0.12)', color: dark ? '#a5f3fc' : '#0e7490' }}>
+              {hasActiveAccess ? 'Complete your renewal' : 'Complete your checkout'}
+            </span>
+            <span className="text-xs font-bold" style={{ color: dark ? 'rgba(255,255,255,0.68)' : C.faint }}>Your checkout is paused, not lost</span>
+          </div>
+          <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+            <p className="max-w-3xl truncate text-lg font-black leading-tight sm:text-xl" style={{ color: dark ? '#fff7ed' : C.text }}>
+              {data.cart.plan_name}
+            </p>
+            <span className="text-sm font-bold" style={{ color: dark ? 'rgba(255,255,255,0.76)' : C.muted }}>{data.cart.duration_months === 12 ? '1 year' : `${data.cart.duration_months} month${data.cart.duration_months > 1 ? 's' : ''}`}</span>
+            <span className="text-sm font-black" style={{ color: dark ? '#a5f3fc' : '#0f766e' }}>{money(data.cart.currency, data.cart.amount)}</span>
+          </div>
+          <p className="mt-1 max-w-2xl text-xs leading-relaxed" style={{ color: dark ? 'rgba(255,255,255,0.70)' : C.muted }}>
+            {hasActiveAccess ? 'Your renewal is waiting where you left it.' : 'You started enrollment and can finish it now.'}
+          </p>
+        </div>
+        <div className="grid grid-cols-2 gap-2 lg:w-64">
+          <button onClick={() => dismissCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center rounded-xl px-3.5 py-2.5 text-sm font-bold transition-colors disabled:opacity-50" style={{ background: dark ? 'rgba(255,255,255,0.07)' : 'rgba(255,255,255,0.70)', color: dark ? 'rgba(255,255,255,0.74)' : C.muted, border: `1px solid ${dark ? 'rgba(255,255,255,0.12)' : 'rgba(14,116,144,0.14)'}` }}>Remove</button>
+          <button onClick={() => resumeCart(data.cart.reference)} disabled={cartBusy} className="inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2.5 text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: dark ? 'linear-gradient(135deg, #22d3ee, #14b8a6)' : 'linear-gradient(135deg, #06b6d4, #10b981)', color: '#ffffff', boxShadow: '0 12px 24px rgba(15,118,110,0.22)' }}>Continue{cartBusy ? <Loader2 className="w-4 h-4 animate-spin"/> : <ArrowRight className="w-4 h-4"/>}</button>
+        </div>
+      </div>
+    </section>}
 
     {/* The learner's own unpaid invoice, in the same slot the cart uses -- the two cannot both be
         open. Bank transfer raises a request, and a request blocks every other way of paying until
