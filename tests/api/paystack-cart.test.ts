@@ -239,7 +239,7 @@ describe('abandoned checkout cart', () => {
     expect(lib).toContain("in('status', ['cancelled', 'paid'])");
     expect(lib).toContain("return rows.filter(row => !row.request_id || strandedBy.has(row.request_id as string));");
     // The staff closer enforces the same boundary in the database, under its own lock.
-    const release = compact(read('migrations/196_paystack_transient_checkout_recovery.sql'));
+    const release = compact(read('migrations/197_paystack_transient_checkout_recovery.sql'));
     for (const sql of [release, schema]) {
       expect(sql).toContain('idx_paystack_subscription_transactions_in_flight_reconcile');
       expect(sql).toContain("'status','unverified','reference',v_live.reference,'authorizationUrl',v_live.authorization_url");
