@@ -22,11 +22,11 @@ const HERO_TOOLS = ['Claude', 'ChatGPT', 'Excel', 'Power BI', 'SQL'];
  * holds still for anyone who has asked for less motion.
  */
 function HeroFlourish({ accentColor }: { accentColor: string }) {
-  const sparkles = [
-    { top: '12%', left: '8%', size: 26, delay: '0s' },
-    { top: '68%', left: '3%', size: 18, delay: '0.9s' },
-    { top: '6%', right: '18%', size: 20, delay: '1.6s' },
-    { top: '78%', right: '9%', size: 30, delay: '0.4s' },
+  const sparkles: { top?: string; bottom?: string; right: string; size: number; delay: string }[] = [
+    { top: '10%', right: '30%', size: 18, delay: '0s' },
+    { top: '20%', right: '4%', size: 14, delay: '0.9s' },
+    { bottom: '14%', right: '26%', size: 22, delay: '1.6s' },
+    { bottom: '30%', right: '2%', size: 15, delay: '0.4s' },
   ];
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
@@ -49,15 +49,16 @@ function HeroFlourish({ accentColor }: { accentColor: string }) {
       />
 
       {/* The ribbon. Stroked rather than filled, so it stays a light line on any brand colour. */}
-      <svg className="absolute right-0 top-0 h-full w-[62%] hidden sm:block"
-        viewBox="0 0 400 300" fill="none" preserveAspectRatio="xMidYMid slice">
+      <svg className="absolute right-0 bottom-0 hidden lg:block"
+        style={{ width: '34%', height: '72%' }}
+        viewBox="0 0 300 220" fill="none" preserveAspectRatio="xMidYMax slice">
         <path
-          d="M-20 210 C 60 150, 90 250, 170 190 S 300 60, 420 120"
-          stroke="rgba(255,255,255,0.20)" strokeWidth="26" strokeLinecap="round"
+          d="M-10 170 C 60 120, 110 200, 175 150 S 265 70, 320 100"
+          stroke="rgba(255,255,255,0.16)" strokeWidth="14" strokeLinecap="round"
         />
         <path
-          d="M-20 232 C 70 176, 96 268, 178 210 S 306 86, 420 146"
-          stroke="rgba(255,255,255,0.10)" strokeWidth="14" strokeLinecap="round"
+          d="M-10 190 C 66 142, 116 220, 182 168 S 268 92, 320 122"
+          stroke="rgba(255,255,255,0.09)" strokeWidth="8" strokeLinecap="round"
         />
       </svg>
 
@@ -173,23 +174,34 @@ export function PricingHero({
         </div>
 
         {/* ---------- the number ---------- */}
-        <div className="lg:justify-self-end w-full max-w-sm space-y-3">
-          <div className="rounded-2xl px-6 py-6 text-center" style={{ background: '#FFFFFF' }}>
-            {saving && baselinePerMonth !== null && (
-              <p className="text-xl line-through" style={{ color: '#98A2B3' }}>
-                {formatMoney(price.currency, baselinePerMonth)}
+        <div className="lg:justify-self-end w-full max-w-sm flex items-center gap-3 sm:gap-4">
+          <div className="flex-1 min-w-0 space-y-2.5">
+            <div className="rounded-xl px-5 py-4 text-center" style={{ background: '#FFFFFF' }}>
+              {saving && baselinePerMonth !== null && (
+                <p className="text-sm line-through" style={{ color: '#98A2B3' }}>
+                  {formatMoney(price.currency, baselinePerMonth)}
+                </p>
+              )}
+              <p
+                className="font-bold tracking-tight"
+                style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(24px,2.8vw,36px)', lineHeight: 1.1 }}
+              >
+                {formatMoney(price.currency, perMonth)}
+                <span className="ml-1 text-sm font-bold" style={{ color: '#475467' }}>/month</span>
               </p>
-            )}
-            <p
-              className="font-bold tracking-tight"
-              style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(32px,4.4vw,50px)', lineHeight: 1.05 }}
-            >
-              {formatMoney(price.currency, perMonth)}
-              <span className="ml-1 text-base font-bold" style={{ color: '#475467' }}>/month</span>
-            </p>
+            </div>
+
+            <div className="rounded-xl px-5 py-3 text-center" style={{ background: accentColor }}>
+              <p className="text-sm font-bold" style={{ color: '#101828', fontFamily: hFont }}>
+                {saving
+                  ? `${durationLabel(price.durationMonths)} of savings`
+                  : `${durationLabel(price.durationMonths)} of full access`}
+              </p>
+            </div>
           </div>
 
-          <div className="flex items-center justify-center gap-2.5 pt-1">
+          {/* Stacked down the right of the price, as in the reference, rather than sitting under it. */}
+          <div className="flex flex-col gap-2 shrink-0">
             {HERO_TOOLS.map(tool => {
               const icon = toolIcon(tool);
               if (!icon) return null;
@@ -198,27 +210,13 @@ export function PricingHero({
                   key={tool}
                   title={tool}
                   className="grid place-items-center rounded-full"
-                  style={{ background: '#FFFFFF', width: 38, height: 38, boxShadow: '0 2px 6px rgba(16,24,40,0.18)' }}
+                  style={{ background: '#FFFFFF', width: 32, height: 32, boxShadow: '0 2px 6px rgba(16,24,40,0.18)' }}
                 >
-                  <img src={icon} alt={tool} className="w-5 h-5 object-contain" loading="lazy" />
+                  <img src={icon} alt={tool} className="w-4 h-4 object-contain" loading="lazy" />
                 </span>
               );
             })}
           </div>
-
-          {saving ? (
-            <div className="rounded-2xl px-6 py-4 text-center" style={{ background: accentColor }}>
-              <p className="text-base font-bold" style={{ color: '#101828', fontFamily: hFont }}>
-                {durationLabel(price.durationMonths)} of savings
-              </p>
-            </div>
-          ) : (
-            <div className="rounded-2xl px-6 py-4 text-center" style={{ background: accentColor }}>
-              <p className="text-base font-bold" style={{ color: '#101828', fontFamily: hFont }}>
-                {durationLabel(price.durationMonths)} of full access
-              </p>
-            </div>
-          )}
         </div>
       </div>
     </section>
