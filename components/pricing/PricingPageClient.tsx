@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
 import type { PricingPageData } from '@/lib/pricing-contract';
+import type { AdCard } from '@/components/landing/MidAdBanner';
 
 export interface PricingPageClientProps extends PricingPageData {
   appName: string;
@@ -22,10 +23,11 @@ export interface PricingPageClientProps extends PricingPageData {
   headingFont?: string;
   bodyFont?: string;
   supportEmail?: string;
+  midAds?: AdCard[];
 }
 
 export function PricingPageClient(props: PricingPageClientProps) {
-  const { appName, logoUrl, primaryColor, accentColor, headingFont, bodyFont, supportEmail } = props;
+  const { appName, logoUrl, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds } = props;
   const [signedIn, setSignedIn] = useState(false);
 
   useEffect(() => {
@@ -77,6 +79,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
           bodyFont={bodyFont}
           signedIn={signedIn}
           supportEmail={supportEmail}
+          midAds={midAds}
         />
 
         <PricingFaq

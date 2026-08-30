@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { Check, Minus, ArrowRight } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { planBenefits } from '@/lib/pricing-benefits';
+import { MidAdBanner, type AdCard } from '@/components/landing/MidAdBanner';
 import {
   CONTENT_KINDS,
   type ContentCounts,
@@ -48,10 +49,12 @@ export interface PricingSectionProps extends PricingPageData {
   /** Signed-in learners go straight to checkout; everyone else makes an account first. */
   signedIn: boolean;
   supportEmail?: string;
+  /** The landing page's mid-page banners, shown between the cards and the comparison. */
+  midAds?: AdCard[];
 }
 
 export function PricingSection({
-  plans, free, primaryColor, accentColor, headingFont, bodyFont, signedIn, supportEmail,
+  plans, free, primaryColor, accentColor, headingFont, bodyFont, signedIn, supportEmail, midAds,
 }: PricingSectionProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
@@ -171,6 +174,16 @@ export function PricingSection({
           muted
         />
       </div>
+
+      {/* The same promotional cards the landing page shows, between choosing and comparing --
+          a natural pause, and the one place on this page where something other than price and
+          feature lists belongs. Transparent ground so it sits on the page rather than cutting a
+          band across it. */}
+      {midAds && midAds.some(ad => ad.title) && (
+        <div className="mt-12 -mx-5 sm:-mx-8">
+          <MidAdBanner ads={midAds} hFont={hFont} bFont={bFont} background="transparent" />
+        </div>
+      )}
 
       {/* ---------- comparison ---------- */}
       <ComparisonTable plans={plans} free={free} months={selected} hFont={hFont} primaryColor={primaryColor} />

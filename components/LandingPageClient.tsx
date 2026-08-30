@@ -15,6 +15,7 @@ import { useToolIcons } from '@/lib/use-tool-icons';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
+import { MidAdBanner } from '@/components/landing/MidAdBanner';
 
 // --- FadeIn on scroll ---
 function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -1321,72 +1322,6 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   );
 }
 
-// Fixed 2-card grid banner (mid-page, no carousel/dots)
-function LandingMidAdBanner({ ads, hFont, bFont, isDark }: { ads: AdCard[]; hFont?: string; bFont?: string; isDark?: boolean }) {
-  const cards = ads.filter(a => a.title);
-  if (!cards.length) return null;
-  return (
-    <div style={{ background: isDark ? '#0d1117' : '#f4f7f9' }}>
-      <div className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 py-8 md:py-10">
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {cards.map((ad, i) => {
-            const sideImage = ad.imageLayout === 'side' && !!ad.bgImage;
-            const bg = sideImage
-              ? (ad.bgColor || '#0056D2')
-              : ad.bgImage
-                ? `url(${ad.bgImage}) center/cover no-repeat`
-                : ad.bgColor || '#0056D2';
-            const body = (
-              <div className="relative z-10 flex flex-col gap-3" style={{ padding: '28px 32px', minHeight: sideImage ? undefined : 164 }}>
-                <div>
-                  {ad.label && (
-                    <span className="inline-block text-[9px] font-bold uppercase tracking-widest px-2.5 py-0.5 rounded mb-2.5"
-                      style={{ background: 'rgba(255,255,255,0.22)', color: 'white', letterSpacing: '0.1em' }}>
-                      {ad.label}
-                    </span>
-                  )}
-                  <h3 className="font-extrabold leading-tight mb-1.5"
-                    style={{ color: 'white', fontFamily: hFont, letterSpacing: '-0.02em', fontSize: 'clamp(15px,1.4vw,19px)', maxWidth: sideImage ? 'none' : 240 }}>
-                    {ad.title}
-                  </h3>
-                </div>
-                {ad.ctaText && (
-                  <div className="mt-1">
-                    <Link href={ad.ctaUrl || '/auth'}
-                      className="group inline-flex items-center gap-2 self-start font-bold rounded-xl transition-all duration-200 hover:shadow-md active:scale-[0.98]"
-                      style={{ background: 'white', color: ad.bgColor || '#0056D2', fontFamily: hFont, fontSize: 13, padding: '10px 20px' }}>
-                      {ad.ctaText}
-                      <ArrowRight className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-1" />
-                    </Link>
-                  </div>
-                )}
-              </div>
-            );
-            return (
-              <MReveal key={i} delay={i * 0.1} y={22}>
-                <div className="rounded-2xl overflow-hidden land-shine-host transition-shadow duration-300 hover:shadow-[0_20px_48px_-20px_rgba(2,32,71,0.4)]" style={{ minHeight: 220 }}>
-                  <div className="relative w-full h-full transition-transform duration-300 hover:scale-[1.02]"
-                    style={{ background: bg, minHeight: 220 }}>
-                    {!sideImage && ad.bgImage && <div className="absolute inset-0" style={{ background: 'rgba(0,0,0,0.48)' }} />}
-                    <span className="land-card-shine" aria-hidden="true" />
-                    {sideImage ? (
-                      <div className="relative z-10 flex flex-col sm:flex-row sm:items-stretch" style={{ minHeight: 220 }}>
-                        <div className="flex-1 min-w-0">{body}</div>
-                        <div className="relative w-full h-44 sm:h-auto sm:w-[44%] flex-shrink-0 overflow-hidden">
-                          <img src={ad.bgImage} alt="" className="absolute inset-0 w-full h-full object-contain sm:object-cover" />
-                        </div>
-                      </div>
-                    ) : body}
-                  </div>
-                </div>
-              </MReveal>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 // Hover popup content for landing page items
 function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
@@ -1820,7 +1755,7 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
 
       {/* MID-PAGE AD BANNER */}
       {hideMidAdBanner !== '1' && midAdCards.some(a => a.title) && (
-        <LandingMidAdBanner ads={midAdCards} hFont={hFont} bFont={bFont} isDark={isPageDark} />
+        <MidAdBanner ads={midAdCards} hFont={hFont} bFont={bFont} isDark={isPageDark} />
       )}
 
       {/* VIRTUAL EXPERIENCES */}

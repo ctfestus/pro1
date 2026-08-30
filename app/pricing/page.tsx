@@ -4,6 +4,7 @@ import { getLandingSiteSettingsOrDefault } from '@/lib/get-landing-page-data';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { PricingPageClient } from '@/components/pricing/PricingPageClient';
+import { hasMidAds, midAdCardsFrom } from '@/components/landing/MidAdBanner';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getTenantSettings();
@@ -39,6 +40,7 @@ export default async function PricingPage() {
       headingFont={config.headingFont}
       bodyFont={config.bodyFont}
       supportEmail={tenant.supportEmail}
+      midAds={hasMidAds(config) ? midAdCardsFrom(config) : undefined}
     />
   );
 }
