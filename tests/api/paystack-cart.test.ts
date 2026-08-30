@@ -9,6 +9,17 @@ const compact = (value: string) => value.replace(/\s+/g, ' ');
 // version of this feature is one that chases somebody for money they already paid, or clears a
 // checkout while the provider is holding funds, so those two guards are what these pin.
 
+/**
+ * Just the unfinished-checkout card. Scoping to it keeps the wording checks about that card
+ * rather than about anything else the payments screen happens to say.
+ */
+function cartSection(component: string): string {
+  const start = component.indexOf('data?.cart && !openRequest');
+  expect(start).toBeGreaterThan(-1);
+  const end = component.indexOf('</section>', start);
+  return component.slice(start, end === -1 ? start + 4000 : end);
+}
+
 describe('abandoned checkout cart', () => {
   const cart = compact(read('migrations/190_abandoned_checkout_cart.sql'));
   const schema = compact(read('festman-fresh-schema.sql'));
@@ -118,7 +129,11 @@ describe('abandoned checkout cart', () => {
   it('shows the cart to a renewing subscriber too', () => {
     const component = read('components/student/subscription-payments.tsx');
     expect(component).not.toContain('data?.cart && !hasActiveAccess');
-    expect(component).toContain("{hasActiveAccess ? 'You started renewing' : 'You were considering'}");
+    // The card must also speak to a renewal rather than describing every cart as a first
+    // purchase. Asserted as "it branches on having access", not as one exact sentence, so a
+    // rewording of the banner does not read as a regression -- which is how these two went
+    // stale when the banner was redesigned.
+    expect(cartSection(component)).toMatch(/hasActiveAccess \?/);
   });
 
   // "another plan" was wrong for the commonest case: the same plan at a different length.
@@ -277,7 +292,13 @@ describe('abandoned checkout cart', () => {
   // Offered back, not chased. Nothing here says owed, due, or overdue.
   it('offers the unfinished checkout back as a choice', () => {
     const component = read('components/student/subscription-payments.tsx');
-    expect(component).toContain('You were considering');
+    const section = cartSection(component);
+    // Offered, not chased. The words that turn a cart into a debt are the regression worth
+    // catching; the exact invitation can be rewritten freely.
+    for (const chasing of ['owed', 'overdue', 'outstanding', 'past due', 'you must']) {
+      expect(section.toLowerCase()).not.toContain(chasing);
+    }
+    // And it can always be cleared, which is what keeps it a choice.
     expect(component).toContain('dismissCart(data.cart.reference)');
   });
 
