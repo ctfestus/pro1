@@ -64,8 +64,12 @@ export function PricingSection({
 
   const [selected, setSelected] = useState<number | null>(durations[durations.length - 1] ?? null);
 
+  // No plan or price travels with this link, so the payments screen opens its own chooser. The
+  // label says that rather than promising a choice already made -- "Choose this plan" landing a
+  // learner back on a list of plans is a small broken promise. Carrying the selection through is
+  // worth doing, and is a change to the payments screen rather than to this one.
   const buyHref = signedIn ? '/student#payments' : '/auth?mode=signup';
-  const buyLabel = signedIn ? 'Choose this plan' : 'Create your account';
+  const buyLabel = signedIn ? 'Go to payment options' : 'Create your account';
 
   /** The saving shown on a toggle option, taken from the first plan that sells that term. */
   const savingFor = (months: number) => {

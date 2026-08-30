@@ -1,67 +1,74 @@
 /**
  * What the public pricing page shows.
  *
- * Read on the server with the service role, because plan coverage is invisible to an anonymous
- * caller: the row-level policy on subscription_plan_content requires a matching subscription.
- * The projection is counts and titles only -- never course content.
+ * Read with the anonymous key, exactly as the landing page reads the catalogue. Two views carry
+ * the whole public contract: public_pricing_plans and public_free_content_counts. Nothing here
+ * uses the service role, so what the world may see is defined in SQL where it can be reviewed,
+ * rather than in a projection somebody widens later without noticing what it exposes.
  *
- * The free tier is deliberately NOT a plan row. A new account has no plan and sees whatever is
- * marked available to everyone, so the free tier already exists; it simply has no name. Giving
- * it a zero-priced plan row would drag it into the whole purchase machinery -- a subscription
- * record, a synthetic cohort, an expiry date, the renewal sweep, the one-plan-per-learner rule --
- * to model something nobody pays for and that never ends. So it is counted here, not sold.
+ * The free tier is deliberately not a plan row. An account with no plan already sees what is
+ * open to everyone, so the free tier exists -- it simply has no name. Giving it a zero-priced
+ * plan would drag something nobody pays for into the subscription record, the synthetic cohort,
+ * the expiry sweep and the one-plan-per-learner rule.
  */
 import { unstable_cache } from 'next/cache';
-import { adminClient } from '@/lib/admin-client';
-import { loadPlanContents, loadPlansForContent } from '@/lib/subscription-plan-access';
-export type { ContentCounts, PricingPageData, PricingPlan } from '@/lib/pricing-contract';
+import { createClient } from '@supabase/supabase-js';
 import {
-  CONTENT_KINDS,
   emptyContentCounts,
   type ContentCounts,
   type PricingPageData,
   type PricingPlan,
+  type PricingPrice,
 } from '@/lib/pricing-contract';
+
+export type { ContentCounts, PricingPageData, PricingPlan } from '@/lib/pricing-contract';
 
 export const getPricingPageData = unstable_cache(
   async (): Promise<PricingPageData> => {
-    const db = adminClient();
+    const publicClient = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { persistSession: false } },
+    );
 
-    // Active plans with a live price. A plan nobody can buy has no place on a pricing page.
-    const plans = await loadPlansForContent(db, null);
+    const [plansResult, freeResult] = await Promise.all([
+      publicClient
+        .from('public_pricing_plans')
+        .select('plan_id, plan_name, plan_description, prices, courses, learning_paths, virtual_experiences, certifications'),
+      publicClient
+        .from('public_free_content_counts')
+        .select('content_table, content_count'),
+    ]);
+    if (plansResult.error) throw plansResult.error;
+    if (freeResult.error) throw freeResult.error;
 
-    const coverageByPlan = await loadPlanContents(db, plans.map(plan => plan.id));
+    const plans: PricingPlan[] = (plansResult.data ?? []).map((row: any) => ({
+      id: row.plan_id,
+      name: row.plan_name,
+      description: row.plan_description ?? null,
+      // Already ordered by duration in the view, so the toggle reads left to right as it comes.
+      prices: ((row.prices ?? []) as any[]).map((price): PricingPrice => ({
+        id: price.id,
+        durationMonths: Number(price.durationMonths),
+        amount: Number(price.amount),
+        currency: price.currency || 'GHS',
+      })),
+      coverage: {
+        courses: Number(row.courses ?? 0),
+        learning_paths: Number(row.learning_paths ?? 0),
+        virtual_experiences: Number(row.virtual_experiences ?? 0),
+        certifications: Number(row.certifications ?? 0),
+      },
+    }));
 
-    // Counted per kind rather than flattened. A plan that grants a learning path grants a path,
-    // not the courses inside it -- saying otherwise would inflate the number and confuse anyone
-    // who then counted for themselves.
-    const priced: PricingPlan[] = plans.map(plan => {
-      const coverage = emptyContentCounts();
-      for (const row of coverageByPlan.get(plan.id) ?? []) {
-        if (row.contentTable in coverage) coverage[row.contentTable] += 1;
-      }
-      return {
-        id: plan.id,
-        name: plan.name,
-        description: plan.description,
-        prices: [...plan.prices].sort((a, b) => a.durationMonths - b.durationMonths),
-        coverage,
-      };
-    });
-
-    const free = emptyContentCounts();
-    for (const table of CONTENT_KINDS) {
-      const { count, error } = await db
-        .from(table)
-        .select('id', { count: 'exact', head: true })
-        .eq('status', 'published')
-        .eq('available_to_everyone', true);
-      if (error) throw error;
-      free[table] = count ?? 0;
+    const free: ContentCounts = emptyContentCounts();
+    for (const row of (freeResult.data ?? []) as any[]) {
+      const kind = row.content_table as keyof ContentCounts;
+      if (kind in free) free[kind] = Number(row.content_count ?? 0);
     }
 
-    return { plans: priced, free };
+    return { plans, free };
   },
-  ['pricing-page-v1'],
+  ['pricing-page-v2'],
   { revalidate: 300, tags: ['pricing-page'] },
 );
