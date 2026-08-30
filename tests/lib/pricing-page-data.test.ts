@@ -10,15 +10,24 @@ import { join } from 'node:path';
 const h = vi.hoisted(() => ({
   rows: vi.fn((_view: string) => [] as any[]),
   createClient: vi.fn(),
+  ordered: vi.fn((_view: string, _column: string) => {}),
 }));
 
 vi.mock('@supabase/supabase-js', () => ({
   createClient: (...args: any[]) => {
     h.createClient(...args);
     return {
-      from: (view: string) => ({
-        select: async () => ({ data: h.rows(view), error: null }),
-      }),
+      from: (view: string) => {
+        // Chainable and awaitable, like the real builder, so an .order() call is visible here
+        // rather than exploding on a promise.
+        const result = () => ({ data: h.rows(view), error: null });
+        const builder: any = {
+          select: () => builder,
+          order: (column: string) => { h.ordered(view, column); return builder; },
+          then: (resolve: any) => Promise.resolve(result()).then(resolve),
+        };
+        return builder;
+      },
     };
   },
 }));
@@ -48,6 +57,14 @@ describe('pricing page data', () => {
     expect(loader).not.toContain('admin-client');
     expect(loader).not.toContain('SERVICE_ROLE');
     expect(loader).toContain('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  });
+
+  it('asks the database for a stable order', async () => {
+    // A view carries no ordering contract. Without an explicit order the plans can come back
+    // differently between requests, and anything positional -- which card is emphasised, which
+    // name the FAQ uses -- changes with nobody having touched a setting.
+    await getPricingPageData();
+    expect(h.ordered).toHaveBeenCalledWith('public_pricing_plans', 'plan_name');
   });
 
   it('shapes a plan from the view, prices and counts together', async () => {

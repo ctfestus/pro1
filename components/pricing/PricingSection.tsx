@@ -147,7 +147,7 @@ export function PricingSection({
             key={plan.id}
             plan={plan}
             months={selected}
-            featured={index === 0}
+            soleOption={plans.length === 1}
             hFont={hFont}
             primaryColor={primaryColor}
             accentColor={accentColor}
@@ -218,9 +218,9 @@ function TierCard({
 }
 
 function PlanCard({
-  plan, months, featured, hFont, primaryColor, accentColor, buyHref, buyLabel,
+  plan, months, soleOption, hFont, primaryColor, accentColor, buyHref, buyLabel,
 }: {
-  plan: PricingPlan; months: number | null; featured: boolean; hFont?: string;
+  plan: PricingPlan; months: number | null; soleOption: boolean; hFont?: string;
   primaryColor: string; accentColor: string; buyHref: string; buyLabel: string;
 }) {
   const price = plan.prices.find(row => row.durationMonths === months) ?? null;
@@ -229,16 +229,11 @@ function PlanCard({
   return (
     <div
       className="relative rounded-2xl bg-white p-6 h-full flex flex-col"
-      style={{ boxShadow: featured ? '0 8px 28px rgba(16,24,40,0.14)' : '0 1px 3px rgba(16,24,40,0.08)' }}
+      // Lifted only when it is the one paid option, which is a fact rather than a claim. There
+      // is no popularity data behind a "most popular" badge, and with several plans it would
+      // crown whichever happened to sort first.
+      style={{ boxShadow: soleOption ? '0 8px 28px rgba(16,24,40,0.14)' : '0 1px 3px rgba(16,24,40,0.08)' }}
     >
-      {featured && (
-        <span
-          className="absolute -top-3 left-6 rounded-full px-3 py-1 text-[11px] font-bold"
-          style={{ background: primaryColor, color: '#FFFFFF' }}
-        >
-          Most popular
-        </span>
-      )}
       <p className="text-xl font-bold" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
       <p className="text-xs mt-1" style={{ color: '#667085' }}>
         {plan.description || 'Full access while your plan runs'}

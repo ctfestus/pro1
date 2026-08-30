@@ -32,9 +32,13 @@ export const getPricingPageData = unstable_cache(
     );
 
     const [plansResult, freeResult] = await Promise.all([
+      // Ordered explicitly. A view carries no ordering contract, so without this Postgres may
+      // return plans in any order and the page could rearrange itself between requests with
+      // nobody having changed anything.
       publicClient
         .from('public_pricing_plans')
-        .select('plan_id, plan_name, plan_description, prices, courses, learning_paths, virtual_experiences, certifications'),
+        .select('plan_id, plan_name, plan_description, prices, courses, learning_paths, virtual_experiences, certifications')
+        .order('plan_name'),
       publicClient
         .from('public_free_content_counts')
         .select('content_table, content_count'),

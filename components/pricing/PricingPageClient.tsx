@@ -83,7 +83,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
           headingFont={headingFont}
           primaryColor={primaryColor}
           supportEmail={supportEmail}
-          paidPlanName={props.plans[0]?.name}
+          paidPlanName={props.plans.length === 1 ? props.plans[0].name : undefined}
         />
       </div>
 
