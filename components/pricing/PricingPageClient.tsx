@@ -12,6 +12,8 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
+import { PricingHero } from '@/components/pricing/PricingHero';
+import { featuredOffer } from '@/lib/pricing-offer';
 import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
 
@@ -58,14 +60,25 @@ export function PricingPageClient(props: PricingPageClientProps) {
       </header>
 
       <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-24">
-        <div className="text-center pt-6 pb-10">
-          <h1
-            className="text-3xl sm:text-5xl font-bold tracking-tight"
+        <PricingHero
+          offer={featuredOffer(props.plans)}
+          appName={appName}
+          primaryColor={primaryColor}
+          accentColor={accentColor}
+          headingFont={headingFont}
+          bodyFont={bodyFont}
+          ctaHref={signedIn ? '/student#payments' : '/auth?mode=signup'}
+          ctaLabel={signedIn ? 'Go to payment options' : 'Get started'}
+        />
+
+        <div className="text-center pt-12 pb-8">
+          <h2
+            className="text-2xl sm:text-3xl font-bold tracking-tight"
             style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}
           >
-            Learn the skills you need to move your career forward
-          </h1>
-          <p className="mt-4 text-base max-w-2xl mx-auto" style={{ color: '#475467' }}>
+            Choose how long you want access
+          </h2>
+          <p className="mt-3 text-base max-w-2xl mx-auto" style={{ color: '#475467' }}>
             Start free. Upgrade when you want the full catalogue, and pay only for the time you use.
           </p>
         </div>

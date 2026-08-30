@@ -17,6 +17,7 @@ import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { planBenefits } from '@/lib/pricing-benefits';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import type { AdCard } from '@/lib/mid-ads';
+import { durationLabel, formatMoney as money } from '@/lib/pricing-offer';
 import {
   CONTENT_KINDS,
   type ContentCounts,
@@ -32,15 +33,6 @@ const KIND_LABEL: Record<PurchasableContentTable, string> = {
   certifications: 'Certifications',
 };
 
-
-function durationLabel(months: number) {
-  if (months === 12) return '1 year';
-  return `${months} month${months > 1 ? 's' : ''}`;
-}
-
-function money(currency: string, amount: number) {
-  return `${currency || 'GHS'} ${Number(amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
-}
 
 export interface PricingSectionProps extends PricingPageData {
   primaryColor: string;
