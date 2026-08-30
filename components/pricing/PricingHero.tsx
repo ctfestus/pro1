@@ -11,7 +11,6 @@ import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-of
 
 export interface PricingHeroProps {
   offer: FeaturedOffer | null;
-  appName: string;
   primaryColor: string;
   accentColor: string;
   headingFont?: string;
@@ -21,7 +20,7 @@ export interface PricingHeroProps {
 }
 
 export function PricingHero({
-  offer, appName, primaryColor, accentColor, headingFont, bodyFont, ctaHref, ctaLabel,
+  offer, primaryColor, accentColor, headingFont, bodyFont, ctaHref, ctaLabel,
 }: PricingHeroProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
@@ -52,15 +51,12 @@ export function PricingHero({
       <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 py-12 sm:py-16 grid gap-10 lg:grid-cols-[1.15fr_0.85fr] items-center">
         {/* ---------- the pitch ---------- */}
         <div>
-          <div className="flex items-center gap-2.5">
-            <span className="text-lg font-bold" style={{ color: '#FFFFFF', fontFamily: hFont }}>{appName}</span>
-            <span
-              className="rounded px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider"
-              style={{ background: '#FFFFFF', color: primaryColor }}
-            >
-              {plan.name}
-            </span>
-          </div>
+          <span
+            className="inline-block rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider"
+            style={{ background: '#FFFFFF', color: primaryColor }}
+          >
+            {plan.name}
+          </span>
 
           <h1
             className="mt-5 text-3xl sm:text-5xl font-bold tracking-tight"
@@ -107,32 +103,35 @@ export function PricingHero({
         </div>
 
         {/* ---------- the number ---------- */}
-        <div className="lg:justify-self-end w-full max-w-sm">
-          <div className="rounded-2xl p-6 text-center" style={{ background: 'rgba(255,255,255,0.12)' }}>
+        <div className="lg:justify-self-end w-full max-w-sm space-y-3">
+          <div className="rounded-2xl px-6 py-6 text-center" style={{ background: '#FFFFFF' }}>
             {saving && baselinePerMonth !== null && (
-              <p className="text-lg line-through" style={{ color: 'rgba(255,255,255,0.6)' }}>
+              <p className="text-xl line-through" style={{ color: '#98A2B3' }}>
                 {formatMoney(price.currency, baselinePerMonth)}
               </p>
             )}
-            <p className="mt-1 font-bold tracking-tight" style={{ color: '#FFFFFF', fontFamily: hFont, fontSize: 'clamp(34px,5vw,52px)', lineHeight: 1.05 }}>
+            <p
+              className="font-bold tracking-tight"
+              style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(32px,4.4vw,50px)', lineHeight: 1.05 }}
+            >
               {formatMoney(price.currency, perMonth)}
-              <span className="ml-1 text-base font-bold" style={{ color: 'rgba(255,255,255,0.8)' }}>/month</span>
-            </p>
-            <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.78)' }}>
-              {formatMoney(price.currency, price.amount)} for {durationLabel(price.durationMonths)}
-            </p>
-            {saving && (
-              <p
-                className="mt-4 rounded-xl px-4 py-2.5 text-sm font-bold"
-                style={{ background: accentColor, color: '#101828' }}
-              >
-                Save {savingPercent}% over {durationLabel(price.durationMonths)}
-              </p>
-            )}
-            <p className="mt-4 inline-flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.78)' }}>
-              <Check className="w-3.5 h-3.5" /> One payment, no renewal
+              <span className="ml-1 text-base font-bold" style={{ color: '#475467' }}>/month</span>
             </p>
           </div>
+
+          {saving ? (
+            <div className="rounded-2xl px-6 py-4 text-center" style={{ background: accentColor }}>
+              <p className="text-base font-bold" style={{ color: '#101828', fontFamily: hFont }}>
+                {durationLabel(price.durationMonths)} of savings
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl px-6 py-4 text-center" style={{ background: accentColor }}>
+              <p className="text-base font-bold" style={{ color: '#101828', fontFamily: hFont }}>
+                {durationLabel(price.durationMonths)} of full access
+              </p>
+            </div>
+          )}
         </div>
       </div>
     </section>

@@ -61,7 +61,6 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
       <PricingHero
         offer={featuredOffer(props.plans)}
-        appName={appName}
         primaryColor={primaryColor}
         accentColor={accentColor}
         headingFont={headingFont}
