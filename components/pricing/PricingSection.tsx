@@ -66,17 +66,27 @@ export function PricingSection({
   // label says that rather than promising a choice already made -- "Choose this plan" landing a
   // learner back on a list of plans is a small broken promise. Carrying the selection through is
   // worth doing, and is a change to the payments screen rather than to this one.
+  /** The one option worth badging: the biggest saving on offer, or nothing if none of the terms
+   *  beats paying by the shortest. Only the winner is marked -- badging every discounted term
+   *  put a badge on most of the control, which made the choice harder to read rather than
+   *  easier, and left no option standing out as the one to take. */
+  const bestDuration = useMemo(() => {
+    let best: { months: number; saving: number; monthsPaidFor: number | null } | null = null;
+    for (const months of durations) {
+      for (const plan of plans) {
+        const price = plan.prices.find(row => row.durationMonths === months);
+        if (!price) continue;
+        const { savingPercent, monthsPaidFor } = comparePlanPrice(price, plan.prices);
+        if (savingPercent > 0 && (!best || savingPercent > best.saving)) {
+          best = { months, saving: savingPercent, monthsPaidFor };
+        }
+      }
+    }
+    return best;
+  }, [durations, plans]);
+
   const buyHref = signedIn ? '/student#payments' : '/auth?mode=signup';
   const buyLabel = signedIn ? 'Go to payment options' : 'Create your account';
-
-  /** The saving shown on a toggle option, taken from the first plan that sells that term. */
-  const savingFor = (months: number) => {
-    for (const plan of plans) {
-      const price = plan.prices.find(row => row.durationMonths === months);
-      if (price) return comparePlanPrice(price, plan.prices).savingPercent;
-    }
-    return 0;
-  };
 
   return (
     <section style={{ fontFamily: bFont }}>
@@ -91,7 +101,7 @@ export function PricingSection({
           >
             {durations.map(months => {
               const active = months === selected;
-              const saving = savingFor(months);
+              const marked = bestDuration?.months === months ? bestDuration : null;
               return (
                 <button
                   key={months}
@@ -106,12 +116,14 @@ export function PricingSection({
                   }}
                 >
                   {durationLabel(months)}
-                  {saving > 0 && (
+                  {marked && (
                     <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-bold"
+                      className="rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
                       style={{ background: accentColor, color: '#101828' }}
                     >
-                      save {saving}%
+                      {marked.monthsPaidFor !== null
+                        ? `pay for only ${marked.monthsPaidFor} months`
+                        : `save ${marked.saving}%`}
                     </span>
                   )}
                 </button>
@@ -259,7 +271,11 @@ function PlanCard({
               className="mt-2 self-start rounded-full px-2.5 py-1 text-[11px] font-bold"
               style={{ background: accentColor, color: '#101828' }}
             >
-              save {comparison?.savingPercent}%
+              {/* The months figure when the arithmetic supports one, the percentage otherwise --
+                  a plan sold only in one length has nothing to be counted against. */}
+              {comparison?.monthsPaidFor != null
+                ? `pay for only ${comparison.monthsPaidFor} months`
+                : `save ${comparison?.savingPercent}%`}
             </span>
           )}
         </>
