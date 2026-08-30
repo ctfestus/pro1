@@ -13,8 +13,18 @@ import { useToolIcons } from '@/lib/use-tool-icons';
 import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-offer';
 
 /** Named here rather than read from the catalogue: the tools column lives on virtual
- *  experiences only and is not in any public view, so this is a short curated list. */
-const HERO_TOOLS = ['Claude', 'ChatGPT', 'Excel', 'Power BI', 'SQL'];
+ *  experiences only and is not in any public view, so this is a short curated list.
+ *
+ *  `glyph` is the drawn size inside the circle. A few marks are drawn small inside their own
+ *  artwork and come out looking shrunken next to the rest, so those get a larger glyph in the
+ *  same circle -- the row stays even, the logos read at the same weight. */
+const HERO_TOOLS: { name: string; glyph: number }[] = [
+  { name: 'Claude', glyph: 30 },
+  { name: 'ChatGPT', glyph: 26 },
+  { name: 'Excel', glyph: 26 },
+  { name: 'Power BI', glyph: 26 },
+  { name: 'SQL', glyph: 30 },
+];
 
 /**
  * Decoration only -- a ribbon and a scatter of sparkles, so the offer reads as an offer rather
@@ -174,8 +184,10 @@ export function PricingHero({
         </div>
 
         {/* ---------- the number ---------- */}
-        <div className="lg:justify-self-end w-full max-w-sm flex items-center gap-3 sm:gap-4">
-          <div className="flex-1 min-w-0 space-y-2.5">
+        <div className="lg:justify-self-end w-full max-w-sm flex items-center gap-7 sm:gap-9">
+          {/* Capped rather than filling the column: at full width the two blocks read as banners
+              instead of as a price, and they crowd the logos beside them. */}
+          <div className="flex-1 min-w-0 max-w-[210px] space-y-2.5">
             <div className="rounded-xl px-5 py-4 text-center" style={{ background: '#FFFFFF' }}>
               {saving && baselinePerMonth !== null && (
                 <p className="text-sm line-through" style={{ color: '#98A2B3' }}>
@@ -201,18 +213,24 @@ export function PricingHero({
           </div>
 
           {/* Stacked down the right of the price, as in the reference, rather than sitting under it. */}
-          <div className="flex flex-col gap-2 shrink-0">
+          <div className="flex flex-col gap-2.5 shrink-0">
             {HERO_TOOLS.map(tool => {
-              const icon = toolIcon(tool);
+              const icon = toolIcon(tool.name);
               if (!icon) return null;
               return (
                 <span
-                  key={tool}
-                  title={tool}
+                  key={tool.name}
+                  title={tool.name}
                   className="grid place-items-center rounded-full"
-                  style={{ background: '#FFFFFF', width: 32, height: 32, boxShadow: '0 2px 6px rgba(16,24,40,0.18)' }}
+                  style={{ background: '#FFFFFF', width: 44, height: 44, boxShadow: '0 2px 8px rgba(16,24,40,0.20)' }}
                 >
-                  <img src={icon} alt={tool} className="w-4 h-4 object-contain" loading="lazy" />
+                  <img
+                    src={icon}
+                    alt={tool.name}
+                    className="object-contain"
+                    style={{ width: tool.glyph, height: tool.glyph }}
+                    loading="lazy"
+                  />
                 </span>
               );
             })}
