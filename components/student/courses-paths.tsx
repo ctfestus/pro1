@@ -17,7 +17,7 @@ import { computeAccess } from '@/lib/enrollment-access';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
-import { lowestUnlockPrice, unlockDurationLabel, unlockMoney } from '@/lib/unlock-pricing';
+import { enrollLabel } from '@/lib/unlock-pricing';
 import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard, stripSqlSolutions } from '@/components/student/shared';
 
 // --- Course card ---
@@ -680,23 +680,15 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
             </div>
           </div>
           <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
-            {path.locked && (() => {
-              const from = lowestUnlockPrice(path.unlock);
-              return from ? (
-                <span className="flex items-baseline gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
-                  From
-                  <strong className="text-sm font-bold" style={{ color: C.text, fontVariantNumeric: 'tabular-nums' }}>{unlockMoney(from.currency, from.amount)}</strong>
-                  for {unlockDurationLabel(from.durationMonths)}
-                </span>
-              ) : null;
-            })()}
             {path.locked && (
+              // To the pricing page, where the lengths and their prices sit together, rather
+              // than quoting a figure beside one path as though that were its price.
               <Link
-                href={`/student?contentTable=learning_paths&contentId=${encodeURIComponent(path.id)}#payments`}
+                href="/pricing"
                 className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-bold"
                 style={{ background: C.cta, color: C.ctaText }}
               >
-                <Lock className="h-4 w-4" /> Purchase or enroll
+                <Lock className="h-4 w-4" /> {enrollLabel(path.unlock)}
               </Link>
             )}
             {pathCertId && (

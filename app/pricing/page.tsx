@@ -5,6 +5,7 @@ import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { PricingPageClient } from '@/components/pricing/PricingPageClient';
 import { hasMidAds, midAdCardsFrom } from '@/lib/mid-ads';
+import { paystackIsConfigured } from '@/lib/paystack';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getTenantSettings();
@@ -40,6 +41,7 @@ export default async function PricingPage() {
       bodyFont={config.bodyFont}
       supportEmail={tenant.supportEmail}
       midAds={hasMidAds(config) ? midAdCardsFrom(config) : undefined}
+      paystackEnabled={paystackIsConfigured()}
     />
   );
 }

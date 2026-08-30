@@ -24,10 +24,9 @@ import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/v
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
 import {
-  lowestUnlockPrice,
+  enrollLabel,
+  unlockPlanName,
   sellablePlans,
-  unlockDurationLabel,
-  unlockMoney,
   type UnlockInfo,
 } from '@/lib/unlock-pricing';
 
@@ -286,11 +285,11 @@ function PublicLearningPathOverview({ path, C }: { path: any; C: ReturnType<type
   const items = path.items ?? [];
   const courseCount = items.filter((item: any) => item.content_type === 'course').length;
   const virtualExperienceCount = items.filter((item: any) => item.content_type === 'virtual_experience').length;
-  const from = lowestUnlockPrice(path.unlock);
-  const href = path.locked
-    ? `/student?contentTable=learning_paths&contentId=${encodeURIComponent(path.id)}#payments`
-    : '/auth';
-  const cta = path.locked ? 'Purchase or enroll' : 'Start for free';
+  // Locked content sends people to the pricing page to choose a length, rather than quoting a
+  // figure here. A price on a course panel reads as the price of that course, when what is
+  // actually being bought is access to everything.
+  const href = path.locked ? '/pricing' : '/auth';
+  const cta = path.locked ? enrollLabel(path.unlock) : 'Start for free';
   const isDark = C.page !== '#F2F5FA';
   const panelBg = isDark ? 'rgba(30,31,38,0.96)' : '#ffffff';
   const panelText = isDark ? '#f8fafc' : '#202124';
@@ -403,11 +402,6 @@ function PublicLearningPathOverview({ path, C }: { path: any; C: ReturnType<type
                   </span>
                 )}
               </div>
-              {path.locked && from && (
-                <p className="mt-5 text-sm font-bold" style={{ color: panelMuted }}>
-                  From {unlockMoney(from.currency, from.amount)} for {unlockDurationLabel(from.durationMonths)}
-                </p>
-              )}
               <Link
                 href={href}
                 className="mt-6 inline-flex w-full items-center justify-center gap-3 rounded-lg px-6 py-3.5 text-base font-bold sm:w-auto sm:px-8"
@@ -1557,21 +1551,11 @@ export default function PublicFormPage() {
                   {/* CTA */}
                   {form.locked ? (
                     <>
-                    {(() => {
-                      const from = lowestUnlockPrice(form.unlock);
-                      return from ? (
-                        <div style={{ width: '100%', marginBottom: 9, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: 6 }}>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted }}>From</span>
-                          <span style={{ fontSize: 17, fontWeight: 800, color: cp.title, fontVariantNumeric: 'tabular-nums' }}>{unlockMoney(from.currency, from.amount)}</span>
-                          <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted }}>for {unlockDurationLabel(from.durationMonths)}</span>
-                        </div>
-                      ) : null;
-                    })()}
                     <Link
-                      href={`/student?contentTable=courses&contentId=${encodeURIComponent(form.id)}#payments`}
+                      href="/pricing"
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                     >
-                      Purchase or enroll <ArrowRight style={{ width: 15, height: 15 }} />
+                      {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
                     </>
                   ) : signedOut ? (
@@ -2453,9 +2437,14 @@ export default function PublicFormPage() {
   );
 }
 
+/**
+ * What a locked panel says about paying. Deliberately no figures: the lengths and their prices
+ * belong together on the pricing page, and a price list on a course panel reads as the price of
+ * that course rather than of access to everything.
+ */
 function UnlockPrices({ unlock }: { unlock: UnlockInfo }) {
-  const plans = sellablePlans(unlock);
-  if (!plans.length) {
+  const name = unlockPlanName(unlock);
+  if (!sellablePlans(unlock).length) {
     return (
       <p className="mt-2 text-sm leading-relaxed text-[#667085]">
         This content is part of a subscription plan. Contact the learning team to ask about access.
@@ -2463,23 +2452,12 @@ function UnlockPrices({ unlock }: { unlock: UnlockInfo }) {
     );
   }
   return (
-    <div className="mt-3 space-y-4">
-      {plans.map(plan => (
-        <div key={plan.id}>
-          <p className="text-sm font-bold text-[#101828]">{plan.name}</p>
-          <ul className="mt-2 space-y-1.5">
-            {(plan.prices ?? []).map(price => (
-              <li key={price.id} className="flex items-baseline justify-between gap-3 text-sm">
-                <span className="text-[#667085]">{unlockDurationLabel(price.durationMonths)}</span>
-                <span className="font-bold text-[#101828]" style={{ fontVariantNumeric: 'tabular-nums' }}>
-                  {unlockMoney(price.currency, price.amount)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
-    </div>
+    <p className="mt-2 text-sm leading-relaxed text-[#667085]">
+      {name
+        ? `Included with ${name}, along with the rest of the catalogue.`
+        : 'Included with a plan, along with the rest of the catalogue.'}
+      {' '}Choose how long you want access on the pricing page.
+    </p>
   );
 }
 
@@ -2489,8 +2467,7 @@ function LockedContentPreview({ item, signedOut }: { item: any; signedOut?: bool
     ? 'Virtual Experience'
     : item.type === 'certification' ? 'Certification'
     : item.type === 'learning_path' ? 'Learning Path' : 'Course';
-  const contentTable = item.type === 'virtual_experience' ? 'virtual_experiences' : `${item.type}s`;
-  const paymentHref = `/student?contentTable=${encodeURIComponent(contentTable)}&contentId=${encodeURIComponent(item.id)}#payments`;
+  const paymentHref = '/pricing';
 
   return (
     <main className="ff-pub min-h-screen bg-[#f4f6f8] text-[#101828]">
@@ -2537,7 +2514,7 @@ function LockedContentPreview({ item, signedOut }: { item: any; signedOut?: bool
                 href={paymentHref}
                 className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00bf63] px-4 py-3 text-sm font-bold text-white hover:opacity-90"
               >
-                Purchase or enroll
+                {enrollLabel(item.unlock)}
                 <ArrowRight className="h-4 w-4" />
               </Link>
             </aside>

@@ -16,6 +16,7 @@ import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
 import { PricingHero } from '@/components/pricing/PricingHero';
 import { featuredOffer } from '@/lib/pricing-offer';
+import { startPlanCheckout } from '@/lib/start-plan-checkout';
 import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
 
@@ -28,10 +29,13 @@ export interface PricingPageClientProps extends PricingPageData {
   bodyFont?: string;
   supportEmail?: string;
   midAds?: AdCard[];
+  /** Whether a card checkout can be opened straight from this page. */
+  paystackEnabled: boolean;
 }
 
 export function PricingPageClient(props: PricingPageClientProps) {
-  const { siteConfig, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds } = props;
+  const { siteConfig, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds,
+    paystackEnabled } = props;
   // The same source the landing page reads, so the chrome cannot say one thing here and another
   // there.
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
@@ -83,8 +87,11 @@ export function PricingPageClient(props: PricingPageClientProps) {
         accentColor={accentColor}
         headingFont={headingFont}
         bodyFont={bodyFont}
-        ctaHref={signedIn ? '/student#payments' : '/auth?mode=signup'}
-        ctaLabel={signedIn ? 'Go to payment options' : 'Get started'}
+        ctaLabel={signedIn ? 'Continue to checkout' : 'Get started'}
+        onBuy={async priceId => {
+          const outcome = await startPlanCheckout(priceId, { paystackEnabled });
+          if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
+        }}
       />
 
       <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-24">
@@ -108,6 +115,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
           headingFont={headingFont}
           bodyFont={bodyFont}
           signedIn={signedIn}
+          paystackEnabled={paystackEnabled}
           supportEmail={supportEmail}
           midAds={midAds}
         />

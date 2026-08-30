@@ -35,6 +35,12 @@ function renewalCopy(status?: string) {
   return { heading: 'Renew your plan', action: 'Renew plan' };
 }
 
+/** The plan length picked on the pricing page, carried here so it is not chosen twice. */
+function chosenPriceId(): string {
+  if (typeof window === 'undefined') return '';
+  return new URLSearchParams(window.location.search).get('priceId') ?? '';
+}
+
 function contentTarget() {
   if (typeof window === 'undefined') return null;
   const params = new URLSearchParams(window.location.search);
@@ -476,7 +482,11 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         it closes, so the way out has to be on the screen rather than in a message to staff. */}
     {ownRequest && !readOnly && <section className="rounded-2xl p-4 sm:p-5" style={{ background: `${C.cta}0D`, border: `1px solid ${C.cardBorder}` }}><div className="flex flex-col gap-4 sm:flex-row sm:items-center"><div className="min-w-0 flex-1"><p className="text-[10px] uppercase tracking-[0.18em] font-bold" style={{ color: C.faint }}>You chose to pay by transfer</p><p className="font-black mt-1 truncate" style={{ color: C.text }}>{ownRequest.plan_name}</p><p className="text-xs mt-1" style={{ color: C.muted }}>{ownRequest.duration_months === 12 ? '1 year' : `${ownRequest.duration_months} month${ownRequest.duration_months > 1 ? 's' : ''}`} &middot; {money(ownRequest.currency, ownRequest.amount)} &middot; by {fmtDate(ownRequest.due_date)}</p></div><div className="grid grid-cols-2 gap-2 sm:flex sm:flex-shrink-0"><button onClick={() => cancelOwnRequest(ownRequest.id)} disabled={requestBusy} className="min-h-11 rounded-xl px-3.5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ background: C.card, color: C.muted }}>{requestBusy ? 'Cancelling...' : 'Cancel'}</button><button onClick={() => goToTab('confirm')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-black" style={{ background: C.cta, color: C.ctaText }}>I have paid<ArrowRight className="w-4 h-4"/></button></div></div></section>}
 
-    {subscription && !!purchasablePlans.length && !pendingConfirmation && <PricingStage
+    {/* Not gated on holding a subscription. It was, and a learner who had never bought anything
+        saw only the banner offering an upgrade -- with no plans under it and no way to buy one.
+        The pricing page sent them here to choose and this screen sent them back there, so a new
+        account could not purchase at all. */}
+    {!!purchasablePlans.length && !pendingConfirmation && <PricingStage
       plans={purchasablePlans}
       subscription={subscription}
       openRequest={openRequest}
@@ -487,6 +497,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
       C={C}
       onPurchase={purchasePlan}
       onToggleManual={() => setPayManually(value => !value)}
+      chosenPriceId={chosenPriceId()}
     />}
 
     {showPaymentWorkspace && <div ref={tabsRef} tabIndex={-1} className="space-y-5 outline-none scroll-mt-20">
@@ -565,7 +576,7 @@ function AccessHero({
 
 function PricingStage({
   plans, subscription, openRequest, planBusyId, paystackEnabled, payManually,
-  readOnly, C, onPurchase, onToggleManual,
+  readOnly, C, onPurchase, onToggleManual, chosenPriceId,
 }: {
   plans: any[];
   subscription: any;
@@ -577,6 +588,7 @@ function PricingStage({
   C: typeof LIGHT_C;
   onPurchase: (priceId: string) => void;
   onToggleManual: () => void;
+  chosenPriceId?: string;
 }) {
   const copy = renewalCopy(subscription?.status);
   return <section id="access-plans" aria-labelledby="access-plans-heading" className="scroll-mt-20 py-2">
@@ -586,14 +598,14 @@ function PricingStage({
     </div>
 
     <div className="space-y-4">
-      {plans.map(plan => <SubscriptionPlanCard key={plan.id} plan={plan} subscription={subscription} openRequest={openRequest} planBusyId={planBusyId} readOnly={readOnly} C={C} onPurchase={onPurchase}/>)}
+      {plans.map(plan => <SubscriptionPlanCard key={plan.id} plan={plan} subscription={subscription} openRequest={openRequest} planBusyId={planBusyId} readOnly={readOnly} C={C} onPurchase={onPurchase} chosenPriceId={chosenPriceId}/>)}
     </div>
 
     {paystackEnabled && <p className="mt-2 text-xs" style={{ color: C.faint }}>{payManually ? 'You will receive verified bank transfer or mobile money instructions after choosing a plan. ' : 'Checkout opens securely after you choose a plan. '}<button type="button" onClick={onToggleManual} className="font-bold underline underline-offset-4" style={{ color: C.cta }}>{payManually ? 'Pay online instead' : 'Use bank transfer or mobile money'}</button></p>}
   </section>;
 }
 
-function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, readOnly, C, onPurchase }: {
+function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, readOnly, C, onPurchase, chosenPriceId }: {
   plan: any;
   subscription: any;
   openRequest: any;
@@ -601,6 +613,7 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
   readOnly: boolean;
   C: typeof LIGHT_C;
   onPurchase: (priceId: string) => void;
+  chosenPriceId?: string;
 }) {
   const prices = useMemo(() => [...(plan.prices ?? [])].sort((a: any, b: any) => a.durationMonths - b.durationMonths), [plan.prices]);
   const bestPrice = useMemo(() => prices.reduce((best: any, price: any) => {
@@ -608,7 +621,12 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
     const bestSaving = best ? comparePlanPrice(best, prices).savingPercent : -1;
     return saving > bestSaving || (saving === bestSaving && price.durationMonths > (best?.durationMonths ?? 0)) ? price : best;
   }, null), [prices]);
-  const [selectedPriceId, setSelectedPriceId] = useState<string>(() => bestPrice?.id ?? prices[0]?.id ?? '');
+  // A length chosen on the pricing page wins over the best-value default, so someone who picked
+  // 12 months there does not arrive to find 1 month selected and have to choose again.
+  const [selectedPriceId, setSelectedPriceId] = useState<string>(() => {
+    if (chosenPriceId && prices.some((price: any) => price.id === chosenPriceId)) return chosenPriceId;
+    return bestPrice?.id ?? prices[0]?.id ?? '';
+  });
   const selectedPrice = prices.find((price: any) => price.id === selectedPriceId) ?? bestPrice ?? prices[0];
   const selectedPriceIndex = Math.max(0, prices.findIndex((price: any) => price.id === selectedPrice?.id));
   const comparison = selectedPrice ? comparePlanPrice(selectedPrice, prices) : { perMonth: 0, savingPercent: 0 };
@@ -621,7 +639,7 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
       <div>
         <p className="text-sm font-bold" style={{ color: C.text }}>Choose duration</p>
       </div>
-      <div className="relative grid w-fit max-w-full overflow-hidden rounded-full p-1" role="group" aria-label="Renewal duration" style={{ background: C.card, gridTemplateColumns: `repeat(${prices.length}, minmax(0, 1fr))` }}>
+      <div className="relative grid w-fit max-w-full overflow-hidden rounded-full p-1" role="group" aria-label={subscription ? "Renewal duration" : "Access duration"} style={{ background: C.card, gridTemplateColumns: `repeat(${prices.length}, minmax(0, 1fr))` }}>
         <span aria-hidden="true" className="absolute bottom-1 left-1 top-1 rounded-full transition-transform duration-300 ease-out motion-reduce:transition-none" style={{ background: C.cta, width: `calc((100% - 0.5rem) / ${prices.length})`, transform: `translateX(${selectedPriceIndex * 100}%)` }}/>
         {prices.map((price: any) => {
           const active = price.id === selectedPrice?.id;
@@ -641,7 +659,7 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
         </div>
 
         <div className="min-w-44 lg:text-right">
-          <p className="text-xs font-semibold" style={{ color: C.faint }}>Renewal total</p>
+          <p className="text-xs font-semibold" style={{ color: C.faint }}>{subscription ? 'Renewal total' : 'Total'}</p>
           {selectedPrice ? <>
             <p className="mt-1 text-2xl font-black tracking-tight" style={{ color: C.text }}>{money(selectedPrice.currency, selectedPrice.amount)}</p>
             <div className="mt-1 flex flex-wrap items-center gap-2 lg:justify-end">
