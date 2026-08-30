@@ -30,7 +30,7 @@ export function PricingHero({
   // banner shouting about a price that does not exist.
   if (!offer) {
     return (
-      <div className="text-center pt-6 pb-10">
+      <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 text-center pt-10 pb-4">
         <h1 className="text-3xl sm:text-5xl font-bold tracking-tight"
           style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}>
           Learn the skills you need to move your career forward
@@ -46,11 +46,10 @@ export function PricingHero({
   const saving = savingPercent > 0;
 
   return (
-    <section
-      className="rounded-3xl overflow-hidden mt-2"
-      style={{ background: primaryColor, fontFamily: bFont }}
-    >
-      <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] items-center p-7 sm:p-10">
+    // Edge to edge: the band runs the full width of the page and only its contents are
+    // constrained, so the colour reaches both sides of the screen rather than floating in a card.
+    <section style={{ background: primaryColor, fontFamily: bFont }}>
+      <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 py-12 sm:py-16 grid gap-10 lg:grid-cols-[1.15fr_0.85fr] items-center">
         {/* ---------- the pitch ---------- */}
         <div>
           <div className="flex items-center gap-2.5">

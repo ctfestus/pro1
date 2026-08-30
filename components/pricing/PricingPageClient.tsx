@@ -59,19 +59,19 @@ export function PricingPageClient(props: PricingPageClientProps) {
         </Link>
       </header>
 
-      <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-24">
-        <PricingHero
-          offer={featuredOffer(props.plans)}
-          appName={appName}
-          primaryColor={primaryColor}
-          accentColor={accentColor}
-          headingFont={headingFont}
-          bodyFont={bodyFont}
-          ctaHref={signedIn ? '/student#payments' : '/auth?mode=signup'}
-          ctaLabel={signedIn ? 'Go to payment options' : 'Get started'}
-        />
+      <PricingHero
+        offer={featuredOffer(props.plans)}
+        appName={appName}
+        primaryColor={primaryColor}
+        accentColor={accentColor}
+        headingFont={headingFont}
+        bodyFont={bodyFont}
+        ctaHref={signedIn ? '/student#payments' : '/auth?mode=signup'}
+        ctaLabel={signedIn ? 'Go to payment options' : 'Get started'}
+      />
 
-        <div className="text-center pt-12 pb-8">
+      <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-24">
+        <div className="text-center pt-14 pb-8">
           <h2
             className="text-2xl sm:text-3xl font-bold tracking-tight"
             style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}
