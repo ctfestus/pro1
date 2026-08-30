@@ -85,7 +85,9 @@ describe('abandoned checkout cart', () => {
     expect(sender).toContain('settleUnfinishedCheckout');
     expect(sender).toContain('if (!settled.abandoned) { skipped++; continue; }');
     const lib = read('lib/paystack-subscriptions.ts');
-    expect(lib).toContain('return { abandoned: false, result: await processPaystackSubscriptionReference(db, reference) };');
+    expect(lib).toContain("verifiedStatus === 'ongoing'");
+    expect(lib).toContain('result: { ok: true, reference, status: verifiedStatus }');
+    expect(lib).toContain('settleUnfinishedCheckout(db, reservation.reference)');
   });
 
   // Clearing on the local status alone let a learner remove a checkout Paystack had already
@@ -176,8 +178,10 @@ describe('abandoned checkout cart', () => {
     expect(student).toContain("await assertNothingCollected(db, { requestId }, 'Your');");
     expect(admin).toContain("await assertNothingCollected(db, { requestId: String(body.requestId) }, 'Their');");
     expect(admin).toContain("await assertNothingCollected(db, { reference }, 'Their');");
-    // No site keeps a hand-rolled version alongside it.
-    for (const route of [student, admin]) expect(route).not.toContain('settleUnfinishedCheckout');
+    // The replayable return check uses the same settlement boundary, while no route keeps a
+    // hand-rolled verification beside the guard. The webhook remains the direct processor path.
+    expect(student).toContain('const settled = await settleUnfinishedCheckout(db, reference);');
+    expect(admin).not.toContain('settleUnfinishedCheckout');
   });
 
   // A cart carries no payment request, so it showed up in no receivables list -- staff could not
@@ -231,14 +235,19 @@ describe('abandoned checkout cart', () => {
   // cart list filtered those out, so without this they would be stranded and invisible at once.
   it('lists the checkouts a closed request left behind, and no live ones', () => {
     const lib = read('lib/db-subscriptions.ts');
+    expect(lib).toContain(".in('status', ['initialized', 'pending', 'ongoing', 'processing', 'queued'])");
     expect(lib).toContain("in('status', ['cancelled', 'paid'])");
     expect(lib).toContain("return rows.filter(row => !row.request_id || strandedBy.has(row.request_id as string));");
     // The staff closer enforces the same boundary in the database, under its own lock.
-    const release = compact(read('migrations/195_cancel_request_releases_checkout.sql'));
+    const release = compact(read('migrations/197_paystack_transient_checkout_recovery.sql'));
     for (const sql of [release, schema]) {
+      expect(sql).toContain('idx_paystack_subscription_transactions_in_flight_reconcile');
+      expect(sql).toContain("'status','unverified','reference',v_live.reference,'authorizationUrl',v_live.authorization_url");
       expect(sql).toContain("IF v_request_status IS NULL OR v_request_status NOT IN ('cancelled','paid') THEN");
       expect(sql).toContain("'request_still_open'");
       expect(sql).toContain("IF v_transaction.status<>'initialized' THEN");
+      expect(sql).toContain("IF v_transaction.status IN ('failed','abandoned','reversed') THEN");
+      expect(sql).toContain("'already_released'");
     }
     expect(schema.match(/CREATE OR REPLACE FUNCTION public\.clear_paystack_checkout_for_staff/g) ?? [])
       .toHaveLength(1);
@@ -291,5 +300,19 @@ describe('abandoned checkout cart', () => {
     }
     // And it can always be cleared, which is what keeps it a choice.
     expect(component).toContain('dismissCart(data.cart.reference)');
+  });
+
+  // Paystack's `ongoing` describes the customer checkout session. Calling that a payment being
+  // processed recreates the original confusing symptom even after the durable deadlock is fixed.
+  it('sends an ongoing return straight back to the cart instead of polling it as a payment', () => {
+    const component = read('components/student/subscription-payments.tsx');
+    expect(component).toContain("const inFlight = new Set(['pending', 'processing', 'queued', 'initialized'])");
+    const ongoing = component.indexOf("if (result.status === 'ongoing')");
+    const fallback = component.indexOf('if (!inFlight.has(result.status))');
+    expect(ongoing).toBeGreaterThan(-1);
+    expect(ongoing).toBeLessThan(fallback);
+    expect(component).toContain('Your checkout is still open at Paystack. Use Continue below to return to it, or Remove if you no longer want it.');
+    expect(component).toContain('window.sessionStorage.removeItem(PAYSTACK_RETURN_REFERENCE_KEY);');
+    expect(component).toContain('setReturnResolved(true);');
   });
 });

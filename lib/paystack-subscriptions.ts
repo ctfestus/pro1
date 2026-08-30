@@ -4,6 +4,7 @@ import {
   makePaystackReference,
   PaystackApiError,
   paystackCallbackUrl,
+  type PaystackVerification,
   verifyPaystackTransaction,
 } from '@/lib/paystack';
 import { PaymentError } from '@/lib/payment-errors';
@@ -142,27 +143,32 @@ export async function createPaystackDirectCheckout(
     if (attempt >= 1) {
       throw new PaymentError('conflict', 'This payment is still being confirmed. Please try again shortly.', 409);
     }
-    let verifiedStatus: string | null = null;
-    try {
-      const verified = await verifyPaystackTransaction(reservation.reference);
-      verifiedStatus = String(verified.status || '').toLowerCase();
-    } catch (error) {
-      // Paystack has never heard of it, so nothing was created and the row is safe to release.
-      if (!(error instanceof PaystackApiError) || error.status !== 404) throw error;
-    }
-    if (verifiedStatus && !PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(verifiedStatus)) {
-      // Real, and possibly already paid. Processing settles the row -- and what it settles to
-      // decides what the learner is told. Crediting them and then reporting "still processing"
-      // showed an error, left the page stale, and invited a second payment for what they now own.
-      const settled = await processPaystackSubscriptionReference(db, reservation.reference);
-      if (settled.status === 'success' || settled.status === 'needs_review') {
-        return { kind: 'settled', reference: reservation.reference, status: settled.status };
+    // This is recovery initiated by the learner, just like Remove and the reminder pass. Route it
+    // through the same rule so Paystack describing the still-open customer session as `ongoing`
+    // never becomes a durable payment state merely because the stored link crossed 30 minutes.
+    const settled = await settleUnfinishedCheckout(db, reservation.reference);
+    if (!settled.abandoned) {
+      if (settled.result?.status === 'success' || settled.result?.status === 'needs_review') {
+        return { kind: 'settled', reference: reservation.reference, status: settled.result.status };
       }
-      throw new PaymentError('conflict', 'A payment is already being processed for your account. Please wait for it to finish.', 409);
+      if (settled.result?.status === 'ongoing' && reservation.authorizationUrl) {
+        return {
+          kind: 'checkout',
+          reference: reservation.reference,
+          authorizationUrl: reservation.authorizationUrl,
+        };
+      }
+      throw new PaymentError(
+        'conflict',
+        settled.result?.status === 'ongoing'
+          ? 'That checkout is still open at Paystack, but its link could not be recovered. Try again after it closes.'
+          : 'A payment is already being processed for your account. Please wait for it to finish.',
+        409,
+      );
     }
     const { error: releaseError } = await db.from('paystack_subscription_transactions').update({
-      status: verifiedStatus || 'failed',
-      processing_error: verifiedStatus ? `paystack_${verifiedStatus}` : 'transaction_not_found_at_paystack',
+      status: settled.status || 'failed',
+      processing_error: settled.status ? `paystack_${settled.status}` : 'transaction_not_found_at_paystack',
     }).eq('reference', reservation.reference).eq('status', 'initialized');
     if (releaseError) throw releaseError;
     return createPaystackDirectCheckout(db, input, attempt + 1);
@@ -252,7 +258,7 @@ export async function createPaystackSubscriptionCheckout(
       throw new PaymentError('conflict', 'Payment has already been received and is being processed.', 409);
     }
     if (PAYSTACK_IN_FLIGHT_STATUSES.includes(existingCheckout.status)) {
-      if (existingCheckout.authorization_url && termsMatch) {
+      if (existingCheckout.status === 'ongoing' && existingCheckout.authorization_url && termsMatch) {
         return {
           reference: existingCheckout.reference,
           authorizationUrl: existingCheckout.authorization_url,
@@ -267,21 +273,17 @@ export async function createPaystackSubscriptionCheckout(
       };
     }
     if (!termsMatch || isStale) {
-      let verifiedStatus: string | null = null;
-      try {
-        const verified = await verifyPaystackTransaction(existingCheckout.reference);
-        verifiedStatus = String(verified.status || '').toLowerCase();
-      } catch (error) {
-        if (!(error instanceof PaystackApiError) || error.status !== 404) throw error;
-      }
-      if (verifiedStatus === 'success') {
-        const result = await processPaystackSubscriptionReference(db, existingCheckout.reference);
-        const message = result.status === 'needs_review'
-          ? 'This payment is under review. Please contact support before trying again.'
-          : 'Payment has already been received and is being processed.';
-        throw new PaymentError('conflict', message, 409);
-      }
-      if (verifiedStatus && !PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(verifiedStatus)) {
+      // Stale-link recovery is another caller-initiated verification. Use the same settlement
+      // boundary as Remove so `ongoing` remains the transient checkout session it describes,
+      // while pending, processing, success, and review still pass through the normal processor.
+      const settled = await settleUnfinishedCheckout(db, existingCheckout.reference);
+      if (!settled.abandoned) {
+        if (settled.result?.status === 'success' || settled.result?.status === 'needs_review') {
+          const message = settled.result.status === 'needs_review'
+            ? 'This payment is under review. Please contact support before trying again.'
+            : 'Payment has already been received and is being processed.';
+          throw new PaymentError('conflict', message, 409);
+        }
         if (!termsMatch) {
           const { error: incidentError } = await db.rpc('open_paystack_transaction_incident', {
             p_reference: existingCheckout.reference,
@@ -292,14 +294,20 @@ export async function createPaystackSubscriptionCheckout(
           if (incidentError) throw incidentError;
           throw new PaymentError('conflict', 'This payment is under review. Please contact support before trying again.', 409);
         }
-        if (existingCheckout.authorization_url) {
+        if (settled.result?.status === 'ongoing' && existingCheckout.authorization_url) {
           return { reference: existingCheckout.reference, authorizationUrl: existingCheckout.authorization_url };
         }
-        throw new PaymentError('conflict', 'This payment is still processing. Please wait before trying again.', 409);
+        throw new PaymentError(
+          'conflict',
+          settled.result?.status === 'ongoing'
+            ? 'That checkout is still open at Paystack, but its link could not be recovered. Try again after it closes.'
+            : 'This payment is still processing. Please wait before trying again.',
+          409,
+        );
       }
       const { error: releaseError } = await db.from('paystack_subscription_transactions').update({
-        status: verifiedStatus || 'failed',
-        processing_error: verifiedStatus ? `paystack_${verifiedStatus}` : 'transaction_not_found_at_paystack',
+        status: settled.status || 'failed',
+        processing_error: settled.status ? `paystack_${settled.status}` : 'transaction_not_found_at_paystack',
       }).eq('id', existingCheckout.id).eq('status', 'initialized');
       if (releaseError) throw releaseError;
     } else {
@@ -368,6 +376,7 @@ export async function createPaystackSubscriptionCheckout(
 export async function processPaystackSubscriptionReference(
   db: SupabaseClient,
   reference: string,
+  verifiedResult?: PaystackVerification,
 ): Promise<PaystackProcessResult> {
   const { data: transaction, error } = await db
     .from('paystack_subscription_transactions')
@@ -385,7 +394,11 @@ export async function processPaystackSubscriptionReference(
     };
   }
 
-  const verified = await verifyPaystackTransaction(reference);
+  // Caller-initiated recovery already asked Paystack in settleUnfinishedCheckout. Reuse that
+  // exact answer so a second request cannot turn a transient checkout-session `ongoing` into a
+  // durable payment state between two back-to-back verifications. The webhook does not pass this
+  // argument and continues to verify and persist provider payment state normally.
+  const verified = verifiedResult ?? await verifyPaystackTransaction(reference);
   const matches = cents(verified.amount) === cents(Number(transaction.amount))
     && verified.currency.toUpperCase() === String(transaction.currency || '').toUpperCase();
   const status = verified.status === 'success' && matches ? 'success' : verified.status || 'failed';
@@ -472,30 +485,81 @@ export async function processPaystackSubscriptionReference(
  * Both of those were trusting the local row, which meant a learner could be told to pay for
  * something they had already bought, or could clear a paid checkout and be free to buy it twice.
  *
- * Anything the provider does not call finished is handed to the normal crediting path rather than
- * merely reported, so a payment discovered here is applied instead of noticed and dropped.
+ * A success is handed to the normal crediting path rather than merely reported, so a payment
+ * discovered here is applied instead of noticed and dropped. An `ongoing` answer to this
+ * caller-initiated check describes the open customer session and remains transient. Payment
+ * state arriving through the webhook still uses the normal processor directly.
  */
 export async function settleUnfinishedCheckout(
   db: SupabaseClient,
   reference: string,
 ): Promise<{ abandoned: true; status: string | null } | { abandoned: false; result: PaystackProcessResult | null }> {
-  let verifiedStatus: string | null = null;
+  let verified: PaystackVerification;
   try {
-    const verified = await verifyPaystackTransaction(reference);
-    verifiedStatus = String(verified.status || '').toLowerCase();
+    verified = await verifyPaystackTransaction(reference);
   } catch (error) {
     // Paystack has never heard of it, so nothing was ever collected against it.
     if (error instanceof PaystackApiError && error.status === 404) return { abandoned: true, status: null };
     throw error;
   }
+  const verifiedStatus = String(verified.status || '').toLowerCase();
   // Released only on an explicit terminal failure. A blank or unrecognised status is Paystack
   // telling us nothing, and reading silence as "nothing was collected" is how a paid checkout gets
   // cleared and bought a second time. Anything we cannot place is left alone rather than freed.
   if (PAYSTACK_TERMINAL_FAILURE_STATUSES.includes(verifiedStatus)) return { abandoned: true, status: verifiedStatus };
+  if (verifiedStatus === 'ongoing') {
+    // This verification was initiated by a closer, reminder, checkout recovery, or learner replay,
+    // not delivered by Paystack as a payment-state event. Keep the provider's description of the
+    // customer's checkout session transient: persisting `ongoing` here turns an ordinary open cart
+    // into a durable account lock, hides it from the cart and reminder queries, and makes its
+    // existing link unreachable. The webhook still uses the processor directly.
+    return {
+      abandoned: false,
+      result: { ok: true, reference, status: verifiedStatus },
+    };
+  }
   if (!PAYSTACK_IN_FLIGHT_STATUSES.includes(verifiedStatus) && verifiedStatus !== 'success') {
     return { abandoned: false, result: null };
   }
-  return { abandoned: false, result: await processPaystackSubscriptionReference(db, reference) };
+  return { abandoned: false, result: await processPaystackSubscriptionReference(db, reference, verified) };
+}
+
+/**
+ * Re-checks durable in-flight rows which no request, callback, or webhook has settled recently.
+ *
+ * Unlike settleUnfinishedCheckout, this is explicitly reconciling payment state already stored by
+ * a payment event path, so the normal processor must persist Paystack's current verdict. Age never
+ * releases a row by itself: a terminal provider response is still required before another checkout
+ * becomes possible.
+ */
+export async function reconcileStalePaystackTransactions(
+  db: SupabaseClient,
+  limit = 25,
+  outOfTime: () => boolean = () => false,
+  staleBefore = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString(),
+) {
+  const { data, error } = await db.from('paystack_subscription_transactions')
+    .select('reference')
+    .in('status', PAYSTACK_IN_FLIGHT_STATUSES)
+    .is('processed_payment_id', null)
+    .lt('updated_at', staleBefore)
+    .order('updated_at', { ascending: true })
+    .limit(limit);
+  if (error) throw error;
+
+  let processed = 0;
+  let failed = 0;
+  for (const row of data ?? []) {
+    if (outOfTime()) break;
+    try {
+      await processPaystackSubscriptionReference(db, String(row.reference));
+      processed++;
+    } catch (err) {
+      failed++;
+      console.error('[paystack-reconciliation] stale transaction', row.reference, err);
+    }
+  }
+  return { processed, failed };
 }
 
 /**
@@ -555,6 +619,8 @@ export async function assertNothingCollected(
       // silence is not evidence that the checkout is free to close.
       settled.result?.status === 'success'
         ? `That payment went through. ${whose} access has been updated.`
+        : settled.result?.status === 'ongoing'
+        ? 'That checkout is still open at Paystack. Use Continue to return to it, or try Remove again after it closes.'
         : 'That payment is still being processed. Wait for it to finish and try again.',
       409,
     );

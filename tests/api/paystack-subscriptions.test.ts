@@ -22,6 +22,7 @@ vi.mock('@/lib/db-subscriptions', () => ({ purchaseOrRenewSubscription }));
 import {
   createPaystackSubscriptionCheckout,
   processPaystackSubscriptionReference,
+  reconcileStalePaystackTransactions,
 } from '@/lib/paystack-subscriptions';
 
 beforeEach(() => {
@@ -158,9 +159,37 @@ describe('Paystack subscription checkout helper', () => {
     expect(initializePaystackTransaction).toHaveBeenCalledOnce();
   });
 
-  it('keeps a stale checkout when Paystack says the payment is still in flight', async () => {
+  it('keeps a stale pending payment blocked instead of reopening its checkout page', async () => {
     verifyPaystackTransaction.mockResolvedValue({
       status: 'pending', amount: 300, currency: 'GHS', transactionId: 47,
+    });
+    const db = makeSupabaseStub({
+      subscription_payment_requests: {
+        data: {
+          id: 'request-1', student_id: 'student-1', plan_id: 'plan-1', plan_name: 'Professional',
+          duration_months: 3, amount: 300, currency: 'GHS', status: 'pending',
+        },
+        error: null,
+      },
+      paystack_subscription_transactions: {
+        data: {
+          id: 'transaction-stale', reference: 'sub-stale-ref',
+          authorization_url: 'https://checkout.paystack.com/sub-stale-ref',
+          amount: 300, currency: 'GHS', status: 'initialized', updated_at: '2020-01-01T00:00:00.000Z',
+        },
+        error: null,
+      },
+    }) as any;
+
+    await expect(createPaystackSubscriptionCheckout(db, {
+      requestId: 'request-1', studentId: 'student-1', email: 'student@example.com',
+    })).rejects.toMatchObject({ status: 409, message: expect.stringContaining('still processing') });
+    expect(initializePaystackTransaction).not.toHaveBeenCalled();
+  });
+
+  it('reuses a stale checkout link when caller-initiated verification says ongoing', async () => {
+    verifyPaystackTransaction.mockResolvedValue({
+      status: 'ongoing', amount: 300, currency: 'GHS', transactionId: 47,
     });
     const db = makeSupabaseStub({
       subscription_payment_requests: {
@@ -185,6 +214,7 @@ describe('Paystack subscription checkout helper', () => {
     })).resolves.toEqual({
       reference: 'sub-stale-ref', authorizationUrl: 'https://checkout.paystack.com/sub-stale-ref',
     });
+    expect(verifyPaystackTransaction).toHaveBeenCalledOnce();
     expect(initializePaystackTransaction).not.toHaveBeenCalled();
   });
 
@@ -261,6 +291,27 @@ describe('Paystack subscription checkout helper', () => {
       email: 'student@example.com',
     })).rejects.toThrow('under review');
     expect(initializePaystackTransaction).not.toHaveBeenCalled();
+  });
+});
+
+describe('stale Paystack transaction reconciliation', () => {
+  it('re-verifies durable in-flight rows without releasing them merely because they are old', async () => {
+    verifyPaystackTransaction.mockResolvedValue({
+      status: 'abandoned', amount: 300, currency: 'GHS', transactionId: 45, raw: {},
+    });
+    const db = makeSupabaseStub({
+      paystack_subscription_transactions: [
+        { data: [{ reference: 'sub-stale-ref' }], error: null },
+        { data: {
+          reference: 'sub-stale-ref', request_id: null, amount: 300, currency: 'GHS',
+          status: 'ongoing', processed_payment_id: null,
+        }, error: null },
+        { data: null, error: null },
+      ],
+    }) as any;
+
+    await expect(reconcileStalePaystackTransactions(db, 25)).resolves.toEqual({ processed: 1, failed: 0 });
+    expect(verifyPaystackTransaction).toHaveBeenCalledWith('sub-stale-ref');
   });
 });
 
@@ -428,6 +479,27 @@ describe('Paystack subscription processing helper', () => {
       ok: true,
       status: 'pending',
     });
+  });
+
+  it('still persists ongoing when it arrives through the webhook processor', async () => {
+    verifyPaystackTransaction.mockResolvedValue({
+      status: 'ongoing', amount: 300, currency: 'GHS', transactionId: 46, raw: {},
+    });
+    const db = makeSupabaseStub({
+      paystack_subscription_transactions: [
+        { data: {
+          reference: 'sub-ongoing-ref', request_id: 'request-1', amount: 300, currency: 'GHS',
+          status: 'initialized', processed_payment_id: null,
+        }, error: null },
+        { data: null, error: null },
+      ],
+    }) as any;
+
+    await expect(processPaystackSubscriptionReference(db, 'sub-ongoing-ref')).resolves.toMatchObject({
+      ok: true,
+      status: 'ongoing',
+    });
+    expect(verifyPaystackTransaction).toHaveBeenCalledOnce();
   });
 
   // Reversals are a person's call now. Verifying a credited transaction that Paystack reports

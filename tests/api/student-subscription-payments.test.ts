@@ -9,7 +9,7 @@ const createClient = vi.hoisted(() => vi.fn());
 const rpc = vi.hoisted(() => vi.fn());
 const createPaystackSubscriptionCheckout = vi.hoisted(() => vi.fn());
 const createPaystackDirectCheckout = vi.hoisted(() => vi.fn());
-const processPaystackSubscriptionReference = vi.hoisted(() => vi.fn());
+const settleUnfinishedCheckout = vi.hoisted(() => vi.fn());
 const createSubscriptionPaymentRequest = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api-auth', () => ({ requireUser, isAuthError: (value: any) => Boolean(value?.error) }));
@@ -18,7 +18,7 @@ vi.mock('resend', () => ({ Resend: class { batch = { send: vi.fn() }; } }));
 vi.mock('@/lib/paystack-subscriptions', () => ({
   createPaystackSubscriptionCheckout,
   createPaystackDirectCheckout,
-  processPaystackSubscriptionReference,
+  settleUnfinishedCheckout,
 }));
 vi.mock('@/lib/db-subscriptions', () => ({ createSubscriptionPaymentRequest }));
 
@@ -53,7 +53,10 @@ beforeEach(() => {
     authorizationUrl: 'https://checkout.paystack.com/sub-ref',
   });
   createSubscriptionPaymentRequest.mockResolvedValue({ ok: true, requestId: 'request-1', planName: 'Professional' });
-  processPaystackSubscriptionReference.mockResolvedValue({ ok: true, reference: 'sub-ref', status: 'success', paymentId: 'payment-1' });
+  settleUnfinishedCheckout.mockResolvedValue({
+    abandoned: false,
+    result: { ok: true, reference: 'sub-ref', status: 'success', paymentId: 'payment-1' },
+  });
 });
 
 describe('student subscription payment confirmation', () => {
@@ -224,21 +227,55 @@ describe('student subscription payment confirmation', () => {
     });
   });
 
-  it('verifies a Paystack return only for the authenticated learner', async () => {
+  it('keeps a replayed ongoing return transient and leaves its cart resumable', async () => {
     const rpc = vi.fn(() => ({ data: true, error: null }));
     const db = makeSupabaseStub({
-      paystack_subscription_transactions: { data: { student_id: 'student-1' }, error: null },
+      paystack_subscription_transactions: {
+        data: {
+          student_id: 'student-1', plan_id: 'plan-1', duration_months: 3,
+          status: 'initialized', request_id: null,
+        },
+        error: null,
+      },
+      subscription_plan_prices: {
+        data: {
+          amount: 450, currency: 'GHS', is_active: true,
+          subscription_plans: { name: 'Pro', status: 'active', cohort_id: 'cohort-1' },
+        },
+        error: null,
+      },
+      cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
+      students: { data: { enrollment_model: null }, error: null },
+      individual_subscriptions: { data: null, error: null },
     }, rpc);
     createClient.mockReturnValue(db);
+    settleUnfinishedCheckout.mockResolvedValue({
+      abandoned: false,
+      result: { ok: true, reference: 'sub-ref', status: 'ongoing' },
+    });
 
-    const response = await POST(request({ action: 'verify-paystack-return', reference: 'sub-ref' }));
+    const first = await POST(request({ action: 'verify-paystack-return', reference: 'sub-ref' }));
+    const second = await POST(request({ action: 'verify-paystack-return', reference: 'sub-ref' }));
 
-    expect(response.status).toBe(200);
-    expect(processPaystackSubscriptionReference).toHaveBeenCalledWith(db, 'sub-ref');
+    expect(first.status).toBe(200);
+    expect(second.status).toBe(200);
+    await expect(first.json()).resolves.toMatchObject({ status: 'ongoing' });
+    await expect(second.json()).resolves.toMatchObject({ status: 'ongoing' });
+    expect(settleUnfinishedCheckout).toHaveBeenCalledTimes(2);
+    expect(settleUnfinishedCheckout).toHaveBeenNthCalledWith(1, db, 'sub-ref');
+    expect(settleUnfinishedCheckout).toHaveBeenNthCalledWith(2, db, 'sub-ref');
     // Metered on its own counter. Sharing the checkout counter would let the four polls the
     // return page makes lock the learner out of retrying a payment that failed.
     expect(rpc).toHaveBeenCalledWith('claim_paystack_checkout_attempt', expect.objectContaining({
       p_scope: 'verify',
+    }));
+
+    // Both learner-triggered checks left the local row initialized, so the same reference still
+    // passes the real resume route instead of disappearing from the cart and returning 404.
+    const resume = await POST(request({ action: 'resume-cart', reference: 'sub-ref' }));
+    expect(resume.status).toBe(200);
+    expect(createPaystackDirectCheckout).toHaveBeenCalledWith(db, expect.objectContaining({
+      planId: 'plan-1', durationMonths: 3, amount: 450, planName: 'Pro',
     }));
   });
 

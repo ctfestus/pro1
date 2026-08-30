@@ -14,7 +14,7 @@ vi.mock('@/lib/paystack', () => ({
 }));
 vi.mock('@/lib/db-subscriptions', () => ({ purchaseOrRenewSubscription: vi.fn() }));
 
-import { assertNothingCollected } from '@/lib/paystack-subscriptions';
+import { assertNothingCollected, createPaystackDirectCheckout } from '@/lib/paystack-subscriptions';
 
 /**
  * Two reads happen on one table: the guard lists candidate references, and settling reads a single
@@ -90,9 +90,103 @@ describe('refusing to close a payment that may have collected', () => {
 
   it('refuses while the provider still calls it pending', async () => {
     verifyPaystackTransaction.mockResolvedValue({ status: 'pending', amount: 300, currency: 'GHS' });
-    const { db } = stubDb([LISTED], TRANSACTION, { ok: true, status: 'pending' });
+    const { db, writes } = stubDb([LISTED], TRANSACTION, { ok: true, status: 'pending' });
     await expect(assertNothingCollected(db, { reference: 'sub-a' }, 'Your'))
       .rejects.toMatchObject({ status: 409, message: expect.stringContaining('still being processed') });
+    // Unlike an untouched checkout session, pending can represent a real bank payment awaiting
+    // confirmation. The cancel path must preserve that durable payment state.
+    expect(writes).toContainEqual(expect.objectContaining({ status: 'pending' }));
+    expect(verifyPaystackTransaction).toHaveBeenCalledOnce();
+  });
+
+  it('keeps an untouched ongoing checkout resumable until Paystack abandons it', async () => {
+    const transaction = {
+      ...TRANSACTION,
+      plan_id: 'plan-1',
+      plan_name: 'Professional',
+      duration_months: 3,
+      authorization_url: 'https://paystack.test/sub-a',
+      // Older than the direct-checkout reservation's 30-minute link threshold. This must take the
+      // unverified recovery branch rather than the ordinary existing-link branch.
+      updated_at: new Date(Date.now() - 31 * 60 * 1000).toISOString(),
+    };
+    verifyPaystackTransaction
+      .mockResolvedValueOnce({ status: 'ongoing', amount: 300, currency: 'GHS' })
+      .mockResolvedValueOnce({ status: 'ongoing', amount: 300, currency: 'GHS' })
+      .mockResolvedValueOnce({ status: 'ongoing', amount: 300, currency: 'GHS' })
+      .mockResolvedValueOnce({ status: 'abandoned', amount: 300, currency: 'GHS' });
+
+    const writes: any[] = [];
+    const chain = (patch?: any, filters: Array<[string, string, any]> = []): any => new Proxy(function () {}, {
+      get(_target, prop) {
+        if (prop === 'then' || prop === 'catch' || prop === 'finally') {
+          if (patch) {
+            const matches = filters.every(([kind, column, value]) => kind === 'eq'
+              ? transaction[column as keyof typeof transaction] === value
+              : value.includes(transaction[column as keyof typeof transaction]));
+            if (matches) { Object.assign(transaction, patch); writes.push(patch); }
+          }
+          const data = patch ? null : [transaction];
+          const promise = Promise.resolve({ data, error: null });
+          return (promise as any)[prop].bind(promise);
+        }
+        if (prop === 'update') return (next: any) => chain(next, []);
+        if (prop === 'eq') return (column: string, value: any) => chain(patch, [...filters, ['eq', column, value]]);
+        if (prop === 'in') return (column: string, value: any[]) => chain(patch, [...filters, ['in', column, value]]);
+        return () => chain(patch, filters);
+      },
+      apply: () => chain(patch, filters),
+    });
+    const rpc = vi.fn(async (fn: string) => {
+      if (fn === 'open_paystack_direct_checkout') {
+        if (transaction.status !== 'initialized') {
+          return { data: { status: 'payment_in_progress', blockingStatus: transaction.status }, error: null };
+        }
+        const stale = new Date(transaction.updated_at).getTime() <= Date.now() - 30 * 60 * 1000;
+        return stale
+          ? { data: { status: 'unverified', reference: transaction.reference, authorizationUrl: transaction.authorization_url }, error: null }
+          : { data: { status: 'existing', reference: transaction.reference, authorizationUrl: transaction.authorization_url }, error: null };
+      }
+      if (fn === 'dismiss_paystack_cart') {
+        if (transaction.status !== 'initialized') return { data: { ok: false, status: 'not_dismissable' }, error: null };
+        transaction.status = 'abandoned';
+        return { data: { ok: true, status: 'dismissed' }, error: null };
+      }
+      throw new Error(`Unexpected RPC ${fn}`);
+    });
+    const db = { from: () => chain(), rpc } as any;
+
+    // Remove verifies the real guard and refuses while the provider calls the customer session
+    // ongoing, but that transient answer must not replace our initialized cart state.
+    await expect(assertNothingCollected(db, { reference: 'sub-a' }, 'Your'))
+      .rejects.toMatchObject({
+        status: 409,
+        message: expect.stringMatching(/still open at Paystack.*Continue/),
+      });
+    expect(transaction.status).toBe('initialized');
+    expect(writes).toEqual([]);
+
+    // Continue and a later refresh both cross stale-link recovery and recover the same reference
+    // rather than persisting ongoing or minting another.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      await expect(createPaystackDirectCheckout(db, {
+        studentId: 'student-1', email: 'student@example.com', planId: 'plan-1',
+        planName: 'Professional', durationMonths: 3, amount: 300, currency: 'GHS',
+      })).resolves.toEqual({
+        kind: 'checkout', reference: 'sub-a', authorizationUrl: 'https://paystack.test/sub-a',
+      });
+    }
+    expect(initializePaystackTransaction).not.toHaveBeenCalled();
+    expect(transaction.status).toBe('initialized');
+    expect(writes).toEqual([]);
+
+    // Once Paystack supplies a terminal no-payment verdict, the guard permits the ordinary
+    // dismiss operation and the learner is free to choose again.
+    await expect(assertNothingCollected(db, { reference: 'sub-a' }, 'Your')).resolves.toBeUndefined();
+    expect(transaction.status).toBe('initialized');
+    await expect(db.rpc('dismiss_paystack_cart', {})).resolves.toMatchObject({ data: { ok: true } });
+    expect(transaction.status).toBe('abandoned');
+    expect(verifyPaystackTransaction).toHaveBeenCalledTimes(4);
   });
 
   // Silence is not evidence that nothing was collected.

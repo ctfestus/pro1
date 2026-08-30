@@ -5006,7 +5006,9 @@ GRANT EXECUTE ON FUNCTION public.cancel_subscription_payment_request(uuid) TO se
 -- and it goes on blocking the learner from paying at all. That is the row staff need to clear and
 -- the learner cannot, so it gets its own function rather than loosening theirs.
 --
--- Still only 'initialized', and the caller asks Paystack before it gets here.
+-- The caller asks Paystack before this runs. A terminal failure may therefore already have been
+-- written by the guard; accepting that as an idempotent success keeps the report aligned with the
+-- release that already happened, while every state in which money may settle remains refused.
 CREATE OR REPLACE FUNCTION public.clear_paystack_checkout_for_staff(p_reference text, p_actor_id uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=''
 AS $$
@@ -5015,9 +5017,6 @@ BEGIN
   SELECT * INTO v_transaction FROM public.paystack_subscription_transactions
   WHERE reference=p_reference FOR UPDATE;
   IF NOT FOUND THEN RETURN jsonb_build_object('ok',false,'status','not_found'); END IF;
-  IF v_transaction.status<>'initialized' THEN
-    RETURN jsonb_build_object('ok',false,'status','not_dismissable','transactionStatus',v_transaction.status);
-  END IF;
   IF v_transaction.request_id IS NOT NULL THEN
     SELECT status INTO v_request_status FROM public.subscription_payment_requests WHERE id=v_transaction.request_id;
     -- An open invoice still owns its checkout. Clearing that would pull a live payment out from
@@ -5025,6 +5024,13 @@ BEGIN
     IF v_request_status IS NULL OR v_request_status NOT IN ('cancelled','paid') THEN
       RETURN jsonb_build_object('ok',false,'status','request_still_open');
     END IF;
+  END IF;
+
+  IF v_transaction.status IN ('failed','abandoned','reversed') THEN
+    RETURN jsonb_build_object('ok',true,'status','already_released');
+  END IF;
+  IF v_transaction.status<>'initialized' THEN
+    RETURN jsonb_build_object('ok',false,'status','not_dismissable','transactionStatus',v_transaction.status);
   END IF;
 
   -- Who cleared it, on the column that already records why a row was closed. A staff member
@@ -5311,6 +5317,9 @@ CREATE INDEX idx_paystack_subscription_transactions_request
   ON public.paystack_subscription_transactions(request_id);
 CREATE INDEX idx_paystack_subscription_transactions_status
   ON public.paystack_subscription_transactions(status,created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_paystack_subscription_transactions_in_flight_reconcile
+  ON public.paystack_subscription_transactions(updated_at)
+  WHERE status IN ('pending','ongoing','processing','queued') AND processed_payment_id IS NULL;
 CREATE UNIQUE INDEX idx_paystack_subscription_transactions_paystack_id
   ON public.paystack_subscription_transactions(paystack_transaction_id)
   WHERE paystack_transaction_id IS NOT NULL;
@@ -5699,7 +5708,9 @@ BEGIN
     END IF;
 
     -- No usable link, and old enough that Paystack is the only authority on it.
-    RETURN jsonb_build_object('status','unverified','reference',v_live.reference);
+    RETURN jsonb_build_object(
+      'status','unverified','reference',v_live.reference,'authorizationUrl',v_live.authorization_url
+    );
   END IF;
 
   INSERT INTO public.paystack_subscription_transactions(

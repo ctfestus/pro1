@@ -106,7 +106,8 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
   // Kept in state rather than only in the URL. Stripping the reference on the way out meant a
   // learner whose verification timed out, or whose payment was still settling after four checks,
   // had no way to ask again -- their only route was contacting support about money they had
-  // already paid. The reference survives so the button below can retry for as long as it takes.
+  // already paid. The reference survives for payment states that are actually settling. An open
+  // checkout session is handled by the cart instead, so it is removed from this retry loop.
   const [returnReference, setReturnReference] = useState('');
   const [returnBusy, setReturnBusy] = useState(false);
   const [returnResolved, setReturnResolved] = useState(false);
@@ -117,7 +118,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     if (!reference) return;
     setReturnBusy(true);
     setMessage('Checking your payment with Paystack...');
-    const inFlight = new Set(['pending', 'ongoing', 'processing', 'queued', 'initialized']);
+    const inFlight = new Set(['pending', 'processing', 'queued', 'initialized']);
     try {
       const attempts = poll ? 4 : 1;
       for (let attempt = 0; attempt < attempts; attempt += 1) {
@@ -141,6 +142,16 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
         if (result.status === 'needs_review') {
           window.sessionStorage.removeItem(PAYSTACK_RETURN_REFERENCE_KEY);
           setMessage('Your payment was received and is being reviewed by our team. You do not need to pay again.');
+          setReturnResolved(true);
+          await load();
+          return;
+        }
+        if (result.status === 'ongoing') {
+          // `ongoing` describes an open checkout session, not money being settled. Polling it four
+          // times only delays the useful answer and then mislabels the checkout as a payment in
+          // progress. The cart owns this state and gives the learner Continue and Remove actions.
+          window.sessionStorage.removeItem(PAYSTACK_RETURN_REFERENCE_KEY);
+          setMessage('Your checkout is still open at Paystack. Use Continue below to return to it, or Remove if you no longer want it.');
           setReturnResolved(true);
           await load();
           return;
