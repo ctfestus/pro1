@@ -15,7 +15,8 @@ import Link from 'next/link';
 import { Check, Minus, ArrowRight } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { planBenefits } from '@/lib/pricing-benefits';
-import { MidAdBanner, type AdCard } from '@/components/landing/MidAdBanner';
+import { MidAdBanner } from '@/components/landing/MidAdBanner';
+import type { AdCard } from '@/lib/mid-ads';
 import {
   CONTENT_KINDS,
   type ContentCounts,

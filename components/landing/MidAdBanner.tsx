@@ -4,7 +4,9 @@
  * The two-card promotional banner from the Modern landing template.
  *
  * Pulled out of LandingPageClient so the pricing page can show the same banners rather than
- * carrying a second copy that drifts. Self-contained on purpose: it brings its own reveal
+ * carrying a second copy that drifts. The card shape and the helpers that read site settings
+ * live in lib/mid-ads, because a server page cannot call a function exported from a client
+ * module -- it receives a reference and throws. Self-contained on purpose: it brings its own reveal
  * animation and its own shine styles, because those lived in the landing page's inline style
  * block and would simply have gone missing anywhere else.
  */
@@ -12,18 +14,7 @@ import { useRef } from 'react';
 import Link from 'next/link';
 import { motion, useInView, useReducedMotion } from 'framer-motion';
 import { ArrowRight } from 'lucide-react';
-import type { SiteConfig } from '@/lib/site-templates';
-
-export type AdCard = {
-  label: string;
-  title: string;
-  description: string;
-  ctaText: string;
-  ctaUrl: string;
-  bgColor: string;
-  bgImage: string;
-  imageLayout?: string;
-};
+import type { AdCard } from '@/lib/mid-ads';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -41,29 +32,6 @@ function Reveal({ children, delay = 0 }: { children: React.ReactNode; delay?: nu
       {children}
     </motion.div>
   );
-}
-
-/** The two mid-page cards an admin configured, in the order they are shown. */
-export function midAdCardsFrom(config: Partial<SiteConfig>): AdCard[] {
-  return [
-    {
-      label: config.midAd1Label ?? '', title: config.midAd1Title ?? '',
-      description: config.midAd1Description ?? '', ctaText: config.midAd1CtaText ?? '',
-      ctaUrl: config.midAd1CtaUrl ?? '', bgColor: config.midAd1BgColor ?? '',
-      bgImage: config.midAd1BgImage ?? '', imageLayout: config.midAd1ImageLayout ?? '',
-    },
-    {
-      label: config.midAd2Label ?? '', title: config.midAd2Title ?? '',
-      description: config.midAd2Description ?? '', ctaText: config.midAd2CtaText ?? '',
-      ctaUrl: config.midAd2CtaUrl ?? '', bgColor: config.midAd2BgColor ?? '',
-      bgImage: config.midAd2BgImage ?? '', imageLayout: config.midAd2ImageLayout ?? '',
-    },
-  ];
-}
-
-/** True when an admin has actually set these up and not switched them off. */
-export function hasMidAds(config: Partial<SiteConfig>): boolean {
-  return config.hideMidAdBanner !== '1' && midAdCardsFrom(config).some(ad => ad.title);
 }
 
 export function MidAdBanner({

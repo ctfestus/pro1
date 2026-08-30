@@ -60,6 +60,35 @@ describe('client and server boundary', () => {
     expect(offenders).toEqual([]);
   });
 
+  it('no server component calls a plain function out of a client module', () => {
+    // The other direction, which the check above does not see. Every export of a 'use client'
+    // module becomes a client reference when a server component imports it, so calling one on
+    // the server invokes a reference rather than a function and the page throws before it
+    // renders. Components are fine -- that is the whole point of the boundary. Anything else is
+    // not, and belongs in a plain module.
+    const clientModules = new Set(
+      sourceFiles('components')
+        .filter(file => /^['"]use client['"]/m.test(readFileSync(join(root, file), 'utf8')))
+        .map(file => `@/${file.replace(/\.tsx?$/, '')}`),
+    );
+    const offenders: string[] = [];
+
+    for (const file of sourceFiles('app')) {
+      const source = readFileSync(join(root, file), 'utf8');
+      if (/^['"]use client['"]/m.test(source)) continue;
+      for (const match of source.matchAll(/^import (?!type )\{([^}]*)\}[^;]*?from '(@\/[^']+)'/gm)) {
+        if (!clientModules.has(match[2])) continue;
+        for (const name of match[1].split(',').map(part => part.trim()).filter(Boolean)) {
+          if (name.startsWith('type ')) continue;
+          // A component is capitalised; anything lower-case is a function being called.
+          if (/^[a-z]/.test(name)) offenders.push(`${relative('.', file)} calls ${name} from ${match[2]}`);
+        }
+      }
+    }
+
+    expect(offenders).toEqual([]);
+  });
+
   it('is actually inspecting files, not passing on an empty search', () => {
     // Without this the check above passes just as happily if the walk finds nothing.
     expect(sourceFiles('components').length).toBeGreaterThan(20);

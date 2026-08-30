@@ -13,7 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
 import type { PricingPageData } from '@/lib/pricing-contract';
-import type { AdCard } from '@/components/landing/MidAdBanner';
+import type { AdCard } from '@/lib/mid-ads';
 
 export interface PricingPageClientProps extends PricingPageData {
   appName: string;

@@ -4,7 +4,7 @@ import { getLandingSiteSettingsOrDefault } from '@/lib/get-landing-page-data';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { PricingPageClient } from '@/components/pricing/PricingPageClient';
-import { hasMidAds, midAdCardsFrom } from '@/components/landing/MidAdBanner';
+import { hasMidAds, midAdCardsFrom } from '@/lib/mid-ads';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getTenantSettings();
