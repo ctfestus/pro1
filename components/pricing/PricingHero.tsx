@@ -19,11 +19,10 @@ import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-of
  *  artwork and come out looking shrunken next to the rest, so those get a larger glyph in the
  *  same circle -- the row stays even, the logos read at the same weight. */
 const HERO_TOOLS: { name: string; glyph: number }[] = [
-  { name: 'Claude', glyph: 30 },
-  { name: 'ChatGPT', glyph: 26 },
-  { name: 'Excel', glyph: 26 },
-  { name: 'Power BI', glyph: 26 },
-  { name: 'SQL', glyph: 30 },
+  { name: 'Claude', glyph: 36 },
+  { name: 'ChatGPT', glyph: 32 },
+  { name: 'Excel', glyph: 32 },
+  { name: 'Power BI', glyph: 32 },
 ];
 
 /**
@@ -184,26 +183,29 @@ export function PricingHero({
         </div>
 
         {/* ---------- the number ---------- */}
-        <div className="lg:justify-self-end w-full max-w-sm flex items-center gap-7 sm:gap-9">
+        <div className="lg:justify-self-end w-full max-w-sm flex items-center gap-9 sm:gap-11">
           {/* Capped rather than filling the column: at full width the two blocks read as banners
               instead of as a price, and they crowd the logos beside them. */}
-          <div className="flex-1 min-w-0 max-w-[210px] space-y-2.5">
-            <div className="rounded-xl px-5 py-4 text-center" style={{ background: '#FFFFFF' }}>
+          <div className="flex-1 min-w-0 max-w-[240px] space-y-2.5">
+            <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#FFFFFF' }}>
               {saving && baselinePerMonth !== null && (
                 <p className="text-sm line-through" style={{ color: '#98A2B3' }}>
                   {formatMoney(price.currency, baselinePerMonth)}
                 </p>
               )}
+              {/* One line, always. The currency belongs to the figure, so breaking between them
+                  reads as two separate things -- nowrap keeps them together and the size is set
+                  low enough that a long amount still fits the block. */}
               <p
-                className="font-bold tracking-tight"
-                style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(24px,2.8vw,36px)', lineHeight: 1.1 }}
+                className="font-bold tracking-tight whitespace-nowrap"
+                style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(20px,2.3vw,28px)', lineHeight: 1.15 }}
               >
                 {formatMoney(price.currency, perMonth)}
-                <span className="ml-1 text-sm font-bold" style={{ color: '#475467' }}>/month</span>
+                <span className="ml-1 text-xs font-bold" style={{ color: '#475467' }}>/month</span>
               </p>
             </div>
 
-            <div className="rounded-xl px-5 py-3 text-center" style={{ background: accentColor }}>
+            <div className="rounded-xl px-4 py-4 text-center" style={{ background: accentColor }}>
               <p className="text-sm font-bold" style={{ color: '#101828', fontFamily: hFont }}>
                 {saving
                   ? `${durationLabel(price.durationMonths)} of savings`
@@ -222,7 +224,7 @@ export function PricingHero({
                   key={tool.name}
                   title={tool.name}
                   className="grid place-items-center rounded-full"
-                  style={{ background: '#FFFFFF', width: 44, height: 44, boxShadow: '0 2px 8px rgba(16,24,40,0.20)' }}
+                  style={{ background: '#FFFFFF', width: 52, height: 52, boxShadow: '0 2px 8px rgba(16,24,40,0.20)' }}
                 >
                   <img
                     src={icon}
