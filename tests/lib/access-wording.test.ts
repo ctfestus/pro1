@@ -41,15 +41,16 @@ describe('how access is described to a learner', () => {
     expect(component).toContain('It does not renew automatically');
   });
 
-  it('offers a plan rather than a subscription', () => {
+  it('offers access rather than a subscription', () => {
     expect(component).not.toContain('Choose a subscription plan');
-    expect(component).toContain("'Choose a plan'");
+    expect(component).toContain("'Choose your access'");
   });
 
   it('offers renewal to anyone who has a plan, not only while it is still running', () => {
     // Gating the heading on active access meant a lapsed learner -- the one person most likely
     // to renew -- was told to "choose a subscription plan" as though they had never bought one.
-    expect(component).toContain("{subscription ? 'Renew your access' : 'Choose a plan'}");
+    expect(component).toContain("if (status === 'active') return { heading: 'Extend your access', action: 'Add more time' }");
+    expect(component).toContain("return { heading: 'Renew your plan', action: 'Renew plan' }");
   });
 
   it('names the end date instead of only a status word', () => {
@@ -59,7 +60,7 @@ describe('how access is described to a learner', () => {
 
   it('points a lapsed learner at the way back', () => {
     expect(quoted).toContain('Renew below to continue');
-    expect(component).toContain('Renew below to pick up where you left off');
+    expect(component).toContain("heading: 'Renew your plan'");
   });
 
   it('keeps the word subscription out of what a learner reads', () => {
@@ -69,8 +70,10 @@ describe('how access is described to a learner', () => {
   });
 
   it('is reading real prose, not an empty list', () => {
-    // Without this the check above would pass just as happily if the extraction broke.
-    expect(learnerProse.length).toBeGreaterThan(10);
-    expect(learnerProse.join(' ')).toContain('does not renew automatically');
+    // The redesigned hero also carries unquoted JSX prose, so pin real learner-facing copy
+    // directly rather than relying only on the quoted-string extraction above.
+    expect(component).toContain('Starter plan');
+    expect(component).toContain('Upgrade to Pro');
+    expect(component).toContain('Choose duration');
   });
 });

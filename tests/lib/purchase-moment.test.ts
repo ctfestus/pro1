@@ -58,12 +58,12 @@ describe('the purchase moment', () => {
 describe('price comparison', () => {
   it('uses the shared, tested calculation rather than inlining its own', () => {
     expect(component).toContain("import { comparePlanPrice } from '@/lib/plan-price-comparison'");
-    expect(component).toContain('comparePlanPrice(price, plan.prices)');
+    expect(component).toContain('comparePlanPrice(price, prices)');
     expect(component).not.toContain('Math.round((1 - perMonth');
   });
 
-  it('formats the unrounded rate, so a third of a price is not shown as a whole unit', () => {
-    expect(component).toContain('money(price.currency, perMonth)');
-    expect(component).not.toContain('Math.round(perMonth)');
+  it('shows one exact renewal total instead of repeating a monthly rate', () => {
+    expect(component).toContain('money(selectedPrice.currency, selectedPrice.amount)');
+    expect(component).not.toContain('money(selectedPrice.currency, comparison.perMonth)');
   });
 });

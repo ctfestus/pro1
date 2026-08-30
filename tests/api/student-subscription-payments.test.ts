@@ -75,8 +75,9 @@ describe('student subscription payment confirmation', () => {
   // pill, because a null subscription fell through the branch meant for ended ones.
   it('does not tell a learner with no subscription that their access expired', () => {
     const component = readFileSync(join(process.cwd(), 'components/student/subscription-payments.tsx'), 'utf8');
-    expect(component).toContain("!subscription ? 'Not started'");
-    expect(component).toContain("openRequest ? 'awaiting payment' : 'no plan yet'");
+    expect(component).toContain('const choosingPlan = !subscription && !openRequest;');
+    expect(component).toContain('{choosingPlan ?');
+    expect(component).not.toContain("!subscription ? 'Expired'");
   });
 
   // The bootcamp installment screen used to appear whenever no plans were on sale, so an admin
