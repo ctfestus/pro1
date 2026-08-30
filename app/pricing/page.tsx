@@ -33,8 +33,7 @@ export default async function PricingPage() {
     <PricingPageClient
       plans={data.plans}
       free={data.free}
-      appName={tenant.appName}
-      logoUrl={tenant.logoUrl}
+      siteConfig={config}
       primaryColor={config.primaryColor || tenant.primaryColor}
       accentColor={config.accentColor || tenant.accentColor}
       headingFont={config.headingFont}

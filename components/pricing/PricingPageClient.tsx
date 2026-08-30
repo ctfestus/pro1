@@ -8,8 +8,10 @@
  * decides which words the buttons carry, so resolving it in the browser costs nothing.
  */
 import { useEffect, useState } from 'react';
-import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
+import { useTenant } from '@/components/TenantProvider';
+import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
+import type { SiteConfig } from '@/lib/site-templates';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
 import { PricingHero } from '@/components/pricing/PricingHero';
@@ -18,8 +20,8 @@ import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
 
 export interface PricingPageClientProps extends PricingPageData {
-  appName: string;
-  logoUrl?: string | null;
+  /** The resolved site settings, so the shared chrome renders exactly as it does on the landing page. */
+  siteConfig: Partial<SiteConfig>;
   primaryColor: string;
   accentColor: string;
   headingFont?: string;
@@ -29,35 +31,51 @@ export interface PricingPageClientProps extends PricingPageData {
 }
 
 export function PricingPageClient(props: PricingPageClientProps) {
-  const { appName, logoUrl, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds } = props;
-  const [signedIn, setSignedIn] = useState(false);
+  const { siteConfig, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds } = props;
+  // The same source the landing page reads, so the chrome cannot say one thing here and another
+  // there.
+  const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
+  const [user, setUser] = useState<any>(null);
+  const [scrolled, setScrolled] = useState(false);
+  const signedIn = !!user;
 
   useEffect(() => {
     let cancelled = false;
     supabase.auth.getSession().then(({ data }) => {
-      if (!cancelled) setSignedIn(!!data.session?.access_token);
+      if (!cancelled) setUser(data.session?.user ?? null);
     });
     return () => { cancelled = true; };
+  }, []);
+
+  // The nav shows a shadow once the page moves, exactly as it does on the landing page.
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8);
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
 
   return (
-    <main className="min-h-screen" style={{ background: '#F7F8FA' }}>
-      <header className="mx-auto w-full max-w-6xl px-5 sm:px-8 py-6 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          {logoUrl
-            ? <img src={logoUrl} alt={appName} className="h-8 w-auto object-contain" />
-            : <span className="font-bold" style={{ fontFamily: hFont, color: '#101828' }}>{appName}</span>}
-        </Link>
-        <Link
-          href={signedIn ? '/student' : '/auth'}
-          className="text-sm font-bold"
-          style={{ color: primaryColor }}
-        >
-          {signedIn ? 'My learning' : 'Sign in'}
-        </Link>
-      </header>
+    <main className="min-h-screen pt-16" style={{ background: '#F7F8FA' }}>
+      <LandingNav
+        appName={appName}
+        logoUrl={logoUrl}
+        logoDarkUrl={logoDarkUrl}
+        scrolled={scrolled}
+        user={user}
+        profile={null}
+        publicSignupEnabled={publicSignupEnabled}
+        primaryColor={primaryColor}
+        accentColor={accentColor}
+        navLinks={[
+          { label: 'Courses', anchor: 'section-courses' },
+          { label: 'Learning Paths', anchor: 'section-paths' },
+          { label: 'Virtual Experiences', anchor: 'section-ves' },
+        ]}
+        navLinkHref={anchor => `/#${anchor}`}
+      />
 
       <PricingHero
         offer={featuredOffer(props.plans)}
@@ -102,18 +120,17 @@ export function PricingPageClient(props: PricingPageClientProps) {
         />
       </div>
 
-      {/* The pricing page had no footer of its own, and a page that simply stops reads as
-          unfinished. Slim and in the brand colour, matching how the landing templates close. */}
-      <footer style={{ background: primaryColor }}>
-        <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 py-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <span className="text-sm font-bold" style={{ color: '#FFFFFF', fontFamily: hFont }}>{appName}</span>
-          <div className="flex flex-wrap items-center gap-5 text-sm" style={{ color: 'rgba(255,255,255,0.82)' }}>
-            <Link href="/">Home</Link>
-            <Link href={signedIn ? '/student' : '/auth'}>{signedIn ? 'My learning' : 'Sign in'}</Link>
-            {supportEmail && <a href={`mailto:${supportEmail}`}>Contact us</a>}
-          </div>
-        </div>
-      </footer>
+      <LandingFooter
+        appName={appName}
+        primaryColor={primaryColor}
+        user={user}
+        footerTagline={siteConfig.footerTagline}
+        footerLinksHeading={siteConfig.footerLinksHeading}
+        footerLink1Label={siteConfig.footerLink1Label} footerLink1Url={siteConfig.footerLink1Url}
+        footerLink2Label={siteConfig.footerLink2Label} footerLink2Url={siteConfig.footerLink2Url}
+        footerLink3Label={siteConfig.footerLink3Label} footerLink3Url={siteConfig.footerLink3Url}
+        footerLink4Label={siteConfig.footerLink4Label} footerLink4Url={siteConfig.footerLink4Url}
+      />
     </main>
   );
 }
