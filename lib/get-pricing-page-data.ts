@@ -13,43 +13,15 @@
  */
 import { unstable_cache } from 'next/cache';
 import { adminClient } from '@/lib/admin-client';
+import { loadPlanContents, loadPlansForContent } from '@/lib/subscription-plan-access';
+export type { ContentCounts, PricingPageData, PricingPlan } from '@/lib/pricing-contract';
 import {
-  loadPlanContents,
-  loadPlansForContent,
-  type PlanPrice,
-  type PurchasableContentTable,
-} from '@/lib/subscription-plan-access';
-
-export const CONTENT_KINDS: PurchasableContentTable[] = [
-  'courses',
-  'learning_paths',
-  'virtual_experiences',
-  'certifications',
-];
-
-export type ContentCounts = Record<PurchasableContentTable, number>;
-
-export interface PricingPlan {
-  id: string;
-  name: string;
-  description: string | null;
-  prices: PlanPrice[];
-  /** How much of each kind the plan grants, for the comparison table. */
-  coverage: ContentCounts;
-}
-
-export interface PricingPageData {
-  plans: PricingPlan[];
-  /** What an account with no plan can already open. */
-  free: ContentCounts;
-}
-
-const emptyCounts = (): ContentCounts => ({
-  courses: 0,
-  learning_paths: 0,
-  virtual_experiences: 0,
-  certifications: 0,
-});
+  CONTENT_KINDS,
+  emptyContentCounts,
+  type ContentCounts,
+  type PricingPageData,
+  type PricingPlan,
+} from '@/lib/pricing-contract';
 
 export const getPricingPageData = unstable_cache(
   async (): Promise<PricingPageData> => {
@@ -64,7 +36,7 @@ export const getPricingPageData = unstable_cache(
     // not the courses inside it -- saying otherwise would inflate the number and confuse anyone
     // who then counted for themselves.
     const priced: PricingPlan[] = plans.map(plan => {
-      const coverage = emptyCounts();
+      const coverage = emptyContentCounts();
       for (const row of coverageByPlan.get(plan.id) ?? []) {
         if (row.contentTable in coverage) coverage[row.contentTable] += 1;
       }
@@ -77,7 +49,7 @@ export const getPricingPageData = unstable_cache(
       };
     });
 
-    const free = emptyCounts();
+    const free = emptyContentCounts();
     for (const table of CONTENT_KINDS) {
       const { count, error } = await db
         .from(table)

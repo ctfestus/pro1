@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
-import type { PricingPageData } from '@/lib/get-pricing-page-data';
+import type { PricingPageData } from '@/lib/pricing-contract';
 
 export interface PricingPageClientProps extends PricingPageData {
   appName: string;

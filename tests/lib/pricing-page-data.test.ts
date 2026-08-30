@@ -39,7 +39,8 @@ vi.mock('@/lib/admin-client', () => ({
 // unstable_cache must not memoise across cases here, or the second test reads the first's answer.
 vi.mock('next/cache', () => ({ unstable_cache: (fn: any) => fn }));
 
-import { getPricingPageData, CONTENT_KINDS } from '@/lib/get-pricing-page-data';
+import { getPricingPageData } from '@/lib/get-pricing-page-data';
+import { CONTENT_KINDS } from '@/lib/pricing-contract';
 
 beforeEach(() => {
   vi.clearAllMocks();

@@ -19,7 +19,7 @@ import {
   type ContentCounts,
   type PricingPageData,
   type PricingPlan,
-} from '@/lib/get-pricing-page-data';
+} from '@/lib/pricing-contract';
 import type { PurchasableContentTable } from '@/lib/subscription-plan-access';
 
 const KIND_LABEL: Record<PurchasableContentTable, string> = {
