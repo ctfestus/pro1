@@ -15,6 +15,7 @@ import {
   recomputeEnrollmentAccessPublic,
 } from '@/lib/db-payments';
 import { PURCHASABLE_CONTENT_TABLES } from '@/lib/subscription-plan-access';
+import { revalidatePricingPage } from '@/lib/revalidate-pricing';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
 import { notifySubscriptionActivated } from '@/lib/notify-subscription-activated';
@@ -240,7 +241,14 @@ export async function GET(req: NextRequest) {
     try {
       const db = adminClient();
       const planIds = await ownedPlanIds(db, sessionUser);
-      return NextResponse.json({ plans: await getSubscriptionPlans(db, req.nextUrl.searchParams.get('activeOnly') === 'true', planIds) });
+      return NextResponse.json({
+        plans: await getSubscriptionPlans(
+          db,
+          req.nextUrl.searchParams.get('activeOnly') === 'true',
+          planIds,
+          req.nextUrl.searchParams.get('includeArchived') === 'true',
+        ),
+      });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load subscription plans' }, { status: 500 });
     }
@@ -478,11 +486,13 @@ export async function POST(req: NextRequest) {
   if (body.action === 'create-subscription-plan') {
     if (!body.name?.trim()) return NextResponse.json({ error: 'Plan name is required' }, { status: 400 });
     try {
-      return NextResponse.json(await createSubscriptionPlan(db, {
+      const created = await createSubscriptionPlan(db, {
         name: body.name,
         description: body.description,
         createdBy: sessionUser.id,
-      }));
+      });
+      revalidatePricingPage();
+      return NextResponse.json(created);
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to create subscription plan' }, { status: 500 });
     }
@@ -492,7 +502,9 @@ export async function POST(req: NextRequest) {
     if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
     try {
       await assertPlanAccess(String(body.planId));
-      return NextResponse.json(await deleteSubscriptionPlan(db, body.planId));
+      const deleted = await deleteSubscriptionPlan(db, body.planId);
+      revalidatePricingPage();
+      return NextResponse.json(deleted);
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to delete subscription plan');
       const conflict = String(err?.message ?? '').includes('cannot be deleted');
@@ -520,12 +532,63 @@ export async function POST(req: NextRequest) {
     }
     try {
       await assertPlanAccess(String(body.planId));
+      // An archived plan cannot be switched back on. It would be on sale while hidden from the
+      // list that shows what is on sale, so nobody would see they were still selling it. The
+      // database refuses this too; this is here to say why rather than surface a constraint.
+      if (updates.status === 'active') {
+        const { data: plan, error: readError } = await db.from('subscription_plans')
+          .select('archived_at').eq('id', body.planId).maybeSingle();
+        if (readError) throw readError;
+        if (plan?.archived_at) {
+          return NextResponse.json({
+            error: 'This plan is archived. Restore it before switching it back on.',
+          }, { status: 409 });
+        }
+      }
       const { error } = await db.from('subscription_plans').update(updates).eq('id', body.planId);
       if (error) throw error;
+      // Deactivating is the case that sent us looking: without this the public page kept
+      // advertising the plan, buy button and all, until the cache timer ran out.
+      revalidatePricingPage();
       return NextResponse.json({ ok: true });
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to update subscription plan');
       return NextResponse.json({ error: err.message ?? 'Failed to update subscription plan' }, { status: 500 });
+    }
+  }
+
+  // Putting a finished plan out of the way, or taking it back out. A plan with any history
+  // cannot be deleted -- that would orphan the record of what people paid -- so this is the only
+  // way the list ever gets shorter.
+  if (body.action === 'set-subscription-plan-archived') {
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    const archiving = body.archived === true;
+    try {
+      await assertPlanAccess(String(body.planId));
+      const { data: plan, error: readError } = await db.from('subscription_plans')
+        .select('status').eq('id', body.planId).maybeSingle();
+      if (readError) throw readError;
+      if (!plan) return NextResponse.json({ error: 'Subscription plan not found' }, { status: 404 });
+      // An active plan is on sale. Archiving one would take it off the pricing page as a side
+      // effect of tidying a list, which is not what anyone tidying a list means to do.
+      if (archiving && plan.status === 'active') {
+        return NextResponse.json({
+          error: 'Deactivate this plan before archiving it, so nobody loses a plan that is still on sale.',
+        }, { status: 409 });
+      }
+      const { error } = await db.from('subscription_plans')
+        .update({ archived_at: archiving ? new Date().toISOString() : null })
+        .eq('id', body.planId);
+      if (error) throw error;
+      // Nothing on sale changes today -- archiving requires the plan to be inactive already, and
+      // restoring leaves it inactive. Cleared regardless, so the rule stays "every plan write
+      // clears the page" with no exception anyone has to keep true. One recomputation on a rare
+      // admin action is cheaper than a reader deciding whether the reasoning still holds.
+      revalidatePricingPage();
+      return NextResponse.json({ ok: true, archived: archiving });
+    } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to archive subscription plan');
+      return NextResponse.json({ error: err.message ?? 'Failed to archive subscription plan' }, { status: 500 });
     }
   }
 
@@ -577,6 +640,7 @@ export async function POST(req: NextRequest) {
         p_actor_id: sessionUser.id,
       });
       if (replaceError) throw replaceError;
+      revalidatePricingPage();
       return NextResponse.json({ ok: true });
     } catch (err: any) {
       console.error('[payments/save-subscription-plan-prices]', err);

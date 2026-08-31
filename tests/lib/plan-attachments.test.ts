@@ -5,7 +5,12 @@
 // something they already have. Getting the gate wrong lets an author tick a box that the API
 // will refuse on save, which is the dead end this feature exists to remove.
 import { describe, expect, it } from 'vitest';
-import { planAttachmentDiff, planPickerState, plansThatWillNotify } from '@/lib/plan-attachments';
+import {
+  needsPrivacyChange,
+  planAttachmentDiff,
+  planPickerState,
+  plansThatWillNotify,
+} from '@/lib/plan-attachments';
 
 describe('planPickerState', () => {
   it('is available for published content that is not already free', () => {
@@ -25,23 +30,12 @@ describe('planPickerState', () => {
     expect(state.enabled === false && state.reason).toMatch(/publish this first/i);
   });
 
-  it('explains that free content cannot be sold, and what to do about it', () => {
-    const state = planPickerState({
+  it('stays usable on content that is open to everyone', () => {
+    // That is a contradiction the author can resolve here, having been told what it costs --
+    // not a dead end that sends them to another screen and back.
+    expect(planPickerState({
       contentTable: 'courses', contentId: 'c1', status: 'published', availableToEveryone: true,
-    });
-    expect(state.enabled).toBe(false);
-    expect(state.enabled === false && state.reason).toMatch(/restrict it to a cohort/i);
-  });
-
-  it('applies the free rule only to the types that carry the flag', () => {
-    // The API checks available_to_everyone for courses and certifications only. Blocking the
-    // others here would disable a control the server would have accepted.
-    expect(planPickerState({
-      contentTable: 'virtual_experiences', contentId: 'v1', status: 'published', availableToEveryone: true,
     })).toEqual({ enabled: true });
-    expect(planPickerState({
-      contentTable: 'certifications', contentId: 'x1', status: 'published', availableToEveryone: true,
-    }).enabled).toBe(false);
   });
 
   it('reports the missing item before the draft status, since saving comes first', () => {
@@ -91,5 +85,27 @@ describe('plansThatWillNotify', () => {
   it('says nothing about plans being removed', () => {
     const diff = planAttachmentDiff(['p1'], []);
     expect(plansThatWillNotify(diff, [active], 'c1')).toEqual([]);
+  });
+});
+
+describe('needsPrivacyChange', () => {
+  it('is true for content still open to everyone', () => {
+    expect(needsPrivacyChange({ contentTable: 'courses', availableToEveryone: true })).toBe(true);
+    expect(needsPrivacyChange({ contentTable: 'certifications', availableToEveryone: true })).toBe(true);
+  });
+
+  it('is false once it is not', () => {
+    expect(needsPrivacyChange({ contentTable: 'courses', availableToEveryone: false })).toBe(false);
+    expect(needsPrivacyChange({ contentTable: 'courses' })).toBe(false);
+    expect(needsPrivacyChange({ contentTable: 'courses', availableToEveryone: null })).toBe(false);
+  });
+
+  it('applies to every content type, because every one carries the flag', () => {
+    // Excluding virtual experiences and learning paths did not make them work. Their tables have
+    // available_to_everyone too, and the same CHECK forbidding a public item from holding
+    // cohorts -- so the coverage row was written and the cohort tag then failed at the database.
+    for (const contentTable of ['courses', 'certifications', 'virtual_experiences', 'learning_paths'] as const) {
+      expect(needsPrivacyChange({ contentTable, availableToEveryone: true })).toBe(true);
+    }
   });
 });

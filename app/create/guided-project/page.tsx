@@ -2957,7 +2957,12 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Subscription plans card */}
                 <div style={card} className="p-5">
-                  <PlanAccessPicker contentTable="virtual_experiences" contentId={effectiveId} />
+                  <PlanAccessPicker
+                    contentTable="virtual_experiences"
+                    contentId={effectiveId}
+                    availableToEveryone={availableToEveryone}
+                    onPublicAccessClosed={() => setAvailableToEveryone(false)}
+                  />
                 </div>
 
                 {/* Deadline card */}

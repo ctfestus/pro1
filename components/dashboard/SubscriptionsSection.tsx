@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Archive,
   Upload,
   UserPlus,
   Users,
@@ -332,6 +333,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [planBuilderStep, setPlanBuilderStep] = useState<0 | 1 | 2>(0);
   const [unsavedPlanDialog, setUnsavedPlanDialog] = useState<"create" | "edit" | null>(null);
   const [planCardMenuId, setPlanCardMenuId] = useState<string | null>(null);
+  const [showArchivedPlans, setShowArchivedPlans] = useState(false);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [editPlan, setEditPlan] = useState<any>(null);
   const [editPlanName, setEditPlanName] = useState("");
@@ -369,7 +371,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     try {
       const [listRes, plansRes, requestsRes, reviewRes] = await Promise.all([
         authFetch("/api/payments?action=subscription-list"),
-        authFetch("/api/payments?action=subscription-plans"),
+        // Archived plans come down with the rest and are filtered for display, so the toggle
+        // does not need a round trip and the counts stay honest.
+        authFetch("/api/payments?action=subscription-plans&includeArchived=true"),
         authFetch("/api/payments?action=subscription-payment-requests"),
         authFetch("/api/payments?action=payment-review"),
       ]);
@@ -1259,6 +1263,43 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       if (!res.ok) throw new Error(data.error || "Failed to update plan");
       setPlanCardMenuId(null);
       await load(plan.id);
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /**
+   * Puts a finished plan out of the way, or brings it back.
+   *
+   * A plan with any history cannot be deleted -- that would orphan the record of what people
+   * paid -- so archiving is the only way this list ever gets shorter.
+   */
+  async function setPlanArchived(plan: any, archived: boolean) {
+    if (!plan) return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    setPlanCardMenuId(null);
+    try {
+      const res = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set-subscription-plan-archived",
+          planId: plan.id,
+          archived,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to archive plan");
+      setSuccess(
+        archived
+          ? `"${plan.name}" archived. Its history is kept, and you can bring it back at any time.`
+          : `"${plan.name}" is back in the list, still switched off.`,
+      );
+      await load();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -2539,8 +2580,26 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     <span className="rounded-full px-2.5 py-1" style={{ background: C.page }}>{activePlans.length} active</span>
                   </div>
                 </div>
+                {(() => {
+                  const archivedCount = plans.filter((p: any) => p.archived_at).length;
+                  if (!archivedCount) return null;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => setShowArchivedPlans((v) => !v)}
+                      className="mb-3 text-xs font-bold underline"
+                      style={{ color: C.muted }}
+                    >
+                      {showArchivedPlans
+                        ? "Hide archived plans"
+                        : `Show ${archivedCount} archived plan${archivedCount === 1 ? "" : "s"}`}
+                    </button>
+                  );
+                })()}
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
-                  {plans.map((plan) => (
+                  {plans
+                    .filter((plan: any) => showArchivedPlans || !plan.archived_at)
+                    .map((plan) => (
                     <div
                       key={plan.id}
                       role="button"
@@ -2619,8 +2678,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 </button>
                                 <button
                                   onClick={() => togglePlan(plan)}
-                                  disabled={busy}
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                                  // Archived means put away. Switching it back on here would
+                                  // put it on sale while it stays hidden from this list.
+                                  disabled={busy || !!plan.archived_at}
+                                  title={
+                                    plan.archived_at
+                                      ? "Restore this plan before switching it back on."
+                                      : undefined
+                                  }
+                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
                                   style={{ color: C.text }}
                                 >
                                   <span
@@ -2652,6 +2718,25 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                     <FileSpreadsheet className="w-4 h-4" />
                                   </span>
                                   Bulk add students
+                                </button>
+                                <button
+                                  onClick={() => setPlanArchived(plan, !plan.archived_at)}
+                                  disabled={busy || (!plan.archived_at && plan.status === "active")}
+                                  title={
+                                    !plan.archived_at && plan.status === "active"
+                                      ? "Deactivate this plan first, so nobody loses a plan that is still on sale."
+                                      : undefined
+                                  }
+                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                  style={{ color: C.text }}
+                                >
+                                  <span
+                                    className="w-8 h-8 rounded-lg grid place-items-center"
+                                    style={{ background: C.pill, color: C.muted }}
+                                  >
+                                    <Archive className="w-4 h-4" />
+                                  </span>
+                                  {plan.archived_at ? "Restore plan" : "Archive plan"}
                                 </button>
                                 <button
                                   onClick={() => deletePlan(plan)}
@@ -2813,7 +2898,12 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </button>
                         <button
                           onClick={togglePlan}
-                          disabled={busy}
+                          disabled={busy || !!selectedPlan.archived_at}
+                          title={
+                            selectedPlan.archived_at
+                              ? "Restore this plan before switching it back on."
+                              : undefined
+                          }
                           className={primary}
                           style={{
                             background:

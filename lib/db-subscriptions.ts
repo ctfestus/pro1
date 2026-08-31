@@ -117,13 +117,21 @@ export async function createSubscriptionPlan(
   return data;
 }
 
-export async function getSubscriptionPlans(db: SupabaseClient, activeOnly = false, planIds: string[] | null = null) {
+export async function getSubscriptionPlans(
+  db: SupabaseClient,
+  activeOnly = false,
+  planIds: string[] | null = null,
+  includeArchived = false,
+) {
   if (planIds && planIds.length === 0) return [];
   let query = db
     .from('subscription_plans')
-    .select('id, name, description, cohort_id, status, created_by, created_at, updated_at, subscription_plan_prices(id, duration_months, amount, currency, is_active, sort_order)')
+    .select('id, name, description, cohort_id, status, archived_at, created_by, created_at, updated_at, subscription_plan_prices(id, duration_months, amount, currency, is_active, sort_order)')
     .order('name');
   if (activeOnly) query = query.eq('status', 'active');
+  // Archived plans are out of the way by default. A caller that wants them -- the archive view,
+  // or the content picker checking whether something is still attached to one -- asks.
+  if (!includeArchived) query = query.is('archived_at', null);
   if (planIds) query = query.in('id', planIds);
   const { data, error } = await query;
   if (error) throw error;

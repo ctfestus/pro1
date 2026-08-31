@@ -17,13 +17,14 @@ import { AlertTriangle, Check, Loader2, Lock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/lib/theme';
 import {
+  needsPrivacyChange,
   planAttachmentDiff,
   planPickerState,
   plansThatWillNotify,
   type PlanContentTable,
 } from '@/lib/plan-attachments';
 
-interface Plan { id: string; name: string; status?: string | null }
+interface Plan { id: string; name: string; status?: string | null; archived_at?: string | null }
 
 export interface PlanAccessPickerProps {
   contentTable: PlanContentTable;
@@ -35,10 +36,17 @@ export interface PlanAccessPickerProps {
    * answer is used, so six other editors need pass nothing.
    */
   availableToEveryone?: boolean | null;
+  /**
+   * Called after open access has been closed here, so the editor can drop its own copy of that
+   * switch. Without it the editor still shows Everyone selected and its next save writes the
+   * flag straight back on -- silently undoing the change and leaving the content in a plan it
+   * contradicts.
+   */
+  onPublicAccessClosed?: () => void;
 }
 
 export function PlanAccessPicker({
-  contentTable, contentId, availableToEveryone,
+  contentTable, contentId, availableToEveryone, onPublicAccessClosed,
 }: PlanAccessPickerProps) {
   const C = useC();
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -47,8 +55,12 @@ export function PlanAccessPicker({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
-  /** A plan the author has ticked whose learners will be emailed, waiting on a yes. */
-  const [confirming, setConfirming] = useState<Plan | null>(null);
+  /** The change landed but the email did not. Said plainly, and not as a failure. */
+  const [warning, setWarning] = useState('');
+  /** A ticked plan waiting on a yes, with what saying yes would do. */
+  const [confirming, setConfirming] = useState<
+    { plan: Plan; willEmail: boolean; willClosePublic: boolean } | null
+  >(null);
   /** The saved row's own state, which is what the API will judge the request against. */
   const [subject, setSubject] = useState<{ status: string | null; free: boolean | null }>({
     status: null, free: null,
@@ -67,7 +79,9 @@ export function PlanAccessPicker({
       const { data: { session } } = await supabase.auth.getSession();
       const headers = { Authorization: `Bearer ${session?.access_token}` };
       const [planRes, mineRes] = await Promise.all([
-        fetch('/api/payments?action=subscription-plans', { headers }),
+        // Archived plans are asked for so an existing attachment to one is still visible.
+        // They are not offered below -- see the filter on render.
+        fetch('/api/payments?action=subscription-plans&includeArchived=true', { headers }),
         fetch(
           `/api/payments?action=content-plans&contentTable=${encodeURIComponent(contentTable)}`
           + `&contentId=${encodeURIComponent(contentId)}`,
@@ -91,8 +105,8 @@ export function PlanAccessPicker({
 
   useEffect(() => { void load(); }, [load]);
 
-  const apply = async (plan: Plan, add: boolean) => {
-    setBusyId(plan.id); setError(''); setConfirming(null);
+  const apply = async (plan: Plan, add: boolean, clearPublicAccess = false) => {
+    setBusyId(plan.id); setError(''); setWarning(''); setConfirming(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/admissions', {
@@ -103,15 +117,27 @@ export function PlanAccessPicker({
           planId: plan.id,
           contentTable,
           contentId,
+          // Only ever sent after the author has been shown who loses access and said yes.
+          ...(clearPublicAccess ? { clearPublicAccess: true } : {}),
         }),
       });
       const body = await res.json().catch(() => ({}));
+      // Keyed on what the server says it did, not on the absence of an error. The access change
+      // commits before anyone is emailed, so a failed send used to arrive here as a failed
+      // attachment -- leaving the editor holding an open-access flag the database now forbids.
+      if (body.applied === true) {
+        if (clearPublicAccess) onPublicAccessClosed?.();
+        if (body.notificationWarning) setWarning(String(body.notificationWarning));
+      }
       if (!res.ok) throw new Error(body.error || 'Could not update the plan.');
       // Re-read rather than assume: the server decides whether an email went, and the stamp it
       // sets is what stops this warning appearing again.
       await load();
     } catch (e: any) {
       setError(e?.message || 'Could not update the plan.');
+      // Re-read after a failure too. Whatever did or did not commit, the checkboxes should show
+      // what is actually stored rather than what was clicked.
+      await load().catch(() => {});
     } finally {
       setBusyId('');
     }
@@ -120,6 +146,7 @@ export function PlanAccessPicker({
   const toggle = (plan: Plan) => {
     const adding = !attached.includes(plan.id);
     if (!adding) return apply(plan, false);
+
     const diff = planAttachmentDiff(attached, [...attached, plan.id]);
     const willEmail = plansThatWillNotify(
       diff,
@@ -128,10 +155,25 @@ export function PlanAccessPicker({
         notifiedContentIds: notified.includes(row.id) ? [String(contentId)] : [],
       })),
       String(contentId),
-    );
-    if (willEmail.includes(plan.id)) { setConfirming(plan); return; }
+    ).includes(plan.id);
+    const willClosePublic = needsPrivacyChange({
+      contentTable,
+      contentId,
+      availableToEveryone: availableToEveryone ?? subject.free,
+    });
+
+    // Anything with a consequence somebody would want to know about first gets asked.
+    if (willEmail || willClosePublic) {
+      setConfirming({ plan, willEmail, willClosePublic });
+      return;
+    }
     return apply(plan, true);
   };
+
+  // An archived plan is finished with, so it is not offered -- but one that still holds this
+  // content is shown, ticked, because hiding an attachment is how content ends up somewhere
+  // nobody can see and nobody remembers putting it.
+  const offerable = plans.filter(plan => !plan.archived_at || attached.includes(plan.id));
 
   return (
     <div>
@@ -156,11 +198,11 @@ export function PlanAccessPicker({
         </div>
       )}
 
-      {gate.enabled && !loading && !plans.length && (
+      {gate.enabled && !loading && !offerable.length && (
         <p className="text-xs" style={{ color: C.faint }}>No subscription plans exist yet.</p>
       )}
 
-      {gate.enabled && !loading && plans.map(plan => {
+      {gate.enabled && !loading && offerable.map(plan => {
         const on = attached.includes(plan.id);
         return (
           <div key={plan.id}>
@@ -172,30 +214,42 @@ export function PlanAccessPicker({
                 onChange={() => toggle(plan)}
               />
               <span className="font-semibold">{plan.name}</span>
-              {plan.status !== 'active' && (
-                <span className="text-[11px]" style={{ color: C.faint }}>inactive</span>
-              )}
+              {plan.archived_at
+                ? <span className="text-[11px]" style={{ color: C.faint }}>archived</span>
+                : plan.status !== 'active' && (
+                  <span className="text-[11px]" style={{ color: C.faint }}>inactive</span>
+                )}
               {busyId === plan.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {on && busyId !== plan.id && <Check className="w-3.5 h-3.5" style={{ color: C.cta }} />}
             </label>
 
-            {confirming?.id === plan.id && (
-              // Said before it happens, not after. Adding to an active plan emails every learner
-              // on it, once. From a finance screen that is expected; from an editor it would be
-              // a broadcast nobody meant to send.
+            {confirming?.plan.id === plan.id && (
+              // Said before it happens, not after. Both consequences are real and neither is
+              // obvious from a checkbox: an active plan emails its learners, and closing open
+              // access takes the content away from anyone outside a cohort or a plan.
               <div className="rounded-xl p-3 my-1 text-xs" style={{ background: C.page }}>
-                <p className="flex items-start gap-2 font-semibold" style={{ color: C.text }}>
-                  <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                  Everyone on {plan.name} will be emailed once about this.
-                </p>
+                {confirming.willClosePublic && (
+                  <p className="flex items-start gap-2 font-semibold mb-2" style={{ color: C.text }}>
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    This is open to every signed-in learner. Adding it to {plan.name} closes that,
+                    so only {plan.name} subscribers and the cohorts you have chosen keep access.
+                    Anyone else loses it, including learners part-way through.
+                  </p>
+                )}
+                {confirming.willEmail && (
+                  <p className="flex items-start gap-2 font-semibold" style={{ color: C.text }}>
+                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
+                    Everyone on {plan.name} will be emailed once about this.
+                  </p>
+                )}
                 <div className="flex gap-2 mt-2.5">
                   <button
                     type="button"
-                    onClick={() => apply(plan, true)}
+                    onClick={() => apply(plan, true, confirming.willClosePublic)}
                     className="rounded-lg px-3 py-1.5 text-xs font-bold"
                     style={{ background: C.cta, color: '#ffffff' }}
                   >
-                    Add and notify
+                    {confirming.willClosePublic ? 'Close open access and add' : 'Add and notify'}
                   </button>
                   <button
                     type="button"
@@ -212,6 +266,7 @@ export function PlanAccessPicker({
         );
       })}
 
+      {warning && <p className="text-xs mt-2" style={{ color: '#b45309' }}>{warning}</p>}
       {error && <p className="text-xs mt-2" style={{ color: '#dc2626' }}>{error}</p>}
     </div>
   );

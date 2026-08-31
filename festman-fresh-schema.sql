@@ -4208,11 +4208,22 @@ CREATE TABLE public.subscription_plans (
   description text,
   cohort_id uuid NOT NULL UNIQUE REFERENCES public.cohorts(id) ON DELETE RESTRICT,
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+  -- migration 198: a plan carrying history cannot be deleted, so this is where a finished one
+  -- goes. Separate from status: inactive means off for now and still worth seeing, archived
+  -- means done with. Archiving requires the plan to be inactive; unarchiving leaves it inactive.
+  archived_at timestamptz,
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (id, cohort_id)
+  UNIQUE (id, cohort_id),
+  -- migration 198: an archived plan switched back on would be on sale while hidden from the
+  -- list that shows what is on sale. The application refuses it; this is why it cannot happen.
+  CONSTRAINT subscription_plans_archived_is_inactive
+    CHECK (archived_at IS NULL OR status = 'inactive')
 );
+CREATE INDEX IF NOT EXISTS idx_subscription_plans_not_archived
+  ON public.subscription_plans (created_at DESC)
+  WHERE archived_at IS NULL;
 CREATE TABLE public.individual_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid REFERENCES public.students(id) ON DELETE SET NULL,
@@ -5089,6 +5100,66 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.set_subscription_plan_content(
+  p_plan_id uuid,
+  p_content_table text,
+  p_content_id uuid,
+  p_actor_id uuid,
+  p_add boolean,
+  p_clear_public boolean DEFAULT false,
+  p_ca_content_type text DEFAULT NULL
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE v_cohort_id uuid;
+BEGIN
+  IF p_content_table NOT IN ('courses','virtual_experiences','certifications','learning_paths') THEN
+    RAISE EXCEPTION 'invalid content table: %', p_content_table;
+  END IF;
+
+  SELECT cohort_id INTO v_cohort_id FROM public.subscription_plans WHERE id = p_plan_id;
+  IF NOT FOUND THEN RAISE EXCEPTION 'subscription plan not found'; END IF;
+
+  -- Only ever on request, and only while adding. The caller has already shown the author who
+  -- loses access; this is the point where that answer is acted on.
+  IF p_add AND p_clear_public THEN
+    EXECUTE format('UPDATE public.%I SET available_to_everyone = false WHERE id = $1', p_content_table)
+      USING p_content_id;
+  END IF;
+
+  IF p_add THEN
+    INSERT INTO public.subscription_plan_content (plan_id, content_table, content_id, added_by)
+    VALUES (p_plan_id, p_content_table, p_content_id, p_actor_id)
+    ON CONFLICT (plan_id, content_table, content_id) DO NOTHING;
+  ELSE
+    DELETE FROM public.subscription_plan_content
+    WHERE plan_id = p_plan_id
+      AND content_table = p_content_table
+      AND content_id = p_content_id;
+  END IF;
+
+  -- The tag is what actually grants access. If it fails, nothing above it may stand.
+  PERFORM public.toggle_content_cohort_tag(p_content_table, p_content_id, v_cohort_id, p_add);
+
+  IF p_ca_content_type IS NOT NULL THEN
+    IF p_add THEN
+      INSERT INTO public.cohort_assignments (content_id, content_type, cohort_id)
+      VALUES (p_content_id, p_ca_content_type, v_cohort_id)
+      ON CONFLICT (content_id, cohort_id) DO NOTHING;
+    ELSE
+      DELETE FROM public.cohort_assignments
+      WHERE content_id = p_content_id AND cohort_id = v_cohort_id;
+    END IF;
+  END IF;
+
+  RETURN jsonb_build_object('ok', true, 'planId', p_plan_id, 'contentId', p_content_id);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.set_subscription_plan_content(uuid, text, uuid, uuid, boolean, boolean, text)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_subscription_plan_content(uuid, text, uuid, uuid, boolean, boolean, text)
+  TO service_role;
 
 CREATE OR REPLACE FUNCTION public.toggle_content_cohort_tag(p_content_table text,p_content_id uuid,p_cohort_id uuid,p_add boolean)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
@@ -6189,6 +6260,7 @@ sellable_plans AS (
   FROM public.subscription_plans p
   JOIN public.cohorts c ON c.id = p.cohort_id
   WHERE p.status = 'active'
+    AND p.archived_at IS NULL
     AND c.cohort_kind IN ('legacy_individual', 'subscription_plan')
     AND EXISTS (
       SELECT 1 FROM public.subscription_plan_prices pr

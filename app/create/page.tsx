@@ -2825,6 +2825,7 @@ const [isSaving, setIsSaving] = useState(false);
                         contentTable="courses"
                         contentId={savedFormId}
                         availableToEveryone={courseAvailableToEveryone}
+                        onPublicAccessClosed={() => setCourseAvailableToEveryone(false)}
                       />
                     </div>
                   )}
