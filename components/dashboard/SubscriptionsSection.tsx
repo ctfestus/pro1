@@ -23,7 +23,9 @@ import {
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   ShieldCheck,
+  Sparkles,
   Trash2,
   Upload,
   UserPlus,
@@ -203,41 +205,64 @@ function PlanPriceFields({
 }) {
   return (
     <div>
-      <p className="text-xs font-bold mb-2" style={{ color: C.muted }}>
-        Public purchase prices
-      </p>
-      <div className="space-y-2">
+      <div className="flex items-end justify-between gap-3 mb-3">
+        <div>
+          <p className="text-sm font-bold" style={{ color: C.text }}>
+            Purchase options
+          </p>
+          <p className="text-xs mt-1" style={{ color: C.faint }}>
+            Turn on the durations learners can choose.
+          </p>
+        </div>
+        <span className="text-[11px] font-bold rounded-full px-2.5 py-1" style={{ background: `${C.cta}12`, color: C.cta }}>
+          {prices.filter((price) => price.isActive).length} active
+        </span>
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3">
         {prices.map((price, index) => (
-          <div key={price.durationMonths} className="grid grid-cols-[auto_1fr_90px] gap-2 items-center rounded-xl p-2" style={{ background: C.page }}>
-            <label className="flex items-center gap-2 text-xs font-bold" style={{ color: C.text }}>
+          <div
+            key={price.durationMonths}
+            className="rounded-2xl p-3.5 transition-all"
+            style={{
+              background: price.isActive ? `${C.cta}0c` : C.page,
+              boxShadow: price.isActive ? `inset 0 0 0 1.5px ${C.cta}` : "none",
+            }}
+          >
+            <label className="flex items-center justify-between gap-3 text-sm font-bold cursor-pointer" style={{ color: C.text }}>
+              <span>{price.durationMonths} month{price.durationMonths === "1" ? "" : "s"}</span>
               <input
                 type="checkbox"
                 checked={price.isActive}
                 onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, isActive: e.target.checked } : row))}
+                className="sr-only peer"
               />
-              {price.durationMonths} mo
+              <span
+                className="relative w-10 h-6 rounded-full transition-colors after:absolute after:top-1 after:left-1 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"
+                style={{ background: price.isActive ? C.cta : C.divider }}
+              />
             </label>
-            <input
-              type="number"
-              min="0"
-              step="0.01"
-              value={price.amount}
-              // Typing an amount is what someone means by adding a price. The box starts
-              // unticked, so entering a figure and saving used to discard it without a word --
-              // the plan then looked perfectly active while being unbuyable.
-              onChange={(e) => setPrices((current) => current.map((row, i) => i === index
-                ? { ...row, amount: e.target.value, isActive: Number(e.target.value) > 0 ? true : row.isActive }
-                : row))}
-              placeholder="Amount"
-              className={fieldClass}
-              style={inputStyle}
-            />
-            <input
-              value={price.currency}
-              onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, currency: e.target.value.toUpperCase() } : row))}
-              className={fieldClass}
-              style={inputStyle}
-            />
+            <div className="grid grid-cols-[1fr_82px] gap-2 mt-3">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={price.amount}
+                onChange={(e) => setPrices((current) => current.map((row, i) => i === index
+                  ? { ...row, amount: e.target.value, isActive: Number(e.target.value) > 0 ? true : row.isActive }
+                  : row))}
+                placeholder="0.00"
+                aria-label={`${price.durationMonths} month price`}
+                className={fieldClass}
+                style={inputStyle}
+              />
+              <input
+                value={price.currency}
+                onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, currency: e.target.value.toUpperCase() } : row))}
+                aria-label={`${price.durationMonths} month currency`}
+                className={fieldClass}
+                style={inputStyle}
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -302,7 +327,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [newPlanName, setNewPlanName] = useState("");
   const [newPlanDescription, setNewPlanDescription] = useState("");
   const [newPlanPrices, setNewPlanPrices] = useState(freshPlanPrices);
-  const [planMenuOpen, setPlanMenuOpen] = useState(false);
+  const [newPlanContentKeys, setNewPlanContentKeys] = useState<string[]>([]);
+  const [newPlanContentSearch, setNewPlanContentSearch] = useState("");
+  const [planBuilderStep, setPlanBuilderStep] = useState<0 | 1 | 2>(0);
   const [planCardMenuId, setPlanCardMenuId] = useState<string | null>(null);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [editPlan, setEditPlan] = useState<any>(null);
@@ -991,7 +1018,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setHistoryOpen(true);
   }
 
-  async function createPlan() {
+  function openPlanBuilder() {
+    setError("");
+    setNewPlanName("");
+    setNewPlanDescription("");
+    setNewPlanPrices(freshPlanPrices());
+    setNewPlanContentKeys([]);
+    setNewPlanContentSearch("");
+    setPlanBuilderStep(0);
+    setCreatePlanOpen(true);
+  }
+
+  async function createPlan(status: "active" | "inactive" = "active") {
     setBusy(true);
     setError("");
     try {
@@ -1006,6 +1044,21 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Failed to create plan");
+
+      // Keep a new plan off sale while its prices and content are being attached. The creation
+      // RPC predates drafts and may return an active plan, so make the multi-request setup safe.
+      const draftRes = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "update-subscription-plan",
+          planId: data.planId,
+          status: "inactive",
+        }),
+      });
+      const draftData = await draftRes.json();
+      if (!draftRes.ok) throw new Error(draftData.error || "Failed to prepare plan draft");
+
       const priceRes = await authFetch("/api/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -1023,11 +1076,46 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       });
       const priceData = await priceRes.json();
       if (!priceRes.ok) throw new Error(priceData.error || "Failed to save plan prices");
+
+      await Promise.all(newPlanContentKeys.map(async (key) => {
+        const separator = key.indexOf(":");
+        const contentTable = key.slice(0, separator);
+        const contentId = key.slice(separator + 1);
+        const contentRes = await authFetch("/api/admissions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "add-subscription-plan-content",
+            planId: data.planId,
+            contentTable,
+            contentId,
+          }),
+        });
+        const contentData = await contentRes.json();
+        if (!contentRes.ok) throw new Error(contentData.error || "Failed to add plan content");
+      }));
+
+      if (status === "active") {
+        const statusRes = await authFetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update-subscription-plan",
+            planId: data.planId,
+            status: "active",
+          }),
+        });
+        const statusData = await statusRes.json();
+        if (!statusRes.ok) throw new Error(statusData.error || "Failed to activate plan");
+      }
       setNewPlanName("");
       setNewPlanDescription("");
       setNewPlanPrices(freshPlanPrices());
+      setNewPlanContentKeys([]);
+      setNewPlanContentSearch("");
+      setPlanBuilderStep(0);
       setCreatePlanOpen(false);
-      setPlanMenuOpen(false);
+      setSuccess(status === "active" ? "Plan created and ready for learners." : "Plan saved as a draft.");
       await load(data.planId);
     } catch (err: any) {
       setError(err.message);
@@ -1143,7 +1231,6 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setBusy(true);
     setError("");
     setSuccess("");
-    setPlanMenuOpen(false);
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -2359,53 +2446,50 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
           {tab === "plans" && (
             <div className="space-y-5">
+              <section
+                className="relative overflow-hidden rounded-[24px] p-5 sm:p-6"
+                style={{
+                  background: dark
+                    ? `linear-gradient(135deg, ${C.card} 0%, ${C.pill} 100%)`
+                    : `linear-gradient(135deg, ${C.cta}12 0%, ${C.card} 62%)`,
+                }}
+              >
+                <div className="absolute -right-10 -top-14 w-40 h-40 rounded-full" style={{ background: `${C.cta}0d` }} />
+                <div className="relative flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+                  <div className="flex items-start gap-4">
+                    <span className="w-11 h-11 rounded-2xl grid place-items-center flex-shrink-0" style={{ background: C.cta, color: C.ctaText }}>
+                      <Sparkles className="w-5 h-5" />
+                    </span>
+                    <div>
+                      <p className="text-lg font-black" style={{ color: C.text }}>Build an offer learners understand</p>
+                      <p className="text-sm mt-1 max-w-2xl" style={{ color: C.muted }}>
+                        Bring the plan story, included learning and purchase options together in one guided flow.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={openPlanBuilder}
+                    className={`${primary} self-start lg:self-auto px-5 py-3`}
+                    style={{ background: C.cta, color: C.ctaText }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Create plan
+                  </button>
+                </div>
+              </section>
               <section className="rounded-2xl p-4 sm:p-5" style={cardStyle(C)}>
                 <div className="flex items-start justify-between gap-4 mb-4">
                   <div>
                     <p className="font-black" style={{ color: C.text }}>
-                      Subscription plans
+                      Your plans
                     </p>
                     <p className="text-xs mt-1" style={{ color: C.faint }}>
-                      Choose a plan to manage its shared content and
-                      availability.
+                      Select a plan to manage its content, pricing and availability.
                     </p>
                   </div>
-                  <div className="relative">
-                    <button
-                      onClick={() => setPlanMenuOpen((open) => !open)}
-                      className="w-9 h-9 rounded-xl grid place-items-center"
-                      style={{ background: C.pill, color: C.text }}
-                      aria-label="Plan actions"
-                    >
-                      <MoreHorizontal className="w-5 h-5" />
-                    </button>
-                    {planMenuOpen && (
-                      <div
-                        className="absolute right-0 top-11 z-20 w-56 rounded-xl p-2"
-                        style={{
-                          ...modalStyle(C),
-                          background: dark ? C.pill : C.card,
-                          border: `1px solid ${C.divider}`,
-                        }}
-                      >
-                        <button
-                          onClick={() => {
-                            setPlanMenuOpen(false);
-                            setCreatePlanOpen(true);
-                          }}
-                          className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
-                          style={{ color: C.text }}
-                        >
-                          <span
-                            className="w-8 h-8 rounded-lg grid place-items-center"
-                            style={{ background: `${C.cta}14`, color: C.cta }}
-                          >
-                            <Plus className="w-4 h-4" />
-                          </span>
-                          Create new plan
-                        </button>
-                      </div>
-                    )}
+                  <div className="hidden sm:flex items-center gap-2 text-xs font-bold" style={{ color: C.faint }}>
+                    <span className="rounded-full px-2.5 py-1" style={{ background: C.page }}>{plans.length} total</span>
+                    <span className="rounded-full px-2.5 py-1" style={{ background: C.page }}>{activePlans.length} active</span>
                   </div>
                 </div>
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -2596,7 +2680,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                   ))}
                   {plans.length === 0 && (
                     <button
-                      onClick={() => setCreatePlanOpen(true)}
+                      onClick={openPlanBuilder}
                       className="sm:col-span-2 xl:col-span-3 rounded-2xl py-10 text-center"
                       style={{ background: C.page }}
                     >
@@ -3223,50 +3307,270 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
       {createPlanOpen && (
         <Modal
-          title="Create subscription plan"
-          eyebrow="Reusable access blueprint"
-          onClose={() => setCreatePlanOpen(false)}
+          title="Create a subscription plan"
+          eyebrow="Plan builder"
+          onClose={() => {
+            setCreatePlanOpen(false);
+            setError("");
+          }}
           C={C}
           error={error}
+          wide
         >
-          <div className="space-y-4">
-            <label className="text-xs font-bold" style={{ color: C.muted }}>
-              Plan name
-              <input
-                autoFocus
-                value={newPlanName}
-                onChange={(e) => setNewPlanName(e.target.value)}
-                placeholder="For example: Professional"
-                className={`${fieldClass} mt-1.5`}
-                style={inputStyle}
-              />
-            </label>
-            <label className="text-xs font-bold" style={{ color: C.muted }}>
-              Description
-              <textarea
-                value={newPlanDescription}
-                onChange={(e) => setNewPlanDescription(e.target.value)}
-                placeholder="Describe who this plan is for"
-                className={`${fieldClass} mt-1.5 min-h-24`}
-                style={inputStyle}
-              />
-            </label>
-            <PlanPriceFields
-              prices={newPlanPrices}
-              setPrices={setNewPlanPrices}
-              C={C}
-              fieldClass={fieldClass}
-              inputStyle={inputStyle}
-            />
-            <button
-              onClick={createPlan}
-              disabled={busy || !newPlanName.trim()}
-              className={`${primary} w-full py-3`}
-              style={{ background: C.cta, color: C.ctaText }}
-            >
-              <Plus className="w-4 h-4" style={{ color: "#ffffff" }} />
-              {busy ? "Creating..." : "Create plan"}
-            </button>
+          <div className="grid lg:grid-cols-[1fr_250px] gap-6">
+            <div className="min-w-0">
+              <div className="grid grid-cols-3 gap-2 mb-6">
+                {[
+                  ["Details", "Name your offer"],
+                  ["Content", "Choose learning"],
+                  ["Pricing", "Set purchase options"],
+                ].map(([label, helper], index) => {
+                  const complete = index < planBuilderStep;
+                  const current = index === planBuilderStep;
+                  return (
+                    <button
+                      key={label}
+                      type="button"
+                      onClick={() => {
+                        if (index === 0 || newPlanName.trim()) setPlanBuilderStep(index as 0 | 1 | 2);
+                      }}
+                      className="rounded-2xl p-3 text-left transition-all"
+                      style={{
+                        background: current ? `${C.cta}12` : C.page,
+                        boxShadow: current ? `inset 0 0 0 1.5px ${C.cta}` : "none",
+                      }}
+                    >
+                      <span className="flex items-center gap-2">
+                        <span
+                          className="w-6 h-6 rounded-full grid place-items-center text-[11px] font-bold"
+                          style={{ background: complete || current ? C.cta : C.card, color: complete || current ? C.ctaText : C.faint }}
+                        >
+                          {complete ? <Check className="w-3.5 h-3.5" /> : index + 1}
+                        </span>
+                        <span className="text-xs font-bold" style={{ color: current ? C.cta : C.text }}>{label}</span>
+                      </span>
+                      <span className="hidden sm:block text-[10px] mt-2" style={{ color: C.faint }}>{helper}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {planBuilderStep === 0 && (
+                <div className="space-y-5">
+                  <div>
+                    <h4 className="text-lg font-black" style={{ color: C.text }}>Start with a clear promise</h4>
+                    <p className="text-sm mt-1" style={{ color: C.muted }}>Help learners quickly understand who the plan is for and what it unlocks.</p>
+                  </div>
+                  <label className="block text-xs font-bold" style={{ color: C.muted }}>
+                    Plan name
+                    <input
+                      autoFocus
+                      value={newPlanName}
+                      onChange={(e) => setNewPlanName(e.target.value)}
+                      placeholder="For example: Career Accelerator"
+                      className={`${fieldClass} mt-1.5`}
+                      style={inputStyle}
+                    />
+                  </label>
+                  <label className="block text-xs font-bold" style={{ color: C.muted }}>
+                    Short description
+                    <textarea
+                      value={newPlanDescription}
+                      onChange={(e) => setNewPlanDescription(e.target.value)}
+                      placeholder="Explain the outcome learners can expect from this plan"
+                      className={`${fieldClass} mt-1.5 min-h-28 resize-none`}
+                      style={inputStyle}
+                      maxLength={240}
+                    />
+                    <span className="block text-right text-[10px] mt-1.5 font-normal" style={{ color: C.faint }}>{newPlanDescription.length}/240</span>
+                  </label>
+                  <div className="rounded-2xl p-4" style={{ background: C.page }}>
+                    <p className="text-[10px] uppercase tracking-[0.16em] font-bold" style={{ color: C.faint }}>Learner preview</p>
+                    <p className="font-black mt-2" style={{ color: C.text }}>{newPlanName.trim() || "Your plan name"}</p>
+                    <p className="text-xs mt-1.5" style={{ color: C.muted }}>{newPlanDescription.trim() || "A concise description of the value learners receive."}</p>
+                  </div>
+                </div>
+              )}
+
+              {planBuilderStep === 1 && (
+                <div className="space-y-5">
+                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+                    <div>
+                      <h4 className="text-lg font-black" style={{ color: C.text }}>Build the learning bundle</h4>
+                      <p className="text-sm mt-1" style={{ color: C.muted }}>Select everything learners should unlock with this plan.</p>
+                    </div>
+                    <span className="self-start text-xs font-bold rounded-full px-3 py-1.5" style={{ background: `${C.cta}12`, color: C.cta }}>
+                      {newPlanContentKeys.length} selected
+                    </span>
+                  </div>
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: C.faint }} />
+                    <input
+                      value={newPlanContentSearch}
+                      onChange={(e) => setNewPlanContentSearch(e.target.value)}
+                      placeholder="Search your published content"
+                      className={`${fieldClass} pl-10`}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div className="max-h-[390px] overflow-y-auto pr-1 space-y-5">
+                    {CONTENT_TYPES.map((type) => {
+                      const items = contentOptions.filter((item) => item.content_table === type.value && (!newPlanContentSearch || item.title.toLowerCase().includes(newPlanContentSearch.toLowerCase())));
+                      if (!items.length) return null;
+                      const groupKeys = items.map((item) => `${item.content_table}:${item.id}`);
+                      const allSelected = groupKeys.every((key) => newPlanContentKeys.includes(key));
+                      return (
+                        <div key={type.value}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div>
+                              <p className="text-xs font-bold" style={{ color: C.text }}>{type.label}{type.label.endsWith("s") ? "" : "s"}</p>
+                              <p className="text-[10px] mt-0.5" style={{ color: C.faint }}>{groupKeys.filter((key) => newPlanContentKeys.includes(key)).length} of {items.length} selected</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setNewPlanContentKeys((current) => allSelected ? current.filter((key) => !groupKeys.includes(key)) : [...new Set([...current, ...groupKeys])])}
+                              className="text-xs font-bold"
+                              style={{ color: C.cta }}
+                            >
+                              {allSelected ? "Clear" : "Select all"}
+                            </button>
+                          </div>
+                          <div className="grid sm:grid-cols-2 gap-2">
+                            {items.map((item) => {
+                              const key = `${item.content_table}:${item.id}`;
+                              const selected = newPlanContentKeys.includes(key);
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  onClick={() => setNewPlanContentKeys((current) => selected ? current.filter((value) => value !== key) : [...current, key])}
+                                  className="flex items-center gap-3 rounded-2xl p-3 text-left transition-all"
+                                  style={{ background: selected ? `${C.cta}10` : C.page, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : "none" }}
+                                >
+                                  <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0" style={{ background: selected ? C.cta : C.card, border: `1px solid ${selected ? C.cta : C.divider}` }}>
+                                    {selected && <Check className="w-3 h-3" style={{ color: "#ffffff" }} />}
+                                  </span>
+                                  <span className="text-xs font-bold truncate" style={{ color: C.text }}>{item.title}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {contentOptions.length === 0 && (
+                      <div className="rounded-2xl py-12 text-center" style={{ background: C.page }}>
+                        <Layers3 className="w-7 h-7 mx-auto" style={{ color: C.faint }} />
+                        <p className="text-sm font-bold mt-3" style={{ color: C.text }}>No published content yet</p>
+                        <p className="text-xs mt-1" style={{ color: C.faint }}>Publish content first, or save this plan as a draft.</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {planBuilderStep === 2 && (
+                <div className="space-y-5">
+                  <div>
+                    <h4 className="text-lg font-black" style={{ color: C.text }}>Make pricing easy to choose</h4>
+                    <p className="text-sm mt-1" style={{ color: C.muted }}>Add one or more purchase options. Entering an amount turns that option on automatically.</p>
+                  </div>
+                  <PlanPriceFields prices={newPlanPrices} setPrices={setNewPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
+                  <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
+                    <ShieldCheck className="w-5 h-5 flex-shrink-0" style={{ color: C.cta }} />
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: C.text }}>You control when it goes live</p>
+                      <p className="text-xs mt-1" style={{ color: C.faint }}>Save a draft to finish later, or create and activate once content and at least one valid price are ready.</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 mt-7 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
+                <button
+                  type="button"
+                  onClick={() => planBuilderStep === 0 ? setCreatePlanOpen(false) : setPlanBuilderStep((planBuilderStep - 1) as 0 | 1)}
+                  disabled={busy}
+                  className={primary}
+                  style={{ background: C.pill, color: C.text }}
+                >
+                  {planBuilderStep === 0 ? "Cancel" : "Back"}
+                </button>
+                {planBuilderStep < 2 ? (
+                  <button
+                    type="button"
+                    onClick={() => setPlanBuilderStep((planBuilderStep + 1) as 1 | 2)}
+                    disabled={!newPlanName.trim()}
+                    className={primary}
+                    style={{ background: C.cta, color: C.ctaText }}
+                  >
+                    Continue
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                ) : (
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <button
+                      type="button"
+                      onClick={() => createPlan("inactive")}
+                      disabled={busy || !newPlanName.trim()}
+                      className={primary}
+                      style={{ background: C.pill, color: C.text }}
+                    >
+                      Save draft
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => createPlan("active")}
+                      disabled={busy || !newPlanName.trim() || newPlanContentKeys.length === 0 || !newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0)}
+                      className={primary}
+                      style={{ background: C.cta, color: C.ctaText }}
+                    >
+                      <Sparkles className="w-4 h-4" />
+                      {busy ? "Creating..." : "Create and activate"}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <aside className="rounded-2xl p-4 self-start lg:sticky lg:top-0" style={{ background: C.page }}>
+              <div className="flex items-center gap-2">
+                <SlidersHorizontal className="w-4 h-4" style={{ color: C.cta }} />
+                <p className="text-sm font-black" style={{ color: C.text }}>Plan readiness</p>
+              </div>
+              <div className="mt-4 space-y-3">
+                {[
+                  [Boolean(newPlanName.trim()), "Plan details", newPlanName.trim() || "Name still needed"],
+                  [newPlanContentKeys.length > 0, "Included content", newPlanContentKeys.length ? `${newPlanContentKeys.length} items selected` : "Add at least one item"],
+                  [newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0), "Purchase options", `${newPlanPrices.filter((price) => price.isActive && Number(price.amount) > 0).length} active prices`],
+                ].map(([ready, label, detail]) => (
+                  <div key={String(label)} className="flex items-start gap-2.5">
+                    <span className="w-5 h-5 rounded-full grid place-items-center flex-shrink-0 mt-0.5" style={{ background: ready ? C.successBg : C.card, color: ready ? C.successText : C.faint }}>
+                      {ready ? <Check className="w-3 h-3" /> : <span className="text-[10px]">!</span>}
+                    </span>
+                    <div>
+                      <p className="text-xs font-bold" style={{ color: C.text }}>{label}</p>
+                      <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>{detail}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.divider}` }}>
+                <div className="flex items-center justify-between text-[11px] font-bold" style={{ color: C.muted }}>
+                  <span>Setup progress</span>
+                  <span>{[Boolean(newPlanName.trim()), newPlanContentKeys.length > 0, newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0)].filter(Boolean).length}/3</span>
+                </div>
+                <div className="h-2 rounded-full mt-2 overflow-hidden" style={{ background: C.card }}>
+                  <div
+                    className="h-full rounded-full transition-all"
+                    style={{
+                      width: `${([Boolean(newPlanName.trim()), newPlanContentKeys.length > 0, newPlanPrices.some((price) => price.isActive && Number(price.amount) > 0)].filter(Boolean).length / 3) * 100}%`,
+                      background: C.cta,
+                    }}
+                  />
+                </div>
+              </div>
+            </aside>
           </div>
         </Modal>
       )}
