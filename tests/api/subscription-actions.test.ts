@@ -231,6 +231,60 @@ describe('subscription payment actions', () => {
     expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices', expect.objectContaining({ p_prices: [] }));
   });
 
+  it('refuses to activate a plan without an active price', async () => {
+    authenticateAs('admin');
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plan_prices: { data: [], error: null },
+      subscription_plan_content: { data: [{ content_table: 'courses', content_id: 'course-1' }], error: null },
+    }));
+
+    const response = await POST(request({ action: 'update-subscription-plan', planId: 'plan-1', status: 'active' }));
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/active price/i);
+  });
+
+  it('refuses to activate a plan without linked content', async () => {
+    authenticateAs('admin');
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plan_prices: { data: [{ id: 'price-1' }], error: null },
+      subscription_plan_content: { data: [], error: null },
+    }));
+
+    const response = await POST(request({ action: 'update-subscription-plan', planId: 'plan-1', status: 'active' }));
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/published content/i);
+  });
+
+  it('refuses to activate a plan whose linked content is no longer published', async () => {
+    authenticateAs('admin');
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plan_prices: { data: [{ id: 'price-1' }], error: null },
+      subscription_plan_content: { data: [{ content_table: 'courses', content_id: 'course-1' }], error: null },
+      courses: { data: [], error: null },
+    }));
+
+    const response = await POST(request({ action: 'update-subscription-plan', planId: 'plan-1', status: 'active' }));
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/published content/i);
+  });
+
+  it('activates a plan with an active price and published content', async () => {
+    authenticateAs('admin');
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plan_prices: { data: [{ id: 'price-1' }], error: null },
+      subscription_plan_content: { data: [{ content_table: 'courses', content_id: 'course-1' }], error: null },
+      courses: { data: [{ id: 'course-1' }], error: null },
+      subscription_plans: { data: null, error: null },
+    }));
+
+    const response = await POST(request({ action: 'update-subscription-plan', planId: 'plan-1', status: 'active' }));
+
+    expect(response.status).toBe(200);
+  });
+
   it('rejects a student role', async () => {
     authenticateAs('student');
     const response = await POST(request({ action: 'create-subscription' }));

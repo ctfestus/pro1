@@ -121,7 +121,7 @@ export async function getSubscriptionPlans(db: SupabaseClient, activeOnly = fals
   if (planIds && planIds.length === 0) return [];
   let query = db
     .from('subscription_plans')
-    .select('id, name, description, cohort_id, status, created_by, created_at, updated_at, subscription_plan_prices(id, duration_months, amount, currency, is_active, sort_order)')
+    .select('id, name, description, cohort_id, status, created_by, created_at, updated_at, subscription_plan_prices(id, duration_months, amount, currency, is_active, sort_order), subscription_plan_content(id, content_table, content_id)')
     .order('name');
   if (activeOnly) query = query.eq('status', 'active');
   if (planIds) query = query.in('id', planIds);

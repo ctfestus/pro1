@@ -102,6 +102,13 @@ function money(currency: string, amount: number | string) {
   return `${currency || "GHS"} ${Number(amount || 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 }
 
+function planIsReady(plan: any) {
+  return (
+    (plan?.subscription_plan_prices ?? []).some((price: any) => price.is_active && Number(price.amount) > 0) &&
+    (plan?.subscription_plan_content ?? []).length > 0
+  );
+}
+
 function Modal({
   title,
   eyebrow,
@@ -185,7 +192,7 @@ function StatusPill({ status, C }: { status: string; C: typeof LIGHT_C }) {
       style={{ background: `${tone}14`, color: tone }}
     >
       <span className="w-1.5 h-1.5 rounded-full" style={{ background: tone }} />
-      {status.replaceAll("_", " ")}
+      {status === "inactive" ? "Draft" : status.replaceAll("_", " ")}
     </span>
   );
 }
@@ -329,6 +336,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [newPlanPrices, setNewPlanPrices] = useState(freshPlanPrices);
   const [newPlanContentKeys, setNewPlanContentKeys] = useState<string[]>([]);
   const [newPlanContentSearch, setNewPlanContentSearch] = useState("");
+  const [newPlanDraftId, setNewPlanDraftId] = useState<string | null>(null);
   const [planBuilderStep, setPlanBuilderStep] = useState<0 | 1 | 2>(0);
   const [unsavedPlanDialog, setUnsavedPlanDialog] = useState<"create" | "edit" | null>(null);
   const [planCardMenuId, setPlanCardMenuId] = useState<string | null>(null);
@@ -1026,6 +1034,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setNewPlanPrices(freshPlanPrices());
     setNewPlanContentKeys([]);
     setNewPlanContentSearch("");
+    setNewPlanDraftId(null);
     setPlanBuilderStep(0);
     setCreatePlanOpen(true);
   }
@@ -1035,6 +1044,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       newPlanName.trim() ||
       newPlanDescription.trim() ||
       newPlanContentKeys.length ||
+      newPlanDraftId ||
       newPlanPrices.some((price) => price.amount || price.isActive || price.currency !== "GHS"),
     );
   }
@@ -1047,6 +1057,38 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     }
     setCreatePlanOpen(false);
     setError("");
+  }
+
+  async function discardPlanBuilder() {
+    if (!newPlanDraftId) {
+      setCreatePlanOpen(false);
+      setUnsavedPlanDialog(null);
+      setError("");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const res = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "delete-subscription-plan",
+          planId: newPlanDraftId,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to discard plan draft");
+      setNewPlanDraftId(null);
+      setCreatePlanOpen(false);
+      setUnsavedPlanDialog(null);
+      await load();
+    } catch (err: any) {
+      setUnsavedPlanDialog(null);
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
   }
 
   function editPlanIsDirty() {
@@ -1078,39 +1120,49 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setUnsavedPlanDialog(null);
     setBusy(true);
     setError("");
+    setSuccess("");
+    let planId = newPlanDraftId;
+    const resumingDraft = Boolean(planId);
     try {
-      const res = await authFetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "create-subscription-plan",
-          name: newPlanName,
-          description: newPlanDescription,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Failed to create plan");
+      if (!planId) {
+        const res = await authFetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "create-subscription-plan",
+            name: newPlanName,
+            description: newPlanDescription,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Failed to create plan");
+        planId = data.planId;
+        setNewPlanDraftId(planId);
+      }
+      if (!planId) throw new Error("Plan draft was not created");
 
-      // Keep a new plan off sale while its prices and content are being attached. The creation
-      // RPC predates drafts and may return an active plan, so make the multi-request setup safe.
-      const draftRes = await authFetch("/api/payments", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "update-subscription-plan",
-          planId: data.planId,
-          status: "inactive",
-        }),
-      });
-      const draftData = await draftRes.json();
-      if (!draftRes.ok) throw new Error(draftData.error || "Failed to prepare plan draft");
+      if (resumingDraft) {
+        const detailRes = await authFetch("/api/payments", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            action: "update-subscription-plan",
+            planId,
+            name: newPlanName.trim(),
+            description: newPlanDescription.trim(),
+            status: "inactive",
+          }),
+        });
+        const detailData = await detailRes.json();
+        if (!detailRes.ok) throw new Error(detailData.error || "Failed to update plan draft");
+      }
 
       const priceRes = await authFetch("/api/payments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "save-subscription-plan-prices",
-          planId: data.planId,
+          planId,
           prices: newPlanPrices.map((price) => ({
             durationMonths: Number(price.durationMonths),
             amount: Number(price.amount),
@@ -1123,23 +1175,26 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       const priceData = await priceRes.json();
       if (!priceRes.ok) throw new Error(priceData.error || "Failed to save plan prices");
 
-      await Promise.all(newPlanContentKeys.map(async (key) => {
+      for (const key of newPlanContentKeys) {
         const separator = key.indexOf(":");
         const contentTable = key.slice(0, separator);
         const contentId = key.slice(separator + 1);
+        const contentTitle = contentOptions.find((item) => item.content_table === contentTable && item.id === contentId)?.title || "Selected content";
         const contentRes = await authFetch("/api/admissions", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "add-subscription-plan-content",
-            planId: data.planId,
+            planId,
             contentTable,
             contentId,
           }),
         });
         const contentData = await contentRes.json();
-        if (!contentRes.ok) throw new Error(contentData.error || "Failed to add plan content");
-      }));
+        if (!contentRes.ok) {
+          throw new Error(`Could not add "${contentTitle}": ${contentData.error || "content update failed"}`);
+        }
+      }
 
       if (status === "active") {
         const statusRes = await authFetch("/api/payments", {
@@ -1147,7 +1202,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "update-subscription-plan",
-            planId: data.planId,
+            planId,
             status: "active",
           }),
         });
@@ -1159,12 +1214,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setNewPlanPrices(freshPlanPrices());
       setNewPlanContentKeys([]);
       setNewPlanContentSearch("");
+      setNewPlanDraftId(null);
       setPlanBuilderStep(0);
       setCreatePlanOpen(false);
       setSuccess(status === "active" ? "Plan created and ready for learners." : "Plan saved as a draft.");
-      await load(data.planId);
+      await load(planId);
     } catch (err: any) {
-      setError(err.message);
+      setError(planId
+        ? `The plan is safely saved as a draft. ${err.message} Fix the issue and try again to continue this same plan.`
+        : err.message);
     } finally {
       setBusy(false);
     }
@@ -1239,12 +1297,18 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     const plan = planOverride?.id ? planOverride : selectedPlan;
     if (!plan) return;
     const status = plan.status === "active" ? "inactive" : "active";
+    if (status === "active" && !planIsReady(plan)) {
+      setError("Add at least one active price and one published content item before activating this plan.");
+      return;
+    }
     if (
       status === "inactive" &&
       !confirm("Deactivate this plan? Existing access continues.")
     )
       return;
     setBusy(true);
+    setError("");
+    setSuccess("");
     try {
       const res = await authFetch("/api/payments", {
         method: "POST",
@@ -2724,8 +2788,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </div>
                         <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
                           <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Readiness</p>
-                          <p className="text-sm font-black mt-0.5" style={{ color: (plan.subscription_plan_prices ?? []).some((price: any) => price.is_active) ? C.green : "#b45309" }}>
-                            {(plan.subscription_plan_prices ?? []).some((price: any) => price.is_active) ? "Ready" : "Needs setup"}
+                          <p className="text-sm font-black mt-0.5" style={{ color: planIsReady(plan) ? C.green : "#b45309" }}>
+                            {planIsReady(plan) ? "Ready" : "Needs setup"}
                           </p>
                         </div>
                       </div>
@@ -3739,8 +3803,11 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               <button
                 type="button"
                 onClick={() => {
-                  if (unsavedPlanDialog === "create") setCreatePlanOpen(false);
-                  else setEditPlan(null);
+                  if (unsavedPlanDialog === "create") {
+                    void discardPlanBuilder();
+                    return;
+                  }
+                  setEditPlan(null);
                   setUnsavedPlanDialog(null);
                   setError("");
                 }}
