@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireRole, isAuthError } from '@/lib/api-auth';
+import { revalidatePricingPage } from '@/lib/revalidate-pricing';
 import { admitStudents } from '@/lib/admit-students';
 import { provisionIndividualStudent } from '@/lib/provision-individual-student';
 
@@ -390,6 +391,9 @@ export async function POST(req: NextRequest) {
         }
       }
 
+      // What a plan covers is quoted on the public pricing page, so the saved copy of that
+      // page is now out of date.
+      revalidatePricingPage();
       return NextResponse.json({ ok: true });
     } catch (err: any) {
       console.error(`[admissions/${body.action}]`, err);

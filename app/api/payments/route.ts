@@ -15,6 +15,7 @@ import {
   recomputeEnrollmentAccessPublic,
 } from '@/lib/db-payments';
 import { PURCHASABLE_CONTENT_TABLES } from '@/lib/subscription-plan-access';
+import { revalidatePricingPage } from '@/lib/revalidate-pricing';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
 import { notifySubscriptionActivated } from '@/lib/notify-subscription-activated';
@@ -478,11 +479,13 @@ export async function POST(req: NextRequest) {
   if (body.action === 'create-subscription-plan') {
     if (!body.name?.trim()) return NextResponse.json({ error: 'Plan name is required' }, { status: 400 });
     try {
-      return NextResponse.json(await createSubscriptionPlan(db, {
+      const created = await createSubscriptionPlan(db, {
         name: body.name,
         description: body.description,
         createdBy: sessionUser.id,
-      }));
+      });
+      revalidatePricingPage();
+      return NextResponse.json(created);
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to create subscription plan' }, { status: 500 });
     }
@@ -492,7 +495,9 @@ export async function POST(req: NextRequest) {
     if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
     try {
       await assertPlanAccess(String(body.planId));
-      return NextResponse.json(await deleteSubscriptionPlan(db, body.planId));
+      const deleted = await deleteSubscriptionPlan(db, body.planId);
+      revalidatePricingPage();
+      return NextResponse.json(deleted);
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to delete subscription plan');
       const conflict = String(err?.message ?? '').includes('cannot be deleted');
@@ -522,6 +527,9 @@ export async function POST(req: NextRequest) {
       await assertPlanAccess(String(body.planId));
       const { error } = await db.from('subscription_plans').update(updates).eq('id', body.planId);
       if (error) throw error;
+      // Deactivating is the case that sent us looking: without this the public page kept
+      // advertising the plan, buy button and all, until the cache timer ran out.
+      revalidatePricingPage();
       return NextResponse.json({ ok: true });
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to update subscription plan');
@@ -577,6 +585,7 @@ export async function POST(req: NextRequest) {
         p_actor_id: sessionUser.id,
       });
       if (replaceError) throw replaceError;
+      revalidatePricingPage();
       return NextResponse.json({ ok: true });
     } catch (err: any) {
       console.error('[payments/save-subscription-plan-prices]', err);

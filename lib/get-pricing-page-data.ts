@@ -12,6 +12,7 @@
  * the expiry sweep and the one-plan-per-learner rule.
  */
 import { unstable_cache } from 'next/cache';
+import { PRICING_CACHE_TAG } from '@/lib/revalidate-pricing';
 import { createClient } from '@supabase/supabase-js';
 import {
   emptyContentCounts,
@@ -74,5 +75,7 @@ export const getPricingPageData = unstable_cache(
     return { plans, free };
   },
   ['pricing-page-v2'],
-  { revalidate: 300, tags: ['pricing-page'] },
+  // The timer is the backstop; the tag is what an admin edit clears through
+  // revalidatePricingPage, so a withdrawn plan stops being advertised at once.
+  { revalidate: 300, tags: [PRICING_CACHE_TAG] },
 );
