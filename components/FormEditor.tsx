@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { useTheme } from '@/components/ThemeProvider';
+import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2, Save, Check, Plus, Trash2, Image as ImageIcon, Images, Sun, Moon,
@@ -2164,6 +2165,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       ? 'Only the selected cohorts can access this course.'
                       : 'Nobody can access this yet. Choose Everyone or select at least one cohort.'}
                 </p>}
+                {formConfig.isCourse && (
+                  <div className="pt-3 border-t" style={{ borderColor: FE.inputBorder }}>
+                    <PlanAccessPicker
+                      contentTable="courses"
+                      contentId={formId}
+                      availableToEveryone={courseAvailableToEveryone}
+                    />
+                  </div>
+                )}
                 {selectedCohortIds.length > 0 && (
                   <div className="pt-2 border-t" style={{ borderColor: FE.inputBorder }}>
                     <label className="block text-xs font-semibold mb-1.5" style={{ color: FE.muted }}>Deadline (days from assignment)</label>

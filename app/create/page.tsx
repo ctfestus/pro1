@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { useTheme } from '@/components/ThemeProvider';
+import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -2816,6 +2817,17 @@ const [isSaving, setIsSaving] = useState(false);
                       ? 'Nobody can access this yet. Choose Everyone or select at least one cohort.'
                       : `Visible to ${selectedCohortIds.length} cohort${selectedCohortIds.length > 1 ? 's' : ''}.`}
                   </p>
+                  {formConfig.isCourse && (
+                    <div className="pt-3 border-t" style={{ borderColor: C.inputBorder }}>
+                      {/* Live until the course exists, then usable. A new course has no row to
+                          attach, so the picker says to save first rather than failing on click. */}
+                      <PlanAccessPicker
+                        contentTable="courses"
+                        contentId={savedFormId}
+                        availableToEveryone={courseAvailableToEveryone}
+                      />
+                    </div>
+                  )}
                   {selectedCohortIds.length > 0 && (
                     <div className="pt-2 border-t" style={{ borderColor: C.inputBorder }}>
                       <label className="block text-xs font-semibold mb-1.5" style={{ color: C.muted }}>Deadline (days from assignment)</label>
