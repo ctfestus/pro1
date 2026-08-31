@@ -312,10 +312,23 @@ export async function POST(req: NextRequest) {
       if (adding && (content as any).status !== 'published') {
         return NextResponse.json({ error: 'Only published content can be added.' }, { status: 400 });
       }
+      // Open to everyone and sold in a plan are contradictory: a plan grants access by tagging
+      // the content with its cohort, and open access ignores cohorts entirely. The author can
+      // resolve that from the editor now, but only by asking -- clearing it quietly would take
+      // the content away from every learner relying on the open flag, part-way through included.
       if (adding && ['courses', 'certifications'].includes(contentTable) && (content as any).available_to_everyone === true) {
-        return NextResponse.json({
-          error: `This ${contentTable === 'courses' ? 'course' : 'certification'} is already available to everyone. Restrict it to a cohort first, then add it to the subscription plan.`,
-        }, { status: 400 });
+        if (body.clearPublicAccess !== true) {
+          return NextResponse.json({
+            error: `This ${contentTable === 'courses' ? 'course' : 'certification'} is already available to everyone. Restrict it to a cohort first, then add it to the subscription plan.`,
+            code: 'needs_private',
+          }, { status: 400 });
+        }
+        // Closed before the coverage row is written. The other order could leave the content in
+        // a plan and still open to everyone, which the picker would then read as needing nothing.
+        const { error: closeError } = await db.from(contentTable)
+          .update({ available_to_everyone: false })
+          .eq('id', contentId);
+        if (closeError) throw closeError;
       }
 
       if (adding) {

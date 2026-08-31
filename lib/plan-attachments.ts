@@ -40,18 +40,26 @@ export function planPickerState(subject: PlanPickerSubject): PlanPickerState {
   if (subject.status !== 'published') {
     return { enabled: false, reason: 'Publish this first. A plan can only include published content.' };
   }
-  // The API refuses this for the two types that carry the flag: something already open to
-  // everyone is not access a plan can grant.
-  if (
-    subject.availableToEveryone === true
-    && (subject.contentTable === 'courses' || subject.contentTable === 'certifications')
-  ) {
-    return {
-      enabled: false,
-      reason: 'This is already available to everyone, so a plan cannot grant it. Restrict it to a cohort first.',
-    };
-  }
+  // Being open to everyone no longer blocks the picker. It is a contradiction rather than an
+  // error -- a plan grants access through its cohort, and open-to-everyone bypasses cohorts
+  // entirely -- and it is one the author can resolve here, having been told what it costs.
   return { enabled: true };
+}
+
+/**
+ * Whether adding this content to a plan also has to close its open access first.
+ *
+ * Only two types carry the flag. Adding while it is on cannot work: the plan grants access by
+ * tagging the content with the plan's cohort, and open-to-everyone ignores cohorts, so the two
+ * are contradictory answers to the same question.
+ *
+ * This is never silent. Closing it takes the content away from every signed-in learner who is
+ * not in one of its cohorts and not a subscriber, including anyone part-way through it, so the
+ * caller has to say so and be told yes.
+ */
+export function needsPrivacyChange(subject: PlanPickerSubject): boolean {
+  if (subject.availableToEveryone !== true) return false;
+  return subject.contentTable === 'courses' || subject.contentTable === 'certifications';
 }
 
 export interface PlanAttachmentDiff {

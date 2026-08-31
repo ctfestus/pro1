@@ -459,6 +459,7 @@ function CertificationEditor() {
                 contentTable="certifications"
                 contentId={editId}
                 availableToEveryone={state.availableToEveryone}
+                onPublicAccessClosed={() => update({ availableToEveryone: false })}
               />
             </div>
           </div>
