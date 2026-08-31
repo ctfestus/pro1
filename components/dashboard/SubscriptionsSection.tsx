@@ -2571,10 +2571,6 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                             : `0 8px 24px ${dark ? "rgba(0,0,0,0.12)" : "rgba(15,23,42,0.05)"}`,
                       }}
                     >
-                      <span
-                        className="absolute left-5 right-5 top-0 h-1 rounded-b-full"
-                        style={{ background: plan.status === "active" ? C.green : C.divider }}
-                      />
                       <div className="flex items-center justify-between gap-3">
                         <div
                           className="w-10 h-10 rounded-2xl grid place-items-center"
