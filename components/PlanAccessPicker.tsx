@@ -55,6 +55,8 @@ export function PlanAccessPicker({
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState('');
   const [error, setError] = useState('');
+  /** The change landed but the email did not. Said plainly, and not as a failure. */
+  const [warning, setWarning] = useState('');
   /** A ticked plan waiting on a yes, with what saying yes would do. */
   const [confirming, setConfirming] = useState<
     { plan: Plan; willEmail: boolean; willClosePublic: boolean } | null
@@ -104,7 +106,7 @@ export function PlanAccessPicker({
   useEffect(() => { void load(); }, [load]);
 
   const apply = async (plan: Plan, add: boolean, clearPublicAccess = false) => {
-    setBusyId(plan.id); setError(''); setConfirming(null);
+    setBusyId(plan.id); setError(''); setWarning(''); setConfirming(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/admissions', {
@@ -120,13 +122,22 @@ export function PlanAccessPicker({
         }),
       });
       const body = await res.json().catch(() => ({}));
+      // Keyed on what the server says it did, not on the absence of an error. The access change
+      // commits before anyone is emailed, so a failed send used to arrive here as a failed
+      // attachment -- leaving the editor holding an open-access flag the database now forbids.
+      if (body.applied === true) {
+        if (clearPublicAccess) onPublicAccessClosed?.();
+        if (body.notificationWarning) setWarning(String(body.notificationWarning));
+      }
       if (!res.ok) throw new Error(body.error || 'Could not update the plan.');
-      if (clearPublicAccess) onPublicAccessClosed?.();
       // Re-read rather than assume: the server decides whether an email went, and the stamp it
       // sets is what stops this warning appearing again.
       await load();
     } catch (e: any) {
       setError(e?.message || 'Could not update the plan.');
+      // Re-read after a failure too. Whatever did or did not commit, the checkboxes should show
+      // what is actually stored rather than what was clicked.
+      await load().catch(() => {});
     } finally {
       setBusyId('');
     }
@@ -255,6 +266,7 @@ export function PlanAccessPicker({
         );
       })}
 
+      {warning && <p className="text-xs mt-2" style={{ color: '#b45309' }}>{warning}</p>}
       {error && <p className="text-xs mt-2" style={{ color: '#dc2626' }}>{error}</p>}
     </div>
   );

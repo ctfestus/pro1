@@ -56,4 +56,30 @@ describe('closing open access when content joins a plan', () => {
       expect(read(editor)).toContain('onPublicAccessClosed');
     }
   });
+
+  it('does not report a failed email as a failed attachment', () => {
+    // The access change commits before anyone is told. Reporting a failed send as a failure left
+    // the editor holding an open-access flag the database now forbids it to write back, so the
+    // author's next save met a constraint error with no explanation.
+    const notify = admissions.indexOf('let notificationWarning');
+    const commit = admissions.indexOf("db.rpc('set_subscription_plan_content'");
+    expect(commit).toBeGreaterThan(-1);
+    expect(notify).toBeGreaterThan(commit);
+    expect(admissions).toContain('notificationWarning =');
+    expect(admissions).toContain('applied: true');
+  });
+
+  it('tells the picker what was applied, rather than leaving it to infer it', () => {
+    // Keyed on the server's own answer. An HTTP status cannot distinguish "nothing happened"
+    // from "it happened and the email did not".
+    expect(picker).toContain('body.applied === true');
+    expect(picker).toMatch(/body\.applied === true[\s\S]{0,200}onPublicAccessClosed\?\.\(\)/);
+    expect(picker).toContain('notificationWarning');
+  });
+
+  it('re-reads what is stored after a failure, not only after a success', () => {
+    // Whatever did or did not commit, the checkboxes should show what is actually stored rather
+    // than what was clicked.
+    expect(picker).toMatch(/catch \(e: any\)[\s\S]{0,320}await load\(\)/);
+  });
 });

@@ -360,34 +360,54 @@ export async function POST(req: NextRequest) {
       // public page serving the old counts.
       revalidatePricingPage();
 
+      // Everything past this point is telling people about a change that has already happened.
+      // Reporting a failed send as a failed attachment was worse than the silence it replaced:
+      // the editor would keep its stale open-access state, and its next save would try to write
+      // that flag back onto content the database now forbids from carrying it.
+      let notificationWarning: string | null = null;
       if (adding) {
-        const { data: currentPlan, error: currentPlanError } = await db
-          .from('subscription_plans')
-          .select('status')
-          .eq('id', plan.id)
-          .single();
-        if (currentPlanError) throw currentPlanError;
+        try {
+          const { data: currentPlan, error: currentPlanError } = await db
+            .from('subscription_plans')
+            .select('status')
+            .eq('id', plan.id)
+            .single();
+          if (currentPlanError) throw currentPlanError;
 
-        if (currentPlan.status !== 'active') return NextResponse.json({ ok: true });
-        const { data: coverage, error: coverageReadError } = await db
-          .from('subscription_plan_content')
-          .select('id, notified_at')
-          .eq('plan_id', plan.id)
-          .eq('content_table', contentTable)
-          .eq('content_id', contentId)
-          .single();
-        if (coverageReadError) throw coverageReadError;
-        if (!coverage.notified_at) {
-          await contentConfig.notify(db, content, plan.cohort_id);
-          const { error: notifyStampError } = await db.from('subscription_plan_content')
-            .update({ notified_at: new Date().toISOString() })
-            .eq('id', coverage.id)
-            .is('notified_at', null);
-          if (notifyStampError) throw notifyStampError;
+          // An inactive plan has no learners to tell. Not an early return any more: the caller
+          // still needs the applied answer below.
+          if (currentPlan.status === 'active') {
+            const { data: coverage, error: coverageReadError } = await db
+              .from('subscription_plan_content')
+              .select('id, notified_at')
+              .eq('plan_id', plan.id)
+              .eq('content_table', contentTable)
+              .eq('content_id', contentId)
+              .single();
+            if (coverageReadError) throw coverageReadError;
+            if (!coverage.notified_at) {
+              await contentConfig.notify(db, content, plan.cohort_id);
+              const { error: notifyStampError } = await db.from('subscription_plan_content')
+                .update({ notified_at: new Date().toISOString() })
+                .eq('id', coverage.id)
+                .is('notified_at', null);
+              if (notifyStampError) throw notifyStampError;
+            }
+          }
+        } catch (notifyError: any) {
+          console.error(`[admissions/${body.action}] notification`, notifyError);
+          notificationWarning =
+            'The change was saved. The email to learners on this plan could not be sent.';
         }
       }
 
-      return NextResponse.json({ ok: true });
+      // applied says the access change is committed, whatever happened to the email. The picker
+      // keys its own update on this rather than on the absence of an error.
+      return NextResponse.json({
+        ok: true,
+        applied: true,
+        ...(notificationWarning ? { notificationWarning } : {}),
+      });
     } catch (err: any) {
       console.error(`[admissions/${body.action}]`, err);
       return NextResponse.json({ error: err.message ?? 'Failed to update subscription content' }, { status: 500 });
