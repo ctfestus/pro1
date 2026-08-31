@@ -1,5 +1,5 @@
 /**
- * Remembers which locked item a visitor was trying to buy, across signing in.
+ * Remembers what a visitor was trying to buy, across signing in.
  *
  * Someone who follows a link to paid content and decides to buy is sent to sign in, and the
  * link that named what they wanted is lost on the way. Signing up costs more still: a
@@ -31,28 +31,58 @@ const PURCHASABLE: readonly PurchasableContentTable[] = [
   'certifications',
 ];
 
+// A stored id is put back into a URL, so it is matched against the shape the database issues
+// rather than merely being non-empty. Anything else is dropped and the visitor lands on the
+// dashboard, which is what happened before any of this existed.
+const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export interface PurchaseIntent {
-  contentTable: PurchasableContentTable;
-  contentId: string;
+  /** The locked item they were trying to open. */
+  contentTable?: PurchasableContentTable;
+  contentId?: string;
+  /** The plan length they picked on the pricing page, so the choice survives signing up. */
+  priceId?: string;
 }
 
+function hasContent(value: PurchaseIntent): boolean {
+  return typeof value.contentId === 'string'
+    && value.contentId.length > 0
+    && !!value.contentTable
+    && PURCHASABLE.includes(value.contentTable);
+}
+
+// Either half stands on its own: someone can arrive from a locked course having chosen nothing,
+// or from the pricing page having chosen a length with no particular course in mind.
 function isIntent(value: unknown): value is PurchaseIntent {
   const candidate = value as PurchaseIntent | null;
-  return !!candidate
-    && typeof candidate.contentId === 'string'
-    && candidate.contentId.length > 0
-    && PURCHASABLE.includes(candidate.contentTable);
+  if (!candidate) return false;
+  const priced = typeof candidate.priceId === 'string' && ID.test(candidate.priceId);
+  return hasContent(candidate) || priced;
+}
+
+/**
+ * Keeps only the halves that check out. Every path in and out of storage goes through this, so a
+ * valid half is never carried along by an invalid one -- a bad table name beside a good price
+ * would otherwise be stored and rebuilt into the URL.
+ */
+function sanitize(raw: unknown): PurchaseIntent | null {
+  if (!isIntent(raw)) return null;
+  const intent: PurchaseIntent = {};
+  if (hasContent(raw)) { intent.contentTable = raw.contentTable; intent.contentId = raw.contentId; }
+  if (raw.priceId && ID.test(raw.priceId)) intent.priceId = raw.priceId;
+  return intent;
 }
 
 /** Reads a content target out of a query string. Returns null when there is not one. */
 export function readPurchaseIntent(search: string): PurchaseIntent | null {
   try {
     const params = new URLSearchParams(search);
-    const intent = {
-      contentTable: params.get('contentTable') as PurchasableContentTable,
-      contentId: params.get('contentId') ?? '',
+    const raw: PurchaseIntent = {
+      contentTable: (params.get('contentTable') ?? undefined) as PurchasableContentTable | undefined,
+      contentId: params.get('contentId') ?? undefined,
+      priceId: params.get('priceId') ?? undefined,
     };
-    return isIntent(intent) ? intent : null;
+    return sanitize(raw);
   } catch {
     return null;
   }
@@ -74,9 +104,10 @@ export function takePurchaseIntent(): PurchaseIntent | null {
     if (!raw) return null;
     window.localStorage.removeItem(KEY);
     const stored = JSON.parse(raw) as PurchaseIntent & { at?: number };
-    if (!isIntent(stored)) return null;
-    if (typeof stored.at !== 'number' || Date.now() - stored.at > TTL_MS) return null;
-    return { contentTable: stored.contentTable, contentId: stored.contentId };
+    if (typeof stored?.at !== 'number' || Date.now() - stored.at > TTL_MS) return null;
+    // Rebuilt through the same filter as the way in, so what comes back out of storage carries
+    // every validated half and nothing else. Returning a fixed pair dropped the chosen length.
+    return sanitize(stored);
   } catch {
     return null;
   }
@@ -84,9 +115,11 @@ export function takePurchaseIntent(): PurchaseIntent | null {
 
 /** The one place a destination is built, from validated values only. */
 export function purchaseIntentHref(intent: PurchaseIntent): string {
-  const params = new URLSearchParams({
-    contentTable: intent.contentTable,
-    contentId: intent.contentId,
-  });
+  const params = new URLSearchParams();
+  if (hasContent(intent)) {
+    params.set('contentTable', String(intent.contentTable));
+    params.set('contentId', String(intent.contentId));
+  }
+  if (intent.priceId && ID.test(intent.priceId)) params.set('priceId', intent.priceId);
   return `/student?${params.toString()}#payments`;
 }

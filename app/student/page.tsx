@@ -247,7 +247,7 @@ export default function StudentDashboard() {
       // Skipped while an admin is viewing as a student: redirecting would drop the viewAs
       // parameter and silently end their session as that learner.
       const currentParams = new URLSearchParams(window.location.search);
-      if (!currentParams.get('contentTable') && !currentParams.get('viewAs')) {
+      if (!currentParams.get('contentTable') && !currentParams.get('priceId') && !currentParams.get('viewAs')) {
         const intent = takePurchaseIntent();
         if (intent) { window.location.replace(purchaseIntentHref(intent)); return; }
       }

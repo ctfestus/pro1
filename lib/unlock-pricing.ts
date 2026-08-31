@@ -46,3 +46,26 @@ export function lowestUnlockPrice(unlock: UnlockInfo): UnlockPrice | null {
   if (!prices.length) return null;
   return prices.reduce((cheapest, price) => (price.amount < cheapest.amount ? price : cheapest));
 }
+
+/**
+ * The plan to name on a locked panel, and only when a single plan opens the item.
+ *
+ * Naming one of several would imply the others will not do, and the learner cannot tell from the
+ * panel which is which. With one plan on sale -- which is the ordinary case -- naming it is the
+ * clearest thing the button can say.
+ */
+export function unlockPlanName(unlock: UnlockInfo): string | null {
+  const plans = sellablePlans(unlock);
+  if (plans.length !== 1) return null;
+  const name = (plans[0].name ?? '').trim();
+  return name || null;
+}
+
+/**
+ * What a locked item's button says. No figure: the price belongs on the pricing page beside the
+ * lengths it applies to, not on a course panel where it reads as the price of that one course.
+ */
+export function enrollLabel(unlock: UnlockInfo): string {
+  const name = unlockPlanName(unlock);
+  return name ? `Enroll with ${name}` : 'Enroll with a plan';
+}

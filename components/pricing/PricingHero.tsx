@@ -7,8 +7,8 @@
  * there is a real saving to strike it against, so the page never dresses a single price up as a
  * discount -- and there is no countdown, because there is no offer with an end date behind it.
  */
-import Link from 'next/link';
-import { ArrowRight } from 'lucide-react';
+import { useState } from 'react';
+import { ArrowRight, Loader2 } from 'lucide-react';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-offer';
 
@@ -92,13 +92,15 @@ export interface PricingHeroProps {
   accentColor: string;
   headingFont?: string;
   bodyFont?: string;
-  ctaHref: string;
   ctaLabel: string;
+  /** Starts the purchase for the offer shown, or hands off where this page cannot finish it. */
+  onBuy: (priceId: string) => Promise<void> | void;
 }
 
 export function PricingHero({
-  offer, primaryColor, accentColor, headingFont, bodyFont, ctaHref, ctaLabel,
+  offer, primaryColor, accentColor, headingFont, bodyFont, ctaLabel, onBuy,
 }: PricingHeroProps) {
+  const [busy, setBusy] = useState(false);
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
   // Built-in logos render at once; anything an instructor uploaded replaces them when it arrives.
@@ -163,13 +165,17 @@ export function PricingHero({
           </p>
 
           <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
-            <Link
-              href={ctaHref}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-sm font-bold"
+            <button
+              type="button"
+              onClick={async () => { setBusy(true); await onBuy(price.id); setBusy(false); }}
+              disabled={busy}
+              className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-sm font-bold disabled:opacity-70"
               style={{ background: '#FFFFFF', color: primaryColor }}
             >
-              {ctaLabel} <ArrowRight className="w-4 h-4" />
-            </Link>
+              {busy
+                ? <>Opening checkout <Loader2 className="w-4 h-4 animate-spin" /></>
+                : <>{ctaLabel} <ArrowRight className="w-4 h-4" /></>}
+            </button>
             {alternative && (
               <span className="text-sm" style={{ color: 'rgba(255,255,255,0.82)' }}>
                 or {formatMoney(alternative.currency, alternative.amount)} for {durationLabel(alternative.durationMonths)}

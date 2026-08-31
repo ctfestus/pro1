@@ -12,8 +12,9 @@
  */
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Check, Minus, ArrowRight } from 'lucide-react';
+import { Check, Minus, ArrowRight, Loader2 } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
+import { startPlanCheckout } from '@/lib/start-plan-checkout';
 import { planBenefits } from '@/lib/pricing-benefits';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import type { AdCard } from '@/lib/mid-ads';
@@ -41,13 +42,16 @@ export interface PricingSectionProps extends PricingPageData {
   bodyFont?: string;
   /** Signed-in learners go straight to checkout; everyone else makes an account first. */
   signedIn: boolean;
+  /** Whether a card checkout can be opened from here at all. */
+  paystackEnabled: boolean;
   supportEmail?: string;
   /** The landing page's mid-page banners, shown between the cards and the comparison. */
   midAds?: AdCard[];
 }
 
 export function PricingSection({
-  plans, free, primaryColor, accentColor, headingFont, bodyFont, signedIn, supportEmail, midAds,
+  plans, free, primaryColor, accentColor, headingFont, bodyFont, signedIn, paystackEnabled,
+  supportEmail, midAds,
 }: PricingSectionProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
@@ -85,8 +89,19 @@ export function PricingSection({
     return best;
   }, [durations, plans]);
 
-  const buyHref = signedIn ? '/student#payments' : '/auth?mode=signup';
-  const buyLabel = signedIn ? 'Go to payment options' : 'Create your account';
+  const buyLabel = signedIn ? 'Continue to checkout' : 'Create your account';
+  const [busyPriceId, setBusyPriceId] = useState('');
+
+  // The purchase starts here rather than on another screen. Anything this page cannot finish --
+  // paying by transfer, an account already on a plan -- hands over to the payments screen with
+  // the chosen length in the link, so nobody is asked the same question twice.
+  const buy = async (priceId: string) => {
+    setBusyPriceId(priceId);
+    const outcome = await startPlanCheckout(priceId, { paystackEnabled });
+    // A redirect to the provider is already under way; anything else finishes elsewhere, and
+    // that screen explains the reason far better than a line on this one could.
+    if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
+  };
 
   return (
     <section style={{ fontFamily: bFont }}>
@@ -160,8 +175,9 @@ export function PricingSection({
             hFont={hFont}
             primaryColor={primaryColor}
             accentColor={accentColor}
-            buyHref={buyHref}
             buyLabel={buyLabel}
+            busy={busyPriceId}
+            onBuy={buy}
           />
         ))}
 
@@ -237,10 +253,11 @@ function TierCard({
 }
 
 function PlanCard({
-  plan, months, soleOption, hFont, primaryColor, accentColor, buyHref, buyLabel,
+  plan, months, soleOption, hFont, primaryColor, accentColor, buyLabel, busy, onBuy,
 }: {
   plan: PricingPlan; months: number | null; soleOption: boolean; hFont?: string;
-  primaryColor: string; accentColor: string; buyHref: string; buyLabel: string;
+  primaryColor: string; accentColor: string; buyLabel: string;
+  busy: string; onBuy: (priceId: string) => void;
 }) {
   const price = plan.prices.find(row => row.durationMonths === months) ?? null;
   const comparison = price ? comparePlanPrice(price, plan.prices) : null;
@@ -285,13 +302,17 @@ function PlanCard({
         </p>
       )}
 
-      <Link
-        href={buyHref}
-        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
+      <button
+        type="button"
+        onClick={() => price && onBuy(price.id)}
+        disabled={!price || !!busy}
+        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold disabled:opacity-60"
         style={{ background: primaryColor, color: '#FFFFFF' }}
       >
-        {buyLabel} <ArrowRight className="w-4 h-4" />
-      </Link>
+        {busy && price && busy === price.id
+          ? <>Opening checkout <Loader2 className="w-4 h-4 animate-spin" /></>
+          : <>{buyLabel} <ArrowRight className="w-4 h-4" /></>}
+      </button>
 
       <ul className="mt-6 space-y-2.5">
         {planBenefits(plan.coverage).map(line => (

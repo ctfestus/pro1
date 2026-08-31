@@ -1,7 +1,7 @@
 // What a visitor was trying to buy, carried across signing in.
 //
 // The security-relevant property is that no caller-supplied destination is ever stored or
-// navigated to: only a content table and id, both validated, with the path rebuilt from them.
+// navigated to: only validated ids, with the path rebuilt from them.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   readPurchaseIntent,
@@ -83,6 +83,47 @@ describe('pending purchase intent', () => {
       },
     };
     expect(() => rememberPurchaseIntent('?contentTable=courses&contentId=abc')).not.toThrow();
+    expect(takePurchaseIntent()).toBeNull();
+  });
+});
+
+// A length chosen on the pricing page has to survive signing up, the confirmation email and
+// onboarding, or the visitor is asked to choose all over again on arrival.
+describe('a plan length chosen before signing in', () => {
+  const PRICE = '11111111-2222-4333-8444-555555555555';
+
+  it('is carried on its own, with no content target', () => {
+    const intent = readPurchaseIntent(`?priceId=${PRICE}`);
+    expect(intent).toEqual({ priceId: PRICE });
+    expect(purchaseIntentHref(intent!)).toBe(`/student?priceId=${PRICE}#payments`);
+  });
+
+  it('is carried alongside a locked item when both are known', () => {
+    const intent = readPurchaseIntent(`?contentTable=courses&contentId=abc&priceId=${PRICE}`);
+    expect(intent).toEqual({ contentTable: 'courses', contentId: 'abc', priceId: PRICE });
+    const href = purchaseIntentHref(intent!);
+    expect(href).toContain('contentTable=courses');
+    expect(href).toContain(`priceId=${PRICE}`);
+  });
+
+  it('drops anything that is not an id the database could have issued', () => {
+    // The stored value is put back into a URL, so it is matched against the shape rather than
+    // merely being non-empty.
+    expect(readPurchaseIntent('?priceId=../../admin')).toBeNull();
+    expect(readPurchaseIntent('?priceId=https://evil.test')).toBeNull();
+    expect(readPurchaseIntent('?priceId=')).toBeNull();
+  });
+
+  it('does not let a bad half smuggle itself in beside a good one', () => {
+    // A price that is valid must not carry an unrecognised content table along with it.
+    const intent = readPurchaseIntent(`?contentTable=secrets&contentId=abc&priceId=${PRICE}`);
+    expect(intent).toEqual({ priceId: PRICE });
+    expect(purchaseIntentHref(intent!)).toBe(`/student?priceId=${PRICE}#payments`);
+  });
+
+  it('survives the round trip through storage', () => {
+    rememberPurchaseIntent(`?priceId=${PRICE}`);
+    expect(takePurchaseIntent()).toEqual({ priceId: PRICE });
     expect(takePurchaseIntent()).toBeNull();
   });
 });
