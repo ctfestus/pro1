@@ -7,7 +7,9 @@
  * everyone, so baking a session into it would hand one visitor's state to the next. It only
  * decides which words the buttons carry, so resolving it in the browser costs nothing.
  */
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
+import { ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
@@ -15,8 +17,7 @@ import type { SiteConfig } from '@/lib/site-templates';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
 import { PricingHero } from '@/components/pricing/PricingHero';
-import { featuredOffer } from '@/lib/pricing-offer';
-import { startPlanCheckout } from '@/lib/start-plan-checkout';
+import { featuredOffer, featuredOfferForDuration } from '@/lib/pricing-offer';
 import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
 
@@ -43,6 +44,19 @@ export function PricingPageClient(props: PricingPageClientProps) {
   const [scrolled, setScrolled] = useState(false);
   const signedIn = !!user;
 
+  const durations = useMemo(() => {
+    const all = new Set<number>();
+    props.plans.forEach(plan => plan.prices.forEach(price => all.add(price.durationMonths)));
+    return [...all].sort((a, b) => a - b);
+  }, [props.plans]);
+  const [selectedDuration, setSelectedDuration] = useState<number | null>(() =>
+    featuredOffer(props.plans)?.price.durationMonths ?? durations[durations.length - 1] ?? null,
+  );
+  const selectedOffer = useMemo(
+    () => featuredOfferForDuration(props.plans, selectedDuration),
+    [props.plans, selectedDuration],
+  );
+
   useEffect(() => {
     let cancelled = false;
     supabase.auth.getSession().then(({ data }) => {
@@ -60,9 +74,10 @@ export function PricingPageClient(props: PricingPageClientProps) {
   }, []);
 
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
+  const finalCtaHref = signedIn ? '/student#payments' : '/auth?mode=signup';
 
   return (
-    <main className="min-h-screen pt-16" style={{ background: '#F7F8FA' }}>
+    <main className="min-h-screen pt-16" style={{ background: '#F3F6F5' }}>
       <LandingNav
         appName={appName}
         logoUrl={logoUrl}
@@ -82,31 +97,14 @@ export function PricingPageClient(props: PricingPageClientProps) {
       />
 
       <PricingHero
-        offer={featuredOffer(props.plans)}
+        offer={selectedOffer}
         primaryColor={primaryColor}
         accentColor={accentColor}
         headingFont={headingFont}
         bodyFont={bodyFont}
-        ctaLabel={signedIn ? 'Continue to checkout' : 'Get started'}
-        onBuy={async priceId => {
-          const outcome = await startPlanCheckout(priceId, { paystackEnabled });
-          if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
-        }}
       />
 
       <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 pb-24">
-        <div className="text-center pt-14 pb-8">
-          <h2
-            className="text-2xl sm:text-3xl font-bold tracking-tight"
-            style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}
-          >
-            Choose how long you want access
-          </h2>
-          <p className="mt-3 text-base max-w-2xl mx-auto" style={{ color: '#475467' }}>
-            Start free. Upgrade when you want the full catalogue, and pay only for the time you use.
-          </p>
-        </div>
-
         <PricingSection
           plans={props.plans}
           free={props.free}
@@ -118,14 +116,33 @@ export function PricingPageClient(props: PricingPageClientProps) {
           paystackEnabled={paystackEnabled}
           supportEmail={supportEmail}
           midAds={midAds}
+          durations={durations}
+          selectedDuration={selectedDuration}
+          onSelectDuration={setSelectedDuration}
         />
 
         <PricingFaq
           headingFont={headingFont}
-          primaryColor={primaryColor}
           supportEmail={supportEmail}
           paidPlanName={props.plans.length === 1 ? props.plans[0].name : undefined}
         />
+
+        <section className="relative mt-16 overflow-hidden rounded-[30px] px-6 py-10 text-center sm:px-10 sm:py-12" style={{ background: primaryColor }}>
+          <div aria-hidden="true" className="absolute -left-20 -top-24 h-64 w-64 rounded-full bg-white/10 blur-3xl" />
+          <div aria-hidden="true" className="absolute -bottom-28 -right-10 h-72 w-72 rounded-full blur-3xl" style={{ background: `color-mix(in srgb, ${accentColor} 32%, transparent)` }} />
+          <div className="relative">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: 'rgba(255,255,255,0.66)' }}>Ready when you are</p>
+            <h2 className="mx-auto mt-3 max-w-2xl text-3xl font-black tracking-[-0.035em] sm:text-4xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
+              Start free, then unlock more when your ambition asks for it.
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-sm leading-6" style={{ color: 'rgba(255,255,255,0.72)' }}>
+              No card to begin. No automatic renewal. Just clear access to the experience you choose.
+            </p>
+            <Link href={finalCtaHref} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
+              {signedIn ? 'View payment options' : 'Create your free account'} <ArrowRight className="h-4 w-4" />
+            </Link>
+          </div>
+        </section>
       </div>
 
       <LandingFooter

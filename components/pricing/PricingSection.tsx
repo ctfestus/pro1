@@ -1,18 +1,17 @@
 'use client';
 
-/**
- * The public pricing section: a duration toggle, a card per tier, and a comparison table.
- *
- * Durations come from what an admin actually priced, so the toggle never offers a term that is
- * not on sale. Everything the table says about a tier is counted from the database rather than
- * written here -- a tier that gains a certification tomorrow says so without an edit.
- *
- * Starter is presentation only. It is what an account with no plan already sees, so it has no
- * price, no button to buy and no row in the plans table.
- */
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
-import { Check, Minus, ArrowRight, Loader2 } from 'lucide-react';
+import {
+  ArrowRight,
+  Award,
+  Building2,
+  Check,
+  CreditCard,
+  Minus,
+  Loader2,
+  ShieldCheck,
+} from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { startPlanCheckout } from '@/lib/start-plan-checkout';
 import { planBenefits } from '@/lib/pricing-benefits';
@@ -34,46 +33,54 @@ const KIND_LABEL: Record<PurchasableContentTable, string> = {
   certifications: 'Certifications',
 };
 
+const KIND_DESCRIPTION: Record<PurchasableContentTable, string> = {
+  courses: 'Build focused, practical skills',
+  learning_paths: 'Follow a guided sequence',
+  virtual_experiences: 'Practise through realistic work',
+  certifications: 'Prove what you have completed',
+};
 
 export interface PricingSectionProps extends PricingPageData {
   primaryColor: string;
   accentColor: string;
   headingFont?: string;
   bodyFont?: string;
-  /** Signed-in learners go straight to checkout; everyone else makes an account first. */
   signedIn: boolean;
   /** Whether a card checkout can be opened from here at all. */
   paystackEnabled: boolean;
   supportEmail?: string;
-  /** The landing page's mid-page banners, shown between the cards and the comparison. */
   midAds?: AdCard[];
+  durations: number[];
+  selectedDuration: number | null;
+  onSelectDuration: (months: number) => void;
 }
 
 export function PricingSection({
-  plans, free, primaryColor, accentColor, headingFont, bodyFont, signedIn, paystackEnabled,
-  supportEmail, midAds,
+  plans,
+  free,
+  primaryColor,
+  accentColor,
+  headingFont,
+  bodyFont,
+  signedIn,
+  paystackEnabled,
+  supportEmail,
+  midAds,
+  durations,
+  selectedDuration,
+  onSelectDuration,
 }: PricingSectionProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
+  const buyLabel = signedIn ? 'Continue to checkout' : 'Unlock this plan';
+  const [busyPriceId, setBusyPriceId] = useState('');
 
-  // Only terms someone can actually buy. With one plan this is its price list; with several it
-  // is the union, and a plan without the selected term simply says so on its card.
-  const durations = useMemo(() => {
-    const all = new Set<number>();
-    plans.forEach(plan => plan.prices.forEach(price => all.add(price.durationMonths)));
-    return [...all].sort((a, b) => a - b);
-  }, [plans]);
+  const buy = async (priceId: string) => {
+    setBusyPriceId(priceId);
+    const outcome = await startPlanCheckout(priceId, { paystackEnabled });
+    if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
+  };
 
-  const [selected, setSelected] = useState<number | null>(durations[durations.length - 1] ?? null);
-
-  // No plan or price travels with this link, so the payments screen opens its own chooser. The
-  // label says that rather than promising a choice already made -- "Choose this plan" landing a
-  // learner back on a list of plans is a small broken promise. Carrying the selection through is
-  // worth doing, and is a change to the payments screen rather than to this one.
-  /** The one option worth badging: the biggest saving on offer, or nothing if none of the terms
-   *  beats paying by the shortest. Only the winner is marked -- badging every discounted term
-   *  put a badge on most of the control, which made the choice harder to read rather than
-   *  easier, and left no option standing out as the one to take. */
   const bestDuration = useMemo(() => {
     let best: { months: number; saving: number; monthsPaidFor: number | null } | null = null;
     for (const months of durations) {
@@ -89,320 +96,385 @@ export function PricingSection({
     return best;
   }, [durations, plans]);
 
-  const buyLabel = signedIn ? 'Continue to checkout' : 'Create your account';
-  const [busyPriceId, setBusyPriceId] = useState('');
-
-  // The purchase starts here rather than on another screen. Anything this page cannot finish --
-  // paying by transfer, an account already on a plan -- hands over to the payments screen with
-  // the chosen length in the link, so nobody is asked the same question twice.
-  const buy = async (priceId: string) => {
-    setBusyPriceId(priceId);
-    const outcome = await startPlanCheckout(priceId, { paystackEnabled });
-    // A redirect to the provider is already under way; anything else finishes elsewhere, and
-    // that screen explains the reason far better than a line on this one could.
-    if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
-  };
-
   return (
-    <section style={{ fontFamily: bFont }}>
-      {/* ---------- duration toggle ---------- */}
-      {durations.length > 1 && (
-        <div className="flex justify-center">
-          <div
-            className="inline-flex flex-wrap justify-center gap-1 rounded-full p-1"
-            role="group"
-            aria-label="Access length"
-            style={{ background: '#EEF1F5' }}
-          >
-            {durations.map(months => {
-              const active = months === selected;
-              const marked = bestDuration?.months === months ? bestDuration : null;
-              return (
-                <button
-                  key={months}
-                  type="button"
-                  onClick={() => setSelected(months)}
-                  aria-pressed={active}
-                  className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-bold transition-colors"
-                  style={{
-                    background: active ? '#FFFFFF' : 'transparent',
-                    color: active ? '#101828' : '#5C6470',
-                    boxShadow: active ? '0 1px 2px rgba(16,24,40,0.10)' : undefined,
-                  }}
-                >
-                  {durationLabel(months)}
-                  {marked && (
-                    <span
-                      className="rounded-full px-2 py-0.5 text-[11px] font-bold whitespace-nowrap"
-                      style={{ background: accentColor, color: '#101828' }}
-                    >
-                      {marked.monthsPaidFor !== null
-                        ? `pay for only ${marked.monthsPaidFor} months`
-                        : `save ${marked.saving}%`}
-                    </span>
-                  )}
-                </button>
-              );
-            })}
+    <section
+      id="pricing-plans"
+      className="relative z-20 -mt-16 scroll-mt-24"
+      style={{ fontFamily: bFont, '--pricing-accent': accentColor } as CSSProperties}
+    >
+      <style>{`
+        .pricing-plan-card:hover {
+          box-shadow: inset 0 0 0 3px var(--pricing-accent);
+        }
+      `}</style>
+      <div className="rounded-[30px] bg-white p-5 sm:p-8" style={{ boxShadow: '0 24px 80px rgba(16,24,40,0.12)' }}>
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-3xl font-black tracking-[-0.035em] sm:text-4xl" style={{ color: '#101828', fontFamily: hFont, textWrap: 'balance' }}>
+              Pick a term. Choose your experience.
+            </h2>
+            <p className="mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: '#5F6B7A' }}>
+              Prices update with your access length, so every option stays easy to compare.
+            </p>
           </div>
+
+          {durations.length > 1 && (
+            <div>
+              <p className="mb-2 text-xs font-bold lg:text-right" style={{ color: '#667085' }}>Access length</p>
+              <div className="inline-flex max-w-full flex-wrap gap-1 rounded-2xl p-1.5" role="group" aria-label="Access length" style={{ background: '#F1F4F7' }}>
+                {durations.map(months => {
+                  const active = months === selectedDuration;
+                  const marked = bestDuration?.months === months ? bestDuration : null;
+                  return (
+                    <button
+                      key={months}
+                      type="button"
+                      onClick={() => onSelectDuration(months)}
+                      aria-pressed={active}
+                      className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-black transition-all duration-200 motion-reduce:transition-none"
+                      style={{
+                        background: active ? '#FFFFFF' : 'transparent',
+                        color: active ? '#101828' : '#667085',
+                        boxShadow: active ? '0 4px 16px rgba(16,24,40,0.10)' : undefined,
+                      }}
+                    >
+                      {durationLabel(months)}
+                      {marked && (
+                        <span className="hidden rounded-full px-2 py-0.5 text-[10px] font-black sm:inline" style={{ background: accentColor, color: '#101828' }}>
+                          {marked.monthsPaidFor !== null ? `Pay for ${marked.monthsPaidFor}` : `Save ${marked.saving}%`}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
-      )}
 
-      {/* ---------- tier cards ---------- */}
-      <div className="mt-8 grid gap-5 md:grid-cols-3 items-start">
-        <TierCard
-          name="Starter"
-          tagline="Free forever"
-          price="Free"
-          priceNote="No card needed"
-          hFont={hFont}
-          bullets={[
-            ...(free.courses > 0 ? ['Free courses'] : []),
-            'Verifiable certificates',
-          ]}
-          cta={signedIn
-            ? { label: 'Your current access', href: null }
-            : { label: 'Create a free account', href: '/auth?mode=signup' }}
-          primaryColor={primaryColor}
-        />
-
-        {plans.map((plan, index) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            months={selected}
-            soleOption={plans.length === 1}
+        <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <FreePlanCard
+            free={free}
+            signedIn={signedIn}
             hFont={hFont}
-            primaryColor={primaryColor}
-            accentColor={accentColor}
-            buyLabel={buyLabel}
-            busy={busyPriceId}
-            onBuy={buy}
           />
-        ))}
+          {plans.map(plan => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              months={selectedDuration}
+              hFont={hFont}
+              primaryColor={primaryColor}
+              accentColor={accentColor}
+              buyLabel={buyLabel}
+              busy={busyPriceId}
+              onBuy={buy}
+            />
+          ))}
+        </div>
 
-        <TierCard
-          name="Teams"
-          tagline="For organisations"
-          price="Coming soon"
-          priceNote="Talk to us about group access"
-          hFont={hFont}
-          bullets={['Everything in the paid plan', 'Seats for your whole team', 'Group progress reporting']}
-          cta={supportEmail
-            ? { label: 'Register interest', href: `mailto:${supportEmail}?subject=Teams%20plan` }
-            : { label: 'Coming soon', href: null }}
-          primaryColor={primaryColor}
-          muted
-        />
+        {plans.length === 0 && (
+          <div className="mt-8 rounded-2xl p-6 text-center" style={{ background: '#F7F9FB' }}>
+            <p className="font-bold" style={{ color: '#344054' }}>Paid access is not available yet.</p>
+            <p className="mt-1 text-sm" style={{ color: '#667085' }}>Start free and check back soon.</p>
+          </div>
+        )}
+
+        <TeamsStrip supportEmail={supportEmail} accentColor={accentColor} hFont={hFont} />
       </div>
 
-      {/* The same promotional cards the landing page shows, between choosing and comparing --
-          a natural pause, and the one place on this page where something other than price and
-          feature lists belongs. Transparent ground so it sits on the page rather than cutting a
-          band across it. */}
-      {midAds && midAds.some(ad => ad.title) && (
-        <div className="mt-12 -mx-5 sm:-mx-8">
-          <MidAdBanner ads={midAds} hFont={hFont} bFont={bFont} background="transparent" />
-        </div>
-      )}
+      <TrustRail />
 
-      {/* ---------- comparison ---------- */}
-      <ComparisonTable plans={plans} free={free} months={selected} hFont={hFont} primaryColor={primaryColor} />
+      <ComparisonTable
+        plans={plans}
+        free={free}
+        months={selectedDuration}
+        hFont={hFont}
+      />
+
+      {midAds && midAds.some(ad => ad.title) && (
+        <section className="mt-20">
+          <div className="mb-7 text-center">
+            <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>What access can unlock</p>
+            <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl" style={{ color: '#101828', fontFamily: hFont }}>
+              Turn learning into visible progress
+            </h3>
+          </div>
+          <div className="-mx-5 sm:-mx-8">
+            <MidAdBanner ads={midAds} hFont={hFont} bFont={bFont} background="transparent" />
+          </div>
+        </section>
+      )}
     </section>
   );
 }
 
-function TierCard({
-  name, tagline, price, priceNote, bullets, cta, hFont, primaryColor, muted,
-}: {
-  name: string; tagline: string; price: string; priceNote: string; bullets: string[];
-  cta: { label: string; href: string | null }; hFont?: string; primaryColor: string; muted?: boolean;
-}) {
-  return (
-    <div className="rounded-2xl bg-white p-6 h-full flex flex-col" style={{ boxShadow: '0 1px 3px rgba(16,24,40,0.08)' }}>
-      <p className="text-xl font-bold" style={{ fontFamily: hFont, color: '#101828' }}>{name}</p>
-      <p className="text-xs mt-1" style={{ color: '#667085' }}>{tagline}</p>
-      <p className="mt-5 text-3xl font-bold" style={{ fontFamily: hFont, color: muted ? '#667085' : '#101828' }}>{price}</p>
-      <p className="text-xs mt-1" style={{ color: '#667085' }}>{priceNote}</p>
-      {cta.href ? (
-        <Link
-          href={cta.href}
-          className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
-          style={{ border: `1px solid ${primaryColor}`, color: primaryColor }}
-        >
-          {cta.label}
-        </Link>
-      ) : (
-        <span
-          className="mt-5 inline-flex items-center justify-center rounded-xl px-4 py-3 text-sm font-bold"
-          style={{ background: '#F2F4F7', color: '#667085' }}
-        >
-          {cta.label}
-        </span>
-      )}
-      <ul className="mt-6 space-y-2.5">
-        {bullets.map(line => (
-          <li key={line} className="flex items-start gap-2 text-sm" style={{ color: '#344054' }}>
-            <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: primaryColor }} />
-            <span>{line}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
 function PlanCard({
-  plan, months, soleOption, hFont, primaryColor, accentColor, buyLabel, busy, onBuy,
+  plan, months, hFont, primaryColor, accentColor, buyLabel, busy, onBuy,
 }: {
-  plan: PricingPlan; months: number | null; soleOption: boolean; hFont?: string;
-  primaryColor: string; accentColor: string; buyLabel: string;
-  busy: string; onBuy: (priceId: string) => void;
+  plan: PricingPlan;
+  months: number | null;
+  hFont?: string;
+  primaryColor: string;
+  accentColor: string;
+  buyLabel: string;
+  busy: string;
+  onBuy: (priceId: string) => void;
 }) {
   const price = plan.prices.find(row => row.durationMonths === months) ?? null;
   const comparison = price ? comparePlanPrice(price, plan.prices) : null;
+  const benefits = planBenefits(plan.coverage);
 
   return (
-    <div
-      className="relative rounded-2xl bg-white p-6 h-full flex flex-col"
-      // Lifted only when it is the one paid option, which is a fact rather than a claim. There
-      // is no popularity data behind a "most popular" badge, and with several plans it would
-      // crown whichever happened to sort first.
-      style={{ boxShadow: soleOption ? '0 8px 28px rgba(16,24,40,0.14)' : '0 1px 3px rgba(16,24,40,0.08)' }}
+    <article
+      className="pricing-plan-card group relative isolate flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 transition-shadow duration-200 sm:p-7 motion-reduce:transition-none"
+      style={{ background: '#F7F9FB', boxShadow: 'inset 0 0 0 1px rgba(16,24,40,0.04)' }}
     >
-      <p className="text-xl font-bold" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
-      <p className="text-xs mt-1" style={{ color: '#667085' }}>
-        {plan.description || 'Full access while your plan runs'}
-      </p>
+      <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-30 motion-reduce:transition-none" style={{ background: primaryColor }} />
+      <div className="relative flex flex-1 flex-col">
+        <div>
+          <p className="text-xl font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
+          <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>
+            {plan.description || 'Full access while your selected term runs.'}
+          </p>
+        </div>
 
-      {price ? (
-        <>
-          <p className="mt-5 text-3xl font-bold" style={{ fontFamily: hFont, color: '#101828' }}>
-            {money(price.currency, price.amount)}
-          </p>
-          <p className="text-xs mt-1" style={{ color: '#667085' }}>
-            {money(price.currency, comparison?.perMonth ?? 0)} a month, for {durationLabel(price.durationMonths)}
-          </p>
-          {(comparison?.savingPercent ?? 0) > 0 && (
-            <span
-              className="mt-2 self-start rounded-full px-2.5 py-1 text-[11px] font-bold"
-              style={{ background: accentColor, color: '#101828' }}
-            >
-              {/* The months figure when the arithmetic supports one, the percentage otherwise --
-                  a plan sold only in one length has nothing to be counted against. */}
-              {comparison?.monthsPaidFor != null
-                ? `pay for only ${comparison.monthsPaidFor} months`
-                : `save ${comparison?.savingPercent}%`}
+        {price ? (
+          <div className="mt-7">
+            <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
+              <p className="text-4xl font-black tracking-[-0.045em]" style={{ fontFamily: hFont, color: '#101828' }}>{money(price.currency, price.amount)}</p>
+              <p className="pb-1 text-xs font-semibold" style={{ color: '#667085' }}>for {durationLabel(price.durationMonths)}</p>
+            </div>
+            <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2">
+              <p className="text-xs" style={{ color: '#667085' }}>{money(price.currency, comparison?.perMonth ?? 0)} per month</p>
+              {(comparison?.savingPercent ?? 0) > 0 && (
+                <span className="rounded-full px-2.5 py-1 text-[10px] font-black" style={{ background: accentColor, color: '#101828' }}>
+                  Save {comparison?.savingPercent}%
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="mt-7 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: '#FFFFFF', color: '#667085' }}>
+            Choose another access length for this plan.
+          </div>
+        )}
+
+        <div className="my-6 h-px" style={{ background: '#E8ECF1' }} />
+        <p className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: '#98A2B3' }}>Your access includes</p>
+        <ul className="mt-4 space-y-3">
+          {benefits.map(line => (
+            <li key={line} className="flex items-start gap-3 text-sm" style={{ color: '#344054' }}>
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
+                <Check className="h-3 w-3" />
+              </span>
+              <span>{line}</span>
+            </li>
+          ))}
+          <li className="flex items-start gap-3 text-sm" style={{ color: '#344054' }}>
+            <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
+              <Check className="h-3 w-3" />
             </span>
-          )}
-        </>
-      ) : (
-        <p className="mt-5 text-sm" style={{ color: '#667085' }}>
-          Not sold for this length. Pick another above.
-        </p>
-      )}
-
-      <button
-        type="button"
-        onClick={() => price && onBuy(price.id)}
-        disabled={!price || !!busy}
-        className="mt-5 inline-flex items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold disabled:opacity-60"
-        style={{ background: primaryColor, color: '#FFFFFF' }}
-      >
-        {busy && price && busy === price.id
-          ? <>Opening checkout <Loader2 className="w-4 h-4 animate-spin" /></>
-          : <>{buyLabel} <ArrowRight className="w-4 h-4" /></>}
-      </button>
-
-      <ul className="mt-6 space-y-2.5">
-        {planBenefits(plan.coverage).map(line => (
-          <li key={line} className="flex items-start gap-2 text-sm" style={{ color: '#344054' }}>
-            <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: primaryColor }} />
-            <span>{line}</span>
+            <span>No automatic renewal</span>
           </li>
-        ))}
-        <li className="flex items-start gap-2 text-sm" style={{ color: '#344054' }}>
-          <Check className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: primaryColor }} />
-          <span>Access ends on the date shown. It does not renew automatically.</span>
-        </li>
-      </ul>
+        </ul>
+
+        {price ? (
+          <button
+            type="button"
+            onClick={() => onBuy(price.id)}
+            disabled={!!busy}
+            className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition-all duration-200 hover:-translate-y-0.5 hover:brightness-105 disabled:opacity-60 disabled:hover:translate-y-0 motion-reduce:transition-none"
+            style={{ background: primaryColor, color: '#FFFFFF', boxShadow: `0 10px 24px color-mix(in srgb, ${primaryColor} 22%, transparent)` }}
+          >
+            {busy === price.id
+              ? <>Opening checkout <Loader2 className="h-4 w-4 animate-spin" /></>
+              : <>{buyLabel} <ArrowRight className="h-4 w-4" /></>}
+          </button>
+        ) : (
+          <span className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-3 text-sm font-black" style={{ background: '#E9EDF2', color: '#98A2B3' }}>
+            Unavailable for this term
+          </span>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function FreePlanCard({
+  free, signedIn, hFont,
+}: {
+  free: ContentCounts;
+  signedIn: boolean;
+  hFont?: string;
+}) {
+  const freeBenefits = [
+    ...(free.courses > 0 ? ['Access to free courses'] : []),
+    ...(free.learning_paths > 0 ? ['Access to free learning paths'] : []),
+    ...(free.virtual_experiences > 0 ? ['Access to free virtual experiences'] : []),
+    ...(free.certifications > 0 ? ['Access to free certifications'] : []),
+    'Verifiable certificates you earn stay yours',
+  ];
+
+  return (
+    <article className="pricing-plan-card relative flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 transition-shadow duration-200 sm:p-7 motion-reduce:transition-none" style={{ background: 'transparent', boxShadow: 'none' }}>
+      <div className="flex flex-1 flex-col">
+        <div>
+          <p className="text-xl font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont }}>Starter</p>
+          <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>Free forever. Upgrade only when you are ready.</p>
+        </div>
+
+        <div className="mt-7">
+          <p className="text-4xl font-black tracking-[-0.045em]" style={{ color: '#101828', fontFamily: hFont }}>Free</p>
+          <p className="mt-2 text-xs" style={{ color: '#667085' }}>No card needed</p>
+        </div>
+
+        <div className="my-6 h-px" style={{ background: '#E8ECF1' }} />
+        <p className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: '#98A2B3' }}>Your access includes</p>
+        <ul className="mt-4 space-y-3">
+          {freeBenefits.map(line => (
+            <li key={line} className="flex items-start gap-3 text-sm" style={{ color: '#344054' }}>
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
+                <Check className="h-3 w-3" />
+              </span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+
+        {signedIn ? (
+          <span className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-3 text-sm font-black" style={{ background: '#E9EDF2', color: '#667085' }}>Your current access</span>
+        ) : (
+          <Link href="/auth?mode=signup" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: '#101828', boxShadow: 'inset 0 0 0 1px #D0D5DD', fontFamily: hFont }}>
+            Create a free account <ArrowRight className="h-4 w-4" />
+          </Link>
+        )}
+      </div>
+    </article>
+  );
+}
+
+function TrustRail() {
+  const signals = [
+    { Icon: ShieldCheck, title: 'No automatic renewal', text: 'Your access ends on the date shown.' },
+    { Icon: CreditCard, title: 'Flexible ways to pay', text: 'Card, bank transfer or mobile money.' },
+    { Icon: Award, title: 'Your proof stays yours', text: 'Keep certificates after access ends.' },
+  ];
+
+  return (
+    <div className="grid gap-3 py-8 sm:grid-cols-3">
+      {signals.map(({ Icon, title, text }) => (
+        <div key={title} className="flex items-start gap-3 rounded-2xl px-4 py-4" style={{ background: 'rgba(255,255,255,0.65)' }}>
+          <Icon className="mt-0.5 h-5 w-5 shrink-0" style={{ color: '#344054' }} />
+          <div>
+            <p className="text-sm font-black" style={{ color: '#101828' }}>{title}</p>
+            <p className="mt-1 text-xs leading-5" style={{ color: '#667085' }}>{text}</p>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
 
 function ComparisonTable({
-  plans, free, months, hFont, primaryColor,
+  plans, free, months, hFont,
 }: {
-  plans: PricingPlan[]; free: ContentCounts; months: number | null;
-  hFont?: string; primaryColor: string;
+  plans: PricingPlan[];
+  free: ContentCounts;
+  months: number | null;
+  hFont?: string;
 }) {
   const columns = [
     { key: 'starter', name: 'Starter', note: 'Free' },
     ...plans.map(plan => {
       const price = plan.prices.find(row => row.durationMonths === months);
-      return {
-        key: plan.id,
-        name: plan.name,
-        note: price ? money(price.currency, price.amount) : 'Not sold for this length',
-      };
+      return { key: plan.id, name: plan.name, note: price ? money(price.currency, price.amount) : 'Unavailable' };
     }),
-    { key: 'teams', name: 'Teams', note: 'Coming soon' },
   ];
 
-  // Included or not. A number here reads as a promise about a catalogue that changes weekly,
-  // and it is the kind of promise a visitor can sit down and check.
   const includes = (columnKey: string, kind: PurchasableContentTable): boolean => {
     if (columnKey === 'starter') return free[kind] > 0;
-    if (columnKey === 'teams') return false;
     const plan = plans.find(row => row.id === columnKey);
     return !!plan && plan.coverage[kind] > 0;
   };
 
   return (
-    <div className="mt-14">
-      <h3 className="text-lg font-bold text-center" style={{ fontFamily: hFont, color: '#101828' }}>
-        What each plan includes
-      </h3>
-      {/* Wide on a phone, so the table scrolls in its own box rather than the page going sideways. */}
-      <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[560px] border-collapse text-sm">
-          <thead>
-            <tr>
-              <th className="text-left py-3 pr-4 font-bold" style={{ color: '#101828', fontFamily: hFont }}>
-                Included
-              </th>
-              {columns.map(column => (
-                <th key={column.key} className="py-3 px-3 text-center" style={{ borderBottom: '1px solid #E4E7EC' }}>
-                  <span className="block font-bold" style={{ color: '#101828', fontFamily: hFont }}>{column.name}</span>
-                  <span className="block text-xs font-normal mt-0.5" style={{ color: '#667085' }}>{column.note}</span>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {CONTENT_KINDS.map(kind => (
-              <tr key={kind}>
-                <td className="py-3 pr-4" style={{ color: '#344054', borderBottom: '1px solid #F2F4F7' }}>
-                  {KIND_LABEL[kind]}
-                </td>
+    <section className="mt-14" aria-labelledby="plan-comparison-heading">
+      <div className="text-center">
+        <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>Compare access</p>
+        <h3 id="plan-comparison-heading" className="mt-2 text-2xl font-black tracking-tight sm:text-3xl" style={{ fontFamily: hFont, color: '#101828' }}>
+          See exactly what fits your next move
+        </h3>
+      </div>
+      <div className="mt-7 overflow-hidden rounded-[26px] bg-white" style={{ boxShadow: '0 14px 45px rgba(16,24,40,0.07)' }}>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[620px] border-collapse text-sm">
+            <thead>
+              <tr style={{ background: '#F7F9FB' }}>
+                <th className="px-5 py-5 text-left font-black" style={{ color: '#101828', fontFamily: hFont }}>Experience</th>
                 {columns.map(column => (
-                  <td
-                    key={column.key}
-                    className="py-3 px-3 text-center"
-                    style={{ borderBottom: '1px solid #F2F4F7' }}
-                  >
-                    {includes(column.key, kind) ? (
-                      <Check className="w-4 h-4 mx-auto" style={{ color: primaryColor }} aria-label="Included" />
-                    ) : (
-                      <Minus className="w-4 h-4 mx-auto" style={{ color: '#98A2B3' }} aria-label="Not included" />
-                    )}
-                  </td>
+                  <th key={column.key} className="px-4 py-5 text-center">
+                    <span className="block font-black" style={{ color: '#101828', fontFamily: hFont }}>{column.name}</span>
+                    <span className="mt-1 block text-xs font-semibold" style={{ color: '#667085' }}>{column.note}</span>
+                  </th>
                 ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {CONTENT_KINDS.map(kind => (
+                <tr key={kind} style={{ borderTop: '1px solid #EEF1F4' }}>
+                  <td className="px-5 py-4">
+                    <span className="block font-bold" style={{ color: '#344054' }}>{KIND_LABEL[kind]}</span>
+                    <span className="mt-1 block text-xs" style={{ color: '#98A2B3' }}>{KIND_DESCRIPTION[kind]}</span>
+                  </td>
+                  {columns.map(column => (
+                    <td key={column.key} className="px-4 py-4 text-center">
+                      {includes(column.key, kind) ? (
+                        <span className="mx-auto grid h-7 w-7 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
+                          <Check className="h-4 w-4" aria-label="Included" />
+                        </span>
+                      ) : (
+                        <Minus className="mx-auto h-4 w-4" style={{ color: '#C1C7D0' }} aria-label="Not included" />
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </section>
+  );
+}
+
+function TeamsStrip({ supportEmail, accentColor, hFont }: { supportEmail?: string; accentColor: string; hFont?: string }) {
+  return (
+    <section className="relative mt-8 overflow-hidden rounded-[26px] px-6 py-7 sm:px-8" style={{ background: accentColor, color: '#101828' }}>
+      <div aria-hidden="true" className="absolute -right-14 -top-24 h-64 w-64 rounded-full bg-white opacity-25 blur-3xl" />
+      <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-4">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828' }}>
+            <Building2 className="h-5 w-5" />
+          </span>
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-xl font-black" style={{ color: '#101828', fontFamily: hFont }}>Learning for teams</h3>
+              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828', fontFamily: hFont }}>Coming soon</span>
+            </div>
+            <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'rgba(16,24,40,0.72)' }}>
+              Shared billing, seats for your organisation, and a clear view of group progress.
+            </p>
+          </div>
+        </div>
+        {supportEmail ? (
+          <a href={`mailto:${supportEmail}?subject=Teams%20plan`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
+            Register interest <ArrowRight className="h-4 w-4" />
+          </a>
+        ) : (
+          <span className="shrink-0 rounded-xl px-4 py-3 text-center text-sm font-bold" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828', fontFamily: hFont }}>Coming soon</span>
+        )}
+      </div>
+    </section>
   );
 }

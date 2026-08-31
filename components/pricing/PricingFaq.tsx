@@ -8,17 +8,16 @@
  * Native details/summary, so it opens without JavaScript, is reachable by keyboard, and the
  * answers stay in the page for search engines to read.
  */
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, MessageCircleQuestion } from 'lucide-react';
 
 export interface PricingFaqProps {
   headingFont?: string;
-  primaryColor: string;
   supportEmail?: string;
   /** Named so an answer can refer to the paid tier by the name an admin gave it. */
   paidPlanName?: string;
 }
 
-export function PricingFaq({ headingFont, primaryColor, supportEmail, paidPlanName }: PricingFaqProps) {
+export function PricingFaq({ headingFont, supportEmail, paidPlanName }: PricingFaqProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const paid = paidPlanName || 'a paid plan';
 
@@ -54,47 +53,55 @@ export function PricingFaq({ headingFont, primaryColor, supportEmail, paidPlanNa
   ];
 
   return (
-    <section className="mt-16">
-      <h2
-        className="text-2xl font-bold text-center"
-        style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}
-      >
-        Frequently asked questions
-      </h2>
+    <section className="mt-20">
+      <div className="grid gap-8 lg:grid-cols-[0.68fr_1.32fr] lg:gap-12">
+        <div>
+          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white" style={{ color: '#344054', boxShadow: '0 8px 28px rgba(16,24,40,0.08)' }}>
+            <MessageCircleQuestion className="h-5 w-5" />
+          </span>
+          <p className="mt-5 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>Clear answers</p>
+          <h2
+            className="mt-2 text-3xl font-black tracking-[-0.035em] sm:text-4xl"
+            style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}
+          >
+            Questions before you choose?
+          </h2>
+          <p className="mt-4 max-w-sm text-sm leading-6" style={{ color: '#667085' }}>
+            Everything important about starting, paying, renewing, and keeping your progress.
+          </p>
 
-      <div className="mt-6 mx-auto max-w-3xl rounded-2xl bg-white" style={{ boxShadow: '0 1px 3px rgba(16,24,40,0.08)' }}>
-        {faqs.map((faq, index) => (
+          {supportEmail && (
+            <a href={`mailto:${supportEmail}`} className="mt-6 inline-flex items-center gap-2 text-sm font-black underline underline-offset-4" style={{ color: '#101828', fontFamily: hFont }}>
+              Ask us anything
+            </a>
+          )}
+        </div>
+
+        <div className="grid gap-3">
+          {faqs.map(faq => (
           <details
             key={faq.q}
-            className="group px-5 sm:px-6"
-            style={{ borderTop: index === 0 ? undefined : '1px solid #F2F4F7' }}
+            className="group rounded-2xl bg-white px-5 sm:px-6"
+            style={{ boxShadow: '0 7px 24px rgba(16,24,40,0.055)' }}
           >
             <summary
-              className="flex items-center justify-between gap-4 cursor-pointer list-none py-4 text-sm sm:text-base font-bold"
+              className="flex cursor-pointer list-none items-center justify-between gap-4 py-5 text-sm font-black sm:text-base"
               style={{ color: '#101828', fontFamily: hFont }}
             >
               {faq.q}
               <ChevronDown
                 className="w-4 h-4 flex-shrink-0 transition-transform group-open:rotate-180"
-                style={{ color: primaryColor }}
+                style={{ color: '#667085' }}
                 aria-hidden="true"
               />
             </summary>
-            <p className="pb-5 text-sm leading-relaxed" style={{ color: '#475467', maxWidth: '68ch' }}>
+            <p className="pb-5 text-sm leading-6" style={{ color: '#5F6B7A', maxWidth: '68ch' }}>
               {faq.a}
             </p>
           </details>
-        ))}
+          ))}
+        </div>
       </div>
-
-      {supportEmail && (
-        <p className="mt-5 text-center text-sm" style={{ color: '#667085' }}>
-          Still deciding?{' '}
-          <a href={`mailto:${supportEmail}`} className="font-bold underline" style={{ color: primaryColor }}>
-            Ask us anything
-          </a>
-        </p>
-      )}
     </section>
   );
 }
