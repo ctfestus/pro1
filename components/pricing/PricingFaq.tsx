@@ -12,13 +12,12 @@ import { ChevronDown, MessageCircleQuestion } from 'lucide-react';
 
 export interface PricingFaqProps {
   headingFont?: string;
-  primaryColor: string;
   supportEmail?: string;
   /** Named so an answer can refer to the paid tier by the name an admin gave it. */
   paidPlanName?: string;
 }
 
-export function PricingFaq({ headingFont, primaryColor, supportEmail, paidPlanName }: PricingFaqProps) {
+export function PricingFaq({ headingFont, supportEmail, paidPlanName }: PricingFaqProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const paid = paidPlanName || 'a paid plan';
 
@@ -57,10 +56,10 @@ export function PricingFaq({ headingFont, primaryColor, supportEmail, paidPlanNa
     <section className="mt-20">
       <div className="grid gap-8 lg:grid-cols-[0.68fr_1.32fr] lg:gap-12">
         <div>
-          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white" style={{ color: primaryColor, boxShadow: '0 8px 28px rgba(16,24,40,0.08)' }}>
+          <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white" style={{ color: '#344054', boxShadow: '0 8px 28px rgba(16,24,40,0.08)' }}>
             <MessageCircleQuestion className="h-5 w-5" />
           </span>
-          <p className="mt-5 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>Clear answers</p>
+          <p className="mt-5 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>Clear answers</p>
           <h2
             className="mt-2 text-3xl font-black tracking-[-0.035em] sm:text-4xl"
             style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}
@@ -72,7 +71,7 @@ export function PricingFaq({ headingFont, primaryColor, supportEmail, paidPlanNa
           </p>
 
           {supportEmail && (
-            <a href={`mailto:${supportEmail}`} className="mt-6 inline-flex items-center gap-2 text-sm font-black underline underline-offset-4" style={{ color: primaryColor }}>
+            <a href={`mailto:${supportEmail}`} className="mt-6 inline-flex items-center gap-2 text-sm font-black underline underline-offset-4" style={{ color: '#101828', fontFamily: hFont }}>
               Ask us anything
             </a>
           )}
@@ -92,7 +91,7 @@ export function PricingFaq({ headingFont, primaryColor, supportEmail, paidPlanNa
               {faq.q}
               <ChevronDown
                 className="w-4 h-4 flex-shrink-0 transition-transform group-open:rotate-180"
-                style={{ color: primaryColor }}
+                style={{ color: '#667085' }}
                 aria-hidden="true"
               />
             </summary>

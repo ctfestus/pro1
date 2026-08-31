@@ -102,7 +102,7 @@ export function PricingSection({
       <div className="rounded-[30px] bg-white p-5 sm:p-8" style={{ boxShadow: '0 24px 80px rgba(16,24,40,0.12)' }}>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>
+            <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>
               <Sparkles className="h-3.5 w-3.5" />
               Build your access
             </span>
@@ -152,7 +152,6 @@ export function PricingSection({
           <FreePlanCard
             free={free}
             signedIn={signedIn}
-            primaryColor={primaryColor}
             hFont={hFont}
           />
           {plans.map(plan => (
@@ -177,23 +176,22 @@ export function PricingSection({
           </div>
         )}
 
-        <TeamsStrip supportEmail={supportEmail} primaryColor={primaryColor} hFont={hFont} />
+        <TeamsStrip supportEmail={supportEmail} accentColor={accentColor} hFont={hFont} />
       </div>
 
-      <TrustRail primaryColor={primaryColor} />
+      <TrustRail />
 
       <ComparisonTable
         plans={plans}
         free={free}
         months={selectedDuration}
         hFont={hFont}
-        primaryColor={primaryColor}
       />
 
       {midAds && midAds.some(ad => ad.title) && (
         <section className="mt-20">
           <div className="mb-7 text-center">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>What access can unlock</p>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>What access can unlock</p>
             <h3 className="mt-2 text-2xl font-black tracking-tight sm:text-3xl" style={{ color: '#101828', fontFamily: hFont }}>
               Turn learning into visible progress
             </h3>
@@ -237,7 +235,7 @@ function PlanCard({
               {plan.description || 'Full access while your selected term runs.'}
             </p>
           </div>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: '#FFFFFF', color: primaryColor, boxShadow: '0 5px 18px rgba(16,24,40,0.08)' }}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: '#FFFFFF', color: '#344054', boxShadow: '0 5px 18px rgba(16,24,40,0.08)' }}>
             <Sparkles className="h-4 w-4" />
           </span>
         </div>
@@ -268,14 +266,14 @@ function PlanCard({
         <ul className="mt-4 space-y-3">
           {benefits.map(line => (
             <li key={line} className="flex items-start gap-3 text-sm" style={{ color: '#344054' }}>
-              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: `color-mix(in srgb, ${primaryColor} 12%, white)`, color: primaryColor }}>
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
                 <Check className="h-3 w-3" />
               </span>
               <span>{line}</span>
             </li>
           ))}
           <li className="flex items-start gap-3 text-sm" style={{ color: '#344054' }}>
-            <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: `color-mix(in srgb, ${primaryColor} 12%, white)`, color: primaryColor }}>
+            <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
               <Check className="h-3 w-3" />
             </span>
             <span>No automatic renewal</span>
@@ -305,11 +303,10 @@ function PlanCard({
 }
 
 function FreePlanCard({
-  free, signedIn, primaryColor, hFont,
+  free, signedIn, hFont,
 }: {
   free: ContentCounts;
   signedIn: boolean;
-  primaryColor: string;
   hFont?: string;
 }) {
   const freeBenefits = [
@@ -328,7 +325,7 @@ function FreePlanCard({
             <p className="text-xl font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont }}>Starter</p>
             <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>Free forever. Upgrade only when you are ready.</p>
           </div>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white" style={{ color: primaryColor, boxShadow: '0 5px 18px rgba(16,24,40,0.08)' }}>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white" style={{ color: '#344054', boxShadow: '0 5px 18px rgba(16,24,40,0.08)' }}>
             <Award className="h-4 w-4" />
           </span>
         </div>
@@ -343,7 +340,7 @@ function FreePlanCard({
         <ul className="mt-4 space-y-3">
           {freeBenefits.map(line => (
             <li key={line} className="flex items-start gap-3 text-sm" style={{ color: '#344054' }}>
-              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: `color-mix(in srgb, ${primaryColor} 12%, white)`, color: primaryColor }}>
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
                 <Check className="h-3 w-3" />
               </span>
               <span>{line}</span>
@@ -354,7 +351,7 @@ function FreePlanCard({
         {signedIn ? (
           <span className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-3 text-sm font-black" style={{ background: '#E9EDF2', color: '#667085' }}>Your current access</span>
         ) : (
-          <Link href="/auth?mode=signup" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: primaryColor, boxShadow: `inset 0 0 0 1px ${primaryColor}` }}>
+          <Link href="/auth?mode=signup" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: '#101828', boxShadow: 'inset 0 0 0 1px #D0D5DD', fontFamily: hFont }}>
             Create a free account <ArrowRight className="h-4 w-4" />
           </Link>
         )}
@@ -363,7 +360,7 @@ function FreePlanCard({
   );
 }
 
-function TrustRail({ primaryColor }: { primaryColor: string }) {
+function TrustRail() {
   const signals = [
     { Icon: ShieldCheck, title: 'No automatic renewal', text: 'Your access ends on the date shown.' },
     { Icon: CreditCard, title: 'Flexible ways to pay', text: 'Card, bank transfer or mobile money.' },
@@ -374,7 +371,7 @@ function TrustRail({ primaryColor }: { primaryColor: string }) {
     <div className="grid gap-3 py-8 sm:grid-cols-3">
       {signals.map(({ Icon, title, text }) => (
         <div key={title} className="flex items-start gap-3 rounded-2xl px-4 py-4" style={{ background: 'rgba(255,255,255,0.65)' }}>
-          <Icon className="mt-0.5 h-5 w-5 shrink-0" style={{ color: primaryColor }} />
+          <Icon className="mt-0.5 h-5 w-5 shrink-0" style={{ color: '#344054' }} />
           <div>
             <p className="text-sm font-black" style={{ color: '#101828' }}>{title}</p>
             <p className="mt-1 text-xs leading-5" style={{ color: '#667085' }}>{text}</p>
@@ -386,13 +383,12 @@ function TrustRail({ primaryColor }: { primaryColor: string }) {
 }
 
 function ComparisonTable({
-  plans, free, months, hFont, primaryColor,
+  plans, free, months, hFont,
 }: {
   plans: PricingPlan[];
   free: ContentCounts;
   months: number | null;
   hFont?: string;
-  primaryColor: string;
 }) {
   const columns = [
     { key: 'starter', name: 'Starter', note: 'Free' },
@@ -411,7 +407,7 @@ function ComparisonTable({
   return (
     <section className="mt-14" aria-labelledby="plan-comparison-heading">
       <div className="text-center">
-        <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>Compare access</p>
+        <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>Compare access</p>
         <h3 id="plan-comparison-heading" className="mt-2 text-2xl font-black tracking-tight sm:text-3xl" style={{ fontFamily: hFont, color: '#101828' }}>
           See exactly what fits your next move
         </h3>
@@ -440,7 +436,7 @@ function ComparisonTable({
                   {columns.map(column => (
                     <td key={column.key} className="px-4 py-4 text-center">
                       {includes(column.key, kind) ? (
-                        <span className="mx-auto grid h-7 w-7 place-items-center rounded-full" style={{ background: `color-mix(in srgb, ${primaryColor} 12%, white)`, color: primaryColor }}>
+                        <span className="mx-auto grid h-7 w-7 place-items-center rounded-full" style={{ background: '#ECFDF3', color: '#16A34A' }}>
                           <Check className="h-4 w-4" aria-label="Included" />
                         </span>
                       ) : (
@@ -458,31 +454,31 @@ function ComparisonTable({
   );
 }
 
-function TeamsStrip({ supportEmail, primaryColor, hFont }: { supportEmail?: string; primaryColor: string; hFont?: string }) {
+function TeamsStrip({ supportEmail, accentColor, hFont }: { supportEmail?: string; accentColor: string; hFont?: string }) {
   return (
-    <section className="relative mt-8 overflow-hidden rounded-[26px] bg-[#101828] px-6 py-7 text-white sm:px-8">
-      <div aria-hidden="true" className="absolute -right-14 -top-24 h-64 w-64 rounded-full opacity-20 blur-3xl" style={{ background: primaryColor }} />
+    <section className="relative mt-8 overflow-hidden rounded-[26px] px-6 py-7 sm:px-8" style={{ background: accentColor, color: '#101828' }}>
+      <div aria-hidden="true" className="absolute -right-14 -top-24 h-64 w-64 rounded-full bg-white opacity-25 blur-3xl" />
       <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/10">
+          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828' }}>
             <Building2 className="h-5 w-5" />
           </span>
           <div>
             <div className="flex flex-wrap items-center gap-2">
-              <h3 className="text-xl font-black" style={{ color: '#FFFFFF', fontFamily: hFont }}>Learning for teams</h3>
-              <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold">Coming soon</span>
+              <h3 className="text-xl font-black" style={{ color: '#101828', fontFamily: hFont }}>Learning for teams</h3>
+              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828', fontFamily: hFont }}>Coming soon</span>
             </div>
-            <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'rgba(255,255,255,0.62)' }}>
+            <p className="mt-2 max-w-2xl text-sm leading-6" style={{ color: 'rgba(16,24,40,0.72)' }}>
               Shared billing, seats for your organisation, and a clear view of group progress.
             </p>
           </div>
         </div>
         {supportEmail ? (
-          <a href={`mailto:${supportEmail}?subject=Teams%20plan`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: '#101828' }}>
+          <a href={`mailto:${supportEmail}?subject=Teams%20plan`} className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
             Register interest <ArrowRight className="h-4 w-4" />
           </a>
         ) : (
-          <span className="shrink-0 rounded-xl bg-white/10 px-4 py-3 text-center text-sm font-bold">Coming soon</span>
+          <span className="shrink-0 rounded-xl px-4 py-3 text-center text-sm font-bold" style={{ background: 'rgba(16,24,40,0.10)', color: '#101828', fontFamily: hFont }}>Coming soon</span>
         )}
       </div>
     </section>

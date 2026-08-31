@@ -41,14 +41,15 @@ function HeroFlourish({ accentColor }: { accentColor: string }) {
         }}
       />
       <svg
-        className="absolute bottom-0 right-0 hidden lg:block"
-        style={{ width: '34%', height: '72%' }}
-        viewBox="0 0 300 220"
+        className="absolute inset-y-0 -right-[4%] hidden h-full w-[54%] lg:block"
+        viewBox="0 0 560 420"
         fill="none"
-        preserveAspectRatio="xMidYMax slice"
+        preserveAspectRatio="xMidYMid slice"
       >
-        <path d="M-10 170 C 60 120, 110 200, 175 150 S 265 70, 320 100" stroke="rgba(255,255,255,0.16)" strokeWidth="14" strokeLinecap="round" />
-        <path d="M-10 190 C 66 142, 116 220, 182 168 S 268 92, 320 122" stroke="rgba(255,255,255,0.09)" strokeWidth="8" strokeLinecap="round" />
+        <path d="M-30 355 C 95 238, 166 360, 282 252 S 438 92, 610 148" stroke="rgba(255,255,255,0.09)" strokeWidth="58" strokeLinecap="round" />
+        <path d="M-30 340 C 96 224, 168 345, 280 238 S 438 78, 610 134" stroke="rgba(255,255,255,0.22)" strokeWidth="2" strokeLinecap="round" />
+        <path d="M-30 369 C 96 252, 166 373, 286 266 S 442 108, 610 164" stroke="rgba(255,255,255,0.14)" strokeWidth="2" strokeLinecap="round" />
+        <path d="M20 338 C 128 260, 176 335, 276 245 S 422 112, 548 136" stroke={accentColor} strokeOpacity="0.72" strokeWidth="3" strokeLinecap="round" />
       </svg>
       {sparkles.map((sparkle, index) => (
         <svg
@@ -84,8 +85,8 @@ export function PricingHero({
     return (
       <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
         <HeroFlourish accentColor={accentColor} />
-        <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-28 pt-14 text-center sm:px-8 sm:pb-32 sm:pt-20">
-          <h1 className="text-4xl font-black tracking-[-0.04em] sm:text-6xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
+        <div className="relative z-10 mx-auto w-full max-w-6xl px-5 pb-24 pt-12 text-center sm:px-8 sm:pb-28 sm:pt-14">
+          <h1 className="text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance' }}>
             Learn the skills you need to move your career forward
           </h1>
           <p className="mx-auto mt-5 max-w-2xl text-base" style={{ color: 'rgba(255,255,255,0.82)' }}>
@@ -105,12 +106,12 @@ export function PricingHero({
   return (
     <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
       <HeroFlourish accentColor={accentColor} />
-      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-10 px-5 pb-28 pt-14 sm:px-8 sm:pb-32 sm:pt-20 lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl items-center gap-8 px-5 pb-24 pt-12 sm:px-8 sm:pb-28 sm:pt-14 lg:grid-cols-[1.15fr_0.85fr]">
         <div>
-          <span className="inline-block rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider" style={{ background: '#FFFFFF', color: primaryColor }}>
+          <span className="inline-block rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider" style={{ background: '#FFFFFF', color: '#101828' }}>
             {plan.name}
           </span>
-          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-6xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance', lineHeight: 1.02 }}>
+          <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance', lineHeight: 1.02 }}>
             {saving
               ? `Learn at your own pace and save ${savingPercent}% over ${durationLabel(price.durationMonths)}`
               : `Learn at your own pace with ${durationLabel(price.durationMonths)} of full access`}
@@ -135,9 +136,6 @@ export function PricingHero({
               </span>
             )}
           </div>
-          <p className="mt-5 text-xs" style={{ color: 'rgba(255,255,255,0.62)' }}>
-            Access runs for the length you choose and ends on the date shown. Nothing charges you again.
-          </p>
         </div>
 
         <div className="w-full max-w-sm lg:justify-self-end">

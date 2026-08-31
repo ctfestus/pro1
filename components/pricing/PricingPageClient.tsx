@@ -123,7 +123,6 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
         <PricingFaq
           headingFont={headingFont}
-          primaryColor={primaryColor}
           supportEmail={supportEmail}
           paidPlanName={props.plans.length === 1 ? props.plans[0].name : undefined}
         />
@@ -139,7 +138,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
             <p className="mx-auto mt-4 max-w-xl text-sm leading-6" style={{ color: 'rgba(255,255,255,0.72)' }}>
               No card to begin. No automatic renewal. Just clear access to the experience you choose.
             </p>
-            <Link href={finalCtaHref} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black" style={{ color: '#101828' }}>
+            <Link href={finalCtaHref} className="mt-7 inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
               {signedIn ? 'View payment options' : 'Create your free account'} <ArrowRight className="h-4 w-4" />
             </Link>
           </div>
