@@ -27,6 +27,7 @@ import { HoverPreviewCard } from '@/components/student/shared';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { SectionId } from '@/components/student/nav';
+import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
 
 type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification';
 
@@ -83,6 +84,14 @@ const TYPE_ICON: Record<CatalogueType, ElementType> = {
   virtual_experience: Briefcase,
   certification:      Award,
 };
+
+// What a learner can open now, versus what a plan would open. Two different questions from the
+// type filter, so a separate control rather than more entries in the same row.
+const ACCESS_FILTERS: { value: ExploreAccess; label: string }[] = [
+  { value: 'all',  label: 'All access' },
+  { value: 'free', label: 'Free' },
+  { value: 'paid', label: 'Paid' },
+];
 
 const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'all',                label: 'All content' },
@@ -152,6 +161,7 @@ export function ExploreSection({ C }: {
   const [loading, setLoading] = useState(true);
   const [error,   setError]   = useState('');
   const [filter,  setFilter]  = useState<'all' | CatalogueType>('all');
+  const [access,  setAccess]  = useState<ExploreAccess>('all');
   const [hover,   setHover]   = useState<HoverState | null>(null);
 
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -182,17 +192,19 @@ export function ExploreSection({ C }: {
     })();
   }, []);
 
-  // Unlocked first: what a student can actually start matters more than what they cannot.
-  const grouped = useMemo(() => {
-    const out = new Map<CatalogueType, CatalogueItem[]>();
-    for (const t of TYPE_ORDER) {
-      if (filter !== 'all' && filter !== t) continue;
-      const list = items.filter(i => i.type === t)
-        .sort((a, b) => Number(a.locked) - Number(b.locked));
-      if (list.length) out.set(t, list);
-    }
-    return out;
-  }, [items, filter]);
+  // Locked items used to be sorted to the end of every row. With eight cards shown before
+  // "show more", a learner with eight free courses saw no paid ones at all -- not lower down,
+  // clipped out -- so the catalogue looked like whatever they already had. The sort did nothing
+  // for a subscriber, who has everything unlocked, and hid the rest from everyone else. Anyone
+  // who only wants what they can start now picks Free above, which is a choice they can see.
+  const grouped = useMemo(
+    () => groupCatalogue(items, TYPE_ORDER, filter, access) as Map<CatalogueType, CatalogueItem[]>,
+    [items, filter, access],
+  );
+
+  const pillStyle = C.page === LIGHT_C.page
+    ? { background: '#ffffff', color: C.muted, border: `1px solid ${C.cardBorder}` }
+    : { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` };
 
   const open = (item: CatalogueItem) => {
     setHover(null);
@@ -224,14 +236,15 @@ export function ExploreSection({ C }: {
           Explore the full catalogue. Purchase access or enroll to unlock more learning.
         </p>
 
-        {/* Buttons rather than a select: the options are few, they fit, and a filter you can see is
-            faster than one you have to open. Wraps on a narrow screen instead of scrolling. */}
+        {/* Type on the left, access on the right of the same line. Access began as a second row
+            of pills and read as more of the same control, when it asks a different question --
+            which kind of thing, against what I can open. A select next to a segmented control
+            says "these are not the same" without a word of explanation, and on a narrow screen
+            it wraps below while still looking like its own thing. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by content type">
           {FILTERS.map(f => {
             const active = filter === f.value;
-            const inactiveStyle = C.page === LIGHT_C.page
-              ? { background: '#ffffff', color: C.muted, border: `1px solid ${C.cardBorder}` }
-              : { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` };
             return (
               <button
                 key={f.value}
@@ -241,12 +254,29 @@ export function ExploreSection({ C }: {
                 className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
                 style={active
                   ? { background: primaryColor || '#0056D2', color: '#ffffff' }
-                  : inactiveStyle}
+                  : pillStyle}
               >
                 {f.label}
               </button>
             );
           })}
+        </div>
+
+        <label className="flex items-center gap-2 text-sm" style={{ color: C.muted }}>
+          <span className="font-semibold">Show</span>
+          <select
+            value={access}
+            onChange={e => { setAccess(e.target.value as ExploreAccess); setHover(null); }}
+            className="rounded-full px-3.5 py-2 text-sm font-semibold outline-none cursor-pointer"
+            // The same resting style as the pills beside it, so it follows the mode rather than
+            // staying white on a dark page.
+            style={pillStyle}
+          >
+            {ACCESS_FILTERS.map(f => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </label>
         </div>
       </div>
 
@@ -262,7 +292,11 @@ export function ExploreSection({ C }: {
 
       {!loading && !error && grouped.size === 0 && (
         <p className="text-sm py-10 text-center" style={{ color: C.muted }}>
-          Nothing published in this category yet.
+          {access === 'paid'
+            ? 'Everything here is already open to you.'
+            : access === 'free'
+              ? 'Nothing here is free to start yet.'
+              : 'Nothing published in this category yet.'}
         </p>
       )}
 
