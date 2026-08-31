@@ -236,8 +236,12 @@ export function ExploreSection({ C }: {
           Explore the full catalogue. Purchase access or enroll to unlock more learning.
         </p>
 
-        {/* Buttons rather than a select: the options are few, they fit, and a filter you can see is
-            faster than one you have to open. Wraps on a narrow screen instead of scrolling. */}
+        {/* Type on the left, access on the right of the same line. Access began as a second row
+            of pills and read as more of the same control, when it asks a different question --
+            which kind of thing, against what I can open. A select next to a segmented control
+            says "these are not the same" without a word of explanation, and on a narrow screen
+            it wraps below while still looking like its own thing. */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by content type">
           {FILTERS.map(f => {
             const active = filter === f.value;
@@ -258,27 +262,19 @@ export function ExploreSection({ C }: {
           })}
         </div>
 
-        {/* A second, quieter row. It answers a different question from the one above -- what can
-            I open now, against what a plan would open -- so mixing the two into one strip would
-            make either choice ambiguous. */}
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by access">
-          {ACCESS_FILTERS.map(f => {
-            const active = access === f.value;
-            return (
-              <button
-                key={f.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => { setAccess(f.value); setHover(null); }}
-                className="px-3 py-1.5 rounded-full text-xs font-bold transition-all"
-                style={active
-                  ? { background: C.text, color: C.page }
-                  : pillStyle}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+        <label className="flex items-center gap-2 text-sm" style={{ color: C.muted }}>
+          <span className="font-semibold">Show</span>
+          <select
+            value={access}
+            onChange={e => { setAccess(e.target.value as ExploreAccess); setHover(null); }}
+            className="rounded-full px-3.5 py-2 text-sm font-semibold outline-none cursor-pointer"
+            style={{ background: '#ffffff', color: '#101828', border: `1px solid ${C.cardBorder}` }}
+          >
+            {ACCESS_FILTERS.map(f => (
+              <option key={f.value} value={f.value}>{f.label}</option>
+            ))}
+          </select>
+        </label>
         </div>
       </div>
 
