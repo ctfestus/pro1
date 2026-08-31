@@ -32,11 +32,12 @@ export function durationLabel(months: number): string {
   return `${months} month${months > 1 ? 's' : ''}`;
 }
 
-export function featuredOffer(plans: PricingPlan[]): FeaturedOffer | null {
+function findFeaturedOffer(plans: PricingPlan[], durationMonths?: number): FeaturedOffer | null {
   let best: FeaturedOffer | null = null;
 
   for (const plan of plans) {
     for (const price of plan.prices) {
+      if (durationMonths !== undefined && price.durationMonths !== durationMonths) continue;
       const { perMonth, savingPercent, monthsPaidFor } = comparePlanPrice(price, plan.prices);
       // Biggest saving wins; where two save the same, the longer run of access does.
       const better = !best
@@ -64,4 +65,13 @@ export function featuredOffer(plans: PricingPlan[]): FeaturedOffer | null {
   }
 
   return best;
+}
+
+export function featuredOffer(plans: PricingPlan[]): FeaturedOffer | null {
+  return findFeaturedOffer(plans);
+}
+
+/** The strongest available plan at a duration the learner has actively selected. */
+export function featuredOfferForDuration(plans: PricingPlan[], durationMonths: number | null): FeaturedOffer | null {
+  return durationMonths === null ? featuredOffer(plans) : findFeaturedOffer(plans, durationMonths);
 }

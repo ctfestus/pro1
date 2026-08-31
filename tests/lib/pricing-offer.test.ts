@@ -3,7 +3,7 @@
 // A hero has room for a single figure, so choosing the wrong one misprices the whole page in a
 // visitor's head -- and a struck-through rate with nothing behind it is a fake discount.
 import { describe, expect, it } from 'vitest';
-import { featuredOffer, formatMoney, durationLabel } from '@/lib/pricing-offer';
+import { featuredOffer, featuredOfferForDuration, formatMoney, durationLabel } from '@/lib/pricing-offer';
 import type { PricingPlan } from '@/lib/pricing-contract';
 
 const plan = (name: string, prices: [number, number][]): PricingPlan => ({
@@ -61,6 +61,17 @@ describe('featuredOffer', () => {
   it('has nothing to lead with when nothing is priced', () => {
     expect(featuredOffer([])).toBeNull();
     expect(featuredOffer([plan('Pro', [])])).toBeNull();
+  });
+
+  it('keeps the hero aligned with the duration selected on the page', () => {
+    const offer = featuredOfferForDuration([
+      plan('Basic', [[1, 100], [3, 240]]),
+      plan('Practice', [[1, 120], [6, 480]]),
+    ], 3);
+
+    expect(offer?.plan.name).toBe('Basic');
+    expect(offer?.price.durationMonths).toBe(3);
+    expect(offer?.savingPercent).toBe(20);
   });
 });
 

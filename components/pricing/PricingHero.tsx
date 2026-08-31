@@ -1,87 +1,51 @@
 'use client';
 
-/**
- * The banner at the top of the pricing page, leading with the best-value plan.
- *
- * Every figure is computed from what an admin priced. The struck-through rate appears only when
- * there is a real saving to strike it against, so the page never dresses a single price up as a
- * discount -- and there is no countdown, because there is no offer with an end date behind it.
- */
-import { useState } from 'react';
-import { ArrowRight, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowDown, Check, Sparkles } from 'lucide-react';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-offer';
 
-/** Named here rather than read from the catalogue: the tools column lives on virtual
- *  experiences only and is not in any public view, so this is a short curated list.
- *
- *  `glyph` is the drawn size inside the circle. A few marks are drawn small inside their own
- *  artwork and come out looking shrunken next to the rest, so those get a larger glyph in the
- *  same circle -- the row stays even, the logos read at the same weight. */
 const HERO_TOOLS: { name: string; glyph: number }[] = [
-  { name: 'Claude', glyph: 36 },
-  { name: 'ChatGPT', glyph: 32 },
-  { name: 'Excel', glyph: 32 },
-  { name: 'Power BI', glyph: 32 },
+  { name: 'Claude', glyph: 30 },
+  { name: 'ChatGPT', glyph: 28 },
+  { name: 'Excel', glyph: 28 },
+  { name: 'Power BI', glyph: 28 },
 ];
 
-/**
- * Decoration only -- a ribbon and a scatter of sparkles, so the offer reads as an offer rather
- * than as a table of figures. Hidden from assistive technology and from pointer events, and it
- * holds still for anyone who has asked for less motion.
- */
-function HeroFlourish({ accentColor }: { accentColor: string }) {
-  const sparkles: { top?: string; bottom?: string; right: string; size: number; delay: string }[] = [
-    { top: '10%', right: '30%', size: 18, delay: '0s' },
-    { top: '20%', right: '4%', size: 14, delay: '0.9s' },
-    { bottom: '14%', right: '26%', size: 22, delay: '1.6s' },
-    { bottom: '30%', right: '2%', size: 15, delay: '0.4s' },
-  ];
+function ConsoleBackdrop({ primaryColor, accentColor }: { primaryColor: string; accentColor: string }) {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
       <style>{`
-        @keyframes hero-twinkle {
-          0%, 100% { opacity: 0.55; transform: scale(0.9); }
-          50%      { opacity: 1;    transform: scale(1.1); }
+        @keyframes pricing-orbit {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
-        .hero-sparkle { animation: hero-twinkle 3.2s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .hero-sparkle { animation: none; } }
+        @keyframes pricing-pulse {
+          0%, 100% { opacity: 0.34; transform: scale(0.96); }
+          50% { opacity: 0.7; transform: scale(1.04); }
+        }
+        .pricing-orbit { animation: pricing-orbit 30s linear infinite; }
+        .pricing-pulse { animation: pricing-pulse 5s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) {
+          .pricing-orbit, .pricing-pulse { animation: none; }
+        }
       `}</style>
-
-      {/* A soft glow so the price lifts off the band instead of sitting flat on it. */}
       <div
-        className="absolute rounded-full"
+        className="absolute inset-0 opacity-25"
         style={{
-          right: '-6%', top: '-18%', width: 520, height: 520,
-          background: 'radial-gradient(circle, rgba(255,255,255,0.16), transparent 68%)',
+          backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)',
+          backgroundSize: '44px 44px',
+          maskImage: 'linear-gradient(to right, transparent 2%, black 56%, black)',
         }}
       />
-
-      {/* The ribbon. Stroked rather than filled, so it stays a light line on any brand colour. */}
-      <svg className="absolute right-0 bottom-0 hidden lg:block"
-        style={{ width: '34%', height: '72%' }}
-        viewBox="0 0 300 220" fill="none" preserveAspectRatio="xMidYMax slice">
-        <path
-          d="M-10 170 C 60 120, 110 200, 175 150 S 265 70, 320 100"
-          stroke="rgba(255,255,255,0.16)" strokeWidth="14" strokeLinecap="round"
-        />
-        <path
-          d="M-10 190 C 66 142, 116 220, 182 168 S 268 92, 320 122"
-          stroke="rgba(255,255,255,0.09)" strokeWidth="8" strokeLinecap="round"
-        />
-      </svg>
-
-      {sparkles.map((sparkle, i) => (
-        <svg
-          key={i}
-          className="hero-sparkle absolute"
-          style={{ ...sparkle, width: sparkle.size, height: sparkle.size, animationDelay: sparkle.delay }}
-          viewBox="0 0 24 24" fill="none"
-        >
-          <path d="M12 0 C 13 8, 16 11, 24 12 C 16 13, 13 16, 12 24 C 11 16, 8 13, 0 12 C 8 11, 11 8, 12 0 Z"
-            fill={accentColor} />
-        </svg>
-      ))}
+      <div
+        className="pricing-pulse absolute -right-24 -top-44 h-[520px] w-[520px] rounded-full blur-3xl"
+        style={{ background: `color-mix(in srgb, ${accentColor} 32%, transparent)` }}
+      />
+      <div
+        className="absolute -bottom-48 left-[28%] h-96 w-96 rounded-full blur-3xl"
+        style={{ background: `color-mix(in srgb, ${primaryColor} 58%, #ffffff 14%)`, opacity: 0.3 }}
+      />
     </div>
   );
 }
@@ -92,161 +56,110 @@ export interface PricingHeroProps {
   accentColor: string;
   headingFont?: string;
   bodyFont?: string;
-  ctaLabel: string;
-  /** Starts the purchase for the offer shown, or hands off where this page cannot finish it. */
-  onBuy: (priceId: string) => Promise<void> | void;
 }
 
 export function PricingHero({
-  offer, primaryColor, accentColor, headingFont, bodyFont, ctaLabel, onBuy,
+  offer, primaryColor, accentColor, headingFont, bodyFont,
 }: PricingHeroProps) {
-  const [busy, setBusy] = useState(false);
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
-  // Built-in logos render at once; anything an instructor uploaded replaces them when it arrives.
   const toolIcon = useToolIcons();
 
-  // Nothing is on sale, so there is no offer to lead with. A plain heading beats an empty
-  // banner shouting about a price that does not exist.
-  if (!offer) {
-    return (
-      <div className="mx-auto w-full max-w-6xl px-5 sm:px-8 text-center pt-10 pb-4">
-        <h1 className="text-3xl sm:text-5xl font-bold tracking-tight"
-          style={{ fontFamily: hFont, color: '#101828', textWrap: 'balance' }}>
-          Learn the skills you need to move your career forward
-        </h1>
-        <p className="mt-4 text-base max-w-2xl mx-auto" style={{ color: '#475467', fontFamily: bFont }}>
-          Start free and keep going at your own pace.
-        </p>
-      </div>
-    );
-  }
-
-  const { plan, price, perMonth, savingPercent, monthsPaidFor, baselinePerMonth, alternative } = offer;
-  const saving = savingPercent > 0;
-
   return (
-    // Edge to edge: the band runs the full width of the page and only its contents are
-    // constrained, so the colour reaches both sides of the screen rather than floating in a card.
-    <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
-      <HeroFlourish accentColor={accentColor} />
-      <div className="relative z-10 mx-auto w-full max-w-6xl px-5 sm:px-8 py-12 sm:py-16 grid gap-10 lg:grid-cols-[1.15fr_0.85fr] items-center">
-        {/* ---------- the pitch ---------- */}
+    <section
+      className="relative isolate overflow-hidden"
+      style={{ background: `linear-gradient(135deg, #09111F 0%, color-mix(in srgb, ${primaryColor} 48%, #09111F) 62%, #09111F 100%)`, fontFamily: bFont }}
+    >
+      <ConsoleBackdrop primaryColor={primaryColor} accentColor={accentColor} />
+      <div className="relative z-10 mx-auto grid w-full max-w-6xl gap-12 px-5 pb-28 pt-14 sm:px-8 sm:pb-32 sm:pt-20 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
         <div>
-          <span
-            className="inline-block rounded px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider"
-            style={{ background: '#FFFFFF', color: primaryColor }}
-          >
-            {plan.name}
-          </span>
-
-          <h1
-            className="mt-5 text-3xl sm:text-5xl font-bold tracking-tight"
-            style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance', lineHeight: 1.05 }}
-          >
-            {saving
-              ? `Learn at your own pace and save ${savingPercent}% over ${durationLabel(price.durationMonths)}`
-              : `Learn at your own pace with ${durationLabel(price.durationMonths)} of full access`}
-          </h1>
-
-          <p className="mt-5 text-base leading-relaxed max-w-xl" style={{ color: 'rgba(255,255,255,0.86)' }}>
-            {plan.description
-              || 'Full access to the catalogue while your plan runs. Start whenever suits you, and keep the certificates you earn.'}
-          </p>
-
-          <p className="mt-5 text-base" style={{ color: 'rgba(255,255,255,0.92)' }}>
-            {saving && baselinePerMonth !== null && (
-              <span className="line-through mr-2" style={{ color: 'rgba(255,255,255,0.55)' }}>
-                {formatMoney(price.currency, baselinePerMonth)}
-              </span>
-            )}
-            <span className="font-bold">{formatMoney(price.currency, perMonth)} a month</span>
-            <span style={{ color: 'rgba(255,255,255,0.7)' }}> - no automatic renewal</span>
-          </p>
-
-          <div className="mt-6 flex flex-wrap items-center gap-x-5 gap-y-3">
-            <button
-              type="button"
-              onClick={async () => { setBusy(true); await onBuy(price.id); setBusy(false); }}
-              disabled={busy}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3.5 text-sm font-bold disabled:opacity-70"
-              style={{ background: '#FFFFFF', color: primaryColor }}
-            >
-              {busy
-                ? <>Opening checkout <Loader2 className="w-4 h-4 animate-spin" /></>
-                : <>{ctaLabel} <ArrowRight className="w-4 h-4" /></>}
-            </button>
-            {alternative && (
-              <span className="text-sm" style={{ color: 'rgba(255,255,255,0.82)' }}>
-                or {formatMoney(alternative.currency, alternative.amount)} for {durationLabel(alternative.durationMonths)}
-              </span>
-            )}
+          <div className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.18em]" style={{ background: 'rgba(255,255,255,0.09)', color: '#FFFFFF' }}>
+            <Sparkles className="h-3.5 w-3.5" style={{ color: accentColor }} />
+            Flexible learning access
           </div>
-
-          <p className="mt-5 text-xs" style={{ color: 'rgba(255,255,255,0.6)' }}>
-            Access runs for the length you choose and ends on the date shown. Nothing charges you again.
+          <h1
+            className="mt-6 max-w-3xl text-4xl font-black tracking-[-0.045em] text-white sm:text-6xl lg:text-[64px]"
+            style={{ fontFamily: hFont, color: '#FFFFFF', textWrap: 'balance', lineHeight: 0.98 }}
+          >
+            Choose the access that moves you forward.
+          </h1>
+          <p className="mt-6 max-w-xl text-base leading-7 sm:text-lg" style={{ color: 'rgba(255,255,255,0.72)' }}>
+            Start free, choose the learning experience you need, and pay only for the time you want. Your work and certificates stay with you.
           </p>
+          <div className="mt-7 flex flex-wrap gap-x-6 gap-y-3 text-sm font-semibold" style={{ color: 'rgba(255,255,255,0.82)' }}>
+            {['No card to start', 'No automatic renewal', 'Flexible payment options'].map(item => (
+              <span key={item} className="inline-flex items-center gap-2">
+                <Check className="h-4 w-4" style={{ color: accentColor }} />
+                {item}
+              </span>
+            ))}
+          </div>
+          <Link
+            href="#pricing-plans"
+            className="mt-8 inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none"
+            style={{ background: '#FFFFFF', color: '#101828' }}
+          >
+            Explore access plans <ArrowDown className="h-4 w-4" />
+          </Link>
         </div>
 
-        {/* ---------- the number ---------- */}
-        <div className="lg:justify-self-end w-full max-w-sm flex items-center gap-9 sm:gap-11">
-          {/* Capped rather than filling the column: at full width the two blocks read as banners
-              instead of as a price, and they crowd the logos beside them. */}
-          <div className="flex-1 min-w-0 max-w-[240px] space-y-2.5">
-            <div className="rounded-xl px-4 py-4 text-center" style={{ background: '#FFFFFF' }}>
-              {saving && baselinePerMonth !== null && (
-                <p className="text-sm line-through" style={{ color: '#98A2B3' }}>
-                  {formatMoney(price.currency, baselinePerMonth)}
-                </p>
+        <div className="relative mx-auto w-full max-w-md lg:justify-self-end">
+          <div className="pricing-orbit absolute -inset-8 rounded-full border" style={{ borderColor: 'rgba(255,255,255,0.10)' }} />
+          <div className="absolute -inset-3 rounded-[36px] opacity-45 blur-2xl" style={{ background: `color-mix(in srgb, ${accentColor} 20%, transparent)` }} />
+          <div className="relative overflow-hidden rounded-[30px] p-5 sm:p-6" style={{ background: 'rgba(255,255,255,0.10)', boxShadow: '0 28px 80px rgba(0,0,0,0.34)', backdropFilter: 'blur(24px)' }}>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: 'rgba(255,255,255,0.52)' }}>Access console</p>
+                <p className="mt-1 text-sm font-bold" style={{ color: '#FFFFFF' }}>Your selected term</p>
+              </div>
+              <span className="h-2.5 w-2.5 rounded-full" style={{ background: '#34D399', boxShadow: '0 0 18px #34D399' }} />
+            </div>
+
+            <div className="mt-8 rounded-2xl p-5" style={{ background: 'rgba(5,12,24,0.58)' }}>
+              {offer ? (
+                <>
+                  <div className="flex items-start justify-between gap-5">
+                    <div>
+                      <p className="text-sm font-bold" style={{ color: '#FFFFFF' }}>{offer.plan.name}</p>
+                      <p className="mt-1 text-xs" style={{ color: 'rgba(255,255,255,0.52)' }}>{durationLabel(offer.price.durationMonths)} access</p>
+                    </div>
+                    {offer.savingPercent > 0 && (
+                      <span className="rounded-full px-2.5 py-1 text-[10px] font-black" style={{ background: accentColor, color: '#101828' }}>
+                        Save {offer.savingPercent}%
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-7 text-4xl font-black tracking-[-0.04em]" style={{ color: '#FFFFFF', fontFamily: hFont }}>
+                    {formatMoney(offer.price.currency, offer.price.amount)}
+                  </p>
+                  <p className="mt-1 text-xs" style={{ color: 'rgba(255,255,255,0.56)' }}>
+                    {formatMoney(offer.price.currency, offer.perMonth)} a month. Nothing renews automatically.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p className="text-sm font-bold" style={{ color: '#FFFFFF' }}>Start with free access</p>
+                  <p className="mt-2 text-xs leading-5" style={{ color: 'rgba(255,255,255,0.58)' }}>
+                    Create your account now and upgrade when you are ready.
+                  </p>
+                </>
               )}
-              {/* One line, always. The currency belongs to the figure, so breaking between them
-                  reads as two separate things -- nowrap keeps them together and the size is set
-                  low enough that a long amount still fits the block. */}
-              <p
-                className="font-bold tracking-tight whitespace-nowrap"
-                style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(20px,2.3vw,28px)', lineHeight: 1.15 }}
-              >
-                {formatMoney(price.currency, perMonth)}
-                <span className="ml-1 text-xs font-bold" style={{ color: '#475467' }}>/month</span>
-              </p>
             </div>
 
-            {/* The concrete figure, in the same words the plan card and the duration control
-                use. It used to say "a year of savings", which asserted a benefit without a
-                number while the struck-through rate directly above it carried one. */}
-            <div className="rounded-xl px-4 py-4 text-center" style={{ background: accentColor }}>
-              <p className="text-sm font-bold" style={{ color: '#101828', fontFamily: hFont }}>
-                {monthsPaidFor !== null
-                  ? `Pay for only ${monthsPaidFor} months`
-                  : saving
-                    ? `Save ${savingPercent}%`
-                    : `${durationLabel(price.durationMonths)} of full access`}
-              </p>
+            <div className="mt-5 flex items-center justify-between gap-4">
+              <p className="max-w-[150px] text-xs leading-5" style={{ color: 'rgba(255,255,255,0.52)' }}>Learn with the tools used in modern teams.</p>
+              <div className="flex -space-x-2">
+                {HERO_TOOLS.map(tool => {
+                  const icon = toolIcon(tool.name);
+                  if (!icon) return null;
+                  return (
+                    <span key={tool.name} title={tool.name} className="grid h-11 w-11 place-items-center rounded-full border-2 border-[#172033] bg-white">
+                      <img src={icon} alt={tool.name} className="object-contain" style={{ width: tool.glyph, height: tool.glyph }} loading="lazy" />
+                    </span>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-
-          {/* Stacked down the right of the price, as in the reference, rather than sitting under it. */}
-          <div className="flex flex-col gap-2.5 shrink-0">
-            {HERO_TOOLS.map(tool => {
-              const icon = toolIcon(tool.name);
-              if (!icon) return null;
-              return (
-                <span
-                  key={tool.name}
-                  title={tool.name}
-                  className="grid place-items-center rounded-full"
-                  style={{ background: '#FFFFFF', width: 52, height: 52, boxShadow: '0 2px 8px rgba(16,24,40,0.20)' }}
-                >
-                  <img
-                    src={icon}
-                    alt={tool.name}
-                    className="object-contain"
-                    style={{ width: tool.glyph, height: tool.glyph }}
-                    loading="lazy"
-                  />
-                </span>
-              );
-            })}
           </div>
         </div>
       </div>
