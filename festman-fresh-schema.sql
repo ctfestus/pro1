@@ -4208,11 +4208,18 @@ CREATE TABLE public.subscription_plans (
   description text,
   cohort_id uuid NOT NULL UNIQUE REFERENCES public.cohorts(id) ON DELETE RESTRICT,
   status text NOT NULL DEFAULT 'active' CHECK (status IN ('active','inactive')),
+  -- migration 198: a plan carrying history cannot be deleted, so this is where a finished one
+  -- goes. Separate from status: inactive means off for now and still worth seeing, archived
+  -- means done with. Archiving requires the plan to be inactive; unarchiving leaves it inactive.
+  archived_at timestamptz,
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
   UNIQUE (id, cohort_id)
 );
+CREATE INDEX IF NOT EXISTS idx_subscription_plans_not_archived
+  ON public.subscription_plans (created_at DESC)
+  WHERE archived_at IS NULL;
 CREATE TABLE public.individual_subscriptions (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   student_id uuid REFERENCES public.students(id) ON DELETE SET NULL,

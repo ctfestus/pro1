@@ -23,7 +23,7 @@ import {
   type PlanContentTable,
 } from '@/lib/plan-attachments';
 
-interface Plan { id: string; name: string; status?: string | null }
+interface Plan { id: string; name: string; status?: string | null; archived_at?: string | null }
 
 export interface PlanAccessPickerProps {
   contentTable: PlanContentTable;
@@ -67,7 +67,9 @@ export function PlanAccessPicker({
       const { data: { session } } = await supabase.auth.getSession();
       const headers = { Authorization: `Bearer ${session?.access_token}` };
       const [planRes, mineRes] = await Promise.all([
-        fetch('/api/payments?action=subscription-plans', { headers }),
+        // Archived plans are asked for so an existing attachment to one is still visible.
+        // They are not offered below -- see the filter on render.
+        fetch('/api/payments?action=subscription-plans&includeArchived=true', { headers }),
         fetch(
           `/api/payments?action=content-plans&contentTable=${encodeURIComponent(contentTable)}`
           + `&contentId=${encodeURIComponent(contentId)}`,
@@ -133,6 +135,11 @@ export function PlanAccessPicker({
     return apply(plan, true);
   };
 
+  // An archived plan is finished with, so it is not offered -- but one that still holds this
+  // content is shown, ticked, because hiding an attachment is how content ends up somewhere
+  // nobody can see and nobody remembers putting it.
+  const offerable = plans.filter(plan => !plan.archived_at || attached.includes(plan.id));
+
   return (
     <div>
       <p className="text-xs font-bold mb-1" style={{ color: C.muted }}>Subscription plans</p>
@@ -156,11 +163,11 @@ export function PlanAccessPicker({
         </div>
       )}
 
-      {gate.enabled && !loading && !plans.length && (
+      {gate.enabled && !loading && !offerable.length && (
         <p className="text-xs" style={{ color: C.faint }}>No subscription plans exist yet.</p>
       )}
 
-      {gate.enabled && !loading && plans.map(plan => {
+      {gate.enabled && !loading && offerable.map(plan => {
         const on = attached.includes(plan.id);
         return (
           <div key={plan.id}>
@@ -172,9 +179,11 @@ export function PlanAccessPicker({
                 onChange={() => toggle(plan)}
               />
               <span className="font-semibold">{plan.name}</span>
-              {plan.status !== 'active' && (
-                <span className="text-[11px]" style={{ color: C.faint }}>inactive</span>
-              )}
+              {plan.archived_at
+                ? <span className="text-[11px]" style={{ color: C.faint }}>archived</span>
+                : plan.status !== 'active' && (
+                  <span className="text-[11px]" style={{ color: C.faint }}>inactive</span>
+                )}
               {busyId === plan.id && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
               {on && busyId !== plan.id && <Check className="w-3.5 h-3.5" style={{ color: C.cta }} />}
             </label>

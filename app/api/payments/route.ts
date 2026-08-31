@@ -240,7 +240,14 @@ export async function GET(req: NextRequest) {
     try {
       const db = adminClient();
       const planIds = await ownedPlanIds(db, sessionUser);
-      return NextResponse.json({ plans: await getSubscriptionPlans(db, req.nextUrl.searchParams.get('activeOnly') === 'true', planIds) });
+      return NextResponse.json({
+        plans: await getSubscriptionPlans(
+          db,
+          req.nextUrl.searchParams.get('activeOnly') === 'true',
+          planIds,
+          req.nextUrl.searchParams.get('includeArchived') === 'true',
+        ),
+      });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load subscription plans' }, { status: 500 });
     }
@@ -526,6 +533,38 @@ export async function POST(req: NextRequest) {
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to update subscription plan');
       return NextResponse.json({ error: err.message ?? 'Failed to update subscription plan' }, { status: 500 });
+    }
+  }
+
+  // Putting a finished plan out of the way, or taking it back out. A plan with any history
+  // cannot be deleted -- that would orphan the record of what people paid -- so this is the only
+  // way the list ever gets shorter.
+  if (body.action === 'set-subscription-plan-archived') {
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    const archiving = body.archived === true;
+    try {
+      await assertPlanAccess(String(body.planId));
+      const { data: plan, error: readError } = await db.from('subscription_plans')
+        .select('status').eq('id', body.planId).maybeSingle();
+      if (readError) throw readError;
+      if (!plan) return NextResponse.json({ error: 'Subscription plan not found' }, { status: 404 });
+      // An active plan is on sale. Archiving one would take it off the pricing page as a side
+      // effect of tidying a list, which is not what anyone tidying a list means to do.
+      if (archiving && plan.status === 'active') {
+        return NextResponse.json({
+          error: 'Deactivate this plan before archiving it, so nobody loses a plan that is still on sale.',
+        }, { status: 409 });
+      }
+      const { error } = await db.from('subscription_plans')
+        .update({ archived_at: archiving ? new Date().toISOString() : null })
+        .eq('id', body.planId);
+      if (error) throw error;
+      // The public page is untouched either way: archiving requires the plan to be inactive
+      // already, and unarchiving leaves it inactive. Nothing on sale changes.
+      return NextResponse.json({ ok: true, archived: archiving });
+    } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to archive subscription plan');
+      return NextResponse.json({ error: err.message ?? 'Failed to archive subscription plan' }, { status: 500 });
     }
   }
 
