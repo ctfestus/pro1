@@ -2171,6 +2171,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       contentTable="courses"
                       contentId={formId}
                       availableToEveryone={courseAvailableToEveryone}
+                      onPublicAccessClosed={() => setCourseAvailableToEveryone(false)}
                     />
                   </div>
                 )}

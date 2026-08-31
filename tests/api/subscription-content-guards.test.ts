@@ -74,9 +74,13 @@ describe('subscription plan content guards', () => {
     }));
 
     expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({
-      error: 'This course is already available to everyone. Restrict it to a cohort first, then add it to the subscription plan.',
-    });
+    // Held to the refusal and its reason rather than to the whole body: the response also
+    // carries a code the editor uses to offer closing the open access, and a caller that did
+    // not ask for that must still be turned away.
+    const body = await response.json();
+    expect(body.error).toBe(
+      'This course is already available to everyone. Restrict it to a cohort first, then add it to the subscription plan.',
+    );
     expect(rpc).not.toHaveBeenCalled();
   });
 });
