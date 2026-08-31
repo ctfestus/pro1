@@ -330,6 +330,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [newPlanContentKeys, setNewPlanContentKeys] = useState<string[]>([]);
   const [newPlanContentSearch, setNewPlanContentSearch] = useState("");
   const [planBuilderStep, setPlanBuilderStep] = useState<0 | 1 | 2>(0);
+  const [unsavedPlanDialog, setUnsavedPlanDialog] = useState<"create" | "edit" | null>(null);
   const [planCardMenuId, setPlanCardMenuId] = useState<string | null>(null);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [editPlan, setEditPlan] = useState<any>(null);
@@ -1029,7 +1030,52 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setCreatePlanOpen(true);
   }
 
+  function planBuilderIsDirty() {
+    return Boolean(
+      newPlanName.trim() ||
+      newPlanDescription.trim() ||
+      newPlanContentKeys.length ||
+      newPlanPrices.some((price) => price.amount || price.isActive || price.currency !== "GHS"),
+    );
+  }
+
+  function requestClosePlanBuilder() {
+    if (busy) return;
+    if (planBuilderIsDirty()) {
+      setUnsavedPlanDialog("create");
+      return;
+    }
+    setCreatePlanOpen(false);
+    setError("");
+  }
+
+  function editPlanIsDirty() {
+    if (!editPlan) return false;
+    if (editPlanName.trim() !== String(editPlan.name ?? "").trim()) return true;
+    if (editPlanDescription.trim() !== String(editPlan.description ?? "").trim()) return true;
+    const existing = new Map((editPlan.subscription_plan_prices ?? []).map((price: any) => [Number(price.duration_months), price]));
+    return editPlanPrices.some((price) => {
+      const original: any = existing.get(Number(price.durationMonths));
+      return (
+        String(price.amount || "") !== (original?.amount == null ? "" : String(original.amount)) ||
+        price.currency !== (original?.currency || "GHS") ||
+        price.isActive !== (original?.is_active === true)
+      );
+    });
+  }
+
+  function requestCloseEditPlan() {
+    if (busy) return;
+    if (editPlanIsDirty()) {
+      setUnsavedPlanDialog("edit");
+      return;
+    }
+    setEditPlan(null);
+    setError("");
+  }
+
   async function createPlan(status: "active" | "inactive" = "active") {
+    setUnsavedPlanDialog(null);
     setBusy(true);
     setError("");
     try {
@@ -1145,6 +1191,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
   async function savePlanDetails() {
     if (!editPlan || !editPlanName.trim()) return;
+    setUnsavedPlanDialog(null);
     setBusy(true);
     setError("");
     try {
@@ -2514,22 +2561,26 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           );
                         }
                       }}
-                      className="group relative rounded-xl p-3.5 text-left transition-all cursor-pointer"
+                      className="group relative overflow-visible rounded-[22px] p-5 text-left transition-all cursor-pointer hover:-translate-y-0.5"
                       style={{
                         background:
                           selectedPlan?.id === plan.id ? `${C.cta}0c` : C.page,
                         boxShadow:
                           selectedPlan?.id === plan.id
-                            ? `inset 0 0 0 1.5px ${C.cta}`
-                            : "none",
+                            ? `inset 0 0 0 2px ${C.cta}, 0 12px 30px ${C.cta}12`
+                            : `0 8px 24px ${dark ? "rgba(0,0,0,0.12)" : "rgba(15,23,42,0.05)"}`,
                       }}
                     >
+                      <span
+                        className="absolute left-5 right-5 top-0 h-1 rounded-b-full"
+                        style={{ background: plan.status === "active" ? C.green : C.divider }}
+                      />
                       <div className="flex items-center justify-between gap-3">
                         <div
-                          className="w-8 h-8 rounded-lg grid place-items-center"
-                          style={{ background: C.card, color: C.cta }}
+                          className="w-10 h-10 rounded-2xl grid place-items-center"
+                          style={{ background: `${C.cta}14`, color: C.cta }}
                         >
-                          <ShieldCheck className="w-3.5 h-3.5" />
+                          <ShieldCheck className="w-5 h-5" />
                         </div>
                         <div className="flex items-center gap-1.5">
                           <StatusPill status={plan.status} C={C} />
@@ -2625,57 +2676,79 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                           </div>
                         </div>
                       </div>
-                      <div className="mt-3">
-                        <p className="font-bold" style={{ color: C.text }}>
+                      <div className="mt-4">
+                        <p className="text-base font-black" style={{ color: C.text }}>
                           {plan.name}
                         </p>
                         <p
-                          className="text-xs mt-0.5 truncate"
+                          className="text-xs mt-1.5 leading-relaxed line-clamp-2 min-h-9"
                           style={{ color: C.faint }}
                         >
                           {plan.description ||
                             "Reusable subscription access plan"}
                         </p>
-                        {/* An active plan with no active price is invisible to learners, and
-                            nothing else on this screen says so -- the plan reads as ready. */}
+                        <div className="mt-4 rounded-2xl p-3.5" style={{ background: C.card }}>
                         {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length ? (
-                          <p className="text-[11px] mt-2" style={{ color: C.muted }}>
-                            {(plan.subscription_plan_prices ?? [])
-                              .filter((price: any) => price.is_active)
-                              .sort((a: any, b: any) => a.duration_months - b.duration_months)
-                              .map((price: any) => `${money(price.currency, price.amount)} / ${price.duration_months} mo`)
-                              .join(" | ")}
-                          </p>
+                          <>
+                            <p className="text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: C.faint }}>Starting price</p>
+                            <div className="flex items-end justify-between gap-3 mt-1">
+                              <p className="text-xl font-black" style={{ color: C.text }}>
+                                {money(
+                                  [...(plan.subscription_plan_prices ?? [])].filter((price: any) => price.is_active).sort((a: any, b: any) => Number(a.amount) - Number(b.amount))[0]?.currency,
+                                  [...(plan.subscription_plan_prices ?? [])].filter((price: any) => price.is_active).sort((a: any, b: any) => Number(a.amount) - Number(b.amount))[0]?.amount,
+                                )}
+                              </p>
+                              <p className="text-[11px] font-bold" style={{ color: C.cta }}>
+                                {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length} option{(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length === 1 ? "" : "s"}
+                              </p>
+                            </div>
+                          </>
                         ) : (
-                          <p
-                            className="text-[11px] mt-2 inline-flex items-center gap-1.5 font-bold"
-                            style={{ color: "#b45309" }}
-                          >
-                            <AlertCircle className="w-3.5 h-3.5" />
-                            No price set, so learners cannot buy this plan
-                          </p>
+                          <div className="flex items-start gap-2" style={{ color: "#b45309" }}>
+                            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                            <div>
+                              <p className="text-xs font-bold">Pricing needed</p>
+                              <p className="text-[10px] mt-0.5">Add a price before publishing.</p>
+                            </div>
+                          </div>
                         )}
+                        </div>
                       </div>
                       <div
-                        className="flex items-center justify-between mt-3 pt-2 text-[11px]"
-                        style={{
-                          borderTop: `1px solid ${C.divider}`,
-                          color: C.faint,
-                        }}
+                        className="grid grid-cols-2 gap-2 mt-3"
                       >
-                        <span>
-                          {
+                        <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
+                          <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Subscribers</p>
+                          <p className="text-sm font-black mt-0.5" style={{ color: C.text }}>
+                            {
                             subscriptions.filter((s) => s.plan_id === plan.id)
                               .length
-                          }{" "}
-                          subscribers
-                        </span>
-                        {selectedPlan?.id === plan.id && (
-                          <span className="font-bold" style={{ color: C.cta }}>
-                            Selected
-                          </span>
-                        )}
+                            }
+                          </p>
+                        </div>
+                        <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
+                          <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Readiness</p>
+                          <p className="text-sm font-black mt-0.5" style={{ color: (plan.subscription_plan_prices ?? []).some((price: any) => price.is_active) ? C.green : "#b45309" }}>
+                            {(plan.subscription_plan_prices ?? []).some((price: any) => price.is_active) ? "Ready" : "Needs setup"}
+                          </p>
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setSelectedPlan(plan);
+                          loadPlanContent(plan.id).catch((err) => setError(err.message));
+                        }}
+                        className={`${primary} w-full mt-3`}
+                        style={{
+                          background: selectedPlan?.id === plan.id ? C.cta : C.card,
+                          color: selectedPlan?.id === plan.id ? C.ctaText : C.text,
+                        }}
+                      >
+                        {selectedPlan?.id === plan.id ? "Managing plan" : "Manage plan"}
+                        <ArrowRight className="w-4 h-4" />
+                      </button>
                     </div>
                   ))}
                   {plans.length === 0 && (
@@ -2732,25 +2805,36 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                             "No description has been added yet."}
                         </p>
                       </div>
-                      <button
-                        onClick={togglePlan}
-                        disabled={busy}
-                        className={`${primary} self-start`}
-                        style={{
-                          background:
-                            selectedPlan.status === "active"
-                              ? C.deleteBg
-                              : C.successBg,
-                          color:
-                            selectedPlan.status === "active"
-                              ? C.deleteText
-                              : C.successText,
-                        }}
-                      >
-                        {selectedPlan.status === "active"
-                          ? "Deactivate plan"
-                          : "Activate plan"}
-                      </button>
+                      <div className="flex flex-wrap items-center gap-2 self-start">
+                        <button
+                          onClick={() => openEditPlan(selectedPlan)}
+                          disabled={busy}
+                          className={primary}
+                          style={{ background: C.pill, color: C.text }}
+                        >
+                          <Pencil className="w-4 h-4" />
+                          Edit details and pricing
+                        </button>
+                        <button
+                          onClick={togglePlan}
+                          disabled={busy}
+                          className={primary}
+                          style={{
+                            background:
+                              selectedPlan.status === "active"
+                                ? C.deleteBg
+                                : C.successBg,
+                            color:
+                              selectedPlan.status === "active"
+                                ? C.deleteText
+                                : C.successText,
+                          }}
+                        >
+                          {selectedPlan.status === "active"
+                            ? "Deactivate plan"
+                            : "Activate plan"}
+                        </button>
+                      </div>
                     </div>
                     <div className="p-6">
                       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-5">
@@ -3309,10 +3393,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         <Modal
           title="Create a subscription plan"
           eyebrow="Plan builder"
-          onClose={() => {
-            setCreatePlanOpen(false);
-            setError("");
-          }}
+          onClose={requestClosePlanBuilder}
           C={C}
           error={error}
           wide
@@ -3489,7 +3570,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-3 mt-7 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
                 <button
                   type="button"
-                  onClick={() => planBuilderStep === 0 ? setCreatePlanOpen(false) : setPlanBuilderStep((planBuilderStep - 1) as 0 | 1)}
+                  onClick={() => planBuilderStep === 0 ? requestClosePlanBuilder() : setPlanBuilderStep((planBuilderStep - 1) as 0 | 1)}
                   disabled={busy}
                   className={primary}
                   style={{ background: C.pill, color: C.text }}
@@ -3579,10 +3660,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         <Modal
           title="Edit plan details"
           eyebrow="Reusable access blueprint"
-          onClose={() => {
-            setEditPlan(null);
-            setError("");
-          }}
+          onClose={requestCloseEditPlan}
           C={C}
           error={error}
         >
@@ -3619,10 +3697,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             </div>
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
               <button
-                onClick={() => {
-                  setEditPlan(null);
-                  setError("");
-                }}
+                onClick={requestCloseEditPlan}
                 disabled={busy}
                 className={primary}
                 style={{ background: C.pill, color: C.text }}
@@ -3637,6 +3712,66 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               >
                 <Check className="w-4 h-4" style={{ color: "#ffffff" }} />
                 {busy ? "Saving..." : "Save changes"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {unsavedPlanDialog && (
+        <Modal
+          title="Save your changes?"
+          eyebrow="Unsaved plan setup"
+          onClose={() => setUnsavedPlanDialog(null)}
+          C={C}
+        >
+          <div>
+            <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
+              <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" style={{ color: "#d97706" }} />
+              <div>
+                <p className="text-sm font-bold" style={{ color: C.text }}>
+                  You have unsaved changes
+                </p>
+                <p className="text-xs mt-1.5 leading-relaxed" style={{ color: C.muted }}>
+                  {unsavedPlanDialog === "create"
+                    ? "Save this setup as a draft so you can continue later, or discard it permanently."
+                    : "Save the updates to this plan, or discard the changes you just made."}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 mt-5">
+              <button
+                type="button"
+                onClick={() => {
+                  if (unsavedPlanDialog === "create") setCreatePlanOpen(false);
+                  else setEditPlan(null);
+                  setUnsavedPlanDialog(null);
+                  setError("");
+                }}
+                disabled={busy}
+                className={primary}
+                style={{ background: C.deleteBg, color: C.deleteText }}
+              >
+                Discard changes
+              </button>
+              <button
+                type="button"
+                onClick={() => setUnsavedPlanDialog(null)}
+                disabled={busy}
+                className={primary}
+                style={{ background: C.pill, color: C.text }}
+              >
+                Keep editing
+              </button>
+              <button
+                type="button"
+                onClick={() => unsavedPlanDialog === "create" ? createPlan("inactive") : savePlanDetails()}
+                disabled={busy || (unsavedPlanDialog === "create" ? !newPlanName.trim() : !editPlanName.trim())}
+                className={primary}
+                style={{ background: C.cta, color: C.ctaText }}
+              >
+                <Check className="w-4 h-4" />
+                {unsavedPlanDialog === "create" ? "Save draft" : "Save changes"}
               </button>
             </div>
           </div>
