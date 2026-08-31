@@ -371,7 +371,10 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
         </span>
       </div>
 
-      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4 pt-4">
+      {/* Four across from xl, not three. The hover preview is a fixed 320px, so against a
+          three-column card on a wide screen it read as undersized -- a small panel floating over
+          a much larger tile. A narrower card puts the two closer in size. */}
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 xl:grid-cols-4 gap-4 pt-4">
         {visibleItems.map(item => (
           <div
             key={item.id}
