@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type CSSProperties } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -11,7 +11,6 @@ import {
   Minus,
   Loader2,
   ShieldCheck,
-  Sparkles,
 } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import { startPlanCheckout } from '@/lib/start-plan-checkout';
@@ -98,15 +97,20 @@ export function PricingSection({
   }, [durations, plans]);
 
   return (
-    <section id="pricing-plans" className="relative z-20 -mt-16 scroll-mt-24" style={{ fontFamily: bFont }}>
+    <section
+      id="pricing-plans"
+      className="relative z-20 -mt-16 scroll-mt-24"
+      style={{ fontFamily: bFont, '--pricing-accent': accentColor } as CSSProperties}
+    >
+      <style>{`
+        .pricing-plan-card:hover {
+          box-shadow: inset 0 0 0 3px var(--pricing-accent);
+        }
+      `}</style>
       <div className="rounded-[30px] bg-white p-5 sm:p-8" style={{ boxShadow: '0 24px 80px rgba(16,24,40,0.12)' }}>
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <span className="inline-flex items-center gap-2 text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: '#475467', fontFamily: hFont }}>
-              <Sparkles className="h-3.5 w-3.5" />
-              Build your access
-            </span>
-            <h2 className="mt-3 text-3xl font-black tracking-[-0.035em] sm:text-4xl" style={{ color: '#101828', fontFamily: hFont, textWrap: 'balance' }}>
+            <h2 className="text-3xl font-black tracking-[-0.035em] sm:text-4xl" style={{ color: '#101828', fontFamily: hFont, textWrap: 'balance' }}>
               Pick a term. Choose your experience.
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: '#5F6B7A' }}>
@@ -223,21 +227,16 @@ function PlanCard({
 
   return (
     <article
-      className="group relative isolate flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 sm:p-7"
+      className="pricing-plan-card group relative isolate flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 transition-shadow duration-200 sm:p-7 motion-reduce:transition-none"
       style={{ background: '#F7F9FB', boxShadow: 'inset 0 0 0 1px rgba(16,24,40,0.04)' }}
     >
       <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-30 motion-reduce:transition-none" style={{ background: primaryColor }} />
       <div className="relative flex flex-1 flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xl font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
-            <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>
-              {plan.description || 'Full access while your selected term runs.'}
-            </p>
-          </div>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: '#FFFFFF', color: '#344054', boxShadow: '0 5px 18px rgba(16,24,40,0.08)' }}>
-            <Sparkles className="h-4 w-4" />
-          </span>
+        <div>
+          <p className="text-xl font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
+          <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>
+            {plan.description || 'Full access while your selected term runs.'}
+          </p>
         </div>
 
         {price ? (
@@ -318,16 +317,11 @@ function FreePlanCard({
   ];
 
   return (
-    <article className="relative flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 sm:p-7" style={{ background: '#F7F9FB', boxShadow: 'inset 0 0 0 1px rgba(16,24,40,0.04)' }}>
+    <article className="pricing-plan-card relative flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 transition-shadow duration-200 sm:p-7 motion-reduce:transition-none" style={{ background: 'transparent', boxShadow: 'none' }}>
       <div className="flex flex-1 flex-col">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xl font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont }}>Starter</p>
-            <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>Free forever. Upgrade only when you are ready.</p>
-          </div>
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white" style={{ color: '#344054', boxShadow: '0 5px 18px rgba(16,24,40,0.08)' }}>
-            <Award className="h-4 w-4" />
-          </span>
+        <div>
+          <p className="text-xl font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont }}>Starter</p>
+          <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>Free forever. Upgrade only when you are ready.</p>
         </div>
 
         <div className="mt-7">

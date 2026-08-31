@@ -48,13 +48,13 @@ function HeroFlourish({ accentColor }: { accentColor: string }) {
         preserveAspectRatio="xMidYMax slice"
       >
         <path
-          d="M-10 170 C 60 120, 110 200, 175 150 S 270 120, 320 232"
+          d="M-20 232 C 42 206, 108 202, 175 150 S 265 70, 320 100"
           stroke="rgba(255,255,255,0.16)"
           strokeWidth="14"
           strokeLinecap="round"
         />
         <path
-          d="M-10 190 C 66 142, 116 220, 182 168 S 274 142, 320 234"
+          d="M-20 234 C 48 216, 114 220, 182 168 S 268 92, 320 122"
           stroke="rgba(255,255,255,0.09)"
           strokeWidth="8"
           strokeLinecap="round"
