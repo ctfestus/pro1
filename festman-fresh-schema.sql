@@ -4449,8 +4449,8 @@ BEGIN
   -- false, silently revoking access for every subscriber on the plan. See migration 172.
   INSERT INTO public.cohorts(name,status,cohort_kind,individual_student_id,start_date,created_by)
   VALUES ('Subscription - '||btrim(p_name),'active','subscription_plan',NULL,current_date,p_created_by) RETURNING id INTO v_cohort_id;
-  INSERT INTO public.subscription_plans(id,name,description,cohort_id,created_by)
-  VALUES (v_plan_id,btrim(p_name),NULLIF(btrim(p_description),''),v_cohort_id,p_created_by);
+  INSERT INTO public.subscription_plans(id,name,description,cohort_id,status,created_by)
+  VALUES (v_plan_id,btrim(p_name),NULLIF(btrim(p_description),''),v_cohort_id,'inactive',p_created_by);
   RETURN jsonb_build_object('ok',true,'planId',v_plan_id,'cohortId',v_cohort_id);
 END;
 $$;

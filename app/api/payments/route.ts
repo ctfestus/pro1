@@ -425,6 +425,40 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  async function assertPlanReadyForActivation(planId: string) {
+    const [{ data: prices, error: priceError }, { data: links, error: linkError }] = await Promise.all([
+      db.from('subscription_plan_prices').select('id').eq('plan_id', planId).eq('is_active', true).limit(1),
+      db.from('subscription_plan_content').select('content_table, content_id').eq('plan_id', planId),
+    ]);
+    if (priceError) throw priceError;
+    if (linkError) throw linkError;
+    if (!prices?.length) {
+      throw new PaymentError('conflict', 'Add at least one active price before activating this plan.', 409);
+    }
+    if (!links?.length) {
+      throw new PaymentError('conflict', 'Add at least one published content item before activating this plan.', 409);
+    }
+
+    const supportedTables = new Set(['courses', 'virtual_experiences', 'certifications', 'learning_paths']);
+    const contentByTable = new Map<string, string[]>();
+    for (const link of links) {
+      if (!supportedTables.has(link.content_table)) continue;
+      const ids = contentByTable.get(link.content_table) ?? [];
+      ids.push(link.content_id);
+      contentByTable.set(link.content_table, ids);
+    }
+    for (const [table, ids] of contentByTable) {
+      const { data: published, error } = await db.from(table)
+        .select('id')
+        .in('id', ids)
+        .eq('status', 'published')
+        .limit(1);
+      if (error) throw error;
+      if (published?.length) return;
+    }
+    throw new PaymentError('conflict', 'Add at least one published content item before activating this plan.', 409);
+  }
+
   async function assertSubscriptionAccess(subscriptionId: string) {
     if (sessionUser!.role === 'admin') return;
     const { data: subscription, error } = await db.from('individual_subscriptions')
@@ -546,6 +580,7 @@ export async function POST(req: NextRequest) {
           }, { status: 409 });
         }
       }
+      if (body.status === 'active') await assertPlanReadyForActivation(String(body.planId));
       const { error } = await db.from('subscription_plans').update(updates).eq('id', body.planId);
       if (error) throw error;
       // Deactivating is the case that sent us looking: without this the public page kept
