@@ -100,10 +100,12 @@ describe('needsPrivacyChange', () => {
     expect(needsPrivacyChange({ contentTable: 'courses', availableToEveryone: null })).toBe(false);
   });
 
-  it('only applies to the types that carry the flag', () => {
-    // Claiming a change is needed where the server needs none would put a warning about losing
-    // access in front of someone whose learners lose nothing.
-    expect(needsPrivacyChange({ contentTable: 'virtual_experiences', availableToEveryone: true })).toBe(false);
-    expect(needsPrivacyChange({ contentTable: 'learning_paths', availableToEveryone: true })).toBe(false);
+  it('applies to every content type, because every one carries the flag', () => {
+    // Excluding virtual experiences and learning paths did not make them work. Their tables have
+    // available_to_everyone too, and the same CHECK forbidding a public item from holding
+    // cohorts -- so the coverage row was written and the cohort tag then failed at the database.
+    for (const contentTable of ['courses', 'certifications', 'virtual_experiences', 'learning_paths'] as const) {
+      expect(needsPrivacyChange({ contentTable, availableToEveryone: true })).toBe(true);
+    }
   });
 });

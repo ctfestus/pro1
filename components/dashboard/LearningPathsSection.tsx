@@ -486,7 +486,14 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                   </span>
                 </button>
                 <div className="mb-4 pb-4" style={{ borderBottom: `1px solid ${C.divider}` }}>
-                  <PlanAccessPicker contentTable="learning_paths" contentId={editing.id} />
+                  <PlanAccessPicker
+                    contentTable="learning_paths"
+                    contentId={editing.id}
+                    availableToEveryone={editing.available_to_everyone}
+                    onPublicAccessClosed={() =>
+                      setEditing((prev: any) => ({ ...prev, available_to_everyone: false }))
+                    }
+                  />
                 </div>
                 <div style={openToEveryone ? { opacity: 0.45, pointerEvents: 'none' } : undefined} aria-hidden={openToEveryone}>
                 {cohorts.length === 0 ? <div className="rounded-2xl py-16 text-center" style={{ background: C.pill }}><Users className="w-7 h-7 mx-auto mb-3" style={{ color: C.faint }}/><p className="text-sm font-semibold" style={{ color: C.text }}>No cohorts found</p><p className="text-xs mt-1" style={{ color: C.faint }}>Create a cohort before assigning this path.</p></div> : <div className="grid sm:grid-cols-2 gap-3">{cohorts.map((cohort: any) => { const selected = selectedCohorts.includes(cohort.id); return <button key={cohort.id} onClick={() => toggleCohort(cohort.id)} className="p-4 rounded-2xl flex items-center gap-3 text-left transition-all" style={{ background: selected ? `${C.green}10` : C.pill, boxShadow: selected ? `inset 0 0 0 1.5px ${C.green}` : 'none' }}><span className="w-10 h-10 rounded-xl grid place-items-center" style={{ background: selected ? `${C.green}18` : C.card }}><Users className="w-4 h-4" style={{ color: selected ? C.green : C.faint }}/></span><span className="text-sm font-semibold flex-1" style={{ color: C.text }}>{cohort.name}</span><span className="w-5 h-5 rounded-full grid place-items-center" style={{ background: selected ? C.green : 'transparent', border: `1.5px solid ${selected ? C.green : C.cardBorder}` }}>{selected && <Check className="w-3 h-3 text-white"/>}</span></button>; })}</div>}

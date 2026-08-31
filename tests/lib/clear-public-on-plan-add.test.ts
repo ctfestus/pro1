@@ -19,14 +19,19 @@ describe('closing open access when content joins a plan', () => {
     expect(admissions).toMatch(/clearPublicAccess !== true[\s\S]{0,400}status: 400/);
   });
 
-  it('closes it before writing the coverage row', () => {
-    // The other order can leave content sold in a plan and still open to everyone, which the
-    // picker then reads as needing no change -- a contradiction nothing would report.
-    const close = admissions.indexOf('available_to_everyone: false');
-    const coverage = admissions.indexOf("from('subscription_plan_content').upsert");
-    expect(close).toBeGreaterThan(-1);
-    expect(coverage).toBeGreaterThan(-1);
-    expect(close).toBeLessThan(coverage);
+  it('closes it inside the same transaction as the attachment', () => {
+    // Ordering alone was not enough. Closing first and attaching second meant a later failure
+    // took access away from learners for a plan the content never joined; closing second meant
+    // content sold in a plan while still open to everyone. Both writes are now one statement,
+    // so either both land or neither does.
+    const fn = readFileSync(join(process.cwd(), 'migrations/199_atomic_plan_content_change.sql'), 'utf8');
+    expect(fn).toContain('p_add AND p_clear_public');
+    expect(fn).toContain('available_to_everyone = false');
+    expect(fn).toContain('INSERT INTO public.subscription_plan_content');
+    expect(fn).toContain('toggle_content_cohort_tag');
+    // A plpgsql function body is one transaction; nothing here may commit on its own.
+    expect(fn).not.toMatch(/COMMIT/i);
+    expect(admissions).toContain("db.rpc('set_subscription_plan_content'");
   });
 
   it('asks the author first, and only sends the flag from that answer', () => {

@@ -532,6 +532,19 @@ export async function POST(req: NextRequest) {
     }
     try {
       await assertPlanAccess(String(body.planId));
+      // An archived plan cannot be switched back on. It would be on sale while hidden from the
+      // list that shows what is on sale, so nobody would see they were still selling it. The
+      // database refuses this too; this is here to say why rather than surface a constraint.
+      if (updates.status === 'active') {
+        const { data: plan, error: readError } = await db.from('subscription_plans')
+          .select('archived_at').eq('id', body.planId).maybeSingle();
+        if (readError) throw readError;
+        if (plan?.archived_at) {
+          return NextResponse.json({
+            error: 'This plan is archived. Restore it before switching it back on.',
+          }, { status: 409 });
+        }
+      }
       const { error } = await db.from('subscription_plans').update(updates).eq('id', body.planId);
       if (error) throw error;
       // Deactivating is the case that sent us looking: without this the public page kept
@@ -567,8 +580,11 @@ export async function POST(req: NextRequest) {
         .update({ archived_at: archiving ? new Date().toISOString() : null })
         .eq('id', body.planId);
       if (error) throw error;
-      // The public page is untouched either way: archiving requires the plan to be inactive
-      // already, and unarchiving leaves it inactive. Nothing on sale changes.
+      // Nothing on sale changes today -- archiving requires the plan to be inactive already, and
+      // restoring leaves it inactive. Cleared regardless, so the rule stays "every plan write
+      // clears the page" with no exception anyone has to keep true. One recomputation on a rare
+      // admin action is cheaper than a reader deciding whether the reasoning still holds.
+      revalidatePricingPage();
       return NextResponse.json({ ok: true, archived: archiving });
     } catch (err: any) {
       if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to archive subscription plan');

@@ -46,7 +46,34 @@ describe('archiving a plan', () => {
   it('adds the column without rewriting existing rows', () => {
     // Every existing plan stays exactly as it is: null means not archived.
     expect(migration).toContain('ADD COLUMN IF NOT EXISTS archived_at timestamptz');
-    expect(migration).not.toMatch(/\bUPDATE\b|\bDROP\b/);
+    expect(migration).not.toMatch(/UPDATE\s+public\./i);
+    expect(migration).not.toMatch(/DELETE\s+FROM/i);
+  });
+
+  it('enforces the invariant in the database, not only in a comment', () => {
+    // An archived plan switched back on is on sale while hidden from the list that shows what is
+    // on sale. The application checks are the first line; this is the reason it cannot happen.
+    expect(migration).toContain("CHECK (archived_at IS NULL OR status = 'inactive')");
+    expect(schema).toContain("CHECK (archived_at IS NULL OR status = 'inactive')");
+  });
+
+  it('keeps an archived plan off the public pricing view', () => {
+    // Defence in depth: even with the constraint dropped, the page will not sell an archived
+    // plan rather than quietly listing one.
+    const view = schema.slice(
+      schema.indexOf('CREATE OR REPLACE VIEW public.public_pricing_plans'),
+      schema.indexOf('GRANT SELECT ON public.public_pricing_plans'),
+    );
+    expect(view).toContain('archived_at IS NULL');
+    expect(migration).toContain('archived_at IS NULL');
+  });
+
+  it('refuses to switch an archived plan back on', () => {
+    expect(route).toContain('This plan is archived. Restore it before switching it back on.');
+    const dashboard = read('components/dashboard/SubscriptionsSection.tsx');
+    // Both controls that could do it: the card menu and the detail panel.
+    expect(dashboard).toContain('busy || !!plan.archived_at');
+    expect(dashboard).toContain('busy || !!selectedPlan.archived_at');
   });
 
   it('is mirrored into the fresh schema, so a new database matches a migrated one', () => {

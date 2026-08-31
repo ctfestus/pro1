@@ -1281,7 +1281,6 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setBusy(true);
     setError("");
     setSuccess("");
-    setPlanMenuOpen(false);
     setPlanCardMenuId(null);
     try {
       const res = await authFetch("/api/payments", {
@@ -2679,8 +2678,15 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 </button>
                                 <button
                                   onClick={() => togglePlan(plan)}
-                                  disabled={busy}
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                                  // Archived means put away. Switching it back on here would
+                                  // put it on sale while it stays hidden from this list.
+                                  disabled={busy || !!plan.archived_at}
+                                  title={
+                                    plan.archived_at
+                                      ? "Restore this plan before switching it back on."
+                                      : undefined
+                                  }
+                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
                                   style={{ color: C.text }}
                                 >
                                   <span
@@ -2892,7 +2898,12 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                         </button>
                         <button
                           onClick={togglePlan}
-                          disabled={busy}
+                          disabled={busy || !!selectedPlan.archived_at}
+                          title={
+                            selectedPlan.archived_at
+                              ? "Restore this plan before switching it back on."
+                              : undefined
+                          }
                           className={primary}
                           style={{
                             background:

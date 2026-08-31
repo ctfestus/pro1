@@ -49,17 +49,19 @@ export function planPickerState(subject: PlanPickerSubject): PlanPickerState {
 /**
  * Whether adding this content to a plan also has to close its open access first.
  *
- * Only two types carry the flag. Adding while it is on cannot work: the plan grants access by
- * tagging the content with the plan's cohort, and open-to-everyone ignores cohorts, so the two
- * are contradictory answers to the same question.
+ * Adding while it is on cannot work: the plan grants access by tagging the content with the
+ * plan's cohort, and a public item is required by the database to hold no cohorts at all, so the
+ * two are contradictory answers to the same question.
  *
  * This is never silent. Closing it takes the content away from every signed-in learner who is
  * not in one of its cohorts and not a subscriber, including anyone part-way through it, so the
  * caller has to say so and be told yes.
  */
 export function needsPrivacyChange(subject: PlanPickerSubject): boolean {
-  if (subject.availableToEveryone !== true) return false;
-  return subject.contentTable === 'courses' || subject.contentTable === 'certifications';
+  // All four types carry the flag, and all four carry a CHECK that a public item holds no
+  // cohorts. Excluding two of them did not make them work -- it let the coverage row be written
+  // and then the cohort tag fail at the database, leaving the attachment half made.
+  return subject.availableToEveryone === true;
 }
 
 export interface PlanAttachmentDiff {

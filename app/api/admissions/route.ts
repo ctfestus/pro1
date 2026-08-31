@@ -14,6 +14,14 @@ export const dynamic = 'force-dynamic';
 // everything inside it. cohort_assignments.content_type has no 'learning_path' value
 // (see festman-fresh-schema.sql), so that bookkeeping upsert is skipped for paths --
 // same as POST /api/cohort-content-assignment already does.
+/** What to call each type in a message a person reads. */
+const CONTENT_LABEL: Record<string, string> = {
+  courses: 'course',
+  virtual_experiences: 'virtual experience',
+  certifications: 'certification',
+  learning_paths: 'learning path',
+};
+
 const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
   selectCols: string;
   ownerCol: string;
@@ -30,7 +38,7 @@ const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
     },
   },
   virtual_experiences: {
-    selectCols: 'id, title, slug, status, cohort_ids, user_id',
+    selectCols: 'id, title, slug, status, cohort_ids, available_to_everyone, user_id',
     ownerCol: 'user_id',
     caContentType: 'virtual_experience',
     notify: async (db, content, cohortId) => {
@@ -50,7 +58,7 @@ const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
     },
   },
   learning_paths: {
-    selectCols: 'id, title, description, item_ids, status, cohort_ids, instructor_id',
+    selectCols: 'id, title, description, item_ids, status, cohort_ids, available_to_everyone, instructor_id',
     ownerCol: 'instructor_id',
     caContentType: null,
     notify: async (db, content, cohortId) => {
@@ -317,65 +325,40 @@ export async function POST(req: NextRequest) {
       // the content with its cohort, and open access ignores cohorts entirely. The author can
       // resolve that from the editor now, but only by asking -- clearing it quietly would take
       // the content away from every learner relying on the open flag, part-way through included.
-      if (adding && ['courses', 'certifications'].includes(contentTable) && (content as any).available_to_everyone === true) {
+      // Every one of the four types carries this flag, and every one carries a CHECK that a
+      // public item holds no cohorts. A plan grants access by adding its cohort, so attaching
+      // public content is not merely contradictory -- the tag update fails at the database,
+      // after the coverage row is already written.
+      if (adding && (content as any).available_to_everyone === true) {
         if (body.clearPublicAccess !== true) {
           return NextResponse.json({
-            error: `This ${contentTable === 'courses' ? 'course' : 'certification'} is already available to everyone. Restrict it to a cohort first, then add it to the subscription plan.`,
+            error: `This ${CONTENT_LABEL[contentTable] ?? 'content'} is already available to everyone. Restrict it to a cohort first, then add it to the subscription plan.`,
             code: 'needs_private',
           }, { status: 400 });
         }
-        // Closed before the coverage row is written. The other order could leave the content in
-        // a plan and still open to everyone, which the picker would then read as needing nothing.
-        const { error: closeError } = await db.from(contentTable)
-          .update({ available_to_everyone: false })
-          .eq('id', contentId);
-        if (closeError) throw closeError;
+        // Acted on inside the transaction below, so a later failure cannot leave the content
+        // closed to its learners while never joining the plan.
       }
 
-      if (adding) {
-        const { error: coverageError } = await db.from('subscription_plan_content').upsert({
-          plan_id: plan.id,
-          content_table: contentTable,
-          content_id: contentId,
-          added_by: auth.user.id,
-        }, {
-          onConflict: 'plan_id,content_table,content_id',
-          ignoreDuplicates: true,
-        });
-        if (coverageError) throw coverageError;
-      } else {
-        const { error: coverageError } = await db.from('subscription_plan_content')
-          .delete()
-          .eq('plan_id', plan.id)
-          .eq('content_table', contentTable)
-          .eq('content_id', contentId);
-        if (coverageError) throw coverageError;
-      }
-
-      const { error: tagError } = await db.rpc('toggle_content_cohort_tag', {
+      // One transaction for all four writes: closing open access, the coverage row, the cohort
+      // tag that actually grants access, and the assignment bookkeeping. As separate calls, a
+      // failure part-way left the earlier ones standing -- and the tag genuinely does fail for
+      // open content, because every content table forbids a public item holding cohorts.
+      const { error: applyError } = await db.rpc('set_subscription_plan_content', {
+        p_plan_id: plan.id,
         p_content_table: contentTable,
         p_content_id: contentId,
-        p_cohort_id: plan.cohort_id,
+        p_actor_id: auth.user.id,
         p_add: adding,
+        p_clear_public: adding && body.clearPublicAccess === true,
+        p_ca_content_type: contentConfig.caContentType,
       });
-      if (tagError) throw tagError;
+      if (applyError) throw applyError;
 
-      if (contentConfig.caContentType) {
-        if (adding) {
-          const { error: assignmentError } = await db.from('cohort_assignments').upsert({
-            content_id: contentId,
-            content_type: contentConfig.caContentType,
-            cohort_id: plan.cohort_id,
-          }, { onConflict: 'content_id,cohort_id', ignoreDuplicates: true });
-          if (assignmentError) throw assignmentError;
-        } else {
-          const { error: assignmentError } = await db.from('cohort_assignments')
-            .delete()
-            .eq('content_id', contentId)
-            .eq('cohort_id', plan.cohort_id);
-          if (assignmentError) throw assignmentError;
-        }
-      }
+      // Here, not at the end. The catalogue has changed; what follows is notification, and both
+      // an inactive plan (which returns early) and a failed send would otherwise leave the
+      // public page serving the old counts.
+      revalidatePricingPage();
 
       if (adding) {
         const { data: currentPlan, error: currentPlanError } = await db
@@ -404,9 +387,6 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // What a plan covers is quoted on the public pricing page, so the saved copy of that
-      // page is now out of date.
-      revalidatePricingPage();
       return NextResponse.json({ ok: true });
     } catch (err: any) {
       console.error(`[admissions/${body.action}]`, err);
