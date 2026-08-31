@@ -268,7 +268,9 @@ export function ExploreSection({ C }: {
             value={access}
             onChange={e => { setAccess(e.target.value as ExploreAccess); setHover(null); }}
             className="rounded-full px-3.5 py-2 text-sm font-semibold outline-none cursor-pointer"
-            style={{ background: '#ffffff', color: '#101828', border: `1px solid ${C.cardBorder}` }}
+            // The same resting style as the pills beside it, so it follows the mode rather than
+            // staying white on a dark page.
+            style={pillStyle}
           >
             {ACCESS_FILTERS.map(f => (
               <option key={f.value} value={f.value}>{f.label}</option>
