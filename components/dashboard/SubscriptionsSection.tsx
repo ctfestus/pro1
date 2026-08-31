@@ -4437,8 +4437,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           <div className="space-y-4">
             <p className="text-sm" style={{ color: C.text }}>
               {closePublicAsk.titles.length === 1
-                ? "This item is open to every signed-in learner. A plan cannot sell something that is already open to everyone, so adding it closes that."
-                : `${closePublicAsk.titles.length} of these are open to every signed-in learner. A plan cannot sell something that is already open to everyone, so adding them closes that.`}
+                ? "This is public. Make it available to this plan and your cohorts instead?"
+                : "These are public. Make them available to this plan and your cohorts instead?"}
             </p>
             <ul className="space-y-1.5">
               {closePublicAsk.titles.map((title, index) => (
@@ -4448,8 +4448,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
               ))}
             </ul>
             <p className="text-xs" style={{ color: C.muted }}>
-              Afterwards only this plan&apos;s subscribers and the cohorts you have assigned keep
-              access. Anyone else loses it, including learners part-way through.
+              Everyone else loses access.
             </p>
             <div className="flex gap-2">
               <button
@@ -4461,7 +4460,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 className="rounded-xl px-4 py-2.5 text-sm font-bold"
                 style={{ background: C.cta, color: C.ctaText }}
               >
-                Close open access and save
+                Make plan-only
               </button>
               <button
                 type="button"

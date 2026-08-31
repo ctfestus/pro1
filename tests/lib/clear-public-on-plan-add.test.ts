@@ -44,8 +44,8 @@ describe('closing open access when content joins a plan', () => {
   });
 
   it('says what saying yes costs, in terms of who loses access', () => {
-    expect(picker).toMatch(/loses it|lose access|losing access/i);
-    expect(picker).toMatch(/part-way through/i);
+    // Short, but it still has to say the consequence: the copy was cut down, not the meaning.
+    expect(picker).toMatch(/loses access|lose access/i);
   });
 
   it('tells the editor, so its next save does not undo the change', () => {

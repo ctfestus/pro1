@@ -155,7 +155,7 @@ describe('every caller goes through this module', () => {
   it('asks before closing, and again if the server turns something back', () => {
     expect(dashboard).toContain('askToClosePublic');
     expect(dashboard).toMatch(/needs_private[\s\S]{0,400}askToClosePublic/);
-    expect(dashboard).toContain('Close open access and save');
+    expect(dashboard).toContain('Make plan-only');
   });
 
   it('re-reads stored content before reporting a batch', () => {

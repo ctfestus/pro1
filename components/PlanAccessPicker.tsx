@@ -235,9 +235,8 @@ export function PlanAccessPicker({
                 {confirming.willClosePublic && (
                   <p className="flex items-start gap-2 font-semibold mb-2" style={{ color: C.text }}>
                     <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                    This is open to every signed-in learner. Adding it to {plan.name} closes that,
-                    so only {plan.name} subscribers and the cohorts you have chosen keep access.
-                    Anyone else loses it, including learners part-way through.
+                    This is public. Make it available to {plan.name} and your cohorts instead?
+                    Everyone else loses access.
                   </p>
                 )}
                 {confirming.willEmail && (
@@ -253,7 +252,7 @@ export function PlanAccessPicker({
                     className="rounded-lg px-3 py-1.5 text-xs font-bold"
                     style={{ background: C.cta, color: '#ffffff' }}
                   >
-                    {confirming.willClosePublic ? 'Close open access and add' : 'Add and notify'}
+                    {confirming.willClosePublic ? 'Make plan-only' : 'Add and notify'}
                   </button>
                   <button
                     type="button"
