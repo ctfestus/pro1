@@ -66,11 +66,17 @@ export function PlanAccessPicker({
     status: null, free: null,
   });
 
+  // Either source saying "public" means a change is needed. `??` only falls back when the prop
+  // is null, so an editor passing a plain false -- its state before its own record has loaded,
+  // or a switch flipped but not saved -- hid the stored true underneath it. The picker then
+  // offered nothing and the server refused, which is the dead end this feature exists to remove.
+  const isPublic = availableToEveryone === true || subject.free === true;
+
   const gate = planPickerState({
     contentTable,
     contentId,
     status: subject.status,
-    availableToEveryone: availableToEveryone ?? subject.free,
+    availableToEveryone: isPublic,
   });
 
   const load = useCallback(async () => {
@@ -105,6 +111,18 @@ export function PlanAccessPicker({
 
   useEffect(() => { void load(); }, [load]);
 
+  /** Whether adding this plan would email its learners. Asked before the confirm, and again if
+   *  the server turns the request back. */
+  const willNotify = (plan: Plan) =>
+    plansThatWillNotify(
+      planAttachmentDiff(attached, [...attached, plan.id]),
+      plans.map(row => ({
+        ...row,
+        notifiedContentIds: notified.includes(row.id) ? [String(contentId)] : [],
+      })),
+      String(contentId),
+    ).includes(plan.id);
+
   const apply = async (plan: Plan, add: boolean, clearPublicAccess = false) => {
     setBusyId(plan.id); setError(''); setWarning(''); setConfirming(null);
     try {
@@ -122,6 +140,17 @@ export function PlanAccessPicker({
         }),
       });
       const body = await res.json().catch(() => ({}));
+
+      // The server refused because the content is still open to everyone, and this request did
+      // not ask to close it. Rather than showing that as an error, offer the same choice the
+      // picker would have offered had it known -- so a stale view here is a question, never a
+      // dead end. The client's picture can always be behind: another tab, another person, or an
+      // editor that has not finished loading its own record.
+      if (!res.ok && body.code === 'needs_private' && add && !clearPublicAccess) {
+        setConfirming({ plan, willEmail: willNotify(plan), willClosePublic: true });
+        return;
+      }
+
       // Keyed on what the server says it did, not on the absence of an error. The access change
       // commits before anyone is emailed, so a failed send used to arrive here as a failed
       // attachment -- leaving the editor holding an open-access flag the database now forbids.
@@ -147,19 +176,11 @@ export function PlanAccessPicker({
     const adding = !attached.includes(plan.id);
     if (!adding) return apply(plan, false);
 
-    const diff = planAttachmentDiff(attached, [...attached, plan.id]);
-    const willEmail = plansThatWillNotify(
-      diff,
-      plans.map(row => ({
-        ...row,
-        notifiedContentIds: notified.includes(row.id) ? [String(contentId)] : [],
-      })),
-      String(contentId),
-    ).includes(plan.id);
+    const willEmail = willNotify(plan);
     const willClosePublic = needsPrivacyChange({
       contentTable,
       contentId,
-      availableToEveryone: availableToEveryone ?? subject.free,
+      availableToEveryone: isPublic,
     });
 
     // Anything with a consequence somebody would want to know about first gets asked.

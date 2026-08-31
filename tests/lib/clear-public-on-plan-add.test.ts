@@ -82,4 +82,27 @@ describe('closing open access when content joins a plan', () => {
     // than what was clicked.
     expect(picker).toMatch(/catch \(e: any\)[\s\S]{0,320}await load\(\)/);
   });
+
+  it('does not let a stale local flag hide the stored one', () => {
+    // The editors pass a plain boolean, and it is false before their own record has loaded and
+    // false the moment somebody flips the switch without saving. `??` only falls back on null,
+    // so that false hid a stored true: the picker offered nothing and the server refused.
+    expect(picker).toContain('availableToEveryone === true || subject.free === true');
+    expect(picker).not.toContain('availableToEveryone ?? subject.free');
+  });
+
+  it('reads the flag for every content type, not just two', () => {
+    // All four tables carry available_to_everyone. Reading it for two left the picker blind for
+    // the others, so it never offered and the request was refused instead.
+    const payments = read('app/api/payments/route.ts');
+    expect(payments).toContain("const eligibilityCols = 'status, available_to_everyone'");
+    expect(payments).not.toMatch(/eligibilityCols = \['courses', 'certifications'\]/);
+  });
+
+  it('turns a refusal into the offer rather than a dead end', () => {
+    // The client's picture can always be behind -- another tab, another person, an editor still
+    // loading. Whatever the reason, the answer is the question, never an error with no way on.
+    expect(picker).toContain("body.code === 'needs_private'");
+    expect(picker).toMatch(/needs_private[\s\S]{0,200}setConfirming/);
+  });
 });
