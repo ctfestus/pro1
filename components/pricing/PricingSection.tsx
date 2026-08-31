@@ -148,30 +148,36 @@ export function PricingSection({
           )}
         </div>
 
-        {plans.length > 0 ? (
-          <div className="mt-8 grid gap-5 md:grid-cols-2">
-            {plans.map(plan => (
-              <PlanCard
-                key={plan.id}
-                plan={plan}
-                months={selectedDuration}
-                hFont={hFont}
-                primaryColor={primaryColor}
-                accentColor={accentColor}
-                buyLabel={buyLabel}
-                busy={busyPriceId}
-                onBuy={buy}
-              />
-            ))}
-          </div>
-        ) : (
+        <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          <FreePlanCard
+            free={free}
+            signedIn={signedIn}
+            primaryColor={primaryColor}
+            hFont={hFont}
+          />
+          {plans.map(plan => (
+            <PlanCard
+              key={plan.id}
+              plan={plan}
+              months={selectedDuration}
+              hFont={hFont}
+              primaryColor={primaryColor}
+              accentColor={accentColor}
+              buyLabel={buyLabel}
+              busy={busyPriceId}
+              onBuy={buy}
+            />
+          ))}
+        </div>
+
+        {plans.length === 0 && (
           <div className="mt-8 rounded-2xl p-6 text-center" style={{ background: '#F7F9FB' }}>
             <p className="font-bold" style={{ color: '#344054' }}>Paid access is not available yet.</p>
             <p className="mt-1 text-sm" style={{ color: '#667085' }}>Start free and check back soon.</p>
           </div>
         )}
 
-        <FreeAccessStrip free={free} signedIn={signedIn} primaryColor={primaryColor} hFont={hFont} />
+        <TeamsStrip supportEmail={supportEmail} primaryColor={primaryColor} hFont={hFont} />
       </div>
 
       <TrustRail primaryColor={primaryColor} />
@@ -183,8 +189,6 @@ export function PricingSection({
         hFont={hFont}
         primaryColor={primaryColor}
       />
-
-      <TeamsStrip supportEmail={supportEmail} primaryColor={primaryColor} hFont={hFont} />
 
       {midAds && midAds.some(ad => ad.title) && (
         <section className="mt-20">
@@ -300,7 +304,7 @@ function PlanCard({
   );
 }
 
-function FreeAccessStrip({
+function FreePlanCard({
   free, signedIn, primaryColor, hFont,
 }: {
   free: ContentCounts;
@@ -309,33 +313,53 @@ function FreeAccessStrip({
   hFont?: string;
 }) {
   const freeBenefits = [
-    ...(free.courses > 0 ? ['Free courses'] : []),
-    ...(free.learning_paths > 0 ? ['Free learning paths'] : []),
+    ...(free.courses > 0 ? ['Access to free courses'] : []),
+    ...(free.learning_paths > 0 ? ['Access to free learning paths'] : []),
+    ...(free.virtual_experiences > 0 ? ['Access to free virtual experiences'] : []),
+    ...(free.certifications > 0 ? ['Access to free certifications'] : []),
     'Verifiable certificates you earn stay yours',
   ];
 
   return (
-    <div className="mt-5 flex flex-col gap-5 rounded-2xl px-5 py-5 sm:flex-row sm:items-center sm:justify-between" style={{ background: '#101828', color: '#FFFFFF' }}>
-      <div className="flex items-start gap-4">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: 'rgba(255,255,255,0.10)' }}>
-          <Award className="h-5 w-5" style={{ color: '#34D399' }} />
-        </span>
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="text-lg font-black" style={{ color: '#FFFFFF', fontFamily: hFont }}>Start free</p>
-            <span className="rounded-full bg-white/10 px-2.5 py-1 text-[10px] font-bold">No card needed</span>
+    <article className="relative flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 sm:p-7" style={{ background: '#F7F9FB', boxShadow: 'inset 0 0 0 1px rgba(16,24,40,0.04)' }}>
+      <div className="flex flex-1 flex-col">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xl font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont }}>Starter</p>
+            <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>Free forever. Upgrade only when you are ready.</p>
           </div>
-          <p className="mt-1 text-sm" style={{ color: 'rgba(255,255,255,0.64)' }}>{freeBenefits.join(' | ')}</p>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white" style={{ color: primaryColor, boxShadow: '0 5px 18px rgba(16,24,40,0.08)' }}>
+            <Award className="h-4 w-4" />
+          </span>
         </div>
+
+        <div className="mt-7">
+          <p className="text-4xl font-black tracking-[-0.045em]" style={{ color: '#101828', fontFamily: hFont }}>Free</p>
+          <p className="mt-2 text-xs" style={{ color: '#667085' }}>No card needed</p>
+        </div>
+
+        <div className="my-6 h-px" style={{ background: '#E8ECF1' }} />
+        <p className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: '#98A2B3' }}>Your access includes</p>
+        <ul className="mt-4 space-y-3">
+          {freeBenefits.map(line => (
+            <li key={line} className="flex items-start gap-3 text-sm" style={{ color: '#344054' }}>
+              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ background: `color-mix(in srgb, ${primaryColor} 12%, white)`, color: primaryColor }}>
+                <Check className="h-3 w-3" />
+              </span>
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+
+        {signedIn ? (
+          <span className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-3 text-sm font-black" style={{ background: '#E9EDF2', color: '#667085' }}>Your current access</span>
+        ) : (
+          <Link href="/auth?mode=signup" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: primaryColor, boxShadow: `inset 0 0 0 1px ${primaryColor}` }}>
+            Create a free account <ArrowRight className="h-4 w-4" />
+          </Link>
+        )}
       </div>
-      {signedIn ? (
-        <span className="shrink-0 rounded-xl px-4 py-2.5 text-center text-sm font-bold" style={{ background: 'rgba(255,255,255,0.10)', color: '#FFFFFF' }}>Your current access</span>
-      ) : (
-        <Link href="/auth?mode=signup" className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-4 py-2.5 text-sm font-black" style={{ color: '#101828' }}>
-          Create a free account <ArrowRight className="h-4 w-4" />
-        </Link>
-      )}
-    </div>
+    </article>
   );
 }
 
