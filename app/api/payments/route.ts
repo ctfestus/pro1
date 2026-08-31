@@ -14,6 +14,7 @@ import {
   deletePayment,
   recomputeEnrollmentAccessPublic,
 } from '@/lib/db-payments';
+import { PURCHASABLE_CONTENT_TABLES } from '@/lib/subscription-plan-access';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import { notifySubscriptionPaymentRequest } from '@/lib/notify-subscription-payment-request';
 import { notifySubscriptionActivated } from '@/lib/notify-subscription-activated';
@@ -242,6 +243,51 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ plans: await getSubscriptionPlans(db, req.nextUrl.searchParams.get('activeOnly') === 'true', planIds) });
     } catch (err: any) {
       return NextResponse.json({ error: err.message ?? 'Failed to load subscription plans' }, { status: 500 });
+    }
+  }
+
+  // Which plans already include one piece of content, for the picker in the content editors.
+  // The existing plan-content action answers the opposite question -- what is in one plan -- and
+  // asking it once per plan to fill a checkbox list would be a request per plan on every open.
+  if (action === 'content-plans') {
+    const sessionUser = await getSessionUser(req);
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    if (!['instructor', 'admin'].includes(sessionUser.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const contentTable = req.nextUrl.searchParams.get('contentTable') ?? '';
+    const contentId = req.nextUrl.searchParams.get('contentId') ?? '';
+    if (!PURCHASABLE_CONTENT_TABLES.has(contentTable) || !contentId) {
+      return NextResponse.json({ error: 'contentTable and contentId are required' }, { status: 400 });
+    }
+    try {
+      const db = adminClient();
+      const planIds = await ownedPlanIds(db, sessionUser);
+      let query = db.from('subscription_plan_content')
+        .select('plan_id, notified_at')
+        .eq('content_table', contentTable)
+        .eq('content_id', contentId);
+      // Scoped the same way every other subscription read is: someone who manages a subset of
+      // plans is told about that subset, not about every plan on the platform.
+      if (planIds) query = query.in('plan_id', planIds);
+      // The content's own eligibility comes back with it. The editors store status and the
+      // open-to-everyone flag in seven different shapes, and passing them in from each one would
+      // put the same rule in seven places for the server to overrule anyway.
+      const eligibilityCols = ['courses', 'certifications'].includes(contentTable)
+        ? 'status, available_to_everyone'
+        : 'status';
+      const [{ data, error }, { data: content, error: contentError }] = await Promise.all([
+        query,
+        db.from(contentTable).select(eligibilityCols).eq('id', contentId).maybeSingle(),
+      ]);
+      if (error) throw error;
+      if (contentError) throw contentError;
+      return NextResponse.json({
+        planIds: (data ?? []).map(row => row.plan_id),
+        notifiedPlanIds: (data ?? []).filter(row => row.notified_at).map(row => row.plan_id),
+        contentStatus: (content as any)?.status ?? null,
+        availableToEveryone: (content as any)?.available_to_everyone ?? null,
+      });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to load plans for this content' }, { status: 500 });
     }
   }
 

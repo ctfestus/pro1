@@ -6,6 +6,7 @@ import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { ImageLibrary } from '@/components/ImageLibrary';
+import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import type { LessonDoc } from '@/lib/lesson-doc';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { clampLinkedInSharePoints, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
@@ -2952,6 +2953,11 @@ function VirtualExperienceCreatePageInner() {
                         })}
                       </div>
                   }
+                </div>
+
+                {/* Subscription plans card */}
+                <div style={card} className="p-5">
+                  <PlanAccessPicker contentTable="virtual_experiences" contentId={effectiveId} />
                 </div>
 
                 {/* Deadline card */}

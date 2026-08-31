@@ -17,6 +17,7 @@ import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { uploadToGithub } from '@/lib/uploadToGithub';
 import { useC } from '@/components/create/theme';
+import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import { useC as useLibC } from '@/lib/theme';
 import { Toggle, inputCls, labelCls } from '@/components/create/shared';
 import { QuestionTypePicker, TYPE_LABELS, type QuestionTypeOrDownloads } from '@/components/create/QuestionTypePicker';
@@ -453,6 +454,13 @@ function CertificationEditor() {
                   ? 'Nobody can take this yet. Choose Everyone or select at least one cohort.'
                   : 'Only the selected cohorts can take this certification.'}
             </p>
+            <div className="mt-5 pt-4" style={{ borderTop: `1px solid ${C.divider}` }}>
+              <PlanAccessPicker
+                contentTable="certifications"
+                contentId={editId}
+                availableToEveryone={state.availableToEveryone}
+              />
+            </div>
           </div>
         </div>}
 
