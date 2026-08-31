@@ -36,9 +36,11 @@ describe('closing open access when content joins a plan', () => {
 
   it('asks the author first, and only sends the flag from that answer', () => {
     expect(picker).toContain('willClosePublic');
-    // The request carries it only when the confirmation set it.
+    // The request carries it only when the confirmation set it. The request itself now lives in
+    // the shared module, which every caller uses, so the guard follows it there.
     expect(picker).toMatch(/apply\(plan, true, confirming\.willClosePublic\)/);
-    expect(picker).toMatch(/clearPublicAccess \? \{ clearPublicAccess: true \} : \{\}/);
+    const request = read('lib/plan-content-request.ts');
+    expect(request).toMatch(/options\.clearPublicAccess && change\.add/);
   });
 
   it('says what saying yes costs, in terms of who loses access', () => {
@@ -72,8 +74,8 @@ describe('closing open access when content joins a plan', () => {
   it('tells the picker what was applied, rather than leaving it to infer it', () => {
     // Keyed on the server's own answer. An HTTP status cannot distinguish "nothing happened"
     // from "it happened and the email did not".
-    expect(picker).toContain('body.applied === true');
-    expect(picker).toMatch(/body\.applied === true[\s\S]{0,200}onPublicAccessClosed\?\.\(\)/);
+    expect(read('lib/plan-content-request.ts')).toContain('body.applied === true');
+    expect(picker).toMatch(/outcome\.kind === 'applied'[\s\S]{0,200}onPublicAccessClosed\?\.\(\)/);
     expect(picker).toContain('notificationWarning');
   });
 
@@ -102,7 +104,10 @@ describe('closing open access when content joins a plan', () => {
   it('turns a refusal into the offer rather than a dead end', () => {
     // The client's picture can always be behind -- another tab, another person, an editor still
     // loading. Whatever the reason, the answer is the question, never an error with no way on.
-    expect(picker).toContain("body.code === 'needs_private'");
-    expect(picker).toMatch(/needs_private[\s\S]{0,200}setConfirming/);
+    expect(read('lib/plan-content-request.ts')).toContain("body.code === 'needs_private'");
+    expect(picker).toMatch(/outcome\.kind === 'needs_private'[\s\S]{0,200}setConfirming/);
+    // And the same for the dashboard, which had neither the rule nor the recovery.
+    expect(read('components/dashboard/SubscriptionsSection.tsx'))
+      .toMatch(/needs_private[\s\S]{0,400}askToClosePublic/);
   });
 });

@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Check, Loader2, Lock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/lib/theme';
+import { applyPlanContentChange } from '@/lib/plan-content-request';
 import {
   needsPrivacyChange,
   planAttachmentDiff,
@@ -127,47 +128,29 @@ export function PlanAccessPicker({
     setBusyId(plan.id); setError(''); setWarning(''); setConfirming(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/admissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          action: add ? 'add-subscription-plan-content' : 'remove-subscription-plan-content',
-          planId: plan.id,
-          contentTable,
-          contentId,
-          // Only ever sent after the author has been shown who loses access and said yes.
-          ...(clearPublicAccess ? { clearPublicAccess: true } : {}),
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
+      const outcome = await applyPlanContentChange(
+        { planId: plan.id, contentTable, contentId: String(contentId), add },
+        { token: session?.access_token, clearPublicAccess },
+      );
 
-      // The server refused because the content is still open to everyone, and this request did
-      // not ask to close it. Rather than showing that as an error, offer the same choice the
-      // picker would have offered had it known -- so a stale view here is a question, never a
-      // dead end. The client's picture can always be behind: another tab, another person, or an
-      // editor that has not finished loading its own record.
-      if (!res.ok && body.code === 'needs_private' && add && !clearPublicAccess) {
+      // A refusal for open access is the question, not an error: the picture here can always be
+      // behind -- another tab, another person, an editor still loading its own record.
+      if (outcome.kind === 'needs_private') {
         setConfirming({ plan, willEmail: willNotify(plan), willClosePublic: true });
         return;
       }
-
-      // Keyed on what the server says it did, not on the absence of an error. The access change
-      // commits before anyone is emailed, so a failed send used to arrive here as a failed
-      // attachment -- leaving the editor holding an open-access flag the database now forbids.
-      if (body.applied === true) {
+      if (outcome.kind === 'applied') {
         if (clearPublicAccess) onPublicAccessClosed?.();
-        if (body.notificationWarning) setWarning(String(body.notificationWarning));
+        if (outcome.notificationWarning) setWarning(outcome.notificationWarning);
+      } else {
+        setError(outcome.error);
       }
-      if (!res.ok) throw new Error(body.error || 'Could not update the plan.');
-      // Re-read rather than assume: the server decides whether an email went, and the stamp it
-      // sets is what stops this warning appearing again.
-      await load();
     } catch (e: any) {
       setError(e?.message || 'Could not update the plan.');
-      // Re-read after a failure too. Whatever did or did not commit, the checkboxes should show
-      // what is actually stored rather than what was clicked.
-      await load().catch(() => {});
     } finally {
+      // Always. Whatever did or did not commit, the checkboxes should show what is stored rather
+      // than what was clicked.
+      await load().catch(() => {});
       setBusyId('');
     }
   };
