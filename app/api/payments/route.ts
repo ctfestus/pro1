@@ -279,9 +279,10 @@ export async function GET(req: NextRequest) {
       // The content's own eligibility comes back with it. The editors store status and the
       // open-to-everyone flag in seven different shapes, and passing them in from each one would
       // put the same rule in seven places for the server to overrule anyway.
-      const eligibilityCols = ['courses', 'certifications'].includes(contentTable)
-        ? 'status, available_to_everyone'
-        : 'status';
+      // All four content tables carry available_to_everyone. Reading it for only two left the
+      // picker blind for the other two, so it never offered to close open access and the
+      // request was refused instead.
+      const eligibilityCols = 'status, available_to_everyone';
       const [{ data, error }, { data: content, error: contentError }] = await Promise.all([
         query,
         db.from(contentTable).select(eligibilityCols).eq('id', contentId).maybeSingle(),

@@ -36,14 +36,16 @@ describe('closing open access when content joins a plan', () => {
 
   it('asks the author first, and only sends the flag from that answer', () => {
     expect(picker).toContain('willClosePublic');
-    // The request carries it only when the confirmation set it.
+    // The request carries it only when the confirmation set it. The request itself now lives in
+    // the shared module, which every caller uses, so the guard follows it there.
     expect(picker).toMatch(/apply\(plan, true, confirming\.willClosePublic\)/);
-    expect(picker).toMatch(/clearPublicAccess \? \{ clearPublicAccess: true \} : \{\}/);
+    const request = read('lib/plan-content-request.ts');
+    expect(request).toMatch(/options\.clearPublicAccess && change\.add/);
   });
 
   it('says what saying yes costs, in terms of who loses access', () => {
-    expect(picker).toMatch(/loses it|lose access|losing access/i);
-    expect(picker).toMatch(/part-way through/i);
+    // Short, but it still has to say the consequence: the copy was cut down, not the meaning.
+    expect(picker).toMatch(/loses access|lose access/i);
   });
 
   it('tells the editor, so its next save does not undo the change', () => {
@@ -72,8 +74,8 @@ describe('closing open access when content joins a plan', () => {
   it('tells the picker what was applied, rather than leaving it to infer it', () => {
     // Keyed on the server's own answer. An HTTP status cannot distinguish "nothing happened"
     // from "it happened and the email did not".
-    expect(picker).toContain('body.applied === true');
-    expect(picker).toMatch(/body\.applied === true[\s\S]{0,200}onPublicAccessClosed\?\.\(\)/);
+    expect(read('lib/plan-content-request.ts')).toContain('body.applied === true');
+    expect(picker).toMatch(/outcome\.kind === 'applied'[\s\S]{0,200}onPublicAccessClosed\?\.\(\)/);
     expect(picker).toContain('notificationWarning');
   });
 
@@ -81,5 +83,31 @@ describe('closing open access when content joins a plan', () => {
     // Whatever did or did not commit, the checkboxes should show what is actually stored rather
     // than what was clicked.
     expect(picker).toMatch(/catch \(e: any\)[\s\S]{0,320}await load\(\)/);
+  });
+
+  it('does not let a stale local flag hide the stored one', () => {
+    // The editors pass a plain boolean, and it is false before their own record has loaded and
+    // false the moment somebody flips the switch without saving. `??` only falls back on null,
+    // so that false hid a stored true: the picker offered nothing and the server refused.
+    expect(picker).toContain('availableToEveryone === true || subject.free === true');
+    expect(picker).not.toContain('availableToEveryone ?? subject.free');
+  });
+
+  it('reads the flag for every content type, not just two', () => {
+    // All four tables carry available_to_everyone. Reading it for two left the picker blind for
+    // the others, so it never offered and the request was refused instead.
+    const payments = read('app/api/payments/route.ts');
+    expect(payments).toContain("const eligibilityCols = 'status, available_to_everyone'");
+    expect(payments).not.toMatch(/eligibilityCols = \['courses', 'certifications'\]/);
+  });
+
+  it('turns a refusal into the offer rather than a dead end', () => {
+    // The client's picture can always be behind -- another tab, another person, an editor still
+    // loading. Whatever the reason, the answer is the question, never an error with no way on.
+    expect(read('lib/plan-content-request.ts')).toContain("body.code === 'needs_private'");
+    expect(picker).toMatch(/outcome\.kind === 'needs_private'[\s\S]{0,200}setConfirming/);
+    // And the same for the dashboard, which had neither the rule nor the recovery.
+    expect(read('components/dashboard/SubscriptionsSection.tsx'))
+      .toMatch(/needs_private[\s\S]{0,400}askToClosePublic/);
   });
 });

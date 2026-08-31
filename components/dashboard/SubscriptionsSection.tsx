@@ -36,6 +36,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import {
+  applyPlanContentChanges,
+  describePlanContentResult,
+  summarizePlanContentOutcomes,
+  decideNewPlanActivation,
+  type PlanContentChange,
+  type PlanContentOutcome,
+} from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
 import { LIGHT_C, cardStyle, modalStyle } from "@/lib/theme";
 
@@ -334,6 +342,14 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [unsavedPlanDialog, setUnsavedPlanDialog] = useState<"create" | "edit" | null>(null);
   const [planCardMenuId, setPlanCardMenuId] = useState<string | null>(null);
   const [showArchivedPlans, setShowArchivedPlans] = useState(false);
+  /**
+   * A batch waiting on an answer about open access, and the resolver that answer goes to. Held
+   * as a promise so both save flows can simply await the person, rather than each growing its
+   * own half of a modal.
+   */
+  const [closePublicAsk, setClosePublicAsk] = useState<
+    { titles: string[]; resolve: (yes: boolean) => void } | null
+  >(null);
   const [createPlanOpen, setCreatePlanOpen] = useState(false);
   const [editPlan, setEditPlan] = useState<any>(null);
   const [editPlanName, setEditPlanName] = useState("");
@@ -455,7 +471,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       CONTENT_TYPES.map((type) =>
         supabase
           .from(type.value)
-          .select("id,title")
+          // available_to_everyone comes too. Without it this screen cannot tell which items are
+          // open to everyone, so it could not warn before closing that, and could not ask.
+          .select("id,title,available_to_everyone")
           .eq("status", "published")
           .order("title"),
       ),
@@ -1127,25 +1145,33 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       const priceData = await priceRes.json();
       if (!priceRes.ok) throw new Error(priceData.error || "Failed to save plan prices");
 
-      await Promise.all(newPlanContentKeys.map(async (key) => {
+      // Through the same path as every other caller, so this flow asks about open access rather
+      // than being refused by the server for not asking.
+      const requested = newPlanContentKeys.map((key) => {
         const separator = key.indexOf(":");
-        const contentTable = key.slice(0, separator);
+        const contentTable = key.slice(0, separator) as PlanContentChange["contentTable"];
         const contentId = key.slice(separator + 1);
-        const contentRes = await authFetch("/api/admissions", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            action: "add-subscription-plan-content",
-            planId: data.planId,
-            contentTable,
-            contentId,
-          }),
-        });
-        const contentData = await contentRes.json();
-        if (!contentRes.ok) throw new Error(contentData.error || "Failed to add plan content");
-      }));
+        return { contentTable, contentId, title: titleFor(contentTable, contentId) };
+      });
+      const contentResult = await runPlanContentChanges(
+        requested.map(({ contentTable, contentId }) => ({
+          planId: data.planId,
+          contentTable,
+          contentId,
+          add: true,
+        })),
+      );
 
-      if (status === "active") {
+      // A plan is put on sale by activating it, and the public pricing view asks for an active
+      // plan with a live price -- not for any content behind it. Activating one whose content
+      // did not attach publishes something buyable and empty, so it stays a draft instead.
+      const decision = decideNewPlanActivation({
+        requested,
+        outcomes: contentResult ? contentResult.outcomes : null,
+        wantActive: status === "active",
+      });
+
+      if (decision.activate) {
         const statusRes = await authFetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1165,7 +1191,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setNewPlanContentSearch("");
       setPlanBuilderStep(0);
       setCreatePlanOpen(false);
-      setSuccess(status === "active" ? "Plan created and ready for learners." : "Plan saved as a draft.");
+      // One message, from one decision. Setting a success line after an error line is how a
+      // partial result came to read as a finished one.
+      if (decision.tone === "success") setSuccess(decision.message);
+      else setError(decision.message);
       await load(data.planId);
     } catch (err: any) {
       setError(err.message);
@@ -1307,6 +1336,84 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     }
   }
 
+  const askToClosePublic = (titles: string[]) =>
+    new Promise<boolean>((resolve) => setClosePublicAsk({ titles, resolve }));
+
+  const titleFor = (contentTable: string, contentId: string) =>
+    contentOptions.find(
+      (item: any) => item.content_table === contentTable && item.id === contentId,
+    )?.title ?? "this item";
+
+  /**
+   * Runs a set of plan-content changes, asking once about anything that would stop being open to
+   * everyone.
+   *
+   * Asked twice over, deliberately. What this screen has loaded says which items are open now,
+   * which is what lets it warn before anything happens. The server has the last word, and if it
+   * turns something back as still public -- another tab, another person, a list loaded a while
+   * ago -- that refusal becomes the same question rather than an error.
+   *
+   * Not all-or-nothing. Each item is its own request with its own side effects: adding to an
+   * active plan emails that plan's learners, and a later failure cannot unsend that. So every
+   * change comes back with what happened to it, and the caller says exactly what landed.
+   */
+  async function runPlanContentChanges(
+    changes: PlanContentChange[],
+  ): Promise<{
+    summary: ReturnType<typeof summarizePlanContentOutcomes>;
+    total: number;
+    outcomes: PlanContentOutcome[];
+  } | null> {
+    if (!changes.length) return { summary: summarizePlanContentOutcomes([]), total: 0, outcomes: [] };
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
+    const knownPublic = changes.filter(
+      (change) =>
+        change.add &&
+        contentOptions.some(
+          (item: any) =>
+            item.content_table === change.contentTable &&
+            item.id === change.contentId &&
+            item.available_to_everyone === true,
+        ),
+    );
+    let clearPublicAccess = false;
+    if (knownPublic.length) {
+      const agreed = await askToClosePublic(
+        knownPublic.map((change) => titleFor(change.contentTable, change.contentId)),
+      );
+      if (!agreed) return null;
+      clearPublicAccess = true;
+    }
+
+    let outcomes: PlanContentOutcome[] = await applyPlanContentChanges(changes, {
+      token,
+      clearPublicAccess,
+    });
+
+    const stale = outcomes.filter((outcome) => outcome.kind === "needs_private");
+    if (stale.length) {
+      const agreed = await askToClosePublic(
+        stale.map((outcome) => titleFor(outcome.change.contentTable, outcome.change.contentId)),
+      );
+      if (agreed) {
+        const retried = await applyPlanContentChanges(
+          stale.map((outcome) => outcome.change),
+          { token, clearPublicAccess: true },
+        );
+        outcomes = [
+          ...outcomes.filter((outcome) => outcome.kind !== "needs_private"),
+          ...retried,
+        ];
+      }
+    }
+
+    return { summary: summarizePlanContentOutcomes(outcomes), total: changes.length, outcomes };
+  }
+
   async function deletePlan(planOverride?: any) {
     const plan = planOverride?.id ? planOverride : selectedPlan;
     if (!plan) return;
@@ -1353,37 +1460,37 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         planContent.map((item) => `${item.content_table}:${item.content_id}`),
       );
       const desired = new Set(selectedContentKeys);
-      const changes = [
-        ...selectedContentKeys
-          .filter((key) => !current.has(key))
-          .map((key) => ({ action: "add-subscription-plan-content", key })),
-        ...[...current]
-          .filter((key) => !desired.has(key))
-          .map((key) => ({ action: "remove-subscription-plan-content", key })),
-      ];
-      const results = await Promise.all(
-        changes.map(async (change) => {
-          const separator = change.key.indexOf(":");
-          const contentTable = change.key.slice(0, separator);
-          const contentId = change.key.slice(separator + 1);
-          const res = await authFetch("/api/admissions", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              action: change.action,
-              planId: selectedPlan.id,
-              contentTable,
-              contentId,
-            }),
-          });
-          const data = await res.json();
-          if (!res.ok)
-            throw new Error(data.error || "Failed to update plan content");
-        }),
-      );
-      void results;
+      // Which endpoint action each of these becomes is the shared module's business, not this
+      // screen's. Naming it here is what let one caller carry a rule the others did not.
+      const toChange = (key: string, add: boolean): PlanContentChange => {
+        const separator = key.indexOf(":");
+        return {
+          planId: selectedPlan.id,
+          contentTable: key.slice(0, separator) as PlanContentChange["contentTable"],
+          contentId: key.slice(separator + 1),
+          add,
+        };
+      };
+      const result = await runPlanContentChanges([
+        ...selectedContentKeys.filter((key) => !current.has(key)).map((key) => toChange(key, true)),
+        ...[...current].filter((key) => !desired.has(key)).map((key) => toChange(key, false)),
+      ]);
+      // Cancelled at the confirmation. Nothing was sent, so say nothing happened.
+      if (!result) return;
+
+      // Re-read before reporting. Each change was its own request, so the stored answer is the
+      // only honest account of where this plan ended up.
       await loadPlanContent(selectedPlan.id);
-      setSuccess("Plan content updated for every subscriber.");
+      const message = describePlanContentResult(result.summary, result.total);
+      if (result.summary.failed.length || result.summary.needsPrivate.length) {
+        setError(message);
+      } else {
+        setSuccess(
+          result.summary.warnings.length
+            ? `${message} Some learners could not be emailed.`
+            : "Plan content updated for every subscriber.",
+        );
+      }
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -4311,6 +4418,62 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 No payments recorded.
               </p>
             )}
+          </div>
+        </Modal>
+      )}
+
+      {/* Asked before anything is closed, and again if the server turns something back. Closing
+          open access is not a detail of saving a plan: it takes the content away from every
+          learner who is not in a cohort and not a subscriber, part-way through included. */}
+      {closePublicAsk && (
+        <Modal
+          title="Some of this is open to everyone"
+          onClose={() => {
+            closePublicAsk.resolve(false);
+            setClosePublicAsk(null);
+          }}
+          C={C}
+        >
+          <div className="space-y-4">
+            <p className="text-sm" style={{ color: C.text }}>
+              {closePublicAsk.titles.length === 1
+                ? "This is public. Make it available to this plan and your cohorts instead?"
+                : "These are public. Make them available to this plan and your cohorts instead?"}
+            </p>
+            <ul className="space-y-1.5">
+              {closePublicAsk.titles.map((title, index) => (
+                <li key={`${title}-${index}`} className="text-sm font-bold" style={{ color: C.text }}>
+                  {title}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs" style={{ color: C.muted }}>
+              Everyone else loses access.
+            </p>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  closePublicAsk.resolve(true);
+                  setClosePublicAsk(null);
+                }}
+                className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                style={{ background: C.cta, color: C.ctaText }}
+              >
+                Make plan-only
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  closePublicAsk.resolve(false);
+                  setClosePublicAsk(null);
+                }}
+                className="rounded-xl px-4 py-2.5 text-sm font-bold"
+                style={{ background: C.pill, color: C.text }}
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </Modal>
       )}

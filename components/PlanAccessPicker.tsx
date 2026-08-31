@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Check, Loader2, Lock } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/lib/theme';
+import { applyPlanContentChange } from '@/lib/plan-content-request';
 import {
   needsPrivacyChange,
   planAttachmentDiff,
@@ -66,11 +67,17 @@ export function PlanAccessPicker({
     status: null, free: null,
   });
 
+  // Either source saying "public" means a change is needed. `??` only falls back when the prop
+  // is null, so an editor passing a plain false -- its state before its own record has loaded,
+  // or a switch flipped but not saved -- hid the stored true underneath it. The picker then
+  // offered nothing and the server refused, which is the dead end this feature exists to remove.
+  const isPublic = availableToEveryone === true || subject.free === true;
+
   const gate = planPickerState({
     contentTable,
     contentId,
     status: subject.status,
-    availableToEveryone: availableToEveryone ?? subject.free,
+    availableToEveryone: isPublic,
   });
 
   const load = useCallback(async () => {
@@ -105,40 +112,45 @@ export function PlanAccessPicker({
 
   useEffect(() => { void load(); }, [load]);
 
+  /** Whether adding this plan would email its learners. Asked before the confirm, and again if
+   *  the server turns the request back. */
+  const willNotify = (plan: Plan) =>
+    plansThatWillNotify(
+      planAttachmentDiff(attached, [...attached, plan.id]),
+      plans.map(row => ({
+        ...row,
+        notifiedContentIds: notified.includes(row.id) ? [String(contentId)] : [],
+      })),
+      String(contentId),
+    ).includes(plan.id);
+
   const apply = async (plan: Plan, add: boolean, clearPublicAccess = false) => {
     setBusyId(plan.id); setError(''); setWarning(''); setConfirming(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/admissions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          action: add ? 'add-subscription-plan-content' : 'remove-subscription-plan-content',
-          planId: plan.id,
-          contentTable,
-          contentId,
-          // Only ever sent after the author has been shown who loses access and said yes.
-          ...(clearPublicAccess ? { clearPublicAccess: true } : {}),
-        }),
-      });
-      const body = await res.json().catch(() => ({}));
-      // Keyed on what the server says it did, not on the absence of an error. The access change
-      // commits before anyone is emailed, so a failed send used to arrive here as a failed
-      // attachment -- leaving the editor holding an open-access flag the database now forbids.
-      if (body.applied === true) {
-        if (clearPublicAccess) onPublicAccessClosed?.();
-        if (body.notificationWarning) setWarning(String(body.notificationWarning));
+      const outcome = await applyPlanContentChange(
+        { planId: plan.id, contentTable, contentId: String(contentId), add },
+        { token: session?.access_token, clearPublicAccess },
+      );
+
+      // A refusal for open access is the question, not an error: the picture here can always be
+      // behind -- another tab, another person, an editor still loading its own record.
+      if (outcome.kind === 'needs_private') {
+        setConfirming({ plan, willEmail: willNotify(plan), willClosePublic: true });
+        return;
       }
-      if (!res.ok) throw new Error(body.error || 'Could not update the plan.');
-      // Re-read rather than assume: the server decides whether an email went, and the stamp it
-      // sets is what stops this warning appearing again.
-      await load();
+      if (outcome.kind === 'applied') {
+        if (clearPublicAccess) onPublicAccessClosed?.();
+        if (outcome.notificationWarning) setWarning(outcome.notificationWarning);
+      } else {
+        setError(outcome.error);
+      }
     } catch (e: any) {
       setError(e?.message || 'Could not update the plan.');
-      // Re-read after a failure too. Whatever did or did not commit, the checkboxes should show
-      // what is actually stored rather than what was clicked.
-      await load().catch(() => {});
     } finally {
+      // Always. Whatever did or did not commit, the checkboxes should show what is stored rather
+      // than what was clicked.
+      await load().catch(() => {});
       setBusyId('');
     }
   };
@@ -147,19 +159,11 @@ export function PlanAccessPicker({
     const adding = !attached.includes(plan.id);
     if (!adding) return apply(plan, false);
 
-    const diff = planAttachmentDiff(attached, [...attached, plan.id]);
-    const willEmail = plansThatWillNotify(
-      diff,
-      plans.map(row => ({
-        ...row,
-        notifiedContentIds: notified.includes(row.id) ? [String(contentId)] : [],
-      })),
-      String(contentId),
-    ).includes(plan.id);
+    const willEmail = willNotify(plan);
     const willClosePublic = needsPrivacyChange({
       contentTable,
       contentId,
-      availableToEveryone: availableToEveryone ?? subject.free,
+      availableToEveryone: isPublic,
     });
 
     // Anything with a consequence somebody would want to know about first gets asked.
@@ -231,9 +235,8 @@ export function PlanAccessPicker({
                 {confirming.willClosePublic && (
                   <p className="flex items-start gap-2 font-semibold mb-2" style={{ color: C.text }}>
                     <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" />
-                    This is open to every signed-in learner. Adding it to {plan.name} closes that,
-                    so only {plan.name} subscribers and the cohorts you have chosen keep access.
-                    Anyone else loses it, including learners part-way through.
+                    This is public. Make it available to {plan.name} and your cohorts instead?
+                    Everyone else loses access.
                   </p>
                 )}
                 {confirming.willEmail && (
@@ -249,7 +252,7 @@ export function PlanAccessPicker({
                     className="rounded-lg px-3 py-1.5 text-xs font-bold"
                     style={{ background: C.cta, color: '#ffffff' }}
                   >
-                    {confirming.willClosePublic ? 'Close open access and add' : 'Add and notify'}
+                    {confirming.willClosePublic ? 'Make plan-only' : 'Add and notify'}
                   </button>
                   <button
                     type="button"
