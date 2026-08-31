@@ -13,22 +13,21 @@ const HERO_TOOLS: { name: string; glyph: number }[] = [
 ];
 
 function HeroFlourish({ accentColor }: { accentColor: string }) {
-  const plusMarks: { top?: string; bottom?: string; right: string; size: number; delay: string }[] = [
-    { top: '10%', right: '30%', size: 18, delay: '0s' },
-    { top: '20%', right: '4%', size: 14, delay: '0.9s' },
-    { bottom: '14%', right: '26%', size: 22, delay: '1.6s' },
-    { bottom: '30%', right: '2%', size: 15, delay: '0.4s' },
+  const discountMarks: { top?: string; bottom?: string; right: string; size: number; delay: string }[] = [
+    { top: '12%', right: '29%', size: 20, delay: '0s' },
+    { top: '22%', right: '4%', size: 16, delay: '0.9s' },
+    { bottom: '15%', right: '25%', size: 24, delay: '1.6s' },
   ];
 
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
       <style>{`
-        @keyframes hero-twinkle {
+        @keyframes hero-offer-pulse {
           0%, 100% { opacity: 0.55; transform: scale(0.9); }
           50% { opacity: 1; transform: scale(1.1); }
         }
-        .hero-plus { animation: hero-twinkle 3.2s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .hero-plus { animation: none; } }
+        .hero-discount-mark { animation: hero-offer-pulse 3.2s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .hero-discount-mark { animation: none; } }
       `}</style>
       <div
         className="absolute rounded-full"
@@ -60,20 +59,19 @@ function HeroFlourish({ accentColor }: { accentColor: string }) {
           strokeLinecap="round"
         />
       </svg>
-      {plusMarks.map((plusMark, index) => (
+      {discountMarks.map((discountMark, index) => (
         <svg
           key={index}
-          className="hero-plus absolute"
-          style={{ ...plusMark, width: plusMark.size, height: plusMark.size, animationDelay: plusMark.delay }}
+          className="hero-discount-mark absolute"
+          style={{ ...discountMark, width: discountMark.size, height: discountMark.size, animationDelay: discountMark.delay }}
           viewBox="0 0 24 24"
           fill="none"
+          stroke={accentColor}
+          strokeWidth="1.75"
         >
-          <path
-            d="M9 2 H15 V9 H22 V15 H15 V22 H9 V15 H2 V9 H9 Z"
-            stroke={accentColor}
-            strokeWidth="1.75"
-            strokeLinejoin="round"
-          />
+          <circle cx="7.5" cy="7.5" r="2.5" />
+          <circle cx="16.5" cy="16.5" r="2.5" />
+          <path d="M18.5 5.5 5.5 18.5" strokeLinecap="round" />
         </svg>
       ))}
     </div>
