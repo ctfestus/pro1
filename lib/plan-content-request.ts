@@ -126,3 +126,63 @@ export function describePlanContentResult(summary: PlanContentSummary, total: nu
   if (summary.failed.length) parts.push(`${summary.failed.length} failed`);
   return `${parts.join(', ')}.`;
 }
+
+export interface NewPlanDecision {
+  /** Whether the plan may be switched on. */
+  activate: boolean;
+  message: string;
+  tone: 'success' | 'error';
+  /** Titles of content that did not make it in, for the message. */
+  unresolved: string[];
+}
+
+/**
+ * Whether a newly created plan may go on sale, and what to tell the person.
+ *
+ * A plan is put on sale by activating it, and the public pricing view asks for an active plan
+ * with a live price -- not for any content behind it. So activating a plan whose content did not
+ * attach publishes something buyable and empty.
+ *
+ * `outcomes` is null when the person cancelled the open-access confirmation, in which case
+ * nothing was attached at all.
+ */
+export function decideNewPlanActivation(input: {
+  /** What the person chose to include. */
+  requested: readonly { contentTable: PlanContentTable; contentId: string; title: string }[];
+  /** Null when the confirmation was cancelled, so no request was made. */
+  outcomes: readonly PlanContentOutcome[] | null;
+  /** Whether they asked for the plan to go live. */
+  wantActive: boolean;
+}): NewPlanDecision {
+  const titleOf = (contentTable: string, contentId: string) =>
+    input.requested.find(r => r.contentTable === contentTable && r.contentId === contentId)?.title
+      ?? 'one item';
+
+  const unresolved = input.outcomes === null
+    // Cancelled: nothing was attached, so everything asked for is outstanding.
+    ? input.requested.map(r => r.title)
+    : input.outcomes
+      .filter(o => o.kind !== 'applied')
+      .map(o => titleOf(o.change.contentTable, o.change.contentId));
+
+  if (!unresolved.length) {
+    return {
+      activate: input.wantActive,
+      message: input.wantActive ? 'Plan created and ready for learners.' : 'Plan saved as a draft.',
+      tone: 'success',
+      unresolved: [],
+    };
+  }
+
+  // Kept off sale. The plan itself exists and is worth keeping -- the prices and the name are
+  // real work -- but it is not something anyone should be able to buy yet.
+  const named = unresolved.join(', ');
+  return {
+    activate: false,
+    tone: 'error',
+    unresolved,
+    message: input.wantActive
+      ? `Plan saved as a draft rather than put on sale: ${named} could not be added. Add the missing content, then activate it.`
+      : `Plan saved as a draft. ${named} could not be added.`,
+  };
+}

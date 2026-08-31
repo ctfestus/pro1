@@ -10,6 +10,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyPlanContentChange,
   applyPlanContentChanges,
+  decideNewPlanActivation,
   describePlanContentResult,
   summarizePlanContentOutcomes,
   type PlanContentChange,
@@ -161,5 +162,97 @@ describe('every caller goes through this module', () => {
     // Each change was its own request, so the stored answer is the only honest account of where
     // the plan ended up.
     expect(dashboard).toMatch(/await loadPlanContent\(selectedPlan\.id\)[\s\S]{0,400}describePlanContentResult/);
+  });
+});
+
+// A plan goes on sale by being activated, and the public pricing view asks for an active plan
+// with a live price -- not for any content behind it. So activating a plan whose content did not
+// attach publishes something buyable and empty. These are the three ways that used to happen.
+describe('activating a newly created plan', () => {
+  const requested = [
+    { contentTable: 'courses' as const, contentId: 'c1', title: 'Excel Basics' },
+    { contentTable: 'certifications' as const, contentId: 'x1', title: 'Data Certificate' },
+  ];
+  const applied = (contentId: string) => ({
+    kind: 'applied' as const,
+    change: { planId: 'p', contentTable: 'courses' as const, contentId, add: true },
+  });
+
+  it('goes on sale when every item asked for was attached', () => {
+    const decision = decideNewPlanActivation({
+      requested,
+      outcomes: [applied('c1'), { ...applied('x1'), change: { planId: 'p', contentTable: 'certifications', contentId: 'x1', add: true } }],
+      wantActive: true,
+    });
+    expect(decision.activate).toBe(true);
+    expect(decision.tone).toBe('success');
+    expect(decision.message).toContain('ready for learners');
+  });
+
+  it('stays a draft when the open-access warning was cancelled', () => {
+    // Cancelled means no request was made at all, so the plan would have gone on sale with none
+    // of the content its buyer is being shown.
+    const decision = decideNewPlanActivation({ requested, outcomes: null, wantActive: true });
+    expect(decision.activate).toBe(false);
+    expect(decision.tone).toBe('error');
+    expect(decision.message).toContain('draft');
+    expect(decision.unresolved).toEqual(['Excel Basics', 'Data Certificate']);
+  });
+
+  it('stays a draft when only some of the content attached', () => {
+    const decision = decideNewPlanActivation({
+      requested,
+      outcomes: [
+        applied('c1'),
+        { kind: 'failed', change: { planId: 'p', contentTable: 'certifications', contentId: 'x1', add: true }, error: 'nope' },
+      ],
+      wantActive: true,
+    });
+    expect(decision.activate).toBe(false);
+    expect(decision.unresolved).toEqual(['Data Certificate']);
+  });
+
+  it('stays a draft when something is still open to everyone', () => {
+    const decision = decideNewPlanActivation({
+      requested,
+      outcomes: [
+        applied('c1'),
+        { kind: 'needs_private', change: { planId: 'p', contentTable: 'certifications', contentId: 'x1', add: true }, error: 'open' },
+      ],
+      wantActive: true,
+    });
+    expect(decision.activate).toBe(false);
+    expect(decision.message).toContain('Data Certificate');
+  });
+
+  it('names what is missing, so somebody can finish the job', () => {
+    const decision = decideNewPlanActivation({ requested, outcomes: null, wantActive: true });
+    expect(decision.message).toContain('Excel Basics');
+    expect(decision.message).toContain('Data Certificate');
+    expect(decision.message).toMatch(/then activate it/i);
+  });
+
+  it('never says ready for learners when something is missing', () => {
+    // The old flow set an error and then a success line after it, so a partial result read as a
+    // finished one.
+    const decision = decideNewPlanActivation({ requested, outcomes: null, wantActive: true });
+    expect(decision.message).not.toContain('ready for learners');
+  });
+
+  it('leaves a deliberate draft a draft, and calls it a success', () => {
+    const decision = decideNewPlanActivation({
+      requested: [], outcomes: [], wantActive: false,
+    });
+    expect(decision.activate).toBe(false);
+    expect(decision.tone).toBe('success');
+    expect(decision.message).toContain('draft');
+  });
+
+  it('is what the dashboard actually gates activation on', () => {
+    const dashboard = read('components/dashboard/SubscriptionsSection.tsx');
+    expect(dashboard).toContain('decideNewPlanActivation');
+    expect(dashboard).toContain('if (decision.activate) {');
+    // One message from one decision, rather than an error followed by a success.
+    expect(dashboard).not.toMatch(/setSuccess\(status === "active"/);
   });
 });

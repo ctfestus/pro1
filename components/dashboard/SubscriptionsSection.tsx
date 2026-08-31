@@ -40,6 +40,7 @@ import {
   applyPlanContentChanges,
   describePlanContentResult,
   summarizePlanContentOutcomes,
+  decideNewPlanActivation,
   type PlanContentChange,
   type PlanContentOutcome,
 } from "@/lib/plan-content-request";
@@ -1146,26 +1147,31 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
       // Through the same path as every other caller, so this flow asks about open access rather
       // than being refused by the server for not asking.
+      const requested = newPlanContentKeys.map((key) => {
+        const separator = key.indexOf(":");
+        const contentTable = key.slice(0, separator) as PlanContentChange["contentTable"];
+        const contentId = key.slice(separator + 1);
+        return { contentTable, contentId, title: titleFor(contentTable, contentId) };
+      });
       const contentResult = await runPlanContentChanges(
-        newPlanContentKeys.map((key) => {
-          const separator = key.indexOf(":");
-          return {
-            planId: data.planId,
-            contentTable: key.slice(0, separator) as PlanContentChange["contentTable"],
-            contentId: key.slice(separator + 1),
-            add: true,
-          };
-        }),
+        requested.map(({ contentTable, contentId }) => ({
+          planId: data.planId,
+          contentTable,
+          contentId,
+          add: true,
+        })),
       );
-      // The plan exists by now, so a refusal here is not a reason to report the plan as failed.
-      // Say what was added and what was not, and leave the plan.
-      if (contentResult && (contentResult.summary.failed.length || contentResult.summary.needsPrivate.length)) {
-        setError(
-          `Plan created. Content: ${describePlanContentResult(contentResult.summary, contentResult.total)}`,
-        );
-      }
 
-      if (status === "active") {
+      // A plan is put on sale by activating it, and the public pricing view asks for an active
+      // plan with a live price -- not for any content behind it. Activating one whose content
+      // did not attach publishes something buyable and empty, so it stays a draft instead.
+      const decision = decideNewPlanActivation({
+        requested,
+        outcomes: contentResult ? contentResult.outcomes : null,
+        wantActive: status === "active",
+      });
+
+      if (decision.activate) {
         const statusRes = await authFetch("/api/payments", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1185,7 +1191,10 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setNewPlanContentSearch("");
       setPlanBuilderStep(0);
       setCreatePlanOpen(false);
-      setSuccess(status === "active" ? "Plan created and ready for learners." : "Plan saved as a draft.");
+      // One message, from one decision. Setting a success line after an error line is how a
+      // partial result came to read as a finished one.
+      if (decision.tone === "success") setSuccess(decision.message);
+      else setError(decision.message);
       await load(data.planId);
     } catch (err: any) {
       setError(err.message);
@@ -1350,8 +1359,12 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
    */
   async function runPlanContentChanges(
     changes: PlanContentChange[],
-  ): Promise<{ summary: ReturnType<typeof summarizePlanContentOutcomes>; total: number } | null> {
-    if (!changes.length) return { summary: summarizePlanContentOutcomes([]), total: 0 };
+  ): Promise<{
+    summary: ReturnType<typeof summarizePlanContentOutcomes>;
+    total: number;
+    outcomes: PlanContentOutcome[];
+  } | null> {
+    if (!changes.length) return { summary: summarizePlanContentOutcomes([]), total: 0, outcomes: [] };
     const {
       data: { session },
     } = await supabase.auth.getSession();
@@ -1398,7 +1411,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       }
     }
 
-    return { summary: summarizePlanContentOutcomes(outcomes), total: changes.length };
+    return { summary: summarizePlanContentOutcomes(outcomes), total: changes.length, outcomes };
   }
 
   async function deletePlan(planOverride?: any) {
