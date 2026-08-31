@@ -13,7 +13,7 @@ const HERO_TOOLS: { name: string; glyph: number }[] = [
 ];
 
 function HeroFlourish({ accentColor }: { accentColor: string }) {
-  const sparkles: { top?: string; bottom?: string; right: string; size: number; delay: string }[] = [
+  const plusMarks: { top?: string; bottom?: string; right: string; size: number; delay: string }[] = [
     { top: '10%', right: '30%', size: 18, delay: '0s' },
     { top: '20%', right: '4%', size: 14, delay: '0.9s' },
     { bottom: '14%', right: '26%', size: 22, delay: '1.6s' },
@@ -27,8 +27,8 @@ function HeroFlourish({ accentColor }: { accentColor: string }) {
           0%, 100% { opacity: 0.55; transform: scale(0.9); }
           50% { opacity: 1; transform: scale(1.1); }
         }
-        .hero-sparkle { animation: hero-twinkle 3.2s ease-in-out infinite; }
-        @media (prefers-reduced-motion: reduce) { .hero-sparkle { animation: none; } }
+        .hero-plus { animation: hero-twinkle 3.2s ease-in-out infinite; }
+        @media (prefers-reduced-motion: reduce) { .hero-plus { animation: none; } }
       `}</style>
       <div
         className="absolute rounded-full"
@@ -41,25 +41,39 @@ function HeroFlourish({ accentColor }: { accentColor: string }) {
         }}
       />
       <svg
-        className="absolute inset-y-0 -right-[4%] hidden h-full w-[54%] lg:block"
-        viewBox="0 0 560 420"
+        className="absolute bottom-0 right-0 hidden lg:block"
+        style={{ width: '34%', height: '72%' }}
+        viewBox="0 0 300 220"
         fill="none"
-        preserveAspectRatio="xMidYMid slice"
+        preserveAspectRatio="xMidYMax slice"
       >
-        <path d="M-30 355 C 95 238, 166 360, 282 252 S 438 92, 610 148" stroke="rgba(255,255,255,0.09)" strokeWidth="58" strokeLinecap="round" />
-        <path d="M-30 340 C 96 224, 168 345, 280 238 S 438 78, 610 134" stroke="rgba(255,255,255,0.22)" strokeWidth="2" strokeLinecap="round" />
-        <path d="M-30 369 C 96 252, 166 373, 286 266 S 442 108, 610 164" stroke="rgba(255,255,255,0.14)" strokeWidth="2" strokeLinecap="round" />
-        <path d="M20 338 C 128 260, 176 335, 276 245 S 422 112, 548 136" stroke={accentColor} strokeOpacity="0.72" strokeWidth="3" strokeLinecap="round" />
+        <path
+          d="M-10 170 C 60 120, 110 200, 175 150 S 270 120, 320 232"
+          stroke="rgba(255,255,255,0.16)"
+          strokeWidth="14"
+          strokeLinecap="round"
+        />
+        <path
+          d="M-10 190 C 66 142, 116 220, 182 168 S 274 142, 320 234"
+          stroke="rgba(255,255,255,0.09)"
+          strokeWidth="8"
+          strokeLinecap="round"
+        />
       </svg>
-      {sparkles.map((sparkle, index) => (
+      {plusMarks.map((plusMark, index) => (
         <svg
           key={index}
-          className="hero-sparkle absolute"
-          style={{ ...sparkle, width: sparkle.size, height: sparkle.size, animationDelay: sparkle.delay }}
+          className="hero-plus absolute"
+          style={{ ...plusMark, width: plusMark.size, height: plusMark.size, animationDelay: plusMark.delay }}
           viewBox="0 0 24 24"
           fill="none"
         >
-          <path d="M12 0 C 13 8, 16 11, 24 12 C 16 13, 13 16, 12 24 C 11 16, 8 13, 0 12 C 8 11, 11 8, 12 0 Z" fill={accentColor} />
+          <path
+            d="M9 2 H15 V9 H22 V15 H15 V22 H9 V15 H2 V9 H9 Z"
+            stroke={accentColor}
+            strokeWidth="1.75"
+            strokeLinejoin="round"
+          />
         </svg>
       ))}
     </div>
