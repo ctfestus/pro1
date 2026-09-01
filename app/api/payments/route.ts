@@ -456,7 +456,11 @@ export async function POST(req: NextRequest) {
       if (error) throw error;
       if (published?.length) return;
     }
-    throw new PaymentError('conflict', 'Add at least one published content item before activating this plan.', 409);
+    throw new PaymentError(
+      'conflict',
+      'This plan has attached content, but none of it is published. Publish an attached item or add another published item before activating the plan.',
+      409,
+    );
   }
 
   async function assertSubscriptionAccess(subscriptionId: string) {

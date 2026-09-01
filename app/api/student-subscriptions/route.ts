@@ -161,6 +161,20 @@ async function assertLearnerMayBuy(
       409,
     );
   }
+
+  const { data: sellable, error: sellableError } = await db
+    .from('public_pricing_plans')
+    .select('plan_id')
+    .eq('plan_id', planId)
+    .maybeSingle();
+  if (sellableError) throw sellableError;
+  if (!sellable) {
+    throw new PaymentError(
+      'conflict',
+      'This plan is no longer on sale because it has no published content. Choose one of the current plans instead.',
+      409,
+    );
+  }
 }
 
 // Scoped so return-verification polling cannot spend the checkout budget and lock a learner

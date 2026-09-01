@@ -1162,6 +1162,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         setNewPlanDraftId(planId);
       }
       if (!planId) throw new Error("Plan draft was not created");
+      const savedPlanId = planId;
 
       if (resumingDraft) {
         const detailRes = await authFetch("/api/payments", {
@@ -1169,7 +1170,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "update-subscription-plan",
-            planId,
+            planId: savedPlanId,
             name: newPlanName.trim(),
             description: newPlanDescription.trim(),
             status: "inactive",
@@ -1184,7 +1185,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "save-subscription-plan-prices",
-          planId,
+          planId: savedPlanId,
           prices: newPlanPrices.map((price) => ({
             durationMonths: Number(price.durationMonths),
             amount: Number(price.amount),
@@ -1207,7 +1208,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       });
       const contentResult = await runPlanContentChanges(
         requested.map(({ contentTable, contentId }) => ({
-          planId,
+          planId: savedPlanId,
           contentTable,
           contentId,
           add: true,
@@ -1225,7 +1226,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
       if (decision.tone === "error") {
         setError(`${decision.message} Fix the issue and try again to continue this same plan.`);
-        await load(planId);
+        await load(savedPlanId);
         return;
       }
 
@@ -1235,7 +1236,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "update-subscription-plan",
-            planId,
+            planId: savedPlanId,
             status: "active",
           }),
         });
@@ -1253,7 +1254,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       // One message, from one decision. Setting a success line after an error line is how a
       // partial result came to read as a finished one.
       setSuccess(decision.message);
-      await load(planId);
+      await load(savedPlanId);
     } catch (err: any) {
       setError(planId
         ? `The plan is safely saved as a draft. ${err.message} Fix the issue and try again to continue this same plan.`

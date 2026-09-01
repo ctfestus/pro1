@@ -234,6 +234,7 @@ describe('subscription payment actions', () => {
   it('refuses to activate a plan without an active price', async () => {
     authenticateAs('admin');
     createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: null, error: null },
       subscription_plan_prices: { data: [], error: null },
       subscription_plan_content: { data: [{ content_table: 'courses', content_id: 'course-1' }], error: null },
     }));
@@ -247,6 +248,7 @@ describe('subscription payment actions', () => {
   it('refuses to activate a plan without linked content', async () => {
     authenticateAs('admin');
     createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: null, error: null },
       subscription_plan_prices: { data: [{ id: 'price-1' }], error: null },
       subscription_plan_content: { data: [], error: null },
     }));
@@ -260,6 +262,7 @@ describe('subscription payment actions', () => {
   it('refuses to activate a plan whose linked content is no longer published', async () => {
     authenticateAs('admin');
     createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: null, error: null },
       subscription_plan_prices: { data: [{ id: 'price-1' }], error: null },
       subscription_plan_content: { data: [{ content_table: 'courses', content_id: 'course-1' }], error: null },
       courses: { data: [], error: null },
@@ -268,7 +271,7 @@ describe('subscription payment actions', () => {
     const response = await POST(request({ action: 'update-subscription-plan', planId: 'plan-1', status: 'active' }));
 
     expect(response.status).toBe(409);
-    expect((await response.json()).error).toMatch(/published content/i);
+    expect((await response.json()).error).toMatch(/attached content.*none of it is published/i);
   });
 
   it('activates a plan with an active price and published content', async () => {

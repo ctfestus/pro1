@@ -131,6 +131,7 @@ describe('student subscription payment confirmation', () => {
       // bootcamp, and is not already on a different plan.
       students: { data: { enrollment_model: null }, error: null },
       individual_subscriptions: { data: null, error: null },
+      public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
     }, () => ({ data: true, error: null }));
     createClient.mockReturnValue(db);
 
@@ -248,6 +249,7 @@ describe('student subscription payment confirmation', () => {
       cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
       students: { data: { enrollment_model: null }, error: null },
       individual_subscriptions: { data: null, error: null },
+      public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
     }, rpc);
     createClient.mockReturnValue(db);
     settleUnfinishedCheckout.mockResolvedValue({
@@ -310,6 +312,7 @@ describe('student subscription payment confirmation', () => {
       },
       cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
       individual_subscriptions: { data: null, error: null },
+      public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
     });
     createClient.mockReturnValue(db);
     const response = await POST(request({
@@ -355,6 +358,7 @@ describe('student subscription payment confirmation', () => {
       },
       cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
       individual_subscriptions: { data: null, error: null },
+      public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
     }, () => ({ data: true, error: null }));
     createClient.mockReturnValue(db);
     const response = await POST(request({ action: 'purchase-plan', priceId: 'price-1', paystack: true }));
@@ -372,6 +376,30 @@ describe('student subscription payment confirmation', () => {
     }));
   });
 
+  it('refuses checkout when a plan no longer has published content', async () => {
+    const db = makeSupabaseStub({
+      students: { data: { enrollment_model: null }, error: null },
+      subscription_plan_prices: {
+        data: {
+          id: 'price-1', plan_id: 'plan-1', duration_months: 3, amount: 300,
+          currency: 'GHS', is_active: true,
+          subscription_plans: { id: 'plan-1', name: 'Pro', status: 'active', cohort_id: 'cohort-1' },
+        },
+        error: null,
+      },
+      individual_subscriptions: { data: null, error: null },
+      public_pricing_plans: { data: null, error: null },
+    });
+    createClient.mockReturnValue(db);
+
+    const response = await POST(request({ action: 'purchase-plan', priceId: 'price-1', paystack: true }));
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toMatch(/no published content/i);
+    expect(createPaystackDirectCheckout).not.toHaveBeenCalled();
+    expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
+  });
+
   it('rejects a plan that does not include the selected content', async () => {
     const db = makeSupabaseStub({
       students: { data: { enrollment_model: null }, error: null },
@@ -387,6 +415,7 @@ describe('student subscription payment confirmation', () => {
       },
       cohorts: { data: { cohort_kind: 'subscription_plan' }, error: null },
       individual_subscriptions: { data: null, error: null },
+      public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
       subscription_plan_content: { data: [{ plan_id: 'plan-2' }], error: null },
       learning_paths: { data: [], error: null },
     });
@@ -469,6 +498,7 @@ describe('student subscription payment confirmation', () => {
         data: { plan_id: 'plan-1', subscription_plans: { name: 'Starter' } },
         error: null,
       },
+      public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
       // No online checkout open: the manual path refuses while one is, so a learner cannot hold a
       // payable Paystack link and a bank transfer for the same plan at once.
       paystack_subscription_transactions: { data: null, error: null },

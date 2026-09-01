@@ -6266,6 +6266,13 @@ sellable_plans AS (
       SELECT 1 FROM public.subscription_plan_prices pr
       WHERE pr.plan_id = p.id AND pr.is_active
     )
+    AND EXISTS (
+      SELECT 1
+      FROM public.subscription_plan_content spc
+      JOIN published_content pc
+        ON pc.content_table = spc.content_table AND pc.id = spc.content_id
+      WHERE spc.plan_id = p.id
+    )
 ),
 plan_coverage AS (
   -- Published only. Content withdrawn after it was attached to a plan is no longer something
