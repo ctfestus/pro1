@@ -147,11 +147,20 @@ export async function eligiblePlanIds(
  * Durations and amounts come from what an admin actually configured. Nothing here assumes a
  * fixed set of durations: a tenant selling only six months has exactly one price row, and any
  * surface that hardcodes "1, 3 or 12 months" is advertising options that do not exist.
+ *
+ * `sellableOnly` narrows the result to what public_pricing_plans lists, which is the same rule
+ * checkout enforces. Without it a surface can offer a purchase the API will refuse: the checks
+ * here stop at an active plan with an active price, while the view also requires the plan to be
+ * unarchived and to still hold at least one published item.
+ *
+ * `keepPlanIds` survives that filter. It carries the plan a learner already holds, because a
+ * current subscriber may renew a plan that has stopped accepting new learners -- dropping it
+ * from their own list would take away the renewal the purchase path still allows.
  */
 export async function loadPlansForContent(
   db: SupabaseClient,
   target?: ContentTarget | null,
-  options?: { withContents?: boolean },
+  options?: { withContents?: boolean; sellableOnly?: boolean; keepPlanIds?: readonly string[] },
 ): Promise<PlanWithPrices[]> {
   const allowedPlanIds = target ? await eligiblePlanIds(db, target.contentTable, target.contentId) : null;
   if (allowedPlanIds && allowedPlanIds.length === 0) return [];
@@ -191,7 +200,20 @@ export async function loadPlansForContent(
     });
     byPlan.set(plan.id, current);
   }
-  const plans = [...byPlan.values()];
+  let plans = [...byPlan.values()];
+
+  // Asked before contents are loaded, so a plan that is dropped costs no extra reads.
+  if (options?.sellableOnly && plans.length) {
+    const { data: sellable, error: sellableError } = await db
+      .from('public_pricing_plans')
+      .select('plan_id')
+      .in('plan_id', plans.map(plan => plan.id));
+    if (sellableError) throw sellableError;
+    const onSale = new Set((sellable ?? []).map((row: any) => row.plan_id));
+    const keep = new Set(options.keepPlanIds ?? []);
+    plans = plans.filter(plan => onSale.has(plan.id) || keep.has(plan.id));
+  }
+
   if (!options?.withContents || !plans.length) return plans;
 
   const contents = await loadPlanContents(db, plans.map(plan => plan.id));

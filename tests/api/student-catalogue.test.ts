@@ -244,10 +244,16 @@ describe('GET /api/student/catalogue', () => {
     expect(item.unlock.plans[0].prices).toEqual([
       { id: 'price-6', durationMonths: 6, amount: 600, currency: 'GHS' },
     ]);
-    expect(h.loadPlansForContent).toHaveBeenCalledWith(expect.anything(), {
-      contentTable: 'virtual_experiences',
-      contentId: 'v9',
-    });
+    // sellableOnly asserted, not merely tolerated: a locked item must quote only plans the
+    // pricing page would list, or it advertises a purchase checkout goes on to refuse.
+    expect(h.loadPlansForContent).toHaveBeenCalledWith(
+      expect.anything(),
+      {
+        contentTable: 'virtual_experiences',
+        contentId: 'v9',
+      },
+      { sellableOnly: true },
+    );
   });
 
   it('does not quote a price for content the learner can already open', async () => {
