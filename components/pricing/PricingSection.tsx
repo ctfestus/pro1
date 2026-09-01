@@ -228,11 +228,24 @@ function PlanCard({
   return (
     <article
       className="pricing-plan-card group relative isolate flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 transition-shadow duration-200 sm:p-7 motion-reduce:transition-none"
-      style={{ background: '#F7F9FB', boxShadow: 'inset 0 0 0 1px rgba(16,24,40,0.04)' }}
+      style={plan.recommended
+        // Lifted, so the recommendation is visible before anyone reads a word of it.
+        ? { background: '#FFFFFF', boxShadow: `inset 0 0 0 2px ${primaryColor}` }
+        : { background: '#F7F9FB', boxShadow: 'inset 0 0 0 1px rgba(16,24,40,0.04)' }}
     >
       <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-30 motion-reduce:transition-none" style={{ background: primaryColor }} />
       <div className="relative flex flex-1 flex-col">
         <div>
+          {plan.recommended && (
+            // The seller's own opinion, and openly that. Not "most popular", which is a claim
+            // about other buyers that nobody here can check.
+            <p
+              className="mb-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider"
+              style={{ background: primaryColor, color: '#FFFFFF' }}
+            >
+              Recommended
+            </p>
+          )}
           <p className="text-xl font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
           <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>
             {plan.description || 'Full access while your selected term runs.'}

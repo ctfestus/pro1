@@ -561,6 +561,33 @@ export async function POST(req: NextRequest) {
   // Putting a finished plan out of the way, or taking it back out. A plan with any history
   // cannot be deleted -- that would orphan the record of what people paid -- so this is the only
   // way the list ever gets shorter.
+  // Which plan the pricing page puts in front of people. At most one, so marking a new one
+  // clears the old: the database enforces that too, and racing this without clearing first would
+  // fail on the unique index rather than silently keeping two.
+  if (body.action === 'set-subscription-plan-recommended') {
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    const recommending = body.recommended === true;
+    try {
+      await assertPlanAccess(String(body.planId));
+      if (recommending) {
+        const { error: clearError } = await db.from('subscription_plans')
+          .update({ recommended: false })
+          .eq('recommended', true)
+          .neq('id', body.planId);
+        if (clearError) throw clearError;
+      }
+      const { error } = await db.from('subscription_plans')
+        .update({ recommended: recommending })
+        .eq('id', body.planId);
+      if (error) throw error;
+      revalidatePricingPage();
+      return NextResponse.json({ ok: true, recommended: recommending });
+    } catch (err: any) {
+      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to update the recommended plan');
+      return NextResponse.json({ error: err.message ?? 'Failed to update the recommended plan' }, { status: 500 });
+    }
+  }
+
   if (body.action === 'set-subscription-plan-archived') {
     if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
     const archiving = body.archived === true;

@@ -35,7 +35,14 @@ export function durationLabel(months: number): string {
 function findFeaturedOffer(plans: PricingPlan[], durationMonths?: number): FeaturedOffer | null {
   let best: FeaturedOffer | null = null;
 
-  for (const plan of plans) {
+  // A recommendation outranks the arithmetic. Leading with whatever saves most meant the hero
+  // could advertise a plan the seller would rather nobody took, and there was no way to say so.
+  // Where a plan is marked, only that plan is considered; the best of ITS terms still wins, so
+  // the figure shown is still the best deal inside what is being recommended.
+  const recommended = plans.filter(plan => plan.recommended);
+  const candidates = recommended.length ? recommended : plans;
+
+  for (const plan of candidates) {
     for (const price of plan.prices) {
       if (durationMonths !== undefined && price.durationMonths !== durationMonths) continue;
       const { perMonth, savingPercent, monthsPaidFor } = comparePlanPrice(price, plan.prices);

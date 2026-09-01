@@ -4212,6 +4212,9 @@ CREATE TABLE public.subscription_plans (
   -- goes. Separate from status: inactive means off for now and still worth seeing, archived
   -- means done with. Archiving requires the plan to be inactive; unarchiving leaves it inactive.
   archived_at timestamptz,
+  -- migration 201: the plan the seller wants people to choose. One at a time, enforced by a
+  -- unique index below -- a page with two recommendations recommends nothing.
+  recommended boolean NOT NULL DEFAULT false,
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -4221,6 +4224,9 @@ CREATE TABLE public.subscription_plans (
   CONSTRAINT subscription_plans_archived_is_inactive
     CHECK (archived_at IS NULL OR status = 'inactive')
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_plans_one_recommended
+  ON public.subscription_plans ((recommended))
+  WHERE recommended;
 CREATE INDEX IF NOT EXISTS idx_subscription_plans_not_archived
   ON public.subscription_plans (created_at DESC)
   WHERE archived_at IS NULL;
@@ -6256,7 +6262,7 @@ WITH published_content AS (
 sellable_plans AS (
   -- Active, an access cohort that really is an individual subscription, and at least one live
   -- price. A plan nobody can buy has no place on a pricing page.
-  SELECT p.id, p.name, p.description
+  SELECT p.id, p.name, p.description, p.recommended
   FROM public.subscription_plans p
   JOIN public.cohorts c ON c.id = p.cohort_id
   WHERE p.status = 'active'
@@ -6280,6 +6286,7 @@ SELECT
   s.id   AS plan_id,
   s.name AS plan_name,
   s.description AS plan_description,
+  s.recommended AS recommended,
   COALESCE((
     SELECT jsonb_agg(
              jsonb_build_object(
