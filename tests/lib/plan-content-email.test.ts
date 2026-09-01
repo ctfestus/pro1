@@ -15,9 +15,9 @@ const pathSender = read('lib/send-path-notification.ts');
 const admissions = read('app/api/admissions/route.ts');
 
 describe('a single item added to a plan', () => {
-  it('is announced, not assigned', () => {
+  it('is announced, not assigned, and spelt out rather than contracted', () => {
     expect(notifier).toContain('`New ${typeLabel}: ${title}`');
-    expect(notifier).toContain("We've added a new ${typeLabel} to ${t.appName}:");
+    expect(notifier).toContain('We have added a new ${typeLabel} to ${t.appName}:');
   });
 
   it('keeps the assignment wording for actual assignments', () => {

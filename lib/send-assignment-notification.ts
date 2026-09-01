@@ -127,7 +127,7 @@ export async function sendAssignmentNotifications({
       const batch = recipients.slice(i, i + 100).map(({ email, name }) => {
         // No deadline and no instruction to begin: it is theirs to open when they feel like it.
         const body = forPlan
-          ? `Hi ${name},\n\nWe've added a new ${typeLabel} to ${t.appName}:\n\n<b>${title}</b>\n\nLog in now to explore and start learning.`
+          ? `Hi ${name},\n\nWe have added a new ${typeLabel} to ${t.appName}:\n\n<b>${title}</b>\n\nLog in now to explore and start learning.`
           : `Hi ${name},\n\n${typeMessage}\n\n<b>${title}</b>\n\nClick the button below to open your ${typeLabel}.`;
         const html = blastEmail({ subject, body, formTitle: title, formUrl, ctaLabel, senderName: t.senderName || t.teamName || t.appName, branding });
         return { from: FROM, to: email, subject, html };
