@@ -689,8 +689,12 @@ export function learningPathAssignedEmail(data: {
   dashboardUrl: string;
   items: Array<{ title: string; coverImage?: string | null; isVE?: boolean; isCert?: boolean; description?: string }>;
   branding?: EmailBranding;
+  /** 'plan' when the path became available through a subscription rather than being assigned. */
+  reason?: 'assignment' | 'plan';
+  /** The platform's own name, for the plan wording. Never hardcoded: this is multi-tenant. */
+  appName?: string;
 }) {
-  const { name, pathTitle, pathDescription, dashboardUrl, items, branding } = data;
+  const { name, pathTitle, pathDescription, dashboardUrl, items, branding, reason, appName } = data;
 
   const visibleItems = items.slice(0, 6);
 
@@ -738,7 +742,11 @@ export function learningPathAssignedEmail(data: {
 
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>You have been enrolled in a new learning path. This is a structured programme designed to build your skills step by step, and you will earn a certificate when you complete every item.</p>
+    <p>${reason === 'plan'
+      // Added to a plan they already pay for, not assigned to them. "Enrolled" put a deadline
+      // behind something nobody asked them to do.
+      ? `We have added a new learning path to ${esc(appName || 'the platform')}:`
+      : 'You have been enrolled in a new learning path. This is a structured programme designed to build your skills step by step, and you will earn a certificate when you complete every item.'}</p>
 
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0;">
       <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Your Learning Path</p>
@@ -759,7 +767,9 @@ export function learningPathAssignedEmail(data: {
       </p>
     </div>
 
-    ${cta('Start Learning Now', dashboardUrl)}
+    ${reason === 'plan'
+      ? `<p>Log in now to explore and start learning.</p>${cta('View Now', dashboardUrl)}`
+      : cta('Start Learning Now', dashboardUrl)}
 
     <br>
     <p><b>Best regards,</b></p>
