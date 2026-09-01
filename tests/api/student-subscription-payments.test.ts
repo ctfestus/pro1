@@ -395,7 +395,7 @@ describe('student subscription payment confirmation', () => {
     const response = await POST(request({ action: 'purchase-plan', priceId: 'price-1', paystack: true }));
 
     expect(response.status).toBe(409);
-    expect((await response.json()).error).toMatch(/no published content/i);
+    expect((await response.json()).error).toMatch(/no longer available/i);
     expect(createPaystackDirectCheckout).not.toHaveBeenCalled();
     expect(createSubscriptionPaymentRequest).not.toHaveBeenCalled();
   });
@@ -498,7 +498,6 @@ describe('student subscription payment confirmation', () => {
         data: { plan_id: 'plan-1', subscription_plans: { name: 'Starter' } },
         error: null,
       },
-      public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
       // No online checkout open: the manual path refuses while one is, so a learner cannot hold a
       // payable Paystack link and a bank transfer for the same plan at once.
       paystack_subscription_transactions: { data: null, error: null },

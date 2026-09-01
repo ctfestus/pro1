@@ -2,6 +2,8 @@
 -- The published_content CTE already defines the content that counts toward plan coverage; use
 -- the same set to decide whether the plan is sellable at all.
 
+BEGIN;
+
 CREATE OR REPLACE VIEW public.public_pricing_plans
 WITH (security_barrier = true)
 AS
@@ -15,6 +17,8 @@ WITH published_content AS (
   SELECT 'certifications'::text, id FROM public.certifications WHERE status = 'published'
 ),
 sellable_plans AS (
+  -- Active, an access cohort that really is an individual subscription, at least one live price,
+  -- and at least one attached item that is still published.
   SELECT p.id, p.name, p.description
   FROM public.subscription_plans p
   JOIN public.cohorts c ON c.id = p.cohort_id
@@ -34,6 +38,8 @@ sellable_plans AS (
     )
 ),
 plan_coverage AS (
+  -- Published only. Content withdrawn after it was attached to a plan is no longer something
+  -- the plan effectively grants, so counting it would overstate the offer.
   SELECT spc.plan_id, spc.content_table, count(*)::int AS content_count
   FROM public.subscription_plan_content spc
   JOIN published_content pc
@@ -63,3 +69,5 @@ SELECT
 FROM sellable_plans s;
 
 GRANT SELECT ON public.public_pricing_plans TO anon, authenticated;
+
+COMMIT;
