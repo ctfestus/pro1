@@ -35,14 +35,7 @@ export function durationLabel(months: number): string {
 function findFeaturedOffer(plans: PricingPlan[], durationMonths?: number): FeaturedOffer | null {
   let best: FeaturedOffer | null = null;
 
-  // A recommendation outranks the arithmetic. Leading with whatever saves most meant the hero
-  // could advertise a plan the seller would rather nobody took, and there was no way to say so.
-  // Where a plan is marked, only that plan is considered; the best of ITS terms still wins, so
-  // the figure shown is still the best deal inside what is being recommended.
-  const recommended = plans.filter(plan => plan.recommended);
-  const candidates = recommended.length ? recommended : plans;
-
-  for (const plan of candidates) {
+  for (const plan of plans) {
     for (const price of plan.prices) {
       if (durationMonths !== undefined && price.durationMonths !== durationMonths) continue;
       const { perMonth, savingPercent, monthsPaidFor } = comparePlanPrice(price, plan.prices);
@@ -74,11 +67,31 @@ function findFeaturedOffer(plans: PricingPlan[], durationMonths?: number): Featu
   return best;
 }
 
+/**
+ * A marked plan outranks the arithmetic.
+ *
+ * Leading with whatever saves most meant the hero could advertise a plan the seller would rather
+ * nobody took, with no way to say otherwise. Where a plan is marked, only that plan is
+ * considered -- and the best of ITS terms still wins, so the figure shown is the best deal
+ * inside what is being put forward.
+ *
+ * It falls back rather than showing nothing. A marked plan with no sellable term should not
+ * empty the hero for the plans that do have one: the mark is a preference, not a veto.
+ */
+function preferred(
+  plans: PricingPlan[],
+  pick: (candidates: PricingPlan[]) => FeaturedOffer | null,
+): FeaturedOffer | null {
+  const marked = plans.filter(plan => plan.recommended);
+  return (marked.length ? pick(marked) : null) ?? pick(plans);
+}
+
 export function featuredOffer(plans: PricingPlan[]): FeaturedOffer | null {
-  return findFeaturedOffer(plans);
+  return preferred(plans, candidates => findFeaturedOffer(candidates));
 }
 
 /** The strongest available plan at a duration the learner has actively selected. */
 export function featuredOfferForDuration(plans: PricingPlan[], durationMonths: number | null): FeaturedOffer | null {
-  return durationMonths === null ? featuredOffer(plans) : findFeaturedOffer(plans, durationMonths);
+  if (durationMonths === null) return featuredOffer(plans);
+  return preferred(plans, candidates => findFeaturedOffer(candidates, durationMonths));
 }

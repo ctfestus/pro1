@@ -569,13 +569,39 @@ export async function POST(req: NextRequest) {
     const recommending = body.recommended === true;
     try {
       await assertPlanAccess(String(body.planId));
+
       if (recommending) {
-        const { error: clearError } = await db.from('subscription_plans')
-          .update({ recommended: false })
-          .eq('recommended', true)
-          .neq('id', body.planId);
-        if (clearError) throw clearError;
+        // An archived plan is shown to nobody, so marking one would put a badge on a card no
+        // visitor can reach. The dashboard disables this; the API has to refuse it too.
+        const { data: target, error: targetError } = await db.from('subscription_plans')
+          .select('archived_at').eq('id', body.planId).maybeSingle();
+        if (targetError) throw targetError;
+        if (!target) return NextResponse.json({ error: 'Subscription plan not found' }, { status: 404 });
+        if (target.archived_at) {
+          return NextResponse.json({
+            error: 'This plan is archived, so visitors never see it. Restore it first.',
+          }, { status: 409 });
+        }
+
+        // Only one plan may hold this, so marking a new one necessarily takes it from whoever
+        // has it. That is somebody else's plan, and assertPlanAccess above only vouched for the
+        // target -- clearing without this let one instructor quietly unmark another's.
+        const { data: current, error: currentError } = await db.from('subscription_plans')
+          .select('id, name, created_by').eq('recommended', true).maybeSingle();
+        if (currentError) throw currentError;
+        if (current && current.id !== body.planId) {
+          if (sessionUser.role !== 'admin' && current.created_by !== sessionUser.id) {
+            return NextResponse.json({
+              error: `${current.name} is currently marked best value. Ask an administrator to change it.`,
+            }, { status: 409 });
+          }
+          const { error: clearError } = await db.from('subscription_plans')
+            .update({ recommended: false })
+            .eq('id', current.id);
+          if (clearError) throw clearError;
+        }
       }
+
       const { error } = await db.from('subscription_plans')
         .update({ recommended: recommending })
         .eq('id', body.planId);
@@ -605,7 +631,12 @@ export async function POST(req: NextRequest) {
         }, { status: 409 });
       }
       const { error } = await db.from('subscription_plans')
-        .update({ archived_at: archiving ? new Date().toISOString() : null })
+        .update({
+          archived_at: archiving ? new Date().toISOString() : null,
+          // Archiving hides the plan from visitors, so a best-value mark on it would point at a
+          // card nobody can see -- and would hold the one mark the platform allows.
+          ...(archiving ? { recommended: false } : {}),
+        })
         .eq('id', body.planId);
       if (error) throw error;
       // Nothing on sale changes today -- archiving requires the plan to be inactive already, and

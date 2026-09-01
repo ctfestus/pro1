@@ -61,7 +61,6 @@ SELECT
   s.id   AS plan_id,
   s.name AS plan_name,
   s.description AS plan_description,
-  s.recommended AS recommended,
   COALESCE((
     SELECT jsonb_agg(
              jsonb_build_object(
@@ -77,7 +76,9 @@ SELECT
   COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'courses'), 0)             AS courses,
   COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'learning_paths'), 0)      AS learning_paths,
   COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'virtual_experiences'), 0) AS virtual_experiences,
-  COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'certifications'), 0)      AS certifications
+  COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'certifications'), 0)      AS certifications,
+  -- Appended, never inserted: CREATE OR REPLACE VIEW can only add columns at the end.
+  s.recommended AS recommended
 FROM sellable_plans s;
 
 GRANT SELECT ON public.public_pricing_plans TO anon, authenticated;

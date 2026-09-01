@@ -6,7 +6,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { featuredOffer } from '@/lib/pricing-offer';
+import { featuredOffer, featuredOfferForDuration } from '@/lib/pricing-offer';
 import type { PricingPlan } from '@/lib/pricing-contract';
 
 const read = (rel: string) => readFileSync(join(process.cwd(), rel), 'utf8');
@@ -47,10 +47,21 @@ describe('the hero follows the recommendation', () => {
     expect(offer?.plan.name).toBe('Basic');
   });
 
-  it('is unaffected when the recommended plan has nothing on sale', () => {
-    // A marked plan with no prices must not blank the hero for the plans that do have them.
+  it('falls back rather than emptying the hero when the marked plan has nothing on sale', () => {
+    // The name of this test used to claim one thing and the assertion prove the opposite: it
+    // expected null, which is the hero going blank. A mark is a preference, not a veto.
     const offer = featuredOffer([plan('Empty', [], true), plan('Pro', [[1, 100], [12, 900]])]);
-    expect(offer).toBeNull();
+    expect(offer?.plan.name).toBe('Pro');
+  });
+
+  it('falls back at a chosen duration too, not only on first load', () => {
+    // The duration toggle takes the same path, and it was the one more likely to find a marked
+    // plan with nothing at the selected term.
+    const marked = plan('Pro', [[1, 100]], true);
+    const other = plan('Basic', [[1, 80], [12, 600]]);
+    expect(featuredOfferForDuration([marked, other], 12)?.plan.name).toBe('Basic');
+    // And still prefers the marked plan where it does sell that term.
+    expect(featuredOfferForDuration([marked, other], 1)?.plan.name).toBe('Pro');
   });
 });
 
@@ -90,8 +101,13 @@ describe('ordering and marking', () => {
   });
 
   it('clears the previous one before marking a new one', () => {
-    // Otherwise the write fails on that unique index instead of doing what was asked.
-    expect(route).toMatch(/recommending[\s\S]{0,300}recommended: false[\s\S]{0,200}neq\('id'/);
+    // Otherwise the write fails on that unique index instead of doing what was asked. It clears
+    // the row it actually found rather than everything else, so the ownership check above has
+    // something to check.
+    const handler = route.slice(route.indexOf("'set-subscription-plan-recommended'"));
+    const body = handler.slice(0, handler.indexOf('if (body.action', 10));
+    expect(body).toMatch(/eq\('recommended', true\)[\s\S]{0,80}maybeSingle/);
+    expect(body).toMatch(/recommended: false[\s\S]{0,80}eq\('id', current\.id\)/);
   });
 
   it('clears the cached pricing page, so the change is visible at once', () => {
@@ -110,5 +126,24 @@ describe('ordering and marking', () => {
     expect(dashboard).toContain('Mark as best value');
     // An archived plan is shown to nobody, so recommending one would mean nothing.
     expect(dashboard).toMatch(/setPlanRecommended[\s\S]{0,200}busy \|\| !!plan\.archived_at/);
+  });
+
+  it('does not let one instructor quietly unmark a plan they do not own', () => {
+    // Only one plan may hold the mark, so taking it is taking somebody else's. The target was
+    // ownership-checked; the plan being cleared was not.
+    expect(route).toMatch(/current\.created_by !== sessionUser\.id/);
+    expect(route).toContain('Ask an administrator to change it.');
+  });
+
+  it('refuses to mark an archived plan, not only disable the button', () => {
+    // A archived plan is shown to nobody, so the badge would sit on a card no visitor reaches --
+    // and it would hold the one mark the platform allows.
+    expect(route).toContain('This plan is archived, so visitors never see it. Restore it first.');
+  });
+
+  it('drops the mark when a plan is archived', () => {
+    // Otherwise a hidden plan keeps the only mark there is, and nothing in the list explains why
+    // the badge cannot be given to anything else.
+    expect(route).toMatch(/archiving \? \{ recommended: false \} : \{\}/);
   });
 });
