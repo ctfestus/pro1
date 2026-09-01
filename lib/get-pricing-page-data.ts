@@ -38,7 +38,11 @@ export const getPricingPageData = unstable_cache(
       // nobody having changed anything.
       publicClient
         .from('public_pricing_plans')
-        .select('plan_id, plan_name, plan_description, prices, courses, learning_paths, virtual_experiences, certifications')
+        .select('plan_id, plan_name, plan_description, recommended, prices, courses, learning_paths, virtual_experiences, certifications')
+        // Recommended first, then by name. The free tier renders before any of these, so the
+        // recommended plan lands in the middle -- where a pricing page puts the one it wants
+        // chosen. Name alone made that an accident of spelling.
+        .order('recommended', { ascending: false })
         .order('plan_name'),
       publicClient
         .from('public_free_content_counts')
@@ -51,6 +55,7 @@ export const getPricingPageData = unstable_cache(
       id: row.plan_id,
       name: row.plan_name,
       description: row.plan_description ?? null,
+      recommended: row.recommended === true,
       // Already ordered by duration in the view, so the toggle reads left to right as it comes.
       prices: ((row.prices ?? []) as any[]).map((price): PricingPrice => ({
         id: price.id,

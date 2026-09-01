@@ -27,6 +27,7 @@ import {
   ShieldCheck,
   Sparkles,
   Trash2,
+  Star,
   Archive,
   Upload,
   UserPlus,
@@ -1481,6 +1482,41 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     return { summary: summarizePlanContentOutcomes(outcomes), total: changes.length, outcomes };
   }
 
+  /**
+   * Which plan the pricing page puts in front of visitors: first after the free tier, badged,
+   * and led with in the hero. At most one, so marking a new one clears the old.
+   */
+  async function setPlanRecommended(plan: any, recommended: boolean) {
+    if (!plan) return;
+    setBusy(true);
+    setError("");
+    setSuccess("");
+    setPlanCardMenuId(null);
+    try {
+      const res = await authFetch("/api/payments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "set-subscription-plan-recommended",
+          planId: plan.id,
+          recommended,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Failed to update the recommended plan");
+      setSuccess(
+        recommended
+          ? `"${plan.name}" is now the best value plan on the pricing page.`
+          : `"${plan.name}" is no longer marked best value.`,
+      );
+      await load();
+    } catch (err: any) {
+      setError(err.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function deletePlan(planOverride?: any) {
     const plan = planOverride?.id ? planOverride : selectedPlan;
     if (!plan) return;
@@ -2892,6 +2928,33 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                     <FileSpreadsheet className="w-4 h-4" />
                                   </span>
                                   Bulk add students
+                                </button>
+                                <button
+                                  onClick={() => setPlanRecommended(plan, !plan.recommended)}
+                                  // Only a plan visitors can actually see. Inactive keeps it off
+                                  // the pricing page just as surely as archived hides it.
+                                  disabled={
+                                    busy
+                                    || (!plan.recommended
+                                        && (!!plan.archived_at || plan.status !== "active"))
+                                  }
+                                  title={
+                                    plan.archived_at
+                                      ? "An archived plan is not shown to visitors."
+                                      : plan.status !== "active"
+                                        ? "Activate this plan before marking it as best value."
+                                        : undefined
+                                  }
+                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                  style={{ color: C.text }}
+                                >
+                                  <span
+                                    className="w-8 h-8 rounded-lg grid place-items-center"
+                                    style={{ background: `${C.cta}14`, color: C.cta }}
+                                  >
+                                    <Star className="w-4 h-4" />
+                                  </span>
+                                  {plan.recommended ? "Remove best value" : "Mark as best value"}
                                 </button>
                                 <button
                                   onClick={() => setPlanArchived(plan, !plan.archived_at)}

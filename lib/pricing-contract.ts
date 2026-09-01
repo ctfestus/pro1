@@ -33,6 +33,8 @@ export interface PricingPlan {
   name: string;
   description: string | null;
   prices: PricingPrice[];
+  /** The one plan the seller puts in front of people. At most one is true. */
+  recommended: boolean;
   /** How much of each kind the plan grants, for the comparison table. */
   coverage: ContentCounts;
 }

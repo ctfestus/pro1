@@ -6,10 +6,11 @@ import { describe, expect, it } from 'vitest';
 import { featuredOffer, featuredOfferForDuration, formatMoney, durationLabel } from '@/lib/pricing-offer';
 import type { PricingPlan } from '@/lib/pricing-contract';
 
-const plan = (name: string, prices: [number, number][]): PricingPlan => ({
+const plan = (name: string, prices: [number, number][], recommended = false): PricingPlan => ({
   id: name.toLowerCase(),
   name,
   description: null,
+  recommended,
   prices: prices.map(([durationMonths, amount]) => ({
     id: `${name}-${durationMonths}`, durationMonths, amount, currency: 'GHS',
   })),

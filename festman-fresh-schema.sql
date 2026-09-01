@@ -4212,6 +4212,9 @@ CREATE TABLE public.subscription_plans (
   -- goes. Separate from status: inactive means off for now and still worth seeing, archived
   -- means done with. Archiving requires the plan to be inactive; unarchiving leaves it inactive.
   archived_at timestamptz,
+  -- migration 202: the plan the seller wants people to choose. One at a time, enforced by a
+  -- unique index below -- a page with two recommendations recommends nothing.
+  recommended boolean NOT NULL DEFAULT false,
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -4221,6 +4224,9 @@ CREATE TABLE public.subscription_plans (
   CONSTRAINT subscription_plans_archived_is_inactive
     CHECK (archived_at IS NULL OR status = 'inactive')
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_plans_one_recommended
+  ON public.subscription_plans ((recommended))
+  WHERE recommended;
 CREATE INDEX IF NOT EXISTS idx_subscription_plans_not_archived
   ON public.subscription_plans (created_at DESC)
   WHERE archived_at IS NULL;
@@ -5100,6 +5106,84 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) TO service_role;
+
+-- Moving the mark, as one operation.
+--
+-- It was two updates: clear whoever held it, then set the new one. If the second failed, nothing
+-- was marked at all, and two people doing this at once could collide on the unique index below
+-- with one of them having already cleared the other. Neither is recoverable by retrying, because
+-- by then the old mark is gone.
+--
+-- Everything the decision depends on is read inside the transaction and locked, so the answer
+-- cannot change between checking it and acting on it.
+CREATE OR REPLACE FUNCTION public.set_recommended_subscription_plan(
+  p_plan_id uuid,
+  p_actor_id uuid,
+  p_is_admin boolean,
+  p_recommended boolean
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_target record;
+  v_current record;
+BEGIN
+  -- Taken before anything is read, and held to the end of the transaction.
+  --
+  -- Locking the rows was not enough. Two callers marking different plans lock the same current
+  -- holder, and the one that waits re-reads after the other has committed -- by which time that
+  -- row no longer matches "recommended", so it finds nothing and marks its own target anyway,
+  -- colliding on the unique index. Worse, with no plan marked at all there is no row to lock and
+  -- nothing serialises them in the first place.
+  --
+  -- This is one mark for the whole platform, so the thing to lock is the decision, not a row.
+  -- The second caller waits here and reads the state the first one left.
+  PERFORM pg_advisory_xact_lock(hashtext('subscription_plans.recommended'));
+
+  SELECT id, name, status, archived_at, created_by INTO v_target
+  FROM public.subscription_plans WHERE id = p_plan_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'not_found');
+  END IF;
+
+  IF NOT p_is_admin AND v_target.created_by IS DISTINCT FROM p_actor_id THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'forbidden');
+  END IF;
+
+  IF NOT p_recommended THEN
+    UPDATE public.subscription_plans SET recommended = false WHERE id = p_plan_id;
+    RETURN jsonb_build_object('ok', true, 'recommended', false);
+  END IF;
+
+  -- A plan visitors cannot see must not hold the one mark there is. Archived hides it outright;
+  -- inactive keeps it off the pricing page just as surely.
+  IF v_target.archived_at IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'archived');
+  END IF;
+  IF v_target.status <> 'active' THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'inactive');
+  END IF;
+
+  -- Locked before it is read, so a second caller waits here rather than racing the unique index.
+  SELECT id, name, created_by INTO v_current
+  FROM public.subscription_plans WHERE recommended AND id <> p_plan_id FOR UPDATE;
+
+  IF FOUND THEN
+    IF NOT p_is_admin AND v_current.created_by IS DISTINCT FROM p_actor_id THEN
+      RETURN jsonb_build_object('ok', false, 'code', 'held_by_other', 'planName', v_current.name);
+    END IF;
+    UPDATE public.subscription_plans SET recommended = false WHERE id = v_current.id;
+  END IF;
+
+  UPDATE public.subscription_plans SET recommended = true WHERE id = p_plan_id;
+  RETURN jsonb_build_object('ok', true, 'recommended', true,
+                            'replaced', CASE WHEN v_current.id IS NULL THEN NULL ELSE v_current.name END);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.set_recommended_subscription_plan(uuid, uuid, boolean, boolean)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_recommended_subscription_plan(uuid, uuid, boolean, boolean)
+  TO service_role;
 
 CREATE OR REPLACE FUNCTION public.set_subscription_plan_content(
   p_plan_id uuid,
@@ -6256,7 +6340,7 @@ WITH published_content AS (
 sellable_plans AS (
   -- Active, an access cohort that really is an individual subscription, and at least one live
   -- price. A plan nobody can buy has no place on a pricing page.
-  SELECT p.id, p.name, p.description
+  SELECT p.id, p.name, p.description, p.recommended
   FROM public.subscription_plans p
   JOIN public.cohorts c ON c.id = p.cohort_id
   WHERE p.status = 'active'
@@ -6302,7 +6386,9 @@ SELECT
   COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'courses'), 0)             AS courses,
   COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'learning_paths'), 0)      AS learning_paths,
   COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'virtual_experiences'), 0) AS virtual_experiences,
-  COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'certifications'), 0)      AS certifications
+  COALESCE((SELECT content_count FROM plan_coverage pc WHERE pc.plan_id = s.id AND pc.content_table = 'certifications'), 0)      AS certifications,
+  -- Appended, never inserted: CREATE OR REPLACE VIEW can only add columns at the end.
+  s.recommended AS recommended
 FROM sellable_plans s;
 
 GRANT SELECT ON public.public_pricing_plans TO anon, authenticated;

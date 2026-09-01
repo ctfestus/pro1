@@ -565,6 +565,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'status must be active or inactive' }, { status: 400 });
       }
       updates.status = body.status;
+      // A plan that is switched off is not on the pricing page, so it must not keep the one
+      // best-value mark the platform allows -- nothing in the list would explain why the badge
+      // could not be given to anything else.
+      if (body.status === 'inactive') updates.recommended = false;
     }
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No plan changes were provided' }, { status: 400 });
@@ -600,6 +604,48 @@ export async function POST(req: NextRequest) {
   // Putting a finished plan out of the way, or taking it back out. A plan with any history
   // cannot be deleted -- that would orphan the record of what people paid -- so this is the only
   // way the list ever gets shorter.
+  // Which plan the pricing page puts in front of people. At most one, so marking a new one
+  // clears the old: the database enforces that too, and racing this without clearing first would
+  // fail on the unique index rather than silently keeping two.
+  // Which plan the pricing page puts in front of people. One at a time, so marking a new one
+  // takes it from whoever holds it -- which is why this is a single database call rather than a
+  // clear followed by a set. Split in two, a failure between them left nothing marked at all,
+  // and two people doing it at once could collide on the unique index.
+  if (body.action === 'set-subscription-plan-recommended') {
+    if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
+    try {
+      const { data, error } = await db.rpc('set_recommended_subscription_plan', {
+        p_plan_id: String(body.planId),
+        p_actor_id: sessionUser.id,
+        p_is_admin: sessionUser.role === 'admin',
+        p_recommended: body.recommended === true,
+      });
+      if (error) throw error;
+
+      const result = (data ?? {}) as { ok?: boolean; code?: string; planName?: string; recommended?: boolean };
+      if (result.ok !== true) {
+        // Each refusal names what to do next; the function decided, this only puts it in words.
+        const said: Record<string, [string, number]> = {
+          not_found: ['Subscription plan not found', 404],
+          forbidden: ['You do not have permission to manage this plan.', 403],
+          archived: ['This plan is archived, so visitors never see it. Restore it first.', 409],
+          inactive: ['Activate this plan before marking it as best value.', 409],
+          held_by_other: [
+            `${result.planName ?? 'Another plan'} is currently marked best value. Ask an administrator to change it.`,
+            409,
+          ],
+        };
+        const [message, status] = said[result.code ?? ''] ?? ['Failed to update the best value plan', 500];
+        return NextResponse.json({ error: message }, { status });
+      }
+
+      revalidatePricingPage();
+      return NextResponse.json({ ok: true, recommended: result.recommended === true });
+    } catch (err: any) {
+      return NextResponse.json({ error: err.message ?? 'Failed to update the best value plan' }, { status: 500 });
+    }
+  }
+
   if (body.action === 'set-subscription-plan-archived') {
     if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
     const archiving = body.archived === true;
@@ -617,7 +663,12 @@ export async function POST(req: NextRequest) {
         }, { status: 409 });
       }
       const { error } = await db.from('subscription_plans')
-        .update({ archived_at: archiving ? new Date().toISOString() : null })
+        .update({
+          archived_at: archiving ? new Date().toISOString() : null,
+          // Archiving hides the plan from visitors, so a best-value mark on it would point at a
+          // card nobody can see -- and would hold the one mark the platform allows.
+          ...(archiving ? { recommended: false } : {}),
+        })
         .eq('id', body.planId);
       if (error) throw error;
       // Nothing on sale changes today -- archiving requires the plan to be inactive already, and
