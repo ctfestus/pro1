@@ -5127,6 +5127,18 @@ DECLARE
   v_target record;
   v_current record;
 BEGIN
+  -- Taken before anything is read, and held to the end of the transaction.
+  --
+  -- Locking the rows was not enough. Two callers marking different plans lock the same current
+  -- holder, and the one that waits re-reads after the other has committed -- by which time that
+  -- row no longer matches "recommended", so it finds nothing and marks its own target anyway,
+  -- colliding on the unique index. Worse, with no plan marked at all there is no row to lock and
+  -- nothing serialises them in the first place.
+  --
+  -- This is one mark for the whole platform, so the thing to lock is the decision, not a row.
+  -- The second caller waits here and reads the state the first one left.
+  PERFORM pg_advisory_xact_lock(hashtext('subscription_plans.recommended'));
+
   SELECT id, name, status, archived_at, created_by INTO v_target
   FROM public.subscription_plans WHERE id = p_plan_id FOR UPDATE;
   IF NOT FOUND THEN

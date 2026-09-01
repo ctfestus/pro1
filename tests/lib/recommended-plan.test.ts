@@ -110,11 +110,21 @@ describe('ordering and marking', () => {
     expect(body).not.toMatch(/\.update\(/);
   });
 
-  it('reads and locks what it decides on, inside the transaction', () => {
-    // The current holder is locked before it is read, so a second caller waits there rather than
-    // racing. Without the lock the checks are true when made and false when acted on.
+  it('serialises the whole decision, before it reads anything', () => {
+    // Row locks were not enough. Two callers marking different plans lock the same current
+    // holder; the one that waits re-reads after the other commits, no longer matches
+    // "recommended", finds nothing, and marks its own target anyway -- colliding on the unique
+    // index. And with no plan marked there is no row to lock, so nothing serialises them at all.
+    //
+    // There is one mark for the whole platform, so what has to be locked is the decision.
     for (const sql of [migration, schema]) {
       const fn = sql.slice(sql.indexOf('FUNCTION public.set_recommended_subscription_plan'));
+      expect(fn).toContain("pg_advisory_xact_lock(hashtext('subscription_plans.recommended'))");
+      // Before the first read, or two callers are already past it with the same picture.
+      expect(fn.indexOf('pg_advisory_xact_lock')).toBeLessThan(fn.indexOf('SELECT id, name, status'));
+      // Transaction-scoped, so it is released by commit or rollback and never leaks.
+      expect(fn).not.toMatch(/pg_advisory_lock\(/);
+      // The row locks stay as well: they keep the rows still while this transaction works.
       expect(fn).toMatch(/WHERE id = p_plan_id FOR UPDATE/);
       expect(fn).toMatch(/WHERE recommended AND id <> p_plan_id FOR UPDATE/);
     }
