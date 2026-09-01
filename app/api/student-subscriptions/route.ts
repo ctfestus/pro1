@@ -68,10 +68,13 @@ export async function GET(req: NextRequest) {
       .eq('student_id', studentId)
       .is('released_at', null);
     if (bootcampError) throw bootcampError;
-    const [subscriptionRes, requestsRes, optionsRes, plans, cartRes] = await Promise.all([
-      db.from('individual_subscriptions')
-        .select('id, student_id, plan_id, status, duration_months, amount, currency, current_period_start, current_period_end, subscription_plans!individual_subscriptions_plan_id_fkey(id,name,description,status)')
-        .eq('student_id', studentId).maybeSingle(),
+    // Read before the rest, not alongside it: the plan this learner already holds is the one plan
+    // exempt from the sellable filter below, so the plans query needs its id to be able to keep it.
+    const { data: subscription, error: subscriptionError } = await db.from('individual_subscriptions')
+      .select('id, student_id, plan_id, status, duration_months, amount, currency, current_period_start, current_period_end, subscription_plans!individual_subscriptions_plan_id_fkey(id,name,description,status)')
+      .eq('student_id', studentId).maybeSingle();
+    if (subscriptionError) throw subscriptionError;
+    const [requestsRes, optionsRes, plans, cartRes] = await Promise.all([
       db.from('subscription_payment_requests')
         .select(`id, student_id, subscription_id, plan_id, plan_name, kind, duration_months, amount, currency, due_date, status, created_at, paid_at, created_by,
           subscription_payment_confirmations(id, amount, paid_at, method, reference, notes, receipt_url, status, reviewed_at, created_at)`)
@@ -79,7 +82,16 @@ export async function GET(req: NextRequest) {
       db.from('payment_options')
         .select('id, label, type, instructions, bank_name, account_name, account_number, branch, country, mobile_money_number, network, payment_link, platform, logo_url, sort_order')
         .eq('is_active', true).order('sort_order'),
-      subscriptionEligible ? loadPlansForContent(db, target, { withContents: true }) : Promise.resolve([]),
+      // Sellable plans only, so this list never offers a purchase checkout would refuse -- with
+      // the learner's own plan kept regardless, because renewing a plan that has stopped taking
+      // new learners is still allowed and needs somewhere to be offered from.
+      subscriptionEligible
+        ? loadPlansForContent(db, target, {
+            withContents: true,
+            sellableOnly: true,
+            keepPlanIds: subscription?.plan_id ? [subscription.plan_id] : [],
+          })
+        : Promise.resolve([]),
       // The unfinished checkout, if there is one. The reservation function allows a learner only
       // one at a time, so this is a single row rather than a list.
       db.from('paystack_subscription_transactions')
@@ -88,11 +100,9 @@ export async function GET(req: NextRequest) {
         .is('cart_dismissed_at', null).not('authorization_url', 'is', null)
         .order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
-    if (subscriptionRes.error) throw subscriptionRes.error;
     if (requestsRes.error) throw requestsRes.error;
     if (optionsRes.error) throw optionsRes.error;
 
-    const subscription = subscriptionRes.data;
     let payments: any[] = [];
     if (subscription?.id) {
       const { data, error } = await db.from('subscription_payments')
@@ -160,6 +170,24 @@ async function assertLearnerMayBuy(
         : 'You are already subscribed to a different plan. Moving to another plan needs the learning team.',
       409,
     );
+  }
+
+  // A current subscriber may renew the plan they already hold even after it stops accepting new
+  // learners. The price and active-plan checks still run in the purchase or resume path.
+  if (!existing) {
+    const { data: sellable, error: sellableError } = await db
+      .from('public_pricing_plans')
+      .select('plan_id')
+      .eq('plan_id', planId)
+      .maybeSingle();
+    if (sellableError) throw sellableError;
+    if (!sellable) {
+      throw new PaymentError(
+        'conflict',
+        'This plan is no longer available. Choose one of the current plans instead.',
+        409,
+      );
+    }
   }
 }
 
