@@ -72,7 +72,9 @@ export function PricingSection({
 }: PricingSectionProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
-  const buyLabel = signedIn ? 'Continue to checkout' : 'Unlock this plan';
+  // One label for everyone. The button opened the same checkout either way, and the signed-in
+  // wording resolved a moment after the page drew, so it changed under whoever was reading it.
+  const buyLabel = 'Enroll Now';
   const [busyPriceId, setBusyPriceId] = useState('');
 
   const buy = async (priceId: string) => {
@@ -355,9 +357,9 @@ function FreePlanCard({
           ))}
         </ul>
 
-        {signedIn ? (
-          <span className="mt-7 inline-flex min-h-12 items-center justify-center rounded-xl px-4 py-3 text-sm font-black" style={{ background: '#E9EDF2', color: '#667085' }}>Your current access</span>
-        ) : (
+        {/* Nothing is said about what a signed-in learner is on. This card only ever has an action
+            for someone who has no account yet. */}
+        {!signedIn && (
           <Link href="/auth?mode=signup" className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-white px-4 py-3 text-sm font-black" style={{ color: '#101828', boxShadow: 'inset 0 0 0 1px #D0D5DD', fontFamily: hFont }}>
             Create a free account <ArrowRight className="h-4 w-4" />
           </Link>
