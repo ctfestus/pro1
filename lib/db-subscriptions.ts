@@ -126,7 +126,7 @@ export async function getSubscriptionPlans(
   if (planIds && planIds.length === 0) return [];
   let query = db
     .from('subscription_plans')
-    .select('id, name, description, cohort_id, status, archived_at, recommended, created_by, created_at, updated_at, subscription_plan_prices(id, duration_months, amount, currency, is_active, sort_order)')
+    .select('id, name, description, cohort_id, status, archived_at, recommended, created_by, created_at, updated_at, subscription_plan_prices(id, duration_months, amount, currency, is_active, sort_order), subscription_plan_content(id, content_table, content_id)')
     .order('name');
   if (activeOnly) query = query.eq('status', 'active');
   // Archived plans are out of the way by default. A caller that wants them -- the archive view,

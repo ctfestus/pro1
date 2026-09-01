@@ -41,6 +41,10 @@ const migration = readFileSync(
   join(process.cwd(), 'migrations/196_public_pricing_views.sql'),
   'utf8',
 );
+const publishedContentMigration = readFileSync(
+  join(process.cwd(), 'migrations/201_require_published_subscription_plan_content.sql'),
+  'utf8',
+);
 const loader = readFileSync(join(process.cwd(), 'lib/get-pricing-page-data.ts'), 'utf8');
 
 beforeEach(() => {
@@ -132,6 +136,11 @@ describe('the public pricing views', () => {
     // Content withdrawn after it was attached is no longer something the plan grants.
     expect(migration).toContain('published_content');
     expect(migration).toContain('JOIN published_content pc');
+  });
+
+  it('does not sell a plan whose attached content is no longer published', () => {
+    expect(publishedContentMigration).toContain('JOIN published_content pc');
+    expect(publishedContentMigration).toContain('WHERE spc.plan_id = p.id');
   });
 
   it('exposes names and counts, never content', () => {

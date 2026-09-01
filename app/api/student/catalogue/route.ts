@@ -194,12 +194,19 @@ export async function GET(req: NextRequest) {
       // has exactly one price here -- rather than a sentence naming durations that may not be
       // on sale. Prices only, never the plan's full contents: this route still describes a
       // locked item without handing over what is inside it.
+      //
+      // Sellable plans only. No renewal exemption belongs here: a locked item is by definition
+      // one the learner's own plan does not open, so their plan is never the answer.
       if (item.locked) {
         item.unlock = {
-          plans: await loadPlansForContent(db, {
-            contentTable: CONTENT_TABLE_BY_TYPE[item.type],
-            contentId: item.id,
-          }),
+          plans: await loadPlansForContent(
+            db,
+            {
+              contentTable: CONTENT_TABLE_BY_TYPE[item.type],
+              contentId: item.id,
+            },
+            { sellableOnly: true },
+          ),
         };
       }
 

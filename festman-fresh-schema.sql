@@ -4212,7 +4212,7 @@ CREATE TABLE public.subscription_plans (
   -- goes. Separate from status: inactive means off for now and still worth seeing, archived
   -- means done with. Archiving requires the plan to be inactive; unarchiving leaves it inactive.
   archived_at timestamptz,
-  -- migration 201: the plan the seller wants people to choose. One at a time, enforced by a
+  -- migration 202: the plan the seller wants people to choose. One at a time, enforced by a
   -- unique index below -- a page with two recommendations recommends nothing.
   recommended boolean NOT NULL DEFAULT false,
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -4455,8 +4455,8 @@ BEGIN
   -- false, silently revoking access for every subscriber on the plan. See migration 172.
   INSERT INTO public.cohorts(name,status,cohort_kind,individual_student_id,start_date,created_by)
   VALUES ('Subscription - '||btrim(p_name),'active','subscription_plan',NULL,current_date,p_created_by) RETURNING id INTO v_cohort_id;
-  INSERT INTO public.subscription_plans(id,name,description,cohort_id,created_by)
-  VALUES (v_plan_id,btrim(p_name),NULLIF(btrim(p_description),''),v_cohort_id,p_created_by);
+  INSERT INTO public.subscription_plans(id,name,description,cohort_id,status,created_by)
+  VALUES (v_plan_id,btrim(p_name),NULLIF(btrim(p_description),''),v_cohort_id,'inactive',p_created_by);
   RETURN jsonb_build_object('ok',true,'planId',v_plan_id,'cohortId',v_cohort_id);
 END;
 $$;
@@ -6349,6 +6349,13 @@ sellable_plans AS (
     AND EXISTS (
       SELECT 1 FROM public.subscription_plan_prices pr
       WHERE pr.plan_id = p.id AND pr.is_active
+    )
+    AND EXISTS (
+      SELECT 1
+      FROM public.subscription_plan_content spc
+      JOIN published_content pc
+        ON pc.content_table = spc.content_table AND pc.id = spc.content_id
+      WHERE spc.plan_id = p.id
     )
 ),
 plan_coverage AS (

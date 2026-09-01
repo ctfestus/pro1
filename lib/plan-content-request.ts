@@ -89,7 +89,11 @@ export async function applyPlanContentChanges(
   changes: readonly PlanContentChange[],
   options: PlanContentRequestOptions = {},
 ): Promise<PlanContentOutcome[]> {
-  return Promise.all(changes.map(change => applyPlanContentChange(change, options)));
+  const outcomes: PlanContentOutcome[] = [];
+  for (const change of changes) {
+    outcomes.push(await applyPlanContentChange(change, options));
+  }
+  return outcomes;
 }
 
 export interface PlanContentSummary {
