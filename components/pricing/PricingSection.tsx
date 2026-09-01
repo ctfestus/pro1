@@ -72,7 +72,9 @@ export function PricingSection({
 }: PricingSectionProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
-  const buyLabel = signedIn ? 'Continue to checkout' : 'Unlock this plan';
+  // One label for everyone. The button opened the same checkout either way, and the signed-in
+  // wording resolved a moment after the page drew, so it changed under whoever was reading it.
+  const buyLabel = 'Enroll Now';
   const [busyPriceId, setBusyPriceId] = useState('');
 
   const buy = async (priceId: string) => {
