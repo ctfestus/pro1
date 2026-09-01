@@ -237,13 +237,13 @@ function PlanCard({
       <div className="relative flex flex-1 flex-col">
         <div>
           {plan.recommended && (
-            // The seller's own opinion, and openly that. Not "most popular", which is a claim
-            // about other buyers that nobody here can check.
+            // The seller's own pick, and openly that. Not "most popular", which is a claim about
+            // other buyers that nobody here can check.
             <p
               className="mb-2 inline-block rounded-full px-2.5 py-1 text-[11px] font-bold uppercase tracking-wider"
               style={{ background: primaryColor, color: '#FFFFFF' }}
             >
-              Recommended
+              Best Value
             </p>
           )}
           <p className="text-xl font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>

@@ -68,16 +68,16 @@ describe('ordering and marking', () => {
     expect(loader).toContain("order('plan_name')");
   });
 
-  it('says recommended, not most popular', () => {
+  it('says best value, not most popular', () => {
     // Popularity is a claim about other buyers that nobody checks and that can simply be false.
-    // A recommendation is the seller's own opinion, and true by being stated.
+    // Best value is the seller's own judgement of their own prices, which is theirs to make.
     //
     // Comments are stripped first: this is about what a visitor reads, and the reasoning above
     // the badge mentions the phrase it exists to avoid.
     const visible = section
       .replace(/\/\/[^\n]*/g, '')
       .replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(visible).toContain('Recommended');
+    expect(visible).toContain('Best Value');
     expect(visible).not.toMatch(/most popular/i);
   });
 
@@ -107,7 +107,7 @@ describe('ordering and marking', () => {
 
   it('gives staff somewhere to set it', () => {
     expect(dashboard).toContain('set-subscription-plan-recommended');
-    expect(dashboard).toContain('Mark as recommended');
+    expect(dashboard).toContain('Mark as best value');
     // An archived plan is shown to nobody, so recommending one would mean nothing.
     expect(dashboard).toMatch(/setPlanRecommended[\s\S]{0,200}busy \|\| !!plan\.archived_at/);
   });

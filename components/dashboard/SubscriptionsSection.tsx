@@ -1439,8 +1439,8 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       if (!res.ok) throw new Error(data.error || "Failed to update the recommended plan");
       setSuccess(
         recommended
-          ? `"${plan.name}" is now the recommended plan on the pricing page.`
-          : `"${plan.name}" is no longer recommended.`,
+          ? `"${plan.name}" is now the best value plan on the pricing page.`
+          : `"${plan.name}" is no longer marked best value.`,
       );
       await load();
     } catch (err: any) {
@@ -2879,7 +2879,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                   >
                                     <Star className="w-4 h-4" />
                                   </span>
-                                  {plan.recommended ? "Remove recommendation" : "Mark as recommended"}
+                                  {plan.recommended ? "Remove best value" : "Mark as best value"}
                                 </button>
                                 <button
                                   onClick={() => setPlanArchived(plan, !plan.archived_at)}
