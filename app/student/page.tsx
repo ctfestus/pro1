@@ -109,10 +109,15 @@ export default function StudentDashboard() {
   // Live activity ticker (persists across all tabs)
   const [activeTicker,       setActiveTicker]       = useState<{ name: string; title: string } | null>(null);
   const [bootcampCohortId,   setBootcampCohortId]   = useState<string | null>(null);
+  const [cohortAccessStatus, setCohortAccessStatus] = useState<'loading' | 'resolved' | 'error'>('loading');
   // Only real cohort students see cohort activity tabs; public and individual students see Explore.
-  const hasBootcampCohort = !loading && !!bootcampCohortId;
-  const showExplore = !loading && !hasBootcampCohort;
-  const showCohortActivities = hasBootcampCohort;
+  const hasBootcampCohort = cohortAccessStatus === 'resolved' && !!bootcampCohortId;
+  const cohortAccessLoading = cohortAccessStatus === 'loading';
+  const showExplore = cohortAccessStatus === 'error'
+    || (cohortAccessLoading ? activeSection === 'explore' : !hasBootcampCohort);
+  const showCohortActivities = hasBootcampCohort
+    || cohortAccessStatus === 'error'
+    || (cohortAccessLoading && COHORT_ONLY_SECTIONS.includes(activeSection));
   const seenActivityGlobal = useRef<Set<string>>(new Set());
   const tickerTimerGlobal  = useRef<any>(null);
   const pageLoadTimeGlobal = useRef(Date.now());
@@ -165,10 +170,10 @@ export default function StudentDashboard() {
   }, []);
 
   useEffect(() => {
-    if (loading) return;
+    if (loading || cohortAccessStatus !== 'resolved') return;
     if (isSectionVisibleForStudent(activeSection, showExplore, showCohortActivities)) return;
     goSection(showExplore ? 'explore' : 'overview');
-  }, [activeSection, goSection, loading, showCohortActivities, showExplore]);
+  }, [activeSection, cohortAccessStatus, goSection, loading, showCohortActivities, showExplore]);
 
   // Activity feed polling. Background tabs do no network work, and returning to a tab
   // refreshes immediately rather than waiting for the next interval.
@@ -296,30 +301,56 @@ export default function StudentDashboard() {
           .then(({ error }) => { if (error) console.error('[last_login_at] update failed:', error.message); });
       }
 
-      // Fetch cohort for global activity ticker + outstanding check
-      supabase.from('students').select('cohort_id, original_cohort_id, payment_exempt').eq('id', resolvedViewingAs?.studentId ?? authUser.id).single()
-        .then(async ({ data: s }) => {
-          if (s?.cohort_id) {
-            const { data: cohortDates } = await supabase
-              .from('cohorts')
-              .select('id, name, start_date, end_date, cohort_kind')
-              .eq('id', s.cohort_id)
-              .maybeSingle();
-            if (cohortDates?.cohort_kind === COHORT_KIND_BOOTCAMP) {
-              setBootcampCohortId(s.cohort_id);
-              setCohortTimeline(cohortDates ?? null);
+      // Resolve cohort navigation separately from payment state. A cohort failure preserves
+      // both navigation sets and never suppresses the overdue-payment calculation.
+      const loadCohortAndPaymentState = async () => {
+        const studentId = resolvedViewingAs?.studentId ?? authUser.id;
+        let s: any = null;
+        let cohortResolved = false;
+
+        try {
+          const studentResult = await supabase
+            .from('students')
+            .select('cohort_id, original_cohort_id, payment_exempt')
+            .eq('id', studentId)
+            .single();
+          if (!studentResult.error) {
+            s = studentResult.data;
+            if (s?.cohort_id) {
+              const cohortResult = await supabase
+                .from('cohorts')
+                .select('id, name, start_date, end_date, cohort_kind')
+                .eq('id', s.cohort_id)
+                .maybeSingle();
+              if (!cohortResult.error) {
+                if (cohortResult.data?.cohort_kind === COHORT_KIND_BOOTCAMP) {
+                  setBootcampCohortId(s.cohort_id);
+                  setCohortTimeline(cohortResult.data);
+                } else {
+                  setBootcampCohortId(null);
+                  setCohortTimeline(null);
+                }
+                cohortResolved = true;
+              }
             } else {
               setBootcampCohortId(null);
               setCohortTimeline(null);
+              cohortResolved = true;
             }
-          } else {
-            setBootcampCohortId(null);
-            setCohortTimeline(null);
           }
+        } catch {
+          // Keep access unknown without redirecting the current tab.
+        }
+
+        // Do not validate the restored tab until cohort visibility is known. Without this
+        // guard, a cohort tab is briefly treated as hidden and redirected on every refresh.
+        setCohortAccessStatus(cohortResolved ? 'resolved' : 'error');
+
+        try {
           const { data: enroll } = await supabase
             .from('bootcamp_enrollments')
             .select('access_status, total_fee, deposit_required, paid_total, payment_plan, bootcamp_ends_at, cohort_id, payment_installments ( due_date, status )')
-            .eq('student_id', resolvedViewingAs?.studentId ?? authUser.id)
+            .eq('student_id', studentId)
             // Skip released enrollments (migration 171) so a student who left the bootcamp is
             // not shown an outstanding-balance modal for a cohort they are no longer in.
             .is('released_at', null)
@@ -358,7 +389,11 @@ export default function StudentDashboard() {
           if (outstanding && !sessionStorage.getItem('outstandingModalDismissed')) {
             setShowOutstandingModal(true);
           }
-        });
+        } catch {
+          // Server-side access remains authoritative if the reminder lookup is unavailable.
+        }
+      };
+      void loadCohortAndPaymentState();
 
       setLoading(false);
     };

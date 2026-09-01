@@ -14,7 +14,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
-  CalendarDays, Calendar, Sun, CheckCircle, ChevronRight, ChevronLeft, Video, MapPin, Repeat, Download,
+  CalendarDays, Calendar, Sun, CheckCircle, ChevronRight, ChevronLeft, Video, MapPin, Repeat, Download, RefreshCw,
 } from 'lucide-react';
 
 // -- Realistic provider logos ---
@@ -298,18 +298,22 @@ export function EventsSection({ userId, C }: { userId: string; C: typeof LIGHT_C
   const [regs, setRegs] = useState<any[]>([]);
   const [cohortEvents, setCohortEvents] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [imgErrors, setImgErrors] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      setLoadError(false);
       try {
-        const { data: student } = await supabase
+        const { data: student, error: studentError } = await supabase
           .from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', userId).single();
+        if (studentError) throw studentError;
         // A synthetic individual-enrollment cohort (migration 165) has no events.
         const inIndividualCohort = isIndividualCohort((student as any)?.cohort?.cohort_kind);
 
-        const [{ data: regsData }, { data: cohortData }] = await Promise.all([
+        const [registrationsResult, eventsResult] = await Promise.all([
           supabase
             .from('event_registrations')
             .select('event_id, registered_at, join_token')
@@ -319,15 +323,19 @@ export function EventsSection({ userId, C }: { userId: string; C: typeof LIGHT_C
                 .contains('cohort_ids', [student.cohort_id]).eq('status', 'published')
             : Promise.resolve({ data: [] }),
         ]);
+        if (registrationsResult.error) throw registrationsResult.error;
+        if ('error' in eventsResult && eventsResult.error) throw eventsResult.error;
 
-        setRegs(regsData ?? []);
-        setCohortEvents(cohortData ?? []);
+        setRegs(registrationsResult.data ?? []);
+        setCohortEvents(eventsResult.data ?? []);
+      } catch {
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
     };
-    load();
-  }, [userId]);
+    void load();
+  }, [reloadKey, userId]);
 
   const buildDateFromEventDetails = (eventDetails: any) => {
     if (!eventDetails?.date) return null;
@@ -414,6 +422,21 @@ export function EventsSection({ userId, C }: { userId: string; C: typeof LIGHT_C
         </div>
       ))}
     </div>
+  );
+
+  if (loadError) return (
+    <EmptyState
+      icon={RefreshCw}
+      title="Could not load live sessions"
+      body="Check your connection and try again."
+      action={(
+        <button type="button" onClick={() => setReloadKey(key => key + 1)}
+          className="text-sm font-semibold px-4 py-2.5 rounded-xl"
+          style={{ background: C.cta, color: C.ctaText }}>
+          Try again
+        </button>
+      )}
+    />
   );
 
   if (!cohortEvents.length) return (

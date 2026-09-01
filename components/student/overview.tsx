@@ -12,12 +12,12 @@ import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
-import { CarouselSkeleton, ProgressBar, HoverPreviewCard, stripSqlSolutions } from '@/components/student/shared';
+import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard, stripSqlSolutions } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import type { SectionId } from '@/components/student/nav';
 import {
   BookOpen, Briefcase, CheckCircle, ChevronLeft, ChevronRight, Play, TrendingUp,
-  Zap, Award, Medal, ClipboardList, CalendarDays,
+  Zap, Award, Medal, ClipboardList, CalendarDays, RefreshCw,
 } from 'lucide-react';
 
 // --- Overview section ---
@@ -157,6 +157,7 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
   user: any; userEmail: string; C: typeof LIGHT_C; onNavigate: (id: SectionId) => void;
 }) {
   const [loading, setLoading]               = useState(true);
+  const [loadError, setLoadError]           = useState(false);
   const [courses, setCourses]               = useState<any[]>([]);
   const [courseAttempts, setCourseAttempts] = useState<Record<string, any>>({});
   // Read from student_xp rather than summed here, so this figure and the leaderboard cannot disagree:
@@ -194,11 +195,14 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     let cancelled = false;
     const load = async () => {
       setLoading(true);
+      setLoadError(false);
+      try {
       const { data: { session } } = await supabase.auth.getSession();
       const token = session?.access_token ?? '';
 
-      const { data: student } = await supabase
+      const { data: student, error: studentError } = await supabase
         .from('students').select('cohort_id, cohort:cohorts!cohort_id(cohort_kind)').eq('id', user.id).single();
+      if (studentError) throw studentError;
       const cohort = student?.cohort_id ?? null;
       // A synthetic individual-enrollment cohort (migration 165) has no real peer
       // group, so its "leaderboard" is just the one student -- skip fetching it.
@@ -209,7 +213,8 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       const inIndividualCohort = isIndividualCohort((student as any)?.cohort?.cohort_kind);
 
       // Fetch the student's group memberships so we can include group assignments below
-      const { data: gmRows } = await supabase.from('group_members').select('group_id').eq('student_id', user.id);
+      const { data: gmRows, error: groupMembershipError } = await supabase.from('group_members').select('group_id').eq('student_id', user.id);
+      if (groupMembershipError) throw groupMembershipError;
       const myGroupIds = (gmRows ?? []).map((r: any) => r.group_id as string);
 
       const [courseRes, veRes, attemptsRes, gpAttRes, cohortAssignCrsRes, cohortAssignVeRes, certsData, lbData, eventsRes, gapsData, assignmentsRes, asmSubsRes, allBadgesRes, earnedBadgesRes, streakRes, groupAssignmentsRes, groupSubsRes] =
@@ -375,9 +380,14 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
       const streakData = (streakRes as any)?.data;
       setStreak(streakData ? { current_streak: streakData.current_streak, longest_streak: streakData.longest_streak } : null);
 
-      setLoading(false);
+      } catch {
+        if (!cancelled) setLoadError(true);
+      } finally {
+        // A superseded request must not clear the loader owned by the next request.
+        if (!cancelled) setLoading(false);
+      }
     };
-    load();
+    void load();
     return () => { cancelled = true; };
   }, [user.id, userEmail, refreshKey]);
 
@@ -385,7 +395,6 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
     f.content_type === 'guided_project' || f.content_type === 'virtual_experience' ||
     f.config?.isGuidedProject || f.config?.isVirtualExperience;
 
-  // eslint-disable-next-line react-hooks/purity
   const now = useMemo(() => Date.now(), []);
 
   // Shared helper -- true if the item has genuine remaining work
@@ -465,6 +474,21 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
   ].sort((a: any, b: any) => a.daysLeft - b.daysLeft);
 
   if (loading) return <CarouselSkeleton C={C} rows={3}/>;
+
+  if (loadError) return (
+    <EmptyState
+      icon={RefreshCw}
+      title="Could not load your dashboard"
+      body="Check your connection and try again."
+      action={(
+        <button type="button" onClick={() => setRefreshKey(key => key + 1)}
+          className="text-sm font-semibold px-4 py-2.5 rounded-xl"
+          style={{ background: C.cta, color: C.ctaText }}>
+          Try again
+        </button>
+      )}
+    />
+  );
 
   return (
     <div className="space-y-4 lg:space-y-6">
