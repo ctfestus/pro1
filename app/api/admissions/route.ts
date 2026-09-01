@@ -22,6 +22,9 @@ const CONTENT_LABEL: Record<string, string> = {
   learning_paths: 'learning path',
 };
 
+// Every notify here is the plan case: content became available because someone subscribes,
+// not because an instructor set it. Passing 'plan' is what stops these emails telling a paying
+// learner they have been enrolled in something.
 const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
   selectCols: string;
   ownerCol: string;
@@ -34,7 +37,7 @@ const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
     caContentType: 'course',
     notify: async (db, content, cohortId) => {
       const { sendAssignmentNotifications } = await import('@/lib/send-assignment-notification');
-      await sendAssignmentNotifications({ cohortIds: [cohortId], title: content.title, slug: content.slug, contentType: 'course' });
+      await sendAssignmentNotifications({ cohortIds: [cohortId], title: content.title, slug: content.slug, contentType: 'course', reason: 'plan' });
     },
   },
   virtual_experiences: {
@@ -43,7 +46,7 @@ const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
     caContentType: 'virtual_experience',
     notify: async (db, content, cohortId) => {
       const { sendAssignmentNotifications } = await import('@/lib/send-assignment-notification');
-      await sendAssignmentNotifications({ cohortIds: [cohortId], title: content.title, slug: content.slug, contentType: 'virtual_experience' });
+      await sendAssignmentNotifications({ cohortIds: [cohortId], title: content.title, slug: content.slug, contentType: 'virtual_experience', reason: 'plan' });
     },
   },
   certifications: {
@@ -54,7 +57,7 @@ const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
     caContentType: 'certification',
     notify: async (db, content, cohortId) => {
       const { sendAssignmentNotifications } = await import('@/lib/send-assignment-notification');
-      await sendAssignmentNotifications({ cohortIds: [cohortId], title: content.title, slug: content.slug, contentType: 'certification' });
+      await sendAssignmentNotifications({ cohortIds: [cohortId], title: content.title, slug: content.slug, contentType: 'certification', reason: 'plan' });
     },
   },
   learning_paths: {
@@ -63,7 +66,7 @@ const SUBSCRIPTION_PLAN_CONTENT: Record<string, {
     caContentType: null,
     notify: async (db, content, cohortId) => {
       const { sendPathNotification } = await import('@/lib/send-path-notification');
-      const result = await sendPathNotification(db, content, [cohortId]);
+      const result = await sendPathNotification(db, content, [cohortId], 'plan');
       if (result.failed > 0) throw new Error(`Failed to send ${result.failed} learning path notification(s)`);
     },
   },

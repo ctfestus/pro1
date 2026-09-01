@@ -23,6 +23,16 @@ const TYPE_MESSAGES: Record<string, string> = {
   certification: 'You have been enrolled in a new certification. Log in to start preparing.',
 };
 
+/**
+ * The same content can reach a learner two different ways, and they are not the same message.
+ *
+ * An instructor assigning work to a cohort is a request: somebody expects it done. Content
+ * appearing in a plan someone subscribes to is not -- they pay for a catalogue and it grew.
+ * Sending the assignment wording for that told paying learners they had been enrolled in
+ * something, with a deadline behind it, every time an admin tidied a plan.
+ */
+const PLAN_CTA = 'View Now';
+
 const TYPE_CTA: Record<string, string> = {
   course: 'View Course',
   event: 'View Event',
@@ -43,6 +53,7 @@ export async function sendAssignmentNotifications({
   slug,
   contentType,
   formUrl: formUrlOverride,
+  reason = 'assignment',
 }: {
   cohortIds: string[];
   groupIds?: string[];
@@ -50,6 +61,8 @@ export async function sendAssignmentNotifications({
   slug?: string;
   contentType: string;
   formUrl?: string;
+  /** 'plan' when this became available through a subscription rather than being assigned. */
+  reason?: 'assignment' | 'plan';
 }): Promise<void> {
   if (!process.env.RESEND_API_KEY) {
     console.error('[send-assignment-notification] RESEND_API_KEY is not set -- emails will not be sent.');
@@ -85,13 +98,16 @@ export async function sendAssignmentNotifications({
 
     if (!students?.length) return;
 
+    const forPlan     = reason === 'plan';
     const typeLabel   = TYPE_LABELS[contentType]   ?? contentType.replace(/_/g, ' ');
     const typeMessage = TYPE_MESSAGES[contentType] ?? 'You have been assigned new content.';
-    const ctaLabel    = TYPE_CTA[contentType]      ?? 'View';
+    const ctaLabel    = forPlan ? PLAN_CTA : TYPE_CTA[contentType] ?? 'View';
     const formUrl     = formUrlOverride != null
       ? (formUrlOverride.startsWith('http') ? formUrlOverride : `${t.appUrl}${formUrlOverride}`)
       : `${t.appUrl}/${slug}`;
-    const subject     = `You've been assigned: ${title}`;
+    const subject     = forPlan
+      ? `New ${typeLabel}: ${title}`
+      : `You've been assigned: ${title}`;
 
     // Deduplicate by email
     const seen = new Set<string>();
@@ -109,7 +125,10 @@ export async function sendAssignmentNotifications({
     // Send in batches of 100 (Resend limit)
     for (let i = 0; i < recipients.length; i += 100) {
       const batch = recipients.slice(i, i + 100).map(({ email, name }) => {
-        const body = `Hi ${name},\n\n${typeMessage}\n\n<b>${title}</b>\n\nClick the button below to open your ${typeLabel}.`;
+        // No deadline and no instruction to begin: it is theirs to open when they feel like it.
+        const body = forPlan
+          ? `Hi ${name},\n\nWe've added a new ${typeLabel} to ${t.appName}:\n\n<b>${title}</b>\n\nLog in now to explore and start learning.`
+          : `Hi ${name},\n\n${typeMessage}\n\n<b>${title}</b>\n\nClick the button below to open your ${typeLabel}.`;
         const html = blastEmail({ subject, body, formTitle: title, formUrl, ctaLabel, senderName: t.senderName || t.teamName || t.appName, branding });
         return { from: FROM, to: email, subject, html };
       });

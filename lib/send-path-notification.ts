@@ -46,6 +46,8 @@ export async function sendPathNotification(
   supabase: any,
   lp: { id: string; title: string; description?: string | null; item_ids?: string[] },
   cohortIds: string[],
+  /** 'plan' when the path became available through a subscription rather than being assigned. */
+  reason: 'assignment' | 'plan' = 'assignment',
 ): Promise<PathNotificationResult> {
   if (!process.env.RESEND_API_KEY) {
     console.error('[send-path-notification] RESEND_API_KEY is not set.');
@@ -103,7 +105,9 @@ export async function sendPathNotification(
     const emails = recipientBatch.map((student: any) => ({
       from: FROM,
       to: student.email,
-      subject: `You've been enrolled in a new learning path: ${lp.title}`,
+      subject: reason === 'plan'
+        ? `New learning path: ${lp.title}`
+        : `You've been enrolled in a new learning path: ${lp.title}`,
       html: learningPathAssignedEmail({
         name:            student.full_name ?? 'there',
         pathTitle:       lp.title,
@@ -111,6 +115,8 @@ export async function sendPathNotification(
         items,
         dashboardUrl,
         branding,
+        reason,
+        appName: t.appName,
       }),
     }));
     const payloadHash = createHash('sha256').update(JSON.stringify(emails)).digest('hex');
