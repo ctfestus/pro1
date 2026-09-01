@@ -527,6 +527,10 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: 'status must be active or inactive' }, { status: 400 });
       }
       updates.status = body.status;
+      // A plan that is switched off is not on the pricing page, so it must not keep the one
+      // best-value mark the platform allows -- nothing in the list would explain why the badge
+      // could not be given to anything else.
+      if (body.status === 'inactive') updates.recommended = false;
     }
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No plan changes were provided' }, { status: 400 });
@@ -564,53 +568,42 @@ export async function POST(req: NextRequest) {
   // Which plan the pricing page puts in front of people. At most one, so marking a new one
   // clears the old: the database enforces that too, and racing this without clearing first would
   // fail on the unique index rather than silently keeping two.
+  // Which plan the pricing page puts in front of people. One at a time, so marking a new one
+  // takes it from whoever holds it -- which is why this is a single database call rather than a
+  // clear followed by a set. Split in two, a failure between them left nothing marked at all,
+  // and two people doing it at once could collide on the unique index.
   if (body.action === 'set-subscription-plan-recommended') {
     if (!body.planId) return NextResponse.json({ error: 'planId is required' }, { status: 400 });
-    const recommending = body.recommended === true;
     try {
-      await assertPlanAccess(String(body.planId));
+      const { data, error } = await db.rpc('set_recommended_subscription_plan', {
+        p_plan_id: String(body.planId),
+        p_actor_id: sessionUser.id,
+        p_is_admin: sessionUser.role === 'admin',
+        p_recommended: body.recommended === true,
+      });
+      if (error) throw error;
 
-      if (recommending) {
-        // An archived plan is shown to nobody, so marking one would put a badge on a card no
-        // visitor can reach. The dashboard disables this; the API has to refuse it too.
-        const { data: target, error: targetError } = await db.from('subscription_plans')
-          .select('archived_at').eq('id', body.planId).maybeSingle();
-        if (targetError) throw targetError;
-        if (!target) return NextResponse.json({ error: 'Subscription plan not found' }, { status: 404 });
-        if (target.archived_at) {
-          return NextResponse.json({
-            error: 'This plan is archived, so visitors never see it. Restore it first.',
-          }, { status: 409 });
-        }
-
-        // Only one plan may hold this, so marking a new one necessarily takes it from whoever
-        // has it. That is somebody else's plan, and assertPlanAccess above only vouched for the
-        // target -- clearing without this let one instructor quietly unmark another's.
-        const { data: current, error: currentError } = await db.from('subscription_plans')
-          .select('id, name, created_by').eq('recommended', true).maybeSingle();
-        if (currentError) throw currentError;
-        if (current && current.id !== body.planId) {
-          if (sessionUser.role !== 'admin' && current.created_by !== sessionUser.id) {
-            return NextResponse.json({
-              error: `${current.name} is currently marked best value. Ask an administrator to change it.`,
-            }, { status: 409 });
-          }
-          const { error: clearError } = await db.from('subscription_plans')
-            .update({ recommended: false })
-            .eq('id', current.id);
-          if (clearError) throw clearError;
-        }
+      const result = (data ?? {}) as { ok?: boolean; code?: string; planName?: string; recommended?: boolean };
+      if (result.ok !== true) {
+        // Each refusal names what to do next; the function decided, this only puts it in words.
+        const said: Record<string, [string, number]> = {
+          not_found: ['Subscription plan not found', 404],
+          forbidden: ['You do not have permission to manage this plan.', 403],
+          archived: ['This plan is archived, so visitors never see it. Restore it first.', 409],
+          inactive: ['Activate this plan before marking it as best value.', 409],
+          held_by_other: [
+            `${result.planName ?? 'Another plan'} is currently marked best value. Ask an administrator to change it.`,
+            409,
+          ],
+        };
+        const [message, status] = said[result.code ?? ''] ?? ['Failed to update the best value plan', 500];
+        return NextResponse.json({ error: message }, { status });
       }
 
-      const { error } = await db.from('subscription_plans')
-        .update({ recommended: recommending })
-        .eq('id', body.planId);
-      if (error) throw error;
       revalidatePricingPage();
-      return NextResponse.json({ ok: true, recommended: recommending });
+      return NextResponse.json({ ok: true, recommended: result.recommended === true });
     } catch (err: any) {
-      if (err instanceof PaymentError) return ownershipFailure(err, 'Failed to update the recommended plan');
-      return NextResponse.json({ error: err.message ?? 'Failed to update the recommended plan' }, { status: 500 });
+      return NextResponse.json({ error: err.message ?? 'Failed to update the best value plan' }, { status: 500 });
     }
   }
 

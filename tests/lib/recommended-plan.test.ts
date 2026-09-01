@@ -100,14 +100,47 @@ describe('ordering and marking', () => {
     }
   });
 
-  it('clears the previous one before marking a new one', () => {
-    // Otherwise the write fails on that unique index instead of doing what was asked. It clears
-    // the row it actually found rather than everything else, so the ownership check above has
-    // something to check.
+  it('moves the mark in one database call, not a clear then a set', () => {
+    // Two updates meant a failure between them left nothing marked, and two callers at once
+    // could collide on the unique index with one having already cleared the other. Neither is
+    // fixed by retrying, because by then the old mark is gone.
     const handler = route.slice(route.indexOf("'set-subscription-plan-recommended'"));
     const body = handler.slice(0, handler.indexOf('if (body.action', 10));
-    expect(body).toMatch(/eq\('recommended', true\)[\s\S]{0,80}maybeSingle/);
-    expect(body).toMatch(/recommended: false[\s\S]{0,80}eq\('id', current\.id\)/);
+    expect(body).toContain("db.rpc('set_recommended_subscription_plan'");
+    expect(body).not.toMatch(/\.update\(/);
+  });
+
+  it('reads and locks what it decides on, inside the transaction', () => {
+    // The current holder is locked before it is read, so a second caller waits there rather than
+    // racing. Without the lock the checks are true when made and false when acted on.
+    for (const sql of [migration, schema]) {
+      const fn = sql.slice(sql.indexOf('FUNCTION public.set_recommended_subscription_plan'));
+      expect(fn).toMatch(/WHERE id = p_plan_id FOR UPDATE/);
+      expect(fn).toMatch(/WHERE recommended AND id <> p_plan_id FOR UPDATE/);
+    }
+  });
+
+  it('refuses a plan that is switched off, not only one that is archived', () => {
+    // Inactive keeps it off the pricing page just as surely as archived hides it, so the success
+    // message would have been a lie.
+    for (const sql of [migration, schema]) {
+      expect(sql).toMatch(/v_target\.status <> 'active'[\s\S]{0,120}'inactive'/);
+    }
+    expect(route).toContain('Activate this plan before marking it as best value.');
+    expect(dashboard).toContain('Activate this plan before marking it as best value.');
+  });
+
+  it('drops the mark when a plan is switched off', () => {
+    // Otherwise a plan nobody can see holds the one mark there is.
+    expect(route).toMatch(/body\.status === 'inactive'\) updates\.recommended = false/);
+  });
+
+  it('checks ownership of the plan it is taking the mark from, inside the same transaction', () => {
+    for (const sql of [migration, schema]) {
+      const fn = sql.slice(sql.indexOf('FUNCTION public.set_recommended_subscription_plan'));
+      expect(fn).toMatch(/v_current\.created_by IS DISTINCT FROM p_actor_id/);
+      expect(fn).toContain('held_by_other');
+    }
   });
 
   it('clears the cached pricing page, so the change is visible at once', () => {
@@ -117,27 +150,29 @@ describe('ordering and marking', () => {
   });
 
   it('adds the column without touching existing plans', () => {
-    expect(migration).toContain('ADD COLUMN IF NOT EXISTS recommended boolean NOT NULL DEFAULT false');
-    expect(migration).not.toMatch(/UPDATE\s+public\./i);
+    // Only the part that runs when the migration is applied. The function it also defines
+    // contains UPDATEs, but those run later, when somebody moves the mark.
+    const applied = migration.slice(0, migration.indexOf('CREATE OR REPLACE FUNCTION'));
+    expect(applied).toContain('ADD COLUMN IF NOT EXISTS recommended boolean NOT NULL DEFAULT false');
+    expect(applied).not.toMatch(/UPDATE\s+public\./i);
+    expect(applied).not.toMatch(/DELETE\s+FROM/i);
   });
 
   it('gives staff somewhere to set it', () => {
     expect(dashboard).toContain('set-subscription-plan-recommended');
     expect(dashboard).toContain('Mark as best value');
-    // An archived plan is shown to nobody, so recommending one would mean nothing.
-    expect(dashboard).toMatch(/setPlanRecommended[\s\S]{0,200}busy \|\| !!plan\.archived_at/);
+    // Neither an archived plan nor a switched-off one reaches the pricing page, so neither can
+    // hold the mark. Un-marking stays available, or a plan could get stuck holding it.
+    const control = dashboard.slice(dashboard.indexOf('setPlanRecommended(plan, !plan.recommended)'));
+    expect(control.slice(0, 600)).toMatch(/!plan\.recommended[\s\S]{0,160}archived_at[\s\S]{0,120}status !== "active"/);
   });
 
   it('does not let one instructor quietly unmark a plan they do not own', () => {
-    // Only one plan may hold the mark, so taking it is taking somebody else's. The target was
-    // ownership-checked; the plan being cleared was not.
-    expect(route).toMatch(/current\.created_by !== sessionUser\.id/);
+    // Only one plan may hold the mark, so taking it is taking somebody else's.
     expect(route).toContain('Ask an administrator to change it.');
   });
 
   it('refuses to mark an archived plan, not only disable the button', () => {
-    // A archived plan is shown to nobody, so the badge would sit on a card no visitor reaches --
-    // and it would hold the one mark the platform allows.
     expect(route).toContain('This plan is archived, so visitors never see it. Restore it first.');
   });
 

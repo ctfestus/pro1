@@ -5107,6 +5107,72 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.close_individual_subscription(uuid,text) TO service_role;
 
+-- Moving the mark, as one operation.
+--
+-- It was two updates: clear whoever held it, then set the new one. If the second failed, nothing
+-- was marked at all, and two people doing this at once could collide on the unique index below
+-- with one of them having already cleared the other. Neither is recoverable by retrying, because
+-- by then the old mark is gone.
+--
+-- Everything the decision depends on is read inside the transaction and locked, so the answer
+-- cannot change between checking it and acting on it.
+CREATE OR REPLACE FUNCTION public.set_recommended_subscription_plan(
+  p_plan_id uuid,
+  p_actor_id uuid,
+  p_is_admin boolean,
+  p_recommended boolean
+)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_target record;
+  v_current record;
+BEGIN
+  SELECT id, name, status, archived_at, created_by INTO v_target
+  FROM public.subscription_plans WHERE id = p_plan_id FOR UPDATE;
+  IF NOT FOUND THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'not_found');
+  END IF;
+
+  IF NOT p_is_admin AND v_target.created_by IS DISTINCT FROM p_actor_id THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'forbidden');
+  END IF;
+
+  IF NOT p_recommended THEN
+    UPDATE public.subscription_plans SET recommended = false WHERE id = p_plan_id;
+    RETURN jsonb_build_object('ok', true, 'recommended', false);
+  END IF;
+
+  -- A plan visitors cannot see must not hold the one mark there is. Archived hides it outright;
+  -- inactive keeps it off the pricing page just as surely.
+  IF v_target.archived_at IS NOT NULL THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'archived');
+  END IF;
+  IF v_target.status <> 'active' THEN
+    RETURN jsonb_build_object('ok', false, 'code', 'inactive');
+  END IF;
+
+  -- Locked before it is read, so a second caller waits here rather than racing the unique index.
+  SELECT id, name, created_by INTO v_current
+  FROM public.subscription_plans WHERE recommended AND id <> p_plan_id FOR UPDATE;
+
+  IF FOUND THEN
+    IF NOT p_is_admin AND v_current.created_by IS DISTINCT FROM p_actor_id THEN
+      RETURN jsonb_build_object('ok', false, 'code', 'held_by_other', 'planName', v_current.name);
+    END IF;
+    UPDATE public.subscription_plans SET recommended = false WHERE id = v_current.id;
+  END IF;
+
+  UPDATE public.subscription_plans SET recommended = true WHERE id = p_plan_id;
+  RETURN jsonb_build_object('ok', true, 'recommended', true,
+                            'replaced', CASE WHEN v_current.id IS NULL THEN NULL ELSE v_current.name END);
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.set_recommended_subscription_plan(uuid, uuid, boolean, boolean)
+  FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.set_recommended_subscription_plan(uuid, uuid, boolean, boolean)
+  TO service_role;
+
 CREATE OR REPLACE FUNCTION public.set_subscription_plan_content(
   p_plan_id uuid,
   p_content_table text,

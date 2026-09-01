@@ -2864,11 +2864,19 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 </button>
                                 <button
                                   onClick={() => setPlanRecommended(plan, !plan.recommended)}
-                                  disabled={busy || !!plan.archived_at}
+                                  // Only a plan visitors can actually see. Inactive keeps it off
+                                  // the pricing page just as surely as archived hides it.
+                                  disabled={
+                                    busy
+                                    || (!plan.recommended
+                                        && (!!plan.archived_at || plan.status !== "active"))
+                                  }
                                   title={
                                     plan.archived_at
                                       ? "An archived plan is not shown to visitors."
-                                      : undefined
+                                      : plan.status !== "active"
+                                        ? "Activate this plan before marking it as best value."
+                                        : undefined
                                   }
                                   className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
                                   style={{ color: C.text }}
