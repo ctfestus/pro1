@@ -86,6 +86,36 @@ export function courseProgressPct(questions: any[], answers: Record<string, any>
   return Math.round((counts.done / counts.total) * 100);
 }
 
+export interface CourseContentCounts {
+  /** Teaching slides -- the ones a student reads rather than answers. */
+  lessons: number;
+  /** Gradeable slides: questions, SQL and Python exercises, reviews. */
+  exercises: number;
+}
+
+/**
+ * What a course contains, for the "what you get" panel on its landing page.
+ *
+ * The split is the SCORE rule above, read from the other side: a `lessonOnly` slide teaches,
+ * anything gradeable is an exercise, and sections, downloads blocks and share slides are neither
+ * -- nobody enrols because a course has a downloads block.
+ *
+ * The exercise rule is isScorableQuestion() in lib/attempt-points.ts, written out again rather than
+ * imported so a public landing page does not pull the server XP module into the browser bundle.
+ * Change one and change the other.
+ */
+export function courseContentCounts(questions: any[]): CourseContentCounts {
+  let lessons = 0;
+  let exercises = 0;
+  for (const q of questions ?? []) {
+    if (!q || q.isSection) continue;
+    if (q.lessonOnly) { lessons++; continue; }
+    if (q.isDownloads || q.isLinkedInShare) continue;
+    exercises++;
+  }
+  return { lessons, exercises };
+}
+
 /**
  * The XP a course advertises before a student starts, for the "Total XP" line on its landing page.
  *

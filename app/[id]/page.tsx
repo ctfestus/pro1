@@ -4,10 +4,10 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
-import { courseXpOnOffer } from '@/lib/course-progress';
+import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { CourseTaker } from '@/components/CourseTaker';
 import dynamic from 'next/dynamic';
 const VirtualExperienceTaker = dynamic(() => import('@/components/VirtualExperienceTaker'), { ssr: false });
@@ -240,12 +240,24 @@ function lockedCoursePreviewToForm(item: any) {
     content_type: 'course',
     locked: true,
     unlock: item.unlock,
+    // Counted server-side: the outline below is title-only and lists no exercises at all, so the
+    // page cannot arrive at any of these itself.
+    lessonCount: typeof item.lessonCount === 'number' ? item.lessonCount : 0,
+    exerciseCount: typeof item.exerciseCount === 'number' ? item.exerciseCount : 0,
+    xpOnOffer: typeof item.xpOnOffer === 'number' ? item.xpOnOffer : 0,
     config: {
       title: item.title,
       description: item.description,
       category: item.category,
       coverImage: item.coverImage,
       isCourse: true,
+      // Appearance travels with the preview. Without it a locked sales page rendered in this
+      // page's own fallbacks -- dark mode, platform green, the default font -- instead of the
+      // look the creator chose, so the same course looked like two different products.
+      mode: item.mode ?? undefined,
+      theme: item.theme ?? undefined,
+      font: item.font ?? undefined,
+      customAccent: item.customAccent ?? undefined,
       questions: (item.outline ?? []).map((entry: any) => entry.type === 'section'
         ? { id: entry.id, isSection: true, sectionTitle: entry.title }
         : { id: entry.id, lesson: { title: entry.title } }),
@@ -277,6 +289,30 @@ function cataloguePathToPathRow(item: any) {
     unlock: item.unlock,
     progress: null,
   };
+}
+
+/**
+ * The yellow ribbon both public overviews carry. Every course and every learning path issues a
+ * certificate on completion, so it is unconditional -- but it is one definition rather than two,
+ * because a tag that says different things on the course page and the path page is worse than no
+ * tag at all.
+ */
+function CertificateTag({ textColor }: { textColor: string }) {
+  return (
+    <span
+      className="inline-flex items-center gap-2 px-4 py-2 pr-8 text-sm font-bold uppercase"
+      style={{
+        background: '#FFC000',
+        borderRadius: 6,
+        clipPath: 'polygon(0 0, 100% 0, calc(100% - 22px) 50%, 100% 100%, 0 100%)',
+        color: textColor,
+        letterSpacing: 0,
+      }}
+    >
+      <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
+      Certificate available
+    </span>
+  );
 }
 
 function PublicLearningPathOverview({ path, C }: { path: any; C: ReturnType<typeof useC> }) {
@@ -366,19 +402,7 @@ function PublicLearningPathOverview({ path, C }: { path: any; C: ReturnType<type
                 </p>
               )}
               <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
-                <span
-                  className="inline-flex items-center gap-2 px-4 py-2 pr-8 text-sm font-bold uppercase"
-                  style={{
-                    background: 'rgba(255,192,0,0.76)',
-                    borderRadius: 6,
-                    clipPath: 'polygon(0 0, 100% 0, calc(100% - 22px) 50%, 100% 100%, 0 100%)',
-                    color: isDark ? '#111827' : '#202124',
-                    letterSpacing: 0,
-                  }}
-                >
-                  <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
-                  Certificate available
-                </span>
+                <CertificateTag textColor={isDark ? '#111827' : '#202124'} />
                 {courseCount > 0 && (
                   <span className={statPillClass} style={statPillStyle}>
                     <span
@@ -1370,6 +1394,22 @@ export default function PublicFormPage() {
 
   if (config.isCourse) {
     const questions = config.questions || [];
+    // What the sidebar advertises. A locked preview carries a title-only outline with its
+    // exercises withheld, so none of these three can be counted from it -- the catalogue routes
+    // send the real numbers instead.
+    //
+    // lessonSlideCount is teaching slides; lessonCount below is how many rows the outline renders,
+    // which also includes a graded question that carries lesson content. Two different questions,
+    // so two different numbers.
+    // A slab of bright accent is wrong on a dark page, so dark mode gets a plain dark surface with
+    // no colour cast over it -- the light on it is white, the same light the accent panel gets.
+    const bannerBg = dark ? '#0A0B0E' : C.cta;
+    const authoredCounts = courseContentCounts(questions);
+    const lessonSlideCount = typeof form.lessonCount === 'number' ? form.lessonCount : authoredCounts.lessons;
+    const exerciseCount = typeof form.exerciseCount === 'number' ? form.exerciseCount : authoredCounts.exercises;
+    const xpOnOffer = typeof form.xpOnOffer === 'number'
+      ? form.xpOnOffer
+      : courseXpOnOffer(questions, config.pointsSystem);
     const lessonCount = questions.filter((q: any) => q.lesson?.title || q.lesson?.body || q.lesson?.doc).length;
 
     const cp = {
@@ -1401,21 +1441,78 @@ export default function PublicFormPage() {
           </div>
         </nav>
 
-        {/* Hero banner */}
+        {/* Hero banner. Contained and rounded rather than full-bleed, so it lines up with the
+            cards below it, and painted in the platform accent rather than the cover image -- the
+            cover still appears on the enrolment card, which overlaps this banner's bottom-right
+            corner. The text column is held clear of that overlap. */}
         {!courseStarted && (
-          <div style={{ position: 'relative', width: '100%', minHeight: 420, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
-            {config.coverImage
-              ? <img src={resolveCoverUrl(config.coverImage)} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top', opacity: 0.55 }} />
-              : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${accentColor}55 0%, #0a0a0a 70%)` }} />
-            }
-            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
-            <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 36px' }}>
-              <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em' }}>
-                {config.title || form.title}
-              </h1>
-              {config.tagline && (
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, maxWidth: 620, margin: 0 }}>{config.tagline}</p>
+          <div className="px-4 pt-3 sm:px-4 sm:pt-5" style={{ maxWidth: 1140, margin: '0 auto', width: '100%' }}>
+            <div className="rounded-[18px] sm:rounded-[28px]" style={{ position: 'relative', minHeight: 'clamp(200px, 34vw, 360px)', background: bannerBg, overflow: 'hidden', display: 'flex', alignItems: 'flex-end', boxShadow: `inset 0 1px 0 ${dark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.34)'}` }}>
+              {/* Depth is a light source rather than a second colour, so it holds up whatever
+                  primaryColor a tenant sets: a highlight raking in from the top right, weight
+                  falling away at the bottom left, and a fine grid that fades out before it reaches
+                  the text. In light mode the panel is the brand colour; in dark it is a plain dark
+                  surface. Either way the only thing on top of it is white and black. */}
+              <div aria-hidden style={{ position: 'absolute', inset: 0, background: dark
+                ? 'radial-gradient(115% 95% at 88% -12%, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 36%, transparent 66%)'
+                : 'radial-gradient(115% 95% at 88% -12%, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.10) 34%, transparent 62%)' }} />
+              <div aria-hidden style={{ position: 'absolute', inset: 0, background: `radial-gradient(90% 120% at 0% 115%, rgba(0,0,0,${dark ? 0.55 : 0.34}) 0%, transparent 58%)` }} />
+              {/* Light mode only. On the dark panel the same grid reads as a visible box pattern
+                  rather than texture, so dark mode gets a plain surface. */}
+              {!dark && (
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)',
+                    backgroundSize: '44px 44px',
+                    WebkitMaskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
+                    maskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
+                  }}
+                />
               )}
+              <div className="px-5 pt-6 pb-10 sm:px-8 sm:pt-[34px] sm:pb-[62px]" style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 720 }}>
+                {(() => {
+                  const tags = [
+                    'Course',
+                    ...(config.category ? [String(config.category)] : []),
+                    ...(config.difficulty ? [String(config.difficulty)] : []),
+                  ];
+                  return (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                      {tags.map((tag, i) => (
+                        <span
+                          key={tag}
+                          style={{
+                            display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: 999,
+                            background: i === 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.12)',
+                            border: '1px solid rgba(255,255,255,0.24)',
+                            color: C.ctaText, fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em',
+                            textTransform: 'capitalize' as const,
+                          }}
+                        >
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  );
+                })()}
+                <h1 style={{ fontSize: 'clamp(26px,5vw,42px)', fontWeight: 800, color: C.ctaText, lineHeight: 1.1, margin: 0, letterSpacing: '-0.03em' }}>
+                  {config.title || form.title}
+                </h1>
+                {config.tagline && (
+                  <p style={{ fontSize: 15.5, color: C.ctaText, opacity: 0.74, lineHeight: 1.5, margin: '12px 0 0', maxWidth: '52ch', overflowWrap: 'anywhere' }}>{config.tagline}</p>
+                )}
+                {config.description && (
+                  <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.62, color: C.ctaText, opacity: 0.88, maxWidth: '58ch', overflowWrap: 'anywhere' }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
+                )}
+                {/* Always dark text: the ribbon keeps its own yellow whatever the banner is. */}
+                <div style={{ marginTop: 20 }}>
+                  <CertificateTag textColor="#111827" />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -1428,16 +1525,7 @@ export default function PublicFormPage() {
             {/* Left column */}
             <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
 
-              {/* About */}
-              {config.description && (
-                <div style={{ background: cp.card, borderRadius: 14, overflow: 'hidden', border: `1px solid ${cp.border}` }}>
-                  <div style={{ padding: '14px 20px', background: cp.subtle, borderBottom: `1px solid ${cp.divider}` }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: cp.title, margin: 0 }}>About this course</p>
-                  </div>
-                  <div className="rich-preview" style={{ padding: '20px 24px', fontSize: 14.5, lineHeight: 1.6, color: cp.body }}
-                    dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
-                </div>
-              )}
+              {/* The course description lives in the banner above, not in a card here. */}
 
               {/* What you'll learn */}
               {(config.learnOutcomes || []).length > 0 && (
@@ -1521,9 +1609,17 @@ export default function PublicFormPage() {
               })()}
             </div>
 
-            {/* Right sidebar */}
-            <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              <div style={{ background: cp.card, borderRadius: 14, overflow: 'hidden', border: `1px solid ${cp.border}` }}>
+            {/* Right sidebar. On desktop the enrolment card is lifted far enough that its whole
+                cover thumbnail sits on the banner and its bottom edge lands exactly on the
+                banner's bottom edge, and inset from the right so its edge reads as sitting on the
+                banner rather than lining up with it. The lift is the grid's 24px top padding plus
+                the 140px thumbnail: change the thumbnail height and this number moves with it. On a phone the column stacks
+                first, where there is nothing to overlap. */}
+            <div className="order-1 lg:order-2 lg:sticky lg:-mt-[164px] lg:mr-6" style={{ top: 72, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Borderless, with a soft drop shadow instead: this card overlaps the banner, where
+                  a hairline border traced a visible box around the thumbnail. Heavier shadow in
+                  dark mode, where a light one does not read at all. */}
+              <div style={{ background: cp.card, borderRadius: 14, overflow: 'hidden', boxShadow: dark ? '0 18px 44px rgba(0,0,0,0.55)' : '0 18px 44px rgba(15,23,42,0.18)' }}>
                 {/* Cover thumbnail */}
                 {config.coverImage && (
                   <div style={{ height: 140, overflow: 'hidden', position: 'relative' }}>
@@ -1532,22 +1628,28 @@ export default function PublicFormPage() {
                   </div>
                 )}
                 <div style={{ padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {/* Pass mark / XP */}
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    {config.pointsSystem?.enabled ? (
-                      <>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Total XP</span>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: accentColor }}>
-                          {courseXpOnOffer(questions, config.pointsSystem)} XP
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>Pass mark</span>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: accentColor }}>{config.passmark ?? 50}%</span>
-                      </>
-                    )}
-                  </div>
+                  {/* What the course contains. Each line appears only when there is something to
+                      count, so a course without exercises or without XP simply shows fewer lines
+                      rather than a zero. The pass mark used to sit here: it is a marking rule
+                      rather than a reason to enrol, and on a locked preview it printed a fallback
+                      percentage the course had never set. */}
+                  {(lessonSlideCount > 0 || exerciseCount > 0 || xpOnOffer > 0) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {[
+                        ...(lessonSlideCount > 0 ? [{ icon: Video,      label: lessonSlideCount === 1 ? 'Lesson' : 'Lessons', value: String(lessonSlideCount) }] : []),
+                        ...(exerciseCount > 0 ? [{ icon: ListChecks, label: exerciseCount === 1 ? 'Exercise' : 'Exercises', value: String(exerciseCount) }] : []),
+                        ...(xpOnOffer     > 0 ? [{ icon: Zap,        label: 'Total XP', value: `${xpOnOffer.toLocaleString()} XP` }] : []),
+                      ].map(({ icon: StatIcon, label, value }) => (
+                        <div key={label} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                            <StatIcon style={{ width: 14, height: 14, color: cp.muted, flexShrink: 0 }} strokeWidth={2.1} />
+                            <span style={{ fontSize: 12, fontWeight: 600, color: cp.muted, textTransform: 'uppercase' as const, letterSpacing: '0.06em' }}>{label}</span>
+                          </span>
+                          <span style={{ fontSize: 16, fontWeight: 800, color: accentColor, flexShrink: 0 }}>{value}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                   {/* CTA */}
                   {form.locked ? (
                     <>

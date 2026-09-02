@@ -160,6 +160,47 @@ describe('public catalogue preview', () => {
     expect(served).not.toContain('correctAnswer');
   });
 
+  it('carries the course appearance and content counts, but not the scoring config behind them', async () => {
+    // The detail page has no other source for these on a locked course, so without them a paid
+    // course was advertised in the page's own fallback theme rather than its own.
+    //
+    // The counts and the XP are computed here because exercises are the one thing the outline
+    // deliberately withholds: two gradeable questions at 40 base points each, against one lesson
+    // and a section, neither of which is an exercise or earns anything.
+    h.row.mockImplementation((table) => table === 'courses' ? {
+      id: 'c10', title: 'Paid course', slug: 'paid-course', cover_image: null,
+      description: null, category: null, available_to_everyone: false, status: 'published',
+      mode: 'light', theme: 'ocean', font: 'inter', custom_accent: '#123456',
+      points_enabled: true, points_base: 40,
+      points_system: { enabled: true, basePoints: 40, hintPenalty: 99 },
+      questions: [
+        { id: 's1', isSection: true, sectionTitle: 'Foundations' },
+        { id: 'l1', lessonOnly: true, lesson: { title: 'Joins explained' } },
+        { id: 'q1', question: 'Which join keeps unmatched rows?' },
+        { id: 'q2', question: 'What does GROUP BY do?' },
+      ],
+    } : null);
+    h.loadPlansForContent.mockResolvedValue([
+      { id: 'plan-1', name: 'Pro', description: null, prices: [
+        { id: 'p1', durationMonths: 1, amount: 100, currency: 'GHS' },
+      ] },
+    ]);
+
+    const res = await GET(request('?ref=paid-course&type=course'));
+    const { item } = await res.json();
+
+    expect(item.outline.map((row: any) => row.title)).toEqual(['Foundations', 'Joins explained']);
+    expect(item.mode).toBe('light');
+    expect(item.theme).toBe('ocean');
+    expect(item.font).toBe('inter');
+    expect(item.customAccent).toBe('#123456');
+    expect(item.lessonCount).toBe(1);
+    expect(item.exerciseCount).toBe(2);
+    expect(item.xpOnOffer).toBe(80);
+    expect(JSON.stringify(item)).not.toContain('hintPenalty');
+    expect(JSON.stringify(item)).not.toContain('points_system');
+  });
+
   it('requires a ref', async () => {
     const res = await GET(request(''));
     expect(res.status).toBe(400);

@@ -202,19 +202,32 @@ describe('GET /api/student/catalogue', () => {
       id: 'c7', title: 'Locked course', slug: 'locked-course', cover_image: 'cover.jpg',
       description: 'Overview', category: 'Data', cohort_ids: ['another-cohort'],
       available_to_everyone: false,
+      mode: 'light', theme: 'ocean', font: 'inter', custom_accent: '#123456',
+      points_enabled: true, points_base: 50,
+      points_system: { enabled: true, basePoints: 50 },
       questions: [
         { id: 'section-1', isSection: true, sectionTitle: 'Foundations' },
-        { id: 'lesson-1', lesson: { title: 'Introduction', body: 'Hidden lesson body' }, correctAnswer: 'secret' },
+        { id: 'lesson-1', lessonOnly: true, lesson: { title: 'Introduction', body: 'Hidden lesson body' } },
+        { id: 'q-1', question: 'Which join keeps unmatched rows?', correctAnswer: 'secret' },
       ],
     }] : []);
 
     const res = await GET(request('?ref=locked-course&type=course'));
     const { item } = await res.json();
 
+    // Appearance and the XP total are here on purpose: the locked detail page has no other
+    // source for them, and without them it renders the course in its own fallback theme.
+    // The scoring config that produced the total does not travel -- only the total.
+    //
+    // The counts and the XP are the reason this is computed server-side: exercises are exactly
+    // what the outline withholds, so the page can neither count them nor total their XP. One
+    // lesson, one gradeable question at 50 base points, and a section that is neither.
     expect(item).toEqual({
       id: 'c7', type: 'course', title: 'Locked course', slug: 'locked-course',
       coverImage: 'cover.jpg', description: 'Overview', category: 'Data', locked: true,
       unlock: { plans: [] },
+      mode: 'light', theme: 'ocean', font: 'inter', customAccent: '#123456',
+      lessonCount: 1, exerciseCount: 1, xpOnOffer: 50,
       outline: [
         { id: 'section-1', type: 'section', title: 'Foundations' },
         { id: 'lesson-1', type: 'lesson', title: 'Introduction' },

@@ -25,6 +25,8 @@ import {
   loadPlansForContent,
   type PurchasableContentTable,
 } from '@/lib/subscription-plan-access';
+import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
+import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 
 export const dynamic = 'force-dynamic';
 
@@ -157,9 +159,13 @@ export async function GET(req: NextRequest) {
       }
 
       if (type === 'course') {
+        // Appearance and the "what you get" counts ride along with the outline. They are
+        // presentation, not content: without them the locked detail page falls back to its own
+        // defaults and shows the wrong theme, accent and font for the course being sold, and it
+        // can say nothing about the exercises the outline withholds.
         const { data: course, error: outlineError } = await db
           .from('courses')
-          .select('questions')
+          .select('questions, mode, theme, font, custom_accent, points_enabled, points_base, points_system')
           .eq('id', record.id)
           .maybeSingle();
         if (outlineError) throw outlineError;
@@ -172,7 +178,18 @@ export async function GET(req: NextRequest) {
           }
           return [];
         });
-        return NextResponse.json({ item: { ...item, outline } });
+        const contentCounts = courseContentCounts((course as any)?.questions ?? []);
+        return NextResponse.json({ item: {
+          ...item,
+          outline,
+          mode: (course as any)?.mode ?? null,
+          theme: (course as any)?.theme ?? null,
+          font: (course as any)?.font ?? null,
+          customAccent: (course as any)?.custom_accent ?? null,
+          lessonCount: contentCounts.lessons,
+          exerciseCount: contentCounts.exercises,
+          xpOnOffer: courseXpOnOffer((course as any)?.questions ?? [], pointsSystemFromCourseRow(course)),
+        } });
       }
 
       return NextResponse.json({ item });
