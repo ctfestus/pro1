@@ -20,6 +20,15 @@ import { PricingHero } from '@/components/pricing/PricingHero';
 import { featuredOffer, featuredOfferForDuration } from '@/lib/pricing-offer';
 import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
+import { FONTS } from '@/lib/fonts';
+
+function fontStylesheetUrl(fontName?: string): string | null {
+  if (!fontName || fontName === 'Inter' || fontName === 'Google Sans Text') return null;
+  const option = FONTS.find(font => font.name === fontName);
+  return option?.googleFamily
+    ? `https://fonts.googleapis.com/css2?family=${option.googleFamily}&display=swap`
+    : null;
+}
 
 export interface PricingPageClientProps extends PricingPageData {
   /** The resolved site settings, so the shared chrome renders exactly as it does on the landing page. */
@@ -74,10 +83,16 @@ export function PricingPageClient(props: PricingPageClientProps) {
   }, []);
 
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
+  const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
+  const fontStylesheets = [...new Set([
+    fontStylesheetUrl(headingFont),
+    fontStylesheetUrl(bodyFont),
+  ].filter((url): url is string => !!url))];
   const finalCtaHref = signedIn ? '/student#payments' : '/auth?mode=signup';
 
   return (
-    <main className="min-h-screen pt-16" style={{ background: '#F3F6F5' }}>
+    <main className="min-h-screen pt-16" style={{ background: '#F3F6F5', fontFamily: bFont }}>
+      {fontStylesheets.map(url => <link key={url} rel="stylesheet" href={url} />)}
       <LandingNav
         appName={appName}
         logoUrl={logoUrl}
@@ -88,6 +103,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
         publicSignupEnabled={publicSignupEnabled}
         primaryColor={primaryColor}
         accentColor={accentColor}
+        fontFamily={bFont}
         navLinks={[
           { label: 'Courses', anchor: 'section-courses' },
           { label: 'Learning Paths', anchor: 'section-paths' },
@@ -123,6 +139,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
         <PricingFaq
           headingFont={headingFont}
+          bodyFont={bodyFont}
           supportEmail={supportEmail}
           paidPlanName={props.plans.length === 1 ? props.plans[0].name : undefined}
         />
@@ -148,6 +165,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
       <LandingFooter
         appName={appName}
         primaryColor={primaryColor}
+        fontFamily={bFont}
         user={user}
         footerTagline={siteConfig.footerTagline}
         footerLinksHeading={siteConfig.footerLinksHeading}

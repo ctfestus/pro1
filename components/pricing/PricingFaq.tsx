@@ -12,13 +12,15 @@ import { ChevronDown, MessageCircleQuestion } from 'lucide-react';
 
 export interface PricingFaqProps {
   headingFont?: string;
+  bodyFont?: string;
   supportEmail?: string;
   /** Named so an answer can refer to the paid tier by the name an admin gave it. */
   paidPlanName?: string;
 }
 
-export function PricingFaq({ headingFont, supportEmail, paidPlanName }: PricingFaqProps) {
+export function PricingFaq({ headingFont, bodyFont, supportEmail, paidPlanName }: PricingFaqProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
+  const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
   const paid = paidPlanName || 'a paid plan';
 
   const faqs: { q: string; a: string }[] = [
@@ -53,7 +55,7 @@ export function PricingFaq({ headingFont, supportEmail, paidPlanName }: PricingF
   ];
 
   return (
-    <section className="mt-20">
+    <section className="mt-20" style={{ fontFamily: bFont }}>
       <div className="grid gap-8 lg:grid-cols-[0.68fr_1.32fr] lg:gap-12">
         <div>
           <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white" style={{ color: '#344054', boxShadow: '0 8px 28px rgba(16,24,40,0.08)' }}>
