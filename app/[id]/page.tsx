@@ -1401,6 +1401,9 @@ export default function PublicFormPage() {
     // lessonSlideCount is teaching slides; lessonCount below is how many rows the outline renders,
     // which also includes a graded question that carries lesson content. Two different questions,
     // so two different numbers.
+    // A slab of bright accent is wrong on a dark page, so dark mode gets a plain dark surface with
+    // no colour cast over it -- the light on it is white, the same light the accent panel gets.
+    const bannerBg = dark ? '#0A0B0E' : C.cta;
     const authoredCounts = courseContentCounts(questions);
     const lessonSlideCount = typeof form.lessonCount === 'number' ? form.lessonCount : authoredCounts.lessons;
     const exerciseCount = typeof form.exerciseCount === 'number' ? form.exerciseCount : authoredCounts.exercises;
@@ -1444,24 +1447,31 @@ export default function PublicFormPage() {
             corner. The text column is held clear of that overlap. */}
         {!courseStarted && (
           <div className="px-4 pt-3 sm:px-4 sm:pt-5" style={{ maxWidth: 1140, margin: '0 auto', width: '100%' }}>
-            <div className="rounded-[18px] sm:rounded-[28px]" style={{ position: 'relative', minHeight: 'clamp(200px, 34vw, 360px)', background: C.cta, overflow: 'hidden', display: 'flex', alignItems: 'flex-end', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.34)' }}>
-              {/* Depth is built from white and black over the tenant accent rather than from a
-                  second colour, so it holds up whatever primaryColor a tenant sets: a highlight
-                  raking in from the top right, weight falling away at the bottom left, and a fine
-                  grid that fades out before it reaches the text. */}
-              <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'radial-gradient(115% 95% at 88% -12%, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.10) 34%, transparent 62%)' }} />
-              <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'radial-gradient(90% 120% at 0% 115%, rgba(0,0,0,0.34) 0%, transparent 58%)' }} />
-              <div
-                aria-hidden
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)',
-                  backgroundSize: '44px 44px',
-                  WebkitMaskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
-                  maskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
-                }}
-              />
+            <div className="rounded-[18px] sm:rounded-[28px]" style={{ position: 'relative', minHeight: 'clamp(200px, 34vw, 360px)', background: bannerBg, overflow: 'hidden', display: 'flex', alignItems: 'flex-end', boxShadow: `inset 0 1px 0 ${dark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.34)'}` }}>
+              {/* Depth is a light source rather than a second colour, so it holds up whatever
+                  primaryColor a tenant sets: a highlight raking in from the top right, weight
+                  falling away at the bottom left, and a fine grid that fades out before it reaches
+                  the text. In light mode the panel is the brand colour; in dark it is a plain dark
+                  surface. Either way the only thing on top of it is white and black. */}
+              <div aria-hidden style={{ position: 'absolute', inset: 0, background: dark
+                ? 'radial-gradient(115% 95% at 88% -12%, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 36%, transparent 66%)'
+                : 'radial-gradient(115% 95% at 88% -12%, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.10) 34%, transparent 62%)' }} />
+              <div aria-hidden style={{ position: 'absolute', inset: 0, background: `radial-gradient(90% 120% at 0% 115%, rgba(0,0,0,${dark ? 0.55 : 0.34}) 0%, transparent 58%)` }} />
+              {/* Light mode only. On the dark panel the same grid reads as a visible box pattern
+                  rather than texture, so dark mode gets a plain surface. */}
+              {!dark && (
+                <div
+                  aria-hidden
+                  style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)',
+                    backgroundSize: '44px 44px',
+                    WebkitMaskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
+                    maskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
+                  }}
+                />
+              )}
               <div className="px-5 pt-6 pb-10 sm:px-8 sm:pt-[34px] sm:pb-[62px]" style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 720 }}>
                 {(() => {
                   const tags = [
