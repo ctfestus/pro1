@@ -64,6 +64,7 @@ export interface LandingNavProps {
   publicSignupEnabled: boolean;
   primaryColor?: string;
   accentColor?: string;
+  fontFamily?: string;
   navLinks: Array<{ label: string; anchor: string }>;
   /** Supply to turn the section links into ordinary links, for pages without those sections. */
   navLinkHref?: (anchor: string) => string;
@@ -73,6 +74,7 @@ export interface LandingFooterProps {
   appName: string;
   isPageDark?: boolean;
   primaryColor?: string;
+  fontFamily?: string;
   user: any;
   footerTagline?: string;
   footerLinksHeading?: string;
@@ -83,7 +85,12 @@ export interface LandingFooterProps {
 }
 
 // --- Nav profile menu ---
-export function NavProfileMenu({ user, profile, pageDark }: { user: any; profile: any; pageDark?: boolean }) {
+export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
+  user: any;
+  profile: any;
+  pageDark?: boolean;
+  fontFamily?: string;
+}) {
   const { theme } = useTheme();
   const isDark = pageDark ?? (theme === 'dark');
   const [open, setOpen] = useState(false);
@@ -160,7 +167,7 @@ export function NavProfileMenu({ user, profile, pageDark }: { user: any; profile
             className="absolute right-0 top-full mt-2 w-64 rounded-2xl overflow-hidden z-50"
             style={{
               background: card,
-              fontFamily: "'Inter', sans-serif",
+              fontFamily: fontFamily || "'Inter', sans-serif",
               boxShadow: isDark
                 ? '0 20px 60px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.07)'
                 : '0 20px 60px rgba(0,0,0,0.13), 0 0 0 1px rgba(0,0,0,0.06)',
@@ -211,7 +218,7 @@ export function NavProfileMenu({ user, profile, pageDark }: { user: any; profile
 
 export function LandingNav({
   appName, logoUrl, logoDarkUrl, isPageDark, scrolled, user, profile,
-  publicSignupEnabled, primaryColor, accentColor, navLinks, navLinkHref,
+  publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref,
 }: LandingNavProps) {
   const NAVY  = '#003262';
   const BLUE  = primaryColor || '#0056D2';
@@ -225,6 +232,7 @@ export function LandingNav({
           backdropFilter: scrolled ? 'blur(14px) saturate(1.5)' : undefined,
           WebkitBackdropFilter: scrolled ? 'blur(14px) saturate(1.5)' : undefined,
           boxShadow: scrolled ? `0 2px 20px rgba(0,0,0,${isPageDark ? '0.4' : '0.09'})` : 'none',
+          fontFamily,
         }}>
         <div className="max-w-[1240px] mx-auto px-6 md:px-10 h-16 flex items-center">
           <div className="flex items-center gap-2.5 mr-8 flex-shrink-0">
@@ -259,7 +267,7 @@ export function LandingNav({
               style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
               Pricing
             </Link>
-            {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} /> : (
+            {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} fontFamily={fontFamily} /> : (
               <>
                 <Link href="/auth"
                   className="px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
@@ -284,12 +292,12 @@ export function LandingNav({
 }
 
 export function LandingFooter({
-  appName, isPageDark, primaryColor, user, footerTagline, footerLinksHeading,
+  appName, isPageDark, primaryColor, fontFamily, user, footerTagline, footerLinksHeading,
   footerLink1Label, footerLink1Url, footerLink2Label, footerLink2Url,
   footerLink3Label, footerLink3Url, footerLink4Label, footerLink4Url,
 }: LandingFooterProps) {
   return (
-      <footer style={{ background: isPageDark ? '#0D1117' : (primaryColor || '#0056D2') }}>
+      <footer style={{ background: isPageDark ? '#0D1117' : (primaryColor || '#0056D2'), fontFamily }}>
         <div className="max-w-[1240px] mx-auto px-6 md:px-10 pt-12 pb-9">
           <div className="grid grid-cols-2 md:grid-cols-3 gap-8 mb-10">
             <Reveal y={18} className="col-span-2 md:col-span-1">
