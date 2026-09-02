@@ -18,6 +18,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
+import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import {
   loadPlansForContent,
   type PlanWithPrices,
@@ -211,7 +213,15 @@ export async function GET(req: NextRequest) {
       }
 
       if (item.type === 'course' && item.locked) {
-        const { data: course } = await db.from('courses').select('questions').eq('id', item.id).maybeSingle();
+        // Appearance and the "what you get" counts join the title-only outline. They are
+        // presentation, not content: without them the locked detail page falls back to its own
+        // defaults and shows the wrong theme, accent and font for the course being sold, and it
+        // can say nothing about the exercises the outline withholds.
+        const { data: course } = await db
+          .from('courses')
+          .select('questions, mode, theme, font, custom_accent, points_enabled, points_base, points_system')
+          .eq('id', item.id)
+          .maybeSingle();
         const outline = ((course?.questions ?? []) as any[]).flatMap(question => {
           if (question?.isSection && question.sectionTitle) {
             return [{ id: String(question.id), type: 'section', title: String(question.sectionTitle) }];
@@ -221,7 +231,18 @@ export async function GET(req: NextRequest) {
           }
           return [];
         });
-        return NextResponse.json({ item: { ...item, outline } });
+        const contentCounts = courseContentCounts(course?.questions ?? []);
+        return NextResponse.json({ item: {
+          ...item,
+          outline,
+          mode: course?.mode ?? null,
+          theme: course?.theme ?? null,
+          font: course?.font ?? null,
+          customAccent: course?.custom_accent ?? null,
+          lessonCount: contentCounts.lessons,
+          exerciseCount: contentCounts.exercises,
+          xpOnOffer: courseXpOnOffer(course?.questions ?? [], pointsSystemFromCourseRow(course)),
+        } });
       }
       return NextResponse.json({ item });
     }

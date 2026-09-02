@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 
 import {
-  courseProgressCounts, courseProgressPct, answeredScorableCount, courseXpOnOffer, isCountableSlide,
+  courseProgressCounts, courseProgressPct, answeredScorableCount, courseContentCounts, courseXpOnOffer,
+  isCountableSlide,
 } from '@/lib/course-progress';
 import { DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 
@@ -95,6 +96,29 @@ describe('answeredScorableCount', () => {
 
   it('counts nothing when nothing scorable is answered', () => {
     expect(answeredScorableCount([lesson('l')], answered('l'))).toBe(0);
+  });
+});
+
+describe('courseContentCounts', () => {
+  it('splits teaching slides from exercises', () => {
+    expect(courseContentCounts([lesson('l1'), lesson('l2'), q('a')])).toEqual({ lessons: 2, exercises: 1 });
+  });
+
+  it('counts SQL and Python exercises as exercises, not lessons', () => {
+    const questions = [{ id: 's', type: 'sql_exercise' }, { id: 'p', type: 'python_exercise' }];
+    expect(courseContentCounts(questions)).toEqual({ lessons: 0, exercises: 2 });
+  });
+
+  // Nobody enrols because a course has a section divider, a downloads block or a share slide, and
+  // counting them as exercises would advertise practice the course does not contain.
+  it('counts sections, downloads and share slides as neither', () => {
+    const questions = [section('s'), download('d'), share('sh'), optionalShare('sh2')];
+    expect(courseContentCounts(questions)).toEqual({ lessons: 0, exercises: 0 });
+  });
+
+  it('reads an empty or missing course as zero of each', () => {
+    expect(courseContentCounts([])).toEqual({ lessons: 0, exercises: 0 });
+    expect(courseContentCounts(undefined as any)).toEqual({ lessons: 0, exercises: 0 });
   });
 });
 
