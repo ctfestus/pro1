@@ -6,6 +6,8 @@ import ThemeProvider from '@/components/ThemeProvider';
 import NavigationProgress from '@/components/NavigationProgress';
 import SessionInactivityGuard from '@/components/SessionInactivityGuard';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { getLandingSiteSettingsOrDefault } from '@/lib/get-landing-page-data';
+import { resolveConfig } from '@/lib/site-templates';
 import { TenantProvider } from '@/components/TenantProvider';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 import InstallAppButton from '@/components/InstallAppButton';
@@ -49,11 +51,25 @@ export async function generateMetadata(): Promise<Metadata> {
 // Next.js uses the nonce on the <html> element to stamp its own inline bootstrap
 // scripts, satisfying the nonce-based CSP without needing unsafe-inline.
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const [headerStore, tenantSettings] = await Promise.all([
+  const [headerStore, tenantSettings, site] = await Promise.all([
     headers(),
     getTenantSettings(),
+    getLandingSiteSettingsOrDefault(),
   ]);
   const nonce = headerStore.get('x-nonce') ?? '';
+
+  // The brand colours an admin actually sets live in Site settings, which is what the landing and
+  // pricing pages read. getTenantSettings() maps primaryColor/accentColor from platform_settings,
+  // which has no such columns, so it always fell through to the library default -- and every
+  // C.cta in the app rendered #2563eb rather than the configured colour, while the pricing hero
+  // beside it rendered the real one. One source, resolved the same way the pricing page resolves
+  // it, so template defaults still apply when a tenant has saved no colour of its own.
+  const siteConfig = resolveConfig(site.template, site.config);
+  const branding = {
+    ...tenantSettings,
+    primaryColor: siteConfig.primaryColor || tenantSettings.primaryColor,
+    accentColor:  siteConfig.accentColor  || tenantSettings.accentColor,
+  };
 
   return (
     <html lang="en" nonce={nonce} className={`${inter.variable} ${playfair.variable} ${jetbrainsMono.variable} ${lato.variable}`} suppressHydrationWarning>
@@ -61,7 +77,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         {/* Google Sans Text is a recent Google Fonts family not exposed by next/font here, so load it via a stylesheet link (React 19 hoists this to <head>). Used by the course/lesson font picker and the certificate font option. */}
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" />
         <NavigationProgress />
-        <TenantProvider initialSettings={tenantSettings}>
+        <TenantProvider initialSettings={branding}>
           <ThemeProvider>
             <SessionInactivityGuard />
             <ServiceWorkerRegistrar />
