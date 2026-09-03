@@ -201,6 +201,115 @@ describe('public catalogue preview', () => {
     expect(JSON.stringify(item)).not.toContain('points_system');
   });
 
+  it('fills in the real VE overview for a locked virtual experience, without the work itself', async () => {
+    // A virtual experience used to fall through to a second, simpler overview page for anyone who
+    // could not open it. One overview now, so the preview has to carry what that page shows --
+    // company, role, tools, guide, appearance and the module titles -- while the brief, the
+    // mission bodies, the requirements and the dataset stay on the server.
+    h.row.mockImplementation((table) => table === 'virtual_experiences' ? {
+      id: 'v1', title: 'Fintech Virtual Experience', slug: 'fintech-ve', cover_image: 'cover.jpg',
+      description: 'Ship a payments dashboard', available_to_everyone: false, status: 'published',
+      industry: 'fintech', role: 'Data Analyst', company: 'Acme Pay', tagline: 'Two weeks on the job',
+      difficulty: 'intermediate', duration: '2 weeks',
+      tools: ['Excel', 'SQL'], tool_logos: { SQL: 'sql.png' },
+      learn_outcomes: ['Build a KPI dashboard'],
+      manager_name: 'Ada', manager_title: 'Head of Analytics',
+      guide_id: 'g1', guide_snapshot: { fullName: 'Ada Boateng' },
+      mode: 'dark', theme: 'ocean', font: 'inter', custom_accent: '#123456',
+      background: 'SECRET BRIEF',
+      dataset: { csvContent: 'SECRET CSV' },
+      modules: [
+        { id: 'm1', title: 'Week one', lessons: [
+          { id: 'l1', title: 'Meet the team', body: 'SECRET BODY', requirements: ['SECRET DELIVERABLE'] },
+        ] },
+      ],
+    } : null);
+    h.loadPlansForContent.mockResolvedValue([
+      { id: 'plan-1', name: 'Pro', description: null, prices: [
+        { id: 'p1', durationMonths: 1, amount: 100, currency: 'GHS' },
+      ] },
+    ]);
+
+    const res = await GET(request('?ref=fintech-ve&type=virtual_experience'));
+    const { item } = await res.json();
+    const served = JSON.stringify(item);
+
+    expect(item.company).toBe('Acme Pay');
+    expect(item.role).toBe('Data Analyst');
+    expect(item.industry).toBe('fintech');
+    expect(item.tools).toEqual(['Excel', 'SQL']);
+    expect(item.learnOutcomes).toEqual(['Build a KPI dashboard']);
+    expect(item.mode).toBe('dark');
+    expect(item.customAccent).toBe('#123456');
+    expect(item.outline).toEqual([
+      { id: 'm1', title: 'Week one', lessons: [{ id: 'l1', title: 'Meet the team' }] },
+    ]);
+
+    expect(served).not.toContain('SECRET BRIEF');
+    expect(served).not.toContain('SECRET BODY');
+    expect(served).not.toContain('SECRET DELIVERABLE');
+    expect(served).not.toContain('SECRET CSV');
+    expect(served).not.toContain('requirements');
+  });
+
+  it('fills in the real certification overview without ever shipping the exam', async () => {
+    // A certification's questions were never in its overview payload -- they are handed out when
+    // the clock starts. The preview keeps that exactly: a count and the section names, no text,
+    // no options, no answer keys.
+    h.row.mockImplementation((table) => table === 'certifications' ? {
+      id: 'c9', title: 'Excel Analyst', slug: 'excel-analyst', cover_image: 'cover.jpg',
+      description: 'Prove your Excel skills', available_to_everyone: false, status: 'published',
+      passmark: 70, time_limit: 20, max_attempts: 2, question_pool_size: 0, exam_protection: false,
+      skill_areas: [{ id: 's1', name: 'Formulas' }],
+      study_guide_published: true, study_guide_url: 'SECRET-GUIDE.pdf', study_guide_name: 'Study guide',
+      poster_published: true, poster_url: 'SECRET-POSTER.png',
+      practice_test_url: 'https://example.com/SECRET-PRACTICE',
+      prep_items: [{ id: 'SECRET-PREP', type: 'course' }],
+      playground_data: { tables: ['SECRET-TABLE'] },
+      practice_questions: [{ id: 'p1', question: 'SECRET PRACTICE QUESTION' }],
+      questions: [
+        { id: 'q1', section: 'practical', question: 'SECRET QUESTION', options: ['SECRET OPTION'], correctAnswer: 'SECRET ANSWER', explanation: 'SECRET WHY' },
+        { id: 'q2', section: 'practical', question: 'SECRET QUESTION 2', correctAnswer: 'SECRET ANSWER 2' },
+        { id: 's0', isSection: true },
+      ],
+    } : null);
+    h.loadPlansForContent.mockResolvedValue([
+      { id: 'plan-1', name: 'Pro', description: null, prices: [
+        { id: 'p1', durationMonths: 1, amount: 100, currency: 'GHS' },
+      ] },
+    ]);
+
+    const res = await GET(request('?ref=excel-analyst&type=certification'));
+    const { item } = await res.json();
+    const served = JSON.stringify(item);
+
+    expect(item.config.questionCount).toBe(2);
+    expect(item.config.passmark).toBe(70);
+    expect(item.config.timeLimit).toBe(20);
+    expect(item.config.sections).toEqual(['practical']);
+    expect(item.config.questions).toBeUndefined();
+
+    // A certification configured WITHOUT exam protection must say so. The taker reads a missing
+    // value as protected, so dropping this field made every locked certification warn about a
+    // protected exam whether or not it is one.
+    expect(item.config.examProtection).toBe(false);
+
+    // Preparation material is part of what the certification sells. A viewer who cannot sit the
+    // exam gets none of it: no study guide, no poster, no practice test, no practice bank, no
+    // prep items, no playground data. Absent, not merely hidden by the page.
+    for (const field of ['studyGuide', 'poster', 'practiceTestUrl', 'prepItems', 'playgroundData', 'practiceCount']) {
+      expect(item.config[field]).toBeUndefined();
+    }
+
+    for (const secret of [
+      'SECRET QUESTION', 'SECRET OPTION', 'SECRET ANSWER', 'SECRET WHY',
+      'SECRET-GUIDE', 'SECRET-POSTER', 'SECRET-PRACTICE', 'SECRET-PREP', 'SECRET-TABLE',
+      'SECRET PRACTICE QUESTION',
+    ]) {
+      expect(served).not.toContain(secret);
+    }
+  });
+
   it('requires a ref', async () => {
     const res = await GET(request(''));
     expect(res.status).toBe(400);

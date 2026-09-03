@@ -16,6 +16,7 @@ import PythonExercisePlayer from '@/components/sql-course/PythonExercisePlayer';
 import { CertificationPlayground } from '@/components/CertificationPlayground';
 import { ScoreGauge } from '@/components/ScoreGauge';
 import { HoverPreviewCard } from '@/components/student/shared';
+import Link from 'next/link';
 import { useTenant } from '@/components/TenantProvider';
 import { supabase } from '@/lib/supabase';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -38,6 +39,12 @@ interface Props {
   logoUrl?: string;
   logoDarkUrl?: string;
   onExit: () => void;
+  /** Viewer has no access yet: show the overview, but sell it instead of starting it. */
+  locked?: boolean;
+  /** CTA wording for a locked viewer, e.g. "Enroll with Basic". */
+  unlockLabel?: string;
+  /** Where that CTA goes: pricing for content they cannot open, sign-in for content they can. */
+  unlockHref?: string;
 }
 
 const isExerciseType = (t?: string) => t === 'sql_exercise' || t === 'python_exercise';
@@ -110,7 +117,7 @@ export function CertificationResultSummary({ result, passmark, isPreview = false
 
 export default function CertificationTaker({
   certificationId, slug, config, studentName, studentEmail, sessionToken,
-  isDark, accentColor, logoUrl, logoDarkUrl, onExit,
+  isDark, accentColor, logoUrl, logoDarkUrl, onExit, locked = false, unlockLabel = 'Enroll', unlockHref = '/pricing',
 }: Props) {
   // Platform branding colours, used for the OVERVIEW only (the exam keeps the content `accentColor`):
   // - tenantBrand = Brand Colour (`brand_color`) -> the hero band. The OVERVIEW uses the BRAND color
@@ -217,6 +224,8 @@ export default function CertificationTaker({
 
   // -- Initial load: resume / blocked / already-passed --
   useEffect(() => {
+    // A locked viewer has no attempts to resume, and get-progress would refuse them anyway.
+    if (locked) { setPhase('intro'); return; }
     let cancelled = false;
     (async () => {
       try {
@@ -770,7 +779,9 @@ export default function CertificationTaker({
           {logo ? <img src={logo} alt="" style={{ height: 26, maxWidth: '40vw', objectFit: 'contain' }} /> : <span style={{ fontWeight: 800, fontSize: 15, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{title}</span>}
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
             <button onClick={onExit} style={{ color: ov.muted, fontSize: 13, display: 'inline-flex', alignItems: 'center', gap: 6 }}><X className="w-4 h-4" /> Exit</button>
-            <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, padding: '9px 18px', fontSize: 13.5, whiteSpace: 'nowrap', ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake unavailable' : ctaLabel}</button>
+            {locked
+              ? <Link href={unlockHref} className="cert-cta" style={{ ...ctaPrimary, padding: '9px 18px', fontSize: 13.5, whiteSpace: 'nowrap', textDecoration: 'none' }}>{unlockLabel}</Link>
+              : <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, padding: '9px 18px', fontSize: 13.5, whiteSpace: 'nowrap', ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake unavailable' : ctaLabel}</button>}
           </div>
         </div>
 
@@ -809,9 +820,14 @@ export default function CertificationTaker({
             <h1 style={{ fontSize: 'clamp(34px, 5vw, 56px)', fontWeight: 650, lineHeight: 1.1, marginBottom: 18, letterSpacing: '-0.022em', color: ov.text }}>{title}</h1>
             {config?.description && <p style={{ fontSize: isMobile ? 16 : 18, color: ov.muted, lineHeight: 1.65, marginBottom: 28, maxWidth: 640 }}>{config.description}</p>}
             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-              <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake not available yet' : ctaLabel}<ChevronRight className="w-4 h-4" /></button>
-              {practiceCount > 0 && <button onClick={startPractice} disabled={starting} className="cert-cta" style={{ background: ov.surface, color: ov.text, fontWeight: 650, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}>Practice run</button>}
-              {practiceTestUrl && <a href={practiceTestUrl} target="_blank" rel="noreferrer" className="cert-cta" style={{ background: ov.surface, color: ov.text, fontWeight: 650, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>Practice test</a>}
+              {locked
+                ? <Link href={unlockHref} className="cert-cta" style={{ ...ctaPrimary, textDecoration: 'none' }}>{unlockLabel}<ChevronRight className="w-4 h-4" /></Link>
+                : <button onClick={startExam} disabled={starting || retakeBlocked} className="cert-cta" style={{ ...ctaPrimary, ...(retakeBlocked ? { opacity: 0.6, cursor: 'not-allowed' } : {}) }}>{starting && <Loader2 className="w-4 h-4 animate-spin" />}{retakeBlocked ? 'Retake not available yet' : ctaLabel}<ChevronRight className="w-4 h-4" /></button>}
+              {/* Preparation is part of what a certification sells, so a viewer who cannot sit the
+                  exam cannot practise for it either. The preview config carries none of this; the
+                  guard is here so a full config can never make these clickable for them. */}
+              {!locked && practiceCount > 0 && <button onClick={startPractice} disabled={starting} className="cert-cta" style={{ background: ov.surface, color: ov.text, fontWeight: 650, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8 }}>Practice run</button>}
+              {!locked && practiceTestUrl && <a href={practiceTestUrl} target="_blank" rel="noreferrer" className="cert-cta" style={{ background: ov.surface, color: ov.text, fontWeight: 650, fontSize: 15, padding: '13px 24px', borderRadius: 12, display: 'inline-flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>Practice test</a>}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px 20px', marginTop: 24, color: ov.muted, fontSize: 13 }}>
               {['Official credential', 'Shareable certificate', 'Publicly verifiable'].map(label => <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 7 }}><CheckCircle2 style={{ width: 15, height: 15, color: signalColor }} />{label}</span>)}
@@ -824,7 +840,12 @@ export default function CertificationTaker({
               <div style={{ position: 'absolute', inset: 0, opacity: isDark ? 0.24 : 0.32, backgroundImage: `repeating-radial-gradient(ellipse at 86% 22%, transparent 0 9px, ${tint(0.12)} 10px 11px, transparent 12px 17px)`, pointerEvents: 'none' }} />
               <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 650, color: ov.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orgName || appName || 'AI Skills Africa'}</div>
+                  {/* The issuer, from tenant settings. No hardcoded fallback: a credential naming
+                      the wrong organisation is worse than one naming none, and this platform is
+                      multi-tenant. */}
+                  {(orgName || appName) && (
+                    <div style={{ fontSize: 12.5, fontWeight: 650, color: ov.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orgName || appName}</div>
+                  )}
                 </div>
                 <span style={{ flexShrink: 0, padding: '6px 9px', borderRadius: 999, background: tint(0.1), color: signalColor, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{config?.certType === 'career' ? 'Career' : 'Technology'}</span>
               </div>
@@ -956,7 +977,7 @@ export default function CertificationTaker({
           </section>
 
           {/* Prepare / resources */}
-          {resources.length > 0 && (
+          {!locked && resources.length > 0 && (
             <section className="cert-reveal" style={sectionStyle}>
               <div style={eyebrow}>Resources</div>
               <h2 style={h2}>Exam resources</h2>

@@ -27,6 +27,8 @@ import {
 } from '@/lib/subscription-plan-access';
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
+import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
+import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 
 export const dynamic = 'force-dynamic';
 
@@ -190,6 +192,32 @@ export async function GET(req: NextRequest) {
           exerciseCount: contentCounts.exercises,
           xpOnOffer: courseXpOnOffer((course as any)?.questions ?? [], pointsSystemFromCourseRow(course)),
         } });
+      }
+
+      // A locked virtual experience fills in the real VE overview rather than a second, simpler
+      // page. Display fields and title-only module names; the brief, lesson bodies, requirements
+      // and dataset stay on the server.
+      if (type === 'virtual_experience') {
+        const { data: ve, error: veError } = await db
+          .from('virtual_experiences')
+          .select(VE_PREVIEW_COLUMNS)
+          .eq('id', record.id)
+          .maybeSingle();
+        if (veError) throw veError;
+        return NextResponse.json({ item: { ...item, ...vePreviewFields(ve) } });
+      }
+
+      // A certification a visitor cannot sit yet fills in its real overview. Its questions were
+      // never in the overview payload to begin with -- they are handed out when the clock starts --
+      // so this reads them only to count them and to name the sections present.
+      if (type === 'certification') {
+        const { data: cert, error: certError } = await db
+          .from('certifications')
+          .select(CERTIFICATION_PREVIEW_COLUMNS)
+          .eq('id', record.id)
+          .maybeSingle();
+        if (certError) throw certError;
+        return NextResponse.json({ item: { ...item, config: certificationPreviewConfig(cert) } });
       }
 
       return NextResponse.json({ item });
