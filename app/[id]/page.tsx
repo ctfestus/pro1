@@ -24,6 +24,7 @@ import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/v
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
 import { enrollLabel } from '@/lib/unlock-pricing';
+import { signInHref } from '@/lib/auth-redirect';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -516,6 +517,9 @@ export default function PublicFormPage() {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
+  // Send visitors back to this page after they sign in. Built from the route param rather than
+  // window.location so server and client render the same href.
+  const backHere = signInHref(`/${Array.isArray(id) ? id[0] : id}`);
   const [form, setForm] = useState<any>(null);
   const [pathPreview, setPathPreview] = useState<any>(null);
   const [signedOut, setSignedOut] = useState(false);
@@ -1052,7 +1056,7 @@ export default function PublicFormPage() {
         <h1 className="ff-pub" style={{ fontSize: 20, fontWeight: 700, color: '#111' }}>Sign in to view this</h1>
         <p className="ff-pub" style={{ fontSize: 14, color: '#555', maxWidth: 420 }}>This content is not open to everyone. Sign in with the account it was shared with, or go back to browse what is available.</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link href="/auth" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, background: '#00bf63', color: '#fff', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Sign in</Link>
+          <Link href={backHere} className="ff-pub" style={{ fontSize: 14, fontWeight: 700, background: '#00bf63', color: '#fff', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Sign in</Link>
           <Link href="/" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, color: '#344054', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Browse courses</Link>
         </div>
       </div>
@@ -1139,7 +1143,7 @@ export default function PublicFormPage() {
         logoDarkUrl={logoDarkUrl}
         locked={certNoAccess || certSignedOut}
         unlockLabel={certNoAccess ? enrollLabel(form.unlock) : 'Sign in to start'}
-        unlockHref={certNoAccess ? '/pricing' : '/auth'}
+        unlockHref={certNoAccess ? '/pricing' : backHere}
         onExit={() => { window.location.href = certAuth ? '/student' : '/'; }}
       /></>
     );
@@ -1421,7 +1425,7 @@ export default function PublicFormPage() {
                   </Link>
                 ) : signedOut ? (
                   <Link
-                    href="/auth"
+                    href={backHere}
                     style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                   >
                     Start for free <ArrowRight style={{ width: 15, height: 15 }} />
@@ -1748,7 +1752,7 @@ export default function PublicFormPage() {
                     </>
                   ) : signedOut ? (
                     <Link
-                      href="/auth"
+                      href={backHere}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                     >
                       Start for free <ArrowRight style={{ width: 15, height: 15 }} />

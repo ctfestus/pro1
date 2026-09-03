@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'; // useRef -- CAPTCHA SUSPENDED
 import { toUserFacingError } from '@/lib/user-facing-error';
 // CAPTCHA SUSPENDED -- import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile';
 import { supabase } from '@/lib/supabase';
+import { safeNextPath } from '@/lib/auth-redirect';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react';
@@ -164,7 +165,12 @@ export default function AuthPage() {
           .select('role, onboarding_done')
           .eq('id', data.session!.user.id)
           .single();
+        // Someone who came here from a course, experience or certification goes back to it
+        // rather than to their dashboard, so signing in does not cost them the thing they
+        // clicked. Onboarding still wins: an account that is not set up cannot use the content.
+        const next = safeNextPath(new URLSearchParams(window.location.search).get('next'));
         if (!student || !student.onboarding_done) window.location.href = '/onboarding';
+        else if (next) window.location.href = next;
         else if (student.role === 'student' || student.role === 'staff') window.location.href = '/student';
         else window.location.href = '/dashboard';
       } else {
