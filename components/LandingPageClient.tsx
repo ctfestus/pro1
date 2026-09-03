@@ -1290,11 +1290,34 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
   );
 }
 
-function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont, isDark, hideTitle, transparentBg, popupDark, bg }: {
+/** Four across, two down. */
+const GRID_PAGE_SIZE = 8;
+
+function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont, isDark, hideTitle, transparentBg, popupDark, bg, paged }: {
   title: string; items: ProgrammeItem[]; type: 'course' | 've' | 'path'; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean; transparentBg?: boolean; popupDark?: boolean; bg?: string;
+  /** Render as a paginated grid of twelve rather than a row that scrolls sideways. */
+  paged?: boolean;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 380, behavior: 'smooth' });
+
+  // A paged row is a GRID, not a carousel: eight cards a page, four across and two down on a
+  // large screen, with the next eight a click away. Slicing the list is the whole mechanism --
+  // there is no scroll position to measure and so nothing to drift out of step with the counter.
+  const [page, setPage] = useState(0);
+  const pages = paged ? Math.max(1, Math.ceil(items.length / GRID_PAGE_SIZE)) : 1;
+  const visible = paged ? items.slice(page * GRID_PAGE_SIZE, (page + 1) * GRID_PAGE_SIZE) : items;
+  const atStart = page <= 0;
+  const atEnd = page >= pages - 1;
+  const showControls = !paged || pages > 1;
+
+  // Only the peeking row scrolls; a grid page turns.
+  const scrollByCards = (dir: number) => {
+    if (paged) {
+      setPage(current => Math.max(0, Math.min(pages - 1, current + dir)));
+      return;
+    }
+    scrollRef.current?.scrollBy({ left: dir * 380, behavior: 'smooth' });
+  };
 
   const [hover, setHover] = useState<{ item: ProgrammeItem; left: number; top: number; originX: number; originY: number } | null>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1323,14 +1346,22 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
   return (
     <section className="rounded-2xl p-5 sm:p-6" style={{ background: rowBg }}>
       {(() => {
-        const arrowBtn = (dir: number, label: string) => (
-          <button onClick={() => scrollByCards(dir)} aria-label={label}
-            className="w-9 h-9 rounded-full grid place-items-center transition-all duration-200 hover:scale-105 active:scale-95"
-            style={{ border: `1px solid ${rowBorder}`, color: rowMuted }}
-            onMouseEnter={e => { e.currentTarget.style.background = rowText; e.currentTarget.style.borderColor = rowText; e.currentTarget.style.color = isDark ? '#111318' : '#ffffff'; }}
-            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = rowBorder; e.currentTarget.style.color = rowMuted; }}>
-            {dir < 0 ? <ChevronLeft className="w-4 h-4"/> : <ChevronRight className="w-4 h-4"/>}
-          </button>
+        const arrowBtn = (dir: number, label: string) => {
+          const spent = paged && (dir < 0 ? atStart : atEnd);
+          return (
+            <button onClick={() => scrollByCards(dir)} aria-label={label} disabled={spent}
+              className="w-9 h-9 rounded-full grid place-items-center transition-all duration-200 hover:scale-105 active:scale-95 disabled:opacity-35 disabled:hover:scale-100 disabled:cursor-default"
+              style={{ border: `1px solid ${rowBorder}`, color: rowMuted }}
+              onMouseEnter={e => { if (spent) return; e.currentTarget.style.background = rowText; e.currentTarget.style.borderColor = rowText; e.currentTarget.style.color = isDark ? '#111318' : '#ffffff'; }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = rowBorder; e.currentTarget.style.color = rowMuted; }}>
+              {dir < 0 ? <ChevronLeft className="w-4 h-4"/> : <ChevronRight className="w-4 h-4"/>}
+            </button>
+          );
+        };
+        const pageCount = paged && pages > 1 && (
+          <span className="text-[13px] font-semibold tabular-nums" style={{ color: rowMuted, fontFamily: bFont ?? hFont }}>
+            {page + 1} / {pages}
+          </span>
         );
         return !hideTitle ? (
           <div className="flex items-center justify-between gap-4 mb-0">
@@ -1342,25 +1373,39 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
               })()}
               <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: rowText, fontFamily: hFont }}>{title}</h3>
             </MReveal>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {arrowBtn(-1, 'Scroll left')}
-              {arrowBtn(1, 'Scroll right')}
-            </div>
+            {showControls && (
+              <div className="flex items-center gap-3 flex-shrink-0">
+                {pageCount}
+                <div className="flex items-center gap-2">
+                  {arrowBtn(-1, 'Previous')}
+                  {arrowBtn(1, 'Next')}
+                </div>
+              </div>
+            )}
           </div>
-        ) : (
+        ) : !showControls ? null : (
           <div className="flex justify-end mb-0">
-            <div className="flex items-center gap-2">
-              {arrowBtn(-1, 'Scroll left')}
-              {arrowBtn(1, 'Scroll right')}
+            <div className="flex items-center gap-3">
+              {pageCount}
+              {arrowBtn(-1, 'Previous')}
+              {arrowBtn(1, 'Next')}
             </div>
           </div>
         );
       })()}
 
-      <div ref={scrollRef} className="flex flex-nowrap gap-4 overflow-x-auto pt-4 pb-2 snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitMaskImage: 'linear-gradient(90deg, #000 94%, transparent)', maskImage: 'linear-gradient(90deg, #000 94%, transparent)' }}>
-        {items.map((item, i) => (
-          <div key={item.id} className="flex-shrink-0 w-[220px] sm:w-[260px] snap-start"
+      {/* A paged row lays its page out as a grid and wraps -- four columns on a large screen, and
+          fewer as the screen narrows, so the cards stay a readable size rather than the count
+          staying fixed. A peeking row keeps fixed-width cards on one scrolling line, with the fade
+          at the right edge that tells you there is more. */}
+      <div ref={scrollRef}
+        className={paged
+          ? 'grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pt-4 pb-2'
+          : 'flex flex-nowrap gap-4 overflow-x-auto pt-4 pb-2 snap-x'}
+        style={paged ? undefined : { scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitMaskImage: 'linear-gradient(90deg, #000 94%, transparent)', maskImage: 'linear-gradient(90deg, #000 94%, transparent)' }}>
+        {visible.map((item, i) => (
+          <div key={item.id}
+            className={paged ? 'min-w-0' : 'flex-shrink-0 snap-start w-[220px] sm:w-[260px]'}
             onMouseEnter={e => openHover(item, e.currentTarget)}
             onMouseLeave={scheduleClose}>
             <MReveal delay={Math.min(i, 6) * 0.055} y={18}>
@@ -1483,7 +1528,6 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
     { label: midAd1Label, title: midAd1Title, description: midAd1Description, ctaText: midAd1CtaText, ctaUrl: midAd1CtaUrl, bgColor: midAd1BgColor, bgImage: midAd1BgImage, imageLayout: midAd1ImageLayout },
     { label: midAd2Label, title: midAd2Title, description: midAd2Description, ctaText: midAd2CtaText, ctaUrl: midAd2CtaUrl, bgColor: midAd2BgColor, bgImage: midAd2BgImage, imageLayout: midAd2ImageLayout },
   ];
-  const veGroups     = groupByField(ves,     'category');
 
 
   const NAV_LINKS: Array<{ label: string; anchor: string }> = [
@@ -1590,11 +1634,11 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
             <MSectionHeading title="Virtual Experiences" sub="Gain job-ready skills with virtual internship programs and projects to build your portfolio."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <div className="space-y-4">
-              {veGroups.map(([ind, items]) => (
-                <LandingCarouselRow key={ind} title={ind} items={items} type="ve" typeColor={GREEN} user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle={veGroups.length === 1} />
-              ))}
-            </div>
+            {/* One row, not one per category. Grouping split a handful of experiences across
+                several near-empty rows, each with its own heading, so the section read as
+                fragmented rather than as a catalogue. */}
+            <LandingCarouselRow title="Virtual Experiences" items={ves} type="ve" typeColor={GREEN}
+              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
           </div>
         </section>
       )}
