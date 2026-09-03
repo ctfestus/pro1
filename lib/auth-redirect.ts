@@ -13,8 +13,14 @@
  * bar is genuinely ours right up until the moment it is not.
  */
 
-/** The sign-in page itself, and its sub-flows: returning here would loop. */
-const NEVER_RETURN_TO = /^\/auth(\/|$)/;
+/**
+ * The sign-in page itself, and its sub-flows: returning here would loop.
+ *
+ * The delimiter set matters. Matching only `/` and end-of-string let `/auth?mode=signup` and
+ * `/auth#top` through, which are the same page and the same loop. `/authors` must still pass,
+ * which is why this is a delimiter check rather than a prefix check.
+ */
+const NEVER_RETURN_TO = /^\/auth([/?#]|$)/;
 
 /**
  * A same-site path, or null. Rejects absolute URLs, protocol-relative `//host` (a browser reads

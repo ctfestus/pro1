@@ -35,10 +35,30 @@ describe('safeNextPath', () => {
   });
 
   // Returning to the sign-in page after signing in would bounce the visitor straight back to it.
-  it('refuses the sign-in page and its sub-flows', () => {
-    expect(safeNextPath('/auth')).toBeNull();
-    expect(safeNextPath('/auth/callback')).toBeNull();
-    expect(safeNextPath('/auth/reset-password')).toBeNull();
+  // A query string or a fragment does not make it a different page: /auth?mode=signup is the
+  // same loop as /auth, and checking only for "/" or end-of-string let both through.
+  it('refuses the sign-in page whatever follows it', () => {
+    for (const loop of [
+      '/auth',
+      '/auth/',
+      '/auth/callback',
+      '/auth/reset-password',
+      '/auth?mode=signup',
+      '/auth?next=%2Fsomewhere',
+      '/auth#top',
+      '/auth/callback?retry=1',
+    ]) {
+      expect(safeNextPath(loop)).toBeNull();
+    }
+  });
+
+  // Slugs are not unique across content types, so a landing link carries catalogueType to say
+  // which kind of thing a slug means. It has to survive the round trip or a colliding slug
+  // resolves to different content than the one that was clicked.
+  it('keeps the query string that says which content this is', () => {
+    expect(safeNextPath('/sql4datascience?catalogueType=course')).toBe('/sql4datascience?catalogueType=course');
+    expect(signInHref('/shared-slug?catalogueType=virtual_experience'))
+      .toBe('/auth?next=%2Fshared-slug%3FcatalogueType%3Dvirtual_experience');
   });
 
   it('does not mistake a path that merely starts with the same letters', () => {
