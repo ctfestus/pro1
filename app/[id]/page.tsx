@@ -12,7 +12,7 @@ import { CourseTaker } from '@/components/CourseTaker';
 import dynamic from 'next/dynamic';
 const VirtualExperienceTaker = dynamic(() => import('@/components/VirtualExperienceTaker'), { ssr: false });
 const CertificationTaker = dynamic(() => import('@/components/CertificationTaker'), { ssr: false });
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { getFontById } from '@/lib/fonts';
@@ -24,6 +24,7 @@ import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/v
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
 import { enrollLabel } from '@/lib/unlock-pricing';
+import { signInHref } from '@/lib/auth-redirect';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -377,7 +378,7 @@ function CertificateTag({ textColor }: { textColor: string }) {
   );
 }
 
-function PublicLearningPathOverview({ path, C }: { path: any; C: ReturnType<typeof useC> }) {
+function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: ReturnType<typeof useC>; authHref: string }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
   const items = path.items ?? [];
@@ -386,7 +387,9 @@ function PublicLearningPathOverview({ path, C }: { path: any; C: ReturnType<type
   // Locked content sends people to the pricing page to choose a length, rather than quoting a
   // figure here. A price on a course panel reads as the price of that course, when what is
   // actually being bought is access to everything.
-  const href = path.locked ? '/pricing' : '/auth';
+  // Signing in from here returns to this path, rather than landing on the dashboard with no
+  // trace of what was clicked.
+  const href = path.locked ? '/pricing' : authHref;
   const cta = path.locked ? enrollLabel(path.unlock) : 'Start for free';
   const isDark = C.page !== '#F2F5FA';
   const panelBg = isDark ? 'rgba(30,31,38,0.96)' : '#ffffff';
@@ -516,6 +519,20 @@ export default function PublicFormPage() {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
+  // Send visitors back to this page after they sign in.
+  //
+  // catalogueType has to survive the round trip: slugs are not unique across content types, so a
+  // landing link carries it to say WHICH kind of thing this slug means. Return without it and a
+  // colliding slug can resolve to a different course or experience than the one clicked.
+  //
+  // Read through useSearchParams rather than window.location so server and client render the
+  // same href, with no state to synchronise.
+  const searchParams = useSearchParams();
+  const idPath = `/${Array.isArray(id) ? id[0] : id}`;
+  const catalogueType = searchParams.get('catalogueType');
+  const backHere = signInHref(
+    catalogueType ? `${idPath}?catalogueType=${encodeURIComponent(catalogueType)}` : idPath,
+  );
   const [form, setForm] = useState<any>(null);
   const [pathPreview, setPathPreview] = useState<any>(null);
   const [signedOut, setSignedOut] = useState(false);
@@ -1041,7 +1058,7 @@ export default function PublicFormPage() {
 
   if (!form) {
     if (pathPreview) {
-      return <PublicLearningPathOverview path={pathPreview} C={C} />;
+      return <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} />;
     }
     // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
     // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
@@ -1052,7 +1069,7 @@ export default function PublicFormPage() {
         <h1 className="ff-pub" style={{ fontSize: 20, fontWeight: 700, color: '#111' }}>Sign in to view this</h1>
         <p className="ff-pub" style={{ fontSize: 14, color: '#555', maxWidth: 420 }}>This content is not open to everyone. Sign in with the account it was shared with, or go back to browse what is available.</p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }}>
-          <Link href="/auth" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, background: '#00bf63', color: '#fff', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Sign in</Link>
+          <Link href={backHere} className="ff-pub" style={{ fontSize: 14, fontWeight: 700, background: '#00bf63', color: '#fff', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Sign in</Link>
           <Link href="/" className="ff-pub" style={{ fontSize: 14, fontWeight: 700, color: '#344054', padding: '10px 18px', borderRadius: 10, textDecoration: 'none' }}>Browse courses</Link>
         </div>
       </div>
@@ -1139,7 +1156,7 @@ export default function PublicFormPage() {
         logoDarkUrl={logoDarkUrl}
         locked={certNoAccess || certSignedOut}
         unlockLabel={certNoAccess ? enrollLabel(form.unlock) : 'Sign in to start'}
-        unlockHref={certNoAccess ? '/pricing' : '/auth'}
+        unlockHref={certNoAccess ? '/pricing' : backHere}
         onExit={() => { window.location.href = certAuth ? '/student' : '/'; }}
       /></>
     );
@@ -1421,7 +1438,7 @@ export default function PublicFormPage() {
                   </Link>
                 ) : signedOut ? (
                   <Link
-                    href="/auth"
+                    href={backHere}
                     style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                   >
                     Start for free <ArrowRight style={{ width: 15, height: 15 }} />
@@ -1748,7 +1765,7 @@ export default function PublicFormPage() {
                     </>
                   ) : signedOut ? (
                     <Link
-                      href="/auth"
+                      href={backHere}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                     >
                       Start for free <ArrowRight style={{ width: 15, height: 15 }} />
