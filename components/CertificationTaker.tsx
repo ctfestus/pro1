@@ -840,7 +840,12 @@ export default function CertificationTaker({
               <div style={{ position: 'absolute', inset: 0, opacity: isDark ? 0.24 : 0.32, backgroundImage: `repeating-radial-gradient(ellipse at 86% 22%, transparent 0 9px, ${tint(0.12)} 10px 11px, transparent 12px 17px)`, pointerEvents: 'none' }} />
               <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
                 <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 12.5, fontWeight: 650, color: ov.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orgName || appName || 'AI Skills Africa'}</div>
+                  {/* The issuer, from tenant settings. No hardcoded fallback: a credential naming
+                      the wrong organisation is worse than one naming none, and this platform is
+                      multi-tenant. */}
+                  {(orgName || appName) && (
+                    <div style={{ fontSize: 12.5, fontWeight: 650, color: ov.text, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{orgName || appName}</div>
+                  )}
                 </div>
                 <span style={{ flexShrink: 0, padding: '6px 9px', borderRadius: 999, background: tint(0.1), color: signalColor, fontSize: 9.5, fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase' }}>{config?.certType === 'career' ? 'Career' : 'Technology'}</span>
               </div>
