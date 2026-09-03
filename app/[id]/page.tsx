@@ -23,12 +23,7 @@ import { PathRow } from '@/components/student/courses-paths';
 import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/ve/guide';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
-import {
-  enrollLabel,
-  unlockPlanName,
-  sellablePlans,
-  type UnlockInfo,
-} from '@/lib/unlock-pricing';
+import { enrollLabel } from '@/lib/unlock-pricing';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -238,7 +233,7 @@ function lockedCoursePreviewToForm(item: any) {
     id: item.id,
     slug: item.slug,
     content_type: 'course',
-    locked: true,
+    locked: !!item.locked,
     unlock: item.unlock,
     // Counted server-side: the outline below is title-only and lists no exercises at all, so the
     // page cannot arrive at any of these itself.
@@ -262,6 +257,73 @@ function lockedCoursePreviewToForm(item: any) {
         ? { id: entry.id, isSection: true, sectionTitle: entry.title }
         : { id: entry.id, lesson: { title: entry.title } }),
     },
+  };
+}
+
+/**
+ * A virtual experience from the catalogue preview, shaped for the real VE overview.
+ *
+ * It used to fall through to LockedContentPreview, a second overview page with its own palette,
+ * font and CTA colour -- so the same VE looked like two different products depending on who was
+ * looking. There is one overview now; whether it is locked changes the button and what the page
+ * has to show, not the page.
+ */
+function vePreviewToForm(item: any) {
+  return {
+    id: item.id,
+    slug: item.slug,
+    content_type: 'virtual_experience',
+    // Not always true: an experience open to everyone still reaches this path, because RLS hides
+    // the authored row from a signed-out reader. Locked drives the CTA, nothing else.
+    locked: !!item.locked,
+    unlock: item.unlock,
+    config: {
+      title: item.title,
+      description: item.description,
+      tagline: item.tagline ?? undefined,
+      isVirtualExperience: true,
+      industry: item.industry ?? undefined,
+      role: item.role ?? undefined,
+      company: item.company ?? undefined,
+      difficulty: item.difficulty ?? undefined,
+      duration: item.duration ?? undefined,
+      tools: item.tools ?? [],
+      toolLogos: item.toolLogos ?? {},
+      learnOutcomes: item.learnOutcomes ?? [],
+      managerName: item.managerName ?? undefined,
+      managerTitle: item.managerTitle ?? undefined,
+      guideId: item.guideId ?? undefined,
+      guideSnapshot: item.guideSnapshot ?? undefined,
+      coverImage: item.coverImage,
+      mode: item.mode ?? undefined,
+      theme: item.theme ?? undefined,
+      font: item.font ?? undefined,
+      customAccent: item.customAccent ?? undefined,
+      // Titles only. `requirements` is absent rather than empty, so the outline shows mission
+      // names without claiming a deliverable count it was not given.
+      modules: (item.outline ?? []).map((mod: any) => ({
+        id: mod.id,
+        title: mod.title,
+        lessons: (mod.lessons ?? []).map((lesson: any) => ({ id: lesson.id, title: lesson.title })),
+      })),
+    },
+  };
+}
+
+/**
+ * A certification from the catalogue preview, shaped for its real overview page.
+ *
+ * The config comes from the route already in the shape get-exam returns, so the overview renders
+ * identically -- questions were never part of it. Locked drives the CTA, nothing else.
+ */
+function certificationPreviewToForm(item: any) {
+  return {
+    id: item.id,
+    slug: item.slug,
+    content_type: 'certification',
+    locked: !!item.locked,
+    unlock: item.unlock,
+    config: item.config,
   };
 }
 
@@ -455,7 +517,6 @@ export default function PublicFormPage() {
   const C = useC();
   const { id } = useParams();
   const [form, setForm] = useState<any>(null);
-  const [lockedPreview, setLockedPreview] = useState<any>(null);
   const [pathPreview, setPathPreview] = useState<any>(null);
   const [signedOut, setSignedOut] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -548,7 +609,6 @@ export default function PublicFormPage() {
 
   useEffect(() => {
     const fetchForm = async () => {
-      setLockedPreview(null);
       setPathPreview(null);
       // Restore session first so the auth token is attached to the forms query.
       // Running the query in parallel with getUser() meant it fired as anon,
@@ -656,13 +716,15 @@ export default function PublicFormPage() {
           });
           if (previewRes.ok) {
             const { item } = await previewRes.json();
-            if (item?.locked && item.type === 'course') {
+            if (item?.type === 'course') {
               data = lockedCoursePreviewToForm(item);
               setCourseStarted(false);
+            } else if (item?.type === 'virtual_experience') {
+              data = vePreviewToForm(item);
+            } else if (item?.type === 'certification' && item.config) {
+              data = certificationPreviewToForm(item);
             } else if (item?.type === 'learning_path') {
               setPathPreview(cataloguePathToPathRow(item));
-            } else if (item?.locked) {
-              setLockedPreview(item);
             }
           }
         } catch { /* fall through to not-found */ }
@@ -678,13 +740,15 @@ export default function PublicFormPage() {
           const publicRes = await fetch(`/api/catalogue-preview?ref=${encodeURIComponent(id as string)}${typeQuery}`);
           if (publicRes.ok) {
             const { item } = await publicRes.json();
-            if (item?.locked && item.type === 'course') {
+            if (item?.type === 'course') {
               data = lockedCoursePreviewToForm(item);
               setCourseStarted(false);
+            } else if (item?.type === 'virtual_experience') {
+              data = vePreviewToForm(item);
+            } else if (item?.type === 'certification' && item.config) {
+              data = certificationPreviewToForm(item);
             } else if (item?.type === 'learning_path') {
               setPathPreview(cataloguePathToPathRow(item));
-            } else if (item) {
-              setLockedPreview(item);
             }
           }
         } catch { /* fall through to not-found */ }
@@ -979,7 +1043,6 @@ export default function PublicFormPage() {
     if (pathPreview) {
       return <PublicLearningPathOverview path={pathPreview} C={C} />;
     }
-    if (lockedPreview) return <LockedContentPreview item={lockedPreview} signedOut={signedOut} />;
     // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
     // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
     // the only useful next step, and it is what they used to be sent to anyway.
@@ -1047,7 +1110,13 @@ export default function PublicFormPage() {
   // Certifications require login + cohort access (RLS), so the row only loads for an authed
   // participant; render the taker once auth is resolved (brief loader otherwise).
   if (config.isCertification) {
-    if (!certAuth) {
+    // Two reasons a viewer cannot sit this exam: they have no access to it, or they are not
+    // signed in. Either way they get the real overview and a CTA instead of Start -- pricing for
+    // the first, sign-in for the second.
+    const certNoAccess = !!form.locked;
+    const certSignedOut = !certAuth && signedOut;
+    // Only wait when a session is actually still resolving: a signed-out visitor has none coming.
+    if (!certAuth && !certNoAccess && !certSignedOut) {
       return (
         <div style={{ minHeight: '100vh', background: dark ? '#17181E' : '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
           <StudentModeBanner context={studentMode} fixed />
@@ -1061,14 +1130,17 @@ export default function PublicFormPage() {
         certificationId={form.id}
         slug={form.slug}
         config={config}
-        studentName={certAuth.name}
-        studentEmail={certAuth.email}
-        sessionToken={certAuth.token || undefined}
+        studentName={certAuth?.name ?? ''}
+        studentEmail={certAuth?.email ?? ''}
+        sessionToken={certAuth?.token || undefined}
         isDark={dark}
         accentColor={accentColor}
         logoUrl={logoUrl}
         logoDarkUrl={logoDarkUrl}
-        onExit={() => { window.location.href = '/student'; }}
+        locked={certNoAccess || certSignedOut}
+        unlockLabel={certNoAccess ? enrollLabel(form.unlock) : 'Sign in to start'}
+        unlockHref={certNoAccess ? '/pricing' : '/auth'}
+        onExit={() => { window.location.href = certAuth ? '/student' : '/'; }}
       /></>
     );
   }
@@ -1077,8 +1149,10 @@ export default function PublicFormPage() {
   if (config.isVirtualExperience || config.isGuidedProject) {
     const modules     = config.modules || [];
     const totalLessons = modules.reduce((a: number, m: any) => a + (m.lessons?.length || 0), 0);
+    // Optional chaining throughout: a locked preview carries module and mission titles only, so
+    // neither `lessons` nor `requirements` is guaranteed to be there.
     const totalReqs   = modules.reduce((a: number, m: any) =>
-      a + m.lessons.reduce((b: number, l: any) => b + (l.requirements?.length || 0), 0), 0);
+      a + (m.lessons ?? []).reduce((b: number, l: any) => b + (l.requirements?.length || 0), 0), 0);
 
     const indColor = '#00b95c';
 
@@ -1139,6 +1213,8 @@ export default function PublicFormPage() {
         /></>
       );
     }
+
+    const veOutcomes = ((config.learnOutcomes ?? []) as string[]).filter(o => String(o ?? '').trim());
 
     const isLight = studentTheme === 'light';
     const gp = {
@@ -1252,12 +1328,13 @@ export default function PublicFormPage() {
               </div>
             )}
 
-            {/* What you'll learn */}
-            {config.learnOutcomes?.length > 0 && (
+            {/* What you'll learn. Blank rows are filtered, not just counted: the editor saves an
+                unfilled outcome as an empty string, which rendered as a tick with no text. */}
+            {veOutcomes.length > 0 && (
               <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', border: `1px solid ${gp.border}` }}>
                 <h2 style={{ fontSize: 14, fontWeight: 700, color: gp.title, marginBottom: 16, letterSpacing: '-0.01em' }}>What you&apos;ll learn</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '10px 20px' }}>
-                  {config.learnOutcomes.map((o: string, i: number) => (
+                  {veOutcomes.map((o: string, i: number) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                       <div style={{ width: 18, height: 18, borderRadius: 5, background: `${indColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
                         <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
@@ -1335,7 +1412,14 @@ export default function PublicFormPage() {
                 )}
 
                 {/* CTA */}
-                {signedOut ? (
+                {form.locked ? (
+                  <Link
+                    href="/pricing"
+                    style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+                  >
+                    {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
+                  </Link>
+                ) : signedOut ? (
                   <Link
                     href="/auth"
                     style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
@@ -1404,6 +1488,7 @@ export default function PublicFormPage() {
     // A slab of bright accent is wrong on a dark page, so dark mode gets a plain dark surface with
     // no colour cast over it -- the light on it is white, the same light the accent panel gets.
     const bannerBg = dark ? '#0A0B0E' : C.cta;
+    const courseOutcomes = ((config.learnOutcomes ?? []) as string[]).filter(o => String(o ?? '').trim());
     const authoredCounts = courseContentCounts(questions);
     const lessonSlideCount = typeof form.lessonCount === 'number' ? form.lessonCount : authoredCounts.lessons;
     const exerciseCount = typeof form.exerciseCount === 'number' ? form.exerciseCount : authoredCounts.exercises;
@@ -1527,12 +1612,13 @@ export default function PublicFormPage() {
 
               {/* The course description lives in the banner above, not in a card here. */}
 
-              {/* What you'll learn */}
-              {(config.learnOutcomes || []).length > 0 && (
+              {/* What you'll learn. Blank rows are filtered, not just counted: the editor saves an
+                  unfilled outcome as an empty string, which rendered as a tick with no text. */}
+              {courseOutcomes.length > 0 && (
                 <div style={{ background: cp.card, borderRadius: 14, padding: '22px 24px', border: `1px solid ${cp.border}` }}>
                   <h2 style={{ fontSize: 14, fontWeight: 700, color: cp.title, marginBottom: 16, letterSpacing: '-0.01em' }}>What you&apos;ll learn</h2>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '10px 20px' }}>
-                    {(config.learnOutcomes as string[]).map((o: string, i: number) => (
+                    {courseOutcomes.map((o: string, i: number) => (
                       <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
                         <div style={{ width: 18, height: 18, borderRadius: 5, background: `${accentColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: 1 }}>
                           <svg width="9" height="9" viewBox="0 0 10 10" fill="none">
@@ -2536,93 +2622,5 @@ export default function PublicFormPage() {
       </main>
 
     </div>
-  );
-}
-
-/**
- * What a locked panel says about paying. Deliberately no figures: the lengths and their prices
- * belong together on the pricing page, and a price list on a course panel reads as the price of
- * that course rather than of access to everything.
- */
-function UnlockPrices({ unlock }: { unlock: UnlockInfo }) {
-  const name = unlockPlanName(unlock);
-  if (!sellablePlans(unlock).length) {
-    return (
-      <p className="mt-2 text-sm leading-relaxed text-[#667085]">
-        This content is part of a subscription plan. Contact the learning team to ask about access.
-      </p>
-    );
-  }
-  return (
-    <p className="mt-2 text-sm leading-relaxed text-[#667085]">
-      {name
-        ? `Included with ${name}, along with the rest of the catalogue.`
-        : 'Included with a plan, along with the rest of the catalogue.'}
-      {' '}Choose how long you want access on the pricing page.
-    </p>
-  );
-}
-
-function LockedContentPreview({ item, signedOut }: { item: any; signedOut?: boolean }) {
-  const cover = resolveCoverUrl(item.coverImage) || '';
-  const label = item.type === 'virtual_experience'
-    ? 'Virtual Experience'
-    : item.type === 'certification' ? 'Certification'
-    : item.type === 'learning_path' ? 'Learning Path' : 'Course';
-  const paymentHref = '/pricing';
-
-  return (
-    <main className="ff-pub min-h-screen bg-[#f4f6f8] text-[#101828]">
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); .ff-pub{font-family:'Inter',sans-serif;}`}</style>
-      <div className="mx-auto w-full max-w-6xl px-5 py-8 sm:px-8 sm:py-12">
-        <Link
-          href={signedOut ? '/' : '/student#explore'}
-          className="inline-flex items-center text-sm font-semibold text-[#475467] hover:text-[#101828]"
-        >
-          {signedOut ? 'Browse courses' : 'Back to Explore'}
-        </Link>
-
-        <section className="mt-6 overflow-hidden bg-white">
-          <div className="relative aspect-[16/7] min-h-56 bg-[#0b0b0d]">
-            {cover ? <img src={cover} alt={item.title} className="h-full w-full object-cover" /> : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
-            <div className="absolute inset-x-0 bottom-0 p-6 sm:p-10">
-              <span className="inline-flex items-center gap-2 rounded-md bg-white/95 px-2.5 py-1 text-xs font-bold text-[#344054]">
-                <Lock className="h-3.5 w-3.5" />
-                {label}
-              </span>
-              <h1 className="mt-4 max-w-4xl text-3xl font-bold leading-tight text-white sm:text-5xl">{item.title}</h1>
-            </div>
-          </div>
-
-          <div className="grid gap-8 p-6 sm:p-10 lg:grid-cols-[1fr_300px]">
-            <div>
-              <h2 className="text-xl font-bold">About this {label.toLowerCase()}</h2>
-              {item.description ? (
-                <div
-                  className="prose prose-slate mt-4 max-w-none text-sm leading-relaxed"
-                  dangerouslySetInnerHTML={{ __html: sanitizeRichText(item.description) }}
-                />
-              ) : (
-                <p className="mt-4 text-sm leading-relaxed text-[#667085]">This content is available through a subscription plan.</p>
-              )}
-              {item.category ? <p className="mt-5 text-sm font-semibold text-[#475467]">Category: {item.category}</p> : null}
-            </div>
-
-            <aside className="h-fit bg-[#f8fafc] p-5">
-              <h2 className="text-lg font-bold">Unlock this content</h2>
-              <UnlockPrices unlock={item.unlock} />
-              <Link
-                href={paymentHref}
-                className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#00bf63] px-4 py-3 text-sm font-bold text-white hover:opacity-90"
-              >
-                {enrollLabel(item.unlock)}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-            </aside>
-          </div>
-        </section>
-      </div>
-    </main>
   );
 }

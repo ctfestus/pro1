@@ -237,6 +237,65 @@ describe('GET /api/student/catalogue', () => {
     expect(JSON.stringify(item)).not.toContain('Hidden lesson body');
   });
 
+  it('fills in the real VE overview for a locked virtual experience, without the work itself', async () => {
+    // Same rule as the signed-out preview: one overview page for a virtual experience, so a
+    // learner without access sees the real one with the work withheld rather than a second,
+    // simpler page.
+    h.rows.mockImplementation((table) => table === 'virtual_experiences' ? [{
+      id: 'v7', title: 'Fintech Virtual Experience', slug: 'fintech-ve', cover_image: 'cover.jpg',
+      description: 'Ship a payments dashboard', cohort_ids: ['another-cohort'],
+      available_to_everyone: false,
+      industry: 'fintech', role: 'Data Analyst', company: 'Acme Pay',
+      tools: ['Excel', 'SQL'], learn_outcomes: ['Build a KPI dashboard'],
+      mode: 'dark', custom_accent: '#123456',
+      background: 'SECRET BRIEF',
+      modules: [
+        { id: 'm1', title: 'Week one', lessons: [
+          { id: 'l1', title: 'Meet the team', body: 'SECRET BODY', requirements: ['SECRET DELIVERABLE'] },
+        ] },
+      ],
+    }] : []);
+
+    const res = await GET(request('?ref=fintech-ve&type=virtual_experience'));
+    const { item } = await res.json();
+    const served = JSON.stringify(item);
+
+    expect(item.company).toBe('Acme Pay');
+    expect(item.tools).toEqual(['Excel', 'SQL']);
+    expect(item.mode).toBe('dark');
+    expect(item.outline).toEqual([
+      { id: 'm1', title: 'Week one', lessons: [{ id: 'l1', title: 'Meet the team' }] },
+    ]);
+    expect(served).not.toContain('SECRET BRIEF');
+    expect(served).not.toContain('SECRET BODY');
+    expect(served).not.toContain('SECRET DELIVERABLE');
+  });
+
+  it('fills in the real certification overview without ever shipping the exam', async () => {
+    // Same rule as the signed-out preview: the overview never carried the questions, and the
+    // preview keeps it that way -- a count and the section names only.
+    h.rows.mockImplementation((table) => table === 'certifications' ? [{
+      id: 'c9', title: 'Excel Analyst', slug: 'excel-analyst', cover_image: 'cover.jpg',
+      description: 'Prove your Excel skills', cohort_ids: ['another-cohort'],
+      available_to_everyone: false,
+      passmark: 70, time_limit: 20, max_attempts: 2,
+      questions: [
+        { id: 'q1', section: 'practical', question: 'SECRET QUESTION', correctAnswer: 'SECRET ANSWER' },
+        { id: 's0', isSection: true },
+      ],
+    }] : []);
+
+    const res = await GET(request('?ref=excel-analyst&type=certification'));
+    const { item } = await res.json();
+    const served = JSON.stringify(item);
+
+    expect(item.config.questionCount).toBe(1);
+    expect(item.config.passmark).toBe(70);
+    expect(item.config.questions).toBeUndefined();
+    expect(served).not.toContain('SECRET QUESTION');
+    expect(served).not.toContain('SECRET ANSWER');
+  });
+
   it('quotes the configured prices for a locked item, not a fixed set of durations', async () => {
     // A tenant selling only six months has exactly one price row. The page must be able to say
     // so, which it cannot do from hardcoded copy naming 1, 3 and 12 months.
