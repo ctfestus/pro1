@@ -884,7 +884,7 @@ function MSectionHeading({ title, sub, color, subColor, accent, hFont, bFont }: 
 }) {
   return (
     <MReveal blur className="mb-7">
-      <h2 style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(23px,2.6vw,36px)', color, letterSpacing: '-0.03em', lineHeight: 1.08 }}>{title}</h2>
+      <h2 style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(21px,2.2vw,30px)', color, letterSpacing: '-0.03em', lineHeight: 1.08 }}>{title}</h2>
       <motion.span aria-hidden="true" className="block h-[3px] w-11 rounded-full origin-left mt-1.5 mb-1.5" style={{ background: accent }}
         initial={{ scaleX: 0 }} whileInView={{ scaleX: 1 }} viewport={{ once: true, margin: '-60px' }}
         transition={{ duration: 0.7, delay: 0.3, ease: EASE_OUT }} />
@@ -1371,7 +1371,7 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
                 const Fallback = getCategoryIcon(title, type);
                 return <Fallback className="w-5 h-5 flex-shrink-0" strokeWidth={2.2} style={{ color: rowText }} />;
               })()}
-              <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: rowText, fontFamily: hFont }}>{title}</h3>
+              <h3 className="text-lg sm:text-xl font-bold leading-tight truncate" style={{ color: rowText, fontFamily: hFont }}>{title}</h3>
             </MReveal>
             {showControls && (
               <div className="flex items-center gap-3 flex-shrink-0">
