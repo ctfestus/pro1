@@ -17,6 +17,7 @@ import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
+import { toPlainText } from '@/lib/plain-text';
 
 // --- FadeIn on scroll ---
 function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -338,7 +339,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
                         {typeLabel}
                       </span>
                       <div className="space-y-2">
-                        {p.description && <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>{p.description}</p>}
+                        {toPlainText(p.description) && <p className="text-xs leading-relaxed" style={{ color: 'rgba(255,255,255,0.72)' }}>{toPlainText(p.description)}</p>}
                         <div className="flex items-end justify-between gap-3">
                           <h3 className="text-lg font-black leading-tight" style={{ color: '#ffffff', fontFamily: hFont }}>{p.title}</h3>
                           <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: accentColor }}>

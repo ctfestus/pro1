@@ -28,6 +28,7 @@ import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { SectionId } from '@/components/student/nav';
 import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
+import type { CataloguePathItem } from '@/lib/catalogue-path-items';
 
 type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification';
 
@@ -41,14 +42,6 @@ interface CatalogueItem {
   category: string | null;
   locked: boolean;
   pathItems?: CataloguePathItem[];
-}
-
-interface CataloguePathItem {
-  id: string;
-  type: 'course' | 'virtual_experience' | 'certification';
-  title: string;
-  slug: string | null;
-  coverImage: string | null;
 }
 
 const TYPE_LABEL: Record<CatalogueType, string> = {

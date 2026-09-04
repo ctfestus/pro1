@@ -28,6 +28,8 @@ import {
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
+import { loadPathItemDescriptions, normalizePathItemType, pathItemFromRow } from '@/lib/catalogue-path-items';
+import { pathOverviewFields } from '@/lib/path-overview';
 import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 
 export const dynamic = 'force-dynamic';
@@ -52,7 +54,7 @@ const HAS_SLUG: Record<PreviewType, boolean> = {
 // Pinned. Widening this is what would turn a sales page into a content leak.
 const COLUMNS: Record<PreviewType, string> = {
   course: 'id, title, slug, cover_image, description, category, available_to_everyone',
-  learning_path: 'id, title, cover_image, description, item_ids, badge_image_url, available_to_everyone',
+  learning_path: 'id, title, cover_image, description, item_ids, badge_image_url, available_to_everyone, overview, skills, who_should_take, tools',
   virtual_experience: 'id, title, slug, cover_image, description, available_to_everyone',
   certification: 'id, title, slug, cover_image, description, available_to_everyone',
 };
@@ -122,40 +124,22 @@ export async function GET(req: NextRequest) {
           .eq('path_id', record.id)
           .order('position');
         if (pathItemsError) throw pathItemsError;
-        const pathItemIds = (pathItems ?? []).map((pathItem: any) => pathItem.id);
-        const [
-          { data: courseDescriptions },
-          { data: veDescriptions },
-          { data: certDescriptions },
-        ] = await Promise.all([
-          pathItemIds.length
-            ? db.from('courses').select('id, description').in('id', pathItemIds).eq('status', 'published')
-            : Promise.resolve({ data: [] as any[] }),
-          pathItemIds.length
-            ? db.from('virtual_experiences').select('id, description').in('id', pathItemIds).eq('status', 'published')
-            : Promise.resolve({ data: [] as any[] }),
-          pathItemIds.length
-            ? db.from('certifications').select('id, description').in('id', pathItemIds).eq('status', 'published')
-            : Promise.resolve({ data: [] as any[] }),
-        ]);
-        const descriptionById = new Map<string, string | null>();
-        for (const row of courseDescriptions ?? []) descriptionById.set(row.id, row.description ?? null);
-        for (const row of veDescriptions ?? []) descriptionById.set(row.id, row.description ?? null);
-        for (const row of certDescriptions ?? []) descriptionById.set(row.id, row.description ?? null);
+        const descriptionById = await loadPathItemDescriptions(
+          db,
+          (pathItems ?? []).map((pathItem: any) => pathItem.id),
+        );
 
         return NextResponse.json({
           item: {
             ...item,
             itemIds: (record.item_ids ?? []) as string[],
             badgeImageUrl: (record.badge_image_url as string) ?? null,
-            pathItems: (pathItems ?? []).map((pathItem: any) => ({
-              id: pathItem.id,
-              title: pathItem.title,
-              slug: pathItem.slug,
-              coverImage: pathItem.cover_image,
-              description: descriptionById.get(pathItem.id) ?? null,
-              type: pathItem.type === 've' ? 'virtual_experience' : pathItem.type,
-            })),
+            ...pathOverviewFields(record),
+            pathItems: (pathItems ?? []).map((pathItem: any) => pathItemFromRow(
+              pathItem,
+              normalizePathItemType(pathItem.type),
+              descriptionById.get(pathItem.id) ?? null,
+            )),
           },
         });
       }

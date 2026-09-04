@@ -167,12 +167,14 @@ describe('GET /api/student/catalogue', () => {
   it('returns display fields only for learning path items', async () => {
     h.rows.mockImplementation((table) => {
       if (table === 'courses') return [{
-        id: 'c6', title: 'Nested course', slug: 'nested-course', cover_image: 'course.jpg', description: null, category: 'AI',
+        id: 'c6', title: 'Nested course', slug: 'nested-course', cover_image: 'course.jpg',
+        description: 'What this course covers', category: 'AI',
         cohort_ids: [], available_to_everyone: false,
         questions: [{ prompt: 'Hidden prompt', correctAnswer: 'Hidden answer' }],
       }];
       if (table === 'virtual_experiences') return [{
-        id: 'v6', title: 'Nested VE', slug: 'nested-ve', cover_image: 've.jpg', description: null,
+        id: 'v6', title: 'Nested VE', slug: 'nested-ve', cover_image: 've.jpg',
+        description: 'What this experience covers',
         cohort_ids: [],
         scenario: { answerKey: 'Hidden VE answer' },
       }];
@@ -185,13 +187,16 @@ describe('GET /api/student/catalogue', () => {
     const list = await items();
     const path = byTitle(list, 'Path');
 
+    // The description belongs here: it is what the item is, it is already public on the signed-out
+    // preview of the same page, and leaving it out told a signed-in learner LESS about the path
+    // than an anonymous visitor was told. What must never appear is the material itself.
     expect(path.pathItems.map((item: any) => Object.keys(item).sort())).toEqual([
-      ['coverImage', 'id', 'slug', 'title', 'type'],
-      ['coverImage', 'id', 'slug', 'title', 'type'],
+      ['coverImage', 'description', 'id', 'slug', 'title', 'type'],
+      ['coverImage', 'description', 'id', 'slug', 'title', 'type'],
     ]);
     expect(path.pathItems).toEqual([
-      { id: 'c6', type: 'course', title: 'Nested course', slug: 'nested-course', coverImage: 'course.jpg' },
-      { id: 'v6', type: 'virtual_experience', title: 'Nested VE', slug: 'nested-ve', coverImage: 've.jpg' },
+      { id: 'c6', type: 'course', title: 'Nested course', slug: 'nested-course', coverImage: 'course.jpg', description: 'What this course covers' },
+      { id: 'v6', type: 'virtual_experience', title: 'Nested VE', slug: 'nested-ve', coverImage: 've.jpg', description: 'What this experience covers' },
     ]);
     expect(JSON.stringify(path.pathItems)).not.toContain('Hidden answer');
     expect(JSON.stringify(path.pathItems)).not.toContain('Hidden VE answer');

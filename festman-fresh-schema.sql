@@ -705,6 +705,12 @@ CREATE TABLE public.learning_paths (
   badge_image_url text,
   created_at      timestamptz NOT NULL DEFAULT now(),
   updated_at      timestamptz NOT NULL DEFAULT now(),
+  -- migration 203: what the public overview page needs to say what a path is FOR, rather than
+  -- only what it contains. `tools` holds names; the icons resolve through the tool_icons registry.
+  overview        text,
+  skills          text[]      NOT NULL DEFAULT '{}',
+  who_should_take text[]      NOT NULL DEFAULT '{}',
+  tools           text[]      NOT NULL DEFAULT '{}',
   -- migration 186, as for virtual_experiences above.
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
@@ -6260,6 +6266,21 @@ WHERE lp.status = 'published'
   );
 
 GRANT SELECT ON public.publicly_offered_content TO anon, authenticated;
+
+-- migration 204: the learning path CARD, for the paths a visitor may actually be shown.
+--
+-- published_learning_paths lists every published path, cohort-only ones included, so building a
+-- public card from it would expose a private client's path to anybody. This applies the gate
+-- above instead, and carries the extra fields a card needs.
+CREATE OR REPLACE VIEW public.publicly_offered_learning_paths
+WITH (security_barrier = true)
+AS
+  SELECT lp.id, lp.title, lp.description, lp.cover_image, lp.badge_image_url, lp.skills
+  FROM   public.learning_paths lp
+  JOIN   public.publicly_offered_content o
+    ON   o.content_table = 'learning_paths' AND o.content_id = lp.id;
+
+GRANT SELECT ON public.publicly_offered_learning_paths TO anon, authenticated;
 
 -- What the public pricing page is allowed to read, defined in SQL rather than in a projection.
 --

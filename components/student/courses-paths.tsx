@@ -15,6 +15,7 @@ import { sanitizeRichText } from '@/lib/sanitize';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { computeAccess } from '@/lib/enrollment-access';
 import { LIGHT_C } from '@/lib/theme';
+import { toPlainText } from '@/lib/plain-text';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { enrollLabel } from '@/lib/unlock-pricing';
@@ -648,16 +649,23 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
   const currentIndex   = path.locked || publicPreview ? -1 : items.findIndex((item: any) => !completedIds.includes(item.id));
   const learnerCount: number = path.learner_count ?? 0;
-  const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
+  // The timeline traces progress in the student view, so it stays legible there. On the public
+  // overview nobody has progress yet, so it is a quiet guide rather than a status line.
+  const connectorColor = publicPreview
+    ? (C.page === LIGHT_C.page ? 'rgba(15,23,42,0.08)' : 'rgba(148,163,184,0.18)')
+    : (C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)');
 
   return (
-    <section className="rounded-[22px] overflow-hidden" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
-      <div className="p-5 sm:p-7">
+    <section
+      className={publicPreview ? '' : 'rounded-[22px] overflow-hidden'}
+      style={publicPreview ? undefined : { background: C.card, border: `1px solid ${C.cardBorder}` }}
+    >
+      <div className={publicPreview ? 'p-0' : 'p-5 sm:p-7'}>
       {!hideHeader && (
         <div className="flex items-start justify-between gap-4">
           <div className="min-w-0 flex-1">
             <h3 className="text-xl sm:text-2xl font-bold leading-tight" style={{ color: C.text }}>{path.title}</h3>
-            {path.description && <p className="text-sm mt-2 max-w-3xl leading-relaxed" style={{ color: C.muted }}>{path.description}</p>}
+            {toPlainText(path.description) && <p className="text-sm mt-2 max-w-3xl leading-relaxed" style={{ color: C.muted }}>{toPlainText(path.description)}</p>}
             {/* empty:hidden -- an empty path with no learners has nothing to say here, so the
                 row must not leave its top margin behind. */}
             <div className="empty:hidden flex flex-wrap items-center gap-x-3 gap-y-2 mt-4 text-xs" style={{ color: C.faint }}>
@@ -763,13 +771,18 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
                     color: done ? '#ffffff' : C.muted,
                     boxShadow: done ? '0 5px 12px rgba(22,163,74,0.16)' : 'none',
                   }}>
-                  {done ? <Check className="w-3 h-3" strokeWidth={3}/> : <span className={isCurrent ? 'h-3 w-3 rounded-full' : 'h-1.5 w-1.5 rounded-full'} style={{ background: isCurrent ? '#16a34a' : C.faint }}/>}
+                  {done ? <Check className="w-3 h-3" strokeWidth={3}/> : <span className={isCurrent ? 'h-3 w-3 rounded-full' : 'h-2 w-2 rounded-full'} style={{ background: isCurrent || publicPreview ? '#00bf63' : C.faint }}/>}
                 </span>
               </div>
               <a href={path.locked ? undefined : href} target={path.locked ? undefined : '_blank'} rel={path.locked ? undefined : 'noreferrer'} aria-disabled={path.locked || undefined}
                 className="group relative block min-w-0 flex-1 overflow-hidden rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:flex sm:h-[184px] sm:items-center sm:p-4"
                 style={{
-                  background: isCurrent ? 'rgba(34,197,94,0.055)' : C.page === LIGHT_C.page ? '#f8fafc' : C.pill,
+                  // On the public overview the rows sit directly on the page's own card: no fill
+                  // and no shadow, or each one reads as a card inside a card. In the student view
+                  // the fill still separates them from the row's own surface.
+                  background: isCurrent
+                    ? 'rgba(34,197,94,0.055)'
+                    : publicPreview ? 'transparent' : C.page === LIGHT_C.page ? '#f8fafc' : C.pill,
                   boxShadow: 'none',
                   cursor: path.locked ? 'default' : 'pointer',
                 }}>
@@ -788,7 +801,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" style={{ color: C.faint }}>
                       <span>{isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}</span>
                     </div>
-                    <h4 className="mt-1 text-base font-bold leading-snug sm:text-lg" style={{ color: C.text }}>{item.title}</h4>
+                    <h4 className="mt-1 text-lg font-bold leading-snug sm:text-xl" style={{ color: C.text }}>{item.title}</h4>
                     <div className="mt-1.5 sm:min-h-[63px]">
                       {inProgressPct !== null ? (
                         <div className="flex h-[63px] max-w-md flex-col justify-center">
@@ -800,7 +813,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
                           </div>
                         </div>
                       ) : item.description ? (
-                        <p className="line-clamp-3 text-sm leading-relaxed" style={{ color: C.muted }}>{item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}</p>
+                        <p className="line-clamp-3 text-[15px] leading-relaxed" style={{ color: C.muted }}>{item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim()}</p>
                       ) : null}
                     </div>
                   </div>
@@ -837,7 +850,9 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
                 <Award className="h-4 w-4"/> View certificate
               </a>
             ) : publicPreview ? (
-              <span className="text-sm font-semibold" style={{ color: '#b08020' }}>Included on completion</span>
+              // Nothing on the public preview: the card already says the credential comes with
+              // completing the path, so the label only repeated it.
+              null
             ) : (
               <span className="text-sm font-semibold" style={{ color: '#b08020' }}>{completedCount}/{totalItems} complete</span>
             )}

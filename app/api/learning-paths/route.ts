@@ -66,7 +66,8 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone } = body;
+    const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone,
+            overview, skills, who_should_take, tools } = body;
     // Open access replaces cohort targeting rather than adding to it -- the database enforces the
     // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
     const openAccess = available_to_everyone === true;
@@ -82,6 +83,12 @@ export async function POST(req: NextRequest) {
       description: description ?? null,
       cover_image: cover_image ?? null,
       badge_image_url: badge_image_url ?? null,
+      // What the path is FOR, as opposed to what it contains. Arrays default to empty so a path
+      // saved before these existed simply shows fewer sections.
+      overview: overview ?? null,
+      skills: Array.isArray(skills) ? skills : [],
+      who_should_take: Array.isArray(who_should_take) ? who_should_take : [],
+      tools: Array.isArray(tools) ? tools : [],
       instructor_id: user.id,
       item_ids: item_ids ?? [],
       cohort_ids: targetCohorts,
@@ -133,7 +140,8 @@ export async function POST(req: NextRequest) {
     const user = await getInstructorUser(req);
     if (user instanceof NextResponse) return user;
 
-    const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone } = body;
+    const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone,
+            overview, skills, who_should_take, tools } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
     // Fetch previous state to detect newly published or newly added cohorts
@@ -145,6 +153,10 @@ export async function POST(req: NextRequest) {
     if (cover_image     !== undefined) updateData.cover_image     = cover_image;
     if (badge_image_url !== undefined) updateData.badge_image_url = badge_image_url ?? null;
     if (item_ids        !== undefined) updateData.item_ids        = item_ids;
+    if (overview        !== undefined) updateData.overview        = overview ?? null;
+    if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
+    if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];
+    if (tools           !== undefined) updateData.tools           = Array.isArray(tools) ? tools : [];
     if (cohort_ids      !== undefined) updateData.cohort_ids      = cohort_ids;
     // LAST word on access, deliberately after cohort_ids above: open access and cohort targeting
     // are mutually exclusive in the database, so a path being opened up must not also resubmit the

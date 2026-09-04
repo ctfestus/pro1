@@ -14,6 +14,7 @@ import type { CertificationType } from '@/lib/course-schema';
 import { EmptyState, HoverPreviewCard } from '@/components/student/shared';
 import { CertificationQuestionView, CertificationResultSummary } from '@/components/CertificationTaker';
 import { ShieldCheck, Clock, CheckCircle, Award, Briefcase, Code2, ArrowUpRight, BookOpenCheck, BadgeCheck, Share2, FileCheck2, X, ChevronLeft, ChevronRight, BookOpen, ArrowRight } from 'lucide-react';
+import { toPlainText } from '@/lib/plain-text';
 
 const softSurface = (C: typeof LIGHT_C, shadow = '0 12px 36px rgba(15,23,42,0.08)') => ({
   background: C.card,
@@ -133,7 +134,7 @@ function LearningPathPreview({ paths, C }: { paths: any[]; C: typeof LIGHT_C }) 
                 <div className="pointer-events-none absolute bottom-2 right-2 grid h-8 w-8 translate-y-1.5 place-items-center rounded-full bg-white text-slate-900 opacity-0 shadow-md transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100"><ArrowRight className="h-4 w-4" /></div>
               </div>
               <p className="mt-2.5 line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{path.title}</p>
-              {path.description && <p className="mt-1 line-clamp-1 text-[11px]" style={{ color: C.muted }}>{path.description}</p>}
+              {toPlainText(path.description) && <p className="mt-1 line-clamp-1 text-[11px]" style={{ color: C.muted }}>{toPlainText(path.description)}</p>}
             </div>
           ))}
           {!paths.length && (

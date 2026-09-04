@@ -21,6 +21,8 @@ import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
+import { pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
+import { pathOverviewFields } from '@/lib/path-overview';
 import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 import {
   loadPlansForContent,
@@ -46,14 +48,6 @@ export interface CatalogueItem {
   unlock?: { plans: PlanWithPrices[] };
 }
 
-export interface CataloguePathItem {
-  id: string;
-  type: 'course' | 'virtual_experience' | 'certification';
-  title: string;
-  slug: string | null;
-  coverImage: string | null;
-}
-
 type Row = {
   id: string;
   title: string | null;
@@ -65,7 +59,13 @@ type Row = {
   available_to_everyone?: boolean | null;
 };
 
-type PathRow = Row & { item_ids?: string[] | null };
+type PathRow = Row & {
+  item_ids?: string[] | null;
+  overview?: string | null;
+  skills?: string[] | null;
+  who_should_take?: string[] | null;
+  tools?: string[] | null;
+};
 
 const CONTENT_TABLE_BY_TYPE: Record<CatalogueType, PurchasableContentTable> = {
   course: 'courses',
@@ -103,7 +103,7 @@ export async function GET(req: NextRequest) {
         .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
-        .select('id, title, cover_image, description, cohort_ids, item_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, cover_image, description, cohort_ids, item_ids, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
         .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
@@ -126,33 +126,15 @@ export async function GET(req: NextRequest) {
 
     const inCohort = (row: Row) => !!cohortId && (row.cohort_ids ?? []).includes(cohortId);
 
+    // Descriptions come along: these rows already carry them, and a path preview that drops them
+    // tells a signed-in learner less about the contents than a signed-out one is told.
     const displayById = new Map<string, CataloguePathItem>();
-    for (const r of courses) {
-      displayById.set(r.id, {
-        id: r.id,
-        type: 'course',
-        title: r.title ?? 'Untitled',
-        slug: r.slug ?? null,
-        coverImage: r.cover_image ?? null,
-      });
-    }
-    for (const r of ves) {
-      displayById.set(r.id, {
-        id: r.id,
-        type: 'virtual_experience',
-        title: r.title ?? 'Untitled',
-        slug: r.slug ?? null,
-        coverImage: r.cover_image ?? null,
-      });
-    }
-    for (const r of certifications) {
-      displayById.set(r.id, {
-        id: r.id,
-        type: 'certification',
-        title: r.title ?? 'Untitled',
-        slug: r.slug ?? null,
-        coverImage: r.cover_image ?? null,
-      });
+    for (const [rows, type] of [
+      [courses, 'course'],
+      [ves, 'virtual_experience'],
+      [certifications, 'certification'],
+    ] as const) {
+      for (const r of rows) displayById.set(r.id, pathItemFromRow(r, type));
     }
 
     const map = (rows: Row[], type: CatalogueType, viaPath: boolean): CatalogueItem[] =>
@@ -170,7 +152,10 @@ export async function GET(req: NextRequest) {
           || (viaPath && grantedByPath.has(r.id))
         ),
         ...(type === 'learning_path'
-          ? { pathItems: ((r as PathRow).item_ids ?? []).map(id => displayById.get(id)).filter(Boolean) as CataloguePathItem[] }
+          ? {
+              pathItems: ((r as PathRow).item_ids ?? []).map(id => displayById.get(id)).filter(Boolean) as CataloguePathItem[],
+              ...pathOverviewFields(r),
+            }
           : {}),
       }));
 

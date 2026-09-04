@@ -6,6 +6,9 @@ import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { AlertCircle, ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, GraduationCap, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useToolIcons, useToolIconMap } from '@/lib/use-tool-icons';
+import { RichTextEditor } from '@/components/RichTextEditor';
+import { toPlainText } from '@/lib/plain-text';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { PlanAccessPicker } from '@/components/PlanAccessPicker';
@@ -130,8 +133,30 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
     setGeneratingDesc(false);
   };
 
+  const toolIcon = useToolIcons();
+  const toolIconMap = useToolIconMap();
+  // Skills, audience bullets and tools are all "a list of short strings" in the editor. One
+  // setter rather than three near-identical ones.
+  //
+  // Kept exactly as typed. Trimming and dropping blanks here looked tidy and made the field
+  // unusable: pressing Enter creates an empty last line, filtering removed it, and the newline
+  // vanished as fast as it was typed -- so the box could never hold more than one line, and a
+  // space could never be typed mid-word. The cleaning happens once, on save.
+  const setList = (field: 'skills' | 'who_should_take' | 'tools', values: string[]) =>
+    setEditing((p: any) => ({ ...p, [field]: values }));
+
+  /** Blank rows never reach the page as an empty pill or an empty bullet. */
+  const cleanList = (values: unknown): string[] =>
+    Array.isArray(values) ? values.map(v => String(v ?? '').trim()).filter(Boolean) : [];
+
   const save = async (statusOverride?: 'draft' | 'published') => {
-    const editingToSave = statusOverride ? { ...editing, status: statusOverride } : editing;
+    const editingToSave = {
+      ...editing,
+      ...(statusOverride ? { status: statusOverride } : {}),
+      skills: cleanList(editing?.skills),
+      who_should_take: cleanList(editing?.who_should_take),
+      tools: cleanList(editing?.tools),
+    };
     if (!editingToSave?.title?.trim()) { setSaveMsg({ ok: false, text: 'Title is required.' }); return; }
     setSaving(true);
     setSaveMsg(null);
@@ -208,6 +233,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   const openNewEditor = () => openEditor({
     request_id: crypto.randomUUID(), title: '', description: '', cover_image: '',
     item_ids: [], cohort_ids: [], available_to_everyone: false, status: 'draft', next_path_id: null,
+    overview: '', skills: [], who_should_take: [], tools: [],
   });
 
   const closeEditor = () => {
@@ -334,7 +360,77 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                 {generatingDesc ? 'Generating…' : 'Generate with AI'}
               </button>
             </div>
-            <textarea value={editing.description ?? ''} onChange={e => setEditing((p: any) => ({ ...p, description: e.target.value }))} rows={4} placeholder="What will students achieve by completing this path?" className={inputCls} style={inputStyle}/>
+            <RichTextEditor
+              value={editing.description ?? ''}
+              onChange={html => setEditing((p: any) => ({ ...p, description: html }))}
+              placeholder="What will students achieve by completing this path?"
+            />
+          </div>
+
+          {/* Overview: the long form, shown full width on the public page above everything else. */}
+          <div>
+            <label className="text-xs font-bold block mb-2" style={{ color: C.muted }}>Overview</label>
+            <RichTextEditor
+              value={editing.overview ?? ''}
+              onChange={html => setEditing((p: any) => ({ ...p, overview: html }))}
+              placeholder="The fuller picture: what this path covers, how it is structured, and what a learner walks away able to do."
+            />
+          </div>
+
+          {/* Skills and audience: one per line, because that is how they are read back out --
+              as pills and as bullets. */}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <label className="text-xs font-bold block mb-2" style={{ color: C.muted }}>Skills you will learn</label>
+              <textarea
+                value={(editing.skills ?? []).join('\n')}
+                onChange={e => setList('skills', e.target.value.split('\n'))}
+                rows={6}
+                placeholder={'One skill per line\nPrompt engineering\nData storytelling'}
+                className={inputCls} style={inputStyle}/>
+              <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Shown as pills. One per line.</p>
+            </div>
+            <div>
+              <label className="text-xs font-bold block mb-2" style={{ color: C.muted }}>Who should take this path</label>
+              <textarea
+                value={(editing.who_should_take ?? []).join('\n')}
+                onChange={e => setList('who_should_take', e.target.value.split('\n'))}
+                rows={6}
+                placeholder={'One audience per line\nAnalysts moving into AI work\nManagers briefing technical teams'}
+                className={inputCls} style={inputStyle}/>
+              <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Shown as bullets. One per line.</p>
+            </div>
+          </div>
+
+          {/* Tools: picked from the platform's icon registry rather than typed, so every tool
+              named here has a logo to render with. */}
+          <div>
+            <label className="text-xs font-bold block mb-2" style={{ color: C.muted }}>Tools</label>
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(toolIconMap).sort((a, b) => a.localeCompare(b)).map(name => {
+                const picked = (editing.tools ?? []).includes(name);
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    onClick={() => setList('tools', picked
+                      ? (editing.tools ?? []).filter((t: string) => t !== name)
+                      : [...(editing.tools ?? []), name])}
+                    className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-80"
+                    style={{
+                      background: picked ? `${C.green}18` : C.pill,
+                      color: picked ? C.green : C.muted,
+                      border: `1px solid ${picked ? C.green : 'transparent'}`,
+                    }}>
+                    {toolIcon(name) && <img src={toolIcon(name) as string} alt="" className="h-4 w-4 object-contain"/>}
+                    {name}
+                  </button>
+                );
+              })}
+            </div>
+            {(editing.tools ?? []).length === 0 && (
+              <p className="text-[11px] mt-2" style={{ color: C.faint }}>None selected. The tools section is hidden until you pick at least one.</p>
+            )}
           </div>
 
           {/* Cover image upload */}
@@ -672,7 +768,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                     <span className="text-[11px] flex items-center gap-1" style={{ color: C.faint }}><GraduationCap className="w-3 h-3"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}</span>
                   </div>
                   <p className="font-bold text-base" style={{ color: C.text }}>{path.title}</p>
-                  {path.description && <p className="text-sm line-clamp-2 leading-relaxed" style={{ color: C.muted }}>{path.description}</p>}
+                  {toPlainText(path.description) && <p className="text-sm line-clamp-2 leading-relaxed" style={{ color: C.muted }}>{toPlainText(path.description)}</p>}
                   {assignedCohortNames.length > 0 && (
                     <p className="text-[11px] flex items-center gap-1.5" style={{ color: C.faint }}><Users className="w-3 h-3"/>{assignedCohortNames.slice(0, 2).join(', ')}{assignedCohortNames.length > 2 ? ` +${assignedCohortNames.length - 2}` : ''}</p>
                   )}
