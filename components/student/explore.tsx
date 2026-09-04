@@ -142,9 +142,12 @@ export function ExploreSection({ C }: {
   C: typeof LIGHT_C;
   onNavigate?: (section: SectionId) => void;
 }) {
-  const { primaryColor, accentColor } = useTenant();
+  const { accentColor } = useTenant();
   const typeColor: Record<CatalogueType, string> = {
-    course:             primaryColor || '#0056D2',
+    // C.cta, not the raw tenant colour: the palette already resolves to the tenant primary in
+    // light and to the ocean blue in dark, which is the convention everywhere else. Reading
+    // primaryColor directly put the light-mode brand blue on a dark page.
+    course:             C.cta,
     learning_path:      accentColor  || '#FF9933',
     virtual_experience: '#00BF63',
     certification:      '#0891B2',
@@ -246,7 +249,7 @@ export function ExploreSection({ C }: {
                 onClick={() => { setFilter(f.value); setHover(null); }}
                 className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
                 style={active
-                  ? { background: primaryColor || '#0056D2', color: '#ffffff' }
+                  ? { background: C.cta, color: C.ctaText }
                   : pillStyle}
               >
                 {f.label}
