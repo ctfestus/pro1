@@ -367,18 +367,21 @@ function cataloguePathToPathRow(item: any) {
  * tag at all.
  */
 function CertificateTag({ textColor }: { textColor: string }) {
+  // A ribbon reads as a ribbon only on one line. Wrapped, the notch cut out of its right edge
+  // lands beside the second line and the shape stops making sense -- so it never wraps, and it
+  // gives back padding and type size on a narrow screen instead.
   return (
     <span
-      className="inline-flex items-center gap-2 px-4 py-2 pr-8 text-sm font-bold uppercase"
+      className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 pr-7 text-[12.5px] font-bold uppercase sm:gap-2 sm:px-4 sm:py-2 sm:pr-8 sm:text-sm"
       style={{
         background: '#FFC000',
         borderRadius: 6,
-        clipPath: 'polygon(0 0, 100% 0, calc(100% - 22px) 50%, 100% 100%, 0 100%)',
+        clipPath: 'polygon(0 0, 100% 0, calc(100% - 18px) 50%, 100% 100%, 0 100%)',
         color: textColor,
         letterSpacing: 0,
       }}
     >
-      <BadgeCheck className="h-5 w-5" strokeWidth={2.2} />
+      <BadgeCheck className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5" strokeWidth={2.2} />
       Certificate available
     </span>
   );
