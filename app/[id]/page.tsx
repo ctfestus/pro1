@@ -25,6 +25,8 @@ import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type S
 import { useC } from '@/lib/theme';
 import { enrollLabel } from '@/lib/unlock-pricing';
 import { signInHref } from '@/lib/auth-redirect';
+import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
+import { useToolIcons } from '@/lib/use-tool-icons';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -351,6 +353,10 @@ function cataloguePathToPathRow(item: any) {
     locked: item.locked,
     unlock: item.unlock,
     progress: null,
+    overview: item.overview ?? null,
+    skills: item.skills ?? [],
+    whoShouldTake: item.whoShouldTake ?? [],
+    tools: item.tools ?? [],
   };
 }
 
@@ -378,6 +384,157 @@ function CertificateTag({ textColor }: { textColor: string }) {
   );
 }
 
+/** A card lift that reads on either ground. A light shadow is invisible on a dark page. */
+const cardShadow = (isDark: boolean) =>
+  isDark ? '0 2px 14px rgba(0,0,0,0.26)' : '0 2px 12px rgba(15,23,42,0.07)';
+
+/**
+ * Authored copy, rendered the way it was written.
+ *
+ * Rich text goes through the sanitiser and renders as markup. Plain text -- which is what every
+ * description written before the rich-text editor still is -- renders with its line breaks
+ * preserved, because HTML would otherwise collapse the author's spacing into one paragraph.
+ */
+function AuthoredText({ value, className = '', style }: { value: string; className?: string; style?: React.CSSProperties }) {
+  if (!value?.trim()) return null;
+  if (looksLikeHtml(value)) {
+    return <div className={`rich-preview ${className}`} style={style} dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) || '' }} />;
+  }
+  return <p className={`whitespace-pre-line ${className}`} style={style}>{value}</p>;
+}
+
+/**
+ * Other paths on the platform, after the contents.
+ *
+ * Read from publicly_offered_learning_paths, which is granted to anon -- a visitor who has not
+ * signed in can see it, and that is the visitor this page is for. No new endpoint, and nothing
+ * here that is not already offered publicly.
+ */
+function ExploreMorePaths({ currentId, C }: { currentId: string; C: ReturnType<typeof useC> }) {
+  const isDark = C.page !== '#F2F5FA';
+  const [paths, setPaths] = useState<any[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      // publicly_offered_learning_paths, NOT published_learning_paths: the latter lists every
+      // published path, including one built for a single client's private cohort. Showing those
+      // here would put their titles, covers and skills in front of anyone, which is precisely
+      // what the catalogue preview refuses to do.
+      const { data } = await supabase
+        .from('publicly_offered_learning_paths')
+        .select('id, title, description, cover_image, badge_image_url, skills')
+        .limit(4);
+      // One row of three. Four are fetched because the current path is among them and drops out.
+      const others = (data ?? []).filter((p: any) => p.id !== currentId).slice(0, 3);
+      if (!others.length) { if (!cancelled) setPaths([]); return; }
+
+      // What each path contains, counted by type. published_path_items is granted to anon, so a
+      // signed-out visitor sees the same counts a learner does.
+      const { data: contents } = await supabase
+        .from('published_path_items')
+        .select('path_id, type')
+        .in('path_id', others.map((p: any) => p.id));
+
+      const counts = new Map<string, { courses: number; experiences: number; certifications: number }>();
+      for (const row of contents ?? []) {
+        const tally = counts.get(row.path_id) ?? { courses: 0, experiences: 0, certifications: 0 };
+        if (row.type === 'course') tally.courses++;
+        else if (row.type === 've') tally.experiences++;
+        else if (row.type === 'certification') tally.certifications++;
+        counts.set(row.path_id, tally);
+      }
+      if (!cancelled) setPaths(others.map((p: any) => ({ ...p, counts: counts.get(p.id) })));
+    })();
+    return () => { cancelled = true; };
+  }, [currentId]);
+
+  if (!paths.length) return null;
+
+  return (
+    <section className="mx-auto w-full max-w-[1240px] px-4 pb-16 sm:px-7">
+      <div className="mb-5">
+        <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: C.text }}>Explore more learning paths</h2>
+        <p className="mt-1.5 text-[15px]" style={{ color: C.muted }}>Other journeys you can take on the platform.</p>
+      </div>
+      {/* Three across on a wide screen, two on a tablet, one on a phone. A grid rather than a
+          scroller: with three visible at once there is nothing left to scroll past. */}
+      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        {paths.map((other: any) => {
+          const tally = other.counts ?? { courses: 0, experiences: 0, certifications: 0 };
+          const contains = [
+            tally.courses > 0 ? { icon: MonitorPlay, label: `${tally.courses} Course${tally.courses === 1 ? '' : 's'}` } : null,
+            tally.experiences > 0 ? { icon: Building2, label: `${tally.experiences} Virtual Experience${tally.experiences === 1 ? '' : 's'}` } : null,
+            tally.certifications > 0 ? { icon: BadgeCheck, label: `${tally.certifications} Certification${tally.certifications === 1 ? '' : 's'}` } : null,
+          ].filter(Boolean) as { icon: any; label: string }[];
+          const skills: string[] = (other.skills ?? []).slice(0, 4);
+
+          return (
+            <Link key={other.id} href={`/${other.id}`}
+              className="group flex w-full flex-col overflow-hidden rounded-2xl transition-transform duration-200 hover:-translate-y-0.5"
+              style={{
+                background: C.card,
+                boxShadow: cardShadow(isDark),
+                textDecoration: 'none',
+                ['--cta' as string]: C.cta,
+                ['--cta-text' as string]: C.ctaText,
+                ['--btn-text' as string]: C.text,
+                ['--btn-border' as string]: C.cardBorder,
+              } as React.CSSProperties}>
+              {/* Cover, with the completion badge sitting on it the way the catalogue shows it. */}
+              <div className="relative aspect-video w-full overflow-hidden" style={{ background: '#101828' }}>
+                {other.cover_image
+                  ? <img src={resolveCoverUrl(other.cover_image)} alt="" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.06]" />
+                  : <div className="grid h-full w-full place-items-center"><BookOpen className="h-7 w-7" style={{ color: 'rgba(255,255,255,0.5)' }} /></div>}
+                {other.badge_image_url && (
+                  <img src={resolveCoverUrl(other.badge_image_url)} alt="" className="absolute right-3 top-3 h-16 w-16 object-contain drop-shadow-lg" />
+                )}
+              </div>
+
+              <div className="flex flex-1 flex-col p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: C.faint }}>Learning path</p>
+                <p className="mt-1 line-clamp-2 text-[19px] font-bold leading-snug" style={{ color: C.text }}>{other.title}</p>
+                {toPlainText(other.description) && (
+                  <p className="mt-2 line-clamp-3 text-[14px] leading-relaxed" style={{ color: C.muted }}>{toPlainText(other.description)}</p>
+                )}
+
+                {contains.length > 0 && (
+                  <div className="mt-4 space-y-2.5 border-t pt-3.5" style={{ borderColor: C.divider }}>
+                    {contains.map(({ icon: ContainsIcon, label }) => (
+                      <div key={label} className="flex items-center gap-2.5 text-[14px] font-semibold" style={{ color: C.text }}>
+                        <span className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full" style={{ background: 'rgba(0,191,99,0.12)', color: '#00bf63' }}>
+                          <ContainsIcon className="h-3.5 w-3.5" strokeWidth={2.2} />
+                        </span>
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {skills.length > 0 && (
+                  <div className="mt-4 border-t pt-3.5" style={{ borderColor: C.divider }}>
+                    <p className="text-[13px] font-bold" style={{ color: C.text }}>Skills You will Learn</p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {skills.map((skill: string) => (
+                        <span key={skill} className="rounded-full px-2.5 py-1 text-[12px] font-medium"
+                          style={{ background: C.pill, color: C.muted }}>{skill}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <span className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl border border-[var(--btn-border)] px-4 py-2.5 text-[14px] font-bold text-[var(--btn-text)] transition-colors duration-200 group-hover:border-[var(--cta)] group-hover:bg-[var(--cta)] group-hover:text-[var(--cta-text)] motion-reduce:transition-none">
+                  View details
+                </span>
+              </div>
+            </Link>
+          );
+        })}
+      </div>
+    </section>
+  );
+}
+
 function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: ReturnType<typeof useC>; authHref: string }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
@@ -396,7 +553,14 @@ function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: Retur
   const panelText = isDark ? '#f8fafc' : '#202124';
   const panelMuted = isDark ? '#cbd5e1' : '#62666d';
   const panelFaint = isDark ? '#94a3b8' : '#747474';
-  const description = path.description?.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
+  const toolIcon = useToolIcons();
+  const overview: string = (path.overview ?? '').trim();
+  const skills: string[] = path.skills ?? [];
+  const whoShouldTake: string[] = path.whoShouldTake ?? [];
+  const tools: string[] = path.tools ?? [];
+  // Authored as rich text, so it is rendered rather than stripped. The plain-text flattening
+  // that used to live here silently dropped every list and emphasis an author had added.
+  const description: string = (path.description ?? '').trim();
   const statPillClass = 'inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-bold';
   const statPillStyle = {
     background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(255,255,255,0.92)',
@@ -405,7 +569,7 @@ function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: Retur
   };
 
   return (
-    <main style={{ minHeight: '100vh', background: C.page, color: C.text }}>
+    <main style={{ minHeight: '100vh', background: C.card, color: C.text }}>
       <nav style={{ position: 'sticky', top: 0, zIndex: 30, backdropFilter: 'blur(14px)', background: isDark ? 'rgba(13,13,13,0.88)' : 'rgba(255,255,255,0.98)', borderBottom: `1px solid ${isDark ? C.cardBorder : 'rgba(0,0,0,0.07)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56 }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
           <img src={(!isDark ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
@@ -424,8 +588,11 @@ function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: Retur
           </button>
         </div>
       </nav>
+      {/* The cover is a band now, not a section the panel lives inside. The card below is lifted
+          onto it and carries on down the page, so the summary and the contents read as one card
+          rather than two panels that happen to meet at the hero's edge. */}
       <section
-        className="relative overflow-hidden sm:min-h-[520px]"
+        className="relative h-[240px] overflow-hidden sm:h-[520px]"
         style={{
           background: cover
             ? '#101828'
@@ -440,16 +607,21 @@ function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: Retur
           />
         )}
         <div className="absolute inset-0" style={{ background: cover ? 'rgba(0,0,0,0.18)' : 'rgba(0,0,0,0.12)' }} />
-        <div className="relative mx-auto flex w-full max-w-[1240px] items-stretch justify-center px-4 py-5 sm:min-h-[520px] sm:px-7 sm:py-0">
-          <div
-            className="flex w-full max-w-[900px] items-center px-5 py-7 text-center shadow-[0_24px_70px_rgba(15,23,42,0.20)] sm:px-12 sm:py-9"
-            style={{
-              background: panelBg,
-              border: `1px solid ${isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.08)'}`,
-              color: panelText,
-              fontFamily: 'var(--font-lato, Lato, sans-serif)',
-            }}
-          >
+      </section>
+
+      <div className="relative z-10 mx-auto -mt-[128px] w-full max-w-[1240px] px-4 pb-14 sm:-mt-[408px] sm:px-7 sm:pb-20">
+        <div
+          className="mx-auto w-full max-w-[1040px] overflow-hidden rounded-3xl"
+          style={{
+            // Shadow only. The border was invisible under the old heavy drop and turned into a
+            // hard outline the moment the shadow was lightened.
+            background: panelBg,
+            boxShadow: cardShadow(isDark),
+            color: panelText,
+            fontFamily: 'var(--font-lato, Lato, sans-serif)',
+          }}
+        >
+          <div className="px-5 py-7 text-center sm:px-12 sm:py-9">
             <div className="mx-auto max-w-[840px]">
               <p className="text-xs font-bold uppercase tracking-[0.16em] sm:text-sm" style={{ color: panelFaint }}>Learning path</p>
               <h1
@@ -459,12 +631,11 @@ function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: Retur
                 {path.title}
               </h1>
               {description && (
-                <p
+                <AuthoredText
+                  value={description}
                   className="mx-auto mt-4 max-w-4xl text-base leading-relaxed sm:text-lg"
                   style={{ color: panelMuted }}
-                >
-                  {description}
-                </p>
+                />
               )}
               <div className="mt-6 flex flex-wrap items-center justify-center gap-2.5 sm:gap-3">
                 <CertificateTag textColor={isDark ? '#111827' : '#202124'} />
@@ -502,15 +673,83 @@ function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: Retur
               </Link>
             </div>
           </div>
-        </div>
-      </section>
 
-      <section
-        className="mx-auto w-full max-w-[1140px] px-5 py-8 sm:px-7 sm:py-10"
-        style={{ fontFamily: 'var(--font-lato, Lato, sans-serif)' }}
-      >
-        <PathRow path={path} C={C} publicPreview hideHeader />
-      </section>
+          {/* What the path is for, before what is in it. Overview runs full width because it is
+              prose; the two shorter lists sit side by side, and collapse to one column on a
+              phone. Each section is absent rather than empty when an author has not filled it. */}
+          {(overview || skills.length > 0 || whoShouldTake.length > 0 || tools.length > 0) && (
+            <div className="px-4 pb-2 sm:px-9">
+              {overview && (
+                <div className="mb-7">
+                  <h2 className="mb-2 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Overview</h2>
+                  <AuthoredText value={overview} className="text-[15px] leading-relaxed" style={{ color: panelMuted }} />
+                </div>
+              )}
+
+              {(skills.length > 0 || whoShouldTake.length > 0) && (
+                <div className="mb-7 grid gap-7 sm:grid-cols-2">
+                  {skills.length > 0 && (
+                    <div>
+                      <h2 className="mb-3 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Skills you will learn</h2>
+                      <div className="flex flex-wrap gap-2">
+                        {skills.map((skill: string) => (
+                          <span key={skill} className="rounded-full px-3 py-1.5 text-[13px] font-semibold"
+                            style={{ background: 'rgba(0,191,99,0.10)', color: isDark ? '#86efac' : '#0f7a4a' }}>
+                            {skill}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {whoShouldTake.length > 0 && (
+                    <div>
+                      <h2 className="mb-3 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Who should take this path?</h2>
+                      <ul className="space-y-2">
+                        {whoShouldTake.map((who: string) => (
+                          <li key={who} className="flex items-start gap-2.5 text-[15px] leading-relaxed" style={{ color: panelMuted }}>
+                            <span aria-hidden="true" className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: '#00bf63' }} />
+                            {who}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tools.length > 0 && (
+                <div className="mb-7">
+                  <h2 className="mb-3 text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>Tools</h2>
+                  <div className="flex flex-wrap gap-2.5">
+                    {tools.map((tool: string) => (
+                      <span key={tool} className="inline-flex items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold"
+                        style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f6f9', color: panelText }}>
+                        {toolIcon(tool) && <img src={toolIcon(tool)} alt="" className="h-4 w-4 object-contain" />}
+                        {tool}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Same card, continued. The rule closes off what the path IS and opens what is in it. */}
+          <div className="mx-4 border-t px-0 pb-7 pt-7 sm:mx-9 sm:pb-9" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)' }}>
+            <div className="mb-5 px-1 sm:mb-6">
+              <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>
+                Content in this learning path
+              </h2>
+              <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: panelMuted }}>
+                Level up your skills with this curated, hands-on content.
+              </p>
+            </div>
+            <PathRow path={path} C={C} publicPreview hideHeader />
+          </div>
+        </div>
+      </div>
+
+      <ExploreMorePaths currentId={path.id} C={C} />
     </main>
   );
 }

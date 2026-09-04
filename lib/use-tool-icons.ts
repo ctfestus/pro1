@@ -61,6 +61,15 @@ export function refreshToolIcons() {
  * never waits on a decorative image to show its content.
  */
 export function useToolIcons(): (name: string) => string | undefined {
+  const icons = useToolIconMap();
+  return useCallback((name: string) => resolveToolIcon(icons, name), [icons]);
+}
+
+/**
+ * The whole set, for the one caller that needs to OFFER tools rather than draw one: a picker has
+ * to know what exists. Everywhere else wants the lookup above.
+ */
+export function useToolIconMap(): IconMap {
   const [icons, setIcons] = useState<IconMap>(cache ?? DEFAULT_TOOL_ICONS);
 
   useEffect(() => {
@@ -71,5 +80,5 @@ export function useToolIcons(): (name: string) => string | undefined {
     return () => { alive = false; listeners.delete(notify); };
   }, []);
 
-  return useCallback((name: string) => resolveToolIcon(icons, name), [icons]);
+  return icons;
 }

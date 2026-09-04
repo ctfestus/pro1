@@ -57,6 +57,16 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
     });
   }, []);
 
+  // Enter must produce a PARAGRAPH, not a div.
+  //
+  // A contentEditable defaults to wrapping each new line in <div>, and sanitizeRichText does not
+  // allow div -- so DOMPurify unwrapped them on the way out and every single line break silently
+  // disappeared. An author had to press Enter three times before a stray <br> survived and any
+  // gap appeared at all. Paragraphs are allowed, and .rich-preview already spaces them.
+  useEffect(() => {
+    try { document.execCommand('defaultParagraphSeparator', false, 'p'); } catch { /* not supported: fall back to the browser default */ }
+  }, []);
+
   // Sync external value changes into the DOM (only when not typing)
   useEffect(() => {
     if (!editorRef.current) return;
