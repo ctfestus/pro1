@@ -124,7 +124,10 @@ describe('subscription read authorization', () => {
     const response = await GET(getRequest('subscription-list'));
     expect(response.status).toBe(200);
     expect(getSubscriptions).toHaveBeenCalledWith(db, ['plan-owned']);
-    expect(getEligibleSubscriptionStudents).not.toHaveBeenCalled();
+    // Plan ownership scopes the subscriptions, not the learner picker. An instructor gets the
+    // same eligible-student list an admin does, because eligibility is a fact about the student
+    // rather than about the plan or the caller.
+    expect(getEligibleSubscriptionStudents).toHaveBeenCalledWith(db);
   });
 
   it('refuses an instructor reading a student subscription on another plan', async () => {
