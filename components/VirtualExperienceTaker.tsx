@@ -6,6 +6,7 @@ import {
   CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown,
   X, Loader2, Trophy, BookOpen, Lock, Download, Award, Star, Clock,
   Link as LinkIcon, Upload as UploadIcon, Paperclip, Send, Reply, AlertTriangle, Eye, Check,
+  SkipForward,
 } from 'lucide-react';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
@@ -323,9 +324,13 @@ export default function VirtualExperienceTaker({
   const hasPrev = flatIdx > 0;
   const hasNext = flatIdx < flat.length - 1;
 
-  // A lesson is unlocked only if all previous lessons are 100% complete (always open in review mode)
+  // Review and preview both move between missions freely; a student does not. Preview needs it
+  // because an instructor cannot finish work whose submit path needs a real attempt behind it.
+  const navUnlocked = reviewMode || previewMode;
+
+  // A lesson is unlocked only if all previous lessons are 100% complete.
   const isUnlocked = (idx: number) => {
-    if (reviewMode || idx === 0) return true;
+    if (navUnlocked || idx === 0) return true;
     return lessonProgress(flat[idx - 1].lesson, progress) === 100;
   };
 
@@ -333,6 +338,19 @@ export default function VirtualExperienceTaker({
   const allCurrentDone = currentLesPct === 100;
   const remainingCount = currentLes ? currentLes.requirements.filter(r => !progress[r.id]?.completed).length : 0;
   const canPersistProgress = !previewMode && !reviewMode && !!formId && formId !== 'preview' && !!userId && userId !== 'preview';
+
+  // The first requirement in this mission holding back the sequential arrival of the ones after
+  // it. Used only by the preview skip control.
+  const nextBlockingReq = currentLes?.requirements.find(r =>
+    reqCountsForCompletion(r, progress) && !progress[r.id]?.completed
+  ) || null;
+
+  // Preview only: mark a requirement done in memory so the conversation moves on. Never persisted
+  // -- canPersistProgress is already false in preview, so saveProgress is not called at all.
+  const skipReqInPreview = (reqId: string) => {
+    if (!previewMode) return;
+    setProgress(prev => ({ ...prev, [reqId]: { ...prev[reqId], completed: true } }));
+  };
 
   // Load existing review / completion state
   useEffect(() => {
@@ -984,6 +1002,16 @@ export default function VirtualExperienceTaker({
           </div>
         )}
 
+        {/* Preview banner: staff walking the experience. Everything below renders exactly as a
+            student sees it, so the only thing worth saying is what preview changes. */}
+        {previewMode && !reviewMode && (
+          <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold flex-shrink-0"
+            style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
+            <Eye className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.</span>
+          </div>
+        )}
+
         {/* Lesson content: subtle grey background, single white card */}
         <div ref={mainScrollRef} className="flex-1 overflow-y-auto" style={{ background: isDark ? '#141414' : '#F2F5FA' }}>
           <div className={`${embedUrl && isHtmlEmbedUrl(embedUrl) ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-3 pb-4 sm:pb-6 space-y-4`}>
@@ -1002,11 +1030,12 @@ export default function VirtualExperienceTaker({
           )}
           {currentLes ? (() => {
               // Mission content is read first; "Continue to Tasks" reveals the
-              // tasks/deliverables below. Skipped for review/preview and for a
-              // lesson that's already fully done, where everything just shows.
+              // tasks/deliverables below. Skipped for review and for a lesson
+              // that's already fully done, where everything just shows. Preview
+              // keeps it: it is part of what a student sees.
               const hasContent = !!(currentLes.doc || currentLes.body);
               const hasReqs = currentLes.requirements.length > 0;
-              const gateActive = !reviewMode && !previewMode && hasContent && hasReqs && !allCurrentDone;
+              const gateActive = !reviewMode && hasContent && hasReqs && !allCurrentDone;
               const hasContinued = continuedLessons.has(currentLes.id);
               const showGateButton = gateActive && !hasContinued;
               const isCollapsible = gateActive && hasContinued;
@@ -1131,9 +1160,10 @@ export default function VirtualExperienceTaker({
 
                       // Messages arrive sequentially: a requirement only appears once
                       // everything before it is done AND the manager has finished
-                      // replying (review/preview show the whole conversation).
+                      // replying (review shows the whole conversation at once; preview
+                      // sequences like a student and offers a skip instead).
                       // An optional, unclaimed share must not hold back the requirements after it.
-                      if (!reviewMode && !previewMode && qi > 0 && !currentLes.requirements.slice(0, qi).every(r =>
+                      if (!reviewMode && qi > 0 && !currentLes.requirements.slice(0, qi).every(r =>
                         (!reqCountsForCompletion(r, progress) || progress[r.id]?.completed)
                         && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id]
                       )) return null;
@@ -1182,7 +1212,7 @@ export default function VirtualExperienceTaker({
                           return (
                             <div key={req.id} style={rowStyle} className="px-4 sm:px-8 py-5">
                               <ChatCard isDark={isDark} reqId={req.id} company={config.company} channel={teamChannel}
-                                members={[manager]} unread={!done} muteArrival={reviewMode || previewMode}>
+                                members={[manager]} unread={!done} muteArrival={reviewMode}>
                                 <ChatMsg isDark={isDark} author={manager} time={stamp.time}
                                   reactions={
                                     !done && !reviewMode ? (
@@ -1221,7 +1251,7 @@ export default function VirtualExperienceTaker({
                               sender={manager} toName={studentName} toEmail={meEmail} stamp={stamp}
                               bodyHtml={req.description ? sanitizeEmailContent(applyNameTags(req.description, studentName)) : undefined}
                               attachments={briefAttachments} company={config.company}
-                              done={done} muteArrival={reviewMode || previewMode}
+                              done={done} muteArrival={reviewMode}
                               chatAction={!reviewMode ? {
                                 label: `Chat with ${firstNameOf(manager.name)}`,
                                 onClick: () => { setAskOpen(new Set([req.id])); setAskSeen(prev => new Set([...prev, req.id])); },
@@ -1285,7 +1315,7 @@ export default function VirtualExperienceTaker({
                         return (
                           <div key={req.id} style={rowStyle} className="px-4 sm:px-8 py-5">
                             <ChatCard isDark={isDark} reqId={req.id} company={config.company} channel={teamChannel}
-                              members={[manager]} unread={!done} muteArrival={reviewMode || previewMode}>
+                              members={[manager]} unread={!done} muteArrival={reviewMode}>
                               <ChatMsg isDark={isDark} author={manager} time={stamp.time}>
                                 <p style={{ margin: 0 }}>{req.label}</p>
                                 {req.description && <p style={{ margin: '4px 0 0', opacity: 0.75 }}>{req.description}</p>}
@@ -1330,7 +1360,7 @@ export default function VirtualExperienceTaker({
                             <MailCard isDark={isDark} accent={accentColor} reqId={req.id} subject={debriefSubject}
                               sender={manager} toName={studentName} toEmail={meEmail} stamp={stamp}
                               bodyHtml={req.description ? sanitizeEmailContent(applyNameTags(req.description, studentName)) : undefined}
-                              company={config.company} done={done} muteArrival={reviewMode || previewMode}>
+                              company={config.company} done={done} muteArrival={reviewMode}>
                               {!done ? (
                                 !replyOpen ? (
                                   <div style={{ padding: '14px 22px' }}>
@@ -1385,7 +1415,7 @@ export default function VirtualExperienceTaker({
                               sender={manager} toName={studentName} toEmail={meEmail} stamp={efStamp}
                               bodyHtml={(req.emailBody || req.description) ? sanitizeEmailContent(applyNameTags(req.emailBody || req.description || '', studentName)) : undefined}
                               attachments={efAttachments.length ? efAttachments : undefined}
-                              company={config.company} done={done} muteArrival={reviewMode || previewMode} signatureAfterChildren>
+                              company={config.company} done={done} muteArrival={reviewMode} signatureAfterChildren>
                               {children}
                             </MailCard>
                           </div>
@@ -2712,7 +2742,7 @@ export default function VirtualExperienceTaker({
                     })}
 
                     {/* Incoming-message indicator: the rest of the conversation arrives as work gets done */}
-                    {!reviewMode && !previewMode && (() => {
+                    {!reviewMode && (() => {
                       const reqs = currentLes.requirements;
                       const settled = (r: Requirement) => !!progress[r.id]?.completed && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id];
                       let visibleEnd = reqs.length;
@@ -2729,6 +2759,23 @@ export default function VirtualExperienceTaker({
                         </div>
                       );
                     })()}
+
+                    {/* Preview only: step past work whose submit path needs a real attempt (a file
+                        upload, an AI review, a LinkedIn claim). Without this the sequence stalls
+                        and the rest of the mission stays hidden. Marks progress in memory only. */}
+                    {previewMode && !reviewMode && nextBlockingReq && (
+                      <div className="px-4 sm:px-8 py-4 flex items-center gap-3 flex-wrap"
+                        style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}` }}>
+                        <button onClick={() => skipReqInPreview(nextBlockingReq.id)}
+                          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold transition-all hover:opacity-80"
+                          style={{ background: `${accentColor}18`, color: accentColor }}>
+                          <SkipForward className="w-3.5 h-3.5" /> Skip this step
+                        </button>
+                        <span className="text-[12px]" style={{ color: muted }}>
+                          Preview only. Skipping reveals what a student sees next and is not saved.
+                        </span>
+                      </div>
+                    )}
                   </>
                 )}
 
@@ -2823,10 +2870,10 @@ export default function VirtualExperienceTaker({
                 </div>
 
                 {hasNext ? (
-                  <button onClick={goNext} disabled={!reviewMode && !allCurrentDone}
-                    title={!reviewMode && !allCurrentDone ? 'Complete all tasks to continue' : ''}
+                  <button onClick={goNext} disabled={!navUnlocked && !allCurrentDone}
+                    title={!navUnlocked && !allCurrentDone ? 'Complete all tasks to continue' : ''}
                     className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-                    style={{ background: reviewMode || allCurrentDone ? accentColor : border, color: reviewMode || allCurrentDone ? (isDark ? '#111' : '#fff') : muted }}>
+                    style={{ background: navUnlocked || allCurrentDone ? accentColor : border, color: navUnlocked || allCurrentDone ? (isDark ? '#111' : '#fff') : muted }}>
                     <span className="hidden xs:inline">Next</span> <ChevronRight className="w-4 h-4" />
                   </button>
                 ) : reviewMode ? (
