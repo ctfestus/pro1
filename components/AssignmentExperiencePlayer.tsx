@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from 'react';
 import {
   CheckCircle2, Circle, ChevronDown, ChevronUp, ChevronRight, ChevronLeft,
   Loader2, Lock, Upload as UploadIcon, Link as LinkIcon, CheckCircle, Download, Eye,
-  Paperclip, Send, Reply, X, AlertTriangle, Check,
+  Paperclip, Send, Reply, X, AlertTriangle, Check, SkipForward,
 } from 'lucide-react';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
@@ -192,6 +192,10 @@ export default function AssignmentExperiencePlayer({
   // the submit button) for students who finished the work but never clicked Complete.
   const [done,          setDone]          = useState(() => submitted);
   const [reviewBeforeSubmit, setReviewBeforeSubmit] = useState(false);
+  // Preview only: the instructor pressed Submit on the preview. Kept apart from `done` so the
+  // student's "your assignment has been submitted" screen is never shown for a submission that
+  // did not happen.
+  const [previewSubmitted, setPreviewSubmitted] = useState(false);
   const [reviewMode,    setReviewMode]    = useState(false);
   const [expandedMods,  setExpandedMods]  = useState<Set<string>>(new Set([modules[0]?.id]));
   // Mission content is read first, then a "Continue to Tasks" click reveals the
@@ -243,8 +247,46 @@ export default function AssignmentExperiencePlayer({
   const currentIdx  = flatLessons.findIndex(x => x.lesson.id === activeLesson);
   const prevEntry   = currentIdx > 0 ? flatLessons[currentIdx - 1] : null;
   const nextEntry   = currentIdx < flatLessons.length - 1 ? flatLessons[currentIdx + 1] : null;
+  // Review and preview both move between missions freely; a student does not.
+  const navUnlocked = reviewMode || previewMode;
+
+  /**
+   * One rule for when a requirement stops holding back the ones after it, used by all three
+   * places that need it: the requirement list's sequential-arrival gate, the arriving-messages
+   * indicator, and the preview skip target. They were three near-copies, and the indicator's
+   * copy demanded `completed` from every predecessor -- so an optional, unclaimed LinkedIn share
+   * (which owes nothing and does not block) made it announce hidden messages that were in fact
+   * already on screen.
+   *
+   * `reqOwesWork` is the share-aware "still to do" test; `reqAnimating` covers the manager's
+   * reply still typing, during which the next message has not arrived yet.
+   */
+  const reqOwesWork  = (r: Requirement) => reqCountsForCompletion(r, progress) && !progress[r.id]?.completed;
+  const reqAnimating = (r: Requirement) => typingAcks.has(r.id) || typingDecisions.has(r.id) || !!efTyping[r.id];
+  const reqSettled   = (r: Requirement) => !reqOwesWork(r) && !reqAnimating(r);
+
+  // The requirement the preview skip control acts on: the first one still owed, and only once it
+  // has actually arrived on screen. While an earlier manager reply is still animating, the step
+  // after it is hidden, so offering a skip then would let a click land on something never seen.
+  const nextBlockingReq = (() => {
+    const reqs = currentLes?.requirements || [];
+    for (let i = 0; i < reqs.length; i++) {
+      const r = reqs[i];
+      if (!reqOwesWork(r)) continue;
+      return reqs.slice(0, i).every(reqSettled) && !reqAnimating(r) ? r : null;
+    }
+    return null;
+  })();
+
+  // Preview only: mark a requirement done in memory so the conversation moves on. Never persisted
+  // -- saveProgress already returns early in preview, so nothing is written.
+  const skipReqInPreview = (reqId: string) => {
+    if (!previewMode) return;
+    setProgress(prev => ({ ...prev, [reqId]: { ...prev[reqId], completed: true } }));
+  };
+
   const lessonLocked = (lesson: Lesson, modId: string) => {
-    if (reviewMode) return false;
+    if (navUnlocked) return false;
     const idx = flatLessons.findIndex(x => x.lesson.id === lesson.id);
     if (idx === 0) return false;
     const prev = flatLessons[idx - 1];
@@ -352,6 +394,12 @@ export default function AssignmentExperiencePlayer({
 
   // File upload for upload requirements
   async function handleFileUpload(reqId: string, file: File, noComplete?: boolean) {
+    // Preview writes nothing anywhere. The upload is the one action that would reach storage even
+    // though no attempt is being recorded, leaving a submission file nobody owns behind.
+    if (previewMode) {
+      setUploadErrors(prev => ({ ...prev, [reqId]: 'Preview does not upload files. Use Skip this step to move on.' }));
+      return;
+    }
     const validationError = validateVeSubmissionFile(file);
     if (validationError) { setUploadErrors(prev => ({ ...prev, [reqId]: validationError })); return; }
     setUploadErrors(prev => ({ ...prev, [reqId]: '' }));
@@ -402,7 +450,9 @@ export default function AssignmentExperiencePlayer({
   // The one place an assignment_submissions row gets created. Shared by the last-mission
   // "Complete" button and the all-missions-complete submit screen.
   async function submitAssignment() {
-    if (previewMode) { setDone(true); onComplete(); return; }
+    // Preview must not borrow the student's "submitted" screen: nothing is sent, and calling
+    // onComplete would tell the parent an assignment it does not own has been handed in.
+    if (previewMode) { setPreviewSubmitted(true); return; }
     if (overallPct < 100) return;
     setCompleteError(null);
     clearTimeout(saveTimeout.current);
@@ -451,6 +501,36 @@ export default function AssignmentExperiencePlayer({
     );
   }
 
+  // Several screens below are early returns that never reach the main layout, so the banner is
+  // shared rather than living inside the main return alone.
+  const previewBanner = previewMode && !reviewMode ? (
+    <div className="flex items-center gap-2 rounded-2xl px-4 py-3" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
+      <Eye className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accent }} />
+      <span className="text-xs font-semibold" style={{ color: accent }}>
+        Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.
+      </span>
+    </div>
+  ) : null;
+
+  // Preview reached the end. Says what a student's submit would do rather than claiming it
+  // happened, and hands the instructor back to the missions instead of a dead end.
+  if (previewMode && previewSubmitted) {
+    return (
+      <div className="rounded-2xl p-8 text-center" style={{ background: bg, border: `1px solid ${border}` }}>
+        <Eye className="w-8 h-8 mx-auto mb-3" style={{ color: accent }} />
+        <p className="text-base font-bold mb-1" style={{ color: text }}>End of the preview</p>
+        <p className="text-sm mb-5" style={{ color: muted }}>
+          A student pressing Submit here sends their work to the instructor for grading. Nothing was submitted in preview.
+        </p>
+        <button onClick={() => { setPreviewSubmitted(false); setReviewBeforeSubmit(true); }}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+          style={{ background: `${accent}12`, color: accent, border: 'none', cursor: 'pointer' }}>
+          Back to the missions
+        </button>
+      </div>
+    );
+  }
+
   // Pre-grading behaviour -- unchanged.
   if (!graded && done) {
     return (
@@ -476,6 +556,8 @@ export default function AssignmentExperiencePlayer({
   // student can't get stuck thinking they are done -- group leaders keep the in-flow Complete button.
   if (!graded && canSubmit && !groupId && overallPct >= 100 && !reviewBeforeSubmit) {
     return (
+      <div className="space-y-4">
+      {previewBanner}
       <div className="rounded-2xl p-8 text-center" style={{ background: bg, border: `1px solid ${border}` }}>
         <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: text }}>All missions complete</p>
@@ -493,6 +575,7 @@ export default function AssignmentExperiencePlayer({
             Review my missions
           </button>
         </div>
+      </div>
       </div>
     );
   }
@@ -512,6 +595,10 @@ export default function AssignmentExperiencePlayer({
           </button>
         </div>
       )}
+
+      {/* Preview banner: staff walking the experience. Everything below renders exactly as a
+          student sees it, so the only thing worth saying is what preview changes. */}
+      {previewBanner}
 
       {/* Progress bar */}
       <div className="rounded-2xl p-4" style={{ background: bg, border: `1px solid ${border}`, boxShadow: shadow }}>
@@ -606,12 +693,13 @@ export default function AssignmentExperiencePlayer({
         <div className="space-y-4">
           {currentLes ? (() => {
               // Mission content is read first; "Continue to Tasks" reveals the
-              // tasks/deliverables below. Skipped for review/preview/graded and
-              // for a lesson that's already fully done, where everything shows.
+              // tasks/deliverables below. Skipped for review/graded and for a
+              // lesson that's already fully done, where everything shows. Preview
+              // keeps it: it is part of what a student sees.
               const hasContent = !!(currentLes.doc || currentLes.body);
               const hasReqs = currentLes.requirements.length > 0;
               const lessonDone = lessonPct(currentLes, progress) === 100;
-              const gateActive = !reviewMode && !previewMode && !readOnly && hasContent && hasReqs && !lessonDone;
+              const gateActive = !reviewMode && !readOnly && hasContent && hasReqs && !lessonDone;
               const hasContinued = continuedLessons.has(currentLes.id);
               const showGateButton = gateActive && !hasContinued;
               const isCollapsible = gateActive && hasContinued;
@@ -685,13 +773,11 @@ export default function AssignmentExperiencePlayer({
                         const stamp   = workStamp(currentIdx, qi, req.id);
 
                         // Messages arrive sequentially: a requirement only appears once
-                        // everything before it is done AND the manager has finished
-                        // replying (review/preview show the whole conversation).
-                        // An optional, unclaimed share must not hold back the requirements after it.
-                        if (!readOnly && !previewMode && qi > 0 && !currentLes.requirements.slice(0, qi).every(r =>
-                          (!reqCountsForCompletion(r, progress) || progress[r.id]?.completed)
-                          && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id]
-                        )) return null;
+                        // everything before it is settled -- done (or owing nothing, as an
+                        // optional unclaimed share does) AND the manager has finished
+                        // replying. Review shows the whole conversation at once; preview
+                        // sequences like a student and offers a skip instead.
+                        if (!readOnly && qi > 0 && !currentLes.requirements.slice(0, qi).every(reqSettled)) return null;
 
                         // Scenario update - team chat surface
                         if (req.type === 'scenario_update') {
@@ -709,7 +795,7 @@ export default function AssignmentExperiencePlayer({
                           return (
                             <div key={req.id}>
                               <ChatCard isDark={isDark} reqId={req.id} company={config.company} channel={teamChannel}
-                                members={[manager]} unread={!isDone} muteArrival={readOnly || previewMode}>
+                                members={[manager]} unread={!isDone} muteArrival={readOnly}>
                                 <ChatMsg isDark={isDark} author={manager} time={stamp.time}
                                   reactions={
                                     !isDone && !readOnly ? (
@@ -759,7 +845,7 @@ export default function AssignmentExperiencePlayer({
                                 sender={manager} toName={studentName} toEmail={meEmail} stamp={stamp}
                                 bodyHtml={req.description ? sanitizeEmailContent(applyNameTags(req.description, studentName)) : undefined}
                                 attachments={briefAttachments.length ? briefAttachments : undefined} company={config.company}
-                                done={isDone} muteArrival={readOnly || previewMode}
+                                done={isDone} muteArrival={readOnly}
                                 chatAction={!readOnly ? {
                                   label: `Chat with ${firstNameOf(manager.name)}`,
                                   onClick: () => { setAskOpen(new Set([req.id])); setAskSeen(prev => new Set([...prev, req.id])); },
@@ -813,7 +899,7 @@ export default function AssignmentExperiencePlayer({
                           return (
                             <div key={req.id}>
                               <ChatCard isDark={isDark} reqId={req.id} company={config.company} channel={teamChannel}
-                                members={[manager]} unread={!isDone} muteArrival={readOnly || previewMode}>
+                                members={[manager]} unread={!isDone} muteArrival={readOnly}>
                                 <ChatMsg isDark={isDark} author={manager} time={stamp.time}>
                                   <p style={{ margin: 0 }}>{req.label}</p>
                                   {req.description && <p style={{ margin: '4px 0 0', opacity: 0.75 }}>{req.description}</p>}
@@ -859,7 +945,7 @@ export default function AssignmentExperiencePlayer({
                               <MailCard isDark={isDark} accent={accent} reqId={req.id} subject={debriefSubject}
                                 sender={manager} toName={studentName} toEmail={meEmail} stamp={stamp}
                                 bodyHtml={req.description ? sanitizeEmailContent(applyNameTags(req.description, studentName)) : undefined}
-                                company={config.company} done={isDone} muteArrival={readOnly || previewMode}>
+                                company={config.company} done={isDone} muteArrival={readOnly}>
                                 {!isDone ? (
                                   !replyOpen ? (
                                     <div style={{ padding: '14px 22px' }}>
@@ -905,7 +991,7 @@ export default function AssignmentExperiencePlayer({
                                 sender={manager} toName={studentName} toEmail={meEmail} stamp={stamp}
                                 bodyHtml={(req.emailBody || req.description) ? sanitizeEmailContent(applyNameTags(req.emailBody || req.description || '', studentName)) : undefined}
                                 attachments={efAttachments.length ? efAttachments : undefined}
-                                company={config.company} done={isDone} muteArrival={readOnly || previewMode} signatureAfterChildren>
+                                company={config.company} done={isDone} muteArrival={readOnly} signatureAfterChildren>
                                 {children}
                               </MailCard>
                             </div>
@@ -1860,12 +1946,11 @@ export default function AssignmentExperiencePlayer({
                       })}
 
                       {/* Incoming-message indicator: the rest of the conversation arrives as work gets done */}
-                      {!readOnly && !previewMode && (() => {
+                      {!readOnly && (() => {
                         const reqs = currentLes.requirements;
-                        const settled = (r: Requirement) => !!progress[r.id]?.completed && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id];
                         let visibleEnd = reqs.length;
                         for (let i = 1; i < reqs.length; i++) {
-                          if (!reqs.slice(0, i).every(settled)) { visibleEnd = i; break; }
+                          if (!reqs.slice(0, i).every(reqSettled)) { visibleEnd = i; break; }
                         }
                         const hiddenCount = reqs.length - visibleEnd;
                         if (hiddenCount <= 0) return null;
@@ -1874,6 +1959,22 @@ export default function AssignmentExperiencePlayer({
                             hiddenCount={hiddenCount} nextKind={arrivalKindFor(reqs[visibleEnd])} />
                         );
                       })()}
+
+                      {/* Preview only: step past work whose submit path needs a real attempt (a
+                          file upload, an AI review, a LinkedIn claim). Without this the sequence
+                          stalls and the rest of the mission stays hidden. In memory only. */}
+                      {previewMode && !reviewMode && !readOnly && nextBlockingReq && (
+                        <div className="flex items-center gap-3 flex-wrap pt-2">
+                          <button onClick={() => skipReqInPreview(nextBlockingReq.id)}
+                            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[12.5px] font-semibold transition-all hover:opacity-80"
+                            style={{ background: `${accent}18`, color: accent, border: 'none', cursor: 'pointer' }}>
+                            <SkipForward className="w-3.5 h-3.5" /> Skip this step
+                          </button>
+                          <span className="text-[12px]" style={{ color: muted }}>
+                            Preview only. Skipping reveals what a student sees next and is not saved.
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1900,10 +2001,10 @@ export default function AssignmentExperiencePlayer({
                 </button>
                 {nextEntry ? (
                   <button
-                    disabled={!reviewMode && lessonPct(currentLes, progress) < 100}
+                    disabled={!navUnlocked && lessonPct(currentLes, progress) < 100}
                     onClick={() => navigate(nextEntry.modId, nextEntry.lesson.id)}
                     className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all disabled:opacity-40"
-                    style={{ background: accent, color: 'white', border: 'none', cursor: !reviewMode && lessonPct(currentLes, progress) < 100 ? 'not-allowed' : 'pointer' }}>
+                    style={{ background: accent, color: 'white', border: 'none', cursor: !navUnlocked && lessonPct(currentLes, progress) < 100 ? 'not-allowed' : 'pointer' }}>
                     Next <ChevronRight className="w-4 h-4"/>
                   </button>
                 ) : reviewMode ? (
