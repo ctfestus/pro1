@@ -246,11 +246,24 @@ export default function AssignmentExperiencePlayer({
   // Review and preview both move between missions freely; a student does not.
   const navUnlocked = reviewMode || previewMode;
 
-  // The first requirement in this mission holding back the sequential arrival of the ones after
-  // it. Used only by the preview skip control.
-  const nextBlockingReq = currentLes?.requirements.find(r =>
-    reqCountsForCompletion(r, progress) && !progress[r.id]?.completed
-  ) || null;
+  // The requirement the preview skip control acts on: the first one still owed, and only once it
+  // has actually arrived on screen. While an earlier manager reply is still animating, the step
+  // after it is hidden, so offering a skip then would let a click land on something never seen.
+  // Mirrors the sequential-arrival test in the requirement list exactly.
+  const nextBlockingReq = (() => {
+    const reqs = currentLes?.requirements || [];
+    const arrivedBy = (upto: number) => reqs.slice(0, upto).every(r =>
+      (!reqCountsForCompletion(r, progress) || progress[r.id]?.completed)
+      && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id]
+    );
+    for (let i = 0; i < reqs.length; i++) {
+      const r = reqs[i];
+      if (!reqCountsForCompletion(r, progress) || progress[r.id]?.completed) continue;
+      const busy = typingAcks.has(r.id) || typingDecisions.has(r.id) || !!efTyping[r.id];
+      return arrivedBy(i) && !busy ? r : null;
+    }
+    return null;
+  })();
 
   // Preview only: mark a requirement done in memory so the conversation moves on. Never persisted
   // -- saveProgress already returns early in preview, so nothing is written.
@@ -368,6 +381,12 @@ export default function AssignmentExperiencePlayer({
 
   // File upload for upload requirements
   async function handleFileUpload(reqId: string, file: File, noComplete?: boolean) {
+    // Preview writes nothing anywhere. The upload is the one action that would reach storage even
+    // though no attempt is being recorded, leaving a submission file nobody owns behind.
+    if (previewMode) {
+      setUploadErrors(prev => ({ ...prev, [reqId]: 'Preview does not upload files. Use Skip this step to move on.' }));
+      return;
+    }
     const validationError = validateVeSubmissionFile(file);
     if (validationError) { setUploadErrors(prev => ({ ...prev, [reqId]: validationError })); return; }
     setUploadErrors(prev => ({ ...prev, [reqId]: '' }));
