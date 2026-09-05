@@ -13,7 +13,7 @@ import { clampLinkedInSharePoints, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_S
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
 import { useTheme } from '@/components/ThemeProvider';
 import {
-  ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronRight, ChevronLeft,
+  ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, ChevronLeft,
   Plus, Trash2, X, Check, Upload, Pencil, Star, Clock, Download,
   Link as LinkIcon, FileText, FileCode, Database, PenLine, Table, GripVertical, Video, Search, Eye, Images, Paperclip, Mail,
   Blocks, Building2, MessageSquareText, Workflow, Palette, CheckCircle2, AlertTriangle,
@@ -358,6 +358,8 @@ function VirtualExperienceCreatePageInner() {
   const [roleHint,     setRoleHint]     = useState('');
   const [focusTopic,   setFocusTopic]   = useState('');
   const [toolsInput,   setToolsInput]   = useState('');
+  // Draft for the "add a skill" box under Skills you will use.
+  const [newToolDraft, setNewToolDraft] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [emailStyle,   setEmailStyle]   = useState(false);
   // Plain-text draft for the Scenario/Background textarea. Deriving the textarea's
@@ -665,6 +667,55 @@ function VirtualExperienceCreatePageInner() {
     const json = await res.json();
     if (!res.ok) { setGuideError(json.error || 'Could not update this profile.'); return; }
     setExperienceGuides(list => list.map(g => g.id === guide.id ? json.guide : g));
+  };
+
+  /**
+   * "Skills you will use" on the experience page is config.tools. Before this it could only be
+   * set once, as a comma-separated hint to the AI generator, and was read-only afterwards.
+   *
+   * toolLogos is keyed by the skill NAME, so a rename has to carry the logo across and a removal
+   * has to drop it -- otherwise a logo either orphans in the map or silently disappears from a
+   * skill that still has one.
+   */
+  const applyTools = (tools: string[], toolLogos: Record<string, string>) =>
+    setConfig(c => c ? { ...c, tools, toolLogos } : c);
+
+  const renameTool = (index: number, name: string) => {
+    const tools = [...(config?.tools || [])];
+    const previous = tools[index];
+    tools[index] = name;
+    const toolLogos = { ...(config?.toolLogos || {}) };
+    if (previous !== name && toolLogos[previous] !== undefined) {
+      const logo = toolLogos[previous];
+      delete toolLogos[previous];
+      if (name.trim()) toolLogos[name] = logo;
+    }
+    applyTools(tools, toolLogos);
+  };
+
+  const removeTool = (index: number) => {
+    const tools = [...(config?.tools || [])];
+    const [removed] = tools.splice(index, 1);
+    const toolLogos = { ...(config?.toolLogos || {}) };
+    // Only drop the logo if no remaining skill still goes by that name.
+    if (!tools.includes(removed)) delete toolLogos[removed];
+    applyTools(tools, toolLogos);
+  };
+
+  const moveTool = (from: number, to: number) => {
+    const tools = config?.tools || [];
+    if (to < 0 || to >= tools.length) return;
+    applyTools(arrayMove([...tools], from, to), { ...(config?.toolLogos || {}) });
+  };
+
+  const addTool = () => {
+    const name = newToolDraft.trim();
+    if (!name) return;
+    const tools = config?.tools || [];
+    if (!tools.some(t => t.trim().toLowerCase() === name.toLowerCase())) {
+      applyTools([...tools, name], { ...(config?.toolLogos || {}) });
+    }
+    setNewToolDraft('');
   };
 
   const handleModuleDragEnd = (event: DragEndEvent) => {
@@ -1764,26 +1815,57 @@ function VirtualExperienceCreatePageInner() {
                       {config.modules?.length > 0 && <span className="text-[12px] px-3 py-1 rounded-full font-semibold" style={{ background: C.pill, color: C.muted }}>{config.modules.length} modules</span>}
                     </div>
 
-                    {/* Tools */}
-                    {(config.tools || []).length > 0 && (
-                      <div>
-                        <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Skills you will use</p>
-                        <div className="flex flex-wrap gap-2">
-                          {(config.tools || []).map(t => {
-                            const logo = (config.toolLogos || {})[t];
-                            return (
-                              <div key={t} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: C.card }}>
-                                {logo
-                                  ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
-                                  : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{t[0]}</div>
-                                }
-                                <span className="text-[12px] font-medium" style={{ color: C.text }}>{t}</span>
-                              </div>
-                            );
-                          })}
+                    {/* Skills / tools -- editable. Shown to students as "Skills you will use". */}
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Skills you will use</p>
+                      <div className="space-y-2">
+                        {(config.tools || []).map((t, i) => {
+                          const logo = (config.toolLogos || {})[t];
+                          const initial = t.trim().charAt(0).toUpperCase();
+                          return (
+                            <div key={i} className="flex items-center gap-2 px-2.5 py-2 rounded-lg" style={{ background: C.card }}>
+                              {logo
+                                ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
+                                : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{initial}</div>
+                              }
+                              <input value={t} onChange={e => renameTool(i, e.target.value)}
+                                placeholder="Skill or tool name"
+                                className="flex-1 min-w-0 bg-transparent text-[12px] font-medium outline-none"
+                                style={{ color: C.text }} />
+                              <button type="button" title="Move up" disabled={i === 0}
+                                onClick={() => moveTool(i, i - 1)}
+                                className="disabled:opacity-25 flex-shrink-0" style={{ color: C.muted }}>
+                                <ChevronUp className="w-3.5 h-3.5" />
+                              </button>
+                              <button type="button" title="Move down" disabled={i === (config.tools || []).length - 1}
+                                onClick={() => moveTool(i, i + 1)}
+                                className="disabled:opacity-25 flex-shrink-0" style={{ color: C.muted }}>
+                                <ChevronDown className="w-3.5 h-3.5" />
+                              </button>
+                              <button type="button" title="Remove skill" onClick={() => removeTool(i)}
+                                className="hover:text-red-400 flex-shrink-0" style={{ color: C.faint }}>
+                                <X className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          );
+                        })}
+                        <div className="flex items-center gap-2">
+                          <input value={newToolDraft}
+                            onChange={e => setNewToolDraft(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTool(); } }}
+                            placeholder="Add a skill or tool"
+                            style={{ ...inp, fontSize: 12, flex: 1 }} />
+                          <button type="button" onClick={addTool} disabled={!newToolDraft.trim()}
+                            className="flex items-center gap-1 px-3 py-2 rounded-lg text-[12px] font-semibold flex-shrink-0 disabled:opacity-35"
+                            style={{ background: C.cta, color: C.ctaText }}>
+                            <Plus className="w-3 h-3" /> Add
+                          </button>
                         </div>
                       </div>
-                    )}
+                      <p className="text-[11px] mt-2" style={{ color: C.faint }}>
+                        Shown on the experience page. Add a logo for each one under Branding.
+                      </p>
+                    </div>
 
                     {/* Dataset - replace/attach/remove works here even for an already-saved VE */}
                     <div className="p-4 rounded-2xl" style={{ background: C.card, border: `1px dashed ${C.cardBorder}` }}>
