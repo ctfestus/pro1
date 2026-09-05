@@ -307,9 +307,15 @@ export async function GET(req: NextRequest) {
     try {
       const db = adminClient();
       const planIds = await ownedPlanIds(db, sessionUser);
+      // Only the subscription list is owner-scoped. Eligibility is a fact about the student --
+      // no cohort, no subscription, no open payment request -- and does not belong to a plan or
+      // to whoever is asking, so an instructor sees exactly the same learners here as an admin.
+      // Gating it on `planIds === null` meant "admin only", which left every instructor with an
+      // empty learner dropdown on a form they are allowed to submit. Ownership still scopes the
+      // plans and subscriptions themselves, and every write in POST.
       const [subscriptions, eligibleStudents] = await Promise.all([
         getSubscriptions(db, planIds),
-        planIds === null ? getEligibleSubscriptionStudents(db) : Promise.resolve([]),
+        getEligibleSubscriptionStudents(db),
       ]);
       return NextResponse.json({ subscriptions, eligibleStudents });
     } catch (err: any) {
