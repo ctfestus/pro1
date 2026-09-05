@@ -1029,13 +1029,19 @@ export default function VirtualExperienceTaker({
 
       {/* Main content */}
       <main className="flex-1 overflow-hidden flex flex-col">
-        {/* Review mode banner */}
+        {/* Review mode banner. A preview run reaches review through the completion screen, and
+            there is no saved progress behind it to reassure anyone about. */}
         {reviewMode && (
-          <div className="flex items-center justify-between px-4 py-2 text-xs font-semibold flex-shrink-0"
+          <div className="flex items-center justify-between gap-3 px-4 py-2 text-xs font-semibold flex-shrink-0"
             style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
-            <span>Review Mode. Your progress is saved and will not be changed</span>
+            <span className="flex items-center gap-2">
+              {previewMode && <Eye className="w-3.5 h-3.5 flex-shrink-0" />}
+              {previewMode
+                ? 'Reviewing the preview. Nothing here was saved.'
+                : 'Review Mode. Your progress is saved and will not be changed'}
+            </span>
             <button onClick={() => setReviewMode(false)}
-              className="underline opacity-70 hover:opacity-100">Exit Review</button>
+              className="underline opacity-70 hover:opacity-100 flex-shrink-0">Exit Review</button>
           </div>
         )}
 
