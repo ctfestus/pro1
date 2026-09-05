@@ -192,6 +192,10 @@ export default function AssignmentExperiencePlayer({
   // the submit button) for students who finished the work but never clicked Complete.
   const [done,          setDone]          = useState(() => submitted);
   const [reviewBeforeSubmit, setReviewBeforeSubmit] = useState(false);
+  // Preview only: the instructor pressed Submit on the preview. Kept apart from `done` so the
+  // student's "your assignment has been submitted" screen is never shown for a submission that
+  // did not happen.
+  const [previewSubmitted, setPreviewSubmitted] = useState(false);
   const [reviewMode,    setReviewMode]    = useState(false);
   const [expandedMods,  setExpandedMods]  = useState<Set<string>>(new Set([modules[0]?.id]));
   // Mission content is read first, then a "Continue to Tasks" click reveals the
@@ -437,7 +441,9 @@ export default function AssignmentExperiencePlayer({
   // The one place an assignment_submissions row gets created. Shared by the last-mission
   // "Complete" button and the all-missions-complete submit screen.
   async function submitAssignment() {
-    if (previewMode) { setDone(true); onComplete(); return; }
+    // Preview must not borrow the student's "submitted" screen: nothing is sent, and calling
+    // onComplete would tell the parent an assignment it does not own has been handed in.
+    if (previewMode) { setPreviewSubmitted(true); return; }
     if (overallPct < 100) return;
     setCompleteError(null);
     clearTimeout(saveTimeout.current);
@@ -486,6 +492,36 @@ export default function AssignmentExperiencePlayer({
     );
   }
 
+  // Several screens below are early returns that never reach the main layout, so the banner is
+  // shared rather than living inside the main return alone.
+  const previewBanner = previewMode && !reviewMode ? (
+    <div className="flex items-center gap-2 rounded-2xl px-4 py-3" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
+      <Eye className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accent }} />
+      <span className="text-xs font-semibold" style={{ color: accent }}>
+        Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.
+      </span>
+    </div>
+  ) : null;
+
+  // Preview reached the end. Says what a student's submit would do rather than claiming it
+  // happened, and hands the instructor back to the missions instead of a dead end.
+  if (previewMode && previewSubmitted) {
+    return (
+      <div className="rounded-2xl p-8 text-center" style={{ background: bg, border: `1px solid ${border}` }}>
+        <Eye className="w-8 h-8 mx-auto mb-3" style={{ color: accent }} />
+        <p className="text-base font-bold mb-1" style={{ color: text }}>End of the preview</p>
+        <p className="text-sm mb-5" style={{ color: muted }}>
+          A student pressing Submit here sends their work to the instructor for grading. Nothing was submitted in preview.
+        </p>
+        <button onClick={() => { setPreviewSubmitted(false); setReviewBeforeSubmit(true); }}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+          style={{ background: `${accent}12`, color: accent, border: 'none', cursor: 'pointer' }}>
+          Back to the missions
+        </button>
+      </div>
+    );
+  }
+
   // Pre-grading behaviour -- unchanged.
   if (!graded && done) {
     return (
@@ -511,6 +547,8 @@ export default function AssignmentExperiencePlayer({
   // student can't get stuck thinking they are done -- group leaders keep the in-flow Complete button.
   if (!graded && canSubmit && !groupId && overallPct >= 100 && !reviewBeforeSubmit) {
     return (
+      <div className="space-y-4">
+      {previewBanner}
       <div className="rounded-2xl p-8 text-center" style={{ background: bg, border: `1px solid ${border}` }}>
         <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: text }}>All missions complete</p>
@@ -528,6 +566,7 @@ export default function AssignmentExperiencePlayer({
             Review my missions
           </button>
         </div>
+      </div>
       </div>
     );
   }
@@ -550,14 +589,7 @@ export default function AssignmentExperiencePlayer({
 
       {/* Preview banner: staff walking the experience. Everything below renders exactly as a
           student sees it, so the only thing worth saying is what preview changes. */}
-      {previewMode && !reviewMode && (
-        <div className="flex items-center gap-2 rounded-2xl px-4 py-3" style={{ background: `${accent}10`, border: `1px solid ${accent}25` }}>
-          <Eye className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accent }} />
-          <span className="text-xs font-semibold" style={{ color: accent }}>
-            Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.
-          </span>
-        </div>
-      )}
+      {previewBanner}
 
       {/* Progress bar */}
       <div className="rounded-2xl p-4" style={{ background: bg, border: `1px solid ${border}`, boxShadow: shadow }}>

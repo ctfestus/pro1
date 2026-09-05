@@ -652,6 +652,16 @@ export default function VirtualExperienceTaker({
     return (
       <div className="min-h-screen flex flex-col font-sans" style={{ background: isDark ? '#0e0e0e' : '#F3F4F2', color: text, fontFamily: "'Google Sans', 'Inter', sans-serif" }}>
 
+        {/* This screen is an early return, so the preview banner from the main layout is not on
+            it. Repeat it here rather than let a congratulations page read as a real completion. */}
+        {previewMode && (
+          <div className="flex items-center gap-2 px-4 py-2 text-xs font-semibold flex-shrink-0"
+            style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
+            <Eye className="w-3.5 h-3.5 flex-shrink-0" />
+            <span>Preview. This is the completion screen a student sees. Nothing was recorded and no certificate is issued.</span>
+          </div>
+        )}
+
         {/* Hero banner */}
         <div className="relative overflow-hidden flex-shrink-0" style={{ minHeight: 300 }}>
           {/* Cover image or solid blue fallback */}
@@ -776,6 +786,14 @@ export default function VirtualExperienceTaker({
                 >
                   <Award className="w-4 h-4" /> View Certificate
                 </a>
+              </div>
+            ) : previewMode ? (
+              // No certificate is issued in preview, so do not offer a button whose handler
+              // returns straight away. Say what a student would get here instead.
+              <div className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl text-[13.5px] font-semibold"
+                style={{ background: `${accentColor}12`, color: accentColor }}>
+                <Eye className="w-4 h-4 flex-shrink-0" />
+                A student claims their certificate here. Preview issues none.
               </div>
             ) : (
               <>
