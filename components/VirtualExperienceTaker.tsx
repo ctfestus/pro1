@@ -28,7 +28,7 @@ import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRe
 import { safeVeUploadName, validateVeSubmissionFile, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import {
-  Person, Chip, AttachmentCard, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, firstNameOf,
+  Person, AttachmentCard, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, firstNameOf,
   workStamp, startTypingSound, anchorZone, quoteSnippet, colleaguesFor, hashStr,
 } from '@/components/ve/workplace';
 import {
@@ -1307,11 +1307,6 @@ export default function VirtualExperienceTaker({
                                 attention: !askSeen.has(req.id),
                               } : undefined}>
                               <div style={{ padding: '14px 22px 18px' }}>
-                                {(config.tools || []).length > 0 && (
-                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                                    {(config.tools || []).slice(0, 3).map(tool => <Chip key={tool} isDark={isDark}>{tool}</Chip>)}
-                                  </div>
-                                )}
                                 {!done && !reviewMode ? (
                                   <SmartReplies isDark={isDark} accent={accentColor}
                                     options={['Got it, starting now', 'On it, will update you soon', 'Received, thank you']}
