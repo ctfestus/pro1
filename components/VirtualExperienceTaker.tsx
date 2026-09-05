@@ -339,21 +339,30 @@ export default function VirtualExperienceTaker({
   const remainingCount = currentLes ? currentLes.requirements.filter(r => !progress[r.id]?.completed).length : 0;
   const canPersistProgress = !previewMode && !reviewMode && !!formId && formId !== 'preview' && !!userId && userId !== 'preview';
 
+  /**
+   * One rule for when a requirement stops holding back the ones after it, used by all three
+   * places that need it: the requirement list's sequential-arrival gate, the arriving-messages
+   * indicator, and the preview skip target. They were three near-copies, and the indicator's
+   * copy demanded `completed` from every predecessor -- so an optional, unclaimed LinkedIn share
+   * (which owes nothing and does not block) made it announce hidden messages that were in fact
+   * already on screen.
+   *
+   * `reqOwesWork` is the share-aware "still to do" test; `reqAnimating` covers the manager's
+   * reply still typing, during which the next message has not arrived yet.
+   */
+  const reqOwesWork  = (r: Requirement) => reqCountsForCompletion(r, progress) && !progress[r.id]?.completed;
+  const reqAnimating = (r: Requirement) => typingAcks.has(r.id) || typingDecisions.has(r.id) || !!efTyping[r.id];
+  const reqSettled   = (r: Requirement) => !reqOwesWork(r) && !reqAnimating(r);
+
   // The requirement the preview skip control acts on: the first one still owed, and only once it
   // has actually arrived on screen. While an earlier manager reply is still animating, the step
   // after it is hidden, so offering a skip then would let a click land on something never seen.
-  // Mirrors the sequential-arrival test in the requirement list exactly.
   const nextBlockingReq = (() => {
     const reqs = currentLes?.requirements || [];
-    const arrivedBy = (upto: number) => reqs.slice(0, upto).every(r =>
-      (!reqCountsForCompletion(r, progress) || progress[r.id]?.completed)
-      && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id]
-    );
     for (let i = 0; i < reqs.length; i++) {
       const r = reqs[i];
-      if (!reqCountsForCompletion(r, progress) || progress[r.id]?.completed) continue;
-      const busy = typingAcks.has(r.id) || typingDecisions.has(r.id) || !!efTyping[r.id];
-      return arrivedBy(i) && !busy ? r : null;
+      if (!reqOwesWork(r)) continue;
+      return reqs.slice(0, i).every(reqSettled) && !reqAnimating(r) ? r : null;
     }
     return null;
   })();
@@ -1202,14 +1211,11 @@ export default function VirtualExperienceTaker({
                       const isMcq          = req.type === 'mcq' && req.options?.length;
 
                       // Messages arrive sequentially: a requirement only appears once
-                      // everything before it is done AND the manager has finished
-                      // replying (review shows the whole conversation at once; preview
-                      // sequences like a student and offers a skip instead).
-                      // An optional, unclaimed share must not hold back the requirements after it.
-                      if (!reviewMode && qi > 0 && !currentLes.requirements.slice(0, qi).every(r =>
-                        (!reqCountsForCompletion(r, progress) || progress[r.id]?.completed)
-                        && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id]
-                      )) return null;
+                      // everything before it is settled -- done (or owing nothing, as an
+                      // optional unclaimed share does) AND the manager has finished
+                      // replying. Review shows the whole conversation at once; preview
+                      // sequences like a student and offers a skip instead.
+                      if (!reviewMode && qi > 0 && !currentLes.requirements.slice(0, qi).every(reqSettled)) return null;
 
                       const workplaceSurface = req.emailFrame || ['briefing', 'scenario_update', 'decision', 'debrief'].includes(req.type);
                       const classicActionSurface = ['task', 'deliverable', 'linkedin_share'].includes(req.type);
@@ -2787,10 +2793,9 @@ export default function VirtualExperienceTaker({
                     {/* Incoming-message indicator: the rest of the conversation arrives as work gets done */}
                     {!reviewMode && (() => {
                       const reqs = currentLes.requirements;
-                      const settled = (r: Requirement) => !!progress[r.id]?.completed && !typingAcks.has(r.id) && !typingDecisions.has(r.id) && !efTyping[r.id];
                       let visibleEnd = reqs.length;
                       for (let i = 1; i < reqs.length; i++) {
-                        if (!reqs.slice(0, i).every(settled)) { visibleEnd = i; break; }
+                        if (!reqs.slice(0, i).every(reqSettled)) { visibleEnd = i; break; }
                       }
                       const hiddenCount = reqs.length - visibleEnd;
                       if (hiddenCount <= 0) return null;
