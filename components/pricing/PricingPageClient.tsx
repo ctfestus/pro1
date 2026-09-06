@@ -58,9 +58,22 @@ export function PricingPageClient(props: PricingPageClientProps) {
     props.plans.forEach(plan => plan.prices.forEach(price => all.add(price.durationMonths)));
     return [...all].sort((a, b) => a - b);
   }, [props.plans]);
+  const defaultOffer = useMemo(() => featuredOffer(props.plans), [props.plans]);
   const [selectedDuration, setSelectedDuration] = useState<number | null>(() =>
-    featuredOffer(props.plans)?.price.durationMonths ?? durations[durations.length - 1] ?? null,
+    defaultOffer?.price.durationMonths ?? durations[durations.length - 1] ?? null,
   );
+  const billingDurationOptions = useMemo(() => {
+    const planDurations = defaultOffer
+      ? [...new Set(defaultOffer.plan.prices.map(price => price.durationMonths))].sort((a, b) => a - b)
+      : durations;
+    const shortDuration = planDurations[0];
+    if (shortDuration === undefined) return [];
+    const featuredDuration = defaultOffer?.price.durationMonths ?? planDurations[planDurations.length - 1];
+    const longDuration = featuredDuration === shortDuration
+      ? planDurations[planDurations.length - 1]
+      : featuredDuration;
+    return longDuration === shortDuration ? [shortDuration] : [shortDuration, longDuration];
+  }, [defaultOffer, durations]);
   const selectedOffer = useMemo(
     () => featuredOfferForDuration(props.plans, selectedDuration),
     [props.plans, selectedDuration],
@@ -132,7 +145,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
           paystackEnabled={paystackEnabled}
           supportEmail={supportEmail}
           midAds={midAds}
-          durations={durations}
+          durationOptions={billingDurationOptions}
           selectedDuration={selectedDuration}
           onSelectDuration={setSelectedDuration}
         />

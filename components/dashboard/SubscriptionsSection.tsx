@@ -133,12 +133,6 @@ function discountStatusTone(status: string | null, C: typeof LIGHT_C) {
   return C.muted;
 }
 
-function discountStatusBackground(status: string | null, C: typeof LIGHT_C) {
-  if (status === "Live") return C.successBg;
-  if (status === "Scheduled") return "rgba(180, 83, 9, 0.08)";
-  return C.pill;
-}
-
 function startingPlanPrice(plan: any) {
   const price = [...(plan?.subscription_plan_prices ?? [])]
     .filter((row: any) => row.is_active)
@@ -290,70 +284,88 @@ function PlanPriceFields({
   fieldClass: string;
   inputStyle: CSSProperties;
 }) {
+  const activePriceCount = prices.filter((price) => price.isActive).length;
   return (
-    <div>
-      <div className="flex items-end justify-between gap-3 mb-3">
-        <div>
-          <p className="text-sm font-bold" style={{ color: C.text }}>
-            Purchase options
-          </p>
-          <p className="text-xs mt-1" style={{ color: C.faint }}>
-            Turn on the durations learners can choose.
-          </p>
+    <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
+      <div className="flex items-center justify-between gap-4 mb-4">
+        <div className="flex items-center gap-3">
+          <span className="w-10 h-10 rounded-2xl grid place-items-center flex-shrink-0" style={{ background: C.card, color: C.text }}>
+            <CircleDollarSign className="w-5 h-5" />
+          </span>
+          <div>
+            <p className="text-sm font-black" style={{ color: C.text }}>Pricing and duration</p>
+            <p className="text-xs mt-0.5" style={{ color: C.faint }}>Choose what learners can buy and set each total price.</p>
+          </div>
         </div>
-        <span className="text-[11px] font-bold rounded-full px-2.5 py-1" style={{ background: `${C.cta}12`, color: C.cta }}>
-          {prices.filter((price) => price.isActive).length} active
+        <span className="text-[11px] font-bold rounded-full px-3 py-1.5 flex-shrink-0" style={{ background: C.card, color: C.text }}>
+          {activePriceCount} active
         </span>
       </div>
       <div className="grid sm:grid-cols-2 gap-3">
-        {prices.map((price, index) => (
-          <div
-            key={price.durationMonths}
-            className="rounded-2xl p-3.5 transition-all"
-            style={{
-              background: price.isActive ? `${C.cta}0c` : C.page,
-              boxShadow: price.isActive ? `inset 0 0 0 1.5px ${C.cta}` : "none",
-            }}
-          >
-            <label className="flex items-center justify-between gap-3 text-sm font-bold cursor-pointer" style={{ color: C.text }}>
-              <span>{price.durationMonths} month{price.durationMonths === "1" ? "" : "s"}</span>
-              <input
-                type="checkbox"
-                checked={price.isActive}
-                onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, isActive: e.target.checked } : row))}
-                className="sr-only peer"
-              />
-              <span
-                className="relative w-10 h-6 rounded-full transition-colors after:absolute after:top-1 after:left-1 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"
-                style={{ background: price.isActive ? C.cta : C.divider }}
-              />
-            </label>
-            <div className="grid grid-cols-[1fr_82px] gap-2 mt-3">
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                value={price.amount}
-                onChange={(e) => setPrices((current) => current.map((row, i) => i === index
-                  ? { ...row, amount: e.target.value, isActive: Number(e.target.value) > 0 ? true : row.isActive }
-                  : row))}
-                placeholder="0.00"
-                aria-label={`${price.durationMonths} month price`}
-                className={fieldClass}
-                style={inputStyle}
-              />
-              <input
-                value={price.currency}
-                onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, currency: e.target.value.toUpperCase() } : row))}
-                aria-label={`${price.durationMonths} month currency`}
-                className={fieldClass}
-                style={inputStyle}
-              />
+        {prices.map((price, index) => {
+          const active = price.isActive;
+          return (
+            <div
+              key={price.durationMonths}
+              className="relative overflow-hidden rounded-[20px] p-4 transition-all"
+              style={{
+                background: active ? C.card : C.pill,
+                boxShadow: active ? `inset 0 0 0 1px ${C.divider}` : "none",
+                opacity: active ? 1 : 0.64,
+              }}
+            >
+              <label className="flex items-start justify-between gap-3 cursor-pointer">
+                <span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: active ? C.cta : C.faint }} />
+                    {active ? "Available" : "Hidden"}
+                  </span>
+                  <span className="flex items-baseline gap-1 mt-1" style={{ color: C.text }}>
+                    <span className="text-2xl font-black leading-none">{price.durationMonths}</span>
+                    <span className="text-sm font-bold">month{price.durationMonths === "1" ? "" : "s"}</span>
+                  </span>
+                </span>
+                <input
+                  type="checkbox"
+                  checked={active}
+                  onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, isActive: e.target.checked } : row))}
+                  className="sr-only peer"
+                />
+                <span
+                  className="relative w-10 h-6 rounded-full transition-colors after:absolute after:top-1 after:left-1 after:w-4 after:h-4 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-4"
+                  style={{ background: active ? C.cta : C.divider }}
+                />
+              </label>
+              <div className="mt-4">
+                <span className="block text-[10px] font-bold uppercase tracking-[0.14em] mb-1.5" style={{ color: C.faint }}>Total price</span>
+                <div className="grid grid-cols-[1fr_78px] gap-2">
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={price.amount}
+                    onChange={(e) => setPrices((current) => current.map((row, i) => i === index
+                      ? { ...row, amount: e.target.value, isActive: Number(e.target.value) > 0 ? true : row.isActive }
+                      : row))}
+                    placeholder="0.00"
+                    aria-label={`${price.durationMonths} month price`}
+                    className={`${fieldClass} text-lg font-black`}
+                    style={{ ...inputStyle, background: C.page, borderColor: "transparent" }}
+                  />
+                  <input
+                    value={price.currency}
+                    onChange={(e) => setPrices((current) => current.map((row, i) => i === index ? { ...row, currency: e.target.value.toUpperCase() } : row))}
+                    aria-label={`${price.durationMonths} month currency`}
+                    className={`${fieldClass} text-center font-black`}
+                    style={{ ...inputStyle, background: C.page, borderColor: "transparent", color: C.text }}
+                  />
+                </div>
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
-    </div>
+    </section>
   );
 }
 
@@ -381,48 +393,117 @@ function PlanDiscountFields({
     : null;
   const status = planDiscountStatus(discount);
   const statusTone = discountStatusTone(status, C);
+  const promotionEnabled = Boolean(discount.type);
+  const controlStyle = { ...inputStyle, background: C.card, borderColor: "transparent" };
   return (
-    <div className="rounded-2xl p-4" style={{ background: C.page }}>
-      <div className="flex items-start justify-between gap-3">
+    <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-sm font-bold" style={{ color: C.text }}>Promotional discount</p>
-          <p className="text-xs mt-1" style={{ color: C.faint }}>Optional. Applies to every active duration during the UTC schedule.</p>
+          <p className="text-sm font-black" style={{ color: C.text }}>Promotional offer</p>
+          <p className="text-xs mt-0.5" style={{ color: C.faint }}>Optional discount across every active duration.</p>
         </div>
-        {status && <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: discountStatusBackground(status, C), color: statusTone }}>{status}</span>}
+        {status && (
+          <span className="rounded-full px-3 py-1.5 text-[10px] font-bold flex-shrink-0" style={{ background: C.card, color: statusTone }}>
+            {status}
+          </span>
+        )}
       </div>
-      <div className="grid sm:grid-cols-2 gap-3 mt-4">
+
+      <div className="grid sm:grid-cols-2 gap-3 mt-5">
         <label className="text-xs font-bold" style={{ color: C.muted }}>
-          Discount type
-          <select value={discount.type} onChange={(e) => setDiscount((value) => ({ ...value, type: e.target.value as PlanDiscountDraft["type"] }))} className={`${fieldClass} mt-1.5`} style={inputStyle}>
+          Offer type
+          <select
+            value={discount.type}
+            onChange={(e) => setDiscount((value) => ({ ...value, type: e.target.value as PlanDiscountDraft["type"] }))}
+            className={`${fieldClass} mt-1.5`}
+            style={controlStyle}
+          >
             <option value="">No promotion</option>
             <option value="percentage">Percentage off</option>
             <option value="fixed">Fixed amount off</option>
           </select>
         </label>
         <label className="text-xs font-bold" style={{ color: C.muted }}>
-          {discount.type === "percentage" ? "Percentage" : "Amount"}
-          <input type="number" min="0.01" max={discount.type === "percentage" ? "99.99" : undefined} step="0.01" value={discount.value} disabled={!discount.type} onChange={(e) => setDiscount((value) => ({ ...value, value: e.target.value }))} placeholder={discount.type === "percentage" ? "15" : "50.00"} className={`${fieldClass} mt-1.5`} style={inputStyle} />
-        </label>
-        <label className="text-xs font-bold" style={{ color: C.muted }}>
-          Starts at (UTC)
-          <input type="datetime-local" value={discount.startsAt} disabled={!discount.type} onChange={(e) => setDiscount((value) => ({ ...value, startsAt: e.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} />
-        </label>
-        <label className="text-xs font-bold" style={{ color: C.muted }}>
-          Ends at (UTC)
-          <input type="datetime-local" value={discount.endsAt} disabled={!discount.type} onChange={(e) => setDiscount((value) => ({ ...value, endsAt: e.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} />
+          {discount.type === "percentage" ? "Percentage off" : "Amount off"}
+          <div className="relative mt-1.5">
+            <input
+              type="number"
+              min="0.01"
+              max={discount.type === "percentage" ? "99.99" : undefined}
+              step="0.01"
+              value={discount.value}
+              disabled={!discount.type}
+              onChange={(e) => setDiscount((value) => ({ ...value, value: e.target.value }))}
+              placeholder={discount.type === "percentage" ? "15" : "50.00"}
+              className={`${fieldClass} pr-14 text-lg font-black disabled:opacity-50`}
+              style={controlStyle}
+            />
+            {promotionEnabled && (
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs font-black" style={{ color: C.muted }}>
+                {discount.type === "percentage" ? "%" : example?.currency || "GHS"}
+              </span>
+            )}
+          </div>
         </label>
       </div>
+
       {preview?.discountActive && example && (
-        <p className="text-xs mt-3" style={{ color: C.successText }}>
-          Example: {money(example.currency, preview.listAmount)} becomes {money(example.currency, preview.amount)}.
-        </p>
+        <div className="rounded-2xl p-4 mt-4 flex items-center justify-between gap-4" style={{ background: C.card }}>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: C.faint }}>Price preview</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-sm line-through" style={{ color: C.faint }}>{money(example.currency, preview.listAmount)}</span>
+              <ArrowRight className="w-3.5 h-3.5" style={{ color: C.muted }} />
+              <span className="text-xl font-black" style={{ color: C.text }}>{money(example.currency, preview.amount)}</span>
+            </div>
+          </div>
+          <span className="rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
+            Save {money(example.currency, preview.discountAmount)}
+          </span>
+        </div>
       )}
+
+      <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.divider}` }}>
+        <div className="flex items-center gap-2 mb-3">
+          <CalendarClock className="w-4 h-4" style={{ color: C.muted }} />
+          <div>
+            <p className="text-xs font-black" style={{ color: C.text }}>Offer schedule</p>
+            <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Leave either field empty when no boundary is needed. Times use UTC.</p>
+          </div>
+        </div>
+        <div className="grid sm:grid-cols-2 gap-3">
+          <label className="text-xs font-bold" style={{ color: C.muted }}>
+            Starts at
+            <input
+              type="datetime-local"
+              value={discount.startsAt}
+              disabled={!discount.type}
+              onChange={(e) => setDiscount((value) => ({ ...value, startsAt: e.target.value }))}
+              className={`${fieldClass} mt-1.5 disabled:opacity-50`}
+              style={controlStyle}
+            />
+          </label>
+          <label className="text-xs font-bold" style={{ color: C.muted }}>
+            Ends at
+            <input
+              type="datetime-local"
+              value={discount.endsAt}
+              disabled={!discount.type}
+              onChange={(e) => setDiscount((value) => ({ ...value, endsAt: e.target.value }))}
+              className={`${fieldClass} mt-1.5 disabled:opacity-50`}
+              style={controlStyle}
+            />
+          </label>
+        </div>
+      </div>
+
       {discount.type === "fixed" && (
-        <p className="text-[11px] mt-2" style={{ color: C.faint }}>All active prices must use the same currency for a fixed discount.</p>
+        <p className="text-[11px] mt-3" style={{ color: C.faint }}>All active prices must use the same currency for a fixed discount.</p>
       )}
-    </div>
+    </section>
   );
 }
+
 
 export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const dark = C.page === "#17181E";
@@ -4138,47 +4219,67 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
 
       {editPlan && (
         <Modal
-          title="Edit plan details"
-          eyebrow="Reusable access blueprint"
+          title="Plan details"
+          eyebrow="Subscription setup"
           onClose={requestCloseEditPlan}
           C={C}
           error={error}
+          wide
         >
-          <div className="space-y-4">
-            <label className="text-xs font-bold" style={{ color: C.muted }}>
-              Plan name
-              <input
-                autoFocus
-                value={editPlanName}
-                onChange={(e) => setEditPlanName(e.target.value)}
-                placeholder="For example: Professional"
-                className={`${fieldClass} mt-1.5`}
-                style={inputStyle}
-              />
-            </label>
-            <label className="text-xs font-bold" style={{ color: C.muted }}>
-              Description
-              <textarea
-                value={editPlanDescription}
-                onChange={(e) => setEditPlanDescription(e.target.value)}
-                placeholder="Describe who this plan is for"
-                className={`${fieldClass} mt-1.5 min-h-24`}
-                style={inputStyle}
-              />
-            </label>
-            <div>
-              <PlanPriceFields
-                prices={editPlanPrices}
-                setPrices={setEditPlanPrices}
-                C={C}
-                fieldClass={fieldClass}
-                inputStyle={inputStyle}
-              />
-              <div className="mt-4">
-                <PlanDiscountFields discount={editPlanDiscount} setDiscount={setEditPlanDiscount} prices={editPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
+          <div className="space-y-5">
+            <section className="rounded-[24px] p-4 sm:p-5" style={{ background: C.page }}>
+              <div className="flex items-center gap-3 mb-4">
+                <span className="w-10 h-10 rounded-2xl grid place-items-center" style={{ background: C.card, color: C.text }}>
+                  <SlidersHorizontal className="w-5 h-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-black" style={{ color: C.text }}>Plan identity</p>
+                  <p className="text-xs mt-0.5" style={{ color: C.faint }}>Give learners a clear reason to choose this plan.</p>
+                </div>
               </div>
-            </div>
-            <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
+              <div className="grid sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)] gap-3">
+                <label className="text-xs font-bold" style={{ color: C.muted }}>
+                  Plan name
+                  <input
+                    autoFocus
+                    value={editPlanName}
+                    onChange={(e) => setEditPlanName(e.target.value)}
+                    placeholder="For example: Professional"
+                    className={`${fieldClass} mt-1.5 font-bold`}
+                    style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
+                  />
+                </label>
+                <label className="text-xs font-bold" style={{ color: C.muted }}>
+                  Description
+                  <textarea
+                    value={editPlanDescription}
+                    onChange={(e) => setEditPlanDescription(e.target.value)}
+                    placeholder="Describe who this plan is for"
+                    className={`${fieldClass} mt-1.5 min-h-20 resize-none`}
+                    style={{ ...inputStyle, background: C.card, borderColor: "transparent" }}
+                  />
+                </label>
+              </div>
+            </section>
+
+            <PlanPriceFields
+              prices={editPlanPrices}
+              setPrices={setEditPlanPrices}
+              C={C}
+              fieldClass={fieldClass}
+              inputStyle={inputStyle}
+            />
+
+            <PlanDiscountFields
+              discount={editPlanDiscount}
+              setDiscount={setEditPlanDiscount}
+              prices={editPlanPrices}
+              C={C}
+              fieldClass={fieldClass}
+              inputStyle={inputStyle}
+            />
+
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
               <button
                 onClick={requestCloseEditPlan}
                 disabled={busy}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import {
   ArrowRight,
@@ -40,6 +40,13 @@ const KIND_DESCRIPTION: Record<PurchasableContentTable, string> = {
   certifications: 'Prove what you have completed',
 };
 
+function billingLabel(months: number): string {
+  if (months === 1) return 'Monthly';
+  if (months === 3) return 'Quarterly';
+  if (months === 12) return 'Yearly';
+  return `Every ${months} months`;
+}
+
 export interface PricingSectionProps extends PricingPageData {
   primaryColor: string;
   accentColor: string;
@@ -50,7 +57,7 @@ export interface PricingSectionProps extends PricingPageData {
   paystackEnabled: boolean;
   supportEmail?: string;
   midAds?: AdCard[];
-  durations: number[];
+  durationOptions: number[];
   selectedDuration: number | null;
   onSelectDuration: (months: number) => void;
 }
@@ -66,7 +73,7 @@ export function PricingSection({
   paystackEnabled,
   supportEmail,
   midAds,
-  durations,
+  durationOptions,
   selectedDuration,
   onSelectDuration,
 }: PricingSectionProps) {
@@ -87,75 +94,23 @@ export function PricingSection({
     if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
   };
 
-  const bestDuration = useMemo(() => {
-    let best: { months: number; saving: number; monthsPaidFor: number | null } | null = null;
-    for (const months of durations) {
-      for (const plan of plans) {
-        const price = plan.prices.find(row => row.durationMonths === months);
-        if (!price) continue;
-        const { savingPercent, monthsPaidFor } = comparePlanPrice(price, plan.prices);
-        if (savingPercent > 0 && (!best || savingPercent > best.saving)) {
-          best = { months, saving: savingPercent, monthsPaidFor };
-        }
-      }
-    }
-    return best;
-  }, [durations, plans]);
-
   return (
     <section
       id="pricing-plans"
       className="relative z-20 -mt-16 scroll-mt-24"
-      style={{ fontFamily: bFont, '--pricing-accent': accentColor } as CSSProperties}
+      style={{ fontFamily: bFont }}
     >
-      <style>{`
-        .pricing-plan-card:hover {
-          box-shadow: inset 0 0 0 3px var(--pricing-accent);
-        }
-      `}</style>
       <div className="rounded-[30px] bg-white p-5 sm:p-8" style={{ boxShadow: '0 24px 80px rgba(16,24,40,0.12)' }}>
-        <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+        <div>
           <div>
             <h2 className="text-3xl font-black tracking-[-0.035em] sm:text-4xl" style={{ color: '#101828', fontFamily: hFont, textWrap: 'balance' }}>
-              Pick a term. Choose your experience.
+              Flexible Payment Plans
             </h2>
             <p className="mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: '#5F6B7A' }}>
-              Prices update with your access length, so every option stays easy to compare.
+              Level up your career with our flexible payment plans.
             </p>
           </div>
 
-          {durations.length > 1 && (
-            <div>
-              <p className="mb-2 text-xs font-bold lg:text-right" style={{ color: '#667085' }}>Access length</p>
-              <div className="inline-flex max-w-full flex-wrap gap-1 rounded-2xl p-1.5" role="group" aria-label="Access length" style={{ background: '#F1F4F7' }}>
-                {durations.map(months => {
-                  const active = months === selectedDuration;
-                  const marked = bestDuration?.months === months ? bestDuration : null;
-                  return (
-                    <button
-                      key={months}
-                      type="button"
-                      onClick={() => onSelectDuration(months)}
-                      aria-pressed={active}
-                      className="inline-flex min-h-11 items-center gap-2 rounded-xl px-3.5 py-2 text-sm font-black transition-all duration-200 motion-reduce:transition-none"
-                      style={{
-                        background: active ? '#FFFFFF' : 'transparent',
-                        color: active ? '#101828' : '#667085',
-                        boxShadow: active ? '0 4px 16px rgba(16,24,40,0.10)' : undefined,
-                      }}
-                    >
-                      {durationLabel(months)}
-                      {marked && (
-                        <span className="hidden rounded-full px-2 py-0.5 text-[10px] font-black sm:inline" style={{ background: accentColor, color: '#101828' }}>
-                          {marked.monthsPaidFor !== null ? `Pay for ${marked.monthsPaidFor}` : `Save ${marked.saving}%`}
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
         </div>
 
         <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
@@ -172,6 +127,9 @@ export function PricingSection({
               hFont={hFont}
               primaryColor={primaryColor}
               accentColor={accentColor}
+              durationOptions={durationOptions}
+              selectedDuration={selectedDuration}
+              onSelectDuration={onSelectDuration}
               buyLabel={buyLabel}
               busy={busyPriceId}
               onBuy={buy}
@@ -216,13 +174,17 @@ export function PricingSection({
 }
 
 function PlanCard({
-  plan, months, hFont, primaryColor, accentColor, buyLabel, busy, onBuy,
+  plan, months, hFont, primaryColor, accentColor, durationOptions, selectedDuration,
+  onSelectDuration, buyLabel, busy, onBuy,
 }: {
   plan: PricingPlan;
   months: number | null;
   hFont?: string;
   primaryColor: string;
   accentColor: string;
+  durationOptions: number[];
+  selectedDuration: number | null;
+  onSelectDuration: (months: number) => void;
   buyLabel: string;
   busy: string;
   onBuy: (price: PricingPlan['prices'][number]) => void;
@@ -230,16 +192,23 @@ function PlanCard({
   const price = plan.prices.find(row => row.durationMonths === months) ?? null;
   const comparison = price ? comparePlanPrice(price, plan.prices) : null;
   const benefits = planBenefits(plan.coverage);
+  const promotion = Boolean(price?.listAmount && price.listAmount > price.amount);
+  const promotionLabel = price?.discountType === 'percentage'
+    ? `${price.discountValue}% off`
+    : `${money(price?.currency ?? '', price?.discountAmount ?? 0)} off`;
+  const planSurface = plan.recommended ? '#FFFFFF' : '#F7F9FB';
+  const shortDuration = durationOptions[0] ?? null;
+  const longDuration = durationOptions[1] ?? null;
+  const longDurationSelected = longDuration !== null && selectedDuration === longDuration;
 
   return (
     <article
-      className="pricing-plan-card group relative isolate flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 transition-shadow duration-200 sm:p-7 motion-reduce:transition-none"
+      className={`relative isolate flex min-h-full flex-col overflow-hidden rounded-[20px] p-6 sm:p-7 ${plan.recommended ? 'z-10 md:-mx-2 md:-translate-y-2 lg:-mx-8' : 'md:translate-y-3'}`}
       style={plan.recommended
         // Lifted, so the recommendation is visible before anyone reads a word of it.
-        ? { background: '#FFFFFF', boxShadow: `inset 0 0 0 2px ${primaryColor}` }
-        : { background: '#F7F9FB', boxShadow: 'inset 0 0 0 1px rgba(16,24,40,0.04)' }}
+        ? { background: planSurface, boxShadow: '0 18px 48px rgba(16,24,40,0.14)' }
+        : { background: planSurface }}
     >
-      <div className="pointer-events-none absolute -right-20 -top-24 h-56 w-56 rounded-full opacity-0 blur-3xl transition-opacity duration-300 group-hover:opacity-30 motion-reduce:transition-none" style={{ background: primaryColor }} />
       <div className="relative flex flex-1 flex-col">
         <div>
           {plan.recommended && (
@@ -252,25 +221,63 @@ function PlanCard({
               Best Value
             </p>
           )}
-          <p className="text-xl font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="min-w-0 text-xl font-black tracking-tight" style={{ fontFamily: hFont, color: '#101828' }}>{plan.name}</p>
+            {plan.recommended && shortDuration !== null && longDuration !== null && shortDuration !== longDuration && (
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={longDurationSelected}
+                  aria-label={`Pay ${billingLabel(longDuration).toLowerCase()}`}
+                  onClick={() => onSelectDuration(longDurationSelected ? shortDuration : longDuration)}
+                  className="relative h-6 w-10 shrink-0 rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 motion-reduce:transition-none"
+                  style={{ background: longDurationSelected ? '#FFCC00' : '#D0D5DD' }}
+                >
+                  <span
+                    aria-hidden="true"
+                    className={`absolute left-0.5 top-0.5 grid h-5 w-5 place-items-center rounded-full shadow-sm transition-transform duration-200 motion-reduce:transition-none ${longDurationSelected ? 'translate-x-4' : ''}`}
+                    style={{ background: longDurationSelected ? '#101828' : '#FFFFFF', color: '#FFFFFF' }}
+                  >
+                    {longDurationSelected && <Check className="h-3 w-3" strokeWidth={3} />}
+                  </span>
+                </button>
+                <span className="text-xs font-black whitespace-nowrap" style={{ color: longDurationSelected ? '#101828' : '#667085' }}>
+                  Pay {billingLabel(longDuration).toLowerCase()}
+                </span>
+              </div>
+            )}
+          </div>
           <p className="mt-1.5 min-h-10 text-sm leading-5" style={{ color: '#667085' }}>
             {plan.description || 'Full access while your selected term runs.'}
           </p>
         </div>
 
+        {promotion && price && (
+          <div className="ticket-cutout relative mt-5 rounded-2xl px-5 py-4" style={{ background: '#FFCC00' }}>
+            <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Special offer</p>
+                <p className="mt-0.5 text-base font-black" style={{ color: '#101828' }}>{promotionLabel}</p>
+              </div>
+              <div className="shrink-0 border-l-2 border-dashed pl-4 text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
+                <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>You save</p>
+                <p className="text-base font-black" style={{ color: '#101828' }}>{money(price.currency, price.discountAmount ?? 0)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {price ? (
-          <div className="mt-7">
+          <div className={promotion ? "mt-5" : "mt-7"}>
             <div className="flex flex-wrap items-end gap-x-3 gap-y-2">
               <p className="text-4xl font-black tracking-[-0.045em]" style={{ fontFamily: hFont, color: '#101828' }}>{money(price.currency, price.amount)}</p>
               <p className="pb-1 text-xs font-semibold" style={{ color: '#667085' }}>for {durationLabel(price.durationMonths)}</p>
             </div>
             {price.listAmount && price.listAmount > price.amount && (
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                <span className="text-sm line-through" style={{ color: '#98A2B3' }}>{money(price.currency, price.listAmount)}</span>
-                <span className="rounded-full px-2.5 py-1 text-[10px] font-black" style={{ background: '#DCFCE7', color: '#166534' }}>
-                  {price.discountType === 'percentage' ? `${price.discountValue}% off` : `${money(price.currency, price.discountAmount ?? 0)} off`}
-                </span>
-              </div>
+              <p className="mt-2 text-xs" style={{ color: '#667085' }}>
+                Usually <span className="line-through" style={{ color: '#98A2B3' }}>{money(price.currency, price.listAmount)}</span>
+              </p>
             )}
             <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2">
               <p className="text-xs" style={{ color: '#667085' }}>{money(price.currency, comparison?.perMonth ?? 0)} per month</p>
@@ -344,7 +351,7 @@ function FreePlanCard({
   ];
 
   return (
-    <article className="pricing-plan-card relative flex min-h-full flex-col overflow-hidden rounded-[26px] p-6 transition-shadow duration-200 sm:p-7 motion-reduce:transition-none" style={{ background: 'transparent', boxShadow: 'none' }}>
+    <article className="relative flex min-h-full flex-col overflow-hidden rounded-[20px] p-6 sm:p-7 md:translate-y-3" style={{ background: 'transparent' }}>
       <div className="flex flex-1 flex-col">
         <div>
           <p className="text-xl font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont }}>Starter</p>
