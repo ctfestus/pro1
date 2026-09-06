@@ -56,6 +56,13 @@ const CONTENT_TYPES = [
   { value: "learning_paths", label: "Learning Path" },
 ];
 
+// The server refuses a payment deadline earlier than today, and a rejected save is a poor way
+// to learn that -- a mistyped year or a reused date reads as valid until it is submitted. This
+// is the same UTC day the server compares against, so the calendar cannot offer a date it will
+// turn down. Spreadsheet imports carry their own dates and cannot be guarded here, which is why
+// the server keeps the rule.
+const earliestDeadline = () => new Date().toISOString().slice(0, 10);
+
 const freshPayment = () => ({
   durationMonths: "1",
   amount: "",
@@ -1797,6 +1804,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
           Payment deadline
           <input
             type="date"
+            min={earliestDeadline()}
             value={payment.dueDate}
             onChange={(e) =>
               updatePayment((v) => ({ ...v, dueDate: e.target.value }))
@@ -3826,7 +3834,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Amount<input type="number" inputMode="decimal" min="0.01" step="0.01" value={bulkDefaults.amount} onChange={(event) => setBulkDefaults(value => ({ ...value, amount: event.target.value }))} placeholder="0.00" className={`${fieldClass} mt-1.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none`} style={inputStyle} /></label>
                 <label className="text-xs font-bold" style={{ color: C.muted }}>Currency<input value={bulkDefaults.currency} onChange={(event) => setBulkDefaults(value => ({ ...value, currency: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
                 {bulkMode === "request" ? (
-                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment deadline<input type="date" value={bulkDefaults.dueDate} onChange={(event) => setBulkDefaults(value => ({ ...value, dueDate: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
+                  <label className="text-xs font-bold" style={{ color: C.muted }}>Payment deadline<input type="date" min={earliestDeadline()} value={bulkDefaults.dueDate} onChange={(event) => setBulkDefaults(value => ({ ...value, dueDate: event.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
                 ) : (
                   <label className="text-xs font-bold" style={{ color: C.muted }}>Payment method<input value={bulkDefaults.paymentMethod} onChange={(event) => setBulkDefaults(value => ({ ...value, paymentMethod: event.target.value }))} placeholder="Bank transfer" className={`${fieldClass} mt-1.5`} style={inputStyle} /></label>
                 )}
