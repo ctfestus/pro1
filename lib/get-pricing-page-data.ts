@@ -61,6 +61,10 @@ export const getPricingPageData = unstable_cache(
         id: price.id,
         durationMonths: Number(price.durationMonths),
         amount: Number(price.amount),
+        listAmount: Number(price.listAmount ?? price.amount),
+        discountType: price.discountType ?? null,
+        discountValue: price.discountValue == null ? null : Number(price.discountValue),
+        discountAmount: Number(price.discountAmount ?? 0),
         currency: price.currency || 'GHS',
       })),
       coverage: {
@@ -82,5 +86,7 @@ export const getPricingPageData = unstable_cache(
   ['pricing-page-v2'],
   // The timer is the backstop; the tag is what an admin edit clears through
   // revalidatePricingPage, so a withdrawn plan stops being advertised at once.
-  { revalidate: 300, tags: [PRICING_CACHE_TAG] },
+  // Short enough that a scheduled promotion appears or disappears promptly. Checkout still
+  // verifies the exact quote, because an already-open browser tab can be older than any cache.
+  { revalidate: 60, tags: [PRICING_CACHE_TAG] },
 );

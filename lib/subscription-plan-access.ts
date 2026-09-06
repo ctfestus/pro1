@@ -8,6 +8,7 @@
  * the same rules from the same place rather than each keeping their own copy.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { effectiveSubscriptionPrice } from '@/lib/subscription-discount';
 
 export type PurchasableContentTable =
   | 'courses'
@@ -29,6 +30,10 @@ export interface PlanPrice {
   id: string;
   durationMonths: number;
   amount: number;
+  listAmount: number;
+  discountType: 'percentage' | 'fixed' | null;
+  discountValue: number | null;
+  discountAmount: number;
   currency: string;
 }
 
@@ -167,7 +172,7 @@ export async function loadPlansForContent(
 
   let priceQuery = db
     .from('subscription_plan_prices')
-    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id)')
+    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id, discount_type, discount_value, discount_starts_at, discount_ends_at)')
     .eq('is_active', true);
   if (allowedPlanIds) priceQuery = priceQuery.in('plan_id', allowedPlanIds);
   const { data: prices, error } = await priceQuery.order('sort_order').order('duration_months');
@@ -192,10 +197,15 @@ export async function loadPlansForContent(
       description: plan.description ?? null,
       prices: [],
     };
+    const effective = effectiveSubscriptionPrice(row.amount, plan);
     current.prices.push({
       id: row.id,
       durationMonths: row.duration_months,
-      amount: Number(row.amount),
+      amount: effective.amount,
+      listAmount: effective.listAmount,
+      discountType: effective.discountType,
+      discountValue: effective.discountValue,
+      discountAmount: effective.discountAmount,
       currency: row.currency || 'GHS',
     });
     byPlan.set(plan.id, current);

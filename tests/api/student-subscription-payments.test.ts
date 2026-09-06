@@ -352,7 +352,11 @@ describe('student subscription payment confirmation', () => {
           amount: 1000,
           currency: 'GHS',
           is_active: true,
-          subscription_plans: { id: 'plan-1', status: 'active', cohort_id: 'cohort-1' },
+          subscription_plans: {
+            id: 'plan-1', status: 'active', cohort_id: 'cohort-1',
+            discount_type: 'percentage', discount_value: 20,
+            discount_starts_at: null, discount_ends_at: null,
+          },
         },
         error: null,
       },
@@ -361,7 +365,9 @@ describe('student subscription payment confirmation', () => {
       public_pricing_plans: { data: { plan_id: 'plan-1' }, error: null },
     }, () => ({ data: true, error: null }));
     createClient.mockReturnValue(db);
-    const response = await POST(request({ action: 'purchase-plan', priceId: 'price-1', paystack: true }));
+    const response = await POST(request({
+      action: 'purchase-plan', priceId: 'price-1', quotedAmount: 800, quotedCurrency: 'GHS', paystack: true,
+    }));
     const data = await response.json();
     expect(response.status).toBe(200);
     expect(data.checkout.authorizationUrl).toBe('https://checkout.paystack.com/sub-ref');
@@ -371,9 +377,16 @@ describe('student subscription payment confirmation', () => {
       email: 'student@example.com',
       planId: 'plan-1',
       durationMonths: 12,
-      amount: 1000,
+      amount: 800,
       currency: 'GHS',
     }));
+
+    const staleQuote = await POST(request({
+      action: 'purchase-plan', priceId: 'price-1', quotedAmount: 1000, quotedCurrency: 'GHS', paystack: true,
+    }));
+    expect(staleQuote.status).toBe(409);
+    expect(await staleQuote.json()).toMatchObject({ code: 'price_changed' });
+    expect(createPaystackDirectCheckout).toHaveBeenCalledTimes(1);
   });
 
   it('refuses checkout when a plan no longer has published content', async () => {

@@ -114,6 +114,12 @@ export function PricingHero({
 
   const { plan, price, perMonth, savingPercent, monthsPaidFor, baselinePerMonth, alternative } = offer;
   const saving = savingPercent > 0;
+  const promotion = Boolean(price.listAmount && price.listAmount > price.amount);
+  const promotionBaseline = promotion ? Number(price.listAmount) / price.durationMonths : null;
+  const displayedBaseline = promotionBaseline ?? baselinePerMonth;
+  const promotionLabel = price.discountType === 'percentage'
+    ? `${price.discountValue}% promotional discount`
+    : `${formatMoney(price.currency, price.discountAmount ?? 0)} promotional discount`;
 
   return (
     <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
@@ -132,12 +138,13 @@ export function PricingHero({
             {plan.description || 'Full access to the catalogue while your plan runs. Start whenever suits you, and keep the certificates you earn.'}
           </p>
           <p className="mt-5 text-base" style={{ color: 'rgba(255,255,255,0.92)' }}>
-            {saving && baselinePerMonth !== null && (
-              <span className="mr-2 line-through" style={{ color: 'rgba(255,255,255,0.55)' }}>{formatMoney(price.currency, baselinePerMonth)}</span>
+            {displayedBaseline !== null && (
+              <span className="mr-2 line-through" style={{ color: 'rgba(255,255,255,0.55)' }}>{formatMoney(price.currency, displayedBaseline)}</span>
             )}
             <span className="font-bold">{formatMoney(price.currency, perMonth)} a month</span>
             <span style={{ color: 'rgba(255,255,255,0.70)' }}> - no automatic renewal</span>
           </p>
+          {promotion && <p className="mt-2 text-sm font-bold" style={{ color: 'rgba(255,255,255,0.86)' }}>{promotionLabel}</p>}
           <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Link href="#pricing-plans" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none" style={{ background: '#FFFFFF', color: '#101828' }}>
               Explore access plans <ArrowDown className="h-4 w-4" />
@@ -154,8 +161,8 @@ export function PricingHero({
           <div className="flex items-center gap-9 sm:gap-11">
             <div className="min-w-0 max-w-[240px] flex-1 space-y-2.5">
               <div className="rounded-xl bg-white px-4 py-4 text-center">
-                {saving && baselinePerMonth !== null && (
-                  <p className="text-sm line-through" style={{ color: '#98A2B3' }}>{formatMoney(price.currency, baselinePerMonth)}</p>
+                {displayedBaseline !== null && (
+                  <p className="text-sm line-through" style={{ color: '#98A2B3' }}>{formatMoney(price.currency, displayedBaseline)}</p>
                 )}
                 <p className="whitespace-nowrap font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(20px,2.3vw,28px)', lineHeight: 1.15 }}>
                   {formatMoney(price.currency, perMonth)}

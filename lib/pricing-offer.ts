@@ -58,7 +58,9 @@ function findFeaturedOffer(plans: PricingPlan[], durationMonths?: number): Featu
         monthsPaidFor,
         // Only shown when there is a real saving, so the struck-through figure always means
         // something rather than decorating a single price with a fake discount.
-        baselinePerMonth: savingPercent > 0 && shortest ? shortest.amount / shortest.durationMonths : null,
+        baselinePerMonth: savingPercent > 0 && shortest
+          ? (shortest.listAmount ?? shortest.amount) / shortest.durationMonths
+          : null,
         alternative: shortest && shortest.id !== price.id ? shortest : null,
       };
     }
