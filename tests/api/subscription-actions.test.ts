@@ -113,6 +113,11 @@ beforeEach(() => {
   getSubscriptionHistory.mockResolvedValue([]);
 });
 
+// The route refuses a payment deadline earlier than today, so a fixed calendar date in a
+// fixture stops being valid the moment it passes -- these tests then fail on a date rather
+// than on a change. Derived from the clock so it is always a deadline the route accepts.
+const futureDueDate = new Date(Date.now() + 30 * 86_400_000).toISOString().slice(0, 10);
+
 describe('subscription read authorization', () => {
   it('passes only instructor-owned plan ids to service-role list reads', async () => {
     authenticateAs('instructor');
@@ -416,12 +421,12 @@ describe('subscription payment actions', () => {
     authenticateAs('admin');
     const response = await POST(request({
       action: 'create-subscription-payment-request', studentId: 'student-1', planId: 'plan-1',
-      durationMonths: 6, amount: 500, currency: 'GHS', dueDate: '2026-09-01',
+      durationMonths: 6, amount: 500, currency: 'GHS', dueDate: futureDueDate,
     }));
     expect(response.status).toBe(200);
     expect(createSubscriptionPaymentRequest).toHaveBeenCalledWith({}, {
       studentId: 'student-1', planId: 'plan-1', durationMonths: 6, amount: 500,
-      currency: 'GHS', dueDate: '2026-09-01', createdBy: 'admin-1',
+      currency: 'GHS', dueDate: futureDueDate, createdBy: 'admin-1',
     });
     expect(purchaseOrRenewSubscription).not.toHaveBeenCalled();
   });
@@ -466,7 +471,7 @@ describe('subscription payment actions', () => {
     const response = await POST(request({
       action: 'assign-new-subscription-student', mode: 'request', fullName: 'Ada Mensah',
       email: 'ada@example.com', planId: 'plan-1', durationMonths: 3, amount: 300,
-      currency: 'GHS', dueDate: '2026-09-01',
+      currency: 'GHS', dueDate: futureDueDate,
     }));
     expect(response.status).toBe(200);
     expect(provisionIndividualStudent).toHaveBeenNthCalledWith(1, expect.anything(), {
@@ -510,7 +515,7 @@ describe('subscription payment actions', () => {
     const response = await POST(request({
       action: 'assign-new-subscription-student', mode: 'request', fullName: 'Ada Mensah',
       email: 'ada@example.com', planId: 'plan-1', durationMonths: 3, amount: 300,
-      currency: 'GHS', dueDate: '2026-09-01',
+      currency: 'GHS', dueDate: futureDueDate,
     }));
     const data = await response.json();
     expect(response.status).toBe(200);
@@ -523,13 +528,13 @@ describe('subscription payment actions', () => {
     const rows = [{ email: 'ada@example.com' }, { email: 'kwame@example.com', duration_months: 3 }];
     const response = await POST(request({
       action: 'bulk-subscription-payment-requests', mode: 'request', batchId: 'batch-1', planId: 'plan-1', rows,
-      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: '2026-09-01' },
+      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: futureDueDate },
     }));
     expect(response.status).toBe(200);
     expect(bulkAssignSubscriptionStudents).toHaveBeenCalledWith({}, {
       planId: 'plan-1', rows,
       mode: 'request', batchId: 'batch-1',
-      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: '2026-09-01', paymentMethod: undefined, paymentReference: undefined, notes: undefined },
+      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: futureDueDate, paymentMethod: undefined, paymentReference: undefined, notes: undefined },
       createdBy: 'admin-1',
     });
   });
@@ -553,7 +558,7 @@ describe('subscription payment actions', () => {
     authenticateAs('admin');
     const response = await POST(request({
       action: 'bulk-subscription-payment-requests', planId: 'plan-1', rows: [],
-      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: '2026-09-01' },
+      defaults: { durationMonths: 1, amount: 200, currency: 'GHS', dueDate: futureDueDate },
     }));
     expect(response.status).toBe(400);
     expect(bulkAssignSubscriptionStudents).not.toHaveBeenCalled();
