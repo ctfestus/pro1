@@ -553,6 +553,18 @@ html .landing-scope .text-white { color: #fff !important; }
   color: #ffffff;
 }
 
+/* True ticket cut-outs that reveal any surface behind the offer. */
+.ticket-cutout {
+  -webkit-mask-image:
+    radial-gradient(circle at left center, transparent 0 8px, #000 8.5px),
+    radial-gradient(circle at right center, transparent 0 8px, #000 8.5px);
+  -webkit-mask-composite: source-in;
+  mask-image:
+    radial-gradient(circle at left center, transparent 0 8px, #000 8.5px),
+    radial-gradient(circle at right center, transparent 0 8px, #000 8.5px);
+  mask-composite: intersect;
+}
+
 
 /* Python exercise task body -- rich text styles for ol/li/code/blockquote */
 .task-body ol {

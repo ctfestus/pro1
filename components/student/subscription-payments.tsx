@@ -636,6 +636,10 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
   const isBusy = selectedPrice?.id === planBusyId;
   const blocked = Boolean(openRequest || planBusyId || readOnly || !selectedPrice);
   const copy = renewalCopy(subscription?.status);
+  const promotion = Boolean(selectedPrice?.listAmount && selectedPrice.listAmount > selectedPrice.amount);
+  const promotionLabel = selectedPrice?.discountType === 'percentage'
+    ? `${selectedPrice.discountValue}% off`
+    : `${money(selectedPrice?.currency, selectedPrice?.discountAmount)} off`;
 
   return <div className="space-y-3">
     {!!prices.length && <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -652,6 +656,20 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
     </div>}
 
     <article className="rounded-2xl p-4 sm:p-6" style={{ background: C.card }}>
+      {promotion && selectedPrice && (
+        <div className="ticket-cutout relative mb-5 rounded-2xl px-5 py-4" style={{ background: '#FFCC00' }}>
+          <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
+            <div className="min-w-0">
+              <p className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Special offer applied</p>
+              <p className="mt-0.5 text-base font-black" style={{ color: '#101828' }}>{promotionLabel}</p>
+            </div>
+            <div className="border-t-2 border-dashed pt-3 sm:border-l-2 sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
+              <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>Your saving</p>
+              <p className="mt-0.5 text-lg font-black" style={{ color: '#101828' }}>{money(selectedPrice.currency, selectedPrice.discountAmount)}</p>
+            </div>
+          </div>
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto_220px] lg:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
@@ -664,13 +682,10 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
         <div className="min-w-44 lg:text-right">
           <p className="text-xs font-semibold" style={{ color: C.faint }}>{subscription ? 'Renewal total' : 'Total'}</p>
           {selectedPrice ? <>
-            <p className="mt-1 text-2xl font-black tracking-tight" style={{ color: C.text }}>{money(selectedPrice.currency, selectedPrice.amount)}</p>
-            {selectedPrice.listAmount > selectedPrice.amount && <div className="mt-1 flex flex-wrap items-center gap-2 lg:justify-end">
-              <span className="text-xs line-through" style={{ color: C.faint }}>{money(selectedPrice.currency, selectedPrice.listAmount)}</span>
-              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: C.successBg, color: C.successText }}>
-                {selectedPrice.discountType === 'percentage' ? `${selectedPrice.discountValue}% off` : `${money(selectedPrice.currency, selectedPrice.discountAmount)} off`}
-              </span>
-            </div>}
+            <p className="mt-1 text-3xl font-black tracking-tight" style={{ color: C.text }}>{money(selectedPrice.currency, selectedPrice.amount)}</p>
+            {selectedPrice.listAmount > selectedPrice.amount && <p className="mt-1 text-xs" style={{ color: C.muted }}>
+              Usually <span className="line-through" style={{ color: C.faint }}>{money(selectedPrice.currency, selectedPrice.listAmount)}</span>
+            </p>}
             <div className="mt-1 flex flex-wrap items-center gap-2 lg:justify-end">
               <p className="text-xs" style={{ color: C.muted }}>for {durationLabel(selectedPrice.durationMonths)}</p>
               {comparison.savingPercent > 0 && <span className="rounded-full border px-2.5 py-1 text-[10px] font-bold" style={{ background: C.successBg, borderColor: C.successBorder, color: C.successText }}>Save {comparison.savingPercent}%</span>}

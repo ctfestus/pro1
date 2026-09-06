@@ -112,14 +112,19 @@ export function PricingHero({
     );
   }
 
-  const { plan, price, perMonth, savingPercent, monthsPaidFor, baselinePerMonth, alternative } = offer;
+  const { plan, price, perMonth, savingPercent, baselinePerMonth, alternative } = offer;
   const saving = savingPercent > 0;
   const promotion = Boolean(price.listAmount && price.listAmount > price.amount);
   const promotionBaseline = promotion ? Number(price.listAmount) / price.durationMonths : null;
   const displayedBaseline = promotionBaseline ?? baselinePerMonth;
+  const displayedTotalBaseline = promotion
+    ? Number(price.listAmount)
+    : displayedBaseline !== null
+      ? displayedBaseline * price.durationMonths
+      : null;
   const promotionLabel = price.discountType === 'percentage'
-    ? `${price.discountValue}% promotional discount`
-    : `${formatMoney(price.currency, price.discountAmount ?? 0)} promotional discount`;
+    ? `${price.discountValue}% off`
+    : `${formatMoney(price.currency, price.discountAmount ?? 0)} off`;
 
   return (
     <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
@@ -130,7 +135,9 @@ export function PricingHero({
             {plan.name}
           </span>
           <h1 className="mt-5 text-4xl font-black tracking-[-0.04em] sm:text-5xl" style={{ color: '#FFFFFF', fontFamily: hFont, textWrap: 'balance', lineHeight: 1.02 }}>
-            {saving
+            {promotion
+              ? `Get ${durationLabel(price.durationMonths)} of full access at a better price`
+              : saving
               ? `Learn at your own pace and save ${savingPercent}% over ${durationLabel(price.durationMonths)}`
               : `Learn at your own pace with ${durationLabel(price.durationMonths)} of full access`}
           </h1>
@@ -138,13 +145,10 @@ export function PricingHero({
             {plan.description || 'Full access to the catalogue while your plan runs. Start whenever suits you, and keep the certificates you earn.'}
           </p>
           <p className="mt-5 text-base" style={{ color: 'rgba(255,255,255,0.92)' }}>
-            {displayedBaseline !== null && (
-              <span className="mr-2 line-through" style={{ color: 'rgba(255,255,255,0.55)' }}>{formatMoney(price.currency, displayedBaseline)}</span>
-            )}
-            <span className="font-bold">{formatMoney(price.currency, perMonth)} a month</span>
-            <span style={{ color: 'rgba(255,255,255,0.70)' }}> - no automatic renewal</span>
+            <span className="font-bold">{formatMoney(price.currency, price.amount)}</span>
+            <span> for {durationLabel(price.durationMonths)}</span>
+            <span style={{ color: 'rgba(255,255,255,0.70)' }}> - one payment, no automatic renewal</span>
           </p>
-          {promotion && <p className="mt-2 text-sm font-bold" style={{ color: 'rgba(255,255,255,0.86)' }}>{promotionLabel}</p>}
           <div className="mt-7 flex flex-wrap items-center gap-x-5 gap-y-3">
             <Link href="#pricing-plans" className="inline-flex items-center gap-2 rounded-xl px-5 py-3 text-sm font-black transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none" style={{ background: '#FFFFFF', color: '#101828' }}>
               Explore access plans <ArrowDown className="h-4 w-4" />
@@ -160,23 +164,39 @@ export function PricingHero({
         <div className="w-full max-w-sm lg:justify-self-end">
           <div className="flex items-center gap-9 sm:gap-11">
             <div className="min-w-0 max-w-[240px] flex-1 space-y-2.5">
-              <div className="rounded-xl bg-white px-4 py-4 text-center">
-                {displayedBaseline !== null && (
-                  <p className="text-sm line-through" style={{ color: '#98A2B3' }}>{formatMoney(price.currency, displayedBaseline)}</p>
-                )}
-                <p className="whitespace-nowrap font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(20px,2.3vw,28px)', lineHeight: 1.15 }}>
-                  {formatMoney(price.currency, perMonth)}
-                  <span className="ml-1 text-xs font-bold" style={{ color: '#475467' }}>/month</span>
+              {promotion && (
+                <div className="ticket-cutout relative rounded-2xl px-5 py-4" style={{ background: '#FFCC00' }}>
+                  <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+                    <div className="min-w-0">
+                      <span className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Offer applied</span>
+                      <p className="mt-1 text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>{promotionLabel}</p>
+                    </div>
+                    <div className="border-l-2 border-dashed pl-4 text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
+                      <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>You save</p>
+                      <p className="mt-0.5 text-sm font-black" style={{ color: '#101828' }}>
+                        {formatMoney(price.currency, price.discountAmount ?? 0)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <div className="rounded-2xl bg-white px-5 py-5 text-center">
+                <p className="whitespace-nowrap font-black tracking-tight" style={{ color: '#101828', fontFamily: hFont, fontSize: 'clamp(28px,3vw,38px)', lineHeight: 1.1 }}>
+                  {formatMoney(price.currency, price.amount)}
                 </p>
-              </div>
-              <div className="rounded-xl px-4 py-4 text-center" style={{ background: accentColor }}>
-                <p className="text-sm font-black" style={{ color: '#101828', fontFamily: hFont }}>
-                  {monthsPaidFor !== null
-                    ? `Pay for only ${monthsPaidFor} months`
-                    : saving
-                      ? `Save ${savingPercent}%`
-                      : `${durationLabel(price.durationMonths)} of full access`}
+                <p className="mt-1 text-sm font-bold" style={{ color: '#344054' }}>
+                  for {durationLabel(price.durationMonths)} of access
                 </p>
+                <div className="mt-4 border-t pt-3" style={{ borderColor: '#EAECF0' }}>
+                  {displayedTotalBaseline !== null && displayedTotalBaseline > price.amount && (
+                    <p className="text-xs" style={{ color: '#98A2B3' }}>
+                      Usually <span className="line-through">{formatMoney(price.currency, displayedTotalBaseline)}</span>
+                    </p>
+                  )}
+                  <p className="mt-1 text-xs font-bold" style={{ color: '#475467' }}>
+                    {formatMoney(price.currency, perMonth)}/month equivalent
+                  </p>
+                </div>
               </div>
             </div>
             <div className="flex shrink-0 flex-col gap-2.5">
