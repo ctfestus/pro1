@@ -761,6 +761,9 @@ export default function PublicFormPage() {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
+  // A virtual experience's tools resolve their logo by name through the shared registry, the
+  // same way a course's category does. See the tools block further down.
+  const toolIcon = useToolIcons();
   // Send visitors back to this page after they sign in.
   //
   // catalogueType has to survive the round trip: slugs are not unique across content types, so a
@@ -1658,7 +1661,7 @@ export default function PublicFormPage() {
                     <p style={{ fontSize: 11, fontWeight: 600, color: gp.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Tools</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
                       {config.tools.map((t: string) => {
-                        const logo = (config.toolLogos || {})[t];
+                        const logo = toolIcon(t);
                         return (
                           <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '4px 10px', borderRadius: 6, background: gp.subtle, color: gp.body, fontWeight: 600, border: `1px solid ${gp.divider}` }}>
                             {logo && <img src={logo} alt={t} style={{ width: 14, height: 14, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }} />}

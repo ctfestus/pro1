@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
 } from '@dnd-kit/core';
@@ -181,6 +182,10 @@ interface ProjectConfig {
   company: string;
   duration: string;
   tools: string[];
+  // Legacy per-experience logo map. Nothing renders or edits it any more -- logos resolve by
+  // name through the shared tool-icon registry, as a course's category does. It is still loaded
+  // and saved so that saving an experience does not blank a column other tenants may still hold
+  // data in; a later migration can drop it once that is confirmed everywhere.
   toolLogos?: Record<string, string>;
   tagline: string;
   description: string;
@@ -229,6 +234,11 @@ const VE_SECTIONS = [
 ] as const;
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
+
+// Quick picks under "Skills you will use", mirroring COURSE_CATEGORIES in the course editor.
+// These are only shortcuts: any name can be typed, and its logo resolves through the shared
+// tool-icon registry if one has been uploaded for it.
+const VE_TOOL_SUGGESTIONS = ['Excel', 'Power BI', 'SQL', 'Tableau', 'Python', 'PowerPoint'] as const;
 
 
 function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
@@ -342,6 +352,7 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
 // Page
 function VirtualExperienceCreatePageInner() {
   const C = useC();
+  const toolIcon = useToolIcons();
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('id');
@@ -418,8 +429,6 @@ function VirtualExperienceCreatePageInner() {
   const [showImprove, setShowImprove] = useState(false);
 
   const coverRef = useRef<HTMLInputElement>(null);
-  const toolLogoRef = useRef<HTMLInputElement>(null);
-  const [uploadingToolLogo, setUploadingToolLogo] = useState<string | null>(null); // tool name being uploaded
 
   const [veSlug, setVeSlug] = useState('');
   // After the first save of a brand-new experience the API returns its id. Keep it so further
@@ -670,52 +679,39 @@ function VirtualExperienceCreatePageInner() {
   };
 
   /**
-   * "Skills you will use" on the experience page is config.tools. Before this it could only be
-   * set once, as a comma-separated hint to the AI generator, and was read-only afterwards.
-   *
-   * toolLogos is keyed by the skill NAME, so a rename has to carry the logo across and a removal
-   * has to drop it -- otherwise a logo either orphans in the map or silently disappears from a
-   * skill that still has one.
+   * "Skills you will use" on the experience page is config.tools: a list of names, nothing more.
+   * The logo beside each one resolves by name through the shared tool-icon registry, exactly as a
+   * course's category does -- so a skill is only ever a string, and a logo is uploaded once for
+   * the whole platform under dashboard Branding rather than per experience.
    */
-  const applyTools = (tools: string[], toolLogos: Record<string, string>) =>
-    setConfig(c => c ? { ...c, tools, toolLogos } : c);
+  const applyTools = (tools: string[]) => setConfig(c => c ? { ...c, tools } : c);
 
   const renameTool = (index: number, name: string) => {
     const tools = [...(config?.tools || [])];
-    const previous = tools[index];
     tools[index] = name;
-    const toolLogos = { ...(config?.toolLogos || {}) };
-    if (previous !== name && toolLogos[previous] !== undefined) {
-      const logo = toolLogos[previous];
-      delete toolLogos[previous];
-      if (name.trim()) toolLogos[name] = logo;
-    }
-    applyTools(tools, toolLogos);
+    applyTools(tools);
   };
 
   const removeTool = (index: number) => {
     const tools = [...(config?.tools || [])];
-    const [removed] = tools.splice(index, 1);
-    const toolLogos = { ...(config?.toolLogos || {}) };
-    // Only drop the logo if no remaining skill still goes by that name.
-    if (!tools.includes(removed)) delete toolLogos[removed];
-    applyTools(tools, toolLogos);
+    tools.splice(index, 1);
+    applyTools(tools);
   };
 
   const moveTool = (from: number, to: number) => {
     const tools = config?.tools || [];
     if (to < 0 || to >= tools.length) return;
-    applyTools(arrayMove([...tools], from, to), { ...(config?.toolLogos || {}) });
+    applyTools(arrayMove([...tools], from, to));
   };
 
-  const addTool = () => {
-    const name = newToolDraft.trim();
+  const addTool = (raw?: string) => {
+    const name = (raw ?? newToolDraft).trim();
     if (!name) return;
     const tools = config?.tools || [];
     if (!tools.some(t => t.trim().toLowerCase() === name.toLowerCase())) {
-      applyTools([...tools, name], { ...(config?.toolLogos || {}) });
+      applyTools([...tools, name]);
     }
-    setNewToolDraft('');
+    if (raw === undefined) setNewToolDraft('');
   };
 
   const handleModuleDragEnd = (event: DragEndEvent) => {
@@ -1133,21 +1129,6 @@ function VirtualExperienceCreatePageInner() {
     } finally {
       setUploadingBadge(false);
       if (badgeInputRef.current) badgeInputRef.current.value = '';
-    }
-  };
-
-  const handleToolLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>, toolName: string) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploadingToolLogo(toolName);
-    try {
-      const publicUrl = await uploadToCloudinary(file, 'tool-logos');
-      setConfig(c => c ? { ...c, toolLogos: { ...(c.toolLogos || {}), [toolName]: publicUrl } } : c);
-    } catch (err: any) {
-      alert('Upload failed: ' + err.message);
-    } finally {
-      setUploadingToolLogo(null);
-      e.target.value = '';
     }
   };
 
@@ -1820,7 +1801,7 @@ function VirtualExperienceCreatePageInner() {
                       <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Skills you will use</p>
                       <div className="space-y-2">
                         {(config.tools || []).map((t, i) => {
-                          const logo = (config.toolLogos || {})[t];
+                          const logo = toolIcon(t);
                           const initial = t.trim().charAt(0).toUpperCase();
                           return (
                             <div key={i} className="flex items-center gap-2 px-2.5 py-2 rounded-lg" style={{ background: C.card }}>
@@ -1855,15 +1836,27 @@ function VirtualExperienceCreatePageInner() {
                             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addTool(); } }}
                             placeholder="Add a skill or tool"
                             style={{ ...inp, fontSize: 12, flex: 1 }} />
-                          <button type="button" onClick={addTool} disabled={!newToolDraft.trim()}
+                          <button type="button" onClick={() => addTool()} disabled={!newToolDraft.trim()}
                             className="flex items-center gap-1 px-3 py-2 rounded-lg text-[12px] font-semibold flex-shrink-0 disabled:opacity-35"
                             style={{ background: C.cta, color: C.ctaText }}>
                             <Plus className="w-3 h-3" /> Add
                           </button>
                         </div>
                       </div>
+                      {/* Quick picks, matching the course category picker. */}
+                      <div className="mt-2 flex flex-wrap gap-1">
+                        {VE_TOOL_SUGGESTIONS
+                          .filter(s => !(config.tools || []).some(t => t.trim().toLowerCase() === s.toLowerCase()))
+                          .map(s => (
+                            <button key={s} type="button" onClick={() => addTool(s)}
+                              className="min-h-8 rounded-lg px-3 py-1 text-[11px] font-semibold transition-all hover:opacity-70"
+                              style={{ background: C.pill, color: C.muted }}>
+                              {s}
+                            </button>
+                          ))}
+                      </div>
                       <p className="text-[11px] mt-2" style={{ color: C.faint }}>
-                        Shown on the experience page. Add a logo for each one under Branding.
+                        Shown on the experience page. Logos come from the shared tool icons in dashboard Branding.
                       </p>
                     </div>
 
@@ -2853,66 +2846,30 @@ function VirtualExperienceCreatePageInner() {
                 {activeSection === 'branding' && (
                 <div className="space-y-4">
 
-                {/* Tool Logos card */}
+                {/* Tool logos live in dashboard Branding now: one icon per tool name, shared by
+                    courses, learning paths and experiences alike, rather than re-uploaded here. */}
                 {(config.tools || []).length > 0 && (
-                  <div style={card} className="p-5 space-y-3">
+                  <div style={card} className="p-5 space-y-2">
                     <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Tool Logos</p>
-                    <p className="text-[11px]" style={{ color: C.faint }}>Upload or paste a logo URL for each tool. Shown to students on the experience page.</p>
-                    <div className="space-y-2">
+                    <p className="text-[11px]" style={{ color: C.faint }}>
+                      Logos are matched to each skill name from the shared tool icons. Add or change one in
+                      dashboard Branding and it updates everywhere that tool appears.
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1">
                       {(config.tools || []).map(t => {
-                        const logo = (config.toolLogos || {})[t];
+                        const logo = toolIcon(t);
                         return (
-                          <div key={t} className="flex flex-col sm:flex-row sm:items-center gap-2 rounded-2xl p-3" style={{ background: C.card }}>
-                            {/* Logo preview */}
-                            <div className="w-10 h-10 rounded-xl flex-shrink-0 flex items-center justify-center overflow-hidden"
-                              style={{ background: C.pill }}>
-                              {logo
-                                ? <img src={logo} alt={t} className="w-full h-full object-contain p-0.5" />
-                                : <span className="text-[10px] font-bold" style={{ color: C.muted }}>{t[0]}</span>
-                              }
-                            </div>
-                            {/* Tool name */}
-                            <span className="text-[13px] font-medium flex-1 min-w-0 truncate" style={{ color: C.text }}>{t}</span>
-                            {/* URL input */}
-                            <input
-                              value={logo || ''}
-                              onChange={e => setConfig(c => c ? { ...c, toolLogos: { ...(c.toolLogos || {}), [t]: e.target.value } } : c)}
-                              placeholder="Paste URL or upload"
-                              style={{ ...inp, fontSize: 12, padding: '6px 10px', width: 'auto', flex: 1 }}
-                            />
-                            {/* Upload button */}
-                            <button
-                              onClick={() => { (toolLogoRef.current as any)._toolName = t; toolLogoRef.current?.click(); }}
-                              disabled={uploadingToolLogo === t}
-                              className="flex items-center justify-center w-10 h-10 rounded-xl flex-shrink-0 transition-all hover:opacity-70"
-                              style={{ color: C.muted, background: C.pill }}>
-                              {uploadingToolLogo === t ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                            </button>
-                            {/* Remove logo */}
-                            {logo && (
-                              <button onClick={() => setConfig(c => {
-                                if (!c) return c;
-                                const logos = { ...(c.toolLogos || {}) };
-                                delete logos[t];
-                                return { ...c, toolLogos: logos };
-                              })} style={{ color: C.faint }} className="hover:text-red-400 transition-colors flex-shrink-0">
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            )}
+                          <div key={t} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: C.card }}>
+                            {logo
+                              ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
+                              : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{t.trim().charAt(0).toUpperCase()}</div>
+                            }
+                            <span className="text-[12px] font-medium" style={{ color: C.text }}>{t}</span>
+                            {!logo && <span className="text-[10px]" style={{ color: C.faint }}>no icon yet</span>}
                           </div>
                         );
                       })}
                     </div>
-                    <input
-                      ref={toolLogoRef}
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={e => {
-                        const name = (e.target as any)._toolName as string;
-                        if (name) handleToolLogoUpload(e, name);
-                      }}
-                    />
                   </div>
                 )}
 
