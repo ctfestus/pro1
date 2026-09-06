@@ -25,6 +25,10 @@ export interface PricingPrice {
   id: string;
   durationMonths: number;
   amount: number;
+  listAmount?: number;
+  discountType?: 'percentage' | 'fixed' | null;
+  discountValue?: number | null;
+  discountAmount?: number;
   currency: string;
 }
 

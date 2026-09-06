@@ -378,7 +378,7 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
     }
   }
 
-  async function purchasePlan(priceId: string) {
+  async function purchasePlan(priceId: string, quotedAmount?: number, quotedCurrency?: string) {
     setPlanBusyId(priceId); setMessage('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -386,10 +386,13 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
       const res = await fetch('/api/student-subscriptions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ action: 'purchase-plan', priceId, paystack: data?.paystackEnabled === true && !payManually, ...(target ?? {}) }),
+        body: JSON.stringify({ action: 'purchase-plan', priceId, quotedAmount, quotedCurrency, paystack: data?.paystackEnabled === true && !payManually, ...(target ?? {}) }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || 'We could not start your purchase');
+      if (!res.ok) {
+        if (body.code === 'price_changed') await load();
+        throw new Error(body.error || 'We could not start your purchase');
+      }
       if (body.checkout?.authorizationUrl) {
         window.location.href = body.checkout.authorizationUrl;
         return;
@@ -586,7 +589,7 @@ function PricingStage({
   payManually: boolean;
   readOnly: boolean;
   C: typeof LIGHT_C;
-  onPurchase: (priceId: string) => void;
+  onPurchase: (priceId: string, quotedAmount?: number, quotedCurrency?: string) => void;
   onToggleManual: () => void;
   chosenPriceId?: string;
 }) {
@@ -612,7 +615,7 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
   planBusyId: string;
   readOnly: boolean;
   C: typeof LIGHT_C;
-  onPurchase: (priceId: string) => void;
+  onPurchase: (priceId: string, quotedAmount?: number, quotedCurrency?: string) => void;
   chosenPriceId?: string;
 }) {
   const prices = useMemo(() => [...(plan.prices ?? [])].sort((a: any, b: any) => a.durationMonths - b.durationMonths), [plan.prices]);
@@ -662,6 +665,12 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
           <p className="text-xs font-semibold" style={{ color: C.faint }}>{subscription ? 'Renewal total' : 'Total'}</p>
           {selectedPrice ? <>
             <p className="mt-1 text-2xl font-black tracking-tight" style={{ color: C.text }}>{money(selectedPrice.currency, selectedPrice.amount)}</p>
+            {selectedPrice.listAmount > selectedPrice.amount && <div className="mt-1 flex flex-wrap items-center gap-2 lg:justify-end">
+              <span className="text-xs line-through" style={{ color: C.faint }}>{money(selectedPrice.currency, selectedPrice.listAmount)}</span>
+              <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: C.successBg, color: C.successText }}>
+                {selectedPrice.discountType === 'percentage' ? `${selectedPrice.discountValue}% off` : `${money(selectedPrice.currency, selectedPrice.discountAmount)} off`}
+              </span>
+            </div>}
             <div className="mt-1 flex flex-wrap items-center gap-2 lg:justify-end">
               <p className="text-xs" style={{ color: C.muted }}>for {durationLabel(selectedPrice.durationMonths)}</p>
               {comparison.savingPercent > 0 && <span className="rounded-full border px-2.5 py-1 text-[10px] font-bold" style={{ background: C.successBg, borderColor: C.successBorder, color: C.successText }}>Save {comparison.savingPercent}%</span>}
@@ -669,7 +678,7 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
           </> : <p className="mt-1 text-sm font-bold" style={{ color: C.muted }}>Pricing unavailable</p>}
         </div>
 
-        <button type="button" onClick={() => selectedPrice && onPurchase(selectedPrice.id)} disabled={blocked} className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.cta, color: C.ctaText }}>
+        <button type="button" onClick={() => selectedPrice && onPurchase(selectedPrice.id, selectedPrice.amount, selectedPrice.currency)} disabled={blocked} className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-sm font-black transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0" style={{ background: C.cta, color: C.ctaText }}>
           {isBusy ? <><Loader2 className="h-4 w-4 animate-spin"/>Opening checkout</> : !selectedPrice ? 'Unavailable' : openRequest ? 'Payment in progress' : readOnly ? 'Preview only' : subscription ? <>{copy.action}<ArrowRight className="h-4 w-4"/></> : <>Unlock this plan<ArrowRight className="h-4 w-4"/></>}
         </button>
       </div>

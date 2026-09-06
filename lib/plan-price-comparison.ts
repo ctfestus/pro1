@@ -18,6 +18,8 @@ export interface ComparablePrice {
   durationMonths: number;
   amount: number;
   currency: string;
+  /** Undiscounted total. When present, duration savings stay separate from a promotion. */
+  listAmount?: number;
 }
 
 export interface PriceComparison {
@@ -55,10 +57,11 @@ export function comparePlanPrice(
   // The shortest option is the anchor; it cannot save against itself.
   if (price.durationMonths <= shortest.durationMonths) return none;
 
-  const baseRate = shortest.amount / shortest.durationMonths;
+  const baseRate = (shortest.listAmount ?? shortest.amount) / shortest.durationMonths;
   if (baseRate <= 0) return none;
 
-  const savingPercent = Math.round((1 - perMonth / baseRate) * 100);
+  const comparisonRate = (price.listAmount ?? price.amount) / price.durationMonths;
+  const savingPercent = Math.round((1 - comparisonRate / baseRate) * 100);
   // A longer option priced worse than the short one is not a saving. Say nothing rather than
   // showing a negative one.
   if (savingPercent <= 0) return none;
@@ -66,7 +69,7 @@ export function comparePlanPrice(
   // The epsilon guards the division, not the rounding: an exact eight can arrive as
   // 7.999999999 out of binary floating point, and flooring that would quietly give away a whole
   // month that was never discounted.
-  const monthsPaid = Math.floor(price.amount / baseRate + 1e-9);
+  const monthsPaid = Math.floor((price.listAmount ?? price.amount) / baseRate + 1e-9);
   // Nothing to say when it does not come out shorter than the term itself, and "pay for 0
   // months" is not a sentence about a price anyone is charged.
   const monthsPaidFor =

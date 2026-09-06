@@ -20,6 +20,16 @@ describe('comparePlanPrice', () => {
     expect(comparePlanPrice(ghs(12, 900), prices).savingPercent).toBe(25);
   });
 
+  it('keeps promotional savings separate from duration savings', () => {
+    const prices: ComparablePrice[] = [
+      { durationMonths: 1, amount: 80, listAmount: 100, currency: 'GHS' },
+      { durationMonths: 12, amount: 720, listAmount: 900, currency: 'GHS' },
+    ];
+    const yearly = comparePlanPrice(prices[1], prices);
+    expect(yearly.perMonth).toBe(60);
+    expect(yearly.savingPercent).toBe(25);
+  });
+
   it('anchors on the shortest plan actually sold, not an assumed monthly price', () => {
     // A tenant selling only 6 and 12 months has no monthly rate. 6 months at 600 is 100 a
     // month; 12 at 900 is 75, a 25% saving against the 6-month option.

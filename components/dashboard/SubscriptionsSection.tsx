@@ -47,6 +47,7 @@ import {
 } from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
 import { LIGHT_C, cardStyle, modalStyle } from "@/lib/theme";
+import { effectiveSubscriptionPrice } from "@/lib/subscription-discount";
 
 const CONTENT_TYPES = [
   { value: "courses", label: "Course" },
@@ -75,6 +76,68 @@ function freshPlanPrices() {
     isActive: false,
     sortOrder: durationMonths,
   }));
+}
+
+type PlanDiscountDraft = {
+  type: "" | "percentage" | "fixed";
+  value: string;
+  startsAt: string;
+  endsAt: string;
+};
+
+const freshPlanDiscount = (): PlanDiscountDraft => ({
+  type: "",
+  value: "",
+  startsAt: "",
+  endsAt: "",
+});
+
+function planDiscountFromRow(plan: any): PlanDiscountDraft {
+  return {
+    type: plan?.discount_type === "percentage" || plan?.discount_type === "fixed" ? plan.discount_type : "",
+    value: plan?.discount_value == null ? "" : String(plan.discount_value),
+    startsAt: plan?.discount_starts_at ? String(plan.discount_starts_at).slice(0, 16) : "",
+    endsAt: plan?.discount_ends_at ? String(plan.discount_ends_at).slice(0, 16) : "",
+  };
+}
+
+function planDiscountPayload(discount: PlanDiscountDraft) {
+  return {
+    type: discount.type,
+    value: discount.type ? Number(discount.value) : null,
+    startsAt: discount.type && discount.startsAt ? `${discount.startsAt}:00.000Z` : null,
+    endsAt: discount.type && discount.endsAt ? `${discount.endsAt}:00.000Z` : null,
+  };
+}
+
+function planDiscountStatus(discount: PlanDiscountDraft) {
+  if (!discount.type) return null;
+  const now = Date.now();
+  const startsAt = discount.startsAt ? Date.parse(`${discount.startsAt}:00.000Z`) : null;
+  const endsAt = discount.endsAt ? Date.parse(`${discount.endsAt}:00.000Z`) : null;
+  if (startsAt !== null && startsAt > now) return "Scheduled";
+  if (endsAt !== null && endsAt <= now) return "Ended";
+  return "Live";
+}
+
+function discountStatusTone(status: string | null, C: typeof LIGHT_C) {
+  if (status === "Live") return C.successText;
+  if (status === "Scheduled") return "#b45309";
+  return C.muted;
+}
+
+function discountStatusBackground(status: string | null, C: typeof LIGHT_C) {
+  if (status === "Live") return C.successBg;
+  if (status === "Scheduled") return "rgba(180, 83, 9, 0.08)";
+  return C.pill;
+}
+
+function startingPlanPrice(plan: any) {
+  const price = [...(plan?.subscription_plan_prices ?? [])]
+    .filter((row: any) => row.is_active)
+    .sort((a: any, b: any) => Number(a.amount) - Number(b.amount))[0];
+  if (!price) return null;
+  return { ...price, ...effectiveSubscriptionPrice(price.amount, plan) };
 }
 
 type Tab = "overview" | "subscribers" | "payments" | "plans" | "review";
@@ -287,6 +350,73 @@ function PlanPriceFields({
   );
 }
 
+function PlanDiscountFields({
+  discount,
+  setDiscount,
+  prices,
+  C,
+  fieldClass,
+  inputStyle,
+}: {
+  discount: PlanDiscountDraft;
+  setDiscount: Dispatch<SetStateAction<PlanDiscountDraft>>;
+  prices: ReturnType<typeof freshPlanPrices>;
+  C: typeof LIGHT_C;
+  fieldClass: string;
+  inputStyle: CSSProperties;
+}) {
+  const example = prices.find((price) => price.isActive && Number(price.amount) > 0);
+  const preview = example && discount.type && Number(discount.value) > 0
+    ? effectiveSubscriptionPrice(example.amount, {
+        discount_type: discount.type,
+        discount_value: discount.value,
+      })
+    : null;
+  const status = planDiscountStatus(discount);
+  const statusTone = discountStatusTone(status, C);
+  return (
+    <div className="rounded-2xl p-4" style={{ background: C.page }}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-bold" style={{ color: C.text }}>Promotional discount</p>
+          <p className="text-xs mt-1" style={{ color: C.faint }}>Optional. Applies to every active duration during the UTC schedule.</p>
+        </div>
+        {status && <span className="rounded-full px-2.5 py-1 text-[10px] font-bold" style={{ background: discountStatusBackground(status, C), color: statusTone }}>{status}</span>}
+      </div>
+      <div className="grid sm:grid-cols-2 gap-3 mt-4">
+        <label className="text-xs font-bold" style={{ color: C.muted }}>
+          Discount type
+          <select value={discount.type} onChange={(e) => setDiscount((value) => ({ ...value, type: e.target.value as PlanDiscountDraft["type"] }))} className={`${fieldClass} mt-1.5`} style={inputStyle}>
+            <option value="">No promotion</option>
+            <option value="percentage">Percentage off</option>
+            <option value="fixed">Fixed amount off</option>
+          </select>
+        </label>
+        <label className="text-xs font-bold" style={{ color: C.muted }}>
+          {discount.type === "percentage" ? "Percentage" : "Amount"}
+          <input type="number" min="0.01" max={discount.type === "percentage" ? "99.99" : undefined} step="0.01" value={discount.value} disabled={!discount.type} onChange={(e) => setDiscount((value) => ({ ...value, value: e.target.value }))} placeholder={discount.type === "percentage" ? "15" : "50.00"} className={`${fieldClass} mt-1.5`} style={inputStyle} />
+        </label>
+        <label className="text-xs font-bold" style={{ color: C.muted }}>
+          Starts at (UTC)
+          <input type="datetime-local" value={discount.startsAt} disabled={!discount.type} onChange={(e) => setDiscount((value) => ({ ...value, startsAt: e.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} />
+        </label>
+        <label className="text-xs font-bold" style={{ color: C.muted }}>
+          Ends at (UTC)
+          <input type="datetime-local" value={discount.endsAt} disabled={!discount.type} onChange={(e) => setDiscount((value) => ({ ...value, endsAt: e.target.value }))} className={`${fieldClass} mt-1.5`} style={inputStyle} />
+        </label>
+      </div>
+      {preview?.discountActive && example && (
+        <p className="text-xs mt-3" style={{ color: C.successText }}>
+          Example: {money(example.currency, preview.listAmount)} becomes {money(example.currency, preview.amount)}.
+        </p>
+      )}
+      {discount.type === "fixed" && (
+        <p className="text-[11px] mt-2" style={{ color: C.faint }}>All active prices must use the same currency for a fixed discount.</p>
+      )}
+    </div>
+  );
+}
+
 export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const dark = C.page === "#17181E";
   const [tab, setTab] = useState<Tab>("overview");
@@ -344,6 +474,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [newPlanName, setNewPlanName] = useState("");
   const [newPlanDescription, setNewPlanDescription] = useState("");
   const [newPlanPrices, setNewPlanPrices] = useState(freshPlanPrices);
+  const [newPlanDiscount, setNewPlanDiscount] = useState(freshPlanDiscount);
   const [newPlanContentKeys, setNewPlanContentKeys] = useState<string[]>([]);
   const [newPlanContentSearch, setNewPlanContentSearch] = useState("");
   const [newPlanDraftId, setNewPlanDraftId] = useState<string | null>(null);
@@ -364,6 +495,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
   const [editPlanName, setEditPlanName] = useState("");
   const [editPlanDescription, setEditPlanDescription] = useState("");
   const [editPlanPrices, setEditPlanPrices] = useState(freshPlanPrices);
+  const [editPlanDiscount, setEditPlanDiscount] = useState(freshPlanDiscount);
   const [contentOptions, setContentOptions] = useState<any[]>([]);
   const [selectedContentKeys, setSelectedContentKeys] = useState<string[]>([]);
   const [contentSearch, setContentSearch] = useState("");
@@ -1055,6 +1187,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setNewPlanName("");
     setNewPlanDescription("");
     setNewPlanPrices(freshPlanPrices());
+    setNewPlanDiscount(freshPlanDiscount());
     setNewPlanContentKeys([]);
     setNewPlanContentSearch("");
     setNewPlanDraftId(null);
@@ -1118,6 +1251,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     if (!editPlan) return false;
     if (editPlanName.trim() !== String(editPlan.name ?? "").trim()) return true;
     if (editPlanDescription.trim() !== String(editPlan.description ?? "").trim()) return true;
+    if (JSON.stringify(planDiscountPayload(editPlanDiscount)) !== JSON.stringify(planDiscountPayload(planDiscountFromRow(editPlan)))) return true;
     const existing = new Map((editPlan.subscription_plan_prices ?? []).map((price: any) => [Number(price.duration_months), price]));
     return editPlanPrices.some((price) => {
       const original: any = existing.get(Number(price.durationMonths));
@@ -1194,6 +1328,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             isActive: price.isActive,
             sortOrder: price.sortOrder,
           })),
+          discount: planDiscountPayload(newPlanDiscount),
         }),
       });
       const priceData = await priceRes.json();
@@ -1247,6 +1382,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
       setNewPlanName("");
       setNewPlanDescription("");
       setNewPlanPrices(freshPlanPrices());
+      setNewPlanDiscount(freshPlanDiscount());
       setNewPlanContentKeys([]);
       setNewPlanContentSearch("");
       setNewPlanDraftId(null);
@@ -1271,6 +1407,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
     setEditPlan(plan);
     setEditPlanName(plan.name ?? "");
     setEditPlanDescription(plan.description ?? "");
+    setEditPlanDiscount(planDiscountFromRow(plan));
     const existing = new Map((plan.subscription_plan_prices ?? []).map((price: any) => [Number(price.duration_months), price]));
     setEditPlanPrices(PLAN_PRICE_DURATIONS.map((durationMonths) => {
       const price: any = existing.get(durationMonths);
@@ -1315,6 +1452,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
             isActive: price.isActive,
             sortOrder: price.sortOrder,
           })),
+          discount: planDiscountPayload(editPlanDiscount),
         }),
       });
       const priceData = await priceRes.json();
@@ -2809,266 +2947,276 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 <div className="grid sm:grid-cols-2 xl:grid-cols-3 gap-3">
                   {plans
                     .filter((plan: any) => showArchivedPlans || !plan.archived_at)
-                    .map((plan) => (
-                    <div
-                      key={plan.id}
-                      role="button"
-                      tabIndex={0}
-                      onClick={() => {
-                        setPlanCardMenuId(null);
-                        setSelectedPlan(plan);
-                        loadPlanContent(plan.id).catch((err) =>
-                          setError(err.message),
-                        );
-                      }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          setSelectedPlan(plan);
-                          loadPlanContent(plan.id).catch((err) =>
-                            setError(err.message),
-                          );
-                        }
-                      }}
-                      className="group relative overflow-visible rounded-[22px] p-5 text-left transition-all cursor-pointer hover:-translate-y-0.5"
-                      style={{
-                        background:
-                          selectedPlan?.id === plan.id ? `${C.cta}0c` : C.page,
-                        boxShadow:
-                          selectedPlan?.id === plan.id
-                            ? `inset 0 0 0 2px ${C.cta}, 0 12px 30px ${C.cta}12`
-                            : `0 8px 24px ${dark ? "rgba(0,0,0,0.12)" : "rgba(15,23,42,0.05)"}`,
-                      }}
-                    >
-                      <div className="flex items-center justify-between gap-3">
+                    .map((plan) => {
+                      const startingPrice = startingPlanPrice(plan);
+                      const promotionStatus = planDiscountStatus(planDiscountFromRow(plan));
+                      return (
                         <div
-                          className="w-10 h-10 rounded-2xl grid place-items-center"
-                          style={{ background: `${C.cta}14`, color: C.cta }}
+                          key={plan.id}
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            setPlanCardMenuId(null);
+                            setSelectedPlan(plan);
+                            loadPlanContent(plan.id).catch((err) =>
+                              setError(err.message),
+                            );
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setSelectedPlan(plan);
+                              loadPlanContent(plan.id).catch((err) =>
+                                setError(err.message),
+                              );
+                            }
+                          }}
+                          className="group relative overflow-visible rounded-[22px] p-5 text-left transition-all cursor-pointer hover:-translate-y-0.5"
+                          style={{
+                            background:
+                              selectedPlan?.id === plan.id ? `${C.cta}0c` : C.page,
+                            boxShadow:
+                              selectedPlan?.id === plan.id
+                                ? `inset 0 0 0 2px ${C.cta}, 0 12px 30px ${C.cta}12`
+                                : `0 8px 24px ${dark ? "rgba(0,0,0,0.12)" : "rgba(15,23,42,0.05)"}`,
+                          }}
                         >
-                          <ShieldCheck className="w-5 h-5" />
-                        </div>
-                        <div className="flex items-center gap-1.5">
-                          <StatusPill status={plan.status} C={C} />
-                          <div className="relative">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setPlanCardMenuId((current) =>
-                                  current === plan.id ? null : plan.id,
-                                );
-                              }}
-                              className="w-8 h-8 rounded-lg grid place-items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
-                              style={{ background: C.card, color: C.text }}
-                              aria-label={`Actions for ${plan.name}`}
+                          <div className="flex items-center justify-between gap-3">
+                            <div
+                              className="w-10 h-10 rounded-2xl grid place-items-center"
+                              style={{ background: `${C.cta}14`, color: C.cta }}
                             >
-                              <MoreHorizontal className="w-4 h-4" />
-                            </button>
-                            {planCardMenuId === plan.id && (
-                              <div
-                                onClick={(e) => e.stopPropagation()}
-                                className="absolute right-0 top-10 z-30 w-52 rounded-xl p-2"
-                                style={modalStyle(C)}
-                              >
+                              <ShieldCheck className="w-5 h-5" />
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <StatusPill status={plan.status} C={C} />
+                              <div className="relative">
                                 <button
-                                  onClick={() => openEditPlan(plan)}
-                                  disabled={busy}
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
-                                  style={{ color: C.text }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPlanCardMenuId((current) =>
+                                      current === plan.id ? null : plan.id,
+                                    );
+                                  }}
+                                  className="w-8 h-8 rounded-lg grid place-items-center opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                                  style={{ background: C.card, color: C.text }}
+                                  aria-label={`Actions for ${plan.name}`}
                                 >
-                                  <span
-                                    className="w-8 h-8 rounded-lg grid place-items-center"
-                                    style={{
-                                      background: `${C.cta}14`,
-                                      color: C.cta,
-                                    }}
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </span>
-                                  Edit plan details
+                                  <MoreHorizontal className="w-4 h-4" />
                                 </button>
-                                <button
-                                  onClick={() => togglePlan(plan)}
-                                  // Archived means put away. Switching it back on here would
-                                  // put it on sale while it stays hidden from this list.
-                                  disabled={busy || !!plan.archived_at}
-                                  title={
-                                    plan.archived_at
-                                      ? "Restore this plan before switching it back on."
-                                      : undefined
-                                  }
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
-                                  style={{ color: C.text }}
-                                >
-                                  <span
-                                    className="w-8 h-8 rounded-lg grid place-items-center"
-                                    style={{
-                                      background: `${C.cta}14`,
-                                      color: C.cta,
-                                    }}
+                                {planCardMenuId === plan.id && (
+                                  <div
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="absolute right-0 top-10 z-30 w-52 rounded-xl p-2"
+                                    style={modalStyle(C)}
                                   >
-                                    <ShieldCheck className="w-4 h-4" />
-                                  </span>
-                                  {plan.status === "active"
-                                    ? "Deactivate plan"
-                                    : "Activate plan"}
-                                </button>
-                                <button
-                                  onClick={() => openBulkImport(plan)}
-                                  disabled={busy || plan.status !== "active"}
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
-                                  style={{ color: C.text }}
-                                >
-                                  <span
-                                    className="w-8 h-8 rounded-lg grid place-items-center"
-                                    style={{
-                                      background: `${C.cta}14`,
-                                      color: C.cta,
-                                    }}
-                                  >
-                                    <FileSpreadsheet className="w-4 h-4" />
-                                  </span>
-                                  Bulk add students
-                                </button>
-                                <button
-                                  onClick={() => setPlanRecommended(plan, !plan.recommended)}
-                                  // Only a plan visitors can actually see. Inactive keeps it off
-                                  // the pricing page just as surely as archived hides it.
-                                  disabled={
-                                    busy
-                                    || (!plan.recommended
-                                        && (!!plan.archived_at || plan.status !== "active"))
-                                  }
-                                  title={
-                                    plan.archived_at
-                                      ? "An archived plan is not shown to visitors."
-                                      : plan.status !== "active"
-                                        ? "Activate this plan before marking it as best value."
-                                        : undefined
-                                  }
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
-                                  style={{ color: C.text }}
-                                >
-                                  <span
-                                    className="w-8 h-8 rounded-lg grid place-items-center"
-                                    style={{ background: `${C.cta}14`, color: C.cta }}
-                                  >
-                                    <Star className="w-4 h-4" />
-                                  </span>
-                                  {plan.recommended ? "Remove best value" : "Mark as best value"}
-                                </button>
-                                <button
-                                  onClick={() => setPlanArchived(plan, !plan.archived_at)}
-                                  disabled={busy || (!plan.archived_at && plan.status === "active")}
-                                  title={
-                                    !plan.archived_at && plan.status === "active"
-                                      ? "Deactivate this plan first, so nobody loses a plan that is still on sale."
-                                      : undefined
-                                  }
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
-                                  style={{ color: C.text }}
-                                >
-                                  <span
-                                    className="w-8 h-8 rounded-lg grid place-items-center"
-                                    style={{ background: C.pill, color: C.muted }}
-                                  >
-                                    <Archive className="w-4 h-4" />
-                                  </span>
-                                  {plan.archived_at ? "Restore plan" : "Archive plan"}
-                                </button>
-                                <button
-                                  onClick={() => deletePlan(plan)}
-                                  disabled={busy}
-                                  className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
-                                  style={{ color: C.deleteText }}
-                                >
-                                  <span
-                                    className="w-8 h-8 rounded-lg grid place-items-center"
-                                    style={{ background: C.deleteBg }}
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </span>
-                                  Delete plan
-                                </button>
+                                    <button
+                                      onClick={() => openEditPlan(plan)}
+                                      disabled={busy}
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                                      style={{ color: C.text }}
+                                    >
+                                      <span
+                                        className="w-8 h-8 rounded-lg grid place-items-center"
+                                        style={{
+                                          background: `${C.cta}14`,
+                                          color: C.cta,
+                                        }}
+                                      >
+                                        <Pencil className="w-4 h-4" />
+                                      </span>
+                                      Edit plan details
+                                    </button>
+                                    <button
+                                      onClick={() => togglePlan(plan)}
+                                      // Archived means put away. Switching it back on here would
+                                      // put it on sale while it stays hidden from this list.
+                                      disabled={busy || !!plan.archived_at}
+                                      title={
+                                        plan.archived_at
+                                          ? "Restore this plan before switching it back on."
+                                          : undefined
+                                      }
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      style={{ color: C.text }}
+                                    >
+                                      <span
+                                        className="w-8 h-8 rounded-lg grid place-items-center"
+                                        style={{
+                                          background: `${C.cta}14`,
+                                          color: C.cta,
+                                        }}
+                                      >
+                                        <ShieldCheck className="w-4 h-4" />
+                                      </span>
+                                      {plan.status === "active"
+                                        ? "Deactivate plan"
+                                        : "Activate plan"}
+                                    </button>
+                                    <button
+                                      onClick={() => openBulkImport(plan)}
+                                      disabled={busy || plan.status !== "active"}
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      style={{ color: C.text }}
+                                    >
+                                      <span
+                                        className="w-8 h-8 rounded-lg grid place-items-center"
+                                        style={{
+                                          background: `${C.cta}14`,
+                                          color: C.cta,
+                                        }}
+                                      >
+                                        <FileSpreadsheet className="w-4 h-4" />
+                                      </span>
+                                      Bulk add students
+                                    </button>
+                                    <button
+                                      onClick={() => setPlanRecommended(plan, !plan.recommended)}
+                                      // Only a plan visitors can actually see. Inactive keeps it off
+                                      // the pricing page just as surely as archived hides it.
+                                      disabled={
+                                        busy
+                                        || (!plan.recommended
+                                            && (!!plan.archived_at || plan.status !== "active"))
+                                      }
+                                      title={
+                                        plan.archived_at
+                                          ? "An archived plan is not shown to visitors."
+                                          : plan.status !== "active"
+                                            ? "Activate this plan before marking it as best value."
+                                            : undefined
+                                      }
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      style={{ color: C.text }}
+                                    >
+                                      <span
+                                        className="w-8 h-8 rounded-lg grid place-items-center"
+                                        style={{ background: `${C.cta}14`, color: C.cta }}
+                                      >
+                                        <Star className="w-4 h-4" />
+                                      </span>
+                                      {plan.recommended ? "Remove best value" : "Mark as best value"}
+                                    </button>
+                                    <button
+                                      onClick={() => setPlanArchived(plan, !plan.archived_at)}
+                                      disabled={busy || (!plan.archived_at && plan.status === "active")}
+                                      title={
+                                        !plan.archived_at && plan.status === "active"
+                                          ? "Deactivate this plan first, so nobody loses a plan that is still on sale."
+                                          : undefined
+                                      }
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold disabled:opacity-50"
+                                      style={{ color: C.text }}
+                                    >
+                                      <span
+                                        className="w-8 h-8 rounded-lg grid place-items-center"
+                                        style={{ background: C.pill, color: C.muted }}
+                                      >
+                                        <Archive className="w-4 h-4" />
+                                      </span>
+                                      {plan.archived_at ? "Restore plan" : "Archive plan"}
+                                    </button>
+                                    <button
+                                      onClick={() => deletePlan(plan)}
+                                      disabled={busy}
+                                      className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-bold"
+                                      style={{ color: C.deleteText }}
+                                    >
+                                      <span
+                                        className="w-8 h-8 rounded-lg grid place-items-center"
+                                        style={{ background: C.deleteBg }}
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </span>
+                                      Delete plan
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4">
+                            <p className="text-base font-black" style={{ color: C.text }}>
+                              {plan.name}
+                            </p>
+                            <p
+                              className="text-xs mt-1.5 leading-relaxed line-clamp-2 min-h-9"
+                              style={{ color: C.faint }}
+                            >
+                              {plan.description ||
+                                "Reusable subscription access plan"}
+                            </p>
+                            <div className="mt-4 rounded-2xl p-3.5" style={{ background: C.card }}>
+                            {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length ? (
+                              <>
+                                <p className="text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: C.faint }}>Starting price</p>
+                                <div className="flex items-end justify-between gap-3 mt-1">
+                                  <p className="text-xl font-black" style={{ color: C.text }}>
+                                    {money(
+                                      startingPrice?.currency,
+                                      startingPrice?.amount,
+                                    )}
+                                  </p>
+                                  <p className="text-[11px] font-bold" style={{ color: C.cta }}>
+                                    {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length} option{(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length === 1 ? "" : "s"}
+                                  </p>
+                                </div>
+                                {promotionStatus && (
+                                  <div className="flex items-center gap-2 mt-2 text-[10px] font-bold" style={{ color: discountStatusTone(promotionStatus, C) }}>
+                                    {startingPrice?.discountActive && <span className="line-through">{money(startingPrice.currency, startingPrice.listAmount)}</span>}
+                                    <span>Promotion {promotionStatus.toLowerCase()}</span>
+                                  </div>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex items-start gap-2" style={{ color: "#b45309" }}>
+                                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                                <div>
+                                  <p className="text-xs font-bold">Pricing needed</p>
+                                  <p className="text-[10px] mt-0.5">Add a price before publishing.</p>
+                                </div>
                               </div>
                             )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-4">
-                        <p className="text-base font-black" style={{ color: C.text }}>
-                          {plan.name}
-                        </p>
-                        <p
-                          className="text-xs mt-1.5 leading-relaxed line-clamp-2 min-h-9"
-                          style={{ color: C.faint }}
-                        >
-                          {plan.description ||
-                            "Reusable subscription access plan"}
-                        </p>
-                        <div className="mt-4 rounded-2xl p-3.5" style={{ background: C.card }}>
-                        {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length ? (
-                          <>
-                            <p className="text-[10px] uppercase tracking-[0.14em] font-bold" style={{ color: C.faint }}>Starting price</p>
-                            <div className="flex items-end justify-between gap-3 mt-1">
-                              <p className="text-xl font-black" style={{ color: C.text }}>
-                                {money(
-                                  [...(plan.subscription_plan_prices ?? [])].filter((price: any) => price.is_active).sort((a: any, b: any) => Number(a.amount) - Number(b.amount))[0]?.currency,
-                                  [...(plan.subscription_plan_prices ?? [])].filter((price: any) => price.is_active).sort((a: any, b: any) => Number(a.amount) - Number(b.amount))[0]?.amount,
-                                )}
-                              </p>
-                              <p className="text-[11px] font-bold" style={{ color: C.cta }}>
-                                {(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length} option{(plan.subscription_plan_prices ?? []).filter((price: any) => price.is_active).length === 1 ? "" : "s"}
-                              </p>
-                            </div>
-                          </>
-                        ) : (
-                          <div className="flex items-start gap-2" style={{ color: "#b45309" }}>
-                            <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                            <div>
-                              <p className="text-xs font-bold">Pricing needed</p>
-                              <p className="text-[10px] mt-0.5">Add a price before publishing.</p>
                             </div>
                           </div>
-                        )}
+                          <div
+                            className="grid grid-cols-2 gap-2 mt-3"
+                          >
+                            <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
+                              <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Subscribers</p>
+                              <p className="text-sm font-black mt-0.5" style={{ color: C.text }}>
+                                {
+                                subscriptions.filter((s) => s.plan_id === plan.id)
+                                  .length
+                                }
+                              </p>
+                            </div>
+                            <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
+                              <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Readiness</p>
+                              <p className="text-sm font-black mt-0.5" style={{ color: planIsReady(plan) ? C.green : "#b45309" }}>
+                                {planIsReady(plan) ? "Ready" : "Needs setup"}
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              setSelectedPlan(plan);
+                              loadPlanContent(plan.id).catch((err) => setError(err.message));
+                            }}
+                            className={`${primary} w-full mt-3`}
+                            style={{
+                              background: selectedPlan?.id === plan.id ? C.cta : C.card,
+                              color: selectedPlan?.id === plan.id ? C.ctaText : C.text,
+                            }}
+                          >
+                            {selectedPlan?.id === plan.id ? "Managing plan" : "Manage plan"}
+                            <ArrowRight className="w-4 h-4" />
+                          </button>
                         </div>
-                      </div>
-                      <div
-                        className="grid grid-cols-2 gap-2 mt-3"
-                      >
-                        <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
-                          <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Subscribers</p>
-                          <p className="text-sm font-black mt-0.5" style={{ color: C.text }}>
-                            {
-                            subscriptions.filter((s) => s.plan_id === plan.id)
-                              .length
-                            }
-                          </p>
-                        </div>
-                        <div className="rounded-xl px-3 py-2.5" style={{ background: C.card }}>
-                          <p className="text-[10px] uppercase tracking-wider font-bold" style={{ color: C.faint }}>Readiness</p>
-                          <p className="text-sm font-black mt-0.5" style={{ color: planIsReady(plan) ? C.green : "#b45309" }}>
-                            {planIsReady(plan) ? "Ready" : "Needs setup"}
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          setSelectedPlan(plan);
-                          loadPlanContent(plan.id).catch((err) => setError(err.message));
-                        }}
-                        className={`${primary} w-full mt-3`}
-                        style={{
-                          background: selectedPlan?.id === plan.id ? C.cta : C.card,
-                          color: selectedPlan?.id === plan.id ? C.ctaText : C.text,
-                        }}
-                      >
-                        {selectedPlan?.id === plan.id ? "Managing plan" : "Manage plan"}
-                        <ArrowRight className="w-4 h-4" />
-                      </button>
-                    </div>
-                  ))}
+                      );
+                    })}
                   {plans.length === 0 && (
                     <button
                       onClick={openPlanBuilder}
@@ -3880,6 +4028,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                     <p className="text-sm mt-1" style={{ color: C.muted }}>Add one or more purchase options. Entering an amount turns that option on automatically.</p>
                   </div>
                   <PlanPriceFields prices={newPlanPrices} setPrices={setNewPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
+                  <PlanDiscountFields discount={newPlanDiscount} setDiscount={setNewPlanDiscount} prices={newPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
                   <div className="rounded-2xl p-4 flex items-start gap-3" style={{ background: C.page }}>
                     <ShieldCheck className="w-5 h-5 flex-shrink-0" style={{ color: C.cta }} />
                     <div>
@@ -4017,6 +4166,9 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                 fieldClass={fieldClass}
                 inputStyle={inputStyle}
               />
+              <div className="mt-4">
+                <PlanDiscountFields discount={editPlanDiscount} setDiscount={setEditPlanDiscount} prices={editPlanPrices} C={C} fieldClass={fieldClass} inputStyle={inputStyle} />
+              </div>
             </div>
             <div className="flex flex-col-reverse sm:flex-row sm:justify-end gap-2 pt-2">
               <button

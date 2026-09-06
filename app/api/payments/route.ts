@@ -24,6 +24,7 @@ import { addToResendAudience } from '@/lib/resend-audience';
 import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
 import { getPaystackReviewQueue } from '@/lib/paystack-review-queue';
 import { assertNothingCollected } from '@/lib/paystack-subscriptions';
+import { effectiveSubscriptionPrice } from '@/lib/subscription-discount';
 import {
   cancelSubscription,
   cancelSubscriptionPaymentRequest,
@@ -722,7 +723,7 @@ export async function POST(req: NextRequest) {
     try {
       const { data: plan, error: planError } = await db
         .from('subscription_plans')
-        .select('id, created_by')
+        .select('id, created_by, discount_type, discount_value, discount_starts_at, discount_ends_at')
         .eq('id', body.planId)
         .maybeSingle();
       if (planError) throw planError;
@@ -730,10 +731,67 @@ export async function POST(req: NextRequest) {
       if (sessionUser.role !== 'admin' && plan.created_by !== sessionUser.id) {
         return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
       }
+      const submittedDiscount = body.discount;
+      const discountType = submittedDiscount === undefined
+        ? (plan.discount_type ?? null)
+        : String(submittedDiscount?.type || '').trim() || null;
+      const discountValue = submittedDiscount === undefined
+        ? (plan.discount_value == null ? null : Number(plan.discount_value))
+        : (discountType ? Number(submittedDiscount?.value) : null);
+      const discountStartsAt = submittedDiscount === undefined
+        ? (plan.discount_starts_at ?? null)
+        : (discountType && submittedDiscount?.startsAt ? String(submittedDiscount.startsAt) : null);
+      const discountEndsAt = submittedDiscount === undefined
+        ? (plan.discount_ends_at ?? null)
+        : (discountType && submittedDiscount?.endsAt ? String(submittedDiscount.endsAt) : null);
+      if (discountType && !['percentage', 'fixed'].includes(discountType)) {
+        return NextResponse.json({ error: 'Discount type must be percentage or fixed.' }, { status: 400 });
+      }
+      if (discountType && (!Number.isFinite(discountValue) || Number(discountValue) <= 0
+        || (discountType === 'percentage' && Number(discountValue) >= 100))) {
+        return NextResponse.json({ error: discountType === 'percentage'
+          ? 'Percentage discount must be greater than 0 and less than 100.'
+          : 'Fixed discount must be greater than 0.' }, { status: 400 });
+      }
+      if ((discountStartsAt && Number.isNaN(Date.parse(discountStartsAt)))
+        || (discountEndsAt && Number.isNaN(Date.parse(discountEndsAt)))) {
+        return NextResponse.json({ error: 'Discount dates must be valid.' }, { status: 400 });
+      }
+      if (discountStartsAt && discountEndsAt && Date.parse(discountStartsAt) >= Date.parse(discountEndsAt)) {
+        return NextResponse.json({ error: 'Discount end must be later than its start.' }, { status: 400 });
+      }
+      const activeRows = rows.filter((row: any) => row.is_active);
+      if (discountType === 'fixed' && new Set(activeRows.map((row: any) => row.currency)).size > 1) {
+        return NextResponse.json({ error: 'A fixed discount requires all active prices to use one currency.' }, { status: 400 });
+      }
+      if (discountType) {
+        const invalid = activeRows.map((row: any) => {
+          const rawAmount = discountType === 'percentage'
+            ? row.amount * (1 - Number(discountValue) / 100)
+            : row.amount - Number(discountValue);
+          const effective = effectiveSubscriptionPrice(row.amount, {
+            discount_type: discountType,
+            discount_value: discountValue,
+          });
+          return { row, rawAmount, effective };
+        }).find(({ effective }: any) => !effective.discountActive);
+        if (invalid) {
+          const message = invalid.rawAmount < 0.005
+            ? `The discount must leave a payable amount for the ${invalid.row.duration_months} month price.`
+            : `The discount is too small to change the ${invalid.row.duration_months} month price after cent rounding.`;
+          return NextResponse.json({
+            error: message,
+          }, { status: 400 });
+        }
+      }
 
-      const { error: replaceError } = await db.rpc('replace_subscription_plan_prices', {
+      const { error: replaceError } = await db.rpc('replace_subscription_plan_prices_and_discount', {
         p_plan_id: body.planId,
         p_prices: rows,
+        p_discount_type: discountType,
+        p_discount_value: discountValue,
+        p_discount_starts_at: discountStartsAt,
+        p_discount_ends_at: discountEndsAt,
         p_actor_id: sessionUser.id,
       });
       if (replaceError) throw replaceError;

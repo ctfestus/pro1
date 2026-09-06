@@ -19,6 +19,7 @@ import {
   loadPlanContents,
   loadPlansForContent,
 } from '@/lib/subscription-plan-access';
+import { effectiveSubscriptionPrice } from '@/lib/subscription-discount';
 
 export const dynamic = 'force-dynamic';
 
@@ -264,7 +265,7 @@ export async function POST(req: NextRequest) {
       // for days, and reopening it at a stale figure would sell access at a price that no longer
       // exists -- and would only be noticed after the learner had paid it.
       const { data: current, error: currentError } = await db.from('subscription_plan_prices')
-        .select('amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(name, status, cohort_id)')
+        .select('amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(name, status, cohort_id, discount_type, discount_value, discount_starts_at, discount_ends_at)')
         .eq('plan_id', cart.plan_id).eq('duration_months', cart.duration_months)
         .eq('is_active', true).maybeSingle();
       if (currentError) throw currentError;
@@ -282,13 +283,14 @@ export async function POST(req: NextRequest) {
       // given a different plan. Same checks the purchase path runs, before Paystack opens.
       await assertLearnerMayBuy(db, session.id, cart.plan_id);
 
+      const effectivePrice = effectiveSubscriptionPrice(current.amount, currentPlan);
       const outcome = await createPaystackDirectCheckout(db, {
         studentId: session.id,
         email: session.email,
         planId: cart.plan_id,
         planName: currentPlan.name,
         durationMonths: cart.duration_months,
-        amount: Number(current.amount),
+        amount: effectivePrice.amount,
         currency: current.currency || 'GHS',
       });
       if (outcome.kind === 'settled') {
@@ -439,13 +441,26 @@ export async function POST(req: NextRequest) {
     try {
       const { data: price, error } = await db
         .from('subscription_plan_prices')
-        .select('id, plan_id, duration_months, amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, status, cohort_id)')
+        .select('id, plan_id, duration_months, amount, currency, is_active, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, status, cohort_id, discount_type, discount_value, discount_starts_at, discount_ends_at)')
         .eq('id', String(body.priceId))
         .maybeSingle();
       if (error) throw error;
       const plan = (price as any)?.subscription_plans;
       if (!price || price.is_active !== true || plan?.status !== 'active') {
         return NextResponse.json({ error: 'Subscription price not found' }, { status: 404 });
+      }
+      const effectivePrice = effectiveSubscriptionPrice(price.amount, plan);
+      const quoteAmount = body.quotedAmount == null ? null : Number(body.quotedAmount);
+      const quoteCurrency = body.quotedCurrency == null ? null : String(body.quotedCurrency).trim().toUpperCase();
+      if (
+        (quoteAmount !== null && (!Number.isFinite(quoteAmount)
+          || Math.round(quoteAmount * 100) !== Math.round(effectivePrice.amount * 100)))
+        || (quoteCurrency !== null && quoteCurrency !== String(price.currency || 'GHS').toUpperCase())
+      ) {
+        return NextResponse.json({
+          error: 'This promotion or price has changed. Review the current price before continuing.',
+          code: 'price_changed',
+        }, { status: 409 });
       }
       await assertLearnerMayBuy(db, session.id, price.plan_id);
       const { data: cohort, error: cohortError } = await db.from('cohorts')
@@ -480,7 +495,7 @@ export async function POST(req: NextRequest) {
           planId: price.plan_id,
           planName: (plan as any)?.name ?? 'Subscription',
           durationMonths: price.duration_months,
-          amount: Number(price.amount),
+          amount: effectivePrice.amount,
           currency: price.currency || 'GHS',
         });
         // Recovering a stuck checkout can find that Paystack already took the payment. There is
@@ -504,7 +519,7 @@ export async function POST(req: NextRequest) {
         studentId: session.id,
         planId: price.plan_id,
         durationMonths: price.duration_months,
-        amount: Number(price.amount),
+        amount: effectivePrice.amount,
         currency: price.currency || 'GHS',
         dueDate,
         createdBy: session.id,

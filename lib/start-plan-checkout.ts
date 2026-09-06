@@ -32,7 +32,7 @@ export function paymentsHrefFor(priceId: string): string {
 
 export async function startPlanCheckout(
   priceId: string,
-  options: { paystackEnabled: boolean },
+  options: { paystackEnabled: boolean; quotedAmount?: number; quotedCurrency?: string },
 ): Promise<CheckoutOutcome> {
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
@@ -51,7 +51,13 @@ export async function startPlanCheckout(
     const res = await fetch('/api/student-subscriptions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify({ action: 'purchase-plan', priceId, paystack: true }),
+      body: JSON.stringify({
+        action: 'purchase-plan',
+        priceId,
+        paystack: true,
+        quotedAmount: options.quotedAmount,
+        quotedCurrency: options.quotedCurrency,
+      }),
     });
     const body = await res.json().catch(() => ({}));
 

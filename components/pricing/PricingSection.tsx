@@ -77,9 +77,13 @@ export function PricingSection({
   const buyLabel = 'Enroll Now';
   const [busyPriceId, setBusyPriceId] = useState('');
 
-  const buy = async (priceId: string) => {
-    setBusyPriceId(priceId);
-    const outcome = await startPlanCheckout(priceId, { paystackEnabled });
+  const buy = async (price: PricingPlan['prices'][number]) => {
+    setBusyPriceId(price.id);
+    const outcome = await startPlanCheckout(price.id, {
+      paystackEnabled,
+      quotedAmount: price.amount,
+      quotedCurrency: price.currency,
+    });
     if (outcome.kind !== 'redirecting') window.location.href = outcome.href;
   };
 
@@ -221,7 +225,7 @@ function PlanCard({
   accentColor: string;
   buyLabel: string;
   busy: string;
-  onBuy: (priceId: string) => void;
+  onBuy: (price: PricingPlan['prices'][number]) => void;
 }) {
   const price = plan.prices.find(row => row.durationMonths === months) ?? null;
   const comparison = price ? comparePlanPrice(price, plan.prices) : null;
@@ -260,6 +264,14 @@ function PlanCard({
               <p className="text-4xl font-black tracking-[-0.045em]" style={{ fontFamily: hFont, color: '#101828' }}>{money(price.currency, price.amount)}</p>
               <p className="pb-1 text-xs font-semibold" style={{ color: '#667085' }}>for {durationLabel(price.durationMonths)}</p>
             </div>
+            {price.listAmount && price.listAmount > price.amount && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-sm line-through" style={{ color: '#98A2B3' }}>{money(price.currency, price.listAmount)}</span>
+                <span className="rounded-full px-2.5 py-1 text-[10px] font-black" style={{ background: '#DCFCE7', color: '#166534' }}>
+                  {price.discountType === 'percentage' ? `${price.discountValue}% off` : `${money(price.currency, price.discountAmount ?? 0)} off`}
+                </span>
+              </div>
+            )}
             <div className="mt-2 flex min-h-7 flex-wrap items-center gap-2">
               <p className="text-xs" style={{ color: '#667085' }}>{money(price.currency, comparison?.perMonth ?? 0)} per month</p>
               {(comparison?.savingPercent ?? 0) > 0 && (
@@ -297,7 +309,7 @@ function PlanCard({
         {price ? (
           <button
             type="button"
-            onClick={() => onBuy(price.id)}
+            onClick={() => onBuy(price)}
             disabled={!!busy}
             className="mt-7 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black transition-all duration-200 hover:-translate-y-0.5 hover:brightness-105 disabled:opacity-60 disabled:hover:translate-y-0 motion-reduce:transition-none"
             style={{ background: primaryColor, color: '#FFFFFF', boxShadow: `0 10px 24px color-mix(in srgb, ${primaryColor} 22%, transparent)` }}

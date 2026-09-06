@@ -192,7 +192,7 @@ describe('subscription payment actions', () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices', expect.objectContaining({
+    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices_and_discount', expect.objectContaining({
       p_prices: [expect.objectContaining({ duration_months: 3, amount: 300, is_active: false })],
     }));
   });
@@ -231,7 +231,35 @@ describe('subscription payment actions', () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices', expect.objectContaining({ p_prices: [] }));
+    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices_and_discount', expect.objectContaining({ p_prices: [] }));
+  });
+
+  it.each([
+    ['unknown type', { type: 'coupon', value: 10 }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /type must be percentage or fixed/i],
+    ['zero value', { type: 'percentage', value: 0 }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /greater than 0/i],
+    ['one hundred percent', { type: 'percentage', value: 100 }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /less than 100/i],
+    ['invalid date', { type: 'percentage', value: 10, startsAt: 'not-a-date' }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /dates must be valid/i],
+    ['backwards dates', { type: 'percentage', value: 10, startsAt: '2027-02-01T00:00:00Z', endsAt: '2027-01-01T00:00:00Z' }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /end must be later/i],
+    ['mixed fixed currencies', { type: 'fixed', value: 10 }, [
+      { durationMonths: 1, amount: 100, currency: 'GHS', isActive: true },
+      { durationMonths: 3, amount: 100, currency: 'USD', isActive: true },
+    ], /one currency/i],
+    ['nothing payable', { type: 'fixed', value: 100 }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /leave a payable amount/i],
+    ['no cent-level saving', { type: 'percentage', value: 0.01 }, [{ durationMonths: 1, amount: 10, currency: 'GHS', isActive: true }], /too small to change/i],
+  ])('rejects an invalid subscription discount: %s', async (_label, discount, prices, errorPattern) => {
+    authenticateAs('admin');
+    const rpc = vi.fn(() => ({ data: { ok: true }, error: null }));
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'admin-1' }, error: null },
+    }, rpc));
+
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices', planId: 'plan-1', prices, discount,
+    }));
+
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toMatch(errorPattern);
+    expect(rpc).not.toHaveBeenCalled();
   });
 
   it('refuses to activate a plan without an active price', async () => {
@@ -577,7 +605,7 @@ describe('subscription payment actions', () => {
     const db = makeSupabaseStub({
       subscription_plans: { data: { id: 'plan-1', created_by: 'someone-else' }, error: null },
     }, (fn, args) => {
-      expect(fn).toBe('replace_subscription_plan_prices');
+      expect(fn).toBe('replace_subscription_plan_prices_and_discount');
       expect(args.p_prices).toHaveLength(4);
       return { data: { ok: true, count: 4 }, error: null };
     });

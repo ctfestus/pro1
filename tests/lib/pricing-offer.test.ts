@@ -31,6 +31,16 @@ describe('featuredOffer', () => {
     expect(offer?.baselinePerMonth).toBe(100);
   });
 
+  it('uses list prices for the duration baseline during a fixed promotion', () => {
+    const promoted = plan('Pro', [[1, 50], [12, 850]]);
+    promoted.prices[0].listAmount = 100;
+    promoted.prices[1].listAmount = 900;
+    const offer = featuredOffer([promoted]);
+    expect(offer?.savingPercent).toBe(25);
+    expect(offer?.perMonth).toBeCloseTo(70.833, 3);
+    expect(offer?.baselinePerMonth).toBe(100);
+  });
+
   it('shows no struck-through rate when there is no saving to strike', () => {
     // One duration means nothing to compare against. Dressing it up as a discount would be a lie.
     const offer = featuredOffer([plan('Pro', [[6, 600]])]);
