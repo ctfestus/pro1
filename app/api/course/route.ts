@@ -15,6 +15,7 @@ import { gradeQuestion, parseAnswer, normalizePythonOutput } from '@/lib/grade-q
 import { ensureCertificate, awardContentBadge, sendCertificateEmailOnce } from '@/lib/issue-certificate';
 import { checkRequiredSqlPatterns, compareResults, type SQLResult } from '@/lib/sql-engine';
 import { computeServerSqlResult } from '@/lib/sql-engine-server';
+import { hasPublishedStudentContentAccess } from '@/lib/student-content-access';
 
 function adminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -212,25 +213,17 @@ async function loadAccessibleCourse(
   const cohortIds = Array.isArray((course as any).cohort_ids) ? (course as any).cohort_ids : [];
   const isPrivileged = ['admin', 'instructor', 'staff'].includes(role);
   const isOwner = (course as any).user_id === sessionUser.id;
-  const isPublished = (course as any).status === 'published';
-  const cohortAllowed = (course as any).available_to_everyone === true
-    || (!!(student as any)?.cohort_id && cohortIds.includes((student as any).cohort_id));
-  let learningPathAllowed = false;
+  const studentAllowed = !isPrivileged && !isOwner
+    ? await hasPublishedStudentContentAccess(supabase, {
+        contentId: courseId,
+        status: (course as any).status,
+        cohortId: (student as any)?.cohort_id,
+        cohortIds,
+        availableToEveryone: (course as any).available_to_everyone,
+      })
+    : false;
 
-  // Course SELECT policies also grant access through published learning paths.
-  // Mirror that rule here because this service-role client bypasses RLS.
-  if (!isPrivileged && !isOwner && isPublished && !cohortAllowed && (student as any)?.cohort_id) {
-    const { data: learningPath } = await supabase.from('learning_paths')
-      .select('id')
-      .eq('status', 'published')
-      .contains('item_ids', [courseId])
-      .contains('cohort_ids', [(student as any).cohort_id])
-      .limit(1)
-      .maybeSingle();
-    learningPathAllowed = !!learningPath;
-  }
-
-  if (!isPrivileged && !isOwner && !(isPublished && (cohortAllowed || learningPathAllowed))) {
+  if (!isPrivileged && !isOwner && !studentAllowed) {
     return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) };
   }
 

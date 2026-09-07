@@ -10,6 +10,7 @@ import { claimLinkedInShare, loadClaimedShareItemIds } from '@/lib/linkedin-shar
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
 import { mergeVeProgress, reversibleDeliverableRequirementIds, shouldCompleteVeAttempt } from '@/lib/ve-progress';
+import { hasPublishedStudentContentAccess } from '@/lib/student-content-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,33 +63,25 @@ async function authorizeVeStudent(
 
   const [{ data: ve }, { data: studentRow }] = await Promise.all([
     supabase.from('virtual_experiences')
-      .select('status, cohort_ids, modules, title, slug')
+      .select('status, cohort_ids, available_to_everyone, modules, title, slug')
       .eq('id', opts.veId).single(),
-    supabase.from('students').select('cohort_id').eq('id', user.id).single(),
+    supabase.from('students').select('cohort_id').eq('id', user.id).maybeSingle(),
   ]);
 
   if (!ve || ve.status !== 'published') {
     return { error: NextResponse.json({ error: 'Not found' }, { status: 404 }) };
   }
 
-  const hasDirectAccess = !!studentRow?.cohort_id &&
-    (ve.cohort_ids as string[] ?? []).includes(studentRow.cohort_id);
-
-  let hasLpAccess = false;
-  if (!hasDirectAccess && studentRow?.cohort_id) {
-    const { data: lpRow } = await supabase
-      .from('learning_paths')
-      .select('id')
-      .eq('status', 'published')
-      .contains('cohort_ids', [studentRow.cohort_id])
-      .contains('item_ids', [opts.veId])
-      .limit(1)
-      .maybeSingle();
-    hasLpAccess = !!lpRow;
-  }
+  const hasContentAccess = await hasPublishedStudentContentAccess(supabase, {
+    contentId: opts.veId,
+    status: ve.status,
+    cohortId: studentRow?.cohort_id,
+    cohortIds: ve.cohort_ids as string[] ?? [],
+    availableToEveryone: ve.available_to_everyone,
+  });
 
   let hasAssignmentAccess = false;
-  if (!hasDirectAccess && !hasLpAccess && opts.assignmentId) {
+  if (!hasContentAccess && opts.assignmentId) {
     const { data: asgn } = await supabase
       .from('assignments')
       .select('status, config, cohort_ids, group_ids')
@@ -112,7 +105,7 @@ async function authorizeVeStudent(
     }
   }
 
-  if (!hasDirectAccess && !hasLpAccess && !hasAssignmentAccess) {
+  if (!hasContentAccess && !hasAssignmentAccess) {
     return { error: NextResponse.json({ error: 'Access denied' }, { status: 403 }) };
   }
 
@@ -317,31 +310,23 @@ export async function POST(req: NextRequest) {
     // Verify VE access before certificate issuance
     const [{ data: certVe }, { data: certStudentRow }] = await Promise.all([
       supabase.from('virtual_experiences')
-        .select('status, cohort_ids')
+        .select('status, cohort_ids, available_to_everyone')
         .eq('id', resolvedVeId).single(),
-      supabase.from('students').select('cohort_id').eq('id', certUser.id).single(),
+      supabase.from('students').select('cohort_id').eq('id', certUser.id).maybeSingle(),
     ]);
 
     if (!certVe || certVe.status !== 'published') {
       return NextResponse.json({ error: 'Not found' }, { status: 404 });
     }
-    const certHasDirectAccess = !!certStudentRow?.cohort_id &&
-      (certVe.cohort_ids as string[] ?? []).includes(certStudentRow.cohort_id);
+    const certHasAccess = await hasPublishedStudentContentAccess(supabase, {
+      contentId: resolvedVeId,
+      status: certVe.status,
+      cohortId: certStudentRow?.cohort_id,
+      cohortIds: certVe.cohort_ids as string[] ?? [],
+      availableToEveryone: certVe.available_to_everyone,
+    });
 
-    let certHasLpAccess = false;
-    if (!certHasDirectAccess && certStudentRow?.cohort_id) {
-      const { data: certLpRow } = await supabase
-        .from('learning_paths')
-        .select('id')
-        .eq('status', 'published')
-        .contains('cohort_ids', [certStudentRow.cohort_id])
-        .contains('item_ids', [resolvedVeId])
-        .limit(1)
-        .maybeSingle();
-      certHasLpAccess = !!certLpRow;
-    }
-
-    if (!certHasDirectAccess && !certHasLpAccess) {
+    if (!certHasAccess) {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 });
     }
 

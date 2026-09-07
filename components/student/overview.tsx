@@ -223,8 +223,8 @@ export function OverviewSection({ user, userEmail, C, onNavigate }: {
             ? supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
             : supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes').eq('available_to_everyone', true).eq('status', 'published'),
           cohort
-            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').contains('cohort_ids', [cohort]).eq('status', 'published')
-            : Promise.resolve({ data: [] as any[] }),
+            ? supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohort}}`).eq('status', 'published')
+            : supabase.from('virtual_experiences').select('id, title, slug, cover_image, modules, deadline_days').eq('available_to_everyone', true).eq('status', 'published'),
           supabase.from('course_attempts')
             .select('course_id, score, points, current_question_index, completed_at, passed, updated_at, answers')
             .eq('student_id', user.id).order('updated_at', { ascending: false }),
