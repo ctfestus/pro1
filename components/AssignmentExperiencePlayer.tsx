@@ -35,6 +35,7 @@ import {
   ChatCard, ChatMsg, ChatTypingMsg, ChatReaction, ChatThread, ChatDecisionButtons, channelFor,
 } from '@/components/ve/ChatCard';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
+import { DeliverableChecklist } from '@/components/ve/DeliverableChecklist';
 
 // -- Types ---
 
@@ -42,6 +43,7 @@ interface Requirement {
   id: string;
   label: string;
   description: string;
+  descriptionFormat?: 'rich';
   type: 'task' | 'deliverable' | 'reflection' | 'mcq' | 'text' | 'upload' | 'briefing' | 'scenario_update' | 'decision' | 'debrief' | 'dashboard_critique' | 'code_review' | 'excel_review' | 'document_review' | 'linkedin_share';
   sharePrompt?: string;   // linkedin_share: suggested post text the student can copy
   // linkedin_share: only an explicit `true` gates the lesson. Absent/false = optional, never blocks.
@@ -1810,8 +1812,27 @@ export default function AssignmentExperiencePlayer({
                           );
                         }
 
-                        // Task / Deliverable / Reflection -- lightweight completion row
-                        if (['task', 'deliverable', 'reflection'].includes(req.type)) {
+                        // Task / Deliverable: rich instructions with one completion checkbox.
+                        if (req.type === 'task' || req.type === 'deliverable') {
+                          return (
+                            <DeliverableChecklist
+                              key={req.id}
+                              title={req.label}
+                              instructions={req.description}
+                              instructionsFormat={req.descriptionFormat}
+                              attachments={req.attachments}
+                              completed={isDone}
+                              readOnly={readOnly}
+                              accentColor={accent}
+                              textColor={text}
+                              mutedColor={muted}
+                              onToggle={() => updateProgress(req.id, { completed: !isDone })}
+                            />
+                          );
+                        }
+
+                        // Reflection: lightweight completion row.
+                        if (req.type === 'reflection') {
                           return (
                             <button key={req.id}
                               disabled={readOnly}
