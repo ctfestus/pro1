@@ -2726,7 +2726,10 @@ export default function VirtualExperienceTaker({
                       // Simple completion items: a clear status circle without an extra response field.
                       if (req.type === 'task' || req.type === 'deliverable') {
                         return (
-                          <div key={req.id} style={rowStyle} className="px-4 sm:px-8 py-4">
+                          <div
+                            key={req.id}
+                            style={{ ...rowStyle, borderLeft: 'none', background: 'transparent' }}
+                            className="px-4 sm:px-8 py-4">
                             <DeliverableChecklist
                               title={req.label}
                               instructions={req.description}

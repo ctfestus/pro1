@@ -1,6 +1,6 @@
 'use client';
 
-import { Paperclip } from 'lucide-react';
+import { Check, Paperclip } from 'lucide-react';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { MailStatusChip } from '@/components/ve/MailCard';
 
@@ -36,7 +36,19 @@ export function DeliverableChecklist({
   onToggle,
 }: DeliverableChecklistProps) {
   return (
-    <div className="space-y-4">
+    <div
+      className="relative space-y-4 overflow-hidden rounded-2xl p-4 transition-[background-color,box-shadow] duration-300 motion-reduce:transition-none"
+      style={{
+        background: completed ? 'rgba(16,185,129,0.07)' : `${accentColor}05`,
+        boxShadow: completed ? `0 0 0 1px ${accentColor}18` : 'none',
+      }}>
+      <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 overflow-hidden" style={{ background: `${accentColor}1f` }}>
+        <div
+          className="h-full origin-left transition-transform duration-500 ease-out motion-reduce:transition-none"
+          style={{ background: accentColor, transform: `scaleX(${completed ? 1 : 0})` }}
+        />
+      </div>
+
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: mutedColor }}>
@@ -47,7 +59,7 @@ export function DeliverableChecklist({
           </h4>
         </div>
         {completed && (
-          <div className="flex-shrink-0">
+          <div className="flex-shrink-0 transition-all duration-300 motion-reduce:transition-none">
             <MailStatusChip accent="#10b981">Complete</MailStatusChip>
           </div>
         )}
@@ -88,7 +100,7 @@ export function DeliverableChecklist({
       )}
 
       <label
-        className="flex items-center gap-3 rounded-xl px-4 py-3"
+        className="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors duration-300 motion-reduce:transition-none"
         style={{
           background: completed ? 'rgba(16,185,129,0.10)' : `${accentColor}10`,
           cursor: readOnly ? 'default' : 'pointer',
@@ -98,11 +110,36 @@ export function DeliverableChecklist({
           checked={completed}
           disabled={readOnly}
           onChange={onToggle}
-          className="h-5 w-5 flex-shrink-0 cursor-pointer disabled:cursor-default"
-          style={{ accentColor }}
+          aria-label={`${title}: ${completed ? 'completed' : 'not completed'}`}
+          className="peer sr-only"
         />
-        <span className="text-[13px] font-semibold" style={{ color: textColor }}>
-          {completed ? 'Deliverable completed' : 'I have completed this deliverable'}
+        <span
+          aria-hidden="true"
+          className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border-2 transition-all duration-300 peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 motion-reduce:transition-none"
+          style={{
+            background: completed ? accentColor : 'transparent',
+            borderColor: completed ? accentColor : `${accentColor}70`,
+            color: '#fff',
+            outlineColor: accentColor,
+            transform: completed ? 'scale(1)' : 'scale(0.92)',
+          }}>
+          <Check
+            className="h-4 w-4 transition-all duration-300 motion-reduce:transition-none"
+            strokeWidth={3}
+            style={{ opacity: completed ? 1 : 0, transform: completed ? 'scale(1)' : 'scale(0.4)' }}
+          />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-[13px] font-semibold" style={{ color: textColor }}>
+            {completed ? 'Deliverable completed' : 'I have completed this deliverable'}
+          </span>
+          <span aria-live="polite" className="mt-0.5 block text-[11px]" style={{ color: completed ? accentColor : mutedColor }}>
+            {completed && !readOnly
+              ? 'Progress updated. You can undo this until submission'
+              : completed
+                ? 'Completion recorded'
+                : 'Turn this on when the whole deliverable is complete'}
+          </span>
         </span>
       </label>
     </div>
