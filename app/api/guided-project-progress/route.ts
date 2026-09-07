@@ -9,7 +9,7 @@ import { updateLearningPathProgress } from '@/lib/learning-path-progress';
 import { claimLinkedInShare, loadClaimedShareItemIds } from '@/lib/linkedin-share';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
-import { mergeVeProgress, reversibleDeliverableRequirementIds } from '@/lib/ve-progress';
+import { mergeVeProgress, reversibleDeliverableRequirementIds, shouldCompleteVeAttempt } from '@/lib/ve-progress';
 
 export const dynamic = 'force-dynamic';
 
@@ -563,8 +563,12 @@ export async function POST(req: NextRequest) {
   // The client may request completion, but the server owns the timestamp and only accepts the
   // request once every requirement is valid. Assignment attempts complete through their atomic
   // submission route instead of an incremental progress save.
-  const completionRequested = !assignmentId && typeof completedAt === 'string' && completedAt.length > 0;
-  const resolvedCompletedAt = completionRequested && isVeComplete(counts) ? new Date().toISOString() : null;
+  const completionRequested = shouldCompleteVeAttempt({
+    assignmentId,
+    completedAt,
+    requirementsComplete: isVeComplete(counts),
+  });
+  const resolvedCompletedAt = completionRequested ? new Date().toISOString() : null;
 
   const { error } = await supabase
     .from('guided_project_attempts')

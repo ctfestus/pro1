@@ -44,3 +44,14 @@ export function mergeVeProgress(
 
   return merged;
 }
+
+export function shouldCompleteVeAttempt(input: {
+  assignmentId?: string | null;
+  completedAt?: unknown;
+  requirementsComplete: boolean;
+}): boolean {
+  return !input.assignmentId
+    && typeof input.completedAt === 'string'
+    && input.completedAt.length > 0
+    && input.requirementsComplete;
+}

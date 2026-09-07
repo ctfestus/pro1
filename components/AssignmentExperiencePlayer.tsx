@@ -36,6 +36,7 @@ import {
 } from '@/components/ve/ChatCard';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
 import { DeliverableChecklist } from '@/components/ve/DeliverableChecklist';
+import { shouldShowGroupReadyScreen } from '@/lib/ve-assignment-player-state';
 
 // -- Types ---
 
@@ -250,7 +251,7 @@ export default function AssignmentExperiencePlayer({
   const prevEntry   = currentIdx > 0 ? flatLessons[currentIdx - 1] : null;
   const nextEntry   = currentIdx < flatLessons.length - 1 ? flatLessons[currentIdx + 1] : null;
   // Review and preview both move between missions freely; a student does not.
-  const navUnlocked = reviewMode || previewMode;
+  const navUnlocked = reviewMode || previewMode || reviewBeforeSubmit;
 
   /**
    * One rule for when a requirement stops holding back the ones after it, used by all three
@@ -544,12 +545,17 @@ export default function AssignmentExperiencePlayer({
     );
   }
 
-  if (!graded && !canSubmit && overallPct >= 100) {
+  if (shouldShowGroupReadyScreen({ graded, canSubmit, overallPct, reviewBeforeSubmit })) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(14,9,221,0.06)' }}>
         <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: accent }}>Ready for Group Submission</p>
-        <p className="text-sm" style={{ color: muted }}>You have completed your preparation. Your group leader will submit the final work.</p>
+        <p className="text-sm mb-5" style={{ color: muted }}>You have completed your preparation. Your group leader will submit the final work.</p>
+        <button onClick={() => setReviewBeforeSubmit(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+          style={{ background: `${accent}12`, color: accent, border: 'none', cursor: 'pointer' }}>
+          Review my missions
+        </button>
       </div>
     );
   }

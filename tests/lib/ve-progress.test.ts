@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { mergeVeProgress, reversibleDeliverableRequirementIds } from '@/lib/ve-progress';
+import { mergeVeProgress, reversibleDeliverableRequirementIds, shouldCompleteVeAttempt } from '@/lib/ve-progress';
 
 const modules = [{
   lessons: [{
@@ -44,5 +44,12 @@ describe('VE progress merging', () => {
       false,
     );
     expect(merged['quiz-1']).toEqual({ completed: true, selectedAnswer: 'A' });
+  });
+
+  it('accepts a completion request only for a valid standalone attempt', () => {
+    expect(shouldCompleteVeAttempt({ completedAt: 'requested', requirementsComplete: true })).toBe(true);
+    expect(shouldCompleteVeAttempt({ completedAt: 'requested', requirementsComplete: false })).toBe(false);
+    expect(shouldCompleteVeAttempt({ assignmentId: 'assignment-1', completedAt: 'requested', requirementsComplete: true })).toBe(false);
+    expect(shouldCompleteVeAttempt({ requirementsComplete: true })).toBe(false);
   });
 });
