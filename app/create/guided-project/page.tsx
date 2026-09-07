@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { RubricFileImportActions } from '@/components/RubricFileImportActions';
+import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import {
   DndContext, closestCenter, PointerSensor, useSensor, useSensors, DragEndEvent,
@@ -271,8 +273,7 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
   sessionToken?: string;
 }) {
   const [draft, setDraft] = useState('');
-  const [extracting, setExtracting] = useState<string | null>(null);
-  const fileRefs = useRef<Record<string, HTMLInputElement | null>>({});
+  const [extracting, setExtracting] = useState<RubricImportKind | null>(null);
 
   const add = () => {
     const val = draft.trim();
@@ -281,8 +282,7 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
     setDraft('');
   };
 
-  const handleFile = async (label: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const handleFile = async (label: RubricImportKind, file: File) => {
     if (!file || !sessionToken) return;
     setExtracting(label);
     try {
@@ -296,11 +296,10 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
       });
       const json = await res.json();
       if (res.ok && json.criteria?.length) {
-        onChange([...criteria, ...json.criteria]);
+        onChange(mergeRubricCriteria(criteria, json.criteria));
       }
     } finally {
       setExtracting(null);
-      e.target.value = '';
     }
   };
 
@@ -313,20 +312,17 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
         </span>
       </p>
       {sessionToken && (
-        <div>
-          <input type="file" accept=".xlsx,.pdf,.csv,.txt,.png,.jpg,.jpeg,.docx"
-            style={{ display: 'none' }}
-            ref={el => { fileRefs.current['reference_solution'] = el; }}
-            onChange={e => handleFile('reference_solution', e)}
+        <div className="space-y-1.5">
+          <RubricFileImportActions
+            busy={extracting}
+            background={C.card}
+            color={C.muted}
+            border={`1px solid ${C.cardBorder}`}
+            onSelect={handleFile}
           />
-          <button type="button" disabled={!!extracting}
-            onClick={() => fileRefs.current['reference_solution']?.click()}
-            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-opacity"
-            style={{ background: C.card, color: C.muted, border: `1px solid ${C.cardBorder}`, opacity: extracting ? 0.5 : 1, cursor: extracting ? 'not-allowed' : 'pointer' }}>
-            {extracting === 'reference_solution'
-              ? <><Loader2 className="w-3 h-3 animate-spin"/> Extracting...</>
-              : <><Upload className="w-3 h-3"/> Upload Reference Solution</>}
-          </button>
+          <p className="text-[11px]" style={{ color: C.faint }}>
+            Upload completed work to infer criteria, or import an existing Markdown rubric.
+          </p>
         </div>
       )}
       {criteria.map((crit, ci) => (

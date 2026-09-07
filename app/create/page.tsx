@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { useTheme } from '@/components/ThemeProvider';
 import { PlanAccessPicker } from '@/components/PlanAccessPicker';
+import { RubricFileImportActions } from '@/components/RubricFileImportActions';
+import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
 import {
@@ -281,7 +283,6 @@ const [isSaving, setIsSaving] = useState(false);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [extractingRubric, setExtractingRubric] = useState<string | null>(null); // `${questionId}:${label}`
-  const rubricFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const [activeSection, setActiveSection] = useState<string>('info');
   const [secDir, setSecDir] = useState(1); // carousel slide direction: 1 = forward, -1 = back
   const goToSection = (id: string, ids: string[]) => {
@@ -1547,9 +1548,7 @@ const [isSaving, setIsSaving] = useState(false);
     }
   };
 
-  const handleExtractRubric = async (questionId: string, label: string, e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const handleExtractRubric = async (questionId: string, label: RubricImportKind, file: File) => {
     const key = `${questionId}:${label}`;
     setExtractingRubric(key);
     try {
@@ -1569,13 +1568,12 @@ const [isSaving, setIsSaving] = useState(false);
       if (!formConfig) return;
       const q = formConfig.questions?.find(q => q.id === questionId);
       const existing = q?.rubric ?? [];
-      handleUpdateQuestion(questionId, { rubric: [...existing, ...incoming] });
+      handleUpdateQuestion(questionId, { rubric: mergeRubricCriteria(existing, incoming) });
       showToast(`${incoming.length} criteria extracted`, 'success');
     } catch {
       showToast('Failed to extract rubric. Please try again.', 'error');
     } finally {
       setExtractingRubric(null);
-      e.target.value = '';
     }
   };
 
@@ -4084,23 +4082,24 @@ const [isSaving, setIsSaving] = useState(false);
                             <div>
                               <label className={labelCls} style={labelStyle}>Rubric criteria</label>
                               <div className="mb-2">
-                                {(() => { const key = `${q.id}:reference_solution`; const busy = extractingRubric === key; return (
-                                  <>
-                                    <input type="file" accept=".xlsx,.pdf,.csv,.txt,.png,.jpg,.jpeg,.docx"
-                                      style={{ display: 'none' }}
-                                      ref={el => { rubricFileRefs.current[key] = el; }}
-                                      onChange={e => handleExtractRubric(q.id, 'reference_solution', e)}
+                                {(() => {
+                                  const referenceKey = `${q.id}:reference_solution`;
+                                  const rubricKey = `${q.id}:rubric`;
+                                  const busy: RubricImportKind | null = extractingRubric === referenceKey
+                                    ? 'reference_solution'
+                                    : extractingRubric === rubricKey ? 'rubric' : null;
+                                  return (
+                                    <RubricFileImportActions
+                                      busy={busy}
+                                      disabled={!!extractingRubric && busy === null}
+                                      background={C.pill}
+                                      color={C.muted}
+                                      onSelect={(kind, file) => handleExtractRubric(q.id, kind, file)}
                                     />
-                                    <button type="button" disabled={!!extractingRubric}
-                                      onClick={() => rubricFileRefs.current[key]?.click()}
-                                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg transition-opacity"
-                                      style={{ background: C.pill, color: C.muted, opacity: extractingRubric && !busy ? 0.5 : 1, cursor: extractingRubric ? 'not-allowed' : 'pointer' }}>
-                                      {busy ? <><Loader2 className="w-3 h-3 animate-spin"/> Extracting...</> : <><Upload className="w-3 h-3"/> Upload Reference Solution</>}
-                                    </button>
-                                  </>
-                                ); })()}
+                                  );
+                                })()}
                               </div>
-                              <p className="text-xs mb-2" style={{ color: C.faint }}>Upload the completed reference file to auto-extract rubric criteria.</p>
+                              <p className="text-xs mb-2" style={{ color: C.faint }}>Upload completed work to infer criteria, or import an existing Markdown rubric.</p>
                               <div className="space-y-1.5">
                                 {(q.rubric || []).map((criterion, cIdx) => (
                                   <div key={cIdx} className="flex items-center gap-2">

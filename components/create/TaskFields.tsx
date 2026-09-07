@@ -5,14 +5,16 @@
 // correct answer; the AI-review types add a rubric (with reference-solution extraction),
 // plus type-specific settings that mirror the review players' props.
 
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
 import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { LIGHT_C } from '@/lib/theme';
-import { Plus, X, Upload, Loader2, Check } from 'lucide-react';
+import { Plus, X, Upload, Check } from 'lucide-react';
 import type { AssignmentTask } from '@/lib/assignment-scenarios';
 import { isAiTaskType } from '@/lib/assignment-scenarios';
+import { RubricFileImportActions } from '@/components/RubricFileImportActions';
+import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 
 function inputStyle(C: typeof LIGHT_C): React.CSSProperties {
   return { width: '100%', minHeight: 44, padding: '10px 13px', borderRadius: 11, border: `1px solid ${C.cardBorder}`, background: C.card, color: C.text, fontSize: 13, outline: 'none' };
@@ -34,9 +36,8 @@ export function TaskFields({ task, onChange, C }: {
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
-  const [extracting, setExtracting] = useState(false);
+  const [extracting, setExtracting] = useState<RubricImportKind | null>(null);
   const [extractError, setExtractError] = useState('');
-  const refFileRef = useRef<HTMLInputElement>(null);
 
   const options = task.options ?? [];
   const updateOption = (i: number, value: string) => {
@@ -56,18 +57,15 @@ export function TaskFields({ task, onChange, C }: {
     });
   };
 
-  async function handleExtractRubric(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    e.target.value = '';
-    if (!file) return;
-    setExtracting(true);
+  async function handleExtractRubric(label: RubricImportKind, file: File) {
+    setExtracting(label);
     setExtractError('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) throw new Error('Not authenticated');
       const form = new FormData();
       form.append('file', file);
-      form.append('label', 'reference_solution');
+      form.append('label', label);
       const res = await fetch('/api/extract-rubric', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
@@ -76,11 +74,11 @@ export function TaskFields({ task, onChange, C }: {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Extraction failed.');
       const incoming: string[] = json.criteria ?? [];
-      onChange({ rubric: [...(task.rubric ?? []), ...incoming].filter(Boolean) });
+      onChange({ rubric: mergeRubricCriteria(task.rubric ?? [], incoming) });
     } catch (err: any) {
       setExtractError(err?.message || 'Failed to extract rubric.');
     } finally {
-      setExtracting(false);
+      setExtracting(null);
     }
   }
 
@@ -178,11 +176,13 @@ export function TaskFields({ task, onChange, C }: {
         <div style={fieldGroupStyle}>
           <label style={labelStyle(C)}>Grading rubric</label>
           <div style={{ marginBottom: 8 }}>
-            <input ref={refFileRef} type="file" accept=".xlsx,.pdf,.csv,.txt,.png,.jpg,.jpeg,.docx" style={{ display: 'none' }} onChange={handleExtractRubric} />
-            <button type="button" disabled={extracting} onClick={() => refFileRef.current?.click()}
-              style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 12px', borderRadius: 10, border: `1px solid ${C.divider}`, background: 'transparent', color: C.muted, fontSize: 12, fontWeight: 700, cursor: extracting ? 'not-allowed' : 'pointer', opacity: extracting ? 0.5 : 1 }}>
-              {extracting ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin" /> Extracting...</> : <><Upload style={{ width: 13, height: 13 }} /> Upload reference solution</>}
-            </button>
+            <RubricFileImportActions
+              busy={extracting}
+              background="transparent"
+              color={C.muted}
+              border={`1px solid ${C.divider}`}
+              onSelect={handleExtractRubric}
+            />
           </div>
           <textarea
             value={(task.rubric ?? []).join('\n')}
@@ -190,7 +190,7 @@ export function TaskFields({ task, onChange, C }: {
             placeholder={'One criterion per line:\nResults are correct\nQueries are optimised'}
             style={textareaStyle(C)}
           />
-          <p style={hintStyle(C)}>Each line is a rubric criterion the AI grades against. Leave empty to use the AI default standards.</p>
+          <p style={hintStyle(C)}>Upload completed work to infer criteria, import a Markdown rubric, or enter one criterion per line. Leave empty to use the AI default standards.</p>
           {extractError && <p style={{ ...hintStyle(C), color: C.errorText }}>{extractError}</p>}
         </div>
       )}
