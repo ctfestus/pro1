@@ -240,6 +240,28 @@ function uid() { return Math.random().toString(36).slice(2, 10); }
 // tool-icon registry if one has been uploaded for it.
 const VE_TOOL_SUGGESTIONS = ['Excel', 'Power BI', 'SQL', 'Tableau', 'Python', 'PowerPoint'] as const;
 
+/**
+ * Skill names are free text typed inline, so a rename can leave a blank or a duplicate of another
+ * row -- `addTool` guards against both, renaming cannot. Harmless in the editor, not on the
+ * experience page: a blank renders an empty chip, and two rows sharing a name collide because the
+ * chips are keyed by it. Trim, drop blanks, and dedupe case-insensitively, keeping the spelling
+ * that appears first. Applied when a field loses focus and again on save, so nothing reaches the
+ * database unnormalized even if focus never moved.
+ */
+function normalizeToolList(tools: readonly string[] | undefined): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const raw of tools ?? []) {
+    const name = String(raw ?? '').trim();
+    if (!name) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
+
 
 function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
   criteria: string[];
@@ -690,6 +712,13 @@ function VirtualExperienceCreatePageInner() {
     const tools = [...(config?.tools || [])];
     tools[index] = name;
     applyTools(tools);
+  };
+
+  /** Tidy the list once the instructor leaves a name field. */
+  const normalizeToolsNow = () => {
+    const tidy = normalizeToolList(config?.tools);
+    const current = config?.tools || [];
+    if (tidy.length !== current.length || tidy.some((t, i) => t !== current[i])) applyTools(tidy);
   };
 
   const removeTool = (index: number) => {
@@ -1180,7 +1209,9 @@ function VirtualExperienceCreatePageInner() {
         body: JSON.stringify({
           editId: effectiveId,
           title: title.trim(),
-          config,
+          // Normalized here too, not only on blur: a save triggered without the field losing
+          // focus would otherwise persist a blank or duplicate skill name.
+          config: { ...config, tools: normalizeToolList(config?.tools) },
           coverImage,
           cohort_ids: availableToEveryone ? [] : selectedCohorts,
           available_to_everyone: availableToEveryone,
@@ -1810,6 +1841,7 @@ function VirtualExperienceCreatePageInner() {
                                 : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{initial}</div>
                               }
                               <input value={t} onChange={e => renameTool(i, e.target.value)}
+                                onBlur={normalizeToolsNow}
                                 placeholder="Skill or tool name"
                                 className="flex-1 min-w-0 bg-transparent text-[12px] font-medium outline-none"
                                 style={{ color: C.text }} />
@@ -2856,10 +2888,10 @@ function VirtualExperienceCreatePageInner() {
                       dashboard Branding and it updates everywhere that tool appears.
                     </p>
                     <div className="flex flex-wrap gap-2 pt-1">
-                      {(config.tools || []).map(t => {
+                      {(config.tools || []).map((t, i) => {
                         const logo = toolIcon(t);
                         return (
-                          <div key={t} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: C.card }}>
+                          <div key={`${i}-${t}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: C.card }}>
                             {logo
                               ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
                               : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{t.trim().charAt(0).toUpperCase()}</div>

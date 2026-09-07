@@ -1660,10 +1660,16 @@ export default function PublicFormPage() {
                   <div>
                     <p style={{ fontSize: 11, fontWeight: 600, color: gp.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Tools</p>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {config.tools.map((t: string) => {
+                      {/* Defensive rather than trusting the stored list: skills also arrive from
+                          AI generation, content import and the MCP, so a blank name must not
+                          render an empty chip and a duplicate must not collide on its key. */}
+                      {config.tools
+                        .map((raw: string) => String(raw ?? '').trim())
+                        .filter(Boolean)
+                        .map((t: string, i: number) => {
                         const logo = toolIcon(t);
                         return (
-                          <span key={t} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '4px 10px', borderRadius: 6, background: gp.subtle, color: gp.body, fontWeight: 600, border: `1px solid ${gp.divider}` }}>
+                          <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '4px 10px', borderRadius: 6, background: gp.subtle, color: gp.body, fontWeight: 600, border: `1px solid ${gp.divider}` }}>
                             {logo && <img src={logo} alt={t} style={{ width: 14, height: 14, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }} />}
                             {t}
                           </span>
