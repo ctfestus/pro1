@@ -11,6 +11,7 @@ import type { LessonDoc } from '@/lib/lesson-doc';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { clampLinkedInSharePoints, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
+import { convertLegacyEmailDeliverable, htmlToPlainText, plainTextToRichHtml } from '@/lib/ve-deliverable-content';
 import { useTheme } from '@/components/ThemeProvider';
 import {
   ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, ChevronLeft,
@@ -402,7 +403,6 @@ function VirtualExperienceCreatePageInner() {
   // a controlled input's DOM value whenever the prop is a newly computed string. This
   // draft is updated directly from the raw keystroke, decoupling display from storage.
   const [backgroundDraft, setBackgroundDraft] = useState('');
-  const htmlToPlainText = (html: string) => (html || '').replace(/<\/p>\s*<p>/gi, '\n\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
   const [generating,  setGenerating]  = useState(false);
   const [genError,    setGenError]    = useState('');
   // Dataset state (shared across all modes)
@@ -2295,8 +2295,14 @@ function VirtualExperienceCreatePageInner() {
                                                 <select value={req.type}
                                                   onChange={e => {
                                                     const type = e.target.value as Requirement['type'];
+                                                    const wasDeliverable = req.type === 'task' || req.type === 'deliverable';
+                                                    const isDeliverable = type === 'task' || type === 'deliverable';
                                                     updateReq(mod.id, les.id, req.id, {
                                                       type,
+                                                      description: wasDeliverable && !isDeliverable && req.descriptionFormat === 'rich'
+                                                        ? htmlToPlainText(req.description)
+                                                        : req.description,
+                                                      descriptionFormat: isDeliverable && wasDeliverable ? req.descriptionFormat : undefined,
                                                       options: type === 'mcq'
                                                         ? ['', '', '', '']
                                                         : type === 'decision'
@@ -2312,7 +2318,7 @@ function VirtualExperienceCreatePageInner() {
                                                       // while ones authored before VE shares paid XP keep an absent field and
                                                       // stay at 0 until an instructor sets an amount.
                                                       sharePoints: type === 'linkedin_share' ? (req.sharePoints ?? DEFAULT_LINKEDIN_SHARE_POINTS) : undefined,
-                                                      emailFrame: type === 'task' || type === 'deliverable' ? false : req.emailFrame,
+                                                      emailFrame: isDeliverable ? false : req.emailFrame,
                                                     });
                                                   }}
                                                   style={{ padding: '6px 9px', borderRadius: 9, border: '1px solid transparent', background: C.input, color: C.text, fontSize: 11, fontWeight: 700 }}>
@@ -2343,11 +2349,13 @@ function VirtualExperienceCreatePageInner() {
                                                 {(req.type === 'task' || req.type === 'deliverable') && req.emailFrame && (
                                                   <button
                                                     type="button"
-                                                    onClick={() => updateReq(mod.id, les.id, req.id, { emailFrame: false })}
-                                                    title="Use the deliverable brief and checkbox presentation"
+                                                    onClick={() => {
+                                                      updateReq(mod.id, les.id, req.id, convertLegacyEmailDeliverable(req));
+                                                    }}
+                                                    title="Convert the email into the deliverable brief and checkbox presentation"
                                                     className="flex flex-shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-all"
                                                     style={{ background: 'rgba(245,158,11,0.12)', color: '#b45309', border: '1px solid rgba(245,158,11,0.35)' }}>
-                                                    <Mail className="h-3 w-3" /> Remove email presentation
+                                                    <Mail className="h-3 w-3" /> Convert from email
                                                   </button>
                                                 )}
                                                 <input value={req.label}
@@ -2450,14 +2458,18 @@ function VirtualExperienceCreatePageInner() {
                                                       {'Tip: insert {{first_name}} (or type {{name}} for the full name) to greet each student by name.'}
                                                     </p>
                                                   )}
-                                                  {req.type === 'task' || req.type === 'deliverable' ? (
+                                                  {req.type === 'task' || req.type === 'deliverable' ? req.emailFrame ? (
+                                                    <p className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(245,158,11,0.10)', color: '#b45309' }}>
+                                                      This legacy deliverable still uses its email body and attachments. Convert it from email to edit the new deliverable brief without losing the instructions learners currently see.
+                                                    </p>
+                                                  ) : (
                                                     <div className="space-y-3">
                                                       <div>
                                                         <p className="mb-2 text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
                                                           Deliverable instructions
                                                         </p>
                                                         <RichTextEditor
-                                                          value={req.description}
+                                                          value={req.descriptionFormat === 'rich' ? req.description : plainTextToRichHtml(req.description)}
                                                           onChange={html => updateReq(mod.id, les.id, req.id, { description: html, descriptionFormat: 'rich' })}
                                                           placeholder="Explain the work clearly. Add paragraphs, bullet points, numbered steps, links, images, tables, or examples..."
                                                           onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
@@ -2474,6 +2486,8 @@ function VirtualExperienceCreatePageInner() {
                                                             <span className="flex-1 truncate" style={{ color: C.text }}>{att.name}</span>
                                                             <button
                                                               type="button"
+                                                              aria-label={`Remove resource ${att.name}`}
+                                                              title={`Remove resource ${att.name}`}
                                                               onClick={() => updateReq(mod.id, les.id, req.id, { attachments: req.attachments?.filter((_, i) => i !== ai) })}
                                                               className="flex-shrink-0 hover:text-red-400"
                                                               style={{ color: C.faint }}>

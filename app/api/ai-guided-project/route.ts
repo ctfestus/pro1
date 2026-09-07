@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
+import { mergeImprovedVeModules } from '@/lib/ve-ai-improve';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,16 @@ const INDUSTRY_TOOLS: Record<string, string[]> = {
   consulting: ['Excel', 'PowerPoint', 'Power BI', 'SQL'],
 };
 
+const attachmentSchema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    url: { type: Type.STRING },
+    mimeType: { type: Type.STRING },
+  },
+  required: ['name', 'url'],
+};
+
 // Requirement schema reused in both generate and improve
 const requirementSchema = {
   type: Type.OBJECT,
@@ -71,6 +82,7 @@ const requirementSchema = {
     aiReview:      { type: Type.BOOLEAN },
     emailFrame:    { type: Type.BOOLEAN },
     emailBody:     { type: Type.STRING },
+    attachments:   { type: Type.ARRAY, items: attachmentSchema },
   },
   required: ['id', 'label', 'description', 'type'],
 };
@@ -563,6 +575,7 @@ ${emailFrameBlock}
               aiReview: r.aiReview,
               emailFrame: r.emailFrame,
               emailBody: r.emailBody,
+              attachments: r.attachments,
             })),
           })),
         })),
@@ -585,6 +598,7 @@ RULES:
 - For "decision": it renders as a chat decision thread. Use options for reply choices and optionFeedback for scripted stakeholder replies shown after each choice. correctAnswer may mark the recommended path but the student is not blocked by choosing another path.
 - For "debrief": it renders as an email composer. Use label as the email subject and description as composer guidance.
 - For "task": use rich HTML instructions in description, set descriptionFormat to "rich", and include no options/correctAnswer/expectedAnswer. For "text": no options/correctAnswer, may have expectedAnswer.
+- Keep requirement attachments exactly as provided unless the instructor explicitly asks to add or remove a resource.
 - Keep lesson bodies concise (2-3 sentences, plain <p> tags).
 - Return the COMPLETE modules array with ALL existing modules and lessons included.
 `;
@@ -605,6 +619,7 @@ RULES:
         config: {
           ...currentConfig,
           ...applied,
+          modules: mergeImprovedVeModules(currentConfig.modules || [], applied.modules || []),
         },
       });
     }

@@ -7,28 +7,11 @@ import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { sendGroupSubmissionNotifications } from '@/lib/group-submission-notifications';
 import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
 import { loadClaimedShareItemIds } from '@/lib/linkedin-share';
+import { mergeVeProgress, reversibleDeliverableRequirementIds } from '@/lib/ve-progress';
 
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-function mergeProgress(existing: any, incoming: any) {
-  const base = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
-  const next = incoming && typeof incoming === 'object' && !Array.isArray(incoming) ? incoming : {};
-  const merged: Record<string, any> = { ...base };
-
-  for (const [reqId, incomingEntry] of Object.entries(next)) {
-    const existingEntry = merged[reqId];
-    if (existingEntry?.completed && !(incomingEntry as any)?.completed) continue;
-    merged[reqId] = {
-      ...(existingEntry && typeof existingEntry === 'object' ? existingEntry : {}),
-      ...(incomingEntry && typeof incomingEntry === 'object' ? incomingEntry : {}),
-      completed: Boolean(existingEntry?.completed || (incomingEntry as any)?.completed),
-    };
-  }
-
-  return merged;
-}
 
 function lessonIndexMap(modules: any[]) {
   const map = new Map<string, number>();
@@ -141,7 +124,7 @@ export async function POST(req: NextRequest) {
       .eq('id', veFormId)
       .single(),
     supabase.from('guided_project_attempts')
-      .select('progress, current_module_id, current_lesson_id')
+      .select('progress, current_module_id, current_lesson_id, completed_at')
       .eq('ve_id', veFormId)
       .eq('student_id', user.id)
       .maybeSingle(),
@@ -152,7 +135,12 @@ export async function POST(req: NextRequest) {
   }
 
   const modules = Array.isArray(ve.modules) ? ve.modules : [];
-  const mergedProgress = mergeProgress(existingAttempt?.progress, progress);
+  const mergedProgress = mergeVeProgress(
+    existingAttempt?.progress,
+    progress,
+    reversibleDeliverableRequirementIds(modules),
+    !!existingAttempt?.completed_at,
+  );
   const current = chooseCurrentLesson(modules, existingAttempt, currentModuleId, currentLessonId);
 
   // Server-validate completion through the SHARED rule (lib/ve-completion). This route used to carry
