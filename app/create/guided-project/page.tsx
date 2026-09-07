@@ -11,7 +11,13 @@ import type { LessonDoc } from '@/lib/lesson-doc';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { clampLinkedInSharePoints, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
-import { convertLegacyEmailDeliverable, htmlToPlainText, plainTextToRichHtml } from '@/lib/ve-deliverable-content';
+import {
+  attachDeliverableDescriptionDoc,
+  convertLegacyEmailDeliverable,
+  htmlToPlainText,
+  plainTextToRichHtml,
+  reconcileImprovedDeliverableDescription,
+} from '@/lib/ve-deliverable-content';
 import { useTheme } from '@/components/ThemeProvider';
 import {
   ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, ChevronLeft,
@@ -74,28 +80,47 @@ function attachLessonDocs<T extends { modules?: unknown[] }>(cfg: T): T {
       ...m,
       lessons: Array.isArray(m?.lessons)
         ? m.lessons.map((l: any) => {
-            if (!l?.body) return l;
-            try { return { ...l, doc: lessonHtmlToDoc(l.body) }; }
-            catch { return l; } // keep body-only if the HTML cannot be parsed
+            let lesson = l;
+            if (l?.body) {
+              try { lesson = { ...lesson, doc: lessonHtmlToDoc(l.body) }; }
+              catch { /* keep body-only if the HTML cannot be parsed */ }
+            }
+            if (!Array.isArray(l?.requirements)) return lesson;
+            const requirements = l.requirements.map((r: any) =>
+              attachDeliverableDescriptionDoc(r, lessonHtmlToDoc));
+            return { ...lesson, requirements };
           })
         : m?.lessons,
     })),
   };
 }
 
-// Like attachLessonDocs, but preserves the ORIGINAL interactive doc for any lesson the
-// AI left unchanged (same id, same body). Used after "improve", which strips doc to
-// body-only server-side -- rebuilding doc from the lossy HTML would otherwise destroy
-// accordions / tabs / knowledge checks / runnable code on lessons the AI did not touch.
-// Lessons the AI actually rewrote (body changed) are reconverted from the new body.
+// Like attachLessonDocs, but preserves canonical interactive docs through global AI Improve.
+// Mission docs are retained when their HTML fallback is unchanged. Deliverable docs are always
+// retained because the Improve endpoint only receives their lossy HTML fallback; authors use the
+// document-aware AI tools inside the interactive instructions editor to change those safely.
 function preserveLessonDocs<T extends { modules?: unknown[] }>(cfg: T, prior: { modules?: any[] } | null | undefined): T {
   if (!cfg?.modules) return cfg;
   // Compare bodies ignoring whitespace so harmless reformatting by the AI is not
   // mistaken for a rewrite (which would trigger a lossy doc rebuild).
   const norm = (s?: string) => (s || '').replace(/\s+/g, ' ').trim();
   const priorById = new Map<string, { body?: string; doc?: LessonDoc }>();
+  const priorRequirementById = new Map<string, {
+    type?: string;
+    description?: string;
+    descriptionFormat?: 'rich';
+    descriptionDoc?: LessonDoc;
+  }>();
   (prior?.modules || []).forEach((m: any) => (m?.lessons || []).forEach((l: any) => {
     if (l?.id) priorById.set(l.id, { body: l.body, doc: l.doc });
+    (l?.requirements || []).forEach((r: any) => {
+      if (r?.id) priorRequirementById.set(r.id, {
+        type: r.type,
+        description: r.description,
+        descriptionFormat: r.descriptionFormat,
+        descriptionDoc: r.descriptionDoc,
+      });
+    });
   }));
   return {
     ...cfg,
@@ -103,11 +128,23 @@ function preserveLessonDocs<T extends { modules?: unknown[] }>(cfg: T, prior: { 
       ...m,
       lessons: Array.isArray(m?.lessons)
         ? m.lessons.map((l: any) => {
-            if (!l?.body) return l;
+            let lesson = l;
             const prev = l.id ? priorById.get(l.id) : undefined;
-            if (prev?.doc && norm(prev.body) === norm(l.body)) return { ...l, doc: prev.doc };
-            try { return { ...l, doc: lessonHtmlToDoc(l.body) }; }
-            catch { return l; }
+            if (l?.body) {
+              if (prev?.doc && norm(prev.body) === norm(l.body)) lesson = { ...lesson, doc: prev.doc };
+              else {
+                try { lesson = { ...lesson, doc: lessonHtmlToDoc(l.body) }; }
+                catch { /* keep body-only if the HTML cannot be parsed */ }
+              }
+            }
+            if (!Array.isArray(l?.requirements)) return lesson;
+            const requirements = l.requirements.map((r: any) =>
+              reconcileImprovedDeliverableDescription(
+                r,
+                r.id ? priorRequirementById.get(r.id) : undefined,
+                lessonHtmlToDoc,
+              ));
+            return { ...lesson, requirements };
           })
         : m?.lessons,
     })),
@@ -140,6 +177,7 @@ interface Requirement {
   label: string;
   description: string;
   descriptionFormat?: 'rich';
+  descriptionDoc?: LessonDoc;
   type: 'task' | 'deliverable' | 'reflection' | 'mcq' | 'text' | 'upload' | 'briefing' | 'scenario_update' | 'decision' | 'debrief' | 'dashboard_critique' | 'code_review' | 'excel_review' | 'document_review' | 'linkedin_share';
   options?: string[];
   optionFeedback?: string[];
@@ -2325,6 +2363,7 @@ function VirtualExperienceCreatePageInner() {
                                                         ? htmlToPlainText(req.description)
                                                         : req.description,
                                                       descriptionFormat: isDeliverable && wasDeliverable ? req.descriptionFormat : undefined,
+                                                      descriptionDoc: isDeliverable && wasDeliverable ? req.descriptionDoc : undefined,
                                                       options: type === 'mcq'
                                                         ? ['', '', '', '']
                                                         : type === 'decision'
@@ -2492,13 +2531,18 @@ function VirtualExperienceCreatePageInner() {
                                                         <p className="mb-2 text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
                                                           Deliverable instructions
                                                         </p>
-                                                        <RichTextEditor
-                                                          value={req.descriptionFormat === 'rich' ? req.description : plainTextToRichHtml(req.description)}
-                                                          onChange={html => updateReq(mod.id, les.id, req.id, { description: html, descriptionFormat: 'rich' })}
-                                                          placeholder="Explain the work clearly. Add paragraphs, bullet points, numbered steps, links, images, tables, or examples..."
-                                                          onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
-                                                          onRequestImage={requestRichTextImage}
-                                                          enableAiAssist
+                                                        <LessonEditor
+                                                          key={`${req.id}-instructions`}
+                                                          doc={req.descriptionDoc}
+                                                          bodyFallback={req.descriptionFormat === 'rich' ? req.description : plainTextToRichHtml(req.description)}
+                                                          onChange={({ doc, body }) => updateReq(mod.id, les.id, req.id, {
+                                                            descriptionDoc: doc,
+                                                            description: body,
+                                                            descriptionFormat: 'rich',
+                                                          })}
+                                                          placeholder="Explain the work clearly. Add interactive prompts, steps, tables, images, code, or examples..."
+                                                          isDark={C === DARK_C}
+                                                          accentColor={C.cta}
                                                         />
                                                       </div>
                                                       <div className="space-y-2">
