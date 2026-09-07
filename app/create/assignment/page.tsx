@@ -21,6 +21,8 @@ import type { AssignmentScenario } from '@/lib/assignment-scenarios';
 import { stripAnswerKeys, extractAnswerKeys, validateScenarioConfig, DEFAULT_PASS_MARK } from '@/lib/assignment-scenarios';
 import { ALLOWED_SOLUTION_EXTENSIONS, isAllowedSolutionFile, isCompleteSolution, requestSolutionCleanup } from '@/lib/assignment-solutions';
 import type { LessonDoc } from '@/lib/lesson-doc';
+import { RubricFileImportActions } from '@/components/RubricFileImportActions';
+import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 
 
 type AssignmentType = 'standard' | 'code_review' | 'excel_review' | 'dashboard_critique' | 'virtual_experience' | 'document_review';
@@ -149,7 +151,7 @@ export default function CreateAssignmentPage() {
   const [deadlineDate, setDeadlineDate]           = useState('');
   const [coverUploading, setCoverUploading]       = useState(false);
   const [resourceUploading, setResourceUploading] = useState<Record<string, boolean>>({});
-  const [extracting, setExtracting]               = useState<string | null>(null); // label of file being processed
+  const [extracting, setExtracting]               = useState<RubricImportKind | null>(null);
   const [showPreview, setShowPreview]             = useState(false);
   const [previewVeConfig, setPreviewVeConfig]     = useState<any>(null);
   const [loadingPreviewVe, setLoadingPreviewVe]   = useState(false);
@@ -159,7 +161,6 @@ export default function CreateAssignmentPage() {
   const coverRef = useRef<HTMLInputElement>(null);
   const solutionFileRef = useRef<HTMLInputElement>(null);
   const resourceFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
-  const rubricFileRefs = useRef<Record<string, HTMLInputElement | null>>({});
   const toggleCohort = (id: string) =>
     setSelectedCohortIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   const toggleGroup = (id: string) =>
@@ -319,9 +320,7 @@ export default function CreateAssignmentPage() {
     setResources(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
   }
 
-  async function handleExtractRubric(label: string, e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  async function handleExtractRubric(label: RubricImportKind, file: File) {
     setExtracting(label);
     setError('');
     try {
@@ -342,14 +341,13 @@ export default function CreateAssignmentPage() {
 
       const incoming: string[] = json.criteria ?? [];
       setRubricText(prev => {
-        const existing = prev.trim();
-        return existing ? `${existing}\n${incoming.join('\n')}` : incoming.join('\n');
+        const existing = prev.split('\n');
+        return mergeRubricCriteria(existing, incoming).join('\n');
       });
     } catch {
       setError('Failed to extract rubric. Please try again.');
     } finally {
       setExtracting(null);
-      e.target.value = '';
     }
   }
 
@@ -779,34 +777,15 @@ export default function CreateAssignmentPage() {
                   <div style={{ ...fieldGroupStyle, marginBottom: 12 }}>
                     <label style={labelStyle(C)}>Grading Rubric</label>
 
-                    {/* Extract from reference solution */}
                     <div style={{ marginBottom: 10 }}>
-                      <input
-                        type="file"
-                        accept=".xlsx,.pdf,.csv,.txt,.png,.jpg,.jpeg,.docx"
-                        style={{ display: 'none' }}
-                        ref={el => { rubricFileRefs.current['reference_solution'] = el; }}
-                        onChange={e => handleExtractRubric('reference_solution', e)}
+                      <RubricFileImportActions
+                        busy={extracting}
+                        background={C.card}
+                        color={C.muted}
+                        onSelect={handleExtractRubric}
                       />
-                      <button
-                        type="button"
-                        disabled={!!extracting}
-                        onClick={() => rubricFileRefs.current['reference_solution']?.click()}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 6,
-                          minHeight: 40, padding: '8px 12px', borderRadius: 10,
-                          border: 'none', background: C.card, color: C.muted,
-                          fontSize: 11.5, fontWeight: 700, cursor: extracting ? 'not-allowed' : 'pointer',
-                          opacity: extracting ? 0.5 : 1, transition: 'opacity 0.15s',
-                        }}
-                      >
-                        {extracting === 'reference_solution'
-                          ? <><Loader2 style={{ width: 13, height: 13 }} className="animate-spin"/> Extracting...</>
-                          : <><Upload style={{ width: 13, height: 13 }}/> Upload Reference Solution</>
-                        }
-                      </button>
                     </div>
-                    <p style={{ ...hintStyle(C), marginBottom: 8 }}>Upload the completed reference file and AI will extract rubric criteria automatically.</p>
+                    <p style={{ ...hintStyle(C), marginBottom: 8 }}>Upload completed work to infer criteria, or import an existing Markdown rubric.</p>
 
                     <textarea
                       value={rubricText}

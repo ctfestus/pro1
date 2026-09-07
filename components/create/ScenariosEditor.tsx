@@ -46,7 +46,7 @@ function moveItem<T>(arr: T[], from: number, to: number): T[] {
 
 export function ScenariosEditor({ scenarios, onChange, C, embedded = false }: {
   scenarios: AssignmentScenario[];
-  onChange: (scenarios: AssignmentScenario[]) => void;
+  onChange: React.Dispatch<React.SetStateAction<AssignmentScenario[]>>;
   C: typeof LIGHT_C;
   embedded?: boolean;
 }) {
@@ -79,10 +79,18 @@ export function ScenariosEditor({ scenarios, onChange, C, embedded = false }: {
     setOpenTasks(prev => new Set(prev).add(task.id));
     setAddingFor(null);
   };
-  const updateTask = (scenarioId: string, taskId: string, updates: Partial<AssignmentTask>) =>
-    onChange(scenarios.map(s => s.id === scenarioId
-      ? { ...s, tasks: s.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t) }
-      : s));
+  const updateTask = (
+    scenarioId: string,
+    taskId: string,
+    updates: Partial<AssignmentTask> | ((task: AssignmentTask) => Partial<AssignmentTask>),
+  ) => onChange(current => current.map(s => s.id === scenarioId
+    ? {
+        ...s,
+        tasks: s.tasks.map(task => task.id === taskId
+          ? { ...task, ...(typeof updates === 'function' ? updates(task) : updates) }
+          : task),
+      }
+    : s));
   const removeTask = (scenarioId: string, taskId: string) =>
     onChange(scenarios.map(s => s.id === scenarioId ? { ...s, tasks: s.tasks.filter(t => t.id !== taskId) } : s));
   const moveTask = (scenarioId: string, idx: number, dir: -1 | 1) =>
