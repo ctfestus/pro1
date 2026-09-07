@@ -439,6 +439,19 @@ function VirtualExperienceCreatePageInner() {
   const [deadlineDays, setDeadlineDays] = useState<string>('');
   const [coverImage,  setCoverImage]  = useState('');
   const [showCoverLibrary, setShowCoverLibrary] = useState(false);
+  const [richTextImageLibraryOpen, setRichTextImageLibraryOpen] = useState(false);
+  const richTextImageResolver = useRef<((url: string | null) => void) | null>(null);
+  const requestRichTextImage = useCallback(() => new Promise<string | null>(resolve => {
+    richTextImageResolver.current?.(null);
+    richTextImageResolver.current = resolve;
+    setRichTextImageLibraryOpen(true);
+  }), []);
+  const resolveRichTextImage = useCallback((url: string | null) => {
+    const resolve = richTextImageResolver.current;
+    richTextImageResolver.current = null;
+    setRichTextImageLibraryOpen(false);
+    resolve?.(url);
+  }, []);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [saving,      setSaving]      = useState(false);
   const [saveError,   setSaveError]   = useState('');
@@ -2404,6 +2417,7 @@ function VirtualExperienceCreatePageInner() {
                                                     onChange={html => updateReq(mod.id, les.id, req.id, { description: html })}
                                                     placeholder={req.type === 'briefing' ? 'Write the email body - formatting, bullet points, and images are all supported...' : 'Describe what students should write in their debrief update...'}
                                                     onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
+                                                    onRequestImage={requestRichTextImage}
                                                     enableAiAssist
                                                     enableNameTag
                                                   />
@@ -2448,6 +2462,7 @@ function VirtualExperienceCreatePageInner() {
                                                         onChange={html => updateReq(mod.id, les.id, req.id, { emailBody: html })}
                                                         placeholder="Write the email the manager sends to the student..."
                                                         onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
+                                                        onRequestImage={requestRichTextImage}
                                                         enableAiAssist
                                                         enableNameTag
                                                       />
@@ -2473,6 +2488,7 @@ function VirtualExperienceCreatePageInner() {
                                                           onChange={html => updateReq(mod.id, les.id, req.id, { description: html, descriptionFormat: 'rich' })}
                                                           placeholder="Explain the work clearly. Add paragraphs, bullet points, numbered steps, links, images, tables, or examples..."
                                                           onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
+                                                          onRequestImage={requestRichTextImage}
                                                           enableAiAssist
                                                         />
                                                       </div>
@@ -3180,6 +3196,14 @@ function VirtualExperienceCreatePageInner() {
 
       {/* Bunny Video Picker Modal */}
       <AnimatePresence>
+        {richTextImageLibraryOpen && (
+          <ImageLibrary
+            uploadFolder="ve-email-images"
+            initialFolder="ve-email-images"
+            onSelect={url => resolveRichTextImage(url)}
+            onClose={() => resolveRichTextImage(null)}
+          />
+        )}
         {bunnyPickerOpen && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

@@ -43,6 +43,7 @@ interface Props {
 const FOLDERS = [
   { value: '', label: 'All images' },
   { value: 'lesson-images', label: 'Lesson images' },
+  { value: 've-email-images', label: 'Virtual experience images' },
   { value: 'covers', label: 'Covers' },
   { value: 'course-options', label: 'Course options' },
   { value: 'datasets/covers', label: 'Dataset covers' },
