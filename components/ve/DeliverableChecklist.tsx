@@ -1,7 +1,7 @@
 'use client';
 
 import { Paperclip } from 'lucide-react';
-import { sanitizeRichText } from '@/lib/sanitize';
+import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { MailStatusChip } from '@/components/ve/MailCard';
 
 interface DeliverableAttachment {
@@ -57,7 +57,7 @@ export function DeliverableChecklist({
         <div
           className="rich-content text-[13px] leading-relaxed"
           style={{ color: textColor }}
-          dangerouslySetInnerHTML={{ __html: sanitizeRichText(instructions) }}
+          dangerouslySetInnerHTML={{ __html: sanitizeRichTextWithImages(instructions) }}
         />
       ) : (
         <p className="whitespace-pre-wrap text-[13px] leading-relaxed" style={{ color: textColor }}>

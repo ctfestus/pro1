@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   sanitizePlainText,
   sanitizeRichText,
+  sanitizeRichTextWithImages,
   sanitizeEmailContent,
   sanitizeAnnouncementContent,
   renderAnnouncementContent,
@@ -64,6 +65,21 @@ describe('sanitizeEmailContent', () => {
     expect(sanitizeEmailContent('<img src="data:image/png;base64,AAAA">')).not.toContain('data:image');
     expect(sanitizeEmailContent('<img src="javascript:alert(1)">')).not.toContain('javascript:');
     expect(sanitizeEmailContent('<img src="http://evil.com/i.png">')).not.toContain('evil.com');
+  });
+});
+
+describe('sanitizeRichTextWithImages', () => {
+  it('preserves editor tables, code, and safe images together', () => {
+    const out = sanitizeRichTextWithImages(
+      '<table><tbody><tr><td>Revenue</td></tr></tbody></table><pre><code>SUM(A:A)</code></pre><img src="https://res.cloudinary.com/demo/chart.png" alt="Chart">',
+    );
+    expect(out).toContain('<table>');
+    expect(out).toContain('<pre><code>SUM(A:A)</code></pre>');
+    expect(out).toContain('https://res.cloudinary.com/demo/chart.png');
+  });
+
+  it('still removes unsafe image sources', () => {
+    expect(sanitizeRichTextWithImages('<img src="javascript:alert(1)">')).not.toContain('<img');
   });
 });
 
