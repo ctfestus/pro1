@@ -265,15 +265,17 @@ function normalizeToolList(tools: readonly string[] | undefined): string[] {
 }
 
 
-function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
+function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken }: {
   criteria: string[];
   onChange: (rubric: string[]) => void;
+  onImport: (criteria: string[]) => void;
   C: typeof LIGHT_C;
   inp: React.CSSProperties;
   sessionToken?: string;
 }) {
   const [draft, setDraft] = useState('');
   const [extracting, setExtracting] = useState<RubricImportKind | null>(null);
+  const [extractError, setExtractError] = useState('');
 
   const add = () => {
     const val = draft.trim();
@@ -285,6 +287,7 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
   const handleFile = async (label: RubricImportKind, file: File) => {
     if (!file || !sessionToken) return;
     setExtracting(label);
+    setExtractError('');
     try {
       const form = new FormData();
       form.append('file', file);
@@ -295,9 +298,11 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
         body: form,
       });
       const json = await res.json();
-      if (res.ok && json.criteria?.length) {
-        onChange(mergeRubricCriteria(criteria, json.criteria));
-      }
+      if (!res.ok) throw new Error(json.error || 'Rubric import failed.');
+      if (!json.criteria?.length) throw new Error('No rubric criteria were found in this file.');
+      onImport(json.criteria);
+    } catch (error: any) {
+      setExtractError(error?.message || 'Rubric import failed. Please try again.');
     } finally {
       setExtracting(null);
     }
@@ -323,6 +328,7 @@ function RubricBuilder({ criteria, onChange, C, inp, sessionToken }: {
           <p className="text-[11px]" style={{ color: C.faint }}>
             Upload completed work to infer criteria, or import an existing Markdown rubric.
           </p>
+          {extractError && <p className="text-[11px]" style={{ color: '#ef4444' }}>{extractError}</p>}
         </div>
       )}
       {criteria.map((crit, ci) => (
@@ -808,14 +814,21 @@ function VirtualExperienceCreatePageInner() {
     } : c);
   };
 
-  const updateReq = (moduleId: string, lessonId: string, reqId: string, updates: Partial<Requirement>) => {
+  const updateReq = (
+    moduleId: string,
+    lessonId: string,
+    reqId: string,
+    updates: Partial<Requirement> | ((requirement: Requirement) => Partial<Requirement>),
+  ) => {
     setConfig(c => c ? {
       ...c,
       modules: c.modules.map(m => m.id !== moduleId ? m : {
         ...m,
         lessons: m.lessons.map(l => l.id !== lessonId ? l : {
           ...l,
-          requirements: l.requirements.map(r => r.id !== reqId ? r : { ...r, ...updates }),
+          requirements: l.requirements.map(r => r.id !== reqId
+            ? r
+            : { ...r, ...(typeof updates === 'function' ? updates(r) : updates) }),
         }),
       }),
     } : c);
@@ -2650,6 +2663,7 @@ function VirtualExperienceCreatePageInner() {
                                                   <RubricBuilder
                                                     criteria={req.rubric ?? []}
                                                     onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
+                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
                                                     C={C}
                                                     inp={inp}
                                                     sessionToken={sessionToken}
@@ -2689,6 +2703,7 @@ function VirtualExperienceCreatePageInner() {
                                                   <RubricBuilder
                                                     criteria={req.rubric ?? []}
                                                     onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
+                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
                                                     C={C}
                                                     inp={inp}
                                                     sessionToken={sessionToken}
@@ -2728,6 +2743,7 @@ function VirtualExperienceCreatePageInner() {
                                                   <RubricBuilder
                                                     criteria={req.rubric ?? []}
                                                     onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
+                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
                                                     C={C}
                                                     inp={inp}
                                                     sessionToken={sessionToken}
@@ -2754,7 +2770,10 @@ function VirtualExperienceCreatePageInner() {
                                                       placeholder="70" className="w-20 outline-none text-[12px] px-2 py-1.5 rounded-lg" style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }} />
                                                     <span className="text-[11px]" style={{ color: C.muted }}>out of 100</span>
                                                   </div>
-                                                  <RubricBuilder criteria={req.rubric ?? []} onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })} C={C} inp={inp} sessionToken={sessionToken} />
+                                                  <RubricBuilder criteria={req.rubric ?? []}
+                                                    onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
+                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
+                                                    C={C} inp={inp} sessionToken={sessionToken} />
                                                 </div>
                                               )}
                                             </div>

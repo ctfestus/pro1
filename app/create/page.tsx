@@ -1565,10 +1565,12 @@ const [isSaving, setIsSaving] = useState(false);
       const json = await res.json();
       if (!res.ok) { showToast(json.error || 'Extraction failed.', 'error'); return; }
       const incoming: string[] = json.criteria ?? [];
-      if (!formConfig) return;
-      const q = formConfig.questions?.find(q => q.id === questionId);
-      const existing = q?.rubric ?? [];
-      handleUpdateQuestion(questionId, { rubric: mergeRubricCriteria(existing, incoming) });
+      setFormConfig(current => current ? {
+        ...current,
+        questions: current.questions?.map(question => question.id === questionId
+          ? { ...question, rubric: mergeRubricCriteria(question.rubric ?? [], incoming) }
+          : question) ?? [],
+      } : current);
       showToast(`${incoming.length} criteria extracted`, 'success');
     } catch {
       showToast('Failed to extract rubric. Please try again.', 'error');

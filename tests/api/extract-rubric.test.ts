@@ -64,6 +64,26 @@ describe('POST /api/extract-rubric - Markdown rubric import', () => {
     expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 
+  it('rejects a renamed binary file with a conflicting MIME type', async () => {
+    const response = await postFile(
+      new File(['%PDF-1.7'], 'rubric.md', { type: 'application/pdf' }),
+      'rubric',
+    );
+    expect(response.status).toBe(415);
+    expect(await response.json()).toEqual({ error: 'Rubric imports must contain Markdown text' });
+    expect(mockGenerateJSON).not.toHaveBeenCalled();
+  });
+
+  it('rejects binary content disguised with a generic MIME type', async () => {
+    const response = await postFile(
+      new File([new Uint8Array([0, 1, 2, 3])], 'rubric.md', { type: 'application/octet-stream' }),
+      'rubric',
+    );
+    expect(response.status).toBe(415);
+    expect(await response.json()).toEqual({ error: 'Rubric imports must contain valid UTF-8 Markdown text' });
+    expect(mockGenerateJSON).not.toHaveBeenCalled();
+  });
+
   it('rejects a Markdown rubric over the import size limit', async () => {
     const response = await postFile(
       new File(['a'.repeat(200_001)], 'rubric.md', { type: 'text/markdown' }),

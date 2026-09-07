@@ -31,7 +31,7 @@ function hintStyle(C: typeof LIGHT_C): React.CSSProperties {
 
 export function TaskFields({ task, onChange, C }: {
   task: AssignmentTask;
-  onChange: (updates: Partial<AssignmentTask>) => void;
+  onChange: (updates: Partial<AssignmentTask> | ((task: AssignmentTask) => Partial<AssignmentTask>)) => void;
   C: typeof LIGHT_C;
 }) {
   const { theme } = useTheme();
@@ -74,7 +74,7 @@ export function TaskFields({ task, onChange, C }: {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Extraction failed.');
       const incoming: string[] = json.criteria ?? [];
-      onChange({ rubric: mergeRubricCriteria(task.rubric ?? [], incoming) });
+      onChange(current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }));
     } catch (err: any) {
       setExtractError(err?.message || 'Failed to extract rubric.');
     } finally {
