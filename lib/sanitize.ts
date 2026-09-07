@@ -36,7 +36,7 @@ export function sanitizeRichTextWithImages(html: string): string {
                    'img', 'figure', 'figcaption',
                    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption'],
     ALLOWED_ATTR: ['href', 'target', 'rel', 'colspan', 'rowspan', 'scope',
-                   'src', 'alt', 'width', 'height', 'style'],
+                   'src', 'alt', 'width', 'height'],
     ALLOW_DATA_ATTR: false,
   });
   // Remove images without a safe HTTPS source. DOMPurify may strip a dangerous src first and

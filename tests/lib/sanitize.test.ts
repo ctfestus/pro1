@@ -81,6 +81,15 @@ describe('sanitizeRichTextWithImages', () => {
   it('still removes unsafe image sources', () => {
     expect(sanitizeRichTextWithImages('<img src="javascript:alert(1)">')).not.toContain('<img');
   });
+
+  it('removes arbitrary inline styles from rich deliverable content', () => {
+    const out = sanitizeRichTextWithImages(
+      '<p style="position:fixed;inset:0;z-index:999999;background-image:url(https://attacker.example/track)">Overlay</p><img src="https://res.cloudinary.com/demo/chart.png" style="position:fixed;width:100vw;height:100vh">',
+    );
+    expect(out).not.toContain('style=');
+    expect(out).not.toContain('attacker.example');
+    expect(out).toContain('https://res.cloudinary.com/demo/chart.png');
+  });
 });
 
 describe('announcement YouTube placeholder', () => {
