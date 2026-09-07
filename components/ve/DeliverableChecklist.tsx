@@ -3,6 +3,8 @@
 import { Check, Paperclip } from 'lucide-react';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { MailStatusChip } from '@/components/ve/MailCard';
+import { LessonRenderer } from '@/components/lesson/LessonRenderer';
+import type { LessonDoc } from '@/lib/lesson-doc';
 
 interface DeliverableAttachment {
   name: string;
@@ -14,9 +16,11 @@ interface DeliverableChecklistProps {
   title: string;
   instructions?: string;
   instructionsFormat?: 'rich';
+  instructionsDoc?: LessonDoc;
   attachments?: DeliverableAttachment[];
   completed: boolean;
   readOnly: boolean;
+  isDark: boolean;
   accentColor: string;
   textColor: string;
   mutedColor: string;
@@ -27,9 +31,11 @@ export function DeliverableChecklist({
   title,
   instructions,
   instructionsFormat,
+  instructionsDoc,
   attachments = [],
   completed,
   readOnly,
+  isDark,
   accentColor,
   textColor,
   mutedColor,
@@ -65,7 +71,9 @@ export function DeliverableChecklist({
         )}
       </div>
 
-      {instructions && (instructionsFormat === 'rich' ? (
+      {instructionsDoc ? (
+        <LessonRenderer doc={instructionsDoc} isDark={isDark} accentColor={accentColor} />
+      ) : instructions && (instructionsFormat === 'rich' ? (
         <div
           className="rich-content text-[13px] leading-relaxed"
           style={{ color: textColor }}

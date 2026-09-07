@@ -45,6 +45,7 @@ interface Requirement {
   label: string;
   description: string;
   descriptionFormat?: 'rich';
+  descriptionDoc?: LessonDoc;
   type: 'task' | 'deliverable' | 'reflection' | 'mcq' | 'text' | 'upload' | 'briefing' | 'scenario_update' | 'decision' | 'debrief' | 'dashboard_critique' | 'code_review' | 'excel_review' | 'document_review' | 'linkedin_share';
   sharePrompt?: string;   // linkedin_share: suggested post text the student can copy
   // linkedin_share: only an explicit `true` gates the lesson. Absent/false = optional, never blocks.
@@ -1826,9 +1827,11 @@ export default function AssignmentExperiencePlayer({
                               title={req.label}
                               instructions={req.description}
                               instructionsFormat={req.descriptionFormat}
+                              instructionsDoc={req.descriptionDoc}
                               attachments={req.attachments}
                               completed={isDone}
                               readOnly={readOnly}
+                              isDark={isDark}
                               accentColor={accent}
                               textColor={text}
                               mutedColor={muted}
