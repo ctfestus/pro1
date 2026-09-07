@@ -13,15 +13,17 @@ export async function updateLearningPathProgress(
   completedItemId: string,
 ) {
   try {
-    const { data: student } = await supabase.from('students').select('cohort_id').eq('id', studentId).single();
-    if (!student?.cohort_id) return;
+    const { data: student } = await supabase.from('students').select('cohort_id').eq('id', studentId).maybeSingle();
+    if (!student) return;
 
-    const { data: paths } = await supabase
+    const pathQuery = supabase
       .from('learning_paths')
       .select('id, item_ids, title, next_path_id')
       .eq('status', 'published')
-      .contains('item_ids', [completedItemId])
-      .contains('cohort_ids', [student.cohort_id]);
+      .contains('item_ids', [completedItemId]);
+    const { data: paths } = await (student.cohort_id
+      ? pathQuery.or(`available_to_everyone.eq.true,cohort_ids.cs.{${student.cohort_id}}`)
+      : pathQuery.eq('available_to_everyone', true));
 
     if (!paths?.length) return;
 
@@ -114,7 +116,7 @@ export async function updateLearningPathProgress(
       }
 
       if (allDone) {
-        await runPathCompletionEffects(supabase, studentId, student.cohort_id, path, upserted?.id, !!prog?.cert_id);
+        await runPathCompletionEffects(supabase, studentId, student.cohort_id ?? null, path, upserted?.id, !!prog?.cert_id);
       }
     }
   } catch (err) {

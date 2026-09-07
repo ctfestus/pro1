@@ -11,12 +11,14 @@ describe('course open access is explicit', () => {
   const createEditor = read('app/create/page.tsx');
   const catalog = read('components/student/courses-paths.tsx');
   const overview = read('components/student/overview.tsx');
+  const sharedAccess = read('lib/student-content-access.ts');
   const migration = read('migrations/174_available_to_everyone.sql');
   const schema = read('festman-fresh-schema.sql');
 
   it('never grants direct access from an empty cohort list', () => {
-    expect(courseRoute).toContain('const cohortAllowed = (course as any).available_to_everyone === true');
-    expect(courseRoute).not.toMatch(/cohortIds\.length === 0 \|\|/);
+    expect(courseRoute).toContain('hasPublishedStudentContentAccess');
+    expect(sharedAccess).toContain('if (input.availableToEveryone === true) return true');
+    expect(sharedAccess).not.toMatch(/cohortIds\.length === 0 \|\|/);
     expect(courseRoute).toContain("select.includes('available_to_everyone')");
   });
 
