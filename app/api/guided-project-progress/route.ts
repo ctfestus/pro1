@@ -9,28 +9,11 @@ import { updateLearningPathProgress } from '@/lib/learning-path-progress';
 import { claimLinkedInShare, loadClaimedShareItemIds } from '@/lib/linkedin-share';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
+import { mergeVeProgress, reversibleDeliverableRequirementIds, shouldCompleteVeAttempt } from '@/lib/ve-progress';
 
 export const dynamic = 'force-dynamic';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-
-function mergeProgress(existing: any, incoming: any) {
-  const base = existing && typeof existing === 'object' && !Array.isArray(existing) ? existing : {};
-  const next = incoming && typeof incoming === 'object' && !Array.isArray(incoming) ? incoming : {};
-  const merged: Record<string, any> = { ...base };
-
-  for (const [reqId, incomingEntry] of Object.entries(next)) {
-    const existingEntry = merged[reqId];
-    if (existingEntry?.completed && !(incomingEntry as any)?.completed) continue;
-    merged[reqId] = {
-      ...(existingEntry && typeof existingEntry === 'object' ? existingEntry : {}),
-      ...(incomingEntry && typeof incomingEntry === 'object' ? incomingEntry : {}),
-      completed: Boolean(existingEntry?.completed || (incomingEntry as any)?.completed),
-    };
-  }
-
-  return merged;
-}
 
 function lessonIndexMap(modules: any[]) {
   const map = new Map<string, number>();
@@ -542,8 +525,7 @@ export async function POST(req: NextRequest) {
   }
 
   // -- Student progress save --
-  const { veId, formId, assignmentId, studentName, progress, currentModuleId, currentLessonId } = body;
-  // completedAt is intentionally excluded - completion is always computed server-side
+  const { veId, formId, assignmentId, studentName, progress, currentModuleId, currentLessonId, completedAt } = body;
   const resolvedVeId = veId ?? formId; // formId kept for backward compat
 
   if (!resolvedVeId) return NextResponse.json({ error: 'veId required' }, { status: 400 });
@@ -561,7 +543,12 @@ export async function POST(req: NextRequest) {
     .eq('student_id', progressUser.id)
     .maybeSingle();
 
-  const mergedProgress = mergeProgress(existingAttempt?.progress, progress);
+  const mergedProgress = mergeVeProgress(
+    existingAttempt?.progress,
+    progress,
+    reversibleDeliverableRequirementIds(modules),
+    !!existingAttempt?.completed_at,
+  );
   const current = chooseCurrentLesson(modules, existingAttempt, currentModuleId, currentLessonId);
 
   // Completion derived server-side. MCQ requirements are validated against correctAnswer,
@@ -573,7 +560,15 @@ export async function POST(req: NextRequest) {
   });
   const counts = countCompletedRequirements(modules, mergedProgress, claimedShareItemIds);
   const { totalReqs, doneReqs } = counts;
-  const resolvedCompletedAt = isVeComplete(counts) ? new Date().toISOString() : null;
+  // The client may request completion, but the server owns the timestamp and only accepts the
+  // request once every requirement is valid. Assignment attempts complete through their atomic
+  // submission route instead of an incremental progress save.
+  const completionRequested = shouldCompleteVeAttempt({
+    assignmentId,
+    completedAt,
+    requirementsComplete: isVeComplete(counts),
+  });
+  const resolvedCompletedAt = completionRequested ? new Date().toISOString() : null;
 
   const { error } = await supabase
     .from('guided_project_attempts')

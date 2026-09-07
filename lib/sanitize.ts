@@ -28,25 +28,28 @@ export function sanitizeRichText(html: string): string {
   });
 }
 
-/**
- * Sanitizer for email body content authored in the VE briefing editor.
- * Extends sanitizeRichText to also allow <img> tags (Cloudinary/https only).
- */
-export function sanitizeEmailContent(html: string): string {
+/** Rich text with HTTPS-only images for trusted authoring surfaces that support media. */
+export function sanitizeRichTextWithImages(html: string): string {
   const clean = DOMPurify.sanitize(html, {
     ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'ul', 'ol', 'li',
                    'h1', 'h2', 'h3', 'h4', 'blockquote', 'a', 'code', 'pre', 'hr', 'span',
                    'img', 'figure', 'figcaption',
                    'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption'],
     ALLOWED_ATTR: ['href', 'target', 'rel', 'colspan', 'rowspan', 'scope',
-                   'src', 'alt', 'width', 'height', 'style'],
+                   'src', 'alt', 'width', 'height'],
     ALLOW_DATA_ATTR: false,
   });
-  // Strip any img src that isn't a safe https URL (blocks data: and javascript:)
-  return clean.replace(/<img([^>]*)\ssrc="([^"]*)"([^>]*)>/gi, (match, before, src, after) => {
-    if (!src.startsWith('https://')) return '';
-    return match;
+  // Remove images without a safe HTTPS source. DOMPurify may strip a dangerous src first and
+  // leave an empty <img>, so validate the complete sanitized tag rather than only matching src.
+  return clean.replace(/<img\b[^>]*>/gi, (match) => {
+    const src = match.match(/\bsrc="([^"]+)"/i)?.[1] ?? '';
+    return src.startsWith('https://') ? match : '';
   });
+}
+
+/** Sanitizer for email body content authored in the VE briefing editor. */
+export function sanitizeEmailContent(html: string): string {
+  return sanitizeRichTextWithImages(html);
 }
 
 /**
@@ -54,7 +57,7 @@ export function sanitizeEmailContent(html: string): string {
  * images (https-only). Same policy as sanitizeEmailContent (which already permits img/table safely).
  */
 export function sanitizeQuestionContent(html: string): string {
-  return sanitizeEmailContent(html);
+  return sanitizeRichTextWithImages(html);
 }
 
 const YT_IFRAME = (id: string) =>

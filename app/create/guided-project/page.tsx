@@ -11,6 +11,7 @@ import type { LessonDoc } from '@/lib/lesson-doc';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { clampLinkedInSharePoints, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
+import { convertLegacyEmailDeliverable, htmlToPlainText, plainTextToRichHtml } from '@/lib/ve-deliverable-content';
 import { useTheme } from '@/components/ThemeProvider';
 import {
   ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, ChevronLeft,
@@ -136,6 +137,7 @@ interface Requirement {
   id: string;
   label: string;
   description: string;
+  descriptionFormat?: 'rich';
   type: 'task' | 'deliverable' | 'reflection' | 'mcq' | 'text' | 'upload' | 'briefing' | 'scenario_update' | 'decision' | 'debrief' | 'dashboard_critique' | 'code_review' | 'excel_review' | 'document_review' | 'linkedin_share';
   options?: string[];
   optionFeedback?: string[];
@@ -401,7 +403,6 @@ function VirtualExperienceCreatePageInner() {
   // a controlled input's DOM value whenever the prop is a newly computed string. This
   // draft is updated directly from the raw keystroke, decoupling display from storage.
   const [backgroundDraft, setBackgroundDraft] = useState('');
-  const htmlToPlainText = (html: string) => (html || '').replace(/<\/p>\s*<p>/gi, '\n\n').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]+>/g, '');
   const [generating,  setGenerating]  = useState(false);
   const [genError,    setGenError]    = useState('');
   // Dataset state (shared across all modes)
@@ -438,6 +439,19 @@ function VirtualExperienceCreatePageInner() {
   const [deadlineDays, setDeadlineDays] = useState<string>('');
   const [coverImage,  setCoverImage]  = useState('');
   const [showCoverLibrary, setShowCoverLibrary] = useState(false);
+  const [richTextImageLibraryOpen, setRichTextImageLibraryOpen] = useState(false);
+  const richTextImageResolver = useRef<((url: string | null) => void) | null>(null);
+  const requestRichTextImage = useCallback(() => new Promise<string | null>(resolve => {
+    richTextImageResolver.current?.(null);
+    richTextImageResolver.current = resolve;
+    setRichTextImageLibraryOpen(true);
+  }), []);
+  const resolveRichTextImage = useCallback((url: string | null) => {
+    const resolve = richTextImageResolver.current;
+    richTextImageResolver.current = null;
+    setRichTextImageLibraryOpen(false);
+    resolve?.(url);
+  }, []);
   const [uploadingCover, setUploadingCover] = useState(false);
   const [saving,      setSaving]      = useState(false);
   const [saveError,   setSaveError]   = useState('');
@@ -2272,7 +2286,7 @@ function VirtualExperienceCreatePageInner() {
                                             mcq:    { bg: `${C.cta}18`,              color: C.cta,       label: 'Multiple Choice' },
                                             text:               { bg: 'rgba(139,92,246,0.12)',   color: '#8b5cf6',   label: 'Short Answer'       },
                                             upload:             { bg: 'rgba(245,158,11,0.12)',   color: '#f59e0b',   label: 'File Upload'         },
-                                            task:               { bg: 'rgba(59,130,246,0.12)',   color: '#3b82f6',   label: 'Deliverable (Checkbox)' },
+                                            task:               { bg: 'rgba(59,130,246,0.12)',   color: '#3b82f6',   label: 'Deliverable (Brief + Checkbox)' },
                                             briefing:           { bg: 'rgba(59,130,246,0.12)',   color: '#3b82f6',   label: 'Inbox Email' },
                                             scenario_update:    { bg: 'rgba(245,158,11,0.12)',   color: '#f59e0b',   label: 'Team Chat Update' },
                                             decision:           { bg: 'rgba(139,92,246,0.12)',   color: '#8b5cf6',   label: 'Chat Decision Thread' },
@@ -2294,8 +2308,14 @@ function VirtualExperienceCreatePageInner() {
                                                 <select value={req.type}
                                                   onChange={e => {
                                                     const type = e.target.value as Requirement['type'];
+                                                    const wasDeliverable = req.type === 'task' || req.type === 'deliverable';
+                                                    const isDeliverable = type === 'task' || type === 'deliverable';
                                                     updateReq(mod.id, les.id, req.id, {
                                                       type,
+                                                      description: wasDeliverable && !isDeliverable && req.descriptionFormat === 'rich'
+                                                        ? htmlToPlainText(req.description)
+                                                        : req.description,
+                                                      descriptionFormat: isDeliverable && wasDeliverable ? req.descriptionFormat : undefined,
                                                       options: type === 'mcq'
                                                         ? ['', '', '', '']
                                                         : type === 'decision'
@@ -2311,6 +2331,7 @@ function VirtualExperienceCreatePageInner() {
                                                       // while ones authored before VE shares paid XP keep an absent field and
                                                       // stay at 0 until an instructor sets an amount.
                                                       sharePoints: type === 'linkedin_share' ? (req.sharePoints ?? DEFAULT_LINKEDIN_SHARE_POINTS) : undefined,
+                                                      emailFrame: isDeliverable ? false : req.emailFrame,
                                                     });
                                                   }}
                                                   style={{ padding: '6px 9px', borderRadius: 9, border: '1px solid transparent', background: C.input, color: C.text, fontSize: 11, fontWeight: 700 }}>
@@ -2318,7 +2339,7 @@ function VirtualExperienceCreatePageInner() {
                                                   <option value="text">Short Answer</option>
                                                   <option value="upload">File Upload</option>
                                                   <option value="linkedin_share">LinkedIn Post Share</option>
-                                                  <option value="task">Deliverable (Checkbox)</option>
+                                                  <option value="task">Deliverable (Brief + Checkbox)</option>
                                                   <option value="briefing">Inbox Email</option>
                                                   <option value="scenario_update">Team Chat Update</option>
                                                   <option value="decision">Chat Decision Thread</option>
@@ -2328,7 +2349,7 @@ function VirtualExperienceCreatePageInner() {
                                                   <option value="excel_review">AI Excel Review</option>
                                                   <option value="document_review">AI Document Review</option>
                                                 </select>
-                                                {!['briefing','scenario_update','decision','debrief'].includes(req.type) && (
+                                                {!['briefing','scenario_update','decision','debrief','task','deliverable'].includes(req.type) && (
                                                   <button
                                                     type="button"
                                                     onClick={() => updateReq(mod.id, les.id, req.id, { emailFrame: !req.emailFrame })}
@@ -2338,10 +2359,23 @@ function VirtualExperienceCreatePageInner() {
                                                     <Mail className="w-3 h-3" /> {req.emailFrame ? 'Email' : 'Email'}
                                                   </button>
                                                 )}
+                                                {(req.type === 'task' || req.type === 'deliverable') && req.emailFrame && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                      updateReq(mod.id, les.id, req.id, convertLegacyEmailDeliverable(req));
+                                                    }}
+                                                    title="Convert the email into the deliverable brief and checkbox presentation"
+                                                    className="flex flex-shrink-0 items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-semibold transition-all"
+                                                    style={{ background: 'rgba(245,158,11,0.12)', color: '#b45309', border: '1px solid rgba(245,158,11,0.35)' }}>
+                                                    <Mail className="h-3 w-3" /> Convert from email
+                                                  </button>
+                                                )}
                                                 <input value={req.label}
                                                   onChange={e => updateReq(mod.id, les.id, req.id, { label: e.target.value })}
                                                   className="flex-1 bg-transparent text-[13px] font-semibold outline-none"
-                                                  style={{ color: C.text }} placeholder="Task description…" />
+                                                  style={{ color: C.text }}
+                                                  placeholder={req.type === 'task' || req.type === 'deliverable' ? 'Deliverable title...' : 'Task description...'} />
                                                 {(() => {
                                                   const groups = (config.modules || [])
                                                     .map(m => ({
@@ -2383,6 +2417,7 @@ function VirtualExperienceCreatePageInner() {
                                                     onChange={html => updateReq(mod.id, les.id, req.id, { description: html })}
                                                     placeholder={req.type === 'briefing' ? 'Write the email body - formatting, bullet points, and images are all supported...' : 'Describe what students should write in their debrief update...'}
                                                     onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
+                                                    onRequestImage={requestRichTextImage}
                                                     enableAiAssist
                                                     enableNameTag
                                                   />
@@ -2427,6 +2462,7 @@ function VirtualExperienceCreatePageInner() {
                                                         onChange={html => updateReq(mod.id, les.id, req.id, { emailBody: html })}
                                                         placeholder="Write the email the manager sends to the student..."
                                                         onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
+                                                        onRequestImage={requestRichTextImage}
                                                         enableAiAssist
                                                         enableNameTag
                                                       />
@@ -2437,10 +2473,67 @@ function VirtualExperienceCreatePageInner() {
                                                       {'Tip: insert {{first_name}} (or type {{name}} for the full name) to greet each student by name.'}
                                                     </p>
                                                   )}
-                                                  <input value={req.description}
-                                                    onChange={e => updateReq(mod.id, les.id, req.id, { description: e.target.value })}
-                                                    style={{ ...inp, background: C.card, fontSize: 12 }}
-                                                    placeholder={req.type === 'mcq' ? 'Hint: which column(s) to analyse…' : req.type === 'upload' ? 'Instructions for the student…' : req.type === 'linkedin_share' ? 'What should they post about?' : 'Prompt or context…'} />
+                                                  {req.type === 'task' || req.type === 'deliverable' ? req.emailFrame ? (
+                                                    <p className="rounded-lg px-3 py-2 text-[11px]" style={{ background: 'rgba(245,158,11,0.10)', color: '#b45309' }}>
+                                                      This legacy deliverable still uses its email body and attachments. Convert it from email to edit the new deliverable brief without losing the instructions learners currently see.
+                                                    </p>
+                                                  ) : (
+                                                    <div className="space-y-3">
+                                                      <div>
+                                                        <p className="mb-2 text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
+                                                          Deliverable instructions
+                                                        </p>
+                                                        <RichTextEditor
+                                                          value={req.descriptionFormat === 'rich' ? req.description : plainTextToRichHtml(req.description)}
+                                                          onChange={html => updateReq(mod.id, les.id, req.id, { description: html, descriptionFormat: 'rich' })}
+                                                          placeholder="Explain the work clearly. Add paragraphs, bullet points, numbered steps, links, images, tables, or examples..."
+                                                          onImageUpload={async (file) => uploadToCloudinary(file, 've-email-images')}
+                                                          onRequestImage={requestRichTextImage}
+                                                          enableAiAssist
+                                                        />
+                                                      </div>
+                                                      <div className="space-y-2">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
+                                                          Resources
+                                                        </p>
+                                                        {(req.attachments || []).map((att, ai) => (
+                                                          <div key={`${att.url}-${ai}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px]" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+                                                            <Paperclip className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} />
+                                                            <span className="flex-1 truncate" style={{ color: C.text }}>{att.name}</span>
+                                                            <button
+                                                              type="button"
+                                                              aria-label={`Remove resource ${att.name}`}
+                                                              title={`Remove resource ${att.name}`}
+                                                              onClick={() => updateReq(mod.id, les.id, req.id, { attachments: req.attachments?.filter((_, i) => i !== ai) })}
+                                                              className="flex-shrink-0 hover:text-red-400"
+                                                              style={{ color: C.faint }}>
+                                                              <X className="h-3.5 w-3.5" />
+                                                            </button>
+                                                          </div>
+                                                        ))}
+                                                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2 text-[12px] transition-opacity hover:opacity-80" style={{ background: C.card, border: `1px dashed ${C.cardBorder}`, color: C.muted }}>
+                                                          <Paperclip className="h-3.5 w-3.5" /> Attach resource
+                                                          <input type="file" className="hidden" onChange={async e => {
+                                                            const file = e.target.files?.[0];
+                                                            if (!file) return;
+                                                            try {
+                                                              const url = await uploadToCloudinary(file, 've-email-attachments');
+                                                              updateReq(mod.id, les.id, req.id, { attachments: [...(req.attachments || []), { name: file.name, url, mimeType: file.type }] });
+                                                            } catch { alert('Upload failed'); }
+                                                            e.target.value = '';
+                                                          }} />
+                                                        </label>
+                                                      </div>
+                                                      <p className="text-[11px]" style={{ color: C.faint }}>
+                                                        Students see these instructions and resources, then use one checkbox to confirm the whole deliverable is complete.
+                                                      </p>
+                                                    </div>
+                                                  ) : (
+                                                    <input value={req.description}
+                                                      onChange={e => updateReq(mod.id, les.id, req.id, { description: e.target.value })}
+                                                      style={{ ...inp, background: C.card, fontSize: 12 }}
+                                                      placeholder={req.type === 'mcq' ? 'Hint: which column(s) to analyse...' : req.type === 'upload' ? 'Instructions for the student...' : req.type === 'linkedin_share' ? 'What should they post about?' : 'Prompt or context...'} />
+                                                  )}
                                                   {req.type === 'linkedin_share' && (
                                                     <>
                                                       <textarea value={req.sharePrompt || ''}
@@ -3103,6 +3196,14 @@ function VirtualExperienceCreatePageInner() {
 
       {/* Bunny Video Picker Modal */}
       <AnimatePresence>
+        {richTextImageLibraryOpen && (
+          <ImageLibrary
+            uploadFolder="ve-email-images"
+            initialFolder="ve-email-images"
+            onSelect={url => resolveRichTextImage(url)}
+            onClose={() => resolveRichTextImage(null)}
+          />
+        )}
         {bunnyPickerOpen && (
           <motion.div
             initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}

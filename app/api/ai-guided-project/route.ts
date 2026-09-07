@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
+import { mergeImprovedVeModules } from '@/lib/ve-ai-improve';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,6 +52,16 @@ const INDUSTRY_TOOLS: Record<string, string[]> = {
   consulting: ['Excel', 'PowerPoint', 'Power BI', 'SQL'],
 };
 
+const attachmentSchema = {
+  type: Type.OBJECT,
+  properties: {
+    name: { type: Type.STRING },
+    url: { type: Type.STRING },
+    mimeType: { type: Type.STRING },
+  },
+  required: ['name', 'url'],
+};
+
 // Requirement schema reused in both generate and improve
 const requirementSchema = {
   type: Type.OBJECT,
@@ -58,6 +69,7 @@ const requirementSchema = {
     id:            { type: Type.STRING },
     label:         { type: Type.STRING },
     description:   { type: Type.STRING },
+    descriptionFormat: { type: Type.STRING },
     type:          { type: Type.STRING }, // includes mcq/task/text plus deterministic simulation and AI reviewer types
     options:       { type: Type.ARRAY, items: { type: Type.STRING } },
     optionFeedback: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -70,6 +82,7 @@ const requirementSchema = {
     aiReview:      { type: Type.BOOLEAN },
     emailFrame:    { type: Type.BOOLEAN },
     emailBody:     { type: Type.STRING },
+    attachments:   { type: Type.ARRAY, items: attachmentSchema },
   },
   required: ['id', 'label', 'description', 'type'],
 };
@@ -148,7 +161,7 @@ These details are fixed. Build the entire project around this company and scenar
       const emailFrameBlock = emailStyle ? `
 
 == EMAIL FRAME MODE (INSTRUCTOR-ENABLED) ==
-Set emailFrame: true on EVERY requirement: tasks, uploads, deliverables, AI reviewer, MCQ, and short-answer/text requirements.
+Set emailFrame: true on uploads, AI reviewer, MCQ, and short-answer/text requirements. Set emailFrame: false on task requirements because tasks use the deliverable brief and checkbox presentation.
 For each requirement with emailFrame: true, write an emailBody field: a short professional email (2-4 sentences) from the manager to the student, describing the specific work they must do. Open with a greeting that addresses the student by name using the literal merge tag {{first_name}} -- keep the double curly braces exactly as written; it is replaced with the student's real first name at runtime, so never invent a name. Plain text only, no HTML tags or bullet lists inside emailBody.
 Example emailBody: "Hi {{first_name}}, please find the dataset attached. Your task for this module is to build a pivot table grouping transactions by region and summing the Amount column. Looking forward to your submission."` : '';
 
@@ -183,9 +196,10 @@ Most lessons: exactly 4 requirements -- 2 MCQ + 1 Task + 1 Short Answer.
   - description: exact columns/filters to use.
   - options: exactly 4 plausible options using real values from the CSV.
   - correctAnswer: must match one option EXACTLY and be derivable from the CSV.
-- Task (type "task"): a hands-on action the student must perform (checkbox to confirm).
-  - label: an imperative action (e.g. "Create a pivot table grouping transactions by region and summing the amount column.").
-  - description: brief context or acceptance criteria.
+- Task (type "task"): one complete deliverable confirmed with a single checkbox.
+  - label: a short deliverable title using an action verb.
+  - description: rich HTML instructions with context, numbered or bulleted steps, and clear acceptance criteria. Use <p>, <ol>, <ul>, <li>, and <strong> where helpful. The internal steps are guidance only and do not create separate completion items.
+  - descriptionFormat: "rich".
   - NO options, NO correctAnswer, NO expectedAnswer.
 - Short Answer (type "text"): an open-ended reflection or interpretation question.
   - label: the question.
@@ -326,9 +340,10 @@ MCQ #2 (type "mcq") -- FORMULA OR INTERPRETATION QUESTION:
 - options: 4 plausible options. correctAnswer: technically or analytically correct.
 
 TASK (type "task"):
-- An imperative hands-on action confirmed by checkbox.
-- label: action verb phrase.
-- description: brief context or acceptance criteria.
+- One complete deliverable confirmed with a single checkbox.
+- label: a short deliverable title using an action verb.
+- description: rich HTML instructions with context, numbered or bulleted steps, and clear acceptance criteria. Use <p>, <ol>, <ul>, <li>, and <strong> where helpful. The internal steps are guidance only and do not create separate completion items.
+- descriptionFormat: "rich".
 - NO options, NO correctAnswer, NO expectedAnswer.
 
 SHORT ANSWER (type "text") -- regular lessons only:
@@ -406,7 +421,7 @@ These details are fixed. Build the entire project around this company and scenar
       const emailFrameBlock = emailStyle ? `
 
 == EMAIL FRAME MODE (INSTRUCTOR-ENABLED) ==
-Set emailFrame: true on EVERY requirement: tasks, uploads, deliverables, AI reviewer, MCQ, and short-answer/text requirements.
+Set emailFrame: true on uploads, AI reviewer, MCQ, and short-answer/text requirements. Set emailFrame: false on task requirements because tasks use the deliverable brief and checkbox presentation.
 For each requirement with emailFrame: true, write an emailBody field: a short professional email (2-4 sentences) from the manager to the student, describing the specific work they must do. Open with a greeting that addresses the student by name using the literal merge tag {{first_name}} -- keep the double curly braces exactly as written; it is replaced with the student's real first name at runtime, so never invent a name. Plain text only, no HTML tags or bullet lists inside emailBody.
 Example emailBody: "Hi {{first_name}}, please find the dataset attached. Your task for this module is to build a pivot table grouping transactions by region and summing the Amount column. Looking forward to your submission."` : '';
 
@@ -491,9 +506,10 @@ MCQ #2 -- FORMULA OR INTERPRETATION QUESTION (type "mcq"):
 - options: 4 plausible options. correctAnswer: technically or analytically correct.
 
 TASK (type "task"):
-- An imperative hands-on action the student must perform in their tool (confirmed by checkbox).
-- label: action verb phrase (e.g. "Create a pivot table grouping transactions by region and summing the amount column.").
-- description: brief context or acceptance criteria.
+- One complete hands-on deliverable confirmed with a single checkbox.
+- label: a short deliverable title using an action verb (e.g. "Build the regional sales pivot table").
+- description: rich HTML instructions with context, numbered or bulleted steps, and clear acceptance criteria. Use <p>, <ol>, <ul>, <li>, and <strong> where helpful. The internal steps are guidance only and do not create separate completion items.
+- descriptionFormat: "rich".
 - NO options, NO correctAnswer, NO expectedAnswer.
 
 SHORT ANSWER (type "text"):
@@ -548,7 +564,7 @@ ${emailFrameBlock}
           lessons: (m.lessons || []).map((l: any) => ({
             id: l.id, title: l.title, body: l.body, videoUrl: l.videoUrl,
             requirements: (l.requirements || []).map((r: any) => ({
-              id: r.id, label: r.label, description: r.description,
+              id: r.id, label: r.label, description: r.description, descriptionFormat: r.descriptionFormat,
               type: r.type, options: r.options, correctAnswer: r.correctAnswer,
               optionFeedback: r.optionFeedback,
               expectedAnswer: r.expectedAnswer,
@@ -559,6 +575,7 @@ ${emailFrameBlock}
               aiReview: r.aiReview,
               emailFrame: r.emailFrame,
               emailBody: r.emailBody,
+              attachments: r.attachments,
             })),
           })),
         })),
@@ -580,7 +597,8 @@ RULES:
 - For "scenario_update": it renders as a Slack/Teams-style project-room message. Use label as the message headline and description as the update body.
 - For "decision": it renders as a chat decision thread. Use options for reply choices and optionFeedback for scripted stakeholder replies shown after each choice. correctAnswer may mark the recommended path but the student is not blocked by choosing another path.
 - For "debrief": it renders as an email composer. Use label as the email subject and description as composer guidance.
-- For "task": no options/correctAnswer/expectedAnswer. For "text": no options/correctAnswer, may have expectedAnswer.
+- For "task": use rich HTML instructions in description, set descriptionFormat to "rich", and include no options/correctAnswer/expectedAnswer. For "text": no options/correctAnswer, may have expectedAnswer.
+- Keep requirement attachments exactly as provided unless the instructor explicitly asks to add or remove a resource.
 - Keep lesson bodies concise (2-3 sentences, plain <p> tags).
 - Return the COMPLETE modules array with ALL existing modules and lessons included.
 `;
@@ -601,6 +619,7 @@ RULES:
         config: {
           ...currentConfig,
           ...applied,
+          modules: mergeImprovedVeModules(currentConfig.modules || [], applied.modules || []),
         },
       });
     }

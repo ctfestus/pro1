@@ -39,6 +39,7 @@ import {
   ChatCard, ChatMsg, ChatTypingMsg, ChatReaction, ChatThread, ChatDecisionButtons, channelFor,
 } from '@/components/ve/ChatCard';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
+import { DeliverableChecklist } from '@/components/ve/DeliverableChecklist';
 
 // Hamburger -- matches the course player (tighter line spacing than lucide's Menu).
 function MenuIcon({ className }: { className?: string }) {
@@ -56,6 +57,7 @@ interface Requirement {
   id: string;
   label: string;
   description: string;
+  descriptionFormat?: 'rich';
   type: 'task' | 'deliverable' | 'reflection' | 'mcq' | 'text' | 'upload' | 'briefing' | 'scenario_update' | 'decision' | 'debrief' | 'dashboard_critique' | 'code_review' | 'excel_review' | 'document_review' | 'linkedin_share';
   sharePrompt?: string;   // linkedin_share: suggested post text the student can copy
   // linkedin_share: only an explicit `true` gates the lesson. Absent/false = optional, never blocks.
@@ -152,8 +154,6 @@ interface Props {
 
 // Helpers
 const REQ_META: Record<string, { label: string; color: string; bg: string }> = {
-  task:        { label: 'Deliverable', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
-  deliverable: { label: 'Deliverable', color: '#10b981', bg: 'rgba(16,185,129,0.12)' },
   reflection:  { label: 'Reflection',  color: '#00b95c', bg: 'rgba(0,185,92,0.12)' },
   briefing:    { label: 'Manager Brief', color: '#3b82f6', bg: 'rgba(59,130,246,0.12)' },
   scenario_update: { label: 'Scenario Update', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
@@ -2720,29 +2720,28 @@ export default function VirtualExperienceTaker({
                       }
 
                       //: Default fallback (task / deliverable / reflection) -
-                      const meta    = REQ_META[req.type] || REQ_META.task;
+                      const meta    = REQ_META[req.type] || REQ_META.reflection;
                       const noteVal = noteValues[req.id] ?? (progress[req.id]?.notes || '');
 
                       // Simple completion items: a clear status circle without an extra response field.
                       if (req.type === 'task' || req.type === 'deliverable') {
                         return (
-                          <div key={req.id} style={rowStyle} className="px-4 sm:px-8 py-4">
-                            <button onClick={() => !reviewMode && toggleReq(req.id)}
-                              className="flex items-start gap-3 w-full text-left"
-                              disabled={reviewMode}>
-                              <div className="flex-shrink-0 mt-0.5">
-                                {done
-                                  ? <CheckCircle2 className="w-4 h-4" style={{ color: accentColor }} />
-                                  : <Circle className="w-5 h-5" style={{ color: accentColor, opacity: 0.5 }} />}
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <span className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</span>
-                                {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-                                {!done && !reviewMode && (
-                                  <p className="text-[11.5px] mt-1 font-semibold" style={{ color: accentColor, opacity: 0.75 }}>Click to mark as done</p>
-                                )}
-                              </div>
-                            </button>
+                          <div
+                            key={req.id}
+                            style={{ ...rowStyle, borderLeft: 'none', background: 'transparent' }}
+                            className="px-4 sm:px-8 py-4">
+                            <DeliverableChecklist
+                              title={req.label}
+                              instructions={req.description}
+                              instructionsFormat={req.descriptionFormat}
+                              attachments={req.attachments}
+                              completed={done}
+                              readOnly={reviewMode}
+                              accentColor={accentColor}
+                              textColor={isDark ? '#f0f0f0' : '#111'}
+                              mutedColor={isDark ? '#888' : '#666'}
+                              onToggle={() => toggleReq(req.id)}
+                            />
                           </div>
                         );
                       }

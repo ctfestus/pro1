@@ -35,6 +35,8 @@ import {
   ChatCard, ChatMsg, ChatTypingMsg, ChatReaction, ChatThread, ChatDecisionButtons, channelFor,
 } from '@/components/ve/ChatCard';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
+import { DeliverableChecklist } from '@/components/ve/DeliverableChecklist';
+import { shouldShowGroupReadyScreen } from '@/lib/ve-assignment-player-state';
 
 // -- Types ---
 
@@ -42,6 +44,7 @@ interface Requirement {
   id: string;
   label: string;
   description: string;
+  descriptionFormat?: 'rich';
   type: 'task' | 'deliverable' | 'reflection' | 'mcq' | 'text' | 'upload' | 'briefing' | 'scenario_update' | 'decision' | 'debrief' | 'dashboard_critique' | 'code_review' | 'excel_review' | 'document_review' | 'linkedin_share';
   sharePrompt?: string;   // linkedin_share: suggested post text the student can copy
   // linkedin_share: only an explicit `true` gates the lesson. Absent/false = optional, never blocks.
@@ -248,7 +251,7 @@ export default function AssignmentExperiencePlayer({
   const prevEntry   = currentIdx > 0 ? flatLessons[currentIdx - 1] : null;
   const nextEntry   = currentIdx < flatLessons.length - 1 ? flatLessons[currentIdx + 1] : null;
   // Review and preview both move between missions freely; a student does not.
-  const navUnlocked = reviewMode || previewMode;
+  const navUnlocked = reviewMode || previewMode || reviewBeforeSubmit;
 
   /**
    * One rule for when a requirement stops holding back the ones after it, used by all three
@@ -542,12 +545,17 @@ export default function AssignmentExperiencePlayer({
     );
   }
 
-  if (!graded && !canSubmit && overallPct >= 100) {
+  if (shouldShowGroupReadyScreen({ graded, canSubmit, overallPct, reviewBeforeSubmit })) {
     return (
       <div className="rounded-2xl p-8 text-center" style={{ background: 'rgba(14,9,221,0.06)' }}>
         <CheckCircle className="w-10 h-10 mx-auto mb-3" style={{ color: accent }}/>
         <p className="text-base font-bold mb-1" style={{ color: accent }}>Ready for Group Submission</p>
-        <p className="text-sm" style={{ color: muted }}>You have completed your preparation. Your group leader will submit the final work.</p>
+        <p className="text-sm mb-5" style={{ color: muted }}>You have completed your preparation. Your group leader will submit the final work.</p>
+        <button onClick={() => setReviewBeforeSubmit(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80"
+          style={{ background: `${accent}12`, color: accent, border: 'none', cursor: 'pointer' }}>
+          Review my missions
+        </button>
       </div>
     );
   }
@@ -1810,8 +1818,27 @@ export default function AssignmentExperiencePlayer({
                           );
                         }
 
-                        // Task / Deliverable / Reflection -- lightweight completion row
-                        if (['task', 'deliverable', 'reflection'].includes(req.type)) {
+                        // Task / Deliverable: rich instructions with one completion checkbox.
+                        if (req.type === 'task' || req.type === 'deliverable') {
+                          return (
+                            <DeliverableChecklist
+                              key={req.id}
+                              title={req.label}
+                              instructions={req.description}
+                              instructionsFormat={req.descriptionFormat}
+                              attachments={req.attachments}
+                              completed={isDone}
+                              readOnly={readOnly}
+                              accentColor={accent}
+                              textColor={text}
+                              mutedColor={muted}
+                              onToggle={() => updateProgress(req.id, { completed: !isDone })}
+                            />
+                          );
+                        }
+
+                        // Reflection: lightweight completion row.
+                        if (req.type === 'reflection') {
                           return (
                             <button key={req.id}
                               disabled={readOnly}
