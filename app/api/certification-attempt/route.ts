@@ -166,7 +166,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = adminClient();
 
-  // -- Student catalog: published certifications assigned to the student's cohort (no questions) --
+  // -- Student catalog: published certifications available to the student (no questions) --
   if (action === 'list') {
     try {
       const { data: student } = await supabase.from('students').select('role, cohort_id').eq('id', sessionUser.id).maybeSingle();
@@ -177,18 +177,20 @@ export async function POST(req: NextRequest) {
         .from('certifications')
         .select('id, title, slug, cert_type, cover_image, badge_image_url, passmark, time_limit, max_attempts, description, cohort_ids, available_to_everyone')
         .eq('status', 'published');
-      // Published learning paths assigned to the student's cohort also grant access to the
-      // certifications they contain, even when the certification's own cohort list does not.
+      // Public or cohort-assigned learning paths also grant access to the certifications they
+      // contain, even when the certification's own cohort list does not.
       // Those surface in the catalog only after the student has attempted them from the path,
       // matching how path-granted courses appear in the Courses section.
       let pathItemIds = new Set<string>();
       let attemptedIds = new Set<string>();
-      if (!privileged && cohortId) {
-        const { data: lps } = await supabase
+      if (!privileged) {
+        const eligiblePaths = supabase
           .from('learning_paths')
           .select('item_ids')
-          .eq('status', 'published')
-          .contains('cohort_ids', [cohortId]);
+          .eq('status', 'published');
+        const { data: lps } = await (cohortId
+          ? eligiblePaths.or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohortId}}`)
+          : eligiblePaths.eq('available_to_everyone', true));
         pathItemIds = new Set((lps ?? []).flatMap((p: any) => Array.isArray(p.item_ids) ? p.item_ids : []));
         if (pathItemIds.size) {
           const { data: atts } = await supabase
