@@ -85,4 +85,16 @@ describe('AI usage telemetry', () => {
     expect(info).not.toHaveBeenCalled();
     info.mockRestore();
   });
+
+  it('never throws when a usage event cannot be serialized', () => {
+    const circular: any = {};
+    circular.self = circular;
+
+    expect(() => logAiUsage({
+      provider: 'gemini',
+      model: 'gemini-3.5-flash',
+      context: { operation: 'document-review', metadata: circular },
+      response: { usageMetadata: { promptTokenCount: 10, candidatesTokenCount: 5 } },
+    })).not.toThrow();
+  });
 });

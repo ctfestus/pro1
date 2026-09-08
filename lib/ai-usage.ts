@@ -120,6 +120,10 @@ export function logAiUsage(args: {
   response: any;
   context?: AiUsageContext;
 }) {
-  if (!args.context) return;
-  console.info('[ai-usage]', JSON.stringify(buildAiUsageEvent(args as Required<typeof args>)));
+  try {
+    if (!args.context) return;
+    console.info('[ai-usage]', JSON.stringify(buildAiUsageEvent(args as Required<typeof args>)));
+  } catch {
+    // Telemetry must never affect an AI review, retry a model call, or trigger a fallback.
+  }
 }
