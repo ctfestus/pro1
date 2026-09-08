@@ -140,6 +140,27 @@ describe('POST /api/certification-attempt learning-path access', () => {
     expect(certifications.every((c: any) => c.cohort_ids === undefined)).toBe(true);
   });
 
+  it('lists an attempted certification from a public path for a learner without a cohort', async () => {
+    authed(makeSupabaseStub({
+      students: { data: { role: 'student', cohort_id: null }, error: null },
+      certifications: {
+        data: [
+          { available_to_everyone: false, id: 'cert1', title: 'Public-path certification', cohort_ids: ['direct-cohort'] },
+          { available_to_everyone: false, id: 'cert2', title: 'Not attempted', cohort_ids: ['direct-cohort'] },
+        ],
+        error: null,
+      },
+      learning_paths: { data: [{ item_ids: ['cert1', 'cert2'] }], error: null },
+      certification_attempts: { data: [{ certification_id: 'cert1' }], error: null },
+    }));
+
+    const res = await post({ action: 'list' });
+
+    expect(res.status).toBe(200);
+    const { certifications } = await res.json();
+    expect(certifications.map((certification: any) => certification.id)).toEqual(['cert1']);
+  });
+
   it('updates learning-path progress when a path-granted attempt is completed with a pass', async () => {
     authed(makeSupabaseStub({
       certifications: { data: pathOnlyCert, error: null },

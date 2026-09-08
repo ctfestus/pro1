@@ -495,7 +495,7 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
     const load = async () => {
       setLoading(true);
       const { data: profile } = await supabase.from('students').select('cohort_id').eq('id', userId).maybeSingle();
-      if (!profile?.cohort_id) { setLoading(false); return; }
+      const cohortId = profile?.cohort_id ?? null;
 
       const veSelect = 'id, title, slug, cover_image, modules, industry, difficulty, role, company, duration, tools, tagline, deadline_days, cohort_ids, status, guide_snapshot';
       const normalizeVe = (ve: any) => ({
@@ -521,12 +521,12 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
         // A virtual experience can now be offered to everyone (migration 186), so a learner with no
         // cohort still has one to show here. Without this branch a public VE unlocks in Explore and
         // then never appears in My Learning, which reads as the toggle not working.
-        (profile.cohort_id
+        (cohortId
           ? supabase
               .from('virtual_experiences')
               .select(veSelect)
               .eq('status', 'published')
-              .or(`available_to_everyone.eq.true,cohort_ids.cs.{${profile.cohort_id}}`)
+              .or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohortId}}`)
           : supabase
               .from('virtual_experiences')
               .select(veSelect)
@@ -560,12 +560,14 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
 
       if (forms.length) {
         const ids = forms.map((f: any) => f.id);
-        const { data: assignments } = await supabase
-          .from('cohort_assignments')
-          .select('content_id, assigned_at')
-          .eq('cohort_id', profile.cohort_id)
-          .eq('content_type', 'virtual_experience')
-          .in('content_id', ids);
+        const { data: assignments } = cohortId
+          ? await supabase
+              .from('cohort_assignments')
+              .select('content_id, assigned_at')
+              .eq('cohort_id', cohortId)
+              .eq('content_type', 'virtual_experience')
+              .in('content_id', ids)
+          : { data: [] as any[] };
         const attMap: Record<string, any> = {};
         for (const a of attRows ?? []) attMap[a.ve_id] = a;
         setAttempts(attMap);
