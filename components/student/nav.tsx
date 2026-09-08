@@ -28,7 +28,7 @@ export const NAV_ITEMS = [
   { id: 'certificates',      label: 'Certificates',        Icon: Award           },
   { id: 'badges',            label: 'Badges',              Icon: Medal           },
   { id: 'ai_toolkit',        label: 'AI Toolkit',          Icon: Sparkles, badge: 'New' },
-  { id: 'payments',          label: 'Payments',            Icon: CreditCard      },
+  { id: 'payments',          label: 'My Plan',             Icon: CreditCard      },
 ] as const;
 export type SectionId = typeof NAV_ITEMS[number]['id'];
 

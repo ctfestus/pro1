@@ -168,7 +168,7 @@ function PaymentOptionsTab({ C, getToken }: { C: typeof LIGHT_C; getToken: () =>
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-base font-bold" style={{ color: C.text }}>Payment Options</h3>
-          <p className="text-xs mt-0.5" style={{ color: C.faint }}>Global options shown to all students on the Payments page.</p>
+          <p className="text-xs mt-0.5" style={{ color: C.faint }}>Global options shown to all students on the My Plan page.</p>
         </div>
         <button onClick={() => { setEditing(blank()); setSaveErr(''); }}
           className="flex items-center gap-1.5 text-sm font-semibold px-3 py-2 rounded-xl transition-opacity hover:opacity-80"
