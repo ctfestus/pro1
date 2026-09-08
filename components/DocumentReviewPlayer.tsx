@@ -48,6 +48,8 @@ interface Props {
   onComplete: (result: ReviewResult, passed: boolean) => void;
 }
 
+const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+
 function severityColor(s: SectionIssue['severity']) {
   if (s === 'critical')    return '#ef4444';
   if (s === 'improvement') return '#f59e0b';
@@ -103,6 +105,12 @@ export default function DocumentReviewPlayer({
     const ext = f.name.split('.').pop()?.toLowerCase();
     if (!['pdf', 'docx', 'doc', 'txt'].includes(ext ?? '')) {
       setError('Only PDF, DOCX, DOC, and TXT files are supported.');
+      return;
+    }
+    if (f.size > MAX_DOCUMENT_BYTES) {
+      setFile(null);
+      setError('File too large. Maximum size is 10 MB.');
+      if (inputRef.current) inputRef.current.value = '';
       return;
     }
     setFile(f);

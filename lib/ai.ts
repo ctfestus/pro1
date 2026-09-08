@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import OpenAI from 'openai';
+import { logAiUsage, type AiUsageContext } from '@/lib/ai-usage';
 
 // All model names come from env -- no hardcoding
 // The 2.x line is closed to new API keys: it returns 404 NOT_FOUND rather than degrading, so a
@@ -62,6 +63,9 @@ export type GenerateJSONOpts = {
   // cannot ask for structure without replacing this. Only override where the output is
   // rendered as rich text and is never persisted as course content.
   systemInstruction?: string;
+  // Optional operational label. When supplied, the shared provider boundary emits one
+  // structured usage event per paid model call, including retries and fallbacks.
+  usageContext?: AiUsageContext;
 };
 
 function isRetryableGeminiError(err: unknown) {
@@ -103,6 +107,12 @@ async function generateGeminiJSON(
         contents: prompt,
         config,
       });
+      logAiUsage({
+        provider: 'gemini',
+        model: opts.geminiModel || GEMINI_MODEL,
+        response: result,
+        context: opts.usageContext ? { ...opts.usageContext, attempt: attempt + 1 } : undefined,
+      });
       // result.text silently returns partial JSON when the output budget runs out.
       if (result.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
         throw new Error('Gemini response truncated (MAX_TOKENS)');
@@ -134,6 +144,12 @@ async function generateGeminiText(prompt: string, opts: GenerateJSONOpts = {}) {
         model: opts.geminiModel || GEMINI_MODEL,
         contents: prompt,
         config,
+      });
+      logAiUsage({
+        provider: 'gemini',
+        model: opts.geminiModel || GEMINI_MODEL,
+        response: result,
+        context: opts.usageContext ? { ...opts.usageContext, attempt: attempt + 1 } : undefined,
       });
       // Deliberately NOT treating a MAX_TOKENS finish as an error the way the JSON path must:
       // a cut-off sentence is still a usable answer, while cut-off JSON is unparseable. That
@@ -180,6 +196,7 @@ export async function generateText(prompt: string, opts: GenerateJSONOpts = {}):
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
       ...(opts.maxOutputTokens ? { max_tokens: opts.maxOutputTokens } : {}),
     });
+    logAiUsage({ provider: 'openai', model: OPENAI_MODEL, response: res, context: opts.usageContext });
     const text = (res.choices[0]?.message?.content ?? '').trim();
     if (!text) throw err;
     return text;
@@ -211,6 +228,7 @@ export async function generateJSON(
       ],
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
     });
+    logAiUsage({ provider: 'openai', model: OPENAI_MODEL, response: res, context: opts.usageContext });
     return safeJSON(res.choices[0]?.message?.content ?? '{}');
   }
 }
@@ -220,7 +238,7 @@ export async function generateVisionJSON(
   prompt: string,
   image: { data: string; mimeType: string },
   geminiSchema?: any,
-  opts: { temperature?: number } = {},
+  opts: Pick<GenerateJSONOpts, 'temperature' | 'usageContext'> = {},
 ): Promise<any> {
   try {
     const config: any = {
@@ -235,6 +253,7 @@ export async function generateVisionJSON(
       contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: image.mimeType, data: image.data } }] }],
       config,
     });
+    logAiUsage({ provider: 'gemini', model: GEMINI_MODEL, response: result, context: opts.usageContext });
     return safeJSON(result.text ?? '{}');
   } catch (err) {
     console.warn('[AI] Gemini vision failed, falling back to OpenAI:', (err as Error).message);
@@ -258,6 +277,7 @@ export async function generateVisionJSON(
       ],
       ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
     });
+    logAiUsage({ provider: 'openai', model: OPENAI_MODEL, response: res, context: opts.usageContext });
     return safeJSON(res.choices[0]?.message?.content ?? '{}');
   }
 }

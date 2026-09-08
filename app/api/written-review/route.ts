@@ -233,7 +233,18 @@ Return ONLY valid JSON. No markdown fences.`;
   if (rateLimitError) return rateLimitError;
 
   try {
-    const parsed = await generateJSON(prompt, responseSchema, { temperature: 0.3 });
+    const parsed = await generateJSON(prompt, responseSchema, {
+      temperature: 0.3,
+      usageContext: {
+        operation: 'written-review',
+        metadata: {
+          answerChars: studentAnswer.length,
+          depth: brief ? 'brief' : 'full',
+          contextChars: context.length,
+          rubricCriteria: rubric.length,
+        },
+      },
+    });
     const arr = (value: unknown) => (Array.isArray(value) ? value : []);
     const score = Number(parsed?.overallScore);
     return NextResponse.json({
