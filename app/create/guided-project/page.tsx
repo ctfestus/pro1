@@ -305,13 +305,16 @@ function normalizeToolList(tools: readonly string[] | undefined): string[] {
 }
 
 
-function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken }: {
+function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, note }: {
   criteria: string[];
   onChange: (rubric: string[]) => void;
   onImport: (criteria: string[]) => void;
   C: typeof LIGHT_C;
   inp: React.CSSProperties;
   sessionToken?: string;
+  // Only the review types whose pass gate reads the rubric pass one, so the copy stays true
+  // for the types still gated on the AI quality score.
+  note?: string;
 }) {
   const [draft, setDraft] = useState('');
   const [extracting, setExtracting] = useState<RubricImportKind | null>(null);
@@ -356,6 +359,7 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken }: {
           · optional · AI grades each criterion as Pass / Fail
         </span>
       </p>
+      {note && <p className="text-[11px]" style={{ color: C.faint }}>{note}</p>}
       {sessionToken && (
         <div className="space-y-1.5">
           <RubricFileImportActions
@@ -2828,14 +2832,14 @@ function VirtualExperienceCreatePageInner() {
                                                   <div className="flex items-center gap-3">
                                                     <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>Minimum pass score</p>
                                                     <input
-                                                      type="number" min={0} max={10} step={0.5}
+                                                      type="number" min={0} max={100} step={5}
                                                       value={req.minScore ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-                                                      placeholder="0"
+                                                      placeholder="70"
                                                       className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
                                                       style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }}
                                                     />
-                                                    <p className="text-[11px]" style={{ color: C.muted }}>out of 10 · leave blank for no gate</p>
+                                                    <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for no gate</p>
                                                   </div>
                                                   <RubricBuilder
                                                     criteria={req.rubric ?? []}
@@ -2868,14 +2872,14 @@ function VirtualExperienceCreatePageInner() {
                                                   <div className="flex items-center gap-3">
                                                     <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>Minimum pass score</p>
                                                     <input
-                                                      type="number" min={0} max={10} step={0.5}
+                                                      type="number" min={0} max={100} step={5}
                                                       value={req.minScore ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
-                                                      placeholder="0"
+                                                      placeholder="70"
                                                       className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
                                                       style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }}
                                                     />
-                                                    <p className="text-[11px]" style={{ color: C.muted }}>out of 10 · leave blank for no gate</p>
+                                                    <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for no gate</p>
                                                   </div>
                                                   <RubricBuilder
                                                     criteria={req.rubric ?? []}
@@ -2884,6 +2888,7 @@ function VirtualExperienceCreatePageInner() {
                                                     C={C}
                                                     inp={inp}
                                                     sessionToken={sessionToken}
+                                                    note="With criteria set, the pass mark measures the share of criteria the workbook meets, not the general quality score."
                                                   />
                                                 </div>
                                               )}

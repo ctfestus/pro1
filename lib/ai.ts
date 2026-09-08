@@ -76,7 +76,17 @@ function isRetryableGeminiError(err: unknown) {
   const message = String(error?.message ?? '').toLowerCase();
   const causeMessage = String(error?.cause?.message ?? '').toLowerCase();
   const code = String(error?.cause?.code ?? '');
+  // Gemini sheds load with a 503 UNAVAILABLE ("this model is currently experiencing high demand")
+  // that clears within seconds. Left unretried it surfaced as a hard failure on the caller -- and
+  // where no OpenAI key is configured there is no second chance at all.
+  const overloaded =
+    message.includes('unavailable') ||
+    message.includes('overloaded') ||
+    message.includes('high demand') ||
+    message.includes('"code":503') ||
+    message.includes('503 ');
   return (
+    overloaded ||
     message.includes('fetch failed') ||
     message.includes('econnreset') ||
     message.includes('truncated') ||

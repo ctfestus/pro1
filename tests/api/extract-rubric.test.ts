@@ -84,6 +84,33 @@ describe('POST /api/extract-rubric - Markdown rubric import', () => {
     expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 
+  it('asks for retries so one busy moment does not end the import', async () => {
+    mockGenerateJSON.mockResolvedValue({ criteria: ['Accuracy is at least 95%'] });
+    await postFile(new File(['# Rubric heading', '- Accuracy is at least 95%'], 'rubric.md', { type: 'text/markdown' }), 'rubric');
+    expect(mockGenerateJSON.mock.calls[0][2]).toMatchObject({ geminiRetries: 2 });
+  });
+
+  it('says the AI service is busy rather than blaming the file', async () => {
+    mockGenerateJSON.mockRejectedValue(new Error(JSON.stringify({
+      error: { code: 503, message: 'This model is currently experiencing high demand.', status: 'UNAVAILABLE' },
+    })));
+
+    const response = await postFile(new File(['# Rubric heading', '- Accuracy is at least 95%'], 'rubric.md', { type: 'text/markdown' }), 'rubric');
+
+    expect(response.status).toBe(503);
+    const { error } = await response.json();
+    expect(error).toContain('Your file is fine');
+  });
+
+  it('still reports an unusable file as an extraction failure', async () => {
+    mockGenerateJSON.mockRejectedValue(new Error('Unexpected token in JSON'));
+
+    const response = await postFile(new File(['# Rubric heading', '- Accuracy is at least 95%'], 'rubric.md', { type: 'text/markdown' }), 'rubric');
+
+    expect(response.status).toBe(500);
+    expect(await response.json()).toEqual({ error: 'Failed to extract rubric from file' });
+  });
+
   it('rejects a Markdown rubric over the import size limit', async () => {
     const response = await postFile(
       new File(['a'.repeat(200_001)], 'rubric.md', { type: 'text/markdown' }),

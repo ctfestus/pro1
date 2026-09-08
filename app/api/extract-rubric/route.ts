@@ -7,6 +7,9 @@ import ExcelJS from 'exceljs';
 import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 
 export const dynamic = 'force-dynamic';
+// A rubric of any size takes 20s or more on a thinking model, and the retries below stack on top
+// of that. Without this the platform default can cut the request off mid-call.
+export const maxDuration = 120;
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const MAX_SHEETS = 5;
@@ -157,6 +160,7 @@ export async function POST(req: NextRequest) {
       const prompt = `You are an expert assessment designer. The instructor has uploaded ${docDescription} (an Excel/spreadsheet file). Analyse the content below and extract clear, specific, measurable rubric criteria that an AI reviewer can use to grade student submissions. Extract as many criteria as the file warrants -- one criterion per distinct requirement, skill, or standard present in the file. Return each as a concise action-oriented statement.\n\nFile content:\n${text}`;
       parsed = await generateJSON(prompt, responseSchema, {
         temperature: 0.3,
+        geminiRetries: 2,
         usageContext: {
           operation: 'extract-rubric',
           metadata: { ...usageMetadata, extractedChars: text.length, sourceKind: 'excel' },
@@ -169,6 +173,7 @@ export async function POST(req: NextRequest) {
         : `You are an expert assessment designer. The instructor has uploaded ${docDescription}. Analyse the content below and extract clear, specific, measurable rubric criteria that an AI reviewer can use to grade student submissions. Extract as many criteria as the file warrants -- one criterion per distinct requirement, skill, or standard present in the file. Return each as a concise action-oriented statement.\n\nFile content:\n${text}`;
       parsed = await generateJSON(prompt, responseSchema, {
         temperature: 0.3,
+        geminiRetries: 2,
         usageContext: {
           operation: 'extract-rubric',
           metadata: { ...usageMetadata, extractedChars: text.length, sourceKind: 'text' },
@@ -213,6 +218,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ criteria });
   } catch (err: any) {
     console.error('[extract-rubric]', err);
+    // "Failed to extract rubric from file" sent instructors hunting through a file that was never
+    // the problem. A busy model is the common failure and it says so.
+    const message = String(err?.message ?? '').toLowerCase();
+    if (message.includes('unavailable') || message.includes('overloaded') || message.includes('high demand') || message.includes('503')) {
+      return NextResponse.json(
+        { error: 'The AI service is busy right now. Your file is fine - please try the import again in a moment.' },
+        { status: 503 },
+      );
+    }
     return NextResponse.json({ error: 'Failed to extract rubric from file' }, { status: 500 });
   }
 }
