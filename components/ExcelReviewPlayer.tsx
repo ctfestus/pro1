@@ -7,6 +7,7 @@ import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import { reviewGate, reviewPassed } from '@/lib/review-gate';
 
 interface RubricGrade { criterion: string; passed: boolean; comment: string; }
 interface SheetIssue {
@@ -30,6 +31,9 @@ interface ReviewResult {
   categories: CategoryScore[];
   topRecommendations: string[];
   rubricGrades?: RubricGrade[];
+  rubricScore?: number | null;
+  rubricCriteriaCount?: number;
+  rubricUngraded?: number;
 }
 
 interface Props {
@@ -125,8 +129,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setResult(json);
-      const passed = !minScore || json.overallScore >= minScore;
-      onComplete(json, passed);
+      onComplete(json, reviewPassed(json, minScore, json.rubricCriteriaCount ?? rubric?.length ?? 0));
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
       onReviewError?.();
@@ -223,6 +226,23 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
   }
 
   const legacyReportEnabled = false as boolean;
+
+  // Where the instructor set criteria, those decide the gate -- the quality score below is
+  // commentary on the formulas that are present, not a measure of whether the task was done.
+  // Criteria count, not grade count: a criterion the AI skipped still counts against the pass
+  // mark, so the denominator has to be what the instructor set. `rubricCriteriaCount` comes back
+  // with the review; the `rubric` prop covers a report saved before the route sent it.
+  const criteriaCount = result.rubricCriteriaCount ?? rubric?.length ?? 0;
+  const gate = reviewGate(result, criteriaCount);
+  const rubricTotal = Math.max(criteriaCount, result.rubricGrades?.length ?? 0);
+  const rubricPassedCount = result.rubricGrades?.filter(g => g.passed).length ?? 0;
+  // The AI occasionally skips a criterion or grades another twice despite being told not to, and
+  // the route retries once when it does. Where it persists, those criteria come back as explicit
+  // failures and the count below says so, rather than a pass mark that quietly dropped them.
+  const ungradedCriteria = gate.fromRubric
+    ? result.rubricUngraded ?? Math.max(0, criteriaCount - (result.rubricGrades?.length ?? 0))
+    : 0;
+  const gradedCount = rubricTotal - ungradedCriteria;
 
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
@@ -377,12 +397,14 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       </>}
 
       {/* Completion / gate */}
-      {minScore && result.overallScore < minScore ? (
+      {minScore && gate.score < minScore ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached | {result.overallScore.toFixed(1)}/100 | Required: {minScore}/100
+              {gate.fromRubric
+                ? `Rubric not met | ${rubricPassedCount} of ${rubricTotal} criteria passed (${gate.score.toFixed(1)}/100) | Required: ${minScore}/100`
+                : `Minimum score not reached | ${gate.score.toFixed(1)}/100 | Required: ${minScore}/100`}
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, update your workbook, and submit another review.</p>
           </div>
@@ -391,9 +413,16 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
           <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
-            Review complete | {result.issues.length} finding{result.issues.length !== 1 ? 's' : ''} identified
+            {gate.fromRubric
+              ? `Review complete | ${rubricPassedCount} of ${rubricTotal} criteria passed | ${result.issues.length} finding${result.issues.length !== 1 ? 's' : ''} identified`
+              : `Review complete | ${result.issues.length} finding${result.issues.length !== 1 ? 's' : ''} identified`}
           </p>
         </div>
+      )}
+      {ungradedCriteria > 0 && (
+        <p style={{ fontSize: 11, color: muted }}>
+          The AI graded {gradedCount} of {criteriaCount} rubric criteria. Criteria it did not grade count as not met.
+        </p>
       )}
     </div>
   );

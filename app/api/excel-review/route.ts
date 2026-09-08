@@ -6,6 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import ExcelJS from 'exceljs';
+import { collectRubricGrades, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -147,16 +148,24 @@ const responseSchema = {
       items: {
         type: Type.OBJECT,
         properties: {
-          criterion: { type: Type.STRING },
-          passed:    { type: Type.BOOLEAN },
-          comment:   { type: Type.STRING },
+          id:      { type: Type.NUMBER },
+          passed:  { type: Type.BOOLEAN },
+          comment: { type: Type.STRING },
         },
-        required: ['criterion', 'passed', 'comment'],
+        required: ['id', 'passed', 'comment'],
       },
     },
   },
   required: ['overallScore', 'executiveSummary', 'issues', 'categories', 'topRecommendations'],
 };
+
+// With a rubric in play the grades decide whether the student passes, so they cannot be optional:
+// left out of `required`, the model drops them often enough that the gate would silently fall back
+// to the quality score -- the exact behaviour this route is meant to stop.
+function schemaFor(hasRubric: boolean) {
+  if (!hasRubric) return responseSchema;
+  return { ...responseSchema, required: [...responseSchema.required, 'rubricGrades'] };
+}
 
 const SYSTEM_PROMPT = `You are a panel of senior Excel specialists -- a Financial Modeller, Finance Analyst, Fintech Analyst, Business Intelligence Analyst, Data Analyst, and Data Scientist -- each with 15+ years of hands-on Excel experience working across African business contexts including banking, fintech, FMCG, telecoms, retail, healthcare, and public sector.
 
@@ -188,6 +197,10 @@ Score three categories 0-100:
 - "Formula Correctness": are the formulas logically and syntactically correct?
 - "Formula Choice": are the right functions being used for each task?
 - "Value Accuracy": do the computed values match the expected outputs?
+
+Score honestly. 80 and above must be genuinely earned, and work that skipped part of the task cannot reach it. Judge the spreadsheet against what it was asked to do, not only against the quality of the formulas that happen to be present. Work that is missing is a failure, not a neutral absence.
+
+A cell holding a typed constant where the task calls for a calculation is an "error" of the highest severity, never an acceptable answer. In the extracted contents below, a formula cell is listed as "=..." and a constant is listed as a bare value, so a required cell with no "=" was never converted. It produces the right number without the required formula, so it earns no credit for that requirement and must pull down Formula Correctness and Value Accuracy.
 
 Also provide:
 - overallScore: weighted average (one decimal)
@@ -233,24 +246,58 @@ export async function POST(req: NextRequest) {
       : '';
 
     const rubricBlock = rubric.length > 0
-      ? `\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION\nGrade every criterion with a "passed" boolean and a 1-2 sentence "comment".\n\nCriteria:\n${rubric.map((c, i) => `${i + 1}. ${c}`).join('\n')}\n`
+      ? `\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION BY ID\nThis rubric is what the student was actually asked to do, and it decides whether they pass. Return one "rubricGrades" entry per criterion: its "id" exactly as numbered below, a "passed" boolean, and a 1-2 sentence "comment" naming the cells or sheets you checked.\n\nGrade every id exactly once. Ids you omit are marked as not met and count against the student, ids you repeat are ignored after the first, and ids that are not on this list are discarded -- so a criterion you skip cannot be made up for by grading another one twice.\n\nMark a criterion "passed" only when the extracted contents show it was met. Absence of evidence is a fail, not a pass: if a criterion requires formulas in named cells and those cells hold constants, or are missing entirely, it fails. Never pass a criterion because the displayed value looks right.\n\nCriteria:\n${rubric.map((c, i) => `id ${rubricCriterionId(i)}: ${c}`).join('\n')}\n`
       : '';
 
     const prompt = `${SYSTEM_PROMPT}${contextBlock}${rubricBlock}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
 
-    const parsed = await generateJSON(prompt, responseSchema, {
-      temperature: 0.2,
-      usageContext: {
-        operation: 'excel-review',
-        metadata: {
-          fileBytes: file.size,
-          extractedChars: extracted.length,
-          contextChars: context.length,
-          rubricCriteria: rubric.length,
-        },
+    const schema = schemaFor(rubric.length > 0);
+    const usageContext = {
+      operation: 'excel-review',
+      metadata: {
+        fileBytes: file.size,
+        extractedChars: extracted.length,
+        contextChars: context.length,
+        rubricCriteria: rubric.length,
       },
+    };
+    // The narrative half of the review always comes from the first attempt; only the grades
+    // merge, so the report a student reads is one coherent response rather than two spliced.
+    const parsed = await generateJSON(prompt, schema, { temperature: 0.2, usageContext });
+
+    if (rubric.length === 0) return NextResponse.json({ ...parsed, rubricScore: null });
+
+    let graded = collectRubricGrades(rubric, parsed?.rubricGrades);
+
+    // An ungraded criterion counts as not met, so a response that skipped one would fail the
+    // student for the model's sloppiness. Ask once more before that happens and merge the two
+    // responses: the retry fills in the criteria the first attempt left out, and where both graded
+    // the same criterion the first attempt's verdict stands. Choosing one whole response instead
+    // would throw away a retry that covered different criteria rather than more of them.
+    if (graded.ungraded > 0) {
+      try {
+        const retry = await generateJSON(prompt, schema, {
+          temperature: 0.2,
+          usageContext: { ...usageContext, metadata: { ...usageContext.metadata, gradeRetry: true } },
+        });
+        graded = collectRubricGrades(rubric, parsed?.rubricGrades, retry?.rubricGrades);
+      } catch (err) {
+        console.warn('excel-review: rubric grade retry failed', err);
+      }
+      if (graded.ungraded > 0) {
+        console.warn(`excel-review: graded ${graded.covered}/${rubric.length} criteria after retry`);
+      }
+    }
+
+    // The pass gate reads this, not overallScore. Computed here so every consumer -- the VE
+    // player, the course player, and any saved report re-rendered later -- gates identically.
+    return NextResponse.json({
+      ...parsed,
+      rubricGrades: graded.grades,
+      rubricScore: rubricPassRate(graded.grades, rubric.length),
+      rubricCriteriaCount: rubric.length,
+      rubricUngraded: graded.ungraded,
     });
-    return NextResponse.json(parsed);
   } catch (err: any) {
     console.error('excel-review error:', err);
     return NextResponse.json({
