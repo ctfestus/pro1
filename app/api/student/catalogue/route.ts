@@ -160,9 +160,9 @@ export async function GET(req: NextRequest) {
       }));
 
     const items: CatalogueItem[] = [
-      // available_to_everyone exists only on courses and certifications. Paths and virtual
-      // experiences are cohort-assigned, so for an account with no cohort they are all locked --
-      // which is exactly what an Explore page is for.
+      // All four catalogue types can be offered to everyone. Otherwise direct access comes from
+      // the learner's cohort, while courses, virtual experiences, and certifications can also
+      // inherit access from an eligible learning path.
       ...map(courses, 'course', true),
       ...map(paths, 'learning_path', false),
       ...map(ves, 'virtual_experience', true),
