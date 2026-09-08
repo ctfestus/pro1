@@ -189,7 +189,17 @@ export async function POST(req: NextRequest) {
     const dialectLabel = dialect ? ` (${dialect})` : '';
     const fullPrompt = `${systemPrompt}${rubricSection}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
 
-    const parsed = await generateJSON(fullPrompt, responseSchema, { temperature: 0.25 });
+    const parsed = await generateJSON(fullPrompt, responseSchema, {
+      temperature: 0.25,
+      usageContext: {
+        operation: 'code-review',
+        metadata: {
+          codeChars: code.length,
+          language: String(language),
+          rubricCriteria: Array.isArray(rubric) ? rubric.length : 0,
+        },
+      },
+    });
     return NextResponse.json(parsed);
   } catch (err: any) {
     console.error('code-review error:', err);

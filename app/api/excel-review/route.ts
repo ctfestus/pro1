@@ -238,7 +238,18 @@ export async function POST(req: NextRequest) {
 
     const prompt = `${SYSTEM_PROMPT}${contextBlock}${rubricBlock}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
 
-    const parsed = await generateJSON(prompt, responseSchema, { temperature: 0.2 });
+    const parsed = await generateJSON(prompt, responseSchema, {
+      temperature: 0.2,
+      usageContext: {
+        operation: 'excel-review',
+        metadata: {
+          fileBytes: file.size,
+          extractedChars: extracted.length,
+          contextChars: context.length,
+          rubricCriteria: rubric.length,
+        },
+      },
+    });
     return NextResponse.json(parsed);
   } catch (err: any) {
     console.error('excel-review error:', err);

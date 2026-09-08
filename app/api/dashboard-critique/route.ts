@@ -259,7 +259,17 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = SYSTEM_PROMPT + rubricSection;
 
-    const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, responseSchema, { temperature: 0.35 });
+    const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, responseSchema, {
+      temperature: 0.35,
+      usageContext: {
+        operation: 'dashboard-critique',
+        metadata: {
+          imageBytesApprox: Math.floor(imageBase64.length * 0.75),
+          mimeType,
+          rubricCriteria: Array.isArray(rubric) ? rubric.length : 0,
+        },
+      },
+    });
     return NextResponse.json(parsed);
   } catch (err: any) {
     console.error('dashboard-critique error:', err);

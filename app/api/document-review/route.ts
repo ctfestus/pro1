@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import { GoogleGenAI } from '@google/genai';
+import { logAiUsage } from '@/lib/ai-usage';
 
 export const dynamic = 'force-dynamic';
 
@@ -190,6 +191,20 @@ export async function POST(req: NextRequest) {
         responseMimeType: 'application/json',
         responseSchema,
         temperature: 0.2,
+      },
+    });
+    logAiUsage({
+      provider: 'gemini',
+      model: GEMINI_MODEL,
+      response: result,
+      context: {
+        operation: 'document-review',
+        metadata: {
+          fileBytes: file.size,
+          fileType: ext,
+          contextChars: context.length,
+          rubricCriteria: rubric.length,
+        },
       },
     });
 
