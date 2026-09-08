@@ -11,7 +11,7 @@ export const dynamic = 'force-dynamic';
 
 const RATE_LIMIT = 3;
 const RATE_WINDOW_SECONDS = 86400;
-const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
+const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
 const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
 
 const SUPPORTED_MIME: Record<string, string> = {
@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Only PDF, DOCX, DOC, and TXT files are supported.' }, { status: 400 });
     }
     if (file.size > MAX_FILE_BYTES) {
-      return NextResponse.json({ error: 'File too large. Maximum size is 20 MB.' }, { status: 413 });
+      return NextResponse.json({ error: 'File too large. Maximum size is 10 MB.' }, { status: 413 });
     }
 
     // Rate limit checked after validation so bad requests don't burn credits

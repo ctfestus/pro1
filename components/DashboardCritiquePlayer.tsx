@@ -57,6 +57,48 @@ interface Props {
   onComplete: (result: CritiqueResult, imageDataUrl: string, passed: boolean) => void;
 }
 
+const MAX_DASHBOARD_LONG_EDGE = 1600;
+
+function readFileAsDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => reject(reader.error ?? new Error('Could not read the image.'));
+    reader.readAsDataURL(file);
+  });
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error('Could not decode the image.'));
+    image.src = dataUrl;
+  });
+}
+
+async function prepareDashboardImage(file: File): Promise<{ dataUrl: string; mimeType: string }> {
+  const originalDataUrl = await readFileAsDataUrl(file);
+  const image = await loadImage(originalDataUrl);
+  const longEdge = Math.max(image.naturalWidth, image.naturalHeight);
+  if (longEdge <= MAX_DASHBOARD_LONG_EDGE) {
+    return { dataUrl: originalDataUrl, mimeType: file.type };
+  }
+
+  const scale = MAX_DASHBOARD_LONG_EDGE / longEdge;
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext('2d');
+  if (!context) throw new Error('Could not resize the image.');
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  // Keep dashboard text lossless after resizing so labels and legends remain readable.
+  return { dataUrl: canvas.toDataURL('image/png'), mimeType: 'image/png' };
+}
+
 const TYPE_COLORS: Record<string, string> = {
   HEADER:         '#f59e0b',
   KPI_CARD:       '#3b82f6',
@@ -101,39 +143,33 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
     setAnalyzing(true);
     onReviewStart?.();
 
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const dataUrl = e.target?.result as string;
+    try {
+      const { dataUrl, mimeType } = await prepareDashboardImage(file);
       setImageDataUrl(dataUrl);
 
       // Strip the data:image/...;base64, prefix
       const base64 = dataUrl.split(',')[1];
-      const mimeType = file.type;
-
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const res = await fetch('/api/dashboard-critique', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-          },
-          body: JSON.stringify({ imageBase64: base64, mimeType, ...(rubric?.length ? { rubric } : {}) }),
-        });
-        const json = await res.json();
-        if (json.error) throw new Error(json.error);
-        setResult(json);
-        const score = (json as CritiqueResult).audit?.overallScore ?? 100;
-        const passed = !minScore || score >= minScore;
-        onComplete(json, dataUrl, passed);
-      } catch (err: any) {
-        setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
-        onReviewError?.();
-      } finally {
-        setAnalyzing(false);
-      }
-    };
-    reader.readAsDataURL(file);
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch('/api/dashboard-critique', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+        },
+        body: JSON.stringify({ imageBase64: base64, mimeType, ...(rubric?.length ? { rubric } : {}) }),
+      });
+      const json = await res.json();
+      if (json.error) throw new Error(json.error);
+      setResult(json);
+      const score = (json as CritiqueResult).audit?.overallScore ?? 100;
+      const passed = !minScore || score >= minScore;
+      onComplete(json, dataUrl, passed);
+    } catch (err: any) {
+      setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
+      onReviewError?.();
+    } finally {
+      setAnalyzing(false);
+    }
   }, [onComplete, onReviewStart, onReviewError, rubric, minScore]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {

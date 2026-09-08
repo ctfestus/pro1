@@ -238,7 +238,7 @@ export async function generateVisionJSON(
   prompt: string,
   image: { data: string; mimeType: string },
   geminiSchema?: any,
-  opts: GenerateJSONOpts = {},
+  opts: Pick<GenerateJSONOpts, 'temperature' | 'usageContext'> = {},
 ): Promise<any> {
   try {
     const config: any = {
