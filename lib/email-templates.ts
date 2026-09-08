@@ -1015,13 +1015,13 @@ export function gracePeriodWarningEmail(data: {
     <div style="margin:20px 0;padding:16px;background:#f9fafb;border-radius:0;border:1px solid #e5e7eb;">
       <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">How to pay</p>
       <ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">
-        <li>Go to your dashboard and open the <b>Payments</b> section</li>
+        <li>Go to your dashboard and open <b>My Plan</b></li>
         <li>Submit a payment confirmation with your method, reference, and amount</li>
         <li>Your access will be restored once an admin approves your payment</li>
       </ol>
     </div>
 
-    ${cta('Go to Payments', `${dashboardUrl}#payments`)}
+    ${cta('Go to My Plan', `${dashboardUrl}#payments`)}
 
     <p style="color:#6b7280;font-size:13px;">If you have already made this payment, please submit a confirmation so our team can verify and restore your full access.</p>
 
@@ -1081,15 +1081,15 @@ export function overdueNotificationEmail(data: {
     <div style="margin:20px 0;padding:16px;background:#f9fafb;border-radius:0;border:1px solid #e5e7eb;">
       <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#6b7280;text-transform:uppercase;letter-spacing:0.05em;">How to complete your payment</p>
       <ol style="margin:8px 0 0;padding-left:20px;color:#374151;font-size:14px;line-height:2;">
-        <li>Log in and open the <b>Payments</b> section of your dashboard</li>
+        <li>Log in and open <b>My Plan</b> in your dashboard</li>
         <li>Click the <b>Make Payment</b> tab to view available payment options</li>
         <li>Make your payment using <b>Bank Transfer</b>, <b>Mobile Money</b>, or <b>Online Payment</b></li>
-        <li>Once payment is made, return to the Payments section and submit a <b>payment confirmation</b> with your method, reference, and amount</li>
+        <li>Once payment is made, return to <b>My Plan</b> and submit a <b>payment confirmation</b> with your method, reference, and amount</li>
         <li>Your access will be restored once our team verifies and approves your confirmation</li>
       </ol>
     </div>
 
-    ${cta('Go to Payments', `${dashboardUrl}#payments`)}
+    ${cta('Go to My Plan', `${dashboardUrl}#payments`)}
 
     <p style="color:#6b7280;font-size:13px;">If you have already made this payment, please submit a payment confirmation so our team can verify and restore your access promptly.</p>
     <br><p><b>Best regards,</b></p>
@@ -1124,7 +1124,7 @@ export function paymentReceiptEmail(data: {
 
     <p style="color:#374151;">You can view your full payment history and outstanding balance on your dashboard.</p>
 
-    ${cta('View Payments', `${dashboardUrl}#payments`)}
+    ${cta('View Payment History', `${dashboardUrl}#payments`)}
 
     <p style="color:#6b7280;font-size:13px;">If you did not expect this payment record, please contact our support team.</p>
     <br><p><b>Best regards,</b></p>
@@ -1152,7 +1152,7 @@ export function subscriptionPaymentAssignedEmail(data: {
         <tr><td style="padding:4px 0;font-weight:700;">Payment deadline</td><td>${esc(dueDate)}</td></tr>
       </table>
     </div>
-    <p style="color:#374151;">Open the Payments section to view the available payment options and submit your confirmation. Access starts after your payment is approved.</p>
+    <p style="color:#374151;">Open <b>My Plan</b> to view the available payment options and submit your confirmation. Access starts after your payment is approved.</p>
     ${cta('View Payment Request', `${dashboardUrl}#payments`)}
     <br><p><b>Best regards,</b></p>
   `;
@@ -1176,9 +1176,9 @@ export function paymentConfirmationAcknowledgedEmail(data: {
       <p style="margin:0;font-size:14px;color:#1d4ed8;">Once approved, your account balance will be updated and your access status will be refreshed automatically.</p>
     </div>
 
-    <p style="color:#374151;">You can track the status of your confirmation in the <b>Payments</b> section of your dashboard.</p>
+    <p style="color:#374151;">You can track the status of your confirmation in <b>My Plan</b> on your dashboard.</p>
 
-    ${cta('View Payments', `${dashboardUrl}#payments`)}
+    ${cta('View My Plan', `${dashboardUrl}#payments`)}
 
     <br><p><b>Best regards,</b></p>
   `;
@@ -1205,9 +1205,9 @@ export function paymentConfirmationApprovedEmail(data: {
 
     ${adminNotes ? `<p style="color:#374151;"><b>Note from our team:</b> ${esc(adminNotes)}</p>` : ''}
 
-    <p style="color:#374151;">You can view your updated payment history in the <b>Payments</b> section of your dashboard.</p>
+    <p style="color:#374151;">You can view your updated payment history in <b>My Plan</b> on your dashboard.</p>
 
-    ${cta('View Payments', `${dashboardUrl}#payments`)}
+    ${cta('View My Plan', `${dashboardUrl}#payments`)}
 
     <br><p><b>Best regards,</b></p>
   `;
@@ -1728,7 +1728,7 @@ export function individualLearnerWelcomeEmail(data: {
     </table>
 
     ${access.kind === 'awaiting_payment'
-      ? '<p style="color:#374151;">You can submit your payment confirmation from the <b>Payments</b> section once you are signed in.</p>'
+      ? '<p style="color:#374151;">You can submit your payment confirmation from <b>My Plan</b> once you are signed in.</p>'
       : ''}
 
     <br><p><b>Best regards,</b></p>

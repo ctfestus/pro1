@@ -591,7 +591,7 @@ export default function StudentDashboard() {
                     </div>
                     <div className="rounded-lg p-4 space-y-2.5" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.03)' }}>
                       <p className="text-[10px] font-bold uppercase tracking-widest mb-1" style={{ color: C.faint }}>What to do</p>
-                      {['Go to Payments and submit a confirmation', 'Include your method, reference, and amount', 'Access is restored once admin approves'].map((step, i) => (
+                      {['Go to My Plan and submit a confirmation', 'Include your method, reference, and amount', 'Access is restored once admin approves'].map((step, i) => (
                         <div key={i} className="flex items-center gap-3">
                           <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 text-[10px] font-bold"
                             style={{ background: 'linear-gradient(135deg,#dc2626,#b91c1c)', color: 'white' }}>{i + 1}</div>
@@ -630,7 +630,7 @@ export default function StudentDashboard() {
                   <span className="font-bold">{graceAccessUntil ?? 'your grace deadline'}</span>
                   {' to make a payment before your access is restricted. Go to '}
                   <button onClick={() => goSection('payments')} className="underline font-bold" style={{ color: '#b45309' }}>
-                    Payments
+                    My Plan
                   </button>
                   {' to submit a confirmation.'}
                 </p>
@@ -649,7 +649,7 @@ export default function StudentDashboard() {
                   {enrollmentStatus !== 'expired' && (
                     <button onClick={() => goSection('payments')}
                       className="underline font-bold" style={{ color: '#dc2626' }}>
-                      Payments
+                      My Plan
                     </button>
                   )}
                   {enrollmentStatus !== 'expired' && ' to submit a payment confirmation.'}
