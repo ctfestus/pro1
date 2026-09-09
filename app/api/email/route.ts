@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { confirmationEmail, reminderEmail, courseResultEmail, blastEmail } from '@/lib/email-templates';
 import { getVectorIndex, buildCourseEmbedText } from '@/lib/vector';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { studentsStillInCohorts } from '@/lib/cohort-roster';
 
 const resend     = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100; // Resend batch limit
@@ -31,6 +32,46 @@ async function getAuthUser(req: NextRequest) {
 async function getCreatorId(req: NextRequest): Promise<string | null> {
   const user = await getAuthUser(req);
   return user?.id ?? null;
+}
+
+// An event's recipient list cannot be read straight from event_registrations: those rows are
+// written once, when the event is assigned to a cohort, and never removed, so they still name
+// students who have since moved to another cohort or onto a subscription. Narrow to whoever is
+// still in one of the event's cohorts. See lib/cohort-roster.
+async function eventRegistrantsStillEnrolled(
+  supabase: ReturnType<typeof getAdminSupabase>,
+  eventId: string,
+  columns: string,
+): Promise<any[]> {
+  const [{ data: event, error: eventError }, { data: regs, error: regsError }] = await Promise.all([
+    supabase.from('events').select('cohort_ids').eq('id', eventId).maybeSingle(),
+    supabase.from('event_registrations').select(columns).eq('event_id', eventId),
+  ]);
+  // Throwing rather than carrying on: an unreadable event means an unknown audience, and an
+  // unknown audience read as "no cohorts" would keep every stale registration -- exactly the send
+  // this function exists to prevent. An event that genuinely names no cohorts is a different case
+  // and still passes through. The caller's catch turns this into a visible, retryable failure.
+  if (eventError || !event) {
+    throw new Error(`[email] event lookup failed for ${eventId}: ${eventError?.message ?? 'not found'}`);
+  }
+  if (regsError) {
+    throw new Error(`[email] registration lookup failed for ${eventId}: ${regsError.message}`);
+  }
+  // An event assigned to no cohort is an event nobody can open, so it has no audience. The roster
+  // helper reads an empty cohort list as "cannot tell, keep everyone", which is right for reading
+  // back an attendance record but wrong for a send -- it would mail every stale registration. The
+  // reminder cron skips such an event; this returns nobody, and the callers already answer that
+  // with "No valid recipients found".
+  const cohortIds: string[] = Array.isArray((event as any).cohort_ids) ? (event as any).cohort_ids : [];
+  if (!cohortIds.length) return [];
+
+  const rows: any[] = regs ?? [];
+  const stillEnrolled = await studentsStillInCohorts(
+    supabase,
+    rows.map((r: any) => r.student_id as string),
+    cohortIds,
+  );
+  return rows.filter((r: any) => stillEnrolled.has(r.student_id));
 }
 
 async function requireEmailTester(req: NextRequest): Promise<boolean> {
@@ -142,12 +183,10 @@ export async function POST(req: NextRequest) {
         }
 
         // Production mode: per-student email with their personal tracked join link
-        const { data: registrations } = await supabase
-          .from('event_registrations')
-          .select('join_token, student:students(email, full_name)')
-          .eq('event_id', data.formId);
+        const registrations = await eventRegistrantsStillEnrolled(
+          supabase, data.formId, 'student_id, join_token, student:students(email, full_name)');
 
-        const messages = (registrations ?? []).flatMap((reg: any) => {
+        const messages = registrations.flatMap((reg: any) => {
           const s     = Array.isArray(reg.student) ? reg.student[0] : reg.student;
           const email = normalizeEmail(s?.email);
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return [];
@@ -168,11 +207,9 @@ export async function POST(req: NextRequest) {
         const cronSubject     = data.isOneHour
           ? `Starting in 1 hour: ${data.eventTitle}`
           : `Tomorrow: ${data.eventTitle}`;
-        const { data: regs } = await supabase
-          .from('event_registrations')
-          .select('join_token, student:students(email, full_name)')
-          .eq('event_id', data.formId);
-        const msgs = (regs ?? []).flatMap((reg: any) => {
+        const regs = await eventRegistrantsStillEnrolled(
+          supabase, data.formId, 'student_id, join_token, student:students(email, full_name)');
+        const msgs = regs.flatMap((reg: any) => {
           const s     = Array.isArray(reg.student) ? reg.student[0] : reg.student;
           const email = normalizeEmail(s?.email);
           if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return [];
@@ -429,12 +466,10 @@ export async function POST(req: NextRequest) {
 
       if (isEvent) {
         // Events: send to registrants only
-        const { data: registrants } = await supabase
-          .from('event_registrations')
-          .select('responses, student:students(full_name, email)')
-          .eq('event_id', data.formId);
+        const registrants = await eventRegistrantsStillEnrolled(
+          supabase, data.formId, 'student_id, responses, student:students(full_name, email)');
 
-        for (const reg of registrants || []) {
+        for (const reg of registrants) {
           const student = (reg as any).student;
           if (!student?.email) continue;
           const emailKey = normalizeEmail(student.email);

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { missedSessionEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { studentsStillInCohorts } from '@/lib/cohort-roster';
 
 function adminClient() {
   return createClient(
@@ -35,7 +36,7 @@ export async function POST(req: NextRequest) {
   // Confirm caller owns the event
   const { data: event } = await supabase
     .from('events')
-    .select('id, title, slug, meeting_link, user_id, event_date')
+    .select('id, title, slug, meeting_link, user_id, event_date, cohort_ids')
     .eq('id', eventId)
     .eq('user_id', user.id)
     .maybeSingle();
@@ -43,12 +44,29 @@ export async function POST(req: NextRequest) {
   if (!event) return NextResponse.json({ error: 'Event not found or access denied' }, { status: 404 });
 
   // Registrations with join tokens and student details
-  const { data: regs } = await supabase
+  const { data: allRegs } = await supabase
     .from('event_registrations')
     .select('student_id, join_token, student:students(full_name, email)')
     .eq('event_id', eventId);
 
-  if (!regs || regs.length === 0) {
+  // Registrations outlive cohort membership, so nudging every non-attendee told students who had
+  // moved to another cohort off to catch up on their old cohort's session. /api/join applies the
+  // same membership rule to the token itself, so the two agree: somebody chased here is somebody
+  // who could actually attend.
+  let stillEnrolled: Set<string>;
+  try {
+    stillEnrolled = await studentsStillInCohorts(
+      supabase,
+      (allRegs ?? []).map((r: any) => r.student_id as string),
+      (event as any).cohort_ids ?? [],
+    );
+  } catch (err) {
+    console.error('[nudge-absent] roster lookup failed for event', eventId, err);
+    return NextResponse.json({ error: 'Could not check who is still in this cohort.' }, { status: 500 });
+  }
+  const regs = (allRegs ?? []).filter((r: any) => stillEnrolled.has(r.student_id));
+
+  if (regs.length === 0) {
     return NextResponse.json({ sent: 0, message: 'No registrations' });
   }
 

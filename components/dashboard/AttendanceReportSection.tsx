@@ -73,7 +73,7 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
       if (!user) return;
       const { data } = await supabase
         .from('events')
-        .select('id, title, recurrence, event_date, recurrence_end_date, recurrence_days')
+        .select('id, title, recurrence, event_date, recurrence_end_date, recurrence_days, cohort_ids')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
       setEvents(data ?? []);
@@ -88,7 +88,7 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
       const [{ data: regData }, { data: attData }] = await Promise.all([
         supabase
           .from('event_registrations')
-          .select('student_id, student:students(full_name, email)')
+          .select('student_id, student:students(full_name, email, role, cohort_id)')
           .eq('event_id', selectedEventId),
         supabase
           .from('live_attendance')
@@ -120,7 +120,25 @@ export function AttendanceReportSection({ C }: { C: typeof LIGHT_C }) {
     if (!prev || a.joined_at > prev) lastJoinedMap.set(a.student_id, a.joined_at);
   }
 
-  const studentRows = registrations.map((r: any) => {
+  // event_registrations rows are written once, when the event is assigned to a cohort, and are
+  // never removed, so the raw list still names students who have since moved to another cohort or
+  // onto a subscription. Narrow the roster to current members: without this they showed up here and
+  // were counted absent for every session. live_attendance is left exactly as recorded, so a
+  // session someone attended before moving still counts as a session that ran.
+  // The server also requires the cohort to be a bootcamp intake (lib/cohort-roster); that is left
+  // out here because an instructor can only read cohorts they created, and events are only ever
+  // assigned bootcamp cohorts.
+  const eventCohortIds: string[] = Array.isArray(selectedEvent?.cohort_ids) ? selectedEvent.cohort_ids : [];
+  const STAFF_ROLES = ['admin', 'instructor', 'staff'];
+  const currentRegistrations = eventCohortIds.length
+    ? registrations.filter((r: any) => {
+        if (STAFF_ROLES.includes(r.student?.role ?? '')) return true;
+        const cohortId = r.student?.cohort_id ?? null;
+        return !!cohortId && eventCohortIds.includes(cohortId);
+      })
+    : registrations;
+
+  const studentRows = currentRegistrations.map((r: any) => {
     const attended = attendanceMap.get(r.student_id) ?? new Set<string>();
     const count = attended.size;
     return { id: r.student_id, name: r.student?.full_name ?? 'Unknown', email: r.student?.email ?? '', attended, count, lastJoined: lastJoinedMap.get(r.student_id) ?? null };

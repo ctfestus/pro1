@@ -10,6 +10,7 @@ import { adminClient } from '@/lib/admin-client';
 import { verifyQStashRequest } from '@/lib/qstash';
 import { reminderEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { studentsStillInCohorts } from '@/lib/cohort-roster';
 
 export const dynamic = 'force-dynamic';
 
@@ -50,7 +51,8 @@ export async function POST(req: NextRequest) {
   type EmailPayload = Parameters<typeof resend.batch.send>[0][number];
   const emailBatch:   EmailPayload[] = [];
   const nudgeRecords: { student_id: string; form_id: string; nudge_type: string }[] = [];
-  let skipped = 0;
+  let skipped  = 0;
+  let movedOut = 0;
 
   // 1. All events that are assigned to at least one cohort
   const { data: assignments } = await supabase
@@ -67,7 +69,7 @@ export async function POST(req: NextRequest) {
 
   const { data: events } = await supabase
     .from('events')
-    .select('id, title, slug, event_date, event_time, timezone, location, meeting_link, event_type, recurrence, recurrence_end_date, recurrence_days')
+    .select('id, title, slug, event_date, event_time, timezone, location, meeting_link, event_type, recurrence, recurrence_end_date, recurrence_days, cohort_ids')
     .in('id', eventIds);
 
   if (!events?.length) {
@@ -118,20 +120,79 @@ export async function POST(req: NextRequest) {
     const cohortIds = eventCohortMap.get(event.id) ?? [];
     if (!cohortIds.length) continue;
 
-    // Enrolled students are those with event_registrations rows
-    const { data: registrations } = await supabase
+    // Enrolled students are those with event_registrations rows. A registration is written once,
+    // when the event is assigned to a cohort, and never removed, so it has to be checked against
+    // the student's current cohort -- otherwise someone moved onto a subscription months ago keeps
+    // getting reminders for their old cohort's session.
+    const { data: allRegistrations, error: registrationsError } = await supabase
       .from('event_registrations')
       .select('student_id, join_token, student:students(full_name, email)')
       .eq('event_id', event.id);
 
-    if (!registrations?.length) {
-      // Fall back to all students in the assigned cohorts
+    // Reading the error matters more here than it looks: a failed query returns no rows, which is
+    // indistinguishable from "nobody was ever registered" and opens the fallback below that mails
+    // the entire current cohort. Skip the event instead.
+    if (registrationsError) {
+      console.error('[cron/event-reminders] registration lookup failed for event', event.id, registrationsError.message);
+      continue;
+    }
+
+    // events.cohort_ids is the source of truth for who an event is assigned to. cohort_assignments
+    // is a synced copy that can lag behind a re-assignment, so it only decides which events to look
+    // at -- never who hears about them. Falling back to it when the array is empty would have
+    // emailed the cohort an event had just been taken away from.
+    const eventCohortIds: string[] = Array.isArray((event as any).cohort_ids) ? (event as any).cohort_ids : [];
+    if (!eventCohortIds.length) {
+      console.log(`[cron/event-reminders] event=${event.id} is assigned to no cohort; skipping`);
+      continue;
+    }
+
+    let stillEnrolled: Set<string>;
+    try {
+      stillEnrolled = await studentsStillInCohorts(
+        supabase,
+        (allRegistrations ?? []).map((r: any) => r.student_id as string),
+        eventCohortIds,
+      );
+    } catch (err) {
+      // Skip this event rather than abort the run: sending to an unchecked list is the bug being
+      // fixed, and tomorrow is not the last chance -- sent_nudges keeps a retry from duplicating.
+      console.error('[cron/event-reminders] roster lookup failed for event', event.id, err);
+      continue;
+    }
+    const registrations = (allRegistrations ?? []).filter((r: any) => stillEnrolled.has(r.student_id));
+    const droppedThisEvent = (allRegistrations?.length ?? 0) - registrations.length;
+    if (droppedThisEvent > 0) {
+      movedOut += droppedThisEvent;
+      // A registration with nobody in the cohort behind it is not an error, but it is worth
+      // seeing: it means the cohort moved on and the registration row did not.
+      console.log(`[cron/event-reminders] event=${event.id} skipped ${droppedThisEvent} registration(s) no longer in an assigned cohort`);
+    }
+
+    if (!allRegistrations?.length) {
+      // Fall back to the students currently in the assigned cohorts. This path is for an event
+      // whose attendees were never auto-registered at all. It deliberately does NOT cover a list
+      // the filter emptied: if everybody registered has since left, the answer is to send nothing,
+      // not to mail current members who were never registered and would get no tracked join link.
       const { data: cohortStudents } = await supabase
         .from('students')
         .select('id, full_name, email')
-        .in('cohort_id', cohortIds);
+        .in('cohort_id', eventCohortIds);
+
+      let fallbackEligible: Set<string>;
+      try {
+        fallbackEligible = await studentsStillInCohorts(
+          supabase,
+          (cohortStudents ?? []).map((s: any) => s.id as string),
+          eventCohortIds,
+        );
+      } catch (err) {
+        console.error('[cron/event-reminders] fallback roster lookup failed for event', event.id, err);
+        continue;
+      }
 
       for (const student of cohortStudents ?? []) {
+        if (!fallbackEligible.has(student.id)) { movedOut++; continue; }
         const email = (student.email ?? '').trim().toLowerCase();
         if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
         if (nudgedSet.has(`${student.id}|${event.id}`)) { skipped++; continue; }
@@ -191,8 +252,8 @@ export async function POST(req: NextRequest) {
 
   // 4. Send
   if (!emailBatch.length) {
-    console.log(`[cron/event-reminders] sent=0 skipped=${skipped}`);
-    return NextResponse.json({ ok: true, sent: 0, skipped });
+    console.log(`[cron/event-reminders] sent=0 skipped=${skipped} movedOut=${movedOut}`);
+    return NextResponse.json({ ok: true, sent: 0, skipped, movedOut });
   }
 
   const sentKeySet = new Set<string>();
@@ -215,6 +276,6 @@ export async function POST(req: NextRequest) {
     if (toInsert.length) await supabase.from('sent_nudges').insert(toInsert);
   }
 
-  console.log(`[cron/event-reminders] sent=${sent} skipped=${skipped}`);
-  return NextResponse.json({ ok: true, sent, skipped });
+  console.log(`[cron/event-reminders] sent=${sent} skipped=${skipped} movedOut=${movedOut}`);
+  return NextResponse.json({ ok: true, sent, skipped, movedOut });
 }

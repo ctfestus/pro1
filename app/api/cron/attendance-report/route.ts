@@ -4,6 +4,7 @@ import { Receiver } from '@upstash/qstash';
 import { Resend } from 'resend';
 import { attendanceReportEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { studentsStillInCohorts } from '@/lib/cohort-roster';
 
 function adminClient() {
   return createClient(
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   // 1. All events with a meeting link (live sessions)
   const { data: allLiveEvents, error: eventsError } = await supabase
     .from('events')
-    .select('id, title, user_id, event_date, recurrence, recurrence_end_date, recurrence_days')
+    .select('id, title, user_id, event_date, recurrence, recurrence_end_date, recurrence_days, cohort_ids')
     .not('meeting_link', 'is', null);
 
   if (eventsError) {
@@ -91,12 +92,29 @@ export async function POST(req: NextRequest) {
   let sent = 0;
 
   for (const event of scheduledToday) {
-    const { data: regs } = await supabase
+    const { data: allRegs } = await supabase
       .from('event_registrations')
       .select('student_id, student:students(full_name, email)')
       .eq('event_id', event.id);
 
-    if (!regs || regs.length === 0) continue; // no registrations -- nothing to report
+    // A registration is never removed when a student leaves the cohort, so reading the rows raw
+    // listed people who cannot open the event any more -- and counted them as no-shows. Narrow the
+    // roster to current cohort members; the attendance rows themselves are left alone.
+    let stillEnrolled: Set<string>;
+    try {
+      stillEnrolled = await studentsStillInCohorts(
+        supabase,
+        (allRegs ?? []).map((r: any) => r.student_id as string),
+        (event as any).cohort_ids ?? [],
+      );
+    } catch (err) {
+      // One event whose roster cannot be read must not cost every other event its report.
+      console.error('[attendance-report] roster lookup failed for event', event.id, err);
+      continue;
+    }
+    const regs = (allRegs ?? []).filter((r: any) => stillEnrolled.has(r.student_id));
+
+    if (regs.length === 0) continue; // nobody currently in the cohort -- nothing to report
 
     const eventAttendance = (todayAttendance ?? []).filter((a: any) => a.event_id === event.id);
     const attendedIds     = new Set(eventAttendance.map((a: any) => a.student_id as string));

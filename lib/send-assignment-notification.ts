@@ -2,6 +2,8 @@ import { Resend } from 'resend';
 import { adminClient } from '@/lib/admin-client';
 import { blastEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { loadCohortMembership, isStillInGroupCohort } from '@/lib/cohort-roster';
+import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -85,14 +87,44 @@ export async function sendAssignmentNotifications({
         ? supabase.from('students').select('full_name, email').in('cohort_id', cohortIds).then(r => r.data ?? [])
         : Promise.resolve([] as { full_name: string | null; email: string | null }[]),
       hasGroups
-        ? supabase.from('group_members').select('student_id').in('group_id', groupIds!).then(r => r.data ?? [])
-        : Promise.resolve([] as { student_id: string }[]),
+        ? supabase.from('group_members').select('group_id, student_id').in('group_id', groupIds!).then(r => r.data ?? [])
+        : Promise.resolve([] as { group_id: string; student_id: string }[]),
     ]);
 
+    // Leaving a cohort means leaving that cohort's groups. Migration 206 enforces that at the
+    // source by pruning group_members when a student's cohort changes; this check is the net for
+    // a tenant whose database is behind on migrations, where the stored membership can still name
+    // somebody who left and would otherwise keep receiving their old cohort's work.
     const groupStudentIds = Array.from(new Set((groupMemberRows ?? []).map((m: any) => m.student_id).filter(Boolean)));
-    const groupStudents = groupStudentIds.length
-      ? await supabase.from('students').select('full_name, email').in('id', groupStudentIds).then(r => r.data ?? [])
-      : [];
+    let groupStudents: { full_name: string | null; email: string | null }[] = [];
+    if (groupStudentIds.length) {
+      try {
+        const groupRows = await fetchAllRowsByIds<{ id: string; cohort_id: string | null }>(
+          groupIds!,
+          (idChunk, from, to) => supabase.from('groups')
+            .select('id, cohort_id', { count: 'exact' }).in('id', idChunk).order('id').range(from, to),
+        );
+        const cohortByGroup = new Map<string, string | null>(groupRows.map(g => [g.id, g.cohort_id ?? null]));
+        const membership    = await loadCohortMembership(supabase, groupStudentIds);
+        const stillMembers  = (groupMemberRows ?? [])
+          .filter((m: any) => {
+            return isStillInGroupCohort(membership.get(m.student_id), cohortByGroup.get(m.group_id) ?? null);
+          })
+          .map((m: any) => m.student_id as string);
+
+        if (stillMembers.length) {
+          groupStudents = await fetchAllRowsByIds<{ full_name: string | null; email: string | null }>(
+            [...new Set(stillMembers)],
+            (idChunk, from, to) => supabase.from('students')
+              .select('full_name, email', { count: 'exact' }).in('id', idChunk).order('id').range(from, to),
+          );
+        }
+      } catch (err) {
+        // Skip the group half rather than lose the send: the cohort recipients gathered above are
+        // unaffected by this lookup, and mailing an unchecked membership is the bug being fixed.
+        console.error('[send-assignment-notification] group roster lookup failed:', err);
+      }
+    }
 
     const students = [...cohortStudents, ...groupStudents];
 
