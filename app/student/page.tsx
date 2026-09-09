@@ -22,7 +22,14 @@ import { LIGHT_C, useC } from '@/lib/theme';
 import { Sk, CarouselSkeleton, EmptyState, StatusBadge, ProgressBar } from '@/components/student/shared';
 import { NAV_ITEMS, NAV_GROUPS, type SectionId } from '@/components/student/nav';
 import { OverviewSection } from '@/components/student/overview';
-import { type CohortTimeline, CohortTimelineBadge, ProfileMenu } from '@/components/student/header';
+import {
+  type CohortTimeline,
+  type SubscriptionTimeline,
+  CohortTimelineBadge,
+  UpgradePlanButton,
+  SubscriptionTimelineBadge,
+  ProfileMenu,
+} from '@/components/student/header';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import { rememberPurchaseIntent, takePurchaseIntent, purchaseIntentHref } from '@/lib/pending-purchase';
@@ -105,6 +112,8 @@ export default function StudentDashboard() {
   const [isInGracePeriod,      setIsInGracePeriod]      = useState(false);
   const [graceAccessUntil,     setGraceAccessUntil]     = useState<string | null>(null);
   const [cohortTimeline,       setCohortTimeline]       = useState<CohortTimeline | null>(null);
+  const [subscriptionTimeline, setSubscriptionTimeline] = useState<SubscriptionTimeline | null>(null);
+  const [showUpgradeButton, setShowUpgradeButton] = useState(false);
 
   // Live activity ticker (persists across all tabs)
   const [activeTicker,       setActiveTicker]       = useState<{ name: string; title: string } | null>(null);
@@ -311,7 +320,7 @@ export default function StudentDashboard() {
         try {
           const studentResult = await supabase
             .from('students')
-            .select('cohort_id, original_cohort_id, payment_exempt')
+            .select('cohort_id, original_cohort_id, payment_exempt, enrollment_model, role')
             .eq('id', studentId)
             .single();
           if (!studentResult.error) {
@@ -345,6 +354,42 @@ export default function StudentDashboard() {
         // Do not validate the restored tab until cohort visibility is known. Without this
         // guard, a cohort tab is briefly treated as hidden and redirected on every refresh.
         setCohortAccessStatus(cohortResolved ? 'resolved' : 'error');
+
+        if (!s || s.role !== 'student' || s.enrollment_model === 'bootcamp') {
+          setSubscriptionTimeline(null);
+          setShowUpgradeButton(false);
+        } else {
+          try {
+            const { data: subscription, error } = await supabase
+              .from('individual_subscriptions')
+              .select('status, duration_months, current_period_start, current_period_end, subscription_plans!individual_subscriptions_plan_id_fkey(name)')
+              .eq('student_id', studentId)
+              .maybeSingle();
+            const plan = (subscription as any)?.subscription_plans;
+            if (!error && subscription && plan?.name) {
+              setSubscriptionTimeline({
+                name: plan.name,
+                start_at: subscription.current_period_start ?? null,
+                end_at: subscription.current_period_end ?? null,
+                status: subscription.status as SubscriptionTimeline['status'],
+                duration_months: subscription.duration_months,
+              });
+              setShowUpgradeButton(false);
+            } else if (!error && !subscription && !s.cohort_id) {
+              setSubscriptionTimeline(null);
+              setShowUpgradeButton(true);
+            } else if (!error) {
+              setSubscriptionTimeline(null);
+              setShowUpgradeButton(false);
+            } else {
+              setSubscriptionTimeline(null);
+              setShowUpgradeButton(false);
+            }
+          } catch {
+            setSubscriptionTimeline(null);
+            setShowUpgradeButton(false);
+          }
+        }
 
         try {
           const { data: enroll } = await supabase
@@ -444,6 +489,15 @@ export default function StudentDashboard() {
         </div>
         <div className="flex items-center gap-2">
           <CohortTimelineBadge cohort={cohortTimeline}/>
+          {!cohortTimeline && (
+            <SubscriptionTimelineBadge
+              subscription={subscriptionTimeline}
+              onRenew={viewingAs ? undefined : () => router.push('/pricing')}
+            />
+          )}
+          {cohortAccessStatus === 'resolved' && showUpgradeButton && (
+            <UpgradePlanButton onUpgrade={viewingAs ? undefined : () => router.push('/pricing')}/>
+          )}
           <button onClick={toggleTheme}
             className="p-2 rounded-xl transition-all hover:opacity-70"
             style={{ background: C.pill }}>
