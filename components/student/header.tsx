@@ -1,16 +1,17 @@
 'use client';
 
-// Dashboard header pieces -- the cohort-timeline badge and the profile menu, plus the
-// date helpers they use -- extracted verbatim from app/student/page.tsx. CohortTimeline,
-// CohortTimelineBadge and ProfileMenu are exported; the date helpers are file-internal.
+// Dashboard header pieces: cohort and subscription timelines, the plan-upgrade prompt,
+// and the profile menu. Date helpers remain file-internal.
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import Link from 'next/link';
 import { useTheme } from '@/components/ThemeProvider';
 import { useC } from '@/lib/theme';
+import type { SubscriptionStatus } from '@/lib/db-subscriptions';
 import {
-  ChevronDown, LogOut, Settings, User, Award, GraduationCap, TrendingUp, BarChart3, LayoutDashboard,
+  ArrowUpRight, ChevronDown, LogOut, Settings, User, Award, GraduationCap, TrendingUp,
+  BarChart3, LayoutDashboard,
 } from 'lucide-react';
 
 export type CohortTimeline = {
@@ -20,11 +21,33 @@ export type CohortTimeline = {
   end_date: string | null;
 };
 
+export type SubscriptionTimeline = {
+  name: string;
+  start_at: string | null;
+  end_at: string | null;
+  status: SubscriptionStatus;
+  duration_months: number;
+};
+
+type TimelineBadgeProps =
+  | { variant: 'cohort'; timeline: CohortTimeline | null }
+  | { variant: 'subscription'; timeline: SubscriptionTimeline | null };
+
 function parseDateOnly(value: string | null | undefined) {
   if (!value) return null;
   const [year, month, day] = value.split('-').map(Number);
   if (!year || !month || !day) return null;
   return new Date(year, month - 1, day);
+}
+
+function parseTimestamp(value: string | null | undefined) {
+  if (!value) return null;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function subscriptionHasEnded(status: SubscriptionStatus, end: Date | null) {
+  return status !== 'active' || (end !== null && end.getTime() < Date.now());
 }
 
 function diffDays(from: Date, to: Date) {
@@ -38,6 +61,67 @@ function formatTimelineDate(value: Date) {
 }
 
 export function CohortTimelineBadge({ cohort }: { cohort: CohortTimeline | null }) {
+  return <TimelineBadge timeline={cohort} variant="cohort" />;
+}
+
+export function SubscriptionTimelineBadge({
+  subscription,
+  onRenew,
+}: {
+  subscription: SubscriptionTimeline | null;
+  onRenew?: () => void;
+}) {
+  const ended = subscription
+    ? subscriptionHasEnded(subscription.status, parseTimestamp(subscription.end_at))
+    : false;
+
+  return <>
+    <TimelineBadge timeline={subscription} variant="subscription" />
+    {ended && onRenew && <PlanActionButton label="Renew" onClick={onRenew} />}
+  </>;
+}
+
+export function UpgradePlanButton({ onUpgrade }: { onUpgrade?: () => void }) {
+  return onUpgrade ? <PlanActionButton label="Upgrade" onClick={onUpgrade} /> : null;
+}
+
+function PlanActionButton({ label, onClick }: { label: 'Upgrade' | 'Renew'; onClick: () => void }) {
+  const C = useC();
+  const reduceMotion = useReducedMotion();
+
+  return (
+    <motion.div
+      className="relative flex-shrink-0 overflow-hidden rounded-full p-px"
+      style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.12)' }}
+      whileHover={reduceMotion ? undefined : { scale: 1.05 }}
+      whileTap={reduceMotion ? undefined : { scale: 0.97 }}>
+      <motion.span
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-8"
+        style={{ background: 'conic-gradient(from 0deg, #00f5ff, #39ff14, #fff200, #ff6b00, #00f5ff)' }}
+        animate={reduceMotion ? undefined : { rotate: 360 }}
+        transition={reduceMotion ? undefined : { duration: 2.2, repeat: Infinity, ease: 'linear' }}
+      />
+      <button
+        type="button"
+        onClick={onClick}
+        className="relative z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[10px] font-semibold sm:gap-1.5 sm:px-3.5 sm:text-[11px]"
+        style={{
+          background: `color-mix(in srgb, ${C.card} 78%, transparent)`,
+          color: C.text,
+          backdropFilter: 'blur(8px)',
+        }}>
+        {label === 'Renew' ? <>
+          <span className="sm:hidden">Renew plan</span>
+          <span className="hidden sm:inline">Renew</span>
+        </> : label}
+        <ArrowUpRight className="h-3.5 w-3.5" />
+      </button>
+    </motion.div>
+  );
+}
+
+function TimelineBadge(props: TimelineBadgeProps) {
   const C = useC();
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -47,9 +131,15 @@ export function CohortTimelineBadge({ cohort }: { cohort: CohortTimeline | null 
   const greenDim  = isDark ? 'rgba(34,197,94,0.14)' : 'rgba(34,197,94,0.12)';
   const greenGrad = 'linear-gradient(90deg,#16a34a 0%,#22c55e 55%,#4ade80 100%)';
 
-  const start = parseDateOnly(cohort?.start_date);
-  const end   = parseDateOnly(cohort?.end_date);
-  if (!cohort || !start || !end) return null;
+  if (!props.timeline) return null;
+  const start = props.variant === 'cohort'
+    ? parseDateOnly(props.timeline.start_date)
+    : parseTimestamp(props.timeline.start_at);
+  const end = props.variant === 'cohort'
+    ? parseDateOnly(props.timeline.end_date)
+    : parseTimestamp(props.timeline.end_at);
+  if (!start || !end) return null;
+  const timeline = props.timeline;
 
   const today       = new Date();
   const totalDays   = Math.max(diffDays(start, end), 1);
@@ -61,16 +151,30 @@ export function CohortTimelineBadge({ cohort }: { cohort: CohortTimeline | null 
   const totalWeeks  = Math.max(Math.ceil(totalDays / 7), 1);
   const weekNum     = Math.min(Math.max(Math.floor(bounded / 7) + 1, 1), totalWeeks);
 
+  const subscriptionStatus = props.variant === 'subscription' ? props.timeline.status : null;
   const isUpcoming = elapsed < 0;
-  const isDone     = elapsed > totalDays;
+  const isDone     = props.variant === 'subscription'
+    ? subscriptionHasEnded(props.timeline.status, end)
+    : elapsed > totalDays;
   const isActive   = !isUpcoming && !isDone;
 
-  const chipLabel   = isUpcoming ? 'Soon' : isDone ? 'Done' : 'Active';
-  const badgeStatus = isUpcoming ? `Starts in ${daysToStart}d` : isDone ? 'Completed' : `Wk ${weekNum}/${totalWeeks}`;
+  const endedLabel = props.variant === 'subscription'
+    ? subscriptionStatus === 'cancelled' ? 'Cancelled' : 'Expired'
+    : 'Done';
+  const chipLabel   = isUpcoming ? 'Soon' : isDone ? endedLabel : 'Active';
+  const badgeStatus = isUpcoming
+    ? `Starts in ${daysToStart}d`
+    : isDone ? endedLabel
+    : props.variant === 'subscription' ? `${daysLeft}d left` : `Wk ${weekNum}/${totalWeeks}`;
   const detailLine  = isUpcoming
     ? `Starts ${formatTimelineDate(start)}`
-    : isDone ? 'This cohort has ended'
+    : isDone ? props.variant === 'subscription'
+      ? subscriptionStatus === 'cancelled' ? 'Subscription cancelled' : `Access ended ${formatTimelineDate(end)}`
+      : 'This cohort has ended'
     : `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`;
+  const durationLine = props.variant === 'subscription'
+    ? `${props.timeline.duration_months} month${props.timeline.duration_months === 1 ? '' : 's'} subscription`
+    : null;
 
   // circular ring: r=9 in viewBox 0 0 24 24 => circ ~56.55
   const r    = 9;
@@ -99,7 +203,7 @@ export function CohortTimelineBadge({ cohort }: { cohort: CohortTimeline | null 
           </div>
         </div>
         <div className="text-left leading-none pr-0.5">
-          <p className="text-[11px] font-bold truncate max-w-[160px]" style={{ color: C.text }}>{cohort.name}</p>
+          <p className="text-[11px] font-bold truncate max-w-[160px]" style={{ color: C.text }}>{timeline.name}</p>
           <p className="text-[10px] font-semibold mt-0.5" style={{ color: C.faint }}>{badgeStatus}</p>
         </div>
       </button>
@@ -117,8 +221,9 @@ export function CohortTimelineBadge({ cohort }: { cohort: CohortTimeline | null 
             {/* Header */}
             <div className="px-4 pt-4 pb-3 flex items-start gap-2.5">
               <div className="flex-1 min-w-0">
-                <p className="text-[13px] font-black truncate leading-tight" style={{ color: C.text }}>{cohort.name}</p>
+                <p className="text-[13px] font-black truncate leading-tight" style={{ color: C.text }}>{timeline.name}</p>
                 <p className="text-xs mt-0.5 font-medium" style={{ color: C.muted }}>{detailLine}</p>
+                {durationLine && <p className="text-[11px] mt-1 font-semibold" style={{ color: C.faint }}>{durationLine}</p>}
               </div>
               <span className="flex-shrink-0 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full mt-0.5"
                 style={{ background: greenDim, color: green }}>{chipLabel}</span>
