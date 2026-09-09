@@ -4,6 +4,7 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { Resend } from 'resend';
 import { groupAssignedEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { loadCohortMembership, isStillInGroupCohort } from '@/lib/cohort-roster';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +31,19 @@ export async function POST(req: NextRequest) {
 
   if (!group) return NextResponse.json({ error: 'Group not found' }, { status: 404 });
 
-  const members = (group.group_members as any[]) ?? [];
+  // Leaving a cohort means leaving that cohort's groups (migration 206 prunes the membership rows
+  // when a cohort changes). This check is the net for a database behind on that migration: someone
+  // who left is neither mailed nor listed as a member to everybody else. See lib/cohort-roster.
+  const storedMembers = (group.group_members as any[]) ?? [];
+  let members = storedMembers;
+  try {
+    const membership     = await loadCohortMembership(supabase, storedMembers.map((m: any) => m.student_id as string));
+    members = storedMembers.filter((m: any) =>
+      isStillInGroupCohort(membership.get(m.student_id), (group.cohort_id as string | null) ?? null));
+  } catch (err) {
+    console.error('[groups/notify] roster lookup failed for group', group_id, err);
+    return NextResponse.json({ error: 'Could not check who is still in this cohort.' }, { status: 500 });
+  }
   if (members.length === 0) return NextResponse.json({ sent: 0 });
 
   const cohortName = (group.cohorts as any)?.name ?? '';

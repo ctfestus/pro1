@@ -57,6 +57,11 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
   const [editOpen, setEditOpen]         = useState(false);
   const [editForm, setEditForm]         = useState({ name: '', description: '', start_date: '', end_date: '' });
   const [editSaving, setEditSaving]     = useState(false);
+  // A delete that would take something with it comes back from the server with the list of what
+  // would go. This modal shows that list before anything is touched, and is where the choice
+  // between leaving the members without a cohort and deleting their accounts is made.
+  const [deleteTarget, setDeleteTarget]   = useState<{ id: string; name: string; losses: string[]; members: number; held: number; holdWarning: string | null; fingerprint: string } | null>(null);
+  const [deleteMembers, setDeleteMembers] = useState(false);
   const [courseSearch, setCourseSearch] = useState('');
   const [togglingCourse, setTogglingCourse] = useState<string | null>(null);
 
@@ -89,9 +94,11 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
   const [paymentSettingsError, setPaymentSettingsError] = useState('');
   const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
+  // Errors get longer on screen than confirmations: a refused delete explains what is attached to
+  // the cohort and what to do about it, which is more than three seconds of reading.
   const showToast = (ok: boolean, text: string) => {
     setToast({ ok, text });
-    setTimeout(() => setToast(null), 3000);
+    setTimeout(() => setToast(null), ok ? 3000 : 8000);
   };
 
   const parseAdmissionsCsv = (text: string) => {
@@ -189,11 +196,18 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
     .order('id')
     .range(from, to));
 
-  const refreshStudents = async () => {
-    setStudents(await fetchAllStudents().catch(err => {
+  // A failed refresh must not blank the roster. Turning an error into an empty list makes every
+  // cohort look empty, which is a worse lie than a stale list -- and cohort deletion now refreshes
+  // every time, so a transient read failure would show that lie right after a successful delete.
+  // Keep what is on screen and report the failure instead.
+  const refreshStudents = async (): Promise<boolean> => {
+    try {
+      setStudents(await fetchAllStudents());
+      return true;
+    } catch (err) {
       console.error('[CohortsSection] student refresh failed', err);
-      return [];
-    }));
+      return false;
+    }
   };
 
   const load = async () => {
@@ -454,13 +468,77 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
     setSaving(false);
   };
 
-  const deleteCohort = async (id: string) => {
+  // Deleting from the browser hid every refusal: RLS allows the delete only for the cohort's
+  // creator or an admin, and a cohort carrying payments is refused outright, but neither the
+  // error nor the row count was read -- the card vanished locally and came back on refresh.
+  //
+  // The server answers a first attempt on a cohort with anything attached by listing exactly what
+  // would be destroyed, which is what the second confirmation below quotes. Payment receipts and
+  // admission records really are deleted, so the warning is the whole point of the round trip.
+  const deleteCohort = async (id: string, confirm = false, alsoDeleteStudents = false, expect?: string) => {
     setDeletingId(id);
-    await supabase.from('cohorts').delete().eq('id', id);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      showToast(false, 'Session expired. Please refresh.');
+      setDeletingId(null);
+      return;
+    }
+    const res  = await fetch(`/api/cohorts/${id}`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ confirm, deleteStudents: alsoDeleteStudents, expect }),
+    }).catch(() => null);
+    const json = res ? await res.json().catch(() => ({})) : {};
+
+    if (res && res.status === 409 && json.requiresConfirmation) {
+      setDeleteTarget({
+        id,
+        name:    cohorts.find(c => c.id === id)?.name ?? 'this cohort',
+        losses:  json.losses ?? [],
+        members: json.members ?? 0,
+        held:    json.held ?? 0,
+        holdWarning: json.holdWarning ?? null,
+        fingerprint: json.fingerprint ?? '',
+      });
+      // A re-ask means the cohort changed under us, and the tick is deliberately not carried over:
+      // agreeing to delete three accounts is not agreeing to delete forty.
+      setDeleteMembers(false);
+      setDeletingId(null);
+      if (json.stale) showToast(false, json.error || 'This cohort changed. Check the numbers again.');
+      return;
+    }
+
+    if (!res || !res.ok) {
+      showToast(false, json.error || 'Failed to delete cohort.');
+      setDeletingId(null);
+      return;
+    }
+
+    // 207 means the cohort went but not every account did. It is a 2xx, so res.ok is true and it
+    // would otherwise land on the green toast below -- the cohort list does need updating, but the
+    // message is a failure and has to read as one.
+    const partial = res.status === 207;
+
     setCohorts(prev => prev.filter(c => c.id !== id));
-    setStudents(prev => prev.map(s => s.cohort_id === id ? { ...s, cohort_id: null } : s));
     if (selectedCohort?.id === id) setSelectedCohort(cohorts.find(c => c.id !== id) ?? null);
+    // Always read the roster back rather than patching it locally. Members lose the deleted cohort,
+    // which is easy enough to work out here, but a student held over a balance moves from the
+    // outstanding cohort to no cohort at all -- and their local row carries the outstanding cohort's
+    // id, not this one, so nothing here can identify them. Accounts that were deleted are gone from
+    // the roster entirely, and a 207 may have deleted none of them.
+    const refreshed = await refreshStudents();
+    const staleNote = refreshed ? '' : ' The student list may be out of date; reload the page.';
+    setDeleteTarget(null);
     setDeletingId(null);
+    if (partial) {
+      showToast(false, (json.error || 'Cohort deleted, but not every student account was.') + staleNote);
+      return;
+    }
+    const done = json.deletedStudents
+      ? `Cohort deleted, along with ${json.deletedStudents} student account${json.deletedStudents === 1 ? '' : 's'}`
+      : 'Cohort deleted';
+    if (staleNote) showToast(false, done + '.' + staleNote);
+    else showToast(true, done);
   };
 
   const assignStudent = async (studentId: string, cohortId: string | null) => {
@@ -656,7 +734,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                         <ChevronRight className="w-3.5 h-3.5 flex-shrink-0"/> Open
                       </button>
                       {!isStaff && (
-                        <button onClick={e => { e.stopPropagation(); setMenuOpenId(null); if (window.confirm(`Delete "${c.name}"?`)) deleteCohort(c.id); }}
+                        <button onClick={e => { e.stopPropagation(); setMenuOpenId(null); deleteCohort(c.id); }}
                           className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-left transition-opacity hover:opacity-70"
                           style={{ color: '#ef4444' }}>
                           {deletingId === c.id ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Trash2 className="w-3.5 h-3.5"/>}
@@ -1225,6 +1303,85 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                 style={{ background: C.cta, color: C.ctaText }}>
                 {editSaving ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.5)' }}
+          onClick={() => setDeleteTarget(null)}>
+          <div className="w-full max-w-md rounded-2xl overflow-hidden" style={{ ...modalStyle(C) }}
+            onClick={e => e.stopPropagation()}>
+            <div className="px-6 pt-5 pb-4 flex items-start justify-between" style={{ borderBottom: `1px solid ${C.divider}` }}>
+              <div>
+                <h3 className="text-base font-bold" style={{ color: C.text }}>Delete Cohort</h3>
+                <p className="text-xs mt-0.5" style={{ color: C.muted }}>{deleteTarget.name}</p>
+              </div>
+              <button onClick={() => setDeleteTarget(null)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-black/5" style={{ color: C.faint }}>
+                <X className="w-4 h-4"/>
+              </button>
+            </div>
+
+            <div className="px-6 py-5 space-y-4">
+              <div>
+                {deleteTarget.losses.length > 0 ? (
+                  <>
+                    <p className="text-sm font-semibold mb-2" style={{ color: C.text }}>This permanently destroys:</p>
+                    <ul className="list-disc pl-5 space-y-1.5">
+                      {deleteTarget.losses.map(item => (
+                        <li key={item} className="text-sm" style={{ color: C.muted }}>{item}</li>
+                      ))}
+                    </ul>
+                    <p className="text-xs mt-3" style={{ color: C.faint }}>
+                      It cannot be undone, and any money recorded against this cohort leaves payment reporting.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-sm" style={{ color: C.muted }}>
+                    {deleteTarget.members > 0
+                      ? 'Nothing else is attached to this cohort.'
+                      : 'Nothing is attached to this cohort.'}
+                  </p>
+                )}
+              </div>
+
+              {deleteTarget.members > 0 && (
+                <div className="rounded-xl p-3.5" style={{ background: C.pill }}>
+                  <label className="flex gap-3 items-start cursor-pointer">
+                    <input type="checkbox" checked={deleteMembers} onChange={e => setDeleteMembers(e.target.checked)}
+                      className="mt-0.5 w-4 h-4 flex-shrink-0" style={{ accentColor: C.cta }}/>
+                    <span>
+                      <span className="block text-sm font-semibold" style={{ color: C.text }}>
+                        Delete the {deleteTarget.members} student account{deleteTarget.members === 1 ? '' : 's'} as well
+                      </span>
+                      <span className="block text-xs mt-1" style={{ color: C.muted }}>
+                        {deleteMembers
+                          ? 'Their logins, submissions, grades and certificates go with them.'
+                          : 'Leave this unticked and they keep their accounts, with no cohort until you assign one.'}
+                        {deleteTarget.held > 0
+                          ? ` Includes ${deleteTarget.held} held over an unpaid balance.`
+                          : ''}
+                      </span>
+                      {!deleteMembers && deleteTarget.holdWarning && (
+                        <span className="block text-xs mt-1.5 font-semibold" style={{ color: '#dc2626' }}>
+                          {deleteTarget.holdWarning}
+                        </span>
+                      )}
+                    </span>
+                  </label>
+                </div>
+              )}
+            </div>
+
+            <div className="px-6 pb-5 flex gap-2">
+              <button onClick={() => setDeleteTarget(null)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
+              <button onClick={() => deleteCohort(deleteTarget.id, true, deleteMembers, deleteTarget.fingerprint)} disabled={deletingId === deleteTarget.id}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold text-white disabled:opacity-40"
+                style={{ background: '#dc2626' }}>
+                {deletingId === deleteTarget.id ? <Loader2 className="w-4 h-4 animate-spin"/> : <Trash2 className="w-4 h-4"/>}
+                {deleteMembers ? 'Delete Cohort and Students' : 'Delete Cohort'}
               </button>
             </div>
           </div>

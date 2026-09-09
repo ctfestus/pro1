@@ -6561,3 +6561,176 @@ SELECT
 FROM sellable_plans s;
 
 GRANT SELECT ON public.public_pricing_plans TO anon, authenticated;
+
+-- 206: group membership follows cohort membership.
+--
+-- groups belong to a cohort, and members are picked from that cohort (see the available-students
+-- route), but group_members rows were written once and never revisited. A student moved to another
+-- cohort or onto a subscription therefore stayed a member of their old cohort's group for good:
+-- still mailed its assignments, still able to open its forum, still listed as a member to
+-- everybody else. Leaving a cohort now means leaving that cohort's groups.
+--
+-- What is deliberately NOT touched: assignment_submissions.group_id keeps pointing at the group
+-- that produced the work, and the participants recorded on a submitted or graded row are the
+-- record of who did it. Only unsubmitted drafts are tidied, because the submission policies
+-- validate participants against current membership -- a draft still naming somebody the group no
+-- longer has could not be submitted at all, which would strand the group rather than free it.
+--
+-- A group that loses its leader this way is given the longest-standing remaining member, the same
+-- rule the members API applies when a group is left without one.
+
+CREATE OR REPLACE FUNCTION public.prune_group_memberships_on_cohort_change()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_groups uuid[];
+  v_group  uuid;
+BEGIN
+  -- A student parked in the outstanding-payments cohort has not left their cohort. original_cohort_id
+  -- remembers where they belong and restoreAccess puts them back the moment they pay, so the move is
+  -- a temporary hold, not a departure. The outstanding sweep performs it automatically whenever an
+  -- installment falls due, and pruning on it would quietly cost a student who is merely late their
+  -- group -- with nothing to give it back when the payment lands.
+  IF NEW.original_cohort_id IS NOT NULL THEN RETURN NULL; END IF;
+  SELECT COALESCE(array_agg(gm.group_id), '{}'::uuid[]) INTO v_groups
+    FROM public.group_members gm
+    JOIN public.groups g ON g.id = gm.group_id
+   WHERE gm.student_id = NEW.id
+     AND g.cohort_id IS DISTINCT FROM NEW.cohort_id;
+
+  IF cardinality(v_groups) = 0 THEN RETURN NULL; END IF;
+
+  DELETE FROM public.group_members
+   WHERE student_id = NEW.id
+     AND group_id = ANY(v_groups);
+
+  UPDATE public.assignment_submissions
+     SET participants = array_remove(participants, NEW.id),
+         updated_at   = now()
+   WHERE status = 'draft'
+     AND group_id = ANY(v_groups)
+     AND NEW.id = ANY(participants);
+
+  -- Leave no group leaderless.
+  FOREACH v_group IN ARRAY v_groups LOOP
+    IF EXISTS (SELECT 1 FROM public.group_members WHERE group_id = v_group)
+       AND NOT EXISTS (SELECT 1 FROM public.group_members WHERE group_id = v_group AND is_leader) THEN
+      UPDATE public.group_members
+         SET is_leader = true
+       WHERE id = (
+         SELECT id FROM public.group_members
+          WHERE group_id = v_group
+          ORDER BY joined_at, id
+          LIMIT 1
+       );
+    END IF;
+  END LOOP;
+
+  RETURN NULL;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_prune_group_memberships_on_cohort_change ON public.students;
+CREATE TRIGGER trg_prune_group_memberships_on_cohort_change
+  AFTER UPDATE OF cohort_id ON public.students
+  FOR EACH ROW
+  WHEN (NEW.cohort_id IS DISTINCT FROM OLD.cohort_id)
+  EXECUTE FUNCTION public.prune_group_memberships_on_cohort_change();
+
+-- 207: delete a bootcamp cohort in one transaction.
+--
+-- Deleting a cohort takes several steps, because two references refuse the delete rather than
+-- follow it (payments is ON DELETE RESTRICT, payment_config.outstanding_cohort_id has no rule at
+-- all) and one representation of an assignment is not a foreign key at all. Run as separate
+-- statements over PostgREST, a failure part-way through leaves receipts deleted and the cohort
+-- still standing, with no way back. In here they are one transaction: all of it, or none.
+--
+-- The denormalized half matters as much as the cascade. cohort_assignments rows go with the cohort
+-- because they reference it, but the same assignment is also recorded as a uuid inside each content
+-- table's cohort_ids array, which no cascade touches. Left behind, those ids grant nothing (no
+-- student has that cohort any more) but they do keep counting: available_to_everyone carries a
+-- CHECK that a public item holds no cohorts, so an orphan id can leave a course permanently unable
+-- to be opened to everyone.
+--
+-- Student accounts are deliberately NOT deleted here. Removing a login is an Auth API call, not
+-- SQL, so it can never be part of this transaction. The route does that afterwards, once this has
+-- committed, so the irreversible half is last and everything before it is all-or-nothing.
+
+CREATE OR REPLACE FUNCTION public.delete_bootcamp_cohort(p_cohort_id uuid)
+RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_kind            text;
+  v_payments        integer := 0;
+  v_untagged        integer := 0;
+  v_released        integer := 0;
+  v_member_ids      uuid[];
+  v_table           text;
+  v_rows            integer;
+  -- Every table that records a cohort assignment as an array member rather than a row.
+  v_content_tables  text[] := ARRAY[
+    'forms', 'courses', 'events', 'virtual_experiences', 'certifications', 'assignments',
+    'communities', 'announcements', 'recordings', 'schedules', 'learning_paths'
+  ];
+BEGIN
+  SELECT cohort_kind INTO v_kind FROM public.cohorts WHERE id = p_cohort_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'cohort % not found', p_cohort_id; END IF;
+  IF v_kind <> 'bootcamp' THEN
+    RAISE EXCEPTION 'cohort % is not a bootcamp intake', p_cohort_id USING ERRCODE = 'check_violation';
+  END IF;
+
+  -- Defence in depth: the route refuses these too, but a plan's payment history hangs off the plan
+  -- through several restricted references and must never be reachable from here.
+  IF EXISTS (SELECT 1 FROM public.subscription_plans WHERE cohort_id = p_cohort_id)
+     OR EXISTS (SELECT 1 FROM public.individual_subscriptions WHERE cohort_id = p_cohort_id) THEN
+    RAISE EXCEPTION 'cohort % backs a subscription plan', p_cohort_id USING ERRCODE = 'check_violation';
+  END IF;
+
+  -- Who this delete actually detaches, captured under lock so the caller acts on the set that was
+  -- really affected rather than on a list read moments earlier. Locking first and aggregating
+  -- second because FOR UPDATE and array_agg cannot share a query level.
+  PERFORM 1 FROM public.students
+   WHERE (cohort_id = p_cohort_id OR original_cohort_id = p_cohort_id)
+     AND role = 'student'
+   ORDER BY id
+     FOR UPDATE;
+
+  SELECT COALESCE(array_agg(id ORDER BY id), '{}'::uuid[]) INTO v_member_ids
+    FROM public.students
+   WHERE (cohort_id = p_cohort_id OR original_cohort_id = p_cohort_id)
+     AND role = 'student';
+
+  -- A student held over an unpaid balance sits in the outstanding-payments cohort with
+  -- original_cohort_id pointing back here. The foreign key would null only that pointer, leaving
+  -- them parked in the outstanding cohort with nowhere to be restored to, and a non-null cohort_id
+  -- blocks any later move onto an individual subscription. Release them properly instead. This runs
+  -- before the cohort goes so trg_prune_group_memberships_on_cohort_change (migration 206) sees the
+  -- hold already lifted and treats it as the departure it now is.
+  UPDATE public.students
+     SET cohort_id = NULL, original_cohort_id = NULL, enrollment_model = NULL
+   WHERE original_cohort_id = p_cohort_id;
+  GET DIAGNOSTICS v_released = ROW_COUNT;
+
+  UPDATE public.payment_config SET outstanding_cohort_id = NULL
+   WHERE outstanding_cohort_id = p_cohort_id;
+
+  DELETE FROM public.payments WHERE cohort_id = p_cohort_id;
+  GET DIAGNOSTICS v_payments = ROW_COUNT;
+
+  FOREACH v_table IN ARRAY v_content_tables LOOP
+    EXECUTE format(
+      'UPDATE public.%I SET cohort_ids = array_remove(cohort_ids, $1) WHERE $1 = ANY(cohort_ids)',
+      v_table
+    ) USING p_cohort_id;
+    GET DIAGNOSTICS v_rows = ROW_COUNT;
+    v_untagged := v_untagged + v_rows;
+  END LOOP;
+
+  DELETE FROM public.cohorts WHERE id = p_cohort_id;
+
+  RETURN jsonb_build_object('ok', true, 'paymentsDeleted', v_payments,
+                            'contentUntagged', v_untagged, 'holdsReleased', v_released,
+                            'memberIds', to_jsonb(v_member_ids));
+END;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.delete_bootcamp_cohort(uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.delete_bootcamp_cohort(uuid) TO service_role;
