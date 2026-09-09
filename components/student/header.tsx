@@ -91,8 +91,8 @@ function PlanActionButton({ label, onClick }: { label: 'Upgrade' | 'Renew'; onCl
 
   return (
     <motion.div
-      className="relative flex-shrink-0 overflow-hidden rounded-full p-[2px]"
-      style={{ boxShadow: '0 0 10px rgba(0,245,255,0.25)' }}
+      className="relative flex-shrink-0 overflow-hidden rounded-full p-px"
+      style={{ boxShadow: '0 2px 8px rgba(15,23,42,0.12)' }}
       whileHover={reduceMotion ? undefined : { scale: 1.05 }}
       whileTap={reduceMotion ? undefined : { scale: 0.97 }}>
       <motion.span
@@ -105,8 +105,12 @@ function PlanActionButton({ label, onClick }: { label: 'Upgrade' | 'Renew'; onCl
       <button
         type="button"
         onClick={onClick}
-        className="relative z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[10px] font-black sm:gap-1.5 sm:px-3.5 sm:text-[11px]"
-        style={{ background: C.cta, color: C.ctaText }}>
+        className="relative z-10 inline-flex items-center gap-1 rounded-full px-2.5 py-2 text-[10px] font-semibold sm:gap-1.5 sm:px-3.5 sm:text-[11px]"
+        style={{
+          background: `color-mix(in srgb, ${C.card} 78%, transparent)`,
+          color: C.text,
+          backdropFilter: 'blur(8px)',
+        }}>
         {label === 'Renew' ? <>
           <span className="sm:hidden">Renew plan</span>
           <span className="hidden sm:inline">Renew</span>
