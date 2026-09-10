@@ -74,6 +74,17 @@ describe('publicly offered content', () => {
     expect(loader).toContain("select('id,title,description,cover_image,slug,cert_type')");
   });
 
+  it('drops certifications rather than the whole catalogue when their view is missing', () => {
+    // The gate fails closed on purpose: a broken gate could publish private cohort content, so an
+    // error page is safer. The certification CARD view is the opposite case -- it exposes card
+    // columns only, so a failure there is availability, not disclosure. Folding it into the throw
+    // would mean any tenant with a public certification loses courses, paths and experiences too
+    // until migration 208 is applied.
+    expect(loader).toContain('const catalogueError = coursesResult.error || experiencesResult.error || pathsResult.error;');
+    expect(loader).not.toContain('pathsResult.error || certificationsResult.error');
+    expect(loader).toContain('certificationsResult.error ? [] : certificationsResult.data');
+  });
+
   it('applies the certification card view to the fresh schema too', () => {
     expect(freshSchema).toContain('CREATE OR REPLACE VIEW public.publicly_offered_certifications');
     expect(freshSchema).toContain('GRANT SELECT ON public.publicly_offered_certifications TO anon');

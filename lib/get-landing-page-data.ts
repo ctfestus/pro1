@@ -112,8 +112,19 @@ const getProgrammes = unstable_cache(
         : empty,
     ]);
 
-    const catalogueError = coursesResult.error || experiencesResult.error || pathsResult.error || certificationsResult.error;
+    const catalogueError = coursesResult.error || experiencesResult.error || pathsResult.error;
     if (catalogueError) throw catalogueError;
+
+    // Certifications are deliberately NOT part of that throw. The gate above fails closed because
+    // a broken gate could publish private cohort content -- that is a leak, and an error page is
+    // the safer outcome. This view only ever exposes card columns, so a failure here is an
+    // availability problem instead: dropping certifications while still showing courses, paths
+    // and experiences is strictly better than replacing the whole catalogue with an error.
+    // It also means this code can ship before migration 208 is applied without emptying the
+    // homepage of every tenant that has a publicly offered certification.
+    if (certificationsResult.error) {
+      console.warn('[landing] certification cards unavailable:', certificationsResult.error.message);
+    }
 
     const courses: ProgrammeItem[] = (coursesResult.data ?? []).map((row) => ({
       id: row.id,
@@ -144,7 +155,7 @@ const getProgrammes = unstable_cache(
         : '',
     }));
 
-    const certifications: ProgrammeItem[] = (certificationsResult.data ?? []).map((row) => ({
+    const certifications: ProgrammeItem[] = (certificationsResult.error ? [] : certificationsResult.data ?? []).map((row) => ({
       id: row.id,
       title: row.title,
       description: row.description ?? '',
