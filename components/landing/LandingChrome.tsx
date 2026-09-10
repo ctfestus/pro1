@@ -14,7 +14,7 @@ import { motion, AnimatePresence, useInView, useReducedMotion } from 'motion/rea
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
-import { LayoutDashboard, ChevronDown, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, ChevronDown, ChevronRight, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -35,16 +35,21 @@ function Reveal({ children, delay = 0, y = 26, className = '' }: {
 }
 
 /** A section link: a scroll button on the landing page, a link home anywhere else. */
-function NavSectionLink({ anchor, hrefFor, className, style, children }: {
+function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, children }: {
   anchor: string; hrefFor?: (anchor: string) => string;
   className?: string; style?: React.CSSProperties; children: React.ReactNode;
+  /** Runs when the link is followed. The megamenu uses it to close itself. */
+  onNavigate?: () => void;
 }) {
   if (hrefFor) {
-    return <Link href={hrefFor(anchor)} className={className} style={style}>{children}</Link>;
+    return <Link href={hrefFor(anchor)} className={className} style={style} onClick={onNavigate}>{children}</Link>;
   }
   return (
     <button
-      onClick={() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' })}
+      onClick={() => {
+        document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' });
+        onNavigate?.();
+      }}
       className={className}
       style={style}
     >
@@ -65,9 +70,14 @@ export interface LandingNavProps {
   primaryColor?: string;
   accentColor?: string;
   fontFamily?: string;
-  navLinks: Array<{ label: string; anchor: string }>;
+  navLinks: Array<{ label: string; anchor: string; items?: NavMenuItem[] }>;
   /** Supply to turn the section links into ordinary links, for pages without those sections. */
   navLinkHref?: (anchor: string) => string;
+  /**
+   * Collapse the section links into a single megamenu trigger with this label. Without it they
+   * render flat, which is what a page with no content to preview still wants.
+   */
+  navMenuLabel?: string;
 }
 
 export interface LandingFooterProps {
@@ -216,9 +226,150 @@ export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
   );
 }
 
+/** One row of the megamenu's right-hand panel. Built by the caller so this file stays chrome. */
+export type NavMenuItem = { id: string; title: string; imageUrl?: string; href: string };
+
+/**
+ * One "Learn" trigger in place of a link per content type. Four flat links crowded the bar and
+ * still only offered a scroll; this previews what is actually in each section.
+ *
+ * Hovering a type on the left swaps the panel on the right, and clicking it goes to that section
+ * -- so a device with no hover still gets exactly what the flat links did. The panel also opens
+ * on the first type rather than empty, and the trigger toggles on click as well as hover, which
+ * is what makes it usable on a tablet, where the bar is visible but hover is not.
+ */
+function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFamily }: {
+  label: string;
+  groups: Array<{ label: string; anchor: string; items?: NavMenuItem[] }>;
+  hrefFor?: (anchor: string) => string;
+  isPageDark?: boolean; accentColor: string; fontFamily?: string;
+}) {
+  const [open, setOpen]     = useState(false);
+  const [active, setActive] = useState(0);
+  const reduced    = useReducedMotion();
+  const wrapRef    = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose   = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 160); };
+  useEffect(() => () => cancelClose(), []);
+
+  // An open panel that outlives the pointer sits over the page and swallows clicks meant for the
+  // hero, so Escape closes it and so does a press anywhere outside.
+  useEffect(() => {
+    if (!open) return;
+    const onKey  = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onDown); };
+  }, [open]);
+
+  const text   = isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F';
+  const strong = isPageDark ? '#ffffff' : '#1C1D1F';
+  const muted  = isPageDark ? 'rgba(255,255,255,0.55)' : '#6E7383';
+  const panel  = isPageDark ? '#161b22' : '#ffffff';
+  const inset  = isPageDark ? 'rgba(255,255,255,0.06)' : '#F4F7F9';
+  const hair   = isPageDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E8EBEF';
+
+  const current = groups[Math.min(active, groups.length - 1)];
+  const items   = current?.items ?? [];
+
+  return (
+    <div ref={wrapRef} className="relative"
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        aria-expanded={open} aria-haspopup="true"
+        className="group relative flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors"
+        style={{ color: text, fontFamily }}>
+        {label}
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <span aria-hidden="true"
+          className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full origin-left transition-transform duration-300"
+          style={{ background: accentColor, transform: open ? 'scaleX(1)' : 'scaleX(0)' }} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={reduced ? { opacity: 1 } : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? { opacity: 1 } : { opacity: 0, y: -6 }}
+            transition={{ duration: reduced ? 0 : 0.18, ease: EASE_OUT }}
+            className="absolute left-0 top-full mt-2 rounded-2xl overflow-hidden flex"
+            style={{
+              width: 'min(780px, calc(100vw - 48px))', background: panel, border: hair,
+              boxShadow: isPageDark ? '0 24px 60px rgba(0,0,0,0.55)' : '0 24px 60px -24px rgba(16,24,40,0.28)',
+              fontFamily,
+            }}>
+
+            {/* Left: the content types */}
+            <div className="flex-shrink-0 p-2" style={{ width: 232, background: inset }}>
+              {/* Hover and focus live on the wrapper, not on a span inside the link: a span is
+                  not focusable, so keyboard users could never swap the panel. React's onFocus
+                  bubbles, so tabbing onto the link itself selects the type. */}
+              {groups.map((group, i) => (
+                <div key={group.anchor} onMouseEnter={() => setActive(i)} onFocus={() => setActive(i)}>
+                  <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                    className="w-full flex items-center gap-2 text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    style={{
+                      color: i === active ? strong : muted,
+                      background: i === active ? panel : 'transparent',
+                    }}>
+                    <span className="flex-1">{group.label}</span>
+                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ opacity: i === active ? 1 : 0.4 }} />
+                  </NavSectionLink>
+                </div>
+              ))}
+            </div>
+
+            {/* Right: what the selected section actually holds */}
+            <div className="flex-1 min-w-0 p-4">
+              {items.length === 0 ? (
+                <p className="text-sm px-1 py-2" style={{ color: muted }}>Nothing published here yet.</p>
+              ) : (
+                <>
+                  <div className="grid grid-cols-2 gap-1">
+                    {items.map(item => (
+                      <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
+                        className="flex items-center gap-2.5 p-2 rounded-xl transition-colors"
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = inset; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                        {/* Not every item has a cover. Without a mark in its place the row reads
+                            as a thumbnail that failed to load rather than one that never existed. */}
+                        <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center" style={{ width: 52, height: 34, background: inset }}>
+                          {item.imageUrl
+                            ? <img src={item.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                            : <GraduationCap className="w-4 h-4" style={{ color: muted }} />}
+                        </span>
+                        <span className="text-[13px] font-medium leading-snug line-clamp-2" style={{ color: strong }}>
+                          {item.title}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                  <NavSectionLink anchor={current.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                    className="inline-flex items-center gap-1 mt-3 ml-2 text-[13px] font-bold transition-opacity hover:opacity-70"
+                    style={{ color: accentColor }}>
+                    See all {current.label.toLowerCase()}
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </NavSectionLink>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 export function LandingNav({
   appName, logoUrl, logoDarkUrl, isPageDark, scrolled, user, profile,
-  publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref,
+  publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref, navMenuLabel,
 }: LandingNavProps) {
   const NAVY  = '#003262';
   const BLUE  = primaryColor || '#0056D2';
@@ -250,7 +401,10 @@ export function LandingNav({
             }
           </div>
           <div className="hidden md:flex items-center gap-1 flex-1">
-            {navLinks.map(nl => (
+            {navMenuLabel && navLinks.length > 0 ? (
+              <NavLearnMenu label={navMenuLabel} groups={navLinks} hrefFor={navLinkHref}
+                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily} />
+            ) : navLinks.map(nl => (
               <NavSectionLink key={nl.anchor} anchor={nl.anchor} hrefFor={navLinkHref}
                 className="group relative px-3 py-1.5 text-sm font-medium transition-colors"
                 style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
