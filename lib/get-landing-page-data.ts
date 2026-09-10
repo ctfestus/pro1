@@ -108,7 +108,7 @@ const getProgrammes = unstable_cache(
       // table denies anon SELECT because it holds the exam bank, and publicly_offered_certifications
       // exposes the card columns only. See migration 208.
       certificationIds.length
-        ? publicClient.from('publicly_offered_certifications').select('id,title,description,cover_image,slug,cert_type').in('id', certificationIds).limit(12)
+        ? publicClient.from('publicly_offered_certifications').select('id,title,description,cover_image,slug').in('id', certificationIds).limit(12)
         : empty,
     ]);
 
@@ -163,7 +163,6 @@ const getProgrammes = unstable_cache(
       badge: 'Certification',
       type: 'certification',
       slug: row.slug,
-      category: row.cert_type === 'career' ? 'Career' : 'Technology',
     }));
 
     const pathRows = pathsResult.data ?? [];

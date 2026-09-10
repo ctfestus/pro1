@@ -1542,7 +1542,6 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   const certs     = programmes.filter(p => p.type === 'certification');
 
   const courseGroups = groupByField(courses, 'category');
-  const certGroups   = groupByField(certs, 'category');
   const adCards: AdCard[] = [
     { label: ad1Label, title: ad1Title, description: ad1Description, ctaText: ad1CtaText, ctaUrl: ad1CtaUrl, bgColor: ad1BgColor, bgImage: ad1BgImage, imageLayout: ad1ImageLayout },
     { label: ad2Label, title: ad2Title, description: ad2Description, ctaText: ad2CtaText, ctaUrl: ad2CtaUrl, bgColor: ad2BgColor, bgImage: ad2BgImage, imageLayout: ad2ImageLayout },
@@ -1675,12 +1674,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <div className="space-y-4">
-              {certGroups.map(([cat, items]) => (
-                <LandingCarouselRow key={cat} title={cat} items={items} type="certification" typeColor={SLATE}
-                  user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle={certGroups.length === 1} paged />
-              ))}
-            </div>
+            <LandingCarouselRow title="Certifications" items={certs} type="certification" typeColor={SLATE}
+              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
           </div>
         </section>
       )}

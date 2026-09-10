@@ -71,7 +71,7 @@ describe('publicly offered content', () => {
       expect(certView).not.toContain(`ce.${secret}`);
     }
     // And the loader must not ask for more than the view offers.
-    expect(loader).toContain("select('id,title,description,cover_image,slug,cert_type')");
+    expect(loader).toContain("select('id,title,description,cover_image,slug')");
   });
 
   it('drops certifications rather than the whole catalogue when their view is missing', () => {
