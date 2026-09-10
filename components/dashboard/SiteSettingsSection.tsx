@@ -671,6 +671,17 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
           </>
         )}
 
+        {Sec('c-closing-cta', 'Closing CTA',
+          <></>,
+          <>
+            {Vis('hideCta')}
+            {tf('ctaHeading',       'Heading',        'Start with one course.')}
+            {tf('ctaHeadingAccent', 'Heading accent', 'Build from there.', 'Shown in the accent colour on its own line.')}
+            {taf('ctaSubtext',      'Subtext',        'Create an account to save your progress, collect credentials and pick up where you left off.', undefined, 3)}
+            {tf('ctaButton',        'Button text',    'Create free account')}
+          </>
+        )}
+
         {Sec('c-footer', 'Footer',
           <></>,
           <>

@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { useTheme } from '@/components/ThemeProvider';
 import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
-import { ArrowRight, Check, LayoutDashboard, ChevronDown, ChevronLeft, ChevronRight, User, Settings, LogOut, BookOpen, Calendar, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
+import { ArrowRight, Check, LayoutDashboard, Pause, ChevronDown, ChevronLeft, ChevronRight, User, Settings, LogOut, BookOpen, Calendar, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
@@ -34,12 +34,15 @@ function FadeIn({ children, delay = 0, className = '' }: { children: React.React
 }
 
 // --- Floating orb ---
-function Orb({ x, y, size, color, delay }: { x: string; y: string; size: number; color: string; delay: number }) {
+function Orb({ x, y, size, color, delay, active = true }: { x: string; y: string; size: number; color: string; delay: number; active?: boolean }) {
+  // A 130px blur across a 320-430px element is one of the more expensive things to composite, and
+  // this loops forever. Holding it still while its section is off screen keeps the look on the
+  // sections a visitor is actually looking at and stops the work everywhere else.
   return (
     <motion.div className="absolute rounded-full pointer-events-none"
       style={{ left: x, top: y, width: size, height: size, background: color, filter: 'blur(130px)', opacity: 0.35 }}
-      animate={{ scale: [1, 1.18, 1], opacity: [0.35, 0.5, 0.35] }}
-      transition={{ duration: 8 + delay, repeat: Infinity, ease: 'easeInOut', delay }}
+      animate={active ? { scale: [1, 1.18, 1], opacity: [0.35, 0.5, 0.35] } : { scale: 1, opacity: 0.35 }}
+      transition={active ? { duration: 8 + delay, repeat: Infinity, ease: 'easeInOut', delay } : { duration: 0.4 }}
     />
   );
 }
@@ -89,12 +92,6 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
   }, []);
 
   const filteredProgrammes = activeFilter === 'all' ? programmes : programmes.filter(p => p.type === activeFilter);
-
-  const countByType = {
-    course: programmes.filter(p => p.type === 'course').length,
-    ve:     programmes.filter(p => p.type === 've').length,
-    path:   programmes.filter(p => p.type === 'path').length,
-  };
 
   const {
     primaryColor, accentColor, headingFont, bodyFont,
@@ -323,7 +320,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
           <div className="md:hidden overflow-x-auto pb-4 -mx-6" style={{ scrollbarWidth: 'none', scrollSnapType: 'x mandatory' }}>
             <div className="flex gap-3 px-6">
               {filteredProgrammes.map((p, i) => {
-                const typeLabel = p.type === 've' ? 'Guided Project' : p.type === 'path' ? 'Learning Path' : 'Course';
+                const typeLabel = p.type === 've' ? 'Guided Project' : p.type === 'path' ? 'Learning Path' : p.type === 'certification' ? 'Certification' : 'Course';
                 return (
                   <Link key={p.id} href={landingHref(p, user)}
                     className="relative flex-shrink-0 rounded-2xl overflow-hidden"
@@ -360,7 +357,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
             <div className="flex gap-4 items-stretch" onMouseLeave={() => setHoveredSlide(null)}>
             {filteredProgrammes.slice(sliderIdx, sliderIdx + PAGE).map((p, i) => {
               const expanded = hoveredSlide === i || (hoveredSlide === null && i === 0);
-              const typeLabel = p.type === 've' ? 'Guided Project' : p.type === 'path' ? 'Learning Path' : 'Course';
+              const typeLabel = p.type === 've' ? 'Guided Project' : p.type === 'path' ? 'Learning Path' : p.type === 'certification' ? 'Certification' : 'Course';
               return (
                 <motion.div
                   key={p.id}
@@ -915,11 +912,13 @@ function groupByField(items: ProgrammeItem[], field: 'category'): [string, Progr
   });
 }
 
-const LAND_TYPE_LABEL = { course: 'Course', path: 'Learning Path', ve: 'Virtual Experience' } as const;
+const LAND_TYPE_LABEL = { course: 'Course', path: 'Learning Path', ve: 'Virtual Experience', certification: 'Certification' } as const;
 const LAND_TYPE_GRAD  = {
   course: 'linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%)',
   path:   'linear-gradient(135deg,#92400E 0%,#F59E0B 100%)',
   ve:     'linear-gradient(135deg,#064E3B 0%,#10B981 100%)',
+  // Slate reads as a credential and stays clear of the other three type colours.
+  certification: 'linear-gradient(135deg,#0F172A 0%,#334155 100%)',
 } as const;
 const LAND_C = { card: 'white', text: '#1C1D1F', muted: '#6E7383', faint: '#9CA3AF', cardBorder: '#E8EBEF' };
 
@@ -938,10 +937,13 @@ const CATEGORY_ICONS: Array<[RegExp, React.ElementType]> = [
   [/business|consult|strateg|manage/i,                  Briefcase],
 ];
 
-function getCategoryIcon(title: string, type: 'course' | 've' | 'path'): React.ElementType {
+function getCategoryIcon(title: string, type: ProgrammeItem['type']): React.ElementType {
   const hit = CATEGORY_ICONS.find(([re]) => re.test(title));
   if (hit) return hit[1];
-  return type === 've' ? Briefcase : type === 'path' ? TrendingUp : GraduationCap;
+  if (type === 've') return Briefcase;
+  if (type === 'path') return TrendingUp;
+  if (type === 'certification') return Award;
+  return GraduationCap;
 }
 
 // --- Ad banner carousel ---
@@ -953,6 +955,9 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   const cards = ads.filter(a => a.title);
   const [idx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
+  // Kept apart from `paused`. That one is the transient hover/swipe hold, so folding the two
+  // together would let moving the mouse away restart a carousel the visitor deliberately stopped.
+  const [userPaused, setUserPaused] = useState(false);
   const reduced = useReducedMotion();
   const trackRef = useRef<HTMLDivElement>(null);
   const clipRef  = useRef<HTMLDivElement>(null);
@@ -970,10 +975,10 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
 
   // Gentle auto-advance; paused on hover/touch, off for reduced motion
   useEffect(() => {
-    if (paused || reduced || max === 0) return;
+    if (paused || userPaused || reduced || max === 0) return;
     const t = setInterval(() => setIdx(i => (i >= max ? 0 : i + 1)), BANNER_AUTO_MS);
     return () => clearInterval(t);
-  }, [paused, reduced, max, idx]);
+  }, [paused, userPaused, reduced, max, idx]);
 
   const isMobile = containerW > 0 && containerW < 640;
   const hasSideImage = cards.some(c => c.imageLayout === 'side' && !!c.bgImage);
@@ -1171,7 +1176,18 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
 
       {/* Dots centered below -- the active dot fills with the auto-advance timer */}
       {max > 0 && (
-        <div className="flex justify-center gap-2 mt-4">
+        <div className="flex justify-center items-center gap-2 mt-4">
+          {/* Auto-advance runs every 6.5s and hovering was the only way to hold it, which leaves
+              touch visitors no way at all. WCAG 2.2.2 asks for a real mechanism to pause anything
+              that moves for longer than five seconds. */}
+          {!reduced && (
+            <button type="button" onClick={() => setUserPaused(v => !v)}
+              aria-label={userPaused ? 'Resume slideshow' : 'Pause slideshow'}
+              className="grid place-items-center w-7 h-7 rounded-full mr-1 transition-opacity hover:opacity-70"
+              style={{ background: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(28,29,31,0.08)', color: isDark ? '#ffffff' : LAND_C.text }}>
+              {userPaused ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+            </button>
+          )}
           {Array.from({ length: max + 1 }, (_, i) => {
             const activeDot = i === idx;
             const base = isDark ? 'rgba(255,255,255,0.25)' : 'rgba(28,29,31,0.20)';
@@ -1180,13 +1196,13 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
               <button key={i} onClick={() => goTo(i)} aria-label={`Go to slide ${i + 1}`}
                 className="relative rounded-full overflow-hidden transition-all duration-300"
                 style={{ width: activeDot ? 26 : 7, height: 7, background: base }}>
-                {activeDot && !reduced && !paused && (
+                {activeDot && !reduced && !paused && !userPaused && (
                   <motion.span key={`fill-${idx}`} aria-hidden="true" className="absolute inset-0 origin-left rounded-full"
                     style={{ background: fill }}
                     initial={{ scaleX: 0 }} animate={{ scaleX: 1 }}
                     transition={{ duration: BANNER_AUTO_MS / 1000, ease: 'linear' }} />
                 )}
-                {activeDot && (reduced || paused) && (
+                {activeDot && (reduced || paused || userPaused) && (
                   <span aria-hidden="true" className="absolute inset-0 rounded-full" style={{ background: fill }} />
                 )}
               </button>
@@ -1204,7 +1220,7 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
 function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: { item: ProgrammeItem; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean }) {
   // Courses, virtual experiences and learning paths have public detail pages for signed-out
   // visitors. Learning paths are addressed by id because they do not have slugs.
-  const hasPublicPage = ((item.type === 've' || item.type === 'course') && !!item.slug) || (item.type === 'path' && !!item.id);
+  const hasPublicPage = ((item.type === 've' || item.type === 'course' || item.type === 'certification') && !!item.slug) || (item.type === 'path' && !!item.id);
   const href = landingHref(item, user);
   const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
@@ -1295,7 +1311,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
 const GRID_PAGE_SIZE = 8;
 
 function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont, isDark, hideTitle, transparentBg, popupDark, bg, paged }: {
-  title: string; items: ProgrammeItem[]; type: 'course' | 've' | 'path'; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean; transparentBg?: boolean; popupDark?: boolean; bg?: string;
+  title: string; items: ProgrammeItem[]; type: ProgrammeItem['type']; typeColor: string; user: any; hFont?: string; bFont?: string; isDark?: boolean; hideTitle?: boolean; transparentBg?: boolean; popupDark?: boolean; bg?: string;
   /** Render as a paginated grid of twelve rather than a row that scrolls sideways. */
   paged?: boolean;
 }) {
@@ -1463,31 +1479,28 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
 }
 
 // --- Modern template ---
-function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError }: {
-  user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
+function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError }: {
+  user: any; profile: any; scrolled: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
   publicSignupEnabled: boolean;
   programmes: ProgrammeItem[]; programmesError: boolean;
 }) {
   const reduced = useReducedMotion();
 
+  // Drives the decorative orbs in the two gradient sections. The margin starts them just before
+  // the section arrives, so nothing visibly kicks into motion mid-view.
+  const pathsRef = useRef<HTMLElement>(null);
+  const ctaRef   = useRef<HTMLElement>(null);
+  const pathsInView = useInView(pathsRef, { margin: '200px' });
+  const ctaInView   = useInView(ctaRef,   { margin: '200px' });
+
   const {
     primaryColor, accentColor, headingFont, bodyFont,
     heroTitle, heroTitleAccent, heroSubheadline, heroPrimaryCta,
-    statsEnrolled, statsRating,
-    stat1Value, stat1Label, stat2Value, stat2Label, stat3Value, stat3Label, stat4Value, stat4Label,
-    partnersLabel, partner1Name, partner1LogoUrl, partner2Name, partner2LogoUrl,
-    partner3Name, partner3LogoUrl, partner4Name, partner4LogoUrl,
-    partner5Name, partner5LogoUrl, partner6Name, partner6LogoUrl,
-    testimonialsLabel, testimonialsHeading,
-    testimonial1Name, testimonial1Role, testimonial1Text,
-    testimonial2Name, testimonial2Role, testimonial2Text,
-    testimonial3Name, testimonial3Role, testimonial3Text,
     ctaHeading, ctaHeadingAccent, ctaSubtext, ctaButton,
     footerTagline, footerLinksHeading,
     footerLink1Label, footerLink1Url, footerLink2Label, footerLink2Url,
     footerLink3Label, footerLink3Url, footerLink4Label, footerLink4Url,
-    hideStickyBar, stickyCtaText, stickyCtaButton,
-    hideTestimonials, hideCta, hidePartners, hideStats,
+    hideCta,
     ad1Label, ad1Title, ad1Description, ad1CtaText, ad1CtaUrl, ad1BgColor, ad1BgImage, ad1ImageLayout,
     ad2Label, ad2Title, ad2Description, ad2CtaText, ad2CtaUrl, ad2BgColor, ad2BgImage, ad2ImageLayout,
     ad3Label, ad3Title, ad3Description, ad3CtaText, ad3CtaUrl, ad3BgColor, ad3BgImage, ad3ImageLayout,
@@ -1514,10 +1527,12 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
   const BLUE  = primaryColor || '#0056D2';
   const AMBER = accentColor  || '#FF9933';
   const GREEN = '#00BF63';
+  const SLATE = '#334155';
 
   const courses   = programmes.filter(p => p.type === 'course');
   const paths     = programmes.filter(p => p.type === 'path');
   const ves       = programmes.filter(p => p.type === 've');
+  const certs     = programmes.filter(p => p.type === 'certification');
 
   const courseGroups = groupByField(courses, 'category');
   const adCards: AdCard[] = [
@@ -1532,10 +1547,11 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
 
 
   const NAV_LINKS: Array<{ label: string; anchor: string }> = [
-    { label: 'Courses',              anchor: 'section-courses' },
-    { label: 'Learning Paths',       anchor: 'section-paths' },
-    { label: 'Virtual Experiences',  anchor: 'section-ves' },
-  ];
+    courses.length  ? { label: 'Courses',             anchor: 'section-courses' }         : null,
+    paths.length    ? { label: 'Learning Paths',      anchor: 'section-paths' }           : null,
+    ves.length      ? { label: 'Virtual Experiences', anchor: 'section-ves' }             : null,
+    certs.length    ? { label: 'Certifications',      anchor: 'section-certifications' }  : null,
+  ].filter((link): link is { label: string; anchor: string } => link !== null);
 
   return (
     <>
@@ -1606,17 +1622,17 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
 
       {/* LEARNING PATHS */}
       {paths.length > 0 && (
-        <section id="section-paths" className="relative py-10 md:py-14 overflow-hidden"
+        <section id="section-paths" ref={pathsRef} className="relative py-10 md:py-14 overflow-hidden"
           style={{ background: isPageDark
             ? `linear-gradient(140deg, #0d1117 0%, ${shade(BLUE, -0.72)} 100%)`
             : `linear-gradient(140deg, ${shade(BLUE, -0.4)} 0%, ${BLUE} 62%, ${shade(BLUE, -0.12)} 100%)` }}>
           {!reduced && <>
-            <Orb x="78%" y="-40%" size={360} color={shade(BLUE, 0.55)} delay={1} />
-            <Orb x="-6%" y="55%" size={320} color={AMBER} delay={3} />
+            <Orb x="78%" y="-40%" size={360} color={shade(BLUE, 0.55)} delay={1} active={pathsInView} />
+            <Orb x="-6%" y="55%" size={320} color={AMBER} delay={3} active={pathsInView} />
           </>}
           <div className="relative z-10 max-w-[1240px] mx-auto px-6 md:px-10">
             <MSectionHeading title="Learning Paths" sub="Launch your career in tech with curated courses, virtual experiences and guided projects."
-              color="white" subColor="rgba(255,255,255,0.75)" accent={AMBER} hFont={hFont} bFont={bFont} />
+              color="white" subColor="rgba(255,255,255,0.85)" accent={AMBER} hFont={hFont} bFont={bFont} />
             <LandingCarouselRow title="Learning Paths" items={paths} type="path" typeColor={AMBER} user={user} hFont={hFont} bFont={bFont} isDark transparentBg={!isPageDark} popupDark={isPageDark} hideTitle
               bg={isPageDark ? `linear-gradient(140deg, rgba(13,17,23,0.55) 0%, ${hexRgba(shade(BLUE, -0.72), 0.55)} 100%)` : undefined} />
           </div>
@@ -1644,6 +1660,19 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
         </section>
       )}
 
+      {/* CERTIFICATIONS */}
+      {certs.length > 0 && (
+        <section id="section-certifications" className="py-10 md:py-14">
+          <div className="max-w-[1240px] mx-auto px-6 md:px-10">
+            <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
+              color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
+              accent={AMBER} hFont={hFont} bFont={bFont} />
+            <LandingCarouselRow title="Certifications" items={certs} type="certification" typeColor={SLATE}
+              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
+          </div>
+        </section>
+      )}
+
       {programmesError && <ProgrammeLoadError dark={isPageDark} />}
 
       {!programmesError && programmes.length === 0 && (
@@ -1654,20 +1683,20 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
 
       {/* CTA SECTION */}
       {hideCta !== '1' && (
-        <section className="relative py-20 md:py-28 text-center overflow-hidden"
+        <section ref={ctaRef} className="relative py-20 md:py-28 text-center overflow-hidden"
           style={{ background: `linear-gradient(140deg, ${shade(BLUE, -0.62)} 0%, ${BLUE} 72%, ${shade(BLUE, -0.1)} 100%)` }}>
           {!reduced && <>
-            <Orb x="-8%" y="-30%" size={430} color={shade(BLUE, 0.4)} delay={0} />
-            <Orb x="72%" y="40%" size={380} color={AMBER} delay={2.5} />
+            <Orb x="-8%" y="-30%" size={430} color={shade(BLUE, 0.4)} delay={0} active={ctaInView} />
+            <Orb x="72%" y="40%" size={380} color={AMBER} delay={2.5} active={ctaInView} />
           </>}
           <div className="relative z-10 max-w-[1240px] mx-auto px-6 md:px-10">
             <h2 className="mb-4" style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(30px,4.2vw,50px)', color: 'white', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-              <WordReveal text={ctaHeading || `Join ${statsEnrolled || '10,000+'} professionals`} /><br />
-              <WordReveal text={ctaHeadingAccent || "building Africa's future."} delay={0.25} style={{ color: AMBER }} />
+              <WordReveal text={ctaHeading} /><br />
+              <WordReveal text={ctaHeadingAccent} delay={0.25} style={{ color: AMBER }} />
             </h2>
             <MReveal delay={0.35} y={16}>
               <p className="mx-auto mb-9 text-base" style={{ color: 'rgba(255,255,255,0.72)', maxWidth: 500, lineHeight: 1.7, fontFamily: bFont ?? hFont }}>
-                {ctaSubtext || 'Start learning today. No credit card required. Access your first course free.'}
+                {ctaSubtext}
               </p>
             </MReveal>
             <MReveal delay={0.45} y={14}>
@@ -1676,7 +1705,7 @@ function ModernTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl
                   <Link href={user ? '/student' : '/auth?mode=signup'}
                     className="group inline-flex items-center gap-2 font-bold rounded-xl transition-shadow duration-300 hover:shadow-[0_16px_40px_-10px_rgba(0,0,0,0.45)]"
                     style={{ background: 'white', color: BLUE, padding: '14px 32px', fontSize: 15 }}>
-                    {user ? 'Go to my learning' : (ctaButton || 'Start learning free')}
+                    {user ? 'Go to my learning' : ctaButton}
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </Magnetic>
@@ -1765,8 +1794,6 @@ export default function LandingPageClient({
   const [scrolled, setScrolled] = useState(false);
   const [pastHero, setPastHero] = useState(false);
   const [loading, setLoading]   = useState(isPreview);
-  const [activeTestimonial, setActiveTestimonial] = useState(0);
-  const [hoveredCard, setHoveredCard] = useState<number | null>(null);
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(() => resolveConfig(initialTemplateId, initialSiteConfig));
   const [templateId, setTemplateId] = useState(initialTemplateId);
 
@@ -1835,11 +1862,6 @@ export default function LandingPageClient({
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  useEffect(() => {
-    const id = setInterval(() => setActiveTestimonial(v => (v + 1) % 3), 5000);
-    return () => clearInterval(id);
-  }, []);
-
   const {
     primaryColor, accentColor, headingFont, bodyFont,
     heroTitle, heroTitleAccent, heroSubheadline, heroPrimaryCta, heroFontSize, heroOverlayColor, heroOverlayOpacity, statsEnrolled, statsRating,
@@ -1896,6 +1918,6 @@ export default function LandingPageClient({
     return <ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />;
   }
 
-  return <ModernTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />;
+  return <ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />;
 
 }

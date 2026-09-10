@@ -16,6 +16,14 @@ describe('landingHref', () => {
       .toBe('/data-basics?catalogueType=virtual_experience');
   });
 
+  it('links certifications, which the homepage lists as of migration 208', () => {
+    // publicly_offered_content always had a certifications branch, but the landing loader never
+    // asked for them, so the type had no destination. app/[id] resolves this value through the
+    // public catalogue preview, which serves a certification card without its question bank.
+    expect(landingHref({ type: 'certification', slug: 'data-analyst-cert' }, null))
+      .toBe('/data-analyst-cert?catalogueType=certification');
+  });
+
   it('sends a signed-out visitor to the content, not to the login form', () => {
     expect(landingHref({ type: 'course', slug: 'x' }, null).startsWith('/x')).toBe(true);
   });
@@ -49,5 +57,7 @@ describe('landingHref', () => {
       expect(landingHref({ type: value === 'course' ? 'course' : 've', slug: 's' }, null))
         .toContain(`catalogueType=${value}`);
     }
+    // A certification card is useless if the detail route does not recognise the type it sends.
+    expect(detail).toContain("requestedType === 'certification'");
   });
 });

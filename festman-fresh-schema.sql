@@ -6393,6 +6393,24 @@ AS
 
 GRANT SELECT ON public.publicly_offered_learning_paths TO anon, authenticated;
 
+-- migration 208: the certification CARD, for the certifications a visitor may actually be shown.
+--
+-- publicly_offered_content has always had a certifications branch, so the gate already agrees
+-- which certifications are public. The landing page still could not list them: there is no
+-- published_certifications view, and certifications.* denies anon SELECT on purpose because the
+-- base table holds the exam question bank and its answer keys. This exposes the card and only the
+-- card -- the same column list app/api/catalogue-preview pins as safe for a signed-out visitor,
+-- plus cert_type, which the card needs to group Career apart from Technology.
+CREATE OR REPLACE VIEW public.publicly_offered_certifications
+WITH (security_barrier = true)
+AS
+  SELECT ce.id, ce.title, ce.description, ce.cover_image, ce.slug, ce.cert_type
+  FROM   public.certifications ce
+  JOIN   public.publicly_offered_content o
+    ON   o.content_table = 'certifications' AND o.content_id = ce.id;
+
+GRANT SELECT ON public.publicly_offered_certifications TO anon, authenticated;
+
 -- What the public pricing page is allowed to read, defined in SQL rather than in a projection.
 --
 -- The page was reading with the service role. That is not a key leak from a server component,
