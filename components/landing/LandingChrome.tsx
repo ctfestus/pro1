@@ -14,7 +14,7 @@ import { motion, AnimatePresence, useInView, useReducedMotion } from 'motion/rea
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
-import { LayoutDashboard, ChevronDown, ChevronRight, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, ChevronDown, ChevronRight, Menu, X, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -414,6 +414,134 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
   );
 }
 
+/**
+ * The same content on a phone, where hover does not exist and the desktop row is hidden.
+ *
+ * Three side-by-side columns do not fit 390px, so the structure becomes an accordion: tap a type
+ * to open it, its groupings appear as chips, and the items sit under the selected chip. Pricing
+ * lives in here too -- the bar only has room for the logo, this trigger and the account buttons.
+ */
+function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily }: {
+  groups: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
+  hrefFor?: (anchor: string) => string;
+  isPageDark?: boolean; accentColor: string; fontFamily?: string;
+}) {
+  const [open, setOpen]         = useState(false);
+  const [openType, setOpenType] = useState<number | null>(0);
+  const [activeSub, setActiveSub] = useState(0);
+  const reduced = useReducedMotion();
+
+  const toggleType = (i: number) => {
+    setOpenType(current => (current === i ? null : i));
+    setActiveSub(0);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const strong = isPageDark ? '#ffffff' : '#1C1D1F';
+  const muted  = isPageDark ? 'rgba(255,255,255,0.60)' : '#6E7383';
+  const panel  = isPageDark ? '#0d1117' : '#ffffff';
+  const inset  = isPageDark ? 'rgba(255,255,255,0.06)' : '#F4F7F9';
+  const hair   = isPageDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E8EBEF';
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        aria-expanded={open} aria-label={open ? 'Close menu' : 'Open menu'}
+        className="md:hidden grid place-items-center w-9 h-9 rounded-lg transition-colors"
+        style={{ color: strong }}>
+        {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={reduced ? { opacity: 1 } : { opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? { opacity: 1 } : { opacity: 0, y: -8 }}
+            transition={{ duration: reduced ? 0 : 0.18, ease: EASE_OUT }}
+            className="md:hidden absolute left-0 right-0 top-full overflow-y-auto"
+            style={{
+              background: panel, borderTop: hair, maxHeight: 'calc(100vh - 64px)', fontFamily,
+              boxShadow: '0 24px 40px -20px rgba(0,0,0,0.35)',
+            }}>
+            <div className="px-5 py-3">
+              {groups.map((group, i) => {
+                const subGroups = group.subGroups ?? [];
+                const showSubs  = subGroups.some(g => g.label);
+                const items     = subGroups[Math.min(activeSub, Math.max(0, subGroups.length - 1))]?.items ?? [];
+                const isOpen    = openType === i;
+                return (
+                  <div key={group.anchor} style={{ borderBottom: hair }}>
+                    <button type="button" onClick={() => toggleType(i)} aria-expanded={isOpen}
+                      className="w-full flex items-center justify-between py-3.5 text-[15px] font-bold"
+                      style={{ color: isOpen ? strong : muted }}>
+                      {group.label}
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isOpen && (
+                      <div className="pb-4">
+                        {showSubs && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {subGroups.map((sub, si) => (
+                              <button key={sub.label || si} type="button" onClick={() => setActiveSub(si)}
+                                aria-pressed={si === activeSub}
+                                className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+                                style={{
+                                  background: si === activeSub ? strong : inset,
+                                  color: si === activeSub ? panel : muted,
+                                }}>
+                                {sub.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          {items.map(item => (
+                            <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
+                              className="flex items-center gap-3 py-2 rounded-xl">
+                              <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center"
+                                style={{ width: 64, height: 42, background: inset }}>
+                                {item.imageUrl
+                                  ? <img src={item.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                  : <GraduationCap className="w-4 h-4" style={{ color: muted }} />}
+                              </span>
+                              <span className="text-[13px] font-semibold leading-snug line-clamp-2" style={{ color: strong }}>
+                                {item.title}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                        <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                          className="inline-flex items-center gap-1 mt-3 text-[13px] font-bold"
+                          style={{ color: strong }}>
+                          See all {group.label.toLowerCase()}
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </NavSectionLink>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <Link href="/pricing" onClick={() => setOpen(false)}
+                className="block py-3.5 text-[15px] font-bold" style={{ color: muted }}>
+                Pricing
+              </Link>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
 export function LandingNav({
   appName, logoUrl, logoDarkUrl, isPageDark, scrolled, user, profile,
   publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref, navMenuLabel,
@@ -473,13 +601,20 @@ export function LandingNav({
             </Link>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
-            {/* The row above is hidden below md, so without a copy here Pricing would disappear
-                on a phone entirely -- there is no mobile section nav to fall back to. */}
-            <Link href="/pricing"
-              className="md:hidden px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
-              style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
-              Pricing
-            </Link>
+            {navMenuLabel && navLinks.length > 0 ? (
+              /* Carries Pricing itself, because the bar has room for the logo, this trigger and
+                 the account buttons and no more once Sign up is enabled. */
+              <NavMobileMenu groups={navLinks} hrefFor={navLinkHref}
+                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily} />
+            ) : (
+              /* No mobile sheet on pages that pass flat links, so Pricing stays in the bar there
+                 rather than becoming unreachable on a phone. */
+              <Link href="/pricing"
+                className="md:hidden px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+                style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
+                Pricing
+              </Link>
+            )}
             {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} fontFamily={fontFamily} /> : (
               <>
                 <Link href="/auth"
