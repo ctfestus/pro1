@@ -1287,13 +1287,15 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
               <BookOpen className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }}/>
             </div>
         }
+        {/* One tag, and it says the most specific thing available: the category if the item has
+            one, the content type otherwise. The type used to print here AND again above the
+            title, so a certification announced itself twice and told you nothing either time. */}
         <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md"
           style={{ background: typeColor, color: 'white' }}>
-          {LAND_TYPE_LABEL[item.type]}
+          {item.category || LAND_TYPE_LABEL[item.type]}
         </span>
       </div>
       <div className="p-5">
-        <p className="text-xs mb-1" style={{ color: isDark ? 'rgba(255,255,255,0.45)' : '#888' }}>{LAND_TYPE_LABEL[item.type]}</p>
         <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: isDark ? 'white' : '#111', fontFamily: hFont }}>{item.title}</h3>
         {item.partnerName && (
           <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: isDark ? 'rgba(255,255,255,0.5)' : '#777' }}>
