@@ -16,7 +16,7 @@ import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
-import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
+import { LandingNav, LandingFooter, NavProfileMenu, type NavMenuItem } from '@/components/landing/LandingChrome';
 import { toPlainText } from '@/lib/plain-text';
 
 // --- FadeIn on scroll ---
@@ -1555,12 +1555,22 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   ];
 
 
-  const NAV_LINKS: Array<{ label: string; anchor: string }> = [
-    courses.length  ? { label: 'Courses',             anchor: 'section-courses' }         : null,
-    paths.length    ? { label: 'Learning Paths',      anchor: 'section-paths' }           : null,
-    ves.length      ? { label: 'Virtual Experiences', anchor: 'section-ves' }             : null,
-    certs.length    ? { label: 'Certifications',      anchor: 'section-certifications' }  : null,
-  ].filter((link): link is { label: string; anchor: string } => link !== null);
+  // The megamenu previews each section rather than only scrolling to it, so the nav carries a
+  // few real items per type. Six is what fits the panel in two columns without it scrolling.
+  const navItems = (items: ProgrammeItem[]): NavMenuItem[] => items.slice(0, 6).map(item => ({
+    id: item.id,
+    title: item.title,
+    imageUrl: item.imageUrl,
+    href: landingHref(item, user),
+  }));
+
+  type NavGroup = { label: string; anchor: string; items: NavMenuItem[] };
+  const NAV_LINKS: NavGroup[] = [
+    courses.length  ? { label: 'Courses',             anchor: 'section-courses',        items: navItems(courses) } : null,
+    paths.length    ? { label: 'Learning Paths',      anchor: 'section-paths',          items: navItems(paths) }   : null,
+    ves.length      ? { label: 'Virtual Experiences', anchor: 'section-ves',            items: navItems(ves) }     : null,
+    certs.length    ? { label: 'Certifications',      anchor: 'section-certifications', items: navItems(certs) }   : null,
+  ].filter((group): group is NavGroup => group !== null);
 
   return (
     <>
@@ -1596,6 +1606,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
         primaryColor={primaryColor}
         accentColor={accentColor}
         navLinks={NAV_LINKS}
+        navMenuLabel="Learn"
       />
 
       {/* AD BANNER */}
