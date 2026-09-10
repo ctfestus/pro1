@@ -461,10 +461,22 @@ export function LandingNav({
                   style={{ background: AMBER }} />
               </NavSectionLink>
             ))}
+            {/* Sits with the section navigation rather than beside the account controls, and is
+                styled as a nav link so it matches what it now stands next to. */}
+            <Link href="/pricing"
+              className="group relative px-3 py-1.5 text-sm font-medium transition-colors"
+              style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
+              Pricing
+              <span aria-hidden="true"
+                className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
+                style={{ background: AMBER }} />
+            </Link>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+            {/* The row above is hidden below md, so without a copy here Pricing would disappear
+                on a phone entirely -- there is no mobile section nav to fall back to. */}
             <Link href="/pricing"
-              className="px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+              className="md:hidden px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
               style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
               Pricing
             </Link>
