@@ -6683,7 +6683,11 @@ DECLARE
   v_member_ids      uuid[];
   v_table           text;
   v_rows            integer;
-  -- Every table that records a cohort assignment as an array member rather than a row.
+  -- Every table that records a cohort assignment as an array member rather than a row. Checked
+  -- against the catalogue rather than trusted: tenant databases drift from this file (public.forms
+  -- is declared here and absent from at least one live database), and a hard-coded list turns that
+  -- drift into a failed delete. A table this tenant does not have has no ids to strip, so skipping
+  -- it is the whole correction.
   v_content_tables  text[] := ARRAY[
     'forms', 'courses', 'events', 'virtual_experiences', 'certifications', 'assignments',
     'communities', 'announcements', 'recordings', 'schedules', 'learning_paths'
@@ -6734,6 +6738,10 @@ BEGIN
   GET DIAGNOSTICS v_payments = ROW_COUNT;
 
   FOREACH v_table IN ARRAY v_content_tables LOOP
+    CONTINUE WHEN NOT EXISTS (
+      SELECT 1 FROM information_schema.columns
+       WHERE table_schema = 'public' AND table_name = v_table AND column_name = 'cohort_ids'
+    );
     EXECUTE format(
       'UPDATE public.%I SET cohort_ids = array_remove(cohort_ids, $1) WHERE $1 = ANY(cohort_ids)',
       v_table
