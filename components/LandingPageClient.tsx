@@ -709,7 +709,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
               <Link href={user ? '/student' : '/auth'}
                 className="group flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold bg-white transition-all hover:scale-105 shadow-2xl"
                 style={{ color: primaryColor }}>
-                {user ? 'Go to dashboard' : newsletterButton}
+                {user ? 'Go to dashboard' : (newsletterButton || 'Start your journey')}
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
               <span className="text-sm" style={{ color: on_dark, opacity: 0.45 }}>No credit card required</span>
@@ -736,7 +736,7 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
               <Link href={user ? '/student' : '/auth'}
                 className="group flex items-center gap-2 px-6 py-2.5 rounded-full text-sm font-bold transition-all hover:scale-105 flex-shrink-0 ml-auto"
                 style={{ background: accentColor, color: '#fff' }}>
-                {user ? 'Go to dashboard' : stickyCtaButton}
+                {user ? 'Go to dashboard' : (stickyCtaButton || 'Explore programmes')}
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
             </motion.div>
@@ -1222,6 +1222,13 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
   // visitors. Learning paths are addressed by id because they do not have slugs.
   const hasPublicPage = ((item.type === 've' || item.type === 'course' || item.type === 'certification') && !!item.slug) || (item.type === 'path' && !!item.id);
   const href = landingHref(item, user);
+  // One preview serves every type, so the button has to name what it actually opens. A
+  // certification is an exam sat once its rules allow, not something you start learning, and the
+  // link goes to the overview either way -- so it says view rather than promising a start.
+  const viewLabel  = item.type === 'certification' ? 'View certification'
+                   : item.type === 've' ? 'View project'
+                   : 'View course';
+  const startLabel = item.type === 'certification' ? 'View certification' : 'Start learning';
   const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
 
   if (item.type === 'path') {
@@ -1300,7 +1307,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
           className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
           style={{ background: '#00bf63', color: 'white' }}>
           <Play className="w-3.5 h-3.5"/>
-          {user ? 'Start learning' : hasPublicPage ? 'View course' : 'Log in to access'}
+          {user ? startLabel : hasPublicPage ? viewLabel : 'Log in to access'}
         </Link>
       </div>
     </div>
@@ -1535,6 +1542,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   const certs     = programmes.filter(p => p.type === 'certification');
 
   const courseGroups = groupByField(courses, 'category');
+  const certGroups   = groupByField(certs, 'category');
   const adCards: AdCard[] = [
     { label: ad1Label, title: ad1Title, description: ad1Description, ctaText: ad1CtaText, ctaUrl: ad1CtaUrl, bgColor: ad1BgColor, bgImage: ad1BgImage, imageLayout: ad1ImageLayout },
     { label: ad2Label, title: ad2Title, description: ad2Description, ctaText: ad2CtaText, ctaUrl: ad2CtaUrl, bgColor: ad2BgColor, bgImage: ad2BgImage, imageLayout: ad2ImageLayout },
@@ -1667,8 +1675,12 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
             <MSectionHeading title="Certifications" sub="Prove what you can already do. Timed, protected exams that end in a credential you can share."
               color={isPageDark ? 'white' : '#1C1D1F'} subColor={isPageDark ? 'rgba(255,255,255,0.55)' : LAND_C.muted}
               accent={AMBER} hFont={hFont} bFont={bFont} />
-            <LandingCarouselRow title="Certifications" items={certs} type="certification" typeColor={SLATE}
-              user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle paged />
+            <div className="space-y-4">
+              {certGroups.map(([cat, items]) => (
+                <LandingCarouselRow key={cat} title={cat} items={items} type="certification" typeColor={SLATE}
+                  user={user} hFont={hFont} bFont={bFont} isDark={isPageDark} hideTitle={certGroups.length === 1} paged />
+              ))}
+            </div>
           </div>
         </section>
       )}
@@ -1691,21 +1703,23 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
           </>}
           <div className="relative z-10 max-w-[1240px] mx-auto px-6 md:px-10">
             <h2 className="mb-4" style={{ fontFamily: hFont, fontWeight: 900, fontSize: 'clamp(30px,4.2vw,50px)', color: 'white', letterSpacing: '-0.03em', lineHeight: 1.1 }}>
-              <WordReveal text={ctaHeading} /><br />
-              <WordReveal text={ctaHeadingAccent} delay={0.25} style={{ color: AMBER }} />
+              <WordReveal text={ctaHeading} />
+              {ctaHeadingAccent && <><br /><WordReveal text={ctaHeadingAccent} delay={0.25} style={{ color: AMBER }} /></>}
             </h2>
-            <MReveal delay={0.35} y={16}>
-              <p className="mx-auto mb-9 text-base" style={{ color: 'rgba(255,255,255,0.72)', maxWidth: 500, lineHeight: 1.7, fontFamily: bFont ?? hFont }}>
-                {ctaSubtext}
-              </p>
-            </MReveal>
+            {ctaSubtext && (
+              <MReveal delay={0.35} y={16}>
+                <p className="mx-auto mb-9 text-base" style={{ color: 'rgba(255,255,255,0.72)', maxWidth: 500, lineHeight: 1.7, fontFamily: bFont ?? hFont }}>
+                  {ctaSubtext}
+                </p>
+              </MReveal>
+            )}
             <MReveal delay={0.45} y={14}>
               <div className="flex items-center justify-center gap-3 flex-wrap">
                 <Magnetic>
                   <Link href={user ? '/student' : '/auth?mode=signup'}
                     className="group inline-flex items-center gap-2 font-bold rounded-xl transition-shadow duration-300 hover:shadow-[0_16px_40px_-10px_rgba(0,0,0,0.45)]"
                     style={{ background: 'white', color: BLUE, padding: '14px 32px', fontSize: 15 }}>
-                    {user ? 'Go to my learning' : ctaButton}
+                    {user ? 'Go to my learning' : (ctaButton || 'Create free account')}
                     <ArrowRight className="w-4 h-4 transition-transform duration-300 group-hover:translate-x-1" />
                   </Link>
                 </Magnetic>
