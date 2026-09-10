@@ -15,6 +15,7 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
 import { LayoutDashboard, ChevronDown, ChevronRight, Menu, X, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
+import type { NavSubGroup } from '@/lib/landing-nav';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -225,16 +226,6 @@ export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
     </div>
   );
 }
-
-/** One row of the megamenu's right-hand panel. Built by the caller so this file stays chrome. */
-export type NavMenuItem = { id: string; title: string; imageUrl?: string; href: string };
-
-/**
- * A content type's own grouping: the tools for courses (AI, Excel and so on), the industry for a
- * virtual experience, Career or Technology for a certification. Same grouping the page's own rows
- * use. An empty label means the type has none, and the middle column is then skipped.
- */
-export type NavSubGroup = { label: string; items: NavMenuItem[] };
 
 /**
  * One "Learn" trigger in place of a link per content type. Four flat links crowded the bar and

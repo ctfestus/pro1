@@ -16,7 +16,8 @@ import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
-import { LandingNav, LandingFooter, NavProfileMenu, type NavMenuItem, type NavSubGroup } from '@/components/landing/LandingChrome';
+import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
+import { buildNavGroups, groupByField } from '@/lib/landing-nav';
 import { toPlainText } from '@/lib/plain-text';
 
 // --- FadeIn on scroll ---
@@ -898,20 +899,6 @@ const bannerItem = {
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_OUT } },
 };
 
-function groupByField(items: ProgrammeItem[], field: 'category'): [string, ProgrammeItem[]][] {
-  const map = new Map<string, ProgrammeItem[]>();
-  for (const item of items) {
-    const key = (item[field] || '').trim() || 'General';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(item);
-  }
-  return [...map.entries()].sort((a, b) => {
-    if (a[0] === 'General') return 1;
-    if (b[0] === 'General') return -1;
-    return a[0].localeCompare(b[0]);
-  });
-}
-
 const LAND_TYPE_LABEL = { course: 'Course', path: 'Learning Path', ve: 'Virtual Experience', certification: 'Certification' } as const;
 const LAND_TYPE_GRAD  = {
   course: 'linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%)',
@@ -1555,37 +1542,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   ];
 
 
-  // The megamenu previews each section rather than only scrolling to it, so the nav carries real
-  // items grouped exactly the way the page's own rows group them: courses by tool (AI, Excel and
-  // so on), experiences by industry, certifications by Career or Technology. groupByField is the
-  // same helper the sections use, so the two can never drift apart.
-  const navItems = (items: ProgrammeItem[]): NavMenuItem[] => items.slice(0, 8).map(item => ({
-    id: item.id,
-    title: item.title,
-    imageUrl: item.imageUrl,
-    href: landingHref(item, user),
-  }));
-
-  // A type whose items carry no category at all (learning paths) yields one unlabelled group,
-  // which the menu reads as "no grouping" and renders without the middle column.
-  //
-  // When only SOME items lack a category, groupByField collects them under General and sorts it
-  // last. That group is kept: dropping it would leave those items with no route through the menu
-  // at all, and the page's own rows show a General heading in exactly the same situation.
-  const navSubGroups = (items: ProgrammeItem[]): NavSubGroup[] => {
-    const grouped = groupByField(items, 'category');
-    const ungroupable = grouped.length === 1 && grouped[0][0] === 'General';
-    if (ungroupable) return [{ label: '', items: navItems(items) }];
-    return grouped.map(([label, group]) => ({ label, items: navItems(group) }));
-  };
-
-  type NavGroup = { label: string; anchor: string; subGroups: NavSubGroup[] };
-  const NAV_LINKS: NavGroup[] = [
-    courses.length ? { label: 'Courses',             anchor: 'section-courses',        subGroups: navSubGroups(courses) } : null,
-    paths.length   ? { label: 'Learning Paths',      anchor: 'section-paths',          subGroups: navSubGroups(paths) }   : null,
-    ves.length     ? { label: 'Virtual Experiences', anchor: 'section-ves',            subGroups: navSubGroups(ves) }     : null,
-    certs.length   ? { label: 'Certifications',      anchor: 'section-certifications', subGroups: navSubGroups(certs) }   : null,
-  ].filter((group): group is NavGroup => group !== null);
+  // Shared with the pricing page, so both public pages offer the same Learn menu.
+  const NAV_LINKS = buildNavGroups(programmes, user);
 
   return (
     <>

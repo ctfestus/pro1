@@ -20,6 +20,8 @@ import { PricingHero } from '@/components/pricing/PricingHero';
 import { featuredOffer, featuredOfferForDuration } from '@/lib/pricing-offer';
 import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
+import type { ProgrammeItem } from '@/lib/get-landing-page-data';
+import { buildNavGroups } from '@/lib/landing-nav';
 import { FONTS } from '@/lib/fonts';
 
 function fontStylesheetUrl(fontName?: string): string | null {
@@ -41,17 +43,23 @@ export interface PricingPageClientProps extends PricingPageData {
   midAds?: AdCard[];
   /** Whether a card checkout can be opened straight from this page. */
   paystackEnabled: boolean;
+  /** Only for the shared nav's Learn menu, so it matches the landing page's. */
+  programmes: ProgrammeItem[];
 }
 
 export function PricingPageClient(props: PricingPageClientProps) {
   const { siteConfig, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds,
-    paystackEnabled } = props;
+    paystackEnabled, programmes } = props;
   // The same source the landing page reads, so the chrome cannot say one thing here and another
   // there.
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
   const [user, setUser] = useState<any>(null);
   const [scrolled, setScrolled] = useState(false);
   const signedIn = !!user;
+
+  // Same builder the landing page uses. Its section anchors do not exist here, which is what
+  // navLinkHref is for: they become links home instead of scroll targets.
+  const navGroups = useMemo(() => buildNavGroups(programmes, user), [programmes, user]);
 
   const durations = useMemo(() => {
     const all = new Set<number>();
@@ -117,11 +125,8 @@ export function PricingPageClient(props: PricingPageClientProps) {
         primaryColor={primaryColor}
         accentColor={accentColor}
         fontFamily={bFont}
-        navLinks={[
-          { label: 'Courses', anchor: 'section-courses' },
-          { label: 'Learning Paths', anchor: 'section-paths' },
-          { label: 'Virtual Experiences', anchor: 'section-ves' },
-        ]}
+        navLinks={navGroups}
+        navMenuLabel="Learn"
         navLinkHref={anchor => `/#${anchor}`}
       />
 
