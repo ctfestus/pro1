@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { getPricingPageData } from '@/lib/get-pricing-page-data';
-import { getLandingSiteSettingsOrDefault } from '@/lib/get-landing-page-data';
+import { getLandingProgrammesOrEmpty, getLandingSiteSettingsOrDefault } from '@/lib/get-landing-page-data';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { PricingPageClient } from '@/components/pricing/PricingPageClient';
@@ -23,10 +23,13 @@ export async function generateMetadata(): Promise<Metadata> {
  * that page, and every number on it comes from what an admin configured.
  */
 export default async function PricingPage() {
-  const [data, site, tenant] = await Promise.all([
+  const [data, site, tenant, programmes] = await Promise.all([
     getPricingPageData(),
     getLandingSiteSettingsOrDefault(),
     getTenantSettings(),
+    // Only for the shared nav's Learn menu. Without it this page fell back to a flat list of
+    // section links, so the two public pages disagreed about their own navigation.
+    getLandingProgrammesOrEmpty(),
   ]);
   const config = resolveConfig(site.template, site.config);
 
@@ -42,6 +45,7 @@ export default async function PricingPage() {
       supportEmail={tenant.supportEmail}
       midAds={hasMidAds(config) ? midAdCardsFrom(config) : undefined}
       paystackEnabled={paystackIsConfigured()}
+      programmes={programmes}
     />
   );
 }

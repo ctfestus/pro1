@@ -14,7 +14,8 @@ import { motion, AnimatePresence, useInView, useReducedMotion } from 'motion/rea
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
-import { LayoutDashboard, ChevronDown, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
+import { LayoutDashboard, ChevronDown, ChevronRight, Menu, X, User, Settings, LogOut, Award, GraduationCap } from 'lucide-react';
+import type { NavSubGroup } from '@/lib/landing-nav';
 
 const EASE_OUT: [number, number, number, number] = [0.16, 1, 0.3, 1];
 
@@ -35,22 +36,56 @@ function Reveal({ children, delay = 0, y = 26, className = '' }: {
 }
 
 /** A section link: a scroll button on the landing page, a link home anywhere else. */
-function NavSectionLink({ anchor, hrefFor, className, style, children }: {
+function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, tabIndex, children }: {
   anchor: string; hrefFor?: (anchor: string) => string;
   className?: string; style?: React.CSSProperties; children: React.ReactNode;
+  /** Runs when the link is followed. The megamenu uses it to close itself. */
+  onNavigate?: () => void;
+  /** The megamenu rovs this so Tab leaves its type list instead of walking every row. */
+  tabIndex?: number;
 }) {
   if (hrefFor) {
-    return <Link href={hrefFor(anchor)} className={className} style={style}>{children}</Link>;
+    return <Link href={hrefFor(anchor)} className={className} style={style} tabIndex={tabIndex} onClick={onNavigate}>{children}</Link>;
   }
   return (
     <button
-      onClick={() => document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' })}
+      onClick={() => {
+        document.getElementById(anchor)?.scrollIntoView({ behavior: 'smooth' });
+        onNavigate?.();
+      }}
       className={className}
       style={style}
+      tabIndex={tabIndex}
     >
       {children}
     </button>
   );
+}
+
+/**
+ * Move selection with the arrow keys inside one of the megamenu's columns, and take focus with it.
+ *
+ * Selecting on focus instead looks right with a mouse and traps a keyboard: every Tab moved to the
+ * next row AND replaced the panel, so Tab could only ever arrive at the last row's items and the
+ * earlier ones were unreachable. With one row focusable at a time, Tab leaves the column and lands
+ * in the items that belong to the selection, which is the whole point of the column.
+ */
+function handleRovingKeys(
+  e: React.KeyboardEvent,
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  count: number, current: number, select: (i: number) => void,
+) {
+  const forward = e.key === 'ArrowDown' || e.key === 'ArrowRight';
+  const back    = e.key === 'ArrowUp'   || e.key === 'ArrowLeft';
+  if (!forward && !back) return;
+  e.preventDefault();
+  const next = forward ? Math.min(count - 1, current + 1) : Math.max(0, current - 1);
+  select(next);
+  // Read here, in the event, never during render. The marker sits on a wrapper in one column and
+  // on the control itself in the other.
+  const row = containerRef.current?.querySelectorAll<HTMLElement>('[data-roving-row]')[next];
+  const target = row?.matches('a, button') ? row : row?.querySelector<HTMLElement>('a, button');
+  target?.focus();
 }
 
 export interface LandingNavProps {
@@ -65,9 +100,14 @@ export interface LandingNavProps {
   primaryColor?: string;
   accentColor?: string;
   fontFamily?: string;
-  navLinks: Array<{ label: string; anchor: string }>;
+  navLinks: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
   /** Supply to turn the section links into ordinary links, for pages without those sections. */
   navLinkHref?: (anchor: string) => string;
+  /**
+   * Collapse the section links into a single megamenu trigger with this label. Without it they
+   * render flat, which is what a page with no content to preview still wants.
+   */
+  navMenuLabel?: string;
 }
 
 export interface LandingFooterProps {
@@ -216,10 +256,353 @@ export function NavProfileMenu({ user, profile, pageDark, fontFamily }: {
   );
 }
 
+/**
+ * One "Learn" trigger in place of a link per content type. Four flat links crowded the bar and
+ * still only offered a scroll; this previews what is actually in each section.
+ *
+ * Hovering a type on the left swaps the panel on the right, and clicking it goes to that section
+ * -- so a device with no hover still gets exactly what the flat links did. The panel also opens
+ * on the first type rather than empty, and the trigger toggles on click as well as hover, which
+ * is what makes it usable on a tablet, where the bar is visible but hover is not.
+ */
+function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFamily }: {
+  label: string;
+  groups: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
+  hrefFor?: (anchor: string) => string;
+  isPageDark?: boolean; accentColor: string; fontFamily?: string;
+}) {
+  const [open, setOpen]     = useState(false);
+  const [active, setActive] = useState(0);
+  const [activeSub, setActiveSub] = useState(0);
+  // Picking a type has to reset the grouping, or the panel keeps an index that belongs to the
+  // type you just left and shows the wrong set.
+  const selectType = (i: number) => { setActive(i); setActiveSub(0); };
+  const reduced    = useReducedMotion();
+  const wrapRef    = useRef<HTMLDivElement>(null);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelClose   = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setOpen(false), 160); };
+  useEffect(() => () => cancelClose(), []);
+
+  // An open panel that outlives the pointer sits over the page and swallows clicks meant for the
+  // hero, so Escape closes it and so does a press anywhere outside.
+  useEffect(() => {
+    if (!open) return;
+    const onKey  = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    document.addEventListener('mousedown', onDown);
+    return () => { document.removeEventListener('keydown', onKey); document.removeEventListener('mousedown', onDown); };
+  }, [open]);
+
+  const text   = isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F';
+  const strong = isPageDark ? '#ffffff' : '#1C1D1F';
+  const muted  = isPageDark ? 'rgba(255,255,255,0.55)' : '#6E7383';
+  const panel  = isPageDark ? '#161b22' : '#ffffff';
+  const inset  = isPageDark ? 'rgba(255,255,255,0.06)' : '#F4F7F9';
+  const hair   = isPageDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E8EBEF';
+
+  const typeColRef = useRef<HTMLDivElement>(null);
+  const subColRef  = useRef<HTMLDivElement>(null);
+
+  const current   = groups[Math.min(active, groups.length - 1)];
+  const subGroups = current?.subGroups ?? [];
+  // Learning paths carry no grouping of their own, so the middle column is dropped for them and
+  // the items take the space instead.
+  const showSubs  = subGroups.some(group => group.label);
+  const currentSub = subGroups[Math.min(activeSub, Math.max(0, subGroups.length - 1))];
+  const items      = currentSub?.items ?? [];
+
+  return (
+    <div ref={wrapRef} className="relative"
+      onMouseEnter={() => { cancelClose(); setOpen(true); }}
+      onMouseLeave={scheduleClose}>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        aria-expanded={open} aria-haspopup="true"
+        className="group relative flex items-center gap-1 px-3 py-1.5 text-sm font-medium transition-colors"
+        style={{ color: text, fontFamily }}>
+        {label}
+        <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+        <span aria-hidden="true"
+          className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full origin-left transition-transform duration-300"
+          style={{ background: accentColor, transform: open ? 'scaleX(1)' : 'scaleX(0)' }} />
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={reduced ? { opacity: 1 } : { opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? { opacity: 1 } : { opacity: 0, y: -6 }}
+            transition={{ duration: reduced ? 0 : 0.18, ease: EASE_OUT }}
+            className="absolute left-0 top-full mt-2 rounded-2xl overflow-hidden flex"
+            style={{
+              // The panel hangs from the trigger, which sits roughly 200px in past the logo, so
+              // the viewport subtraction has to cover that offset or a narrow window pushes the
+              // right-hand edge off screen.
+              width: 'min(1060px, calc(100vw - 220px))', background: panel, border: hair,
+              // A generous floor, so the short first column leaves space under it rather than
+              // squashing the panel -- but it yields on a short screen. min-height beats
+              // max-height in CSS, so a fixed 420 here would have won and pushed the bottom of
+              // the panel past the viewport, where overflow-hidden made it unreachable: the item
+              // list is capped and scrolls instead. 72px clears the nav and the panel's own
+              // margin, and leaves a little air beneath.
+              minHeight: 'min(420px, calc(100vh - 88px))',
+              maxHeight: 'calc(100vh - 88px)',
+              boxShadow: isPageDark ? '0 24px 60px rgba(0,0,0,0.55)' : '0 24px 60px -24px rgba(16,24,40,0.28)',
+              fontFamily,
+            }}>
+
+            {/* Left: the content types. Hover selects for a mouse; the arrow keys do it for a
+                keyboard, and only the selected row is tabbable so Tab moves on into its items. */}
+            <div ref={typeColRef}
+              onKeyDown={e => handleRovingKeys(e, typeColRef, groups.length, active, selectType)}
+              className="flex-shrink-0 p-3 overflow-y-auto" style={{ width: 246, background: inset }}>
+              {groups.map((group, i) => (
+                <div key={group.anchor} data-roving-row onMouseEnter={() => selectType(i)}>
+                  <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                    tabIndex={i === active ? 0 : -1}
+                    className="w-full flex items-center gap-2 text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    style={{
+                      color: i === active ? strong : muted,
+                      background: i === active ? panel : 'transparent',
+                    }}>
+                    <span className="flex-1">{group.label}</span>
+                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ opacity: i === active ? 1 : 0.4 }} />
+                  </NavSectionLink>
+                </div>
+              ))}
+            </div>
+
+            {/* The selected type's own grouping: tools for courses, industry for an experience,
+                Career or Technology for a certification. Hovering one swaps the items. */}
+            {showSubs && (
+              <div ref={subColRef}
+                onKeyDown={e => handleRovingKeys(e, subColRef, subGroups.length, activeSub, setActiveSub)}
+                className="flex-shrink-0 p-3 overflow-y-auto" style={{ width: 218, borderRight: hair }}>
+                {subGroups.map((group, i) => (
+                  <button key={group.label || i} type="button" data-roving-row
+                    tabIndex={i === activeSub ? 0 : -1}
+                    onMouseEnter={() => setActiveSub(i)}
+                    onClick={() => setActiveSub(i)}
+                    className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-[13px] font-semibold transition-colors"
+                    style={{
+                      color: i === activeSub ? strong : muted,
+                      background: i === activeSub ? inset : 'transparent',
+                    }}>
+                    <span className="flex-1 min-w-0 truncate">{group.label}</span>
+                    <ChevronRight className="w-3 h-3 flex-shrink-0" style={{ opacity: i === activeSub ? 1 : 0.35 }} />
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Right: what the selected section actually holds */}
+            <div className="flex-1 min-w-0 p-5 overflow-y-auto">
+              {items.length === 0 ? (
+                <p className="text-sm px-1 py-2" style={{ color: muted }}>Nothing published here yet.</p>
+              ) : (
+                <>
+                  {/* Two across once there is room. Between lg and xl the first two columns leave
+                      the items about 340px, which is one readable column, not two. */}
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
+                    {items.map(item => (
+                      <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
+                        className="flex items-center gap-3 p-2 rounded-xl transition-colors"
+                        onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = inset; }}
+                        onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
+                        {/* Not every item has a cover. Without a mark in its place the row reads
+                            as a thumbnail that failed to load rather than one that never existed. */}
+                        <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center" style={{ width: 76, height: 50, background: inset }}>
+                          {item.imageUrl
+                            ? <img src={item.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                            : <GraduationCap className="w-5 h-5" style={{ color: muted }} />}
+                        </span>
+                        <span className="text-[13px] font-semibold leading-snug line-clamp-3" style={{ color: strong }}>
+                          {item.title}
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                  {/* Plain text colour, not the accent: the accent is the tenant's secondary and
+                      reads as a coloured call to action competing with the items above it. */}
+                  <NavSectionLink anchor={current.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                    className="inline-flex items-center gap-1 mt-4 ml-2 text-[13px] font-bold transition-opacity hover:opacity-70"
+                    style={{ color: strong }}>
+                    See all {current.label.toLowerCase()}
+                    <ChevronRight className="w-3.5 h-3.5" />
+                  </NavSectionLink>
+                </>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+/**
+ * The same content on a phone, where hover does not exist and the desktop row is hidden.
+ *
+ * Three side-by-side columns do not fit 390px, so the structure becomes an accordion: tap a type
+ * to open it, its groupings appear as chips, and the items sit under the selected chip. Pricing
+ * lives in here too -- the bar only has room for the logo, this trigger and the account buttons.
+ */
+function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, user, publicSignupEnabled }: {
+  groups: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
+  hrefFor?: (anchor: string) => string;
+  isPageDark?: boolean; accentColor: string; fontFamily?: string;
+  user: any; publicSignupEnabled: boolean;
+}) {
+  const [open, setOpen]         = useState(false);
+  const [openType, setOpenType] = useState<number | null>(0);
+  const [activeSub, setActiveSub] = useState(0);
+  const reduced = useReducedMotion();
+
+  const toggleType = (i: number) => {
+    setOpenType(current => (current === i ? null : i));
+    setActiveSub(0);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open]);
+
+  const strong = isPageDark ? '#ffffff' : '#1C1D1F';
+  const muted  = isPageDark ? 'rgba(255,255,255,0.60)' : '#6E7383';
+  const panel  = isPageDark ? '#0d1117' : '#ffffff';
+  const inset  = isPageDark ? 'rgba(255,255,255,0.06)' : '#F4F7F9';
+  const hair   = isPageDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E8EBEF';
+
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        aria-expanded={open} aria-label={open ? 'Close menu' : 'Open menu'}
+        className="lg:hidden grid place-items-center w-9 h-9 rounded-lg transition-colors"
+        style={{ color: strong }}>
+        {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+      </button>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={reduced ? { opacity: 1 } : { opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={reduced ? { opacity: 1 } : { opacity: 0, y: -8 }}
+            transition={{ duration: reduced ? 0 : 0.18, ease: EASE_OUT }}
+            className="lg:hidden absolute left-0 right-0 top-full overflow-y-auto"
+            style={{
+              background: panel, borderTop: hair, maxHeight: 'calc(100vh - 64px)', fontFamily,
+              boxShadow: '0 24px 40px -20px rgba(0,0,0,0.35)',
+            }}>
+            <div className="px-5 py-3">
+              {groups.map((group, i) => {
+                const subGroups = group.subGroups ?? [];
+                const showSubs  = subGroups.some(g => g.label);
+                const items     = subGroups[Math.min(activeSub, Math.max(0, subGroups.length - 1))]?.items ?? [];
+                const isOpen    = openType === i;
+                return (
+                  <div key={group.anchor} style={{ borderBottom: hair }}>
+                    <button type="button" onClick={() => toggleType(i)} aria-expanded={isOpen}
+                      className="w-full flex items-center justify-between py-3.5 text-[15px] font-bold"
+                      style={{ color: isOpen ? strong : muted }}>
+                      {group.label}
+                      <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+                    </button>
+
+                    {isOpen && (
+                      <div className="pb-4">
+                        {showSubs && (
+                          <div className="flex flex-wrap gap-1.5 mb-3">
+                            {subGroups.map((sub, si) => (
+                              <button key={sub.label || si} type="button" onClick={() => setActiveSub(si)}
+                                aria-pressed={si === activeSub}
+                                className="px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+                                style={{
+                                  background: si === activeSub ? strong : inset,
+                                  color: si === activeSub ? panel : muted,
+                                }}>
+                                {sub.label}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        <div className="space-y-1">
+                          {items.map(item => (
+                            <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
+                              className="flex items-center gap-3 py-2 rounded-xl">
+                              <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center"
+                                style={{ width: 64, height: 42, background: inset }}>
+                                {item.imageUrl
+                                  ? <img src={item.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
+                                  : <GraduationCap className="w-4 h-4" style={{ color: muted }} />}
+                              </span>
+                              <span className="text-[13px] font-semibold leading-snug line-clamp-2" style={{ color: strong }}>
+                                {item.title}
+                              </span>
+                            </Link>
+                          ))}
+                        </div>
+                        <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                          className="inline-flex items-center gap-1 mt-3 text-[13px] font-bold"
+                          style={{ color: strong }}>
+                          See all {group.label.toLowerCase()}
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </NavSectionLink>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+
+              <Link href="/pricing" onClick={() => setOpen(false)}
+                className="block py-3.5 text-[15px] font-bold" style={{ color: muted }}>
+                Pricing
+              </Link>
+            </div>
+
+            {/* Sticks to the bottom of the sheet as it scrolls, so the two actions a visitor
+                without an account came for stay in reach however far down the list they are.
+                Only when signed out -- a signed-in visitor keeps the profile menu in the bar,
+                which is an avatar and costs no room. */}
+            {!user && (
+              <div className="sticky bottom-0 flex gap-2 px-5 py-4"
+                style={{ background: panel, borderTop: hair }}>
+                <Link href="/auth" onClick={() => setOpen(false)}
+                  className="flex-1 text-center py-3 rounded-xl text-sm font-bold"
+                  style={{ border: `2px solid ${isPageDark ? 'rgba(255,255,255,0.20)' : '#E8EBEF'}`, color: strong }}>
+                  Log in
+                </Link>
+                {publicSignupEnabled && (
+                  <Link href="/auth?mode=signup" onClick={() => setOpen(false)}
+                    className="flex-1 text-center py-3 rounded-xl text-sm font-bold"
+                    style={{ background: isPageDark ? '#ffffff' : '#1C1D1F', color: isPageDark ? '#1C1D1F' : '#ffffff' }}>
+                    Sign up
+                  </Link>
+                )}
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </>
+  );
+}
+
 export function LandingNav({
   appName, logoUrl, logoDarkUrl, isPageDark, scrolled, user, profile,
-  publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref,
+  publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref, navMenuLabel,
 }: LandingNavProps) {
+  // When the sheet exists it carries Pricing and, signed out, the auth buttons -- so the bar drops
+  // them below md rather than crowding the logo off the screen.
+  const hasMobileSheet = Boolean(navMenuLabel && navLinks.length > 0);
   const NAVY  = '#003262';
   const BLUE  = primaryColor || '#0056D2';
   const AMBER = accentColor  || '#FF9933';
@@ -249,8 +632,11 @@ export function LandingNav({
                 </>
             }
           </div>
-          <div className="hidden md:flex items-center gap-1 flex-1">
-            {navLinks.map(nl => (
+          <div className="hidden lg:flex items-center gap-1 flex-1">
+            {navMenuLabel && navLinks.length > 0 ? (
+              <NavLearnMenu label={navMenuLabel} groups={navLinks} hrefFor={navLinkHref}
+                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily} />
+            ) : navLinks.map(nl => (
               <NavSectionLink key={nl.anchor} anchor={nl.anchor} hrefFor={navLinkHref}
                 className="group relative px-3 py-1.5 text-sm font-medium transition-colors"
                 style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
@@ -260,17 +646,37 @@ export function LandingNav({
                   style={{ background: AMBER }} />
               </NavSectionLink>
             ))}
-          </div>
-          <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+            {/* Sits with the section navigation rather than beside the account controls, and is
+                styled as a nav link so it matches what it now stands next to. */}
             <Link href="/pricing"
-              className="px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+              className="group relative px-3 py-1.5 text-sm font-medium transition-colors"
               style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
               Pricing
+              <span aria-hidden="true"
+                className="absolute left-3 right-3 bottom-0 h-[2px] rounded-full origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300"
+                style={{ background: AMBER }} />
             </Link>
+          </div>
+          <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
+            {hasMobileSheet ? (
+              /* Carries Pricing and the signed-out auth buttons itself, because the bar has room
+                 for the logo, this trigger and nothing else once Sign up is enabled. */
+              <NavMobileMenu groups={navLinks} hrefFor={navLinkHref}
+                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily}
+                user={user} publicSignupEnabled={publicSignupEnabled} />
+            ) : (
+              /* No mobile sheet on pages that pass flat links, so Pricing stays in the bar there
+                 rather than becoming unreachable on a phone. */
+              <Link href="/pricing"
+                className="lg:hidden px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+                style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
+                Pricing
+              </Link>
+            )}
             {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} fontFamily={fontFamily} /> : (
               <>
                 <Link href="/auth"
-                  className="px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+                  className={`${hasMobileSheet ? 'hidden lg:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors`}
                   style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isPageDark ? 'rgba(255,255,255,0.08)' : '#F7F9FC'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -278,7 +684,7 @@ export function LandingNav({
                 </Link>
                 {publicSignupEnabled && (
                   <Link href="/auth?mode=signup"
-                    className="px-3 sm:px-4 py-2 text-sm font-bold rounded-md transition-opacity hover:opacity-90"
+                    className={`${hasMobileSheet ? 'hidden lg:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-bold rounded-md transition-opacity hover:opacity-90`}
                     style={{ background: isPageDark ? '#ffffff' : '#1C1D1F', color: isPageDark ? '#1C1D1F' : '#ffffff' }}>
                     Sign up
                   </Link>

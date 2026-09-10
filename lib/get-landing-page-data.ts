@@ -209,6 +209,19 @@ const getProgrammes = unstable_cache(
   { revalidate: 60, tags: ['landing-programmes'] },
 );
 
+/**
+ * The catalogue for pages that only need it to populate the shared nav. Unlike the landing page,
+ * a failure here is not worth an error state: the nav simply offers nothing rather than the page
+ * refusing to render.
+ */
+export async function getLandingProgrammesOrEmpty(): Promise<ProgrammeItem[]> {
+  try {
+    return await getProgrammes();
+  } catch {
+    return [];
+  }
+}
+
 export async function getLandingPageData(): Promise<LandingPageData> {
   const [settingsResult, programmesResult] = await Promise.allSettled([
     getLandingSiteSettings(),

@@ -17,6 +17,7 @@ import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
+import { buildNavGroups, groupByField } from '@/lib/landing-nav';
 import { toPlainText } from '@/lib/plain-text';
 
 // --- FadeIn on scroll ---
@@ -898,20 +899,6 @@ const bannerItem = {
   show: { opacity: 1, y: 0, transition: { duration: 0.55, ease: EASE_OUT } },
 };
 
-function groupByField(items: ProgrammeItem[], field: 'category'): [string, ProgrammeItem[]][] {
-  const map = new Map<string, ProgrammeItem[]>();
-  for (const item of items) {
-    const key = (item[field] || '').trim() || 'General';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(item);
-  }
-  return [...map.entries()].sort((a, b) => {
-    if (a[0] === 'General') return 1;
-    if (b[0] === 'General') return -1;
-    return a[0].localeCompare(b[0]);
-  });
-}
-
 const LAND_TYPE_LABEL = { course: 'Course', path: 'Learning Path', ve: 'Virtual Experience', certification: 'Certification' } as const;
 const LAND_TYPE_GRAD  = {
   course: 'linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%)',
@@ -1555,12 +1542,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   ];
 
 
-  const NAV_LINKS: Array<{ label: string; anchor: string }> = [
-    courses.length  ? { label: 'Courses',             anchor: 'section-courses' }         : null,
-    paths.length    ? { label: 'Learning Paths',      anchor: 'section-paths' }           : null,
-    ves.length      ? { label: 'Virtual Experiences', anchor: 'section-ves' }             : null,
-    certs.length    ? { label: 'Certifications',      anchor: 'section-certifications' }  : null,
-  ].filter((link): link is { label: string; anchor: string } => link !== null);
+  // Shared with the pricing page, so both public pages offer the same Learn menu.
+  const NAV_LINKS = buildNavGroups(programmes, user);
 
   return (
     <>
@@ -1596,6 +1579,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
         primaryColor={primaryColor}
         accentColor={accentColor}
         navLinks={NAV_LINKS}
+        navMenuLabel="Learn"
       />
 
       {/* AD BANNER */}
