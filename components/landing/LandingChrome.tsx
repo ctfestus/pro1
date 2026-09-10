@@ -421,10 +421,11 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
  * to open it, its groupings appear as chips, and the items sit under the selected chip. Pricing
  * lives in here too -- the bar only has room for the logo, this trigger and the account buttons.
  */
-function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily }: {
+function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, user, publicSignupEnabled }: {
   groups: Array<{ label: string; anchor: string; subGroups?: NavSubGroup[] }>;
   hrefFor?: (anchor: string) => string;
   isPageDark?: boolean; accentColor: string; fontFamily?: string;
+  user: any; publicSignupEnabled: boolean;
 }) {
   const [open, setOpen]         = useState(false);
   const [openType, setOpenType] = useState<number | null>(0);
@@ -535,6 +536,28 @@ function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily }:
                 Pricing
               </Link>
             </div>
+
+            {/* Sticks to the bottom of the sheet as it scrolls, so the two actions a visitor
+                without an account came for stay in reach however far down the list they are.
+                Only when signed out -- a signed-in visitor keeps the profile menu in the bar,
+                which is an avatar and costs no room. */}
+            {!user && (
+              <div className="sticky bottom-0 flex gap-2 px-5 py-4"
+                style={{ background: panel, borderTop: hair }}>
+                <Link href="/auth" onClick={() => setOpen(false)}
+                  className="flex-1 text-center py-3 rounded-xl text-sm font-bold"
+                  style={{ border: `2px solid ${isPageDark ? 'rgba(255,255,255,0.20)' : '#E8EBEF'}`, color: strong }}>
+                  Log in
+                </Link>
+                {publicSignupEnabled && (
+                  <Link href="/auth?mode=signup" onClick={() => setOpen(false)}
+                    className="flex-1 text-center py-3 rounded-xl text-sm font-bold"
+                    style={{ background: isPageDark ? '#ffffff' : '#1C1D1F', color: isPageDark ? '#1C1D1F' : '#ffffff' }}>
+                    Sign up
+                  </Link>
+                )}
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -546,6 +569,9 @@ export function LandingNav({
   appName, logoUrl, logoDarkUrl, isPageDark, scrolled, user, profile,
   publicSignupEnabled, primaryColor, accentColor, fontFamily, navLinks, navLinkHref, navMenuLabel,
 }: LandingNavProps) {
+  // When the sheet exists it carries Pricing and, signed out, the auth buttons -- so the bar drops
+  // them below md rather than crowding the logo off the screen.
+  const hasMobileSheet = Boolean(navMenuLabel && navLinks.length > 0);
   const NAVY  = '#003262';
   const BLUE  = primaryColor || '#0056D2';
   const AMBER = accentColor  || '#FF9933';
@@ -601,11 +627,12 @@ export function LandingNav({
             </Link>
           </div>
           <div className="flex items-center gap-1.5 flex-shrink-0 ml-auto">
-            {navMenuLabel && navLinks.length > 0 ? (
-              /* Carries Pricing itself, because the bar has room for the logo, this trigger and
-                 the account buttons and no more once Sign up is enabled. */
+            {hasMobileSheet ? (
+              /* Carries Pricing and the signed-out auth buttons itself, because the bar has room
+                 for the logo, this trigger and nothing else once Sign up is enabled. */
               <NavMobileMenu groups={navLinks} hrefFor={navLinkHref}
-                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily} />
+                isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily}
+                user={user} publicSignupEnabled={publicSignupEnabled} />
             ) : (
               /* No mobile sheet on pages that pass flat links, so Pricing stays in the bar there
                  rather than becoming unreachable on a phone. */
@@ -618,7 +645,7 @@ export function LandingNav({
             {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} fontFamily={fontFamily} /> : (
               <>
                 <Link href="/auth"
-                  className="px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+                  className={`${hasMobileSheet ? 'hidden md:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors`}
                   style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isPageDark ? 'rgba(255,255,255,0.08)' : '#F7F9FC'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -626,7 +653,7 @@ export function LandingNav({
                 </Link>
                 {publicSignupEnabled && (
                   <Link href="/auth?mode=signup"
-                    className="px-3 sm:px-4 py-2 text-sm font-bold rounded-md transition-opacity hover:opacity-90"
+                    className={`${hasMobileSheet ? 'hidden md:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-bold rounded-md transition-opacity hover:opacity-90`}
                     style={{ background: isPageDark ? '#ffffff' : '#1C1D1F', color: isPageDark ? '#1C1D1F' : '#ffffff' }}>
                     Sign up
                   </Link>
