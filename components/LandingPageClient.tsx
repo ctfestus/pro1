@@ -1555,21 +1555,31 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   ];
 
 
-  // The megamenu previews each section rather than only scrolling to it, so the nav carries a
-  // few real items per type. Six is what fits the panel in two columns without it scrolling.
-  const navItems = (items: ProgrammeItem[]): NavMenuItem[] => items.slice(0, 6).map(item => ({
+  // The megamenu previews each section rather than only scrolling to it, so the nav carries real
+  // items per type. Nine fills three columns on a wide panel and stacks to two when it narrows.
+  const navItems = (items: ProgrammeItem[]): NavMenuItem[] => items.slice(0, 9).map(item => ({
     id: item.id,
     title: item.title,
     imageUrl: item.imageUrl,
     href: landingHref(item, user),
   }));
 
-  type NavGroup = { label: string; anchor: string; items: NavMenuItem[] };
+  type NavGroup = { label: string; anchor: string; items: NavMenuItem[]; description: string; total: number };
+  const navGroup = (label: string, anchor: string, items: ProgrammeItem[], description: string): NavGroup => ({
+    label, anchor, description, items: navItems(items), total: items.length,
+  });
+
+  // The descriptions say what the type IS, since a visitor who has never used the platform cannot
+  // tell a learning path from a virtual experience by name alone.
   const NAV_LINKS: NavGroup[] = [
-    courses.length  ? { label: 'Courses',             anchor: 'section-courses',        items: navItems(courses) } : null,
-    paths.length    ? { label: 'Learning Paths',      anchor: 'section-paths',          items: navItems(paths) }   : null,
-    ves.length      ? { label: 'Virtual Experiences', anchor: 'section-ves',            items: navItems(ves) }     : null,
-    certs.length    ? { label: 'Certifications',      anchor: 'section-certifications', items: navItems(certs) }   : null,
+    courses.length ? navGroup('Courses', 'section-courses', courses,
+      'Structured lessons with quizzes and hands-on practice.') : null,
+    paths.length ? navGroup('Learning Paths', 'section-paths', paths,
+      'Curated sequences that build toward a role.') : null,
+    ves.length ? navGroup('Virtual Experiences', 'section-ves', ves,
+      'Workplace projects with a brief and real deliverables.') : null,
+    certs.length ? navGroup('Certifications', 'section-certifications', certs,
+      'Timed, protected exams that end in a credential.') : null,
   ].filter((group): group is NavGroup => group !== null);
 
   return (

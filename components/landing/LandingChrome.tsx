@@ -70,7 +70,7 @@ export interface LandingNavProps {
   primaryColor?: string;
   accentColor?: string;
   fontFamily?: string;
-  navLinks: Array<{ label: string; anchor: string; items?: NavMenuItem[] }>;
+  navLinks: Array<{ label: string; anchor: string; items?: NavMenuItem[]; description?: string; total?: number }>;
   /** Supply to turn the section links into ordinary links, for pages without those sections. */
   navLinkHref?: (anchor: string) => string;
   /**
@@ -240,7 +240,7 @@ export type NavMenuItem = { id: string; title: string; imageUrl?: string; href: 
  */
 function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFamily }: {
   label: string;
-  groups: Array<{ label: string; anchor: string; items?: NavMenuItem[] }>;
+  groups: Array<{ label: string; anchor: string; items?: NavMenuItem[]; description?: string; total?: number }>;
   hrefFor?: (anchor: string) => string;
   isPageDark?: boolean; accentColor: string; fontFamily?: string;
 }) {
@@ -301,60 +301,80 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
             transition={{ duration: reduced ? 0 : 0.18, ease: EASE_OUT }}
             className="absolute left-0 top-full mt-2 rounded-2xl overflow-hidden flex"
             style={{
-              width: 'min(780px, calc(100vw - 48px))', background: panel, border: hair,
+              // The panel hangs from the trigger, which sits roughly 200px in past the logo, so
+              // the viewport subtraction has to cover that offset or a narrow window pushes the
+              // right-hand edge off screen.
+              width: 'min(1060px, calc(100vw - 220px))', background: panel, border: hair,
               boxShadow: isPageDark ? '0 24px 60px rgba(0,0,0,0.55)' : '0 24px 60px -24px rgba(16,24,40,0.28)',
               fontFamily,
             }}>
 
             {/* Left: the content types */}
-            <div className="flex-shrink-0 p-2" style={{ width: 232, background: inset }}>
+            <div className="flex-shrink-0 p-3" style={{ width: 292, background: inset }}>
               {/* Hover and focus live on the wrapper, not on a span inside the link: a span is
                   not focusable, so keyboard users could never swap the panel. React's onFocus
                   bubbles, so tabbing onto the link itself selects the type. */}
               {groups.map((group, i) => (
                 <div key={group.anchor} onMouseEnter={() => setActive(i)} onFocus={() => setActive(i)}>
                   <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
-                    className="w-full flex items-center gap-2 text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
+                    className="w-full flex items-start gap-2 text-left px-3 py-3 rounded-xl transition-colors"
                     style={{
                       color: i === active ? strong : muted,
                       background: i === active ? panel : 'transparent',
                     }}>
-                    <span className="flex-1">{group.label}</span>
-                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ opacity: i === active ? 1 : 0.4 }} />
+                    <span className="flex-1 min-w-0">
+                      <span className="flex items-center gap-1.5 text-sm font-semibold">
+                        {group.label}
+                        {typeof group.total === 'number' && (
+                          <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md"
+                            style={{ background: i === active ? inset : 'transparent', color: muted }}>
+                            {group.total}
+                          </span>
+                        )}
+                      </span>
+                      {group.description && (
+                        <span className="block text-[11px] leading-snug mt-1" style={{ color: muted }}>
+                          {group.description}
+                        </span>
+                      )}
+                    </span>
+                    <ChevronRight className="w-3.5 h-3.5 flex-shrink-0 mt-1" style={{ opacity: i === active ? 1 : 0.4 }} />
                   </NavSectionLink>
                 </div>
               ))}
             </div>
 
             {/* Right: what the selected section actually holds */}
-            <div className="flex-1 min-w-0 p-4">
+            <div className="flex-1 min-w-0 p-5">
               {items.length === 0 ? (
                 <p className="text-sm px-1 py-2" style={{ color: muted }}>Nothing published here yet.</p>
               ) : (
                 <>
-                  <div className="grid grid-cols-2 gap-1">
+                  {/* Three across only once the panel is wide enough to give each column room;
+                      below that the same items stack two across rather than getting squeezed. */}
+                  <div className="grid grid-cols-2 xl:grid-cols-3 gap-2">
                     {items.map(item => (
                       <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
-                        className="flex items-center gap-2.5 p-2 rounded-xl transition-colors"
+                        className="flex items-center gap-3 p-2 rounded-xl transition-colors"
                         onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = inset; }}
                         onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
                         {/* Not every item has a cover. Without a mark in its place the row reads
                             as a thumbnail that failed to load rather than one that never existed. */}
-                        <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center" style={{ width: 52, height: 34, background: inset }}>
+                        <span className="flex-shrink-0 rounded-lg overflow-hidden grid place-items-center" style={{ width: 76, height: 50, background: inset }}>
                           {item.imageUrl
                             ? <img src={item.imageUrl} alt="" loading="lazy" className="w-full h-full object-cover" />
-                            : <GraduationCap className="w-4 h-4" style={{ color: muted }} />}
+                            : <GraduationCap className="w-5 h-5" style={{ color: muted }} />}
                         </span>
-                        <span className="text-[13px] font-medium leading-snug line-clamp-2" style={{ color: strong }}>
+                        <span className="text-[13px] font-semibold leading-snug line-clamp-3" style={{ color: strong }}>
                           {item.title}
                         </span>
                       </Link>
                     ))}
                   </div>
                   <NavSectionLink anchor={current.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
-                    className="inline-flex items-center gap-1 mt-3 ml-2 text-[13px] font-bold transition-opacity hover:opacity-70"
+                    className="inline-flex items-center gap-1 mt-4 ml-2 text-[13px] font-bold transition-opacity hover:opacity-70"
                     style={{ color: accentColor }}>
-                    See all {current.label.toLowerCase()}
+                    {current.total ? `See all ${current.total} ${current.label.toLowerCase()}` : `See all ${current.label.toLowerCase()}`}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </NavSectionLink>
                 </>
