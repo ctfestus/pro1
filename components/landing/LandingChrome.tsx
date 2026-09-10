@@ -36,14 +36,16 @@ function Reveal({ children, delay = 0, y = 26, className = '' }: {
 }
 
 /** A section link: a scroll button on the landing page, a link home anywhere else. */
-function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, children }: {
+function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, tabIndex, children }: {
   anchor: string; hrefFor?: (anchor: string) => string;
   className?: string; style?: React.CSSProperties; children: React.ReactNode;
   /** Runs when the link is followed. The megamenu uses it to close itself. */
   onNavigate?: () => void;
+  /** The megamenu rovs this so Tab leaves its type list instead of walking every row. */
+  tabIndex?: number;
 }) {
   if (hrefFor) {
-    return <Link href={hrefFor(anchor)} className={className} style={style} onClick={onNavigate}>{children}</Link>;
+    return <Link href={hrefFor(anchor)} className={className} style={style} tabIndex={tabIndex} onClick={onNavigate}>{children}</Link>;
   }
   return (
     <button
@@ -53,10 +55,37 @@ function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, childre
       }}
       className={className}
       style={style}
+      tabIndex={tabIndex}
     >
       {children}
     </button>
   );
+}
+
+/**
+ * Move selection with the arrow keys inside one of the megamenu's columns, and take focus with it.
+ *
+ * Selecting on focus instead looks right with a mouse and traps a keyboard: every Tab moved to the
+ * next row AND replaced the panel, so Tab could only ever arrive at the last row's items and the
+ * earlier ones were unreachable. With one row focusable at a time, Tab leaves the column and lands
+ * in the items that belong to the selection, which is the whole point of the column.
+ */
+function handleRovingKeys(
+  e: React.KeyboardEvent,
+  containerRef: React.RefObject<HTMLDivElement | null>,
+  count: number, current: number, select: (i: number) => void,
+) {
+  const forward = e.key === 'ArrowDown' || e.key === 'ArrowRight';
+  const back    = e.key === 'ArrowUp'   || e.key === 'ArrowLeft';
+  if (!forward && !back) return;
+  e.preventDefault();
+  const next = forward ? Math.min(count - 1, current + 1) : Math.max(0, current - 1);
+  select(next);
+  // Read here, in the event, never during render. The marker sits on a wrapper in one column and
+  // on the control itself in the other.
+  const row = containerRef.current?.querySelectorAll<HTMLElement>('[data-roving-row]')[next];
+  const target = row?.matches('a, button') ? row : row?.querySelector<HTMLElement>('a, button');
+  target?.focus();
 }
 
 export interface LandingNavProps {
@@ -276,6 +305,9 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
   const inset  = isPageDark ? 'rgba(255,255,255,0.06)' : '#F4F7F9';
   const hair   = isPageDark ? '1px solid rgba(255,255,255,0.08)' : '1px solid #E8EBEF';
 
+  const typeColRef = useRef<HTMLDivElement>(null);
+  const subColRef  = useRef<HTMLDivElement>(null);
+
   const current   = groups[Math.min(active, groups.length - 1)];
   const subGroups = current?.subGroups ?? [];
   // Learning paths carry no grouping of their own, so the middle column is dropped for them and
@@ -320,14 +352,15 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
               fontFamily,
             }}>
 
-            {/* Left: the content types */}
-            <div className="flex-shrink-0 p-3" style={{ width: 246, background: inset }}>
-              {/* Hover and focus live on the wrapper, not on a span inside the link: a span is
-                  not focusable, so keyboard users could never swap the panel. React's onFocus
-                  bubbles, so tabbing onto the link itself selects the type. */}
+            {/* Left: the content types. Hover selects for a mouse; the arrow keys do it for a
+                keyboard, and only the selected row is tabbable so Tab moves on into its items. */}
+            <div ref={typeColRef}
+              onKeyDown={e => handleRovingKeys(e, typeColRef, groups.length, active, selectType)}
+              className="flex-shrink-0 p-3" style={{ width: 246, background: inset }}>
               {groups.map((group, i) => (
-                <div key={group.anchor} onMouseEnter={() => selectType(i)} onFocus={() => selectType(i)}>
+                <div key={group.anchor} data-roving-row onMouseEnter={() => selectType(i)}>
                   <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
+                    tabIndex={i === active ? 0 : -1}
                     className="w-full flex items-center gap-2 text-left px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors"
                     style={{
                       color: i === active ? strong : muted,
@@ -343,10 +376,13 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
             {/* The selected type's own grouping: tools for courses, industry for an experience,
                 Career or Technology for a certification. Hovering one swaps the items. */}
             {showSubs && (
-              <div className="flex-shrink-0 p-3 overflow-y-auto" style={{ width: 218, borderRight: hair }}>
+              <div ref={subColRef}
+                onKeyDown={e => handleRovingKeys(e, subColRef, subGroups.length, activeSub, setActiveSub)}
+                className="flex-shrink-0 p-3 overflow-y-auto" style={{ width: 218, borderRight: hair }}>
                 {subGroups.map((group, i) => (
-                  <button key={group.label || i} type="button"
-                    onMouseEnter={() => setActiveSub(i)} onFocus={() => setActiveSub(i)}
+                  <button key={group.label || i} type="button" data-roving-row
+                    tabIndex={i === activeSub ? 0 : -1}
+                    onMouseEnter={() => setActiveSub(i)}
                     onClick={() => setActiveSub(i)}
                     className="w-full flex items-center gap-2 text-left px-3 py-2 rounded-xl text-[13px] font-semibold transition-colors"
                     style={{
@@ -366,9 +402,9 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
                 <p className="text-sm px-1 py-2" style={{ color: muted }}>Nothing published here yet.</p>
               ) : (
                 <>
-                  {/* Two across: the type list and its grouping take the first two columns, so
-                      these are the last two. */}
-                  <div className="grid grid-cols-2 gap-2">
+                  {/* Two across once there is room. Between lg and xl the first two columns leave
+                      the items about 340px, which is one readable column, not two. */}
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-2">
                     {items.map(item => (
                       <Link key={item.id} href={item.href} onClick={() => setOpen(false)}
                         className="flex items-center gap-3 p-2 rounded-xl transition-colors"
@@ -445,7 +481,7 @@ function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, u
     <>
       <button type="button" onClick={() => setOpen(v => !v)}
         aria-expanded={open} aria-label={open ? 'Close menu' : 'Open menu'}
-        className="md:hidden grid place-items-center w-9 h-9 rounded-lg transition-colors"
+        className="lg:hidden grid place-items-center w-9 h-9 rounded-lg transition-colors"
         style={{ color: strong }}>
         {open ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
       </button>
@@ -457,7 +493,7 @@ function NavMobileMenu({ groups, hrefFor, isPageDark, accentColor, fontFamily, u
             animate={{ opacity: 1, y: 0 }}
             exit={reduced ? { opacity: 1 } : { opacity: 0, y: -8 }}
             transition={{ duration: reduced ? 0 : 0.18, ease: EASE_OUT }}
-            className="md:hidden absolute left-0 right-0 top-full overflow-y-auto"
+            className="lg:hidden absolute left-0 right-0 top-full overflow-y-auto"
             style={{
               background: panel, borderTop: hair, maxHeight: 'calc(100vh - 64px)', fontFamily,
               boxShadow: '0 24px 40px -20px rgba(0,0,0,0.35)',
@@ -592,7 +628,7 @@ export function LandingNav({
                 </>
             }
           </div>
-          <div className="hidden md:flex items-center gap-1 flex-1">
+          <div className="hidden lg:flex items-center gap-1 flex-1">
             {navMenuLabel && navLinks.length > 0 ? (
               <NavLearnMenu label={navMenuLabel} groups={navLinks} hrefFor={navLinkHref}
                 isPageDark={isPageDark} accentColor={AMBER} fontFamily={fontFamily} />
@@ -628,7 +664,7 @@ export function LandingNav({
               /* No mobile sheet on pages that pass flat links, so Pricing stays in the bar there
                  rather than becoming unreachable on a phone. */
               <Link href="/pricing"
-                className="md:hidden px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
+                className="lg:hidden px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors"
                 style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}>
                 Pricing
               </Link>
@@ -636,7 +672,7 @@ export function LandingNav({
             {user ? <NavProfileMenu user={user} profile={profile} pageDark={isPageDark} fontFamily={fontFamily} /> : (
               <>
                 <Link href="/auth"
-                  className={`${hasMobileSheet ? 'hidden md:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors`}
+                  className={`${hasMobileSheet ? 'hidden lg:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-semibold rounded-md transition-colors`}
                   style={{ color: isPageDark ? 'rgba(255,255,255,0.80)' : '#1C1D1F' }}
                   onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = isPageDark ? 'rgba(255,255,255,0.08)' : '#F7F9FC'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; }}>
@@ -644,7 +680,7 @@ export function LandingNav({
                 </Link>
                 {publicSignupEnabled && (
                   <Link href="/auth?mode=signup"
-                    className={`${hasMobileSheet ? 'hidden md:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-bold rounded-md transition-opacity hover:opacity-90`}
+                    className={`${hasMobileSheet ? 'hidden lg:inline-block' : ''} px-3 sm:px-4 py-2 text-sm font-bold rounded-md transition-opacity hover:opacity-90`}
                     style={{ background: isPageDark ? '#ffffff' : '#1C1D1F', color: isPageDark ? '#1C1D1F' : '#ffffff' }}>
                     Sign up
                   </Link>
