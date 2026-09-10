@@ -21,7 +21,7 @@ export type ProgrammeItem = {
   imageUrl: string;
   badge: string;
   difficulty?: string;
-  type: 'course' | 've' | 'path';
+  type: 'course' | 've' | 'path' | 'certification';
   slug: string;
   category?: string;
   partnerName?: string;
@@ -89,11 +89,12 @@ const getProgrammes = unstable_cache(
     const courseIds = offeredIds('courses');
     const experienceIds = offeredIds('virtual_experiences');
     const offeredPathIds = offeredIds('learning_paths');
+    const certificationIds = offeredIds('certifications');
 
     // The id filter has to go on the query, not on its results. Filtering afterwards lets private
     // rows occupy the row budget and pushes genuine public offerings off the page entirely.
     const empty = { data: [] as any[], error: null };
-    const [coursesResult, experiencesResult, pathsResult] = await Promise.all([
+    const [coursesResult, experiencesResult, pathsResult, certificationsResult] = await Promise.all([
       courseIds.length
         ? publicClient.from('published_courses').select('id,title,cover_image,slug,category,description,partner_name,partner_logo_url').in('id', courseIds).limit(20)
         : empty,
@@ -103,10 +104,27 @@ const getProgrammes = unstable_cache(
       offeredPathIds.length
         ? publicClient.from('published_learning_paths').select('id,title,description,cover_image').in('id', offeredPathIds).limit(8)
         : empty,
+      // Certifications come from their own gated view rather than a published_* one: the base
+      // table denies anon SELECT because it holds the exam bank, and publicly_offered_certifications
+      // exposes the card columns only. See migration 208.
+      certificationIds.length
+        ? publicClient.from('publicly_offered_certifications').select('id,title,description,cover_image,slug,cert_type').in('id', certificationIds).limit(12)
+        : empty,
     ]);
 
     const catalogueError = coursesResult.error || experiencesResult.error || pathsResult.error;
     if (catalogueError) throw catalogueError;
+
+    // Certifications are deliberately NOT part of that throw. The gate above fails closed because
+    // a broken gate could publish private cohort content -- that is a leak, and an error page is
+    // the safer outcome. This view only ever exposes card columns, so a failure here is an
+    // availability problem instead: dropping certifications while still showing courses, paths
+    // and experiences is strictly better than replacing the whole catalogue with an error.
+    // It also means this code can ship before migration 208 is applied without emptying the
+    // homepage of every tenant that has a publicly offered certification.
+    if (certificationsResult.error) {
+      console.warn('[landing] certification cards unavailable:', certificationsResult.error.message);
+    }
 
     const courses: ProgrammeItem[] = (coursesResult.data ?? []).map((row) => ({
       id: row.id,
@@ -135,6 +153,19 @@ const getProgrammes = unstable_cache(
       category: row.industry
         ? row.industry.charAt(0).toUpperCase() + row.industry.slice(1)
         : '',
+    }));
+
+    const certifications: ProgrammeItem[] = (certificationsResult.error ? [] : certificationsResult.data ?? []).map((row) => ({
+      id: row.id,
+      title: row.title,
+      description: row.description ?? '',
+      imageUrl: resolveCoverUrl(row.cover_image),
+      badge: 'Certification',
+      type: 'certification',
+      slug: row.slug,
+      // Career or Technology, which is what the card tag shows. Not used for grouping: the
+      // section stays one row.
+      category: row.cert_type === 'career' ? 'Career' : 'Technology',
     }));
 
     const pathRows = pathsResult.data ?? [];
@@ -172,9 +203,9 @@ const getProgrammes = unstable_cache(
       pathCourses: pathCourseMap[row.id] ?? [],
     }));
 
-    return [...courses, ...experiences, ...paths];
+    return [...courses, ...experiences, ...certifications, ...paths];
   },
-  ['landing-programmes-v2'],
+  ['landing-programmes-v3'],
   { revalidate: 60, tags: ['landing-programmes'] },
 );
 

@@ -4,8 +4,9 @@
  * The page has several card layouts -- a wide slider, a mobile scroller, a hover popup -- and
  * they were disagreeing about this, so it lives in one place and they all read it.
  *
- * Courses, guided projects and learning paths have public pages that show a signed-out visitor the
- * cover, blurb, outline/contents and price without exposing the private lesson material.
+ * Courses, guided projects, certifications and learning paths have public pages that show a
+ * signed-out visitor the cover, blurb, outline/contents and price without exposing the private
+ * lesson material or, for a certification, its question bank.
  *
  * The type always travels with the link. Slugs are unique within a table, not across them, and
  * the detail page tries tables in order -- so a course and an experience sharing a slug would
@@ -24,6 +25,7 @@ const CATALOGUE_TYPE: Record<string, string> = {
   course: 'course',
   ve: 'virtual_experience',
   path: 'learning_path',
+  certification: 'certification',
 };
 
 export function landingHref(item: LandingLinkItem, user: unknown): string {

@@ -342,10 +342,13 @@ export const TEMPLATES: Template[] = [
       testimonial3Name: 'Fatima Al-Hassan',  testimonial3Role: 'HR Analytics Specialist, Nairobi', testimonial3Text: 'The live workshops gave me direct access to industry experts. The certificate I earned opened doors that years of self-study could not. Highly recommended.',
       testimonialVideoUrl: '',
       // CTA
-      ctaHeading:       'Join 10,000+ professionals',
-      ctaHeadingAccent: "building Africa's future.",
-      ctaSubtext:       'Start learning today. No credit card required. Access your first course free and see the difference real, practical skills make.',
-      ctaButton:        'Start learning free',
+      // Modern is the only template that renders these, and until now nothing in the dashboard
+      // could edit them -- so the default WAS the copy, on every tenant. It has to be neutral and
+      // it must not assert a headcount or a free tier that a given tenant may not offer.
+      ctaHeading:       'Start with one course.',
+      ctaHeadingAccent: 'Build from there.',
+      ctaSubtext:       'Create an account to save your progress, collect credentials and pick up where you left off.',
+      ctaButton:        'Create free account',
       // Footer
       footerTagline:    'The AI and data skills platform built for African professionals. Learn, practise, and prove your skills.',
       // Sticky

@@ -14,6 +14,10 @@ const migration = readFileSync(
 );
 const freshSchema = readFileSync(join(process.cwd(), 'festman-fresh-schema.sql'), 'utf8');
 const loader = readFileSync(join(process.cwd(), 'lib/get-landing-page-data.ts'), 'utf8');
+const certView = readFileSync(
+  join(process.cwd(), 'migrations/208_publicly_offered_certifications.sql'),
+  'utf8',
+);
 
 describe('publicly offered content', () => {
   it('is applied to the fresh schema as well as the migration', () => {
@@ -48,6 +52,44 @@ describe('publicly offered content', () => {
     expect(published.length).toBeGreaterThanOrEqual(4);
   });
 
+  it('lists certifications, which the gate always allowed but the page never showed', () => {
+    // publicly_offered_content has had a certifications branch all along. The loader asked for
+    // three of the four content types, so a published, purchasable certification was invisible
+    // to every visitor.
+    expect(migration).toContain("SELECT 'certifications'::text");
+    expect(loader).toContain("offeredIds('certifications')");
+    expect(loader).toContain('publicly_offered_certifications');
+  });
+
+  it('serves the certification CARD without any part of the exam', () => {
+    // The reason certifications had no published_* view: the base table holds the question bank
+    // and its answer keys, and this view hands rows to anon. Widening the column list is the
+    // mistake that would turn a marketing card into an exam leak.
+    expect(certView).toContain('CREATE OR REPLACE VIEW public.publicly_offered_certifications');
+    expect(certView).toContain('GRANT SELECT ON public.publicly_offered_certifications TO anon');
+    for (const secret of ['questions', 'practice_questions', 'passmark', 'cohort_ids', 'skill_areas']) {
+      expect(certView).not.toContain(`ce.${secret}`);
+    }
+    // And the loader must not ask for more than the view offers.
+    expect(loader).toContain("select('id,title,description,cover_image,slug,cert_type')");
+  });
+
+  it('drops certifications rather than the whole catalogue when their view is missing', () => {
+    // The gate fails closed on purpose: a broken gate could publish private cohort content, so an
+    // error page is safer. The certification CARD view is the opposite case -- it exposes card
+    // columns only, so a failure there is availability, not disclosure. Folding it into the throw
+    // would mean any tenant with a public certification loses courses, paths and experiences too
+    // until migration 208 is applied.
+    expect(loader).toContain('const catalogueError = coursesResult.error || experiencesResult.error || pathsResult.error;');
+    expect(loader).not.toContain('pathsResult.error || certificationsResult.error');
+    expect(loader).toContain('certificationsResult.error ? [] : certificationsResult.data');
+  });
+
+  it('applies the certification card view to the fresh schema too', () => {
+    expect(freshSchema).toContain('CREATE OR REPLACE VIEW public.publicly_offered_certifications');
+    expect(freshSchema).toContain('GRANT SELECT ON public.publicly_offered_certifications TO anon');
+  });
+
   it('leaves the existing published_* views untouched', () => {
     // They also feed certification authoring, where an instructor must still see bootcamp
     // content. Narrowing them would break that.
@@ -69,6 +111,7 @@ describe('publicly offered content', () => {
     expect(loader).toContain(".in('id', courseIds)");
     expect(loader).toContain(".in('id', experienceIds)");
     expect(loader).toContain(".in('id', offeredPathIds)");
+    expect(loader).toContain(".in('id', certificationIds)");
     // And the allowlist must be read before the listings, not alongside them.
     expect(loader.indexOf('publicly_offered_content')).toBeLessThan(loader.indexOf('published_courses'));
   });
