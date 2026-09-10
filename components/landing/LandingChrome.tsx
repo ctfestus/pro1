@@ -344,10 +344,14 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
               // the viewport subtraction has to cover that offset or a narrow window pushes the
               // right-hand edge off screen.
               width: 'min(1060px, calc(100vw - 220px))', background: panel, border: hair,
-              // A floor, not a ceiling. There are only ever a few content types, so the first
-              // column runs out well before the items do; leaving space under it is preferable to
-              // capping the height and making the items scroll.
-              minHeight: 420,
+              // A generous floor, so the short first column leaves space under it rather than
+              // squashing the panel -- but it yields on a short screen. min-height beats
+              // max-height in CSS, so a fixed 420 here would have won and pushed the bottom of
+              // the panel past the viewport, where overflow-hidden made it unreachable: the item
+              // list is capped and scrolls instead. 72px clears the nav and the panel's own
+              // margin, and leaves a little air beneath.
+              minHeight: 'min(420px, calc(100vh - 88px))',
+              maxHeight: 'calc(100vh - 88px)',
               boxShadow: isPageDark ? '0 24px 60px rgba(0,0,0,0.55)' : '0 24px 60px -24px rgba(16,24,40,0.28)',
               fontFamily,
             }}>
@@ -356,7 +360,7 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
                 keyboard, and only the selected row is tabbable so Tab moves on into its items. */}
             <div ref={typeColRef}
               onKeyDown={e => handleRovingKeys(e, typeColRef, groups.length, active, selectType)}
-              className="flex-shrink-0 p-3" style={{ width: 246, background: inset }}>
+              className="flex-shrink-0 p-3 overflow-y-auto" style={{ width: 246, background: inset }}>
               {groups.map((group, i) => (
                 <div key={group.anchor} data-roving-row onMouseEnter={() => selectType(i)}>
                   <NavSectionLink anchor={group.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
@@ -397,7 +401,7 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
             )}
 
             {/* Right: what the selected section actually holds */}
-            <div className="flex-1 min-w-0 p-5">
+            <div className="flex-1 min-w-0 p-5 overflow-y-auto">
               {items.length === 0 ? (
                 <p className="text-sm px-1 py-2" style={{ color: muted }}>Nothing published here yet.</p>
               ) : (
