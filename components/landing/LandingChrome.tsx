@@ -396,9 +396,11 @@ function NavLearnMenu({ label, groups, hrefFor, isPageDark, accentColor, fontFam
                       </Link>
                     ))}
                   </div>
+                  {/* Plain text colour, not the accent: the accent is the tenant's secondary and
+                      reads as a coloured call to action competing with the items above it. */}
                   <NavSectionLink anchor={current.anchor} hrefFor={hrefFor} onNavigate={() => setOpen(false)}
                     className="inline-flex items-center gap-1 mt-4 ml-2 text-[13px] font-bold transition-opacity hover:opacity-70"
-                    style={{ color: accentColor }}>
+                    style={{ color: strong }}>
                     See all {current.label.toLowerCase()}
                     <ChevronRight className="w-3.5 h-3.5" />
                   </NavSectionLink>
