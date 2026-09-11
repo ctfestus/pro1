@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveSubscriptionPrice, promotionBadgeText } from '@/lib/subscription-discount';
+import { effectiveSubscriptionPrice, promotionHeading } from '@/lib/subscription-discount';
 
 const now = new Date('2026-09-05T12:00:00.000Z');
 
@@ -84,16 +84,16 @@ describe('subscription discounts', () => {
   });
 });
 
-describe('promotionBadgeText', () => {
-  it('puts the promotion name in front of the saving', () => {
-    expect(promotionBadgeText('Black Friday', '15% off')).toBe('Black Friday - 15% off');
+describe('promotionHeading', () => {
+  it('names the offer with what the seller called it', () => {
+    expect(promotionHeading('Black Friday', 'Special offer')).toBe('Black Friday');
   });
 
-  it.each([[null], [undefined], [''], ['  ']])('shows the saving alone without a name: %s', (name) => {
-    expect(promotionBadgeText(name, '15% off')).toBe('15% off');
+  it.each([[null], [undefined], [''], ['  ']])('falls back to the generic label without a name: %s', (name) => {
+    expect(promotionHeading(name, 'Special offer')).toBe('Special offer');
   });
 
   it('trims a name typed with stray spacing', () => {
-    expect(promotionBadgeText('  New Year  ', 'GHS 50.00 off')).toBe('New Year - GHS 50.00 off');
+    expect(promotionHeading('  New Year  ', 'Special offer')).toBe('New Year');
   });
 });

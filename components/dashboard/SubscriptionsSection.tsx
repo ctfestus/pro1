@@ -47,7 +47,7 @@ import {
 } from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
 import { LIGHT_C, cardStyle, modalStyle } from "@/lib/theme";
-import { effectiveSubscriptionPrice, promotionBadgeText, PROMOTION_NAME_MAX } from "@/lib/subscription-discount";
+import { effectiveSubscriptionPrice, promotionHeading, PROMOTION_NAME_MAX } from "@/lib/subscription-discount";
 
 const CONTENT_TYPES = [
   { value: "courses", label: "Course" },
@@ -478,9 +478,10 @@ function PlanDiscountFields({
               Save {money(example.currency, preview.discountAmount)}
             </span>
             <p className="text-[10px] mt-1.5 break-words" style={{ color: C.faint }}>
-              Learners see: {promotionBadgeText(discount.label, discount.type === "percentage"
+              Learners see: {promotionHeading(discount.label, "Special offer").toUpperCase()},
+              then {discount.type === "percentage"
                 ? `${preview.discountValue}% off`
-                : `${money(example.currency, preview.discountAmount)} off`)}
+                : `${money(example.currency, preview.discountAmount)} off`}
             </p>
           </div>
         </div>

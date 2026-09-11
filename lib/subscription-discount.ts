@@ -29,16 +29,16 @@ export interface EffectiveSubscriptionPrice {
 }
 
 /**
- * The wording on a promotion badge.
+ * What to call the offer on its ticket.
  *
- * A saving on its own reads as though the old price was simply wrong. The promotion's name in
- * front of it gives the drop a reason and an end -- "Black Friday - 15% off" -- and matches
- * whatever the seller wrote in the email that brought the reader here. Unnamed promotions keep
- * the bare saving, so nothing is invented on their behalf.
+ * The ticket already has a slot naming what it is, and until a promotion could be named that slot
+ * held a fixed "Special offer" -- a label that says nothing the yellow panel had not already said.
+ * The seller's own name belongs there instead: "Black Friday" over "20% off" reads as one offer,
+ * where repeating both in the same line read as two. Unnamed promotions keep the generic label,
+ * so nothing is invented on their behalf.
  */
-export function promotionBadgeText(name: string | null | undefined, saving: string): string {
-  const trimmed = (name ?? '').trim();
-  return trimmed ? `${trimmed} - ${saving}` : saving;
+export function promotionHeading(name: string | null | undefined, fallback: string): string {
+  return (name ?? '').trim() || fallback;
 }
 
 function scaledInteger(value: number | string, scale: number): bigint {

@@ -13,7 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
-import { promotionBadgeText } from '@/lib/subscription-discount';
+import { promotionHeading } from '@/lib/subscription-discount';
 import { startPlanCheckout } from '@/lib/start-plan-checkout';
 import { planBenefits } from '@/lib/pricing-benefits';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
@@ -194,12 +194,10 @@ function PlanCard({
   const comparison = price ? comparePlanPrice(price, plan.prices) : null;
   const benefits = planBenefits(plan.coverage);
   const promotion = Boolean(price?.listAmount && price.listAmount > price.amount);
-  const promotionLabel = promotionBadgeText(
-    price?.discountLabel,
-    price?.discountType === 'percentage'
-      ? `${price.discountValue}% off`
-      : `${money(price?.currency ?? '', price?.discountAmount ?? 0)} off`,
-  );
+  const promotionName = promotionHeading(price?.discountLabel, 'Special offer');
+  const promotionSaving = price?.discountType === 'percentage'
+    ? `${price.discountValue}% off`
+    : `${money(price?.currency ?? '', price?.discountAmount ?? 0)} off`;
   const planSurface = plan.recommended ? '#FFFFFF' : '#F7F9FB';
   const shortDuration = durationOptions[0] ?? null;
   const longDuration = durationOptions[1] ?? null;
@@ -261,8 +259,8 @@ function PlanCard({
           <div className="ticket-cutout relative mt-5 rounded-2xl px-5 py-4" style={{ background: '#FFCC00' }}>
             <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
               <div className="min-w-0">
-                <p className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Special offer</p>
-                <p className="mt-0.5 break-words text-base font-black" style={{ color: '#101828' }}>{promotionLabel}</p>
+                <p className="break-words text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(16,24,40,0.58)' }}>{promotionName}</p>
+                <p className="mt-0.5 break-words text-base font-black" style={{ color: '#101828' }}>{promotionSaving}</p>
               </div>
               <div className="shrink-0 border-l-2 border-dashed pl-4 text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
                 <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>You save</p>

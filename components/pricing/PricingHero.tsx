@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ArrowDown } from 'lucide-react';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { durationLabel, formatMoney, type FeaturedOffer } from '@/lib/pricing-offer';
-import { promotionBadgeText } from '@/lib/subscription-discount';
+import { promotionHeading } from '@/lib/subscription-discount';
 
 const HERO_TOOLS: { name: string; glyph: number }[] = [
   { name: 'Claude', glyph: 36 },
@@ -123,12 +123,10 @@ export function PricingHero({
     : displayedBaseline !== null
       ? displayedBaseline * price.durationMonths
       : null;
-  const promotionLabel = promotionBadgeText(
-    price.discountLabel,
-    price.discountType === 'percentage'
-      ? `${price.discountValue}% off`
-      : `${formatMoney(price.currency, price.discountAmount ?? 0)} off`,
-  );
+  const promotionName = promotionHeading(price.discountLabel, 'Offer applied');
+  const promotionSaving = price.discountType === 'percentage'
+    ? `${price.discountValue}% off`
+    : `${formatMoney(price.currency, price.discountAmount ?? 0)} off`;
 
   return (
     <section className="relative overflow-hidden" style={{ background: primaryColor, fontFamily: bFont }}>
@@ -172,8 +170,8 @@ export function PricingHero({
                 <div className="ticket-cutout relative rounded-2xl px-5 py-4" style={{ background: '#FFCC00' }}>
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                     <div className="min-w-0">
-                      <span className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Offer applied</span>
-                      <p className="mt-1 break-words text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>{promotionLabel}</p>
+                      <span className="block break-words text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(16,24,40,0.58)' }}>{promotionName}</span>
+                      <p className="mt-1 break-words text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>{promotionSaving}</p>
                     </div>
                     <div className="border-l-2 border-dashed pl-4 text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
                       <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>You save</p>
