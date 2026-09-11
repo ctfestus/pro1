@@ -64,6 +64,7 @@ export const getPricingPageData = unstable_cache(
         listAmount: Number(price.listAmount ?? price.amount),
         discountType: price.discountType ?? null,
         discountValue: price.discountValue == null ? null : Number(price.discountValue),
+        discountLabel: price.discountLabel ?? null,
         discountAmount: Number(price.discountAmount ?? 0),
         currency: price.currency || 'GHS',
       })),

@@ -4226,6 +4226,8 @@ CREATE TABLE public.subscription_plans (
   discount_value numeric(10,2),
   discount_starts_at timestamptz,
   discount_ends_at timestamptz,
+  -- migration 209: optional name for the promotion, shown beside the saving.
+  discount_label text,
   created_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
@@ -4237,12 +4239,18 @@ CREATE TABLE public.subscription_plans (
   CONSTRAINT subscription_plans_discount_complete
     CHECK (
       (discount_type IS NULL AND discount_value IS NULL
-        AND discount_starts_at IS NULL AND discount_ends_at IS NULL)
+        AND discount_starts_at IS NULL AND discount_ends_at IS NULL
+        AND discount_label IS NULL)
       OR
       (discount_type IS NOT NULL AND discount_type IN ('percentage', 'fixed')
         AND discount_value IS NOT NULL AND discount_value > 0
         AND (discount_type <> 'percentage' OR discount_value < 100))
     ),
+  -- migration 209: a blank name is not a name, and one long enough to wrap breaks its badge.
+  CONSTRAINT subscription_plans_discount_label_shape
+    CHECK (discount_label IS NULL
+      OR (btrim(discount_label) = discount_label
+        AND length(discount_label) BETWEEN 1 AND 40)),
   CONSTRAINT subscription_plans_discount_window
     CHECK (discount_starts_at IS NULL OR discount_ends_at IS NULL
       OR discount_starts_at < discount_ends_at)
@@ -6121,11 +6129,13 @@ CREATE OR REPLACE FUNCTION public.replace_subscription_plan_prices_and_discount(
   p_discount_value numeric,
   p_discount_starts_at timestamptz,
   p_discount_ends_at timestamptz,
+  p_discount_label text,
   p_actor_id uuid
 ) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
   v_plan public.subscription_plans%ROWTYPE;
   v_role text;
+  v_label text := NULLIF(btrim(COALESCE(p_discount_label, '')), '');
 BEGIN
   IF jsonb_typeof(p_prices) <> 'array' THEN RAISE EXCEPTION 'prices must be an array'; END IF;
   SELECT role INTO v_role FROM public.students WHERE id = p_actor_id;
@@ -6147,13 +6157,17 @@ BEGIN
   ) THEN RAISE EXCEPTION 'duplicate subscription price duration'; END IF;
 
   IF p_discount_type IS NULL THEN
-    IF p_discount_value IS NOT NULL OR p_discount_starts_at IS NOT NULL OR p_discount_ends_at IS NOT NULL THEN
+    IF p_discount_value IS NOT NULL OR p_discount_starts_at IS NOT NULL
+      OR p_discount_ends_at IS NOT NULL OR v_label IS NOT NULL THEN
       RAISE EXCEPTION 'discount fields require a discount type';
     END IF;
   ELSIF p_discount_type NOT IN ('percentage', 'fixed')
     OR p_discount_value IS NULL OR p_discount_value <= 0
     OR (p_discount_type = 'percentage' AND p_discount_value >= 100) THEN
     RAISE EXCEPTION 'invalid subscription discount';
+  END IF;
+  IF v_label IS NOT NULL AND length(v_label) > 40 THEN
+    RAISE EXCEPTION 'discount name is too long';
   END IF;
   IF p_discount_starts_at IS NOT NULL AND p_discount_ends_at IS NOT NULL
     AND p_discount_starts_at >= p_discount_ends_at THEN
@@ -6183,7 +6197,8 @@ BEGIN
   SET discount_type = p_discount_type,
       discount_value = p_discount_value,
       discount_starts_at = p_discount_starts_at,
-      discount_ends_at = p_discount_ends_at
+      discount_ends_at = p_discount_ends_at,
+      discount_label = v_label
   WHERE id = p_plan_id;
 
   DELETE FROM public.subscription_plan_prices WHERE plan_id = p_plan_id;
@@ -6200,10 +6215,10 @@ END;
 $$;
 
 REVOKE EXECUTE ON FUNCTION public.replace_subscription_plan_prices_and_discount(
-  uuid, jsonb, text, numeric, timestamptz, timestamptz, uuid
+  uuid, jsonb, text, numeric, timestamptz, timestamptz, text, uuid
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.replace_subscription_plan_prices_and_discount(
-  uuid, jsonb, text, numeric, timestamptz, timestamptz, uuid
+  uuid, jsonb, text, numeric, timestamptz, timestamptz, text, uuid
 ) TO service_role;
 
 -- Migration 190: abandoned-checkout cart.
@@ -6515,6 +6530,7 @@ price_promotions AS (
     pr.*,
     p.discount_type,
     p.discount_value,
+    p.discount_label,
     (
       p.discount_type IN ('percentage', 'fixed')
       AND p.discount_value > 0
@@ -6563,6 +6579,7 @@ SELECT
                'listAmount', pr.amount,
                'discountType', CASE WHEN pr.promotion_active THEN pr.discount_type ELSE NULL END,
                'discountValue', CASE WHEN pr.promotion_active THEN pr.discount_value ELSE NULL END,
+               'discountLabel', CASE WHEN pr.promotion_active THEN pr.discount_label ELSE NULL END,
                'discountAmount', pr.amount - pr.effective_amount,
                'currency', pr.currency
              ) ORDER BY pr.duration_months

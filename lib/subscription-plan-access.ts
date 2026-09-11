@@ -33,6 +33,7 @@ export interface PlanPrice {
   listAmount: number;
   discountType: 'percentage' | 'fixed' | null;
   discountValue: number | null;
+  discountLabel: string | null;
   discountAmount: number;
   currency: string;
 }
@@ -172,7 +173,7 @@ export async function loadPlansForContent(
 
   let priceQuery = db
     .from('subscription_plan_prices')
-    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id, discount_type, discount_value, discount_starts_at, discount_ends_at)')
+    .select('id, plan_id, duration_months, amount, currency, sort_order, subscription_plans!subscription_plan_prices_plan_id_fkey(id, name, description, status, cohort_id, discount_type, discount_value, discount_starts_at, discount_ends_at, discount_label)')
     .eq('is_active', true);
   if (allowedPlanIds) priceQuery = priceQuery.in('plan_id', allowedPlanIds);
   const { data: prices, error } = await priceQuery.order('sort_order').order('duration_months');
@@ -205,6 +206,7 @@ export async function loadPlansForContent(
       listAmount: effective.listAmount,
       discountType: effective.discountType,
       discountValue: effective.discountValue,
+      discountLabel: effective.discountLabel,
       discountAmount: effective.discountAmount,
       currency: row.currency || 'GHS',
     });

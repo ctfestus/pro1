@@ -28,6 +28,7 @@ export interface PricingPrice {
   listAmount?: number;
   discountType?: 'percentage' | 'fixed' | null;
   discountValue?: number | null;
+  discountLabel?: string | null;
   discountAmount?: number;
   currency: string;
 }

@@ -12,6 +12,7 @@ import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { PaymentsSection } from '@/components/student/payments';
 import { Sk } from '@/components/student/shared';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
+import { promotionHeading } from '@/lib/subscription-discount';
 
 type Tab = 'pay' | 'confirm' | 'history';
 const PAYSTACK_RETURN_REFERENCE_KEY = 'paystack:return-reference';
@@ -637,7 +638,8 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
   const blocked = Boolean(openRequest || planBusyId || readOnly || !selectedPrice);
   const copy = renewalCopy(subscription?.status);
   const promotion = Boolean(selectedPrice?.listAmount && selectedPrice.listAmount > selectedPrice.amount);
-  const promotionLabel = selectedPrice?.discountType === 'percentage'
+  const promotionName = promotionHeading(selectedPrice?.discountLabel, 'Special offer applied');
+  const promotionSaving = selectedPrice?.discountType === 'percentage'
     ? `${selectedPrice.discountValue}% off`
     : `${money(selectedPrice?.currency, selectedPrice?.discountAmount)} off`;
 
@@ -660,8 +662,8 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
         <div className="ticket-cutout relative mb-5 rounded-2xl px-5 py-4" style={{ background: '#FFCC00' }}>
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
             <div className="min-w-0">
-              <p className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Special offer applied</p>
-              <p className="mt-0.5 text-base font-black" style={{ color: '#101828' }}>{promotionLabel}</p>
+              <p className="break-words text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: 'rgba(16,24,40,0.58)' }}>{promotionName}</p>
+              <p className="mt-0.5 break-words text-base font-black" style={{ color: '#101828' }}>{promotionSaving}</p>
             </div>
             <div className="border-t-2 border-dashed pt-3 sm:border-l-2 sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
               <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>Your saving</p>

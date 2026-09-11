@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { effectiveSubscriptionPrice } from '@/lib/subscription-discount';
+import { effectiveSubscriptionPrice, promotionHeading } from '@/lib/subscription-discount';
 
 const now = new Date('2026-09-05T12:00:00.000Z');
 
@@ -10,11 +10,13 @@ describe('subscription discounts', () => {
       discount_value: 15,
       discount_starts_at: '2026-09-01T00:00:00.000Z',
       discount_ends_at: '2026-09-10T00:00:00.000Z',
+      discount_label: 'Black Friday',
     }, now)).toEqual({
       amount: 169.99,
       listAmount: 199.99,
       discountType: 'percentage',
       discountValue: 15,
+      discountLabel: 'Black Friday',
       discountAmount: 30,
       discountActive: true,
     });
@@ -53,10 +55,45 @@ describe('subscription discounts', () => {
     }, now).discountActive).toBe(false);
   });
 
+  it('drops the promotion name with the promotion it belongs to', () => {
+    // A name is a label for a saving. Once the window closes there is no saving to label, and a
+    // stray "Black Friday" beside a full price would be an offer the learner cannot take.
+    const ended = effectiveSubscriptionPrice(300, {
+      discount_type: 'percentage',
+      discount_value: 20,
+      discount_ends_at: '2026-09-05T00:00:00.000Z',
+      discount_label: 'Black Friday',
+    }, now);
+    expect(ended.discountActive).toBe(false);
+    expect(ended.discountLabel).toBeNull();
+  });
+
+  it('treats a blank promotion name as no name', () => {
+    expect(effectiveSubscriptionPrice(300, {
+      discount_type: 'fixed',
+      discount_value: 25,
+      discount_label: '   ',
+    }, now).discountLabel).toBeNull();
+  });
+
   it('matches decimal currency rounding at half-cent boundaries', () => {
     expect(effectiveSubscriptionPrice(2.3, {
       discount_type: 'percentage',
       discount_value: 5,
     }, now).amount).toBe(2.19);
+  });
+});
+
+describe('promotionHeading', () => {
+  it('names the offer with what the seller called it', () => {
+    expect(promotionHeading('Black Friday', 'Special offer')).toBe('Black Friday');
+  });
+
+  it.each([[null], [undefined], [''], ['  ']])('falls back to the generic label without a name: %s', (name) => {
+    expect(promotionHeading(name, 'Special offer')).toBe('Special offer');
+  });
+
+  it('trims a name typed with stray spacing', () => {
+    expect(promotionHeading('  New Year  ', 'Special offer')).toBe('New Year');
   });
 });
