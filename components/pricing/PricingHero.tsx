@@ -173,7 +173,7 @@ export function PricingHero({
                   <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
                     <div className="min-w-0">
                       <span className="text-[11px] font-black uppercase tracking-[0.15em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Offer applied</span>
-                      <p className="mt-1 text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>{promotionLabel}</p>
+                      <p className="mt-1 break-words text-base font-black" style={{ color: '#101828', fontFamily: hFont }}>{promotionLabel}</p>
                     </div>
                     <div className="border-l-2 border-dashed pl-4 text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
                       <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>You save</p>

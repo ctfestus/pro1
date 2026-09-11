@@ -473,11 +473,11 @@ function PlanDiscountFields({
               <span className="text-xl font-black" style={{ color: C.text }}>{money(example.currency, preview.amount)}</span>
             </div>
           </div>
-          <div className="text-right">
+          <div className="min-w-0 text-right">
             <span className="rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
               Save {money(example.currency, preview.discountAmount)}
             </span>
-            <p className="text-[10px] mt-1.5" style={{ color: C.faint }}>
+            <p className="text-[10px] mt-1.5 break-words" style={{ color: C.faint }}>
               Learners see: {promotionBadgeText(discount.label, discount.type === "percentage"
                 ? `${preview.discountValue}% off`
                 : `${money(example.currency, preview.discountAmount)} off`)}

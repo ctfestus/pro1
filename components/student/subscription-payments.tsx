@@ -665,7 +665,7 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
           <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center sm:gap-4">
             <div className="min-w-0">
               <p className="text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: 'rgba(16,24,40,0.58)' }}>Special offer applied</p>
-              <p className="mt-0.5 text-base font-black" style={{ color: '#101828' }}>{promotionLabel}</p>
+              <p className="mt-0.5 break-words text-base font-black" style={{ color: '#101828' }}>{promotionLabel}</p>
             </div>
             <div className="border-t-2 border-dashed pt-3 sm:border-l-2 sm:border-t-0 sm:pl-4 sm:pt-0 sm:text-right" style={{ borderColor: 'rgba(16,24,40,0.42)' }}>
               <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.58)' }}>Your saving</p>
