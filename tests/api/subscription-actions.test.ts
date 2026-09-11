@@ -251,6 +251,7 @@ describe('subscription payment actions', () => {
     ], /one currency/i],
     ['nothing payable', { type: 'fixed', value: 100 }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /leave a payable amount/i],
     ['no cent-level saving', { type: 'percentage', value: 0.01 }, [{ durationMonths: 1, amount: 10, currency: 'GHS', isActive: true }], /too small to change/i],
+    ['name too long', { type: 'percentage', value: 10, label: 'B'.repeat(41) }, [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }], /at most 40 characters/i],
   ])('rejects an invalid subscription discount: %s', async (_label, discount, prices, errorPattern) => {
     authenticateAs('admin');
     const rpc = vi.fn(() => ({ data: { ok: true }, error: null }));
@@ -265,6 +266,53 @@ describe('subscription payment actions', () => {
     expect(response.status).toBe(400);
     expect((await response.json()).error).toMatch(errorPattern);
     expect(rpc).not.toHaveBeenCalled();
+  });
+
+  it('saves the promotion name alongside the promotion', async () => {
+    authenticateAs('admin');
+    const rpc = vi.fn(() => ({ data: { ok: true }, error: null }));
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: { data: { id: 'plan-1', created_by: 'admin-1' }, error: null },
+    }, rpc));
+
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices', planId: 'plan-1',
+      prices: [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }],
+      discount: { type: 'percentage', value: 15, label: '  Black Friday  ' },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices_and_discount', expect.objectContaining({
+      p_discount_label: 'Black Friday',
+    }));
+  });
+
+  it('clears the promotion name when the promotion is removed', async () => {
+    // The name is a label for a saving. Left behind on a plan with no discount it would advertise
+    // an offer nobody can take.
+    authenticateAs('admin');
+    const rpc = vi.fn(() => ({ data: { ok: true }, error: null }));
+    createClient.mockReturnValue(makeSupabaseStub({
+      subscription_plans: {
+        data: {
+          id: 'plan-1', created_by: 'admin-1',
+          discount_type: 'percentage', discount_value: 15, discount_label: 'Black Friday',
+        },
+        error: null,
+      },
+    }, rpc));
+
+    const response = await POST(request({
+      action: 'save-subscription-plan-prices', planId: 'plan-1',
+      prices: [{ durationMonths: 1, amount: 100, currency: 'GHS', isActive: true }],
+      discount: { type: '', value: null, label: null },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(rpc).toHaveBeenCalledWith('replace_subscription_plan_prices_and_discount', expect.objectContaining({
+      p_discount_type: null,
+      p_discount_label: null,
+    }));
   });
 
   it('refuses to activate a plan without an active price', async () => {

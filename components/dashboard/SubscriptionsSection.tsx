@@ -47,7 +47,7 @@ import {
 } from "@/lib/plan-content-request";
 import { parseSubscriptionImportText } from "@/lib/subscription-import";
 import { LIGHT_C, cardStyle, modalStyle } from "@/lib/theme";
-import { effectiveSubscriptionPrice } from "@/lib/subscription-discount";
+import { effectiveSubscriptionPrice, promotionBadgeText, PROMOTION_NAME_MAX } from "@/lib/subscription-discount";
 
 const CONTENT_TYPES = [
   { value: "courses", label: "Course" },
@@ -90,6 +90,7 @@ type PlanDiscountDraft = {
   value: string;
   startsAt: string;
   endsAt: string;
+  label: string;
 };
 
 const freshPlanDiscount = (): PlanDiscountDraft => ({
@@ -97,6 +98,7 @@ const freshPlanDiscount = (): PlanDiscountDraft => ({
   value: "",
   startsAt: "",
   endsAt: "",
+  label: "",
 });
 
 function planDiscountFromRow(plan: any): PlanDiscountDraft {
@@ -105,6 +107,7 @@ function planDiscountFromRow(plan: any): PlanDiscountDraft {
     value: plan?.discount_value == null ? "" : String(plan.discount_value),
     startsAt: plan?.discount_starts_at ? String(plan.discount_starts_at).slice(0, 16) : "",
     endsAt: plan?.discount_ends_at ? String(plan.discount_ends_at).slice(0, 16) : "",
+    label: plan?.discount_label ?? "",
   };
 }
 
@@ -114,6 +117,7 @@ function planDiscountPayload(discount: PlanDiscountDraft) {
     value: discount.type ? Number(discount.value) : null,
     startsAt: discount.type && discount.startsAt ? `${discount.startsAt}:00.000Z` : null,
     endsAt: discount.type && discount.endsAt ? `${discount.endsAt}:00.000Z` : null,
+    label: discount.type ? discount.label.trim() || null : null,
   };
 }
 
@@ -410,6 +414,18 @@ function PlanDiscountFields({
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3 mt-5">
+        <label className="sm:col-span-2 text-xs font-bold" style={{ color: C.muted }}>
+          Promotion name <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
+          <input
+            value={discount.label}
+            disabled={!discount.type}
+            maxLength={PROMOTION_NAME_MAX}
+            onChange={(e) => setDiscount((value) => ({ ...value, label: e.target.value }))}
+            placeholder="Black Friday"
+            className={`${fieldClass} mt-1.5 disabled:opacity-50`}
+            style={controlStyle}
+          />
+        </label>
         <label className="text-xs font-bold" style={{ color: C.muted }}>
           Offer type
           <select
@@ -457,9 +473,16 @@ function PlanDiscountFields({
               <span className="text-xl font-black" style={{ color: C.text }}>{money(example.currency, preview.amount)}</span>
             </div>
           </div>
-          <span className="rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
-            Save {money(example.currency, preview.discountAmount)}
-          </span>
+          <div className="text-right">
+            <span className="rounded-full px-3 py-1.5 text-[11px] font-black" style={{ background: C.successBg, color: C.successText }}>
+              Save {money(example.currency, preview.discountAmount)}
+            </span>
+            <p className="text-[10px] mt-1.5" style={{ color: C.faint }}>
+              Learners see: {promotionBadgeText(discount.label, discount.type === "percentage"
+                ? `${preview.discountValue}% off`
+                : `${money(example.currency, preview.discountAmount)} off`)}
+            </p>
+          </div>
         </div>
       )}
 
@@ -3253,7 +3276,7 @@ export function SubscriptionsSection({ C }: { C: typeof LIGHT_C }) {
                                 {promotionStatus && (
                                   <div className="flex items-center gap-2 mt-2 text-[10px] font-bold" style={{ color: discountStatusTone(promotionStatus, C) }}>
                                     {startingPrice?.discountActive && <span className="line-through">{money(startingPrice.currency, startingPrice.listAmount)}</span>}
-                                    <span>Promotion {promotionStatus.toLowerCase()}</span>
+                                    <span>{(plan.discount_label || "Promotion")} {promotionStatus.toLowerCase()}</span>
                                   </div>
                                 )}
                               </>

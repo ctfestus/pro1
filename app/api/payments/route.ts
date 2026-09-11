@@ -24,7 +24,7 @@ import { addToResendAudience } from '@/lib/resend-audience';
 import { PaymentError, paymentErrorResponse } from '@/lib/payment-errors';
 import { getPaystackReviewQueue } from '@/lib/paystack-review-queue';
 import { assertNothingCollected } from '@/lib/paystack-subscriptions';
-import { effectiveSubscriptionPrice } from '@/lib/subscription-discount';
+import { effectiveSubscriptionPrice, PROMOTION_NAME_MAX } from '@/lib/subscription-discount';
 import {
   cancelSubscription,
   cancelSubscriptionPaymentRequest,
@@ -723,7 +723,7 @@ export async function POST(req: NextRequest) {
     try {
       const { data: plan, error: planError } = await db
         .from('subscription_plans')
-        .select('id, created_by, discount_type, discount_value, discount_starts_at, discount_ends_at')
+        .select('id, created_by, discount_type, discount_value, discount_starts_at, discount_ends_at, discount_label')
         .eq('id', body.planId)
         .maybeSingle();
       if (planError) throw planError;
@@ -744,6 +744,9 @@ export async function POST(req: NextRequest) {
       const discountEndsAt = submittedDiscount === undefined
         ? (plan.discount_ends_at ?? null)
         : (discountType && submittedDiscount?.endsAt ? String(submittedDiscount.endsAt) : null);
+      const discountLabel = submittedDiscount === undefined
+        ? (plan.discount_label ?? null)
+        : (discountType && submittedDiscount?.label ? String(submittedDiscount.label).trim() || null : null);
       if (discountType && !['percentage', 'fixed'].includes(discountType)) {
         return NextResponse.json({ error: 'Discount type must be percentage or fixed.' }, { status: 400 });
       }
@@ -752,6 +755,11 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: discountType === 'percentage'
           ? 'Percentage discount must be greater than 0 and less than 100.'
           : 'Fixed discount must be greater than 0.' }, { status: 400 });
+      }
+      if (discountLabel && discountLabel.length > PROMOTION_NAME_MAX) {
+        return NextResponse.json({
+          error: `A promotion name can be at most ${PROMOTION_NAME_MAX} characters.`,
+        }, { status: 400 });
       }
       if ((discountStartsAt && Number.isNaN(Date.parse(discountStartsAt)))
         || (discountEndsAt && Number.isNaN(Date.parse(discountEndsAt)))) {
@@ -792,6 +800,7 @@ export async function POST(req: NextRequest) {
         p_discount_value: discountValue,
         p_discount_starts_at: discountStartsAt,
         p_discount_ends_at: discountEndsAt,
+        p_discount_label: discountLabel,
         p_actor_id: sessionUser.id,
       });
       if (replaceError) throw replaceError;

@@ -12,6 +12,7 @@ import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { PaymentsSection } from '@/components/student/payments';
 import { Sk } from '@/components/student/shared';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
+import { promotionBadgeText } from '@/lib/subscription-discount';
 
 type Tab = 'pay' | 'confirm' | 'history';
 const PAYSTACK_RETURN_REFERENCE_KEY = 'paystack:return-reference';
@@ -637,9 +638,12 @@ function SubscriptionPlanCard({ plan, subscription, openRequest, planBusyId, rea
   const blocked = Boolean(openRequest || planBusyId || readOnly || !selectedPrice);
   const copy = renewalCopy(subscription?.status);
   const promotion = Boolean(selectedPrice?.listAmount && selectedPrice.listAmount > selectedPrice.amount);
-  const promotionLabel = selectedPrice?.discountType === 'percentage'
-    ? `${selectedPrice.discountValue}% off`
-    : `${money(selectedPrice?.currency, selectedPrice?.discountAmount)} off`;
+  const promotionLabel = promotionBadgeText(
+    selectedPrice?.discountLabel,
+    selectedPrice?.discountType === 'percentage'
+      ? `${selectedPrice.discountValue}% off`
+      : `${money(selectedPrice?.currency, selectedPrice?.discountAmount)} off`,
+  );
 
   return <div className="space-y-3">
     {!!prices.length && <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

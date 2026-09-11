@@ -13,6 +13,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
+import { promotionBadgeText } from '@/lib/subscription-discount';
 import { startPlanCheckout } from '@/lib/start-plan-checkout';
 import { planBenefits } from '@/lib/pricing-benefits';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
@@ -193,9 +194,12 @@ function PlanCard({
   const comparison = price ? comparePlanPrice(price, plan.prices) : null;
   const benefits = planBenefits(plan.coverage);
   const promotion = Boolean(price?.listAmount && price.listAmount > price.amount);
-  const promotionLabel = price?.discountType === 'percentage'
-    ? `${price.discountValue}% off`
-    : `${money(price?.currency ?? '', price?.discountAmount ?? 0)} off`;
+  const promotionLabel = promotionBadgeText(
+    price?.discountLabel,
+    price?.discountType === 'percentage'
+      ? `${price.discountValue}% off`
+      : `${money(price?.currency ?? '', price?.discountAmount ?? 0)} off`,
+  );
   const planSurface = plan.recommended ? '#FFFFFF' : '#F7F9FB';
   const shortDuration = durationOptions[0] ?? null;
   const longDuration = durationOptions[1] ?? null;

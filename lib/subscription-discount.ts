@@ -1,10 +1,20 @@
 export type SubscriptionDiscountType = 'percentage' | 'fixed';
 
+/**
+ * Longest promotion name the badge can hold.
+ *
+ * The name shares one line with the saving, on a card that is narrow on a phone. Past this the
+ * badge wraps and stops reading as a badge, so the limit is enforced where the name is typed,
+ * where it is saved, and on the column itself.
+ */
+export const PROMOTION_NAME_MAX = 40;
+
 export interface SubscriptionDiscount {
   discount_type?: SubscriptionDiscountType | null;
   discount_value?: number | string | null;
   discount_starts_at?: string | null;
   discount_ends_at?: string | null;
+  discount_label?: string | null;
 }
 
 export interface EffectiveSubscriptionPrice {
@@ -12,8 +22,23 @@ export interface EffectiveSubscriptionPrice {
   listAmount: number;
   discountType: SubscriptionDiscountType | null;
   discountValue: number | null;
+  /** What the seller called this promotion, or null when they did not name it. */
+  discountLabel: string | null;
   discountAmount: number;
   discountActive: boolean;
+}
+
+/**
+ * The wording on a promotion badge.
+ *
+ * A saving on its own reads as though the old price was simply wrong. The promotion's name in
+ * front of it gives the drop a reason and an end -- "Black Friday - 15% off" -- and matches
+ * whatever the seller wrote in the email that brought the reader here. Unnamed promotions keep
+ * the bare saving, so nothing is invented on their behalf.
+ */
+export function promotionBadgeText(name: string | null | undefined, saving: string): string {
+  const trimmed = (name ?? '').trim();
+  return trimmed ? `${trimmed} - ${saving}` : saving;
 }
 
 function scaledInteger(value: number | string, scale: number): bigint {
@@ -55,6 +80,7 @@ export function effectiveSubscriptionPrice(
       listAmount,
       discountType: null,
       discountValue: null,
+      discountLabel: null,
       discountAmount: 0,
       discountActive: false,
     };
@@ -70,6 +96,7 @@ export function effectiveSubscriptionPrice(
       listAmount,
       discountType: null,
       discountValue: null,
+      discountLabel: null,
       discountAmount: 0,
       discountActive: false,
     };
@@ -81,6 +108,7 @@ export function effectiveSubscriptionPrice(
     listAmount,
     discountType: type,
     discountValue: value,
+    discountLabel: (discount?.discount_label ?? '').trim() || null,
     discountAmount: Number(listMinor - discountedMinor) / 100,
     discountActive: true,
   };
