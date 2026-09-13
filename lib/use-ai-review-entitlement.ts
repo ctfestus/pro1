@@ -106,6 +106,10 @@ export function useAiReviewEntitlement(): AiReviewEntitlement {
     // Upgrading opens in a new tab, so this tab has to notice when they come back having bought.
     // Without this the lock outlives the purchase until the learner thinks to reload. Only worth
     // re-asking for someone who was locked -- an unlocked learner has nothing to re-check.
+    //
+    // The reviewer surfaces disable their submit while dailyExhausted, so this is what re-enables
+    // it after an upgrade. Removing it does not just leave a stale count: it strands a learner who
+    // has paid in front of a dead button.
     const onVisibility = () => {
       if (document.visibilityState !== 'visible' || !lastLocked) return;
       cached = null;

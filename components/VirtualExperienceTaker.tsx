@@ -1595,14 +1595,24 @@ export default function VirtualExperienceTaker({
                                   setAiFeedback(prev => ({ ...prev, [req.id]: { passed, feedback: fb, score } }));
                                   setProgress(prev => { const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: undefined, aiPassed: passed, aiFeedback: fb, aiScore: score } }; saveProgress(next, currentModId, currentLesId); return next; });
                                 } else {
-                                  // The answer was never actually evaluated (validation / rate limit /
-                                  // server error). Record a distinct error state - never a pass/fail grade.
-                                  // Progression is intentionally NOT blocked (completed stays true); the
-                                  // persisted error marker lets a reload rebuild "could not review" + Try again.
+                                  // A review that never ran. Two different things land here and they must not
+                                  // be treated alike. A fault -- reviewer down, bad request, timeout -- is not
+                                  // the student's doing, so it still marks the step done rather than trapping
+                                  // them. A spent free-tier credit is the rule working as intended; marking that
+                                  // done would hand a learner every remaining AI step the moment they burn one.
                                   const fb = json.error || 'We could not complete an AI review of your response right now. Please edit your answer if needed and try again.';
                                   const up = json.code === 'daily_limit_reached' ? String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL) : undefined;
                                   setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: fb, score: 0, errored: true, upgradeUrl: up } }));
-                                  setProgress(prev => { const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: true, aiPassed: undefined, aiFeedback: fb, aiScore: undefined } }; saveProgress(next, currentModId, currentLesId); return next; });
+                                  setProgress(prev => {
+                                    // Out of credit: keep their draft, leave the step as it was. None of this
+                                    // refusal is worth persisting -- the cap resets, the message would not.
+                                    const entry = up
+                                      ? { ...prev[req.id], notes: noteVal }
+                                      : { ...prev[req.id], notes: noteVal, completed: true, aiErrored: true, aiPassed: undefined, aiFeedback: fb, aiScore: undefined };
+                                    const next = { ...prev, [req.id]: entry };
+                                    saveProgress(next, currentModId, currentLesId);
+                                    return next;
+                                  });
                                 }
                               })
                               .catch(() => {
@@ -2488,12 +2498,16 @@ export default function VirtualExperienceTaker({
                             if (!noteVal.trim() || reviewing || showDone) return;
                             setAiReviewing(prev => ({ ...prev, [req.id]: true }));
                             setAiFeedback(prev => ({ ...prev, [req.id]: null }));
-                            // Record an error state that is never a grade, but keep progression open
-                            // (completed stays true) so a flaky reviewer can never trap a student.
+                            // A fault keeps progression open, so a flaky reviewer can never trap a student.
+                            // A spent free-tier credit does not: that is the limit working, and marking it
+                            // done would let a learner clear every AI step by burning one review.
                             const saveErrored = (msg: string, upgradeUrl?: string) => {
                               setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: msg, score: 0, errored: true, upgradeUrl } }));
                               setProgress(prev => {
-                                const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: true, aiFeedback: msg } };
+                                const entry = upgradeUrl
+                                  ? { ...prev[req.id], notes: noteVal }
+                                  : { ...prev[req.id], notes: noteVal, completed: true, aiErrored: true, aiFeedback: msg };
+                                const next = { ...prev, [req.id]: entry };
                                 saveProgress(next, currentModId, currentLesId);
                                 return next;
                               });
