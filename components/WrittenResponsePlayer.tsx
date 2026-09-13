@@ -10,10 +10,13 @@
 import React, { useState } from 'react';
 import { Loader2, CheckCircle2, Zap, RotateCcw, PenLine, Download, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
+import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 
 interface SectionIssue {
   name: string;
@@ -82,6 +85,10 @@ export default function WrittenResponsePlayer({
   const [result, setResult]       = useState<WrittenReviewResult | null>(savedResult ?? null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]         = useState('');
+  // Set only when the daily free-tier cap answered this attempt, so the upsell shows for that
+  // and not for an ordinary failure.
+  const [upgradeUrl, setUpgradeUrl] = useState('');
+  const entitlement = useAiReviewEntitlement();
 
   const card   = isDark ? '#1a1a1a' : '#ffffff';
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
@@ -101,6 +108,7 @@ export default function WrittenResponsePlayer({
       return;
     }
     setError('');
+    setUpgradeUrl('');
     setAnalyzing(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
@@ -122,6 +130,9 @@ export default function WrittenResponsePlayer({
         }),
       });
       const json = await res.json();
+      // The attempt either spent today's review or hit the cap; both change what the count is.
+      refreshAiReviewEntitlement();
+      if (json.code === 'daily_limit_reached') setUpgradeUrl(String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL));
       if (json.error) throw new Error(json.error);
       setResult(json);
 
@@ -227,9 +238,18 @@ export default function WrittenResponsePlayer({
           )}
         </div>
 
-        {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+        {error && (
+          <div className="flex flex-col items-start">
+            <p className="text-xs text-red-400 font-medium">{error}</p>
+            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} />}
+          </div>
+        )}
 
-        <button onClick={handleSubmit} disabled={analyzing || !canSubmit}
+        {entitlement.dailyExhausted && (
+          <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+        )}
+
+        <button onClick={handleSubmit} disabled={analyzing || !canSubmit || entitlement.dailyExhausted}
           className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
           style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
           {analyzing
@@ -284,7 +304,12 @@ export default function WrittenResponsePlayer({
         </>}
       />
 
-      {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+      {error && (
+          <div className="flex flex-col items-start">
+            <p className="text-xs text-red-400 font-medium">{error}</p>
+            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} />}
+          </div>
+        )}
 
       {minScore && result.overallScore < minScore ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>

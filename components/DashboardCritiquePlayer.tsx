@@ -7,6 +7,10 @@ import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
+import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
+import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
+import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 
 interface Bounds { x: number; y: number; w: number; h: number; }
 interface CritiqueElement {
@@ -128,6 +132,8 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
   const [result, setResult]             = useState<CritiqueResult | null>(savedResult ?? null);
   const [analyzing, setAnalyzing]       = useState(false);
   const [error, setError]               = useState('');
+  const [upgradeUrl, setUpgradeUrl]     = useState('');
+  const entitlement                     = useAiReviewEntitlement();
   const [hoveredId, setHoveredId]       = useState<string | null>(null);
   const [mousePos, setMousePos]         = useState({ x: 0, y: 0 });
   const [zonesVisible, setZonesVisible] = useState(true);
@@ -139,6 +145,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
   const processFile = useCallback(async (file: File) => {
     if (!file.type.startsWith('image/')) { setError('Please upload an image file (PNG or JPG).'); return; }
     setError('');
+    setUpgradeUrl('');
     setResult(null);
     setAnalyzing(true);
     onReviewStart?.();
@@ -159,6 +166,12 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         body: JSON.stringify({ imageBase64: base64, mimeType, ...(rubric?.length ? { rubric } : {}) }),
       });
       const json = await res.json();
+      if (res.status === 402 || json.code === 'paid_plan_required') {
+        // The screenshot stays. Clearing it threw away work the learner would have to redo after
+        // upgrading, and dropped the component back into the empty-dropzone branch.
+        setUpgradeUrl(String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL));
+        throw new Error(json.error || 'This AI reviewer requires an active paid plan.');
+      }
       if (json.error) throw new Error(json.error);
       setResult(json);
       const score = (json as CritiqueResult).audit?.overallScore ?? 100;
@@ -183,6 +196,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
     setImageDataUrl('');
     setResult(null);
     setError('');
+    setUpgradeUrl('');
     setHoveredId(null);
   };
 
@@ -281,7 +295,17 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         </div>
       );
     }
+    // Locked before the work rather than after the upload. The workspace stays visible behind the
+    // card so they can see what the plan buys; the server gate is still what enforces it.
     return (
+      <AiReviewLockOverlay
+        locked={entitlement.locked}
+        accentColor={accentColor}
+        isDark={isDark}
+        planName={entitlement.planName}
+        upgradeUrl={entitlement.upgradeUrl}
+        message="Dashboard reviews are part of a paid plan. Upgrade to submit your screenshot and get element-level coaching."
+      >
       <div className="space-y-3">
       <AiReviewWorkspaceHeader icon={<Eye className="w-5 h-5" />} title="Review your dashboard" description="Upload a dashboard screenshot to receive visual, element-level coaching and rubric feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} />
       <AiReviewDisclaimer isDark={isDark} />
@@ -309,6 +333,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
           onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
       </div>
       </div>
+      </AiReviewLockOverlay>
     );
   }
 
@@ -330,6 +355,21 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         </div>
       </div>
       </div>
+    );
+  }
+
+  // A paywall answer while the screenshot is still held. The interactive view below has nothing
+  // to draw without a report, so show the lock instead -- the image stays in state, so upgrading
+  // and submitting again does not cost them the upload.
+  if (!result && upgradeUrl) {
+    return (
+      <AiReviewUpgradePrompt
+        accentColor={accentColor}
+        isDark={isDark}
+        planName={entitlement.planName}
+        message={error}
+        upgradeUrl={upgradeUrl}
+      />
     );
   }
 

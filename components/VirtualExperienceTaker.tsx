@@ -11,6 +11,9 @@ import {
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { supabase } from '@/lib/supabase';
+import { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
+import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { sanitizeRichText, sanitizeEmailContent } from '@/lib/sanitize';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { applyNameTags } from '@/lib/merge-tags';
@@ -291,7 +294,8 @@ export default function VirtualExperienceTaker({
   const [aiReviewing,  setAiReviewing]  = useState<Record<string, boolean>>({});
   // `errored: true` marks a review that never actually ran (validation / rate-limit / server /
   // network) - it is shown as a neutral "could not review" state, never a pass/fail grade.
-  const [aiFeedback,   setAiFeedback]   = useState<Record<string, { passed: boolean; feedback: string; score: number; errored?: boolean } | null>>({});
+  const [aiFeedback,   setAiFeedback]   = useState<Record<string, { passed: boolean; feedback: string; score: number; errored?: boolean; upgradeUrl?: string } | null>>({});
+  const entitlement = useAiReviewEntitlement();
   const [saveError,    setSaveError]    = useState<string | null>(null);
   const saveTimeout  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -1532,9 +1536,12 @@ export default function VirtualExperienceTaker({
                           // rebuild the feedback block and its Reply button - without this, a
                           // refreshed page only knows "completed", not what the manager said.
                           const persistedFeedback = progress[req.id]?.aiErrored
-                            ? { passed: false, feedback: progress[req.id]?.aiFeedback || 'We could not complete an AI review of your response. Please try again.', score: 0, errored: true }
+                            // No upgradeUrl on a rebuild: the daily cap is about today, and an upsell
+                            // restored from yesterday's saved state would be telling them to buy their
+                            // way out of a limit that has already reset.
+                            ? { passed: false, feedback: progress[req.id]?.aiFeedback || 'We could not complete an AI review of your response. Please try again.', score: 0, errored: true, upgradeUrl: undefined }
                             : progress[req.id]?.aiFeedback
-                            ? { passed: !!progress[req.id]?.aiPassed, feedback: progress[req.id]!.aiFeedback!, score: progress[req.id]?.aiScore ?? 0 }
+                            ? { passed: !!progress[req.id]?.aiPassed, feedback: progress[req.id]!.aiFeedback!, score: progress[req.id]?.aiScore ?? 0, upgradeUrl: undefined }
                             : null;
                           const feedback = aiFeedback[req.id] !== undefined ? aiFeedback[req.id] : persistedFeedback;
                           const fbErrored = !!feedback?.errored;
@@ -1578,6 +1585,7 @@ export default function VirtualExperienceTaker({
                               })
                               .then(async r => ({ ok: r.ok, json: await r.json().catch(() => ({})) }))
                               .then(({ ok, json }) => {
+                                refreshAiReviewEntitlement();
                                 if (ok) {
                                   // A real verdict from the model - record it (pass or fail) and clear
                                   // any prior error marker.
@@ -1592,7 +1600,8 @@ export default function VirtualExperienceTaker({
                                   // Progression is intentionally NOT blocked (completed stays true); the
                                   // persisted error marker lets a reload rebuild "could not review" + Try again.
                                   const fb = json.error || 'We could not complete an AI review of your response right now. Please edit your answer if needed and try again.';
-                                  setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: fb, score: 0, errored: true } }));
+                                  const up = json.code === 'daily_limit_reached' ? String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL) : undefined;
+                                  setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: fb, score: 0, errored: true, upgradeUrl: up } }));
                                   setProgress(prev => { const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: true, aiPassed: undefined, aiFeedback: fb, aiScore: undefined } }; saveProgress(next, currentModId, currentLesId); return next; });
                                 }
                               })
@@ -1677,6 +1686,9 @@ export default function VirtualExperienceTaker({
                                 {/* Manager: feedback reply */}
                                 {feedback && fbTone && (
                                   <div style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, paddingTop: 18 }}>
+                                    {feedback.upgradeUrl ? (
+                                      <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={feedback.upgradeUrl} />
+                                    ) : (
                                     <MailThreadMsg isDark={isDark} from={manager}>
                                       <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
                                       <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
@@ -1687,6 +1699,7 @@ export default function VirtualExperienceTaker({
                                         <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
                                       </div>
                                     </MailThreadMsg>
+                                    )}
                                     {/* A wrong answer or a failed review both get a way back to the composer;
                                         only a real pass moves the mission on. */}
                                     {!evaluating && !reviewMode && !feedback.passed && (
@@ -1730,8 +1743,13 @@ export default function VirtualExperienceTaker({
                               </div>
                             ) : (
                               <div style={{ padding: '14px 22px 18px' }}>
+                                {req.aiReview && entitlement.dailyExhausted && (
+                                  <div style={{ marginBottom: 12 }}>
+                                    <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+                                  </div>
+                                )}
                                 <MailComposer isDark={isDark} accent={accentColor} to={manager} subject={efSubject}
-                                  value={noteVal} onChange={(html) => setNote(req.id, html)} canSend={hasContent} onSend={handleSend}
+                                  value={noteVal} onChange={(html) => setNote(req.id, html)} canSend={hasContent && !(req.aiReview && entitlement.dailyExhausted)} onSend={handleSend}
                                   placeholder={rounds.length ? 'Write a new reply...' : 'Write your reply...'}
                                   maxChars={req.aiReview ? 2000 : undefined}
                                   onDiscard={() => { setNote(req.id, ''); setOpenReplies(prev => { const n = new Set(prev); n.delete(req.id); return n; }); }} />
@@ -2472,8 +2490,8 @@ export default function VirtualExperienceTaker({
                             setAiFeedback(prev => ({ ...prev, [req.id]: null }));
                             // Record an error state that is never a grade, but keep progression open
                             // (completed stays true) so a flaky reviewer can never trap a student.
-                            const saveErrored = (msg: string) => {
-                              setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: msg, score: 0, errored: true } }));
+                            const saveErrored = (msg: string, upgradeUrl?: string) => {
+                              setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: msg, score: 0, errored: true, upgradeUrl } }));
                               setProgress(prev => {
                                 const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: true, aiFeedback: msg } };
                                 saveProgress(next, currentModId, currentLesId);
@@ -2487,8 +2505,12 @@ export default function VirtualExperienceTaker({
                                 body: JSON.stringify({ veId: formId, reqId: req.id, studentAnswer: noteVal }),
                               });
                               const json = await res.json().catch(() => ({}));
+                              refreshAiReviewEntitlement();
                               if (!res.ok) {
-                                saveErrored(json.error || 'We could not complete an AI review right now. Please try again.');
+                                saveErrored(
+                                  json.error || 'We could not complete an AI review right now. Please try again.',
+                                  json.code === 'daily_limit_reached' ? String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL) : undefined,
+                                );
                               } else {
                                 setAiFeedback(prev => ({ ...prev, [req.id]: { passed: json.passed, feedback: json.feedback, score: json.score } }));
                                 setProgress(prev => {
@@ -2541,10 +2563,13 @@ export default function VirtualExperienceTaker({
                                   {noteVal.length} / 2000
                                 </p>
                               )}
+                              {!showDone && entitlement.dailyExhausted && (
+                                <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+                              )}
                               {!showDone && (
                                 <button
                                   onClick={handleSubmitAi}
-                                  disabled={noteVal.trim().length === 0 || reviewing}
+                                  disabled={noteVal.trim().length === 0 || reviewing || entitlement.dailyExhausted}
                                   className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                   style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
                                   {reviewing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -2559,6 +2584,7 @@ export default function VirtualExperienceTaker({
                                   <div className="min-w-0">
                                     <p className="text-[13px] font-bold" style={{ color: isDark ? '#cbd5e1' : '#64748b' }}>Review unavailable</p>
                                     <p className="text-[13px] leading-relaxed mt-0.5" style={{ color: isDark ? '#ccc' : '#444' }}>{feedback.feedback}</p>
+                                    {feedback.upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={feedback.upgradeUrl} />}
                                   </div>
                                 </div>
                               )}

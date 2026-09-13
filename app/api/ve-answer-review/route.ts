@@ -5,6 +5,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import { readBoundedJson } from '@/lib/bounded-json';
+import { enforceStudentAiReviewPlanLimit } from '@/lib/ai-review-plan-limit';
+import type { AuthedUser } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,14 +26,16 @@ const MAX_BODY_BYTES = 128 * 1024;
 
 const VE_COLUMNS = 'user_id, modules, company, role, industry';
 
-async function checkRateLimit(userId: string): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
   const redis = getRedis();
   // Fail closed. This route spends a metered AI quota, so a limiter that cannot be
   // reached must not silently become no limiter at all -- an outage is exactly when an
   // unbounded bill would be run up.
   if (!redis) return NextResponse.json({ error: 'AI review is unavailable right now. Please try again shortly.' }, { status: 503 });
   try {
-    if (await bumpRateLimit(redis, `rate:ve-answer-review:${userId}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
+    const planLimit = await enforceStudentAiReviewPlanLimit(auth, redis);
+    if (planLimit) return planLimit;
+    if (await bumpRateLimit(redis, `rate:ve-answer-review:${auth.user.id}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
       return NextResponse.json(
         { error: `Limit reached: ${RATE_LIMIT} AI reviews per day. Try again tomorrow.` },
         { status: 429 },
@@ -185,7 +189,7 @@ Score 0-100 (60+ passes). Write exactly 2-3 sentences of feedback. Rules:
 
   // Consume the daily quota only now: the request is valid and the caller is authorized for a
   // real review, so a rejected attempt above never spent one of the student's ten.
-  const rateLimitError = await checkRateLimit(auth.user.id);
+  const rateLimitError = await checkRateLimit(auth);
   if (rateLimitError) return rateLimitError;
 
   try {

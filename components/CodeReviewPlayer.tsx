@@ -6,6 +6,10 @@ import { supabase } from '@/lib/supabase';
 import { downloadCodeReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
+import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
+import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
+import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 
 const LANGUAGES = ['Python', 'SQL', 'JavaScript', 'TypeScript', 'R', 'Java', 'C#', 'Other'];
 const SQL_DIALECTS = ['PostgreSQL', 'MySQL', 'SQLite', 'SQL Server'];
@@ -92,6 +96,8 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
   const [result, setResult]     = useState<ReviewResult | null>(savedResult ?? null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]       = useState('');
+  const [upgradeUrl, setUpgradeUrl] = useState('');
+  const entitlement = useAiReviewEntitlement();
   const [inputMode, setInputMode] = useState<'paste' | 'upload'>('paste');
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [issueFilter, setIssueFilter] = useState<'all' | LineIssue['severity']>('all');
@@ -111,6 +117,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
   async function handleSubmit() {
     if (!code.trim()) { setError(inputMode === 'upload' ? 'Please upload a file before submitting.' : 'Please paste your code before submitting.'); return; }
     setError('');
+    setUpgradeUrl('');
     setAnalyzing(true);
     onReviewStart?.();
     try {
@@ -130,6 +137,10 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
         }),
       });
       const json = await res.json();
+      if (res.status === 402 || json.code === 'paid_plan_required') {
+        setUpgradeUrl(String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL));
+        throw new Error(json.error || 'This AI reviewer requires an active paid plan.');
+      }
       if (json.error) throw new Error(json.error);
       const enriched: ReviewResult = { ...json, language, ...(language === 'SQL' ? { dialect } : {}) };
       setResult(enriched);
@@ -147,6 +158,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
     setCode('');
     setResult(null);
     setError('');
+    setUpgradeUrl('');
     setUploadedFileName('');
     setIssueFilter('all');
     setExpandedIssues(new Set([0]));
@@ -201,7 +213,17 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
         </div>
       );
     }
+    // Locked before the work rather than after the submission. The workspace stays visible behind
+    // the card so they can see what the plan buys; the server gate is still what enforces it.
     return (
+      <AiReviewLockOverlay
+        locked={entitlement.locked}
+        accentColor={accentColor}
+        isDark={isDark}
+        planName={entitlement.planName}
+        upgradeUrl={entitlement.upgradeUrl}
+        message="Code reviews are part of a paid plan. Upgrade to submit your code and get line-level feedback."
+      >
       <div className="space-y-3">
         <AiReviewWorkspaceHeader icon={<FileCode className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
         <AiReviewDisclaimer isDark={isDark} />
@@ -321,7 +343,8 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
           )}
         </div>
 
-        {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} message={error} upgradeUrl={upgradeUrl} />}
+        {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <button onClick={handleSubmit} disabled={analyzing}
           className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
@@ -331,6 +354,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
             : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
         </button>
       </div>
+      </AiReviewLockOverlay>
     );
   }
 

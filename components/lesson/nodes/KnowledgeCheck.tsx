@@ -20,6 +20,9 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { AiReviewUpgradeNote, aiReviewResetWording } from '@/components/AiReviewUpgradePrompt';
+import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -94,6 +97,9 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
   const [review, setReview] = useState<BriefReview | null>(null);
   const [reviewing, setReviewing] = useState(false);
   const [reviewError, setReviewError] = useState('');
+  // Set only when the free-tier daily cap answered this attempt, not for ordinary failures.
+  const [reviewUpgradeUrl, setReviewUpgradeUrl] = useState('');
+  const entitlement = useAiReviewEntitlement();
 
   const setOption = (i: number, value: string) =>
     updateAttributes({ options: options.map((o, j) => (j === i ? value : o)) });
@@ -348,6 +354,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
     if (!answer) return;
     setReviewing(true);
     setReviewError('');
+    setReviewUpgradeUrl('');
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/written-review', {
@@ -367,6 +374,9 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
         }),
       });
       const json = await res.json();
+      // The attempt either spent today's review or hit the cap; both change what the count is.
+      refreshAiReviewEntitlement();
+      if (json.code === 'daily_limit_reached') setReviewUpgradeUrl(String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL));
       if (json.error) throw new Error(json.error);
       setReview(json);
       setTextSubmitted(true);
@@ -458,14 +468,22 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
             aria-label={question || 'Your response'}
             onChange={(e) => setTyped(e.target.value)}
           />
+          {!answered && entitlement.dailyExhausted && (
+            <p className="lesson-check__error" role="status">
+              Your AI review for today is used. Your free plan includes one a day. {aiReviewResetWording(entitlement.resetsInSeconds)}
+            </p>
+          )}
           {!answered && (
-            <button type="button" className="lesson-check__submit" disabled={!typed.trim() || reviewing} onClick={submitWritten}>
+            <button type="button" className="lesson-check__submit" disabled={!typed.trim() || reviewing || entitlement.dailyExhausted} onClick={submitWritten}>
               {reviewing
                 ? <><Loader2 width={13} height={13} className="lesson-check__spin" /> Reviewing...</>
                 : <><Sparkles width={13} height={13} /> Check my answer</>}
             </button>
           )}
           {reviewError && <p className="lesson-check__error" role="status">{reviewError}</p>}
+          {(reviewUpgradeUrl || (!answered && entitlement.dailyExhausted)) && (
+            <AiReviewUpgradeNote accentColor={accentColor || 'currentColor'} upgradeUrl={reviewUpgradeUrl || entitlement.upgradeUrl} />
+          )}
         </div>
       )}
 

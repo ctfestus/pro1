@@ -1,5 +1,5 @@
 import { Type } from '@google/genai';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
@@ -7,6 +7,7 @@ import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import ExcelJS from 'exceljs';
 import { collectRubricGrades, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
+import { enforceStudentAiReviewPlanLimit } from '@/lib/ai-review-plan-limit';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,17 +27,22 @@ function adminClient() {
   );
 }
 
-async function authenticate(req: NextRequest): Promise<{ userId: string } | NextResponse> {
+async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse> {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
-  return { userId: auth.user.id };
+  return auth;
 }
 
-async function checkRateLimit(userId: string): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
   const redis = getRedis();
   if (!redis) return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
   try {
-    if (await bumpRateLimit(redis, `rate:excel-review:${userId}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
+    const planLimit = await enforceStudentAiReviewPlanLimit(auth, redis, {
+      paidOnly: true,
+      unavailableMessage: 'Service temporarily unavailable',
+    });
+    if (planLimit) return planLimit;
+    if (await bumpRateLimit(redis, `rate:excel-review:${auth.user.id}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
       return NextResponse.json(
         { error: `Limit reached: ${RATE_LIMIT} Excel reviews per day. Try again tomorrow.` },
         { status: 429 },
@@ -214,7 +220,7 @@ export async function POST(req: NextRequest) {
     const auth = await authenticate(req);
     if (auth instanceof NextResponse) return auth;
 
-    const rateLimitError = await checkRateLimit(auth.userId);
+    const rateLimitError = await checkRateLimit(auth);
     if (rateLimitError) return rateLimitError;
 
     const formData = await req.formData();

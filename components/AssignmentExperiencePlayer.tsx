@@ -9,6 +9,9 @@ import {
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { supabase } from '@/lib/supabase';
+import { AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
+import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { sanitizeRichText, sanitizeEmailContent } from '@/lib/sanitize';
 import { applyNameTags } from '@/lib/merge-tags';
 import { preflightLinkedInPostUrl } from '@/lib/linkedin-post-url';
@@ -227,7 +230,8 @@ export default function AssignmentExperiencePlayer({
   const [aiReviewing,     setAiReviewing]     = useState<Record<string, boolean>>({});
   // `errored: true` marks a review that never actually ran (validation / rate-limit / server /
   // network) - shown as a neutral "could not review" state, never a pass/fail grade.
-  const [aiFeedback,      setAiFeedback]      = useState<Record<string, { passed: boolean; feedback: string; score: number; errored?: boolean } | null>>({});
+  const [aiFeedback,      setAiFeedback]      = useState<Record<string, { passed: boolean; feedback: string; score: number; errored?: boolean; upgradeUrl?: string } | null>>({});
+  const entitlement = useAiReviewEntitlement();
   async function getAuthHeader(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token ?? '';
@@ -1066,9 +1070,12 @@ export default function AssignmentExperiencePlayer({
                             // rebuild the feedback block and its Reply button - without this, a
                             // refreshed page only knows "completed", not what the manager said.
                             const persistedFeedback = prog?.aiErrored
-                              ? { passed: false, feedback: prog?.aiFeedback || 'We could not complete an AI review of your response. Please try again.', score: 0, errored: true }
+                              // No upgradeUrl on a rebuild: the daily cap is about today, and an upsell
+                              // restored from yesterday's saved state would be telling them to buy their
+                              // way out of a limit that has already reset.
+                              ? { passed: false, feedback: prog?.aiFeedback || 'We could not complete an AI review of your response. Please try again.', score: 0, errored: true, upgradeUrl: undefined }
                               : prog?.aiFeedback
-                              ? { passed: !!prog?.aiPassed, feedback: prog.aiFeedback, score: prog?.aiScore ?? 0 }
+                              ? { passed: !!prog?.aiPassed, feedback: prog.aiFeedback, score: prog?.aiScore ?? 0, upgradeUrl: undefined }
                               : null;
                             const feedback = aiFeedback[req.id] !== undefined ? aiFeedback[req.id] : persistedFeedback;
                             const fbErrored = !!feedback?.errored;
@@ -1111,6 +1118,7 @@ export default function AssignmentExperiencePlayer({
                                 })
                                 .then(async r => ({ ok: r.ok, json: await r.json().catch(() => ({})) }))
                                 .then(({ ok, json }) => {
+                                  refreshAiReviewEntitlement();
                                   if (ok) {
                                     // A real verdict from the model - record it (pass or fail) and clear
                                     // any prior error marker.
@@ -1125,7 +1133,8 @@ export default function AssignmentExperiencePlayer({
                                     // Progression is intentionally NOT blocked (completed stays true); the
                                     // persisted error marker lets a reload rebuild "could not review" + Try again.
                                     const fb = json.error || 'We could not complete an AI review of your response right now. Please edit your answer if needed and try again.';
-                                    setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: fb, score: 0, errored: true } }));
+                                    const up = json.code === 'daily_limit_reached' ? String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL) : undefined;
+                                    setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: fb, score: 0, errored: true, upgradeUrl: up } }));
                                     updateProgress(req.id, { notes: val, completed: true, aiErrored: true, aiPassed: undefined, aiFeedback: fb, aiScore: undefined });
                                   }
                                 })
@@ -1208,6 +1217,9 @@ export default function AssignmentExperiencePlayer({
                                   </div>
                                   {feedback && fbTone && (
                                     <div style={{ borderTop: `1px solid ${divider}`, paddingTop: 18 }}>
+                                      {feedback.upgradeUrl ? (
+                                        <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={feedback.upgradeUrl} />
+                                      ) : (
                                       <MailThreadMsg isDark={isDark} from={manager}>
                                         <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
                                         <div style={{ borderRadius: 10, padding: '12px 16px', background: fbTone.bg, border: `1px solid ${fbTone.border}` }}>
@@ -1218,6 +1230,7 @@ export default function AssignmentExperiencePlayer({
                                           <p style={{ fontSize: 13.5, color: isDark ? '#ddd' : '#333', margin: 0, lineHeight: 1.6 }}>{feedback.feedback}</p>
                                         </div>
                                       </MailThreadMsg>
+                                      )}
                                       {/* A wrong answer or a failed review both get a way back to the composer;
                                           only a real pass moves the mission on. */}
                                       {!evaluating && !readOnly && !feedback.passed && (
@@ -1258,8 +1271,13 @@ export default function AssignmentExperiencePlayer({
                                 </div>
                               ) : (
                                 <div style={{ padding: '14px 22px 18px' }}>
+                                  {req.aiReview && entitlement.dailyExhausted && (
+                                    <div style={{ marginBottom: 12 }}>
+                                      <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+                                    </div>
+                                  )}
                                   <MailComposer isDark={isDark} accent={accent} to={manager} subject={efSubject}
-                                    value={val} onChange={(html) => updateProgress(req.id, { notes: html })} canSend={hasContent} onSend={handleSend}
+                                    value={val} onChange={(html) => updateProgress(req.id, { notes: html })} canSend={hasContent && !(req.aiReview && entitlement.dailyExhausted)} onSend={handleSend}
                                     placeholder={rounds.length ? 'Write a new reply...' : 'Write your reply...'}
                                     maxChars={req.aiReview ? 2000 : undefined}
                                     onDiscard={() => { updateProgress(req.id, { notes: '' }); setOpenReplies(prev => { const n = new Set(prev); n.delete(req.id); return n; }); }} />
