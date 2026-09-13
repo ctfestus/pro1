@@ -18,6 +18,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
 import { readBoundedJson } from '@/lib/bounded-json';
+import { enforceStudentAiReviewPlanLimit } from '@/lib/ai-review-plan-limit';
+import type { AuthedUser } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
@@ -51,12 +53,14 @@ const MAX_RUBRIC_ITEM_CHARS = 300;
 // (/api/document-review also fails closed; that one is upload-heavy and far more expensive.)
 //
 // Do not "make this consistent" with the other AI routes without checking the caller first.
-async function checkRateLimit(userId: string, depth: keyof typeof RATE_LIMITS): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser, depth: keyof typeof RATE_LIMITS): Promise<NextResponse | null> {
   const redis = getRedis();
   if (!redis) return null;
   const limit = RATE_LIMITS[depth];
   try {
-    if (await bumpRateLimit(redis, `rate:written-review:${depth}:${userId}`, limit, RATE_WINDOW_SECONDS)) {
+    const planLimit = await enforceStudentAiReviewPlanLimit(auth, redis, { failOpen: true });
+    if (planLimit) return planLimit;
+    if (await bumpRateLimit(redis, `rate:written-review:${depth}:${auth.user.id}`, limit, RATE_WINDOW_SECONDS)) {
       const kind = depth === 'brief' ? 'practice checks' : 'written reviews';
       return NextResponse.json(
         { error: `Limit reached: ${limit} ${kind} per day. Try again tomorrow.` },
@@ -229,7 +233,7 @@ Rules:
 Return ONLY valid JSON. No markdown fences.`;
 
   // Consume the daily quota only now, so a rejected or empty attempt never spent one.
-  const rateLimitError = await checkRateLimit(auth.user.id, brief ? 'brief' : 'full');
+  const rateLimitError = await checkRateLimit(auth, brief ? 'brief' : 'full');
   if (rateLimitError) return rateLimitError;
 
   try {

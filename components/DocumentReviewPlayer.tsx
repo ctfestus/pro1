@@ -7,6 +7,10 @@ import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
+import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
+import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 
 interface SectionIssue {
   name: string;
@@ -85,6 +89,8 @@ export default function DocumentReviewPlayer({
   const [result, setResult]     = useState<ReviewResult | null>(savedResult ?? null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]       = useState('');
+  const [upgradeUrl, setUpgradeUrl] = useState('');
+  const entitlement = useAiReviewEntitlement();
   const inputRef   = useRef<HTMLInputElement>(null);
 
   const bg     = isDark ? '#0f0f0f' : '#f8fafc';
@@ -120,6 +126,7 @@ export default function DocumentReviewPlayer({
   async function handleSubmit() {
     if (!file) { setError('Please upload your document first.'); return; }
     setError('');
+    setUpgradeUrl('');
     setAnalyzing(true);
     try {
       // Manual mode: no AI call -- just mark submitted (no report to store)
@@ -140,6 +147,10 @@ export default function DocumentReviewPlayer({
         body: fd,
       });
       const json = await res.json();
+      if (res.status === 402 || json.code === 'paid_plan_required') {
+        setUpgradeUrl(String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL));
+        throw new Error(json.error || 'This AI reviewer requires an active paid plan.');
+      }
       if (json.error) throw new Error(json.error);
       setResult(json);
 
@@ -152,7 +163,7 @@ export default function DocumentReviewPlayer({
     }
   }
 
-  function reset() { setFile(null); setResult(null); setError(''); }
+  function reset() { setFile(null); setResult(null); setError(''); setUpgradeUrl(''); }
 
   async function downloadPdf() {
     try {
@@ -209,6 +220,16 @@ export default function DocumentReviewPlayer({
       );
     }
     return (
+      <AiReviewLockOverlay
+        // Manual mode is excluded on purpose: that path sends the document to an instructor and
+        // never calls the AI route, so a paid plan has nothing to do with it.
+        locked={!isManual && entitlement.locked}
+        accentColor={accentColor}
+        isDark={isDark}
+        planName={entitlement.planName}
+        upgradeUrl={entitlement.upgradeUrl}
+        message="Document reviews are part of a paid plan. Upgrade to submit your report and get feedback."
+      >
       <div className="space-y-3">
         <AiReviewWorkspaceHeader icon={<FileText className="w-5 h-5" />} title={isManual ? 'Submit your document' : 'Review your document'} description={isManual ? 'Upload the finished document for instructor review.' : 'Upload your report for structured feedback against the assignment rubric.'} accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
         <AiReviewDisclaimer isDark={isDark} />
@@ -237,7 +258,8 @@ export default function DocumentReviewPlayer({
           }
         </div>
 
-        {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} message={error} upgradeUrl={upgradeUrl} />}
+        {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <button onClick={handleSubmit} disabled={analyzing || !file}
           className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
@@ -249,6 +271,7 @@ export default function DocumentReviewPlayer({
               : <><Zap className="w-4 h-4" /> {isHybrid ? 'Submit for AI + Instructor Review' : 'Submit for AI Review'}</>}
         </button>
       </div>
+      </AiReviewLockOverlay>
     );
   }
 

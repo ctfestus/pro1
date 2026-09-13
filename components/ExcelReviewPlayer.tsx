@@ -7,6 +7,10 @@ import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
+import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
+import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
+import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 
 interface RubricGrade { criterion: string; passed: boolean; comment: string; }
@@ -83,6 +87,8 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
   const [result, setResult]     = useState<ReviewResult | null>(savedResult ?? null);
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]       = useState('');
+  const [upgradeUrl, setUpgradeUrl] = useState('');
+  const entitlement = useAiReviewEntitlement();
   const inputRef  = useRef<HTMLInputElement>(null);
 
   const bg     = isDark ? '#0f0f0f' : '#f8fafc';
@@ -112,6 +118,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
   async function handleSubmit() {
     if (!file) { setError('Please upload your Excel file first.'); return; }
     setError('');
+    setUpgradeUrl('');
     setAnalyzing(true);
     onReviewStart?.();
     try {
@@ -127,6 +134,10 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
         body: fd,
       });
       const json = await res.json();
+      if (res.status === 402 || json.code === 'paid_plan_required') {
+        setUpgradeUrl(String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL));
+        throw new Error(json.error || 'This AI reviewer requires an active paid plan.');
+      }
       if (json.error) throw new Error(json.error);
       setResult(json);
       onComplete(json, reviewPassed(json, minScore, json.rubricCriteriaCount ?? rubric?.length ?? 0));
@@ -138,7 +149,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
     }
   }
 
-  function reset() { setFile(null); setResult(null); setError(''); }
+  function reset() { setFile(null); setResult(null); setError(''); setUpgradeUrl(''); }
 
   async function downloadPdf() {
     try {
@@ -182,7 +193,17 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
         </div>
       );
     }
+    // Locked before the work rather than after the upload. The workspace stays visible behind the
+    // card so they can see what the plan buys; the server gate is still what enforces it.
     return (
+      <AiReviewLockOverlay
+        locked={entitlement.locked}
+        accentColor={accentColor}
+        isDark={isDark}
+        planName={entitlement.planName}
+        upgradeUrl={entitlement.upgradeUrl}
+        message="Excel reviews are part of a paid plan. Upgrade to submit your workbook and get feedback."
+      >
       <div className="space-y-3">
         <AiReviewWorkspaceHeader icon={<FileSpreadsheet className="w-5 h-5" />} title="Review your workbook" description="Upload the completed Excel workbook for an evidence-based review against the assignment rubric." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
         <AiReviewDisclaimer isDark={isDark} />
@@ -212,7 +233,8 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
           }
         </div>
 
-        {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} message={error} upgradeUrl={upgradeUrl} />}
+        {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <button onClick={handleSubmit} disabled={analyzing || !file}
           className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
@@ -222,6 +244,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
             : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
         </button>
       </div>
+      </AiReviewLockOverlay>
     );
   }
 
