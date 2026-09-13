@@ -1128,14 +1128,15 @@ export default function AssignmentExperiencePlayer({
                                     setAiFeedback(prev => ({ ...prev, [req.id]: { passed, feedback: fb, score } }));
                                     updateProgress(req.id, { notes: val, completed: true, aiErrored: undefined, aiPassed: passed, aiFeedback: fb, aiScore: score });
                                   } else {
-                                    // The answer was never actually evaluated (validation / rate limit /
-                                    // server error). Record a distinct error state - never a pass/fail grade.
-                                    // Progression is intentionally NOT blocked (completed stays true); the
-                                    // persisted error marker lets a reload rebuild "could not review" + Try again.
+                                    // A review that never ran. A fault is not the student's doing, so it still
+                                    // marks the step done. A spent free-tier credit is the rule working, and
+                                    // marking that done would hand them every remaining AI step for free.
                                     const fb = json.error || 'We could not complete an AI review of your response right now. Please edit your answer if needed and try again.';
                                     const up = json.code === 'daily_limit_reached' ? String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL) : undefined;
                                     setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: fb, score: 0, errored: true, upgradeUrl: up } }));
-                                    updateProgress(req.id, { notes: val, completed: true, aiErrored: true, aiPassed: undefined, aiFeedback: fb, aiScore: undefined });
+                                    updateProgress(req.id, up
+                                      ? { notes: val }
+                                      : { notes: val, completed: true, aiErrored: true, aiPassed: undefined, aiFeedback: fb, aiScore: undefined });
                                   }
                                 })
                                 .catch(() => {
