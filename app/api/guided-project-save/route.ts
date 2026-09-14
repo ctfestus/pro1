@@ -7,6 +7,9 @@ import { ExperienceGuideResolutionError, resolveExperienceGuide } from '@/lib/ex
 
 export const dynamic = 'force-dynamic';
 
+const VE_DATASET_TEXT_MAX_BYTES = Math.floor(4.3 * 1024 * 1024);
+const VE_DATASET_TEXT_MAX_LABEL = '4.3 MB';
+
 async function upsertCohortAssignments(supabase: ReturnType<typeof adminClient>, veId: string, cohortIds: string[]) {
   if (!cohortIds.length) return;
   const rows = cohortIds.map(cohortId => ({
@@ -112,8 +115,8 @@ export async function POST(req: NextRequest) {
   if (config.dataset) {
     const { csvContent, ...datasetMeta } = config.dataset as any;
     if (csvContent?.trim() && !datasetMeta.url) {
-      if (Buffer.byteLength(csvContent, 'utf-8') > 50 * 1024 * 1024) {
-        return NextResponse.json({ error: 'Dataset file too large (max 50 MB).' }, { status: 413 });
+      if (Buffer.byteLength(csvContent, 'utf-8') > VE_DATASET_TEXT_MAX_BYTES) {
+        return NextResponse.json({ error: `Dataset file too large (max ${VE_DATASET_TEXT_MAX_LABEL}).` }, { status: 413 });
       }
       try {
         const ghToken  = process.env.GITHUB_TOKEN;

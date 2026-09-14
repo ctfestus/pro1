@@ -7,9 +7,9 @@ export const dynamic = 'force-dynamic';
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 const ALLOWED_EXTENSIONS = new Set([
   '.pdf', '.doc', '.docx', '.ppt', '.pptx',
-  '.xlsx', '.csv', '.tsv',
+  '.xls', '.xlsx', '.csv', '.tsv',
   '.png', '.jpg', '.jpeg', '.gif', '.webp',
-  '.zip', '.json', '.txt', '.md',
+  '.zip', '.json', '.txt', '.md', '.py', '.js', '.ts', '.sql', '.html', '.css',
   '.pbix', '.pbip', // Power BI (a full PBIP project is submitted zipped)
 ]);
 
@@ -23,7 +23,7 @@ function sanitizeFilename(raw: string): string {
 // app stores on GitHub lives under one of these roots (see lib/uploadToGithub + create/edit flows).
 // Both POST and DELETE are confined to these roots so an instructor can never plant a file at an
 // arbitrary repo path, nor delete source/workflow/other-content files by passing a crafted URL.
-const MANAGED_ROOTS = new Set(['assignment-resources', 'sql-datasets', 'python-datasets']);
+const MANAGED_ROOTS = new Set(['assignment-resources', 'sql-datasets', 'python-datasets', 've-email-attachments', 've-datasets']);
 const DEFAULT_ROOT = 'assignment-resources';
 
 const SAFE_FOLDER = /^[a-zA-Z0-9_\-/]+$/;
@@ -38,15 +38,6 @@ function sanitizeFolder(raw: string | null): string {
 export async function POST(req: NextRequest) {
   const auth = await requireRole(req, ['admin', 'instructor']);
   if (isAuthError(auth)) return auth.error;
-
-  const token  = process.env.GITHUB_TOKEN;
-  const owner  = process.env.GITHUB_REPO_OWNER;
-  const repo   = process.env.GITHUB_REPO_NAME;
-  const branch = process.env.GITHUB_REPO_BRANCH ?? 'main';
-
-  if (!token || !owner || !repo) {
-    return NextResponse.json({ error: 'GitHub integration not configured. Add GITHUB_TOKEN, GITHUB_REPO_OWNER and GITHUB_REPO_NAME to .env' }, { status: 500 });
-  }
 
   const form = await req.formData();
   const file = form.get('file') as File | null;
@@ -63,6 +54,16 @@ export async function POST(req: NextRequest) {
 
   const safeName = sanitizeFilename(file.name);
   const folder   = sanitizeFolder(form.get('folder') as string | null);
+
+  const token  = process.env.GITHUB_TOKEN;
+  const owner  = process.env.GITHUB_REPO_OWNER;
+  const repo   = process.env.GITHUB_REPO_NAME;
+  const branch = process.env.GITHUB_REPO_BRANCH ?? 'main';
+
+  if (!token || !owner || !repo) {
+    return NextResponse.json({ error: 'GitHub integration not configured. Add GITHUB_TOKEN, GITHUB_REPO_OWNER and GITHUB_REPO_NAME to .env' }, { status: 500 });
+  }
+
   const filePath = `${folder}/${Date.now()}_${safeName}`;
 
   const buffer = await file.arrayBuffer();
@@ -78,7 +79,7 @@ export async function POST(req: NextRequest) {
       'X-GitHub-Api-Version': '2022-11-28',
     },
     body: JSON.stringify({
-      message: `Upload assignment resource: ${safeName}`,
+      message: `Upload ${folder.split('/')[0]}: ${safeName}`,
       content: base64,
       branch,
     }),
@@ -100,14 +101,6 @@ export async function DELETE(req: NextRequest) {
   const auth = await requireRole(req, ['admin', 'instructor']);
   if (isAuthError(auth)) return auth.error;
 
-  const token = process.env.GITHUB_TOKEN;
-  const owner = process.env.GITHUB_REPO_OWNER;
-  const repo  = process.env.GITHUB_REPO_NAME;
-  const branch = process.env.GITHUB_REPO_BRANCH ?? 'main';
-  if (!token || !owner || !repo) {
-    return NextResponse.json({ error: 'GitHub integration not configured.' }, { status: 500 });
-  }
-
   const body = await req.json().catch(() => null);
   const url: string = body?.url ?? '';
   const m = url.match(/^https:\/\/raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/);
@@ -117,7 +110,6 @@ export async function DELETE(req: NextRequest) {
   // Only the file path is taken from the URL, and the delete runs against the server-configured repo
   // and branch (the URL's owner/repo must still match, else it is not one of ours).
   const [, mOwner, mRepo, , rawPath] = m;
-  if (mOwner !== owner || mRepo !== repo) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   const segments = rawPath.split('/').map(decodeURIComponent);
   const filePath = segments.join('/');
   if (segments.some(s => s === '' || s === '.' || s === '..')) {
@@ -128,6 +120,14 @@ export async function DELETE(req: NextRequest) {
   if (!MANAGED_ROOTS.has(segments[0])) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  const token = process.env.GITHUB_TOKEN;
+  const owner = process.env.GITHUB_REPO_OWNER;
+  const repo  = process.env.GITHUB_REPO_NAME;
+  const branch = process.env.GITHUB_REPO_BRANCH ?? 'main';
+  if (!token || !owner || !repo) {
+    return NextResponse.json({ error: 'GitHub integration not configured.' }, { status: 500 });
+  }
+  if (mOwner !== owner || mRepo !== repo) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
   const apiUrl = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
   const ghHeaders = {
