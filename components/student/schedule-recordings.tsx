@@ -241,6 +241,15 @@ function SessionResources({ attachments, C }: { attachments: RecordingAttachment
   );
 }
 
+// Small count pill used by the programme header.
+function chip(C: typeof LIGHT_C): React.CSSProperties {
+  return {
+    display: 'inline-flex', alignItems: 'center', gap: 5,
+    padding: '4px 10px', borderRadius: 999, background: C.pill,
+    color: C.muted, fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
+  };
+}
+
 // Where a recording actually lives, for the cases where it cannot play in the app.
 // Naming the host is the honest version of a play button that opens a new tab.
 function linkHost(url: string): string {
@@ -488,25 +497,37 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
 
     return (
       <motion.div ref={topRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-        {/* Back + title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-          <button onClick={() => setSelected(null)}
-            style={{ width: 34, height: 34, borderRadius: 10,
-              background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', flexShrink: 0 }}>
-            <ArrowLeft size={15} style={{ color: C.text }}/>
-          </button>
-          <div style={{ minWidth: 0 }}>
-            <p style={{ fontSize: 16, fontWeight: 800, color: C.text, lineHeight: 1.2 }} className="truncate">{selected.title}</p>
-            <p style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>
-              {totalEntries} recording{totalEntries !== 1 ? 's' : ''} - {weeks.length} week{weeks.length !== 1 ? 's' : ''}
-            </p>
+        {/* Programme header: what this is, how much of it there is, and the way back */}
+        <div style={{ background: C.card, borderRadius: 18, padding: '20px 24px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <button onClick={() => setSelected(null)} aria-label="Back to recordings"
+              style={{ width: 38, height: 38, borderRadius: 12, border: 'none',
+                background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                cursor: 'pointer', flexShrink: 0 }}>
+              <ArrowLeft size={16} style={{ color: C.text }}/>
+            </button>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 20, fontWeight: 800, color: C.text, lineHeight: 1.2 }} className="truncate">
+                {selected.title}
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                <span style={chip(C)}>
+                  <Video size={12}/> {totalEntries} recording{totalEntries !== 1 ? 's' : ''}
+                </span>
+                <span style={chip(C)}>
+                  <Calendar size={12}/> {weeks.length} week{weeks.length !== 1 ? 's' : ''}
+                </span>
+                {activeEntry && recEntries.length > 1 && (
+                  <span style={chip(C)}>Watching {position + 1} of {recEntries.length}</span>
+                )}
+              </div>
+            </div>
           </div>
-        </div>
 
-        {/* Description */}
-        <AuthoredText value={selected.description ?? ''}
-          style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 22 }}/>
+          <AuthoredText value={selected.description ?? ''}
+            style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginTop: 18,
+              paddingTop: 18, borderTop: `1px solid ${C.divider}` }}/>
+        </div>
 
         {recEntries.length === 0
           ? <EmptyState icon={Video} title="Nothing published yet"
