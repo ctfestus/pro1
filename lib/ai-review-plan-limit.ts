@@ -119,7 +119,10 @@ export async function enforceStudentAiReviewPlanLimit(
     if (await bumpRateLimit(redis, `${STARTER_REVIEW_KEY}:${auth.actor.id}`, STARTER_DAILY_LIMIT, DAY_SECONDS)) {
       return NextResponse.json(
         {
-          error: 'Starter includes 1 AI review per day. Upgrade to unlock more AI reviews.',
+          // States the limit, and stops there. What a paid plan is worth is the pricing page's
+          // job -- a plan is mainly the content it unlocks, so selling it here as extra reviews
+          // would understate it.
+          error: 'Your free plan includes 1 AI review per day. Upgrade for more.',
           code: 'daily_limit_reached',
           upgradeUrl: AI_REVIEW_UPGRADE_URL,
         },

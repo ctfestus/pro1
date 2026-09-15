@@ -303,6 +303,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         accentColor={accentColor}
         isDark={isDark}
         planName={entitlement.planName}
+        priceLabel={entitlement.priceLabel}
         upgradeUrl={entitlement.upgradeUrl}
         message="Dashboard reviews are part of a paid plan. Upgrade to submit your screenshot and get element-level coaching."
       >
@@ -367,6 +368,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         accentColor={accentColor}
         isDark={isDark}
         planName={entitlement.planName}
+        priceLabel={entitlement.priceLabel}
         message={error}
         upgradeUrl={upgradeUrl}
       />

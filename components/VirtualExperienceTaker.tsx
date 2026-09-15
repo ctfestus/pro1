@@ -1696,7 +1696,7 @@ export default function VirtualExperienceTaker({
                                 {feedback && fbTone && (
                                   <div style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, paddingTop: 18 }}>
                                     {feedback.upgradeUrl ? (
-                                      <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={feedback.upgradeUrl} />
+                                      <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={feedback.upgradeUrl} />
                                     ) : (
                                     <MailThreadMsg isDark={isDark} from={manager}>
                                       <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
@@ -1754,7 +1754,7 @@ export default function VirtualExperienceTaker({
                               <div style={{ padding: '14px 22px 18px' }}>
                                 {req.aiReview && entitlement.dailyExhausted && (
                                   <div style={{ marginBottom: 12 }}>
-                                    <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+                                    <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
                                   </div>
                                 )}
                                 <MailComposer isDark={isDark} accent={accentColor} to={manager} subject={efSubject}
@@ -2577,7 +2577,7 @@ export default function VirtualExperienceTaker({
                                 </p>
                               )}
                               {!showDone && entitlement.dailyExhausted && (
-                                <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+                                <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
                               )}
                               {!showDone && (
                                 <button
@@ -2597,7 +2597,7 @@ export default function VirtualExperienceTaker({
                                   <div className="min-w-0">
                                     <p className="text-[13px] font-bold" style={{ color: isDark ? '#cbd5e1' : '#64748b' }}>Review unavailable</p>
                                     <p className="text-[13px] leading-relaxed mt-0.5" style={{ color: isDark ? '#ccc' : '#444' }}>{feedback.feedback}</p>
-                                    {feedback.upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={feedback.upgradeUrl} />}
+                                    {feedback.upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={feedback.upgradeUrl} priceLabel={entitlement.priceLabel} />}
                                   </div>
                                 </div>
                               )}

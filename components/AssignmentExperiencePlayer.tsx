@@ -1219,7 +1219,7 @@ export default function AssignmentExperiencePlayer({
                                   {feedback && fbTone && (
                                     <div style={{ borderTop: `1px solid ${divider}`, paddingTop: 18 }}>
                                       {feedback.upgradeUrl ? (
-                                        <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={feedback.upgradeUrl} />
+                                        <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={feedback.upgradeUrl} />
                                       ) : (
                                       <MailThreadMsg isDark={isDark} from={manager}>
                                         <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
@@ -1274,7 +1274,7 @@ export default function AssignmentExperiencePlayer({
                                 <div style={{ padding: '14px 22px 18px' }}>
                                   {req.aiReview && entitlement.dailyExhausted && (
                                     <div style={{ marginBottom: 12 }}>
-                                      <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+                                      <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
                                     </div>
                                   )}
                                   <MailComposer isDark={isDark} accent={accent} to={manager} subject={efSubject}

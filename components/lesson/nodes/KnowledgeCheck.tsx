@@ -482,7 +482,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
           )}
           {reviewError && <p className="lesson-check__error" role="status">{reviewError}</p>}
           {(reviewUpgradeUrl || (!answered && entitlement.dailyExhausted)) && (
-            <AiReviewUpgradeNote accentColor={accentColor || 'currentColor'} upgradeUrl={reviewUpgradeUrl || entitlement.upgradeUrl} />
+            <AiReviewUpgradeNote accentColor={accentColor || 'currentColor'} upgradeUrl={reviewUpgradeUrl || entitlement.upgradeUrl} priceLabel={entitlement.priceLabel} />
           )}
         </div>
       )}
