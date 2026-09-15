@@ -14,8 +14,15 @@ import { DataPlaygroundGrid } from '@/components/data-playground/lazy';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
-  ArrowLeft, BookOpen, Calendar, ChevronRight, ExternalLink, FileText, Play, Video,
+  ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronRight, Download, ExternalLink, FileText,
+  Paperclip, Play, Video,
 } from 'lucide-react';
+import { safeEmbedUrl } from '@/lib/safe-embed-url';
+import { formatAttachmentSize, safeAttachmentUrl } from '@/lib/lesson-attachment';
+import {
+  normalizeRecordingAttachments, recordingAttachmentBadge, recordingAttachmentHref,
+  type RecordingAttachment,
+} from '@/lib/recording-attachments';
 
 // --- Data Center section ---
 async function getDataCenterAuthHeaders(): Promise<HeadersInit | undefined> {
@@ -184,12 +191,116 @@ function ScheduleDetail({ schedule, C, onBack }: { schedule: any; C: typeof LIGH
   );
 }
 
+// One session in the student's week view: a header row that stays readable when collapsed,
+// and on open the video itself, the instructor's notes and the files for that class.
+function SessionCard({ entry, position, C, open, onToggle }: {
+  entry: any;
+  position: number;
+  C: typeof LIGHT_C;
+  open: boolean;
+  onToggle: () => void;
+}) {
+  const embed = safeEmbedUrl(entry.url);
+  // Authored by hand, so the fallback link goes through the same protocol check every
+  // other authored destination does rather than straight into an href.
+  const openHref = safeAttachmentUrl(entry.url ?? '');
+  const attachments: RecordingAttachment[] = entry.attachments ?? [];
+  const notes = entry.description ? sanitizeRichText(entry.description) : '';
+  const accent = C === DARK_C ? '#111' : '#fff';
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      style={{ borderRadius: 16, background: C.card, overflow: 'hidden' }}>
+      <button onClick={onToggle} aria-expanded={open}
+        style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', width: '100%',
+          background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+        <div style={{ width: 40, height: 40, borderRadius: 12, background: C.green,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Play size={16} fill={accent} style={{ color: accent, marginLeft: 2 }}/>
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="truncate">
+            {entry.topic}
+          </p>
+          <p style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>
+            Week {entry.week} - Recording {position}
+            {attachments.length > 0 && ` - ${attachments.length} resource${attachments.length !== 1 ? 's' : ''}`}
+          </p>
+        </div>
+        <ChevronDown size={16} style={{ color: C.faint, flexShrink: 0,
+          transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}/>
+      </button>
+
+      {open && (
+        <div style={{ padding: '0 16px 16px' }}>
+          {embed
+            ? <div style={{ borderRadius: 12, overflow: 'hidden', background: '#000', aspectRatio: '16 / 9', maxWidth: '100%' }}>
+                <iframe src={embed} title={entry.topic} allowFullScreen
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}/>
+              </div>
+            : openHref
+              ? <a href={openHref} target="_blank" rel="noopener noreferrer"
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '12px 16px',
+                    borderRadius: 12, background: C.green, color: accent, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                  <ExternalLink size={14}/> Open recording
+                </a>
+              : <p style={{ fontSize: 13, color: C.faint, textAlign: 'center', padding: '16px 0' }}>
+                  This recording link is not available yet.
+                </p>
+          }
+
+          {notes && (
+            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, marginTop: 14 }}
+              dangerouslySetInnerHTML={{ __html: notes }}/>
+          )}
+
+          {attachments.length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700,
+                color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
+                <Paperclip size={12}/> Resources
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {attachments.map(att => {
+                  const size = formatAttachmentSize(att.size);
+                  return (
+                    <a key={att.id} href={recordingAttachmentHref(att)} target="_blank" rel="noopener noreferrer"
+                      download={att.kind === 'file' ? att.name : undefined}
+                      style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                        borderRadius: 12, background: C.pill, textDecoration: 'none' }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
+                        background: C.card, borderRadius: 6, padding: '3px 6px', flexShrink: 0 }}>
+                        {recordingAttachmentBadge(att)}
+                      </span>
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.text }} className="truncate">{att.name}</span>
+                        {size && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{size}</span>}
+                      </span>
+                      {att.kind === 'file'
+                        ? <Download size={14} style={{ color: C.faint, flexShrink: 0 }}/>
+                        : <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>}
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </motion.div>
+  );
+}
+
 export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIGHT_C }) {
   const [recordings, setRecordings] = useState<any[]>([]);
   const [entries, setEntries]       = useState<Record<string, any[]>>({});
   const [loading, setLoading]       = useState(true);
   const [selected, setSelected]     = useState<any | null>(null);
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
+  // The week's first session opens with the week, so the player is there without a
+  // second click; opening another collapses it.
+  const [openEntryId, setOpenEntryId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -215,17 +326,22 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     topRef.current?.closest('main')?.scrollTo({ top: 0, behavior: 'smooth' });
     if (!entries[rec.id]) {
       const { data } = await supabase.from('recording_entries')
-        .select('id, week, topic, url, order_index')
+        .select('id, week, topic, url, description, attachments, order_index')
         .eq('recording_id', rec.id).order('week').order('order_index');
-      const rows = data ?? [];
+      const rows = (data ?? []).map((row: any) => ({
+        ...row, attachments: normalizeRecordingAttachments(row.attachments),
+      }));
       setEntries(prev => ({ ...prev, [rec.id]: rows }));
-      const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
-      setActiveWeek(firstWeek);
+      openFirstWeek(rows);
     } else {
-      const rows = entries[rec.id];
-      const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
-      setActiveWeek(firstWeek);
+      openFirstWeek(entries[rec.id]);
     }
+  }
+
+  function openFirstWeek(rows: any[]) {
+    const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
+    setActiveWeek(firstWeek);
+    setOpenEntryId(rows.find((r: any) => r.week === firstWeek)?.id ?? null);
   }
 
   if (loading) return (
@@ -276,7 +392,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
 
         {/* Description */}
         {selected.description && (
-          <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}
+          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}
             dangerouslySetInnerHTML={{ __html: sanitizeRichText(selected.description) }}/>
         )}
 
@@ -285,7 +401,10 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}
             className="hide-scrollbar">
             {weeks.map(w => (
-              <button key={w} onClick={() => setActiveWeek(w)}
+              <button key={w} onClick={() => {
+                setActiveWeek(w);
+                setOpenEntryId(recEntries.find((e: any) => e.week === w)?.id ?? null);
+              }}
                 style={{
                   padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
                   whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0, border: 'none',
@@ -304,25 +423,9 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           {weekEntries.length === 0
             ? <p style={{ fontSize: 13, color: C.faint, textAlign: 'center', padding: '24px 0' }}>No recordings for this week.</p>
             : weekEntries.map((entry: any, idx: number) => (
-                <motion.a key={entry.id} href={entry.url} target="_blank" rel="noopener noreferrer"
-                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                    borderRadius: 16, background: C.card,
-                    textDecoration: 'none', transition: 'transform 0.15s, box-shadow 0.15s' }}
-                  className="hover:scale-[1.01]">
-                  {/* Play button */}
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.green,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Play size={16} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="truncate">
-                      {entry.topic}
-                    </p>
-                    <p style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Week {entry.week} · Recording {idx + 1}</p>
-                  </div>
-                  <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>
-                </motion.a>
+                <SessionCard key={entry.id} entry={entry} position={idx + 1} C={C}
+                  open={openEntryId === entry.id}
+                  onToggle={() => setOpenEntryId(prev => prev === entry.id ? null : entry.id)}/>
               ))
           }
         </div>
