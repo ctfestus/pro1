@@ -1,14 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, DARK_C, useC } from '@/lib/theme';
-import { ArrowLeft, Plus, Loader2, Save, X, Upload, Check, Images, Paperclip, Trash2, Video } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Save, X, Check, ChevronDown, Paperclip, Trash2, Video } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sanitizeRichText } from '@/lib/sanitize';
-import { uploadToCloudinary, deleteFromCloudinary } from '@/lib/uploadToCloudinary';
-import { ImageLibrary } from '@/components/ImageLibrary';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AttachmentPicker } from '@/components/AttachmentPicker';
 import { formatAttachmentSize } from '@/lib/lesson-attachment';
@@ -51,15 +49,13 @@ export default function CreateRecordingPage() {
   // Fields
   const [title, setTitle]               = useState('');
   const [description, setDescription]   = useState('');
-  const [coverImage, setCoverImage]         = useState('');
-  const [showCoverLibrary, setShowCoverLibrary] = useState(false);
-  const [originalCoverImage, setOriginalCoverImage] = useState('');
-  const [coverUploading, setCoverUploading] = useState(false);
-  const coverRef = useRef<HTMLInputElement>(null);
   const [status, setStatus]             = useState<'draft' | 'published'>('draft');
   const [cohorts, setCohorts]           = useState<{ id: string; name: string }[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [entries, setEntries]           = useState<Entry[]>([]);
+  // Sessions start collapsed so a long programme stays scannable; a session the author
+  // just added opens on its own, since the next thing they do is type into it.
+  const [openSessionIds, setOpenSessionIds] = useState<Set<string>>(new Set());
   const [originalWeeks, setOriginalWeeks] = useState<Set<number>>(new Set());
 
   const toggleCohort = (id: string) =>
@@ -91,8 +87,6 @@ export default function CreateRecordingPage() {
         if (rec) {
           setTitle(rec.title ?? '');
           setDescription(rec.description ?? '');
-          setCoverImage(rec.cover_image ?? '');
-          setOriginalCoverImage(rec.cover_image ?? '');
           setStatus(rec.status ?? 'draft');
           if (rec.cohort_ids?.length) setSelectedCohortIds(rec.cohort_ids);
         }
@@ -111,10 +105,19 @@ export default function CreateRecordingPage() {
 
   function addEntry(week?: number) {
     const maxWeek = entries.length ? Math.max(...entries.map(e => e.week)) : 0;
+    const id = crypto.randomUUID();
     setEntries(prev => [...prev, {
-      id: crypto.randomUUID(), week: week ?? maxWeek + 1, topic: '', url: '',
+      id, week: week ?? maxWeek + 1, topic: '', url: '',
       description: '', attachments: [],
     }]);
+    setOpenSessionIds(prev => new Set(prev).add(id));
+  }
+  function toggleSession(id: string) {
+    setOpenSessionIds(prev => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
   }
   function removeEntry(id: string) { setEntries(prev => prev.filter(e => e.id !== id)); }
   function updateEntry<K extends keyof Entry>(id: string, field: K, value: Entry[K]) {
@@ -150,7 +153,6 @@ export default function CreateRecordingPage() {
       const payload = {
         title: trimmedTitle,
         description: sanitizeRichText(description) || null,
-        cover_image: coverImage.trim() || null,
         cohort_ids: selectedCohortIds,
         status,
       };
@@ -159,9 +161,6 @@ export default function CreateRecordingPage() {
       if (editId) {
         const { error: e } = await supabase.from('recordings').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editId);
         if (e) throw e;
-        if (originalCoverImage && originalCoverImage !== coverImage.trim()) {
-          await deleteFromCloudinary(originalCoverImage).catch(() => {});
-        }
         await supabase.from('recording_entries').delete().eq('recording_id', editId);
       } else {
         const { data, error: e } = await supabase.from('recordings')
@@ -252,50 +251,6 @@ export default function CreateRecordingPage() {
                   placeholder="Brief overview of the programme or course..." enableAiAssist/>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={lbl(C)}>Cover Image</label>
-                <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
-                  const file = e.target.files?.[0]; if (!file) return;
-                  setCoverUploading(true);
-                  try { const url = await uploadToCloudinary(file, 'covers'); setCoverImage(url); }
-                  catch (err: any) { setError(err?.message || 'Image upload failed.'); }
-                  finally { setCoverUploading(false); e.target.value = ''; }
-                }}/>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <input type="url" value={coverImage} onChange={e => setCoverImage(e.target.value)}
-                    placeholder="https://example.com/image.jpg" style={{ ...inp(C), flex: 1 }}/>
-                  <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
-                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10,
-                      border: 'none', background: C.pill, color: C.muted,
-                      fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    <Upload size={14}/>{coverUploading ? 'Uploading…' : 'Upload'}
-                  </button>
-                  <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
-                    style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
-                    <Images style={{ width: 14, height: 14 }}/>
-                  </button>
-                </div>
-                {coverImage.trim() && (
-                  <div style={{ marginTop: 10, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.cardBorder}`, position: 'relative' }}>
-                    <img src={coverImage.trim()} alt="Cover" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
-                      onError={e => ((e.target as HTMLImageElement).style.display = 'none')}/>
-                    <button type="button" onClick={() => setCoverImage('')}
-                      style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', border: 'none',
-                        borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                      <X size={14} color="white"/>
-                    </button>
-                  </div>
-                )}
-                {showCoverLibrary && (
-                  <ImageLibrary
-                    uploadFolder="covers"
-                    initialFolder="covers"
-                    onSelect={url => setCoverImage(url)}
-                    onClose={() => setShowCoverLibrary(false)}
-                  />
-                )}
-              </div>
-
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={lbl(C)}>Status</label>
@@ -379,6 +334,7 @@ export default function CreateRecordingPage() {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                       {weekEntries.map((entry, idx) => (
                         <SessionCard key={entry.id} entry={entry} position={idx + 1} C={C}
+                          open={openSessionIds.has(entry.id)} onToggle={() => toggleSession(entry.id)}
                           onUpdate={updateEntry} onRemove={removeEntry}
                           onAddAttachment={addAttachment} onRemoveAttachment={removeAttachment}/>
                       ))}
@@ -422,27 +378,48 @@ export default function CreateRecordingPage() {
 
 // One session row in the editor. Kept in this file because only this editor renders it;
 // it holds the picker's open/closed state so two cards can never share one dialog.
-function SessionCard({ entry, position, C, onUpdate, onRemove, onAddAttachment, onRemoveAttachment }: {
+function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, onAddAttachment, onRemoveAttachment }: {
   entry: Entry;
   position: number;
   C: typeof LIGHT_C;
+  open: boolean;
+  onToggle: () => void;
   onUpdate: <K extends keyof Entry>(id: string, field: K, value: Entry[K]) => void;
   onRemove: (id: string) => void;
   onAddAttachment: (id: string, attachment: RecordingAttachment) => void;
   onRemoveAttachment: (id: string, attachmentId: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
+  // What the collapsed row has to say for itself: whether this session is finished.
+  const summary = [
+    entry.url.trim() ? 'Video link' : 'No video link yet',
+    entry.attachments.length ? `${entry.attachments.length} resource${entry.attachments.length !== 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(' - ');
 
   return (
-    <div style={{ background: C.pill, borderRadius: 14, padding: '14px 16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 12 }}>
-        <span style={{ fontSize: 12, fontWeight: 700, color: C.muted }}>Session {position}</span>
+    <div style={{ background: C.pill, borderRadius: 14, padding: open ? '14px 16px' : '4px 6px 4px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 12 : 0 }}>
+        <button type="button" onClick={onToggle} aria-expanded={open}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: '8px 0',
+            background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+          <ChevronDown size={14} style={{ color: C.faint, flexShrink: 0,
+            transform: open ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: 13, fontWeight: 700,
+              color: entry.topic.trim() ? C.text : C.faint }} className="truncate">
+              {entry.topic.trim() || `Session ${position}`}
+            </span>
+            {!open && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{summary}</span>}
+          </span>
+        </button>
         <button type="button" onClick={() => onRemove(entry.id)} aria-label="Remove session"
           style={{ padding: 6, borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)',
-            color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+            color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
           <Trash2 size={14}/>
         </button>
       </div>
+
+      {open && (<>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
         <div style={{ width: 86, flexShrink: 0 }}>
@@ -534,6 +511,7 @@ function SessionCard({ entry, position, C, onUpdate, onRemove, onAddAttachment, 
           onClose={() => setShowPicker(false)}
         />
       )}
+      </>)}
     </div>
   );
 }

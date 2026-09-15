@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { safeEmbedUrl } from '@/lib/safe-embed-url';
 import { formatAttachmentSize, safeAttachmentUrl } from '@/lib/lesson-attachment';
+import { looksLikeHtml, toPlainText } from '@/lib/plain-text';
 import {
   normalizeRecordingAttachments, recordingAttachmentBadge, recordingAttachmentHref,
   type RecordingAttachment,
@@ -191,6 +192,17 @@ function ScheduleDetail({ schedule, C, onBack }: { schedule: any; C: typeof LIGH
   );
 }
 
+// Descriptions written before the rich-text editor are plain text with real newlines, and
+// handing those to dangerouslySetInnerHTML would collapse the author's spacing into one
+// paragraph. Render markup as markup, plain text as text.
+function AuthoredText({ value, style }: { value: string; style?: React.CSSProperties }) {
+  if (!value?.trim()) return null;
+  if (looksLikeHtml(value)) {
+    return <div style={style} dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) }}/>;
+  }
+  return <p className="whitespace-pre-line" style={style}>{value}</p>;
+}
+
 // One session in the student's week view: a header row that stays readable when collapsed,
 // and on open the video itself, the instructor's notes and the files for that class.
 function SessionCard({ entry, position, C, open, onToggle }: {
@@ -205,7 +217,6 @@ function SessionCard({ entry, position, C, open, onToggle }: {
   // other authored destination does rather than straight into an href.
   const openHref = safeAttachmentUrl(entry.url ?? '');
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
-  const notes = entry.description ? sanitizeRichText(entry.description) : '';
   const accent = C === DARK_C ? '#111' : '#fff';
 
   return (
@@ -250,10 +261,8 @@ function SessionCard({ entry, position, C, open, onToggle }: {
                 </p>
           }
 
-          {notes && (
-            <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, marginTop: 14 }}
-              dangerouslySetInnerHTML={{ __html: notes }}/>
-          )}
+          <AuthoredText value={entry.description ?? ''}
+            style={{ fontSize: 13, color: C.muted, lineHeight: 1.65, marginTop: 14 }}/>
 
           {attachments.length > 0 && (
             <div style={{ marginTop: 16 }}>
@@ -311,10 +320,25 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
       const cohortId = isIndividualCohort((student as any)?.cohort?.cohort_kind) ? null : student?.cohort_id;
       if (!cohortId) { setLoading(false); return; }
       const { data } = await supabase.from('recordings')
-        .select('id, title, description, cover_image')
+        .select('id, title, description')
         .contains('cohort_ids', [cohortId]).eq('status', 'published')
         .order('created_at', { ascending: false });
-      setRecordings(data ?? []);
+      const recs = data ?? [];
+      setRecordings(recs);
+      // The list card promises how much is inside, so the sessions come with it rather
+      // than one fetch per card. It also means opening a recording needs no round trip.
+      if (recs.length) {
+        const { data: rows } = await supabase.from('recording_entries')
+          .select('id, recording_id, week, topic, url, description, attachments, order_index')
+          .in('recording_id', recs.map(r => r.id)).order('week').order('order_index');
+        const grouped: Record<string, any[]> = {};
+        (rows ?? []).forEach((row: any) => {
+          (grouped[row.recording_id] ||= []).push({
+            ...row, attachments: normalizeRecordingAttachments(row.attachments),
+          });
+        });
+        setEntries(grouped);
+      }
       setLoading(false);
     };
     load();
@@ -345,10 +369,11 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   }
 
   if (loading) return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-      {[0,1,2,3,4,5].map(i => (
-        <div key={i} className="rounded-2xl overflow-hidden" style={{ background: C.card }}>
-          <Sk h={160} r={0}/><div className="p-3 space-y-2"><Sk h={13} w="70%"/><Sk h={10} w="45%"/></div>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {[0,1,2,3].map(i => (
+        <div key={i} className="rounded-2xl p-4 flex gap-3" style={{ background: C.card }}>
+          <Sk w={46} h={46} r={14}/>
+          <div className="flex-1 space-y-2 pt-1"><Sk h={13} w="65%"/><Sk h={10} w="40%"/></div>
         </div>
       ))}
     </div>
@@ -382,19 +407,9 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           </div>
         </div>
 
-        {/* Cover banner */}
-        {selected.cover_image && (
-          <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 16, height: 180,
-            boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
-            <img src={selected.cover_image} alt={selected.title} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}/>
-          </div>
-        )}
-
         {/* Description */}
-        {selected.description && (
-          <div style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}
-            dangerouslySetInnerHTML={{ __html: sanitizeRichText(selected.description) }}/>
-        )}
+        <AuthoredText value={selected.description ?? ''}
+          style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}/>
 
         {/* Week tabs */}
         {weeks.length > 0 && (
@@ -433,40 +448,42 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     );
   }
 
-  /* -- Grid view -- */
+  /* -- List view -- */
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-      {recordings.map((rec, i) => (
-        <motion.button key={rec.id} onClick={() => openRecording(rec)}
-          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-          className="text-left w-full"
-          style={{ background: C.card, borderRadius: 16,
-            overflow: 'hidden', cursor: 'pointer' }}>
-          {/* Cover */}
-          <div style={{ height: 160, background: C.pill, position: 'relative', overflow: 'hidden' }}>
-            {rec.cover_image
-              ? <img src={rec.cover_image} alt={rec.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
-              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <Video size={28} style={{ color: C.faint }}/>
-                </div>
-            }
-            {/* Play overlay */}
-            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.92)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                boxShadow: '0 2px 10px rgba(0,0,0,0.22)' }}>
-                <Play size={14} fill={C.green} style={{ color: C.green, marginLeft: 2 }}/>
-              </div>
+    <div className="grid gap-3 sm:grid-cols-2">
+      {recordings.map((rec, i) => {
+        const rows = entries[rec.id] ?? [];
+        const weekCount = new Set(rows.map((r: any) => r.week)).size;
+        const blurb = toPlainText(rec.description);
+        return (
+          <motion.button key={rec.id} onClick={() => openRecording(rec)}
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+            className="text-left w-full"
+            style={{ background: C.card, borderRadius: 16, padding: 16, cursor: 'pointer',
+              display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            <div style={{ width: 46, height: 46, borderRadius: 14, background: C.green,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Play size={18} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>
             </div>
-          </div>
-          {/* Info */}
-          <div style={{ padding: '10px 12px 12px' }}>
-            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, lineHeight: 1.3 }}
-              className="line-clamp-2">{rec.title}</p>
-          </div>
-        </motion.button>
-      ))}
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <p style={{ fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="line-clamp-2">
+                {rec.title}
+              </p>
+              <p style={{ fontSize: 12, color: C.faint, marginTop: 3 }}>
+                {rows.length
+                  ? `${rows.length} recording${rows.length !== 1 ? 's' : ''} - ${weekCount} week${weekCount !== 1 ? 's' : ''}`
+                  : 'No recordings yet'}
+              </p>
+              {blurb && (
+                <p style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginTop: 8 }} className="line-clamp-2">
+                  {blurb}
+                </p>
+              )}
+            </div>
+            <ChevronRight size={16} style={{ color: C.faint, flexShrink: 0, marginTop: 2 }}/>
+          </motion.button>
+        );
+      })}
     </div>
   );
 }
