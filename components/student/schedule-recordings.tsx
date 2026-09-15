@@ -255,9 +255,26 @@ function chip(C: typeof LIGHT_C): React.CSSProperties {
 const SURFACE = 'linear-gradient(135deg, #0f1115 0%, #181d26 55%, #0d1014 100%)';
 
 // Where a recording actually lives, for the cases where it cannot play in the app.
-// Naming the host is the honest version of a play button that opens a new tab.
-function linkHost(url: string): string {
-  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+// Naming it is the honest version of a play button that opens a new tab -- but a
+// student reads "Microsoft OneDrive", not "festman-my.sharepoint.com", so the hosts
+// that turn up in practice get their real names and anything else falls back to the
+// bare domain.
+const LINK_SOURCES: [RegExp, string][] = [
+  [/(^|\.)sharepoint\.com$/, 'Microsoft OneDrive'],
+  [/(^|\.)onedrive\.live\.com$/, 'Microsoft OneDrive'],
+  [/(^|\.)stream\.microsoft\.com$/, 'Microsoft Stream'],
+  [/(^|\.)teams\.microsoft\.com$/, 'Microsoft Teams'],
+  [/(^|\.)drive\.google\.com$/, 'Google Drive'],
+  [/(^|\.)docs\.google\.com$/, 'Google Docs'],
+  [/(^|\.)zoom\.us$/, 'Zoom'],
+  [/(^|\.)dropbox\.com$/, 'Dropbox'],
+  [/(^|\.)loom\.com$/, 'Loom'],
+];
+
+function linkSource(url: string): string {
+  let hostname: string;
+  try { hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; }
+  return LINK_SOURCES.find(([pattern]) => pattern.test(hostname))?.[1] ?? hostname;
 }
 
 // The session the student is watching: the video itself, what the class covered, the
@@ -275,7 +292,7 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
   // Authored by hand, so the fallback link goes through the same protocol check every
   // other authored destination does rather than straight into an href.
   const openHref = safeAttachmentUrl(entry.url ?? '');
-  const host = linkHost(entry.url ?? '');
+  const source = linkSource(entry.url ?? '');
   const accent = C === DARK_C ? '#111' : '#fff';
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
 
@@ -318,12 +335,8 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
                 background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
                 <Globe size={11} style={{ color: 'rgba(255,255,255,0.55)', flexShrink: 0 }}/>
                 <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)' }} className="truncate">
-                  {host || 'External host'}
+                  {source || 'Another site'}
                 </span>
-              </span>
-
-              <span className="relative" style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
-                Plays outside the app, in a new tab
               </span>
             </a>
           : <div className="relative flex flex-col items-center justify-center gap-3 overflow-hidden"
@@ -332,9 +345,6 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
                 background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
                 color: 'rgba(255,255,255,0.6)', fontSize: 12.5, fontWeight: 600 }}>
                 <ExternalLink size={14}/> No link yet
-              </span>
-              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
-                Your instructor has not added this recording yet
               </span>
             </div>
       }
