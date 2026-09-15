@@ -380,11 +380,11 @@ function PlaylistRow({ entry, index, active, C, onSelect }: {
   return (
     <button onClick={onSelect}
       className="transition-colors"
-      style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
+      style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
         padding: '9px 10px 9px 12px', border: 'none', cursor: 'pointer', borderRadius: 10,
-        borderLeft: `2px solid ${active ? C.green : C.divider}`, marginLeft: 6,
+        borderLeft: `2px solid ${active ? C.green : C.divider}`,
         borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
-        background: active ? C.card : 'transparent' }}>
+        background: active ? C.pill : 'transparent' }}>
       <span style={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
         color: active ? C.green : C.faint, fontSize: 11, fontWeight: 700 }}>
         {active
@@ -531,7 +531,8 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           : (
             <div className="grid gap-5 items-start lg:gap-7 lg:grid-cols-[264px_minmax(0,1fr)]">
               {/* Navigation: every week down the left, the open one showing its sessions */}
-              <div className="order-2 lg:order-1 lg:sticky lg:top-2 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto hide-scrollbar">
+              <div style={{ background: C.card, borderRadius: 18, padding: 10, overflowX: 'hidden' }}
+                className="order-2 lg:order-1 lg:sticky lg:top-2 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto hide-scrollbar">
                 {weeks.map(w => {
                   const rows = recEntries.filter((e: any) => e.week === w);
                   const expanded = activeWeek === w;
@@ -551,7 +552,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
                         <span style={{ fontSize: 11, color: C.faint, flexShrink: 0 }}>{rows.length}</span>
                       </button>
                       {expanded && (
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: 7 }}>
                           {rows.map((entry: any, idx: number) => (
                             <PlaylistRow key={entry.id} entry={entry} index={idx + 1} C={C}
                               active={activeEntry?.id === entry.id}
