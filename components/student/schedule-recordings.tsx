@@ -14,8 +14,8 @@ import { DataPlaygroundGrid } from '@/components/data-playground/lazy';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
-  ArrowLeft, BookOpen, Calendar, ChevronLeft, ChevronRight, Download, ExternalLink, FileText,
-  Mic, Paperclip, Play, PlayCircle, Video,
+  ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink,
+  FileText, Mic, Paperclip, Play, PlayCircle, Video,
 } from 'lucide-react';
 import { safeEmbedUrl } from '@/lib/safe-embed-url';
 import { formatAttachmentSize, safeAttachmentUrl } from '@/lib/lesson-attachment';
@@ -515,9 +515,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   if (selected) {
     const recEntries = entries[selected.id] ?? [];
     const weeks = [...new Set(recEntries.map((e: any) => e.week))].sort((a, b) => a - b);
-    const currentWeek = activeWeek ?? weeks[0] ?? null;
-    const weekEntries = recEntries.filter((e: any) => e.week === currentWeek);
-    const activeEntry = recEntries.find((e: any) => e.id === activeEntryId) ?? weekEntries[0] ?? null;
+    const activeEntry = recEntries.find((e: any) => e.id === activeEntryId) ?? recEntries[0] ?? null;
     const position = activeEntry ? recEntries.indexOf(activeEntry) : -1;
 
     // Previous and next run the length of the programme rather than the week, so a
@@ -529,10 +527,9 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
       setActiveWeek(target.week);
     };
 
-    const selectWeek = (week: number) => {
-      setActiveWeek(week);
-      setActiveEntryId(recEntries.find((e: any) => e.week === week)?.id ?? null);
-    };
+    // A week opens and closes on its own. Choosing a session is what changes the stage,
+    // so a student can look through week 7 without losing what they are watching.
+    const toggleWeek = (week: number) => setActiveWeek(current => current === week ? null : week);
 
     return (
       <motion.div ref={topRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
@@ -567,42 +564,42 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
                 ? <SessionStage entry={activeEntry} C={C}
                     onPrev={() => step(-1)} onNext={() => step(1)}
                     hasPrev={position > 0} hasNext={position >= 0 && position < recEntries.length - 1}/>
-                : <p style={{ fontSize: 13, color: C.faint, padding: '24px 0' }}>No recordings for this week.</p>
+                : <p style={{ fontSize: 13, color: C.faint, padding: '24px 0' }}>Pick a recording to start watching.</p>
               }
 
-              {/* Playlist: the week, and what is in it */}
-              <div style={{ background: C.card, borderRadius: 18, padding: 14 }}>
-                {weeks.length > 1 && (
-                  <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }} className="hide-scrollbar">
-                    {weeks.map(w => (
-                      <button key={w} onClick={() => selectWeek(w)}
-                        style={{
-                          padding: '5px 12px', borderRadius: 999, fontSize: 12, fontWeight: 700,
-                          whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0, border: 'none',
-                          background: currentWeek === w ? C.green : C.pill,
-                          color: currentWeek === w ? (C === DARK_C ? '#111' : '#fff') : C.muted,
-                          transition: 'all 0.15s',
-                        }}>
-                        Week {w}
+              {/* Playlist: every week down the side, the open one showing its sessions */}
+              <div style={{ background: C.card, borderRadius: 18, padding: 10 }}
+                className="lg:max-h-[560px] lg:overflow-y-auto hide-scrollbar">
+                {weeks.map(w => {
+                  const rows = recEntries.filter((e: any) => e.week === w);
+                  const expanded = activeWeek === w;
+                  const playingHere = rows.some((e: any) => e.id === activeEntry?.id);
+                  return (
+                    <div key={w}>
+                      <button onClick={() => toggleWeek(w)} aria-expanded={expanded}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
+                          padding: '11px 12px', borderRadius: 12, border: 'none', cursor: 'pointer',
+                          background: 'transparent' }}>
+                        <ChevronDown size={14} style={{ color: C.faint, flexShrink: 0,
+                          transform: expanded ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700,
+                          color: playingHere ? C.green : C.text }}>
+                          Week {w}
+                        </span>
+                        <span style={{ fontSize: 11, color: C.faint, flexShrink: 0 }}>{rows.length}</span>
                       </button>
-                    ))}
-                  </div>
-                )}
-                <p style={{ fontSize: 11, fontWeight: 700, color: C.faint, textTransform: 'uppercase',
-                  letterSpacing: '0.08em', padding: '10px 12px 8px' }}>
-                  Week {currentWeek} - {weekEntries.length} recording{weekEntries.length !== 1 ? 's' : ''}
-                </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 460, overflowY: 'auto' }}
-                  className="hide-scrollbar">
-                  {weekEntries.length === 0
-                    ? <p style={{ fontSize: 12, color: C.faint, padding: '8px 12px' }}>No recordings for this week.</p>
-                    : weekEntries.map((entry: any, idx: number) => (
-                        <PlaylistRow key={entry.id} entry={entry} index={idx + 1} C={C}
-                          active={activeEntry?.id === entry.id}
-                          onSelect={() => setActiveEntryId(entry.id)}/>
-                      ))
-                  }
-                </div>
+                      {expanded && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0 8px 10px' }}>
+                          {rows.map((entry: any, idx: number) => (
+                            <PlaylistRow key={entry.id} entry={entry} index={idx + 1} C={C}
+                              active={activeEntry?.id === entry.id}
+                              onSelect={() => setActiveEntryId(entry.id)}/>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
