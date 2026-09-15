@@ -14,7 +14,7 @@ import { DataPlaygroundGrid } from '@/components/data-playground/lazy';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
-  ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronLeft, ChevronRight, Download, ExternalLink,
+  ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronRight, Download, ExternalLink,
   FileText, Mic, Paperclip, Play, PlayCircle, Video,
 } from 'lucide-react';
 import { safeEmbedUrl } from '@/lib/safe-embed-url';
@@ -272,28 +272,13 @@ function RecordingIcons({ C, dim = false }: { C: typeof LIGHT_C; dim?: boolean }
 // The session the student is watching: the video itself, what the class covered, the
 // files for it, and the way on to the next one. One session is always on stage -- the
 // list beside it switches which, so nothing collapses underfoot while you are watching.
-function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
-  entry: any;
-  C: typeof LIGHT_C;
-  onPrev: () => void;
-  onNext: () => void;
-  hasPrev: boolean;
-  hasNext: boolean;
-}) {
+function SessionStage({ entry, C }: { entry: any; C: typeof LIGHT_C }) {
   const embed = safeEmbedUrl(entry.url);
   // Authored by hand, so the fallback link goes through the same protocol check every
   // other authored destination does rather than straight into an href.
   const openHref = safeAttachmentUrl(entry.url ?? '');
   const accent = C === DARK_C ? '#111' : '#fff';
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
-
-  const navBtn = (enabled: boolean) => ({
-    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-    padding: '9px 14px', borderRadius: 12, border: 'none',
-    background: C.pill, color: enabled ? C.text : C.faint,
-    fontSize: 13, fontWeight: 600, cursor: enabled ? 'pointer' : 'not-allowed',
-    opacity: enabled ? 1 : 0.55,
-  } as React.CSSProperties);
 
   return (
     <motion.div key={entry.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}
@@ -331,7 +316,7 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
           </div>
       }
 
-      <div style={{ padding: '24px 26px 26px' }}>
+      <div className="p-5 pb-6 sm:p-6 sm:pt-6 sm:pb-7">
         {/* Only a session that plays inline needs titling here -- the banner above an
             external recording already carries its week and topic. */}
         {embed && (<>
@@ -348,17 +333,6 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
           style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: embed ? 14 : 0 }}/>
 
         <SessionResources attachments={attachments} C={C}/>
-
-        {(hasPrev || hasNext) && (
-          <div style={{ display: 'flex', gap: 8, marginTop: 28 }}>
-            <button onClick={onPrev} disabled={!hasPrev} style={navBtn(hasPrev)}>
-              <ChevronLeft size={15}/> Previous
-            </button>
-            <button onClick={onNext} disabled={!hasNext} style={{ ...navBtn(hasNext), flex: 1 }}>
-              Next recording <ChevronRight size={15}/>
-            </button>
-          </div>
-        )}
       </div>
     </motion.div>
   );
@@ -410,6 +384,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   // switching week puts that week's first session up rather than an empty frame.
   const [activeEntryId, setActiveEntryId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
+  const stageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -487,25 +462,24 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     const recEntries = entries[selected.id] ?? [];
     const weeks = [...new Set(recEntries.map((e: any) => e.week))].sort((a, b) => a - b);
     const activeEntry = recEntries.find((e: any) => e.id === activeEntryId) ?? recEntries[0] ?? null;
-    const position = activeEntry ? recEntries.indexOf(activeEntry) : -1;
-
-    // Previous and next run the length of the programme rather than the week, so a
-    // student can watch straight through; crossing a boundary carries the week along.
-    const step = (delta: number) => {
-      const target = recEntries[position + delta];
-      if (!target) return;
-      setActiveEntryId(target.id);
-      setActiveWeek(target.week);
-    };
 
     // A week opens and closes on its own. Choosing a session is what changes the stage,
     // so a student can look through week 7 without losing what they are watching.
     const toggleWeek = (week: number) => setActiveWeek(current => current === week ? null : week);
 
+    // On a phone the outline sits above the video, so a tap has to carry the reader down
+    // to what they just chose. On a desktop the stage is already beside them.
+    const selectSession = (id: string) => {
+      setActiveEntryId(id);
+      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+        window.requestAnimationFrame(() => stageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+      }
+    };
+
     return (
       <motion.div ref={topRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
         {/* Programme header: what this is, and the way back */}
-        <div style={{ background: C.card, borderRadius: 18, padding: '20px 24px', marginBottom: 20 }}>
+        <div style={{ background: C.card, borderRadius: 18, marginBottom: 20 }} className="p-4 sm:p-6">
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button onClick={() => setSelected(null)} aria-label="Back to recordings"
               style={{ width: 38, height: 38, borderRadius: 12, border: 'none',
@@ -531,8 +505,8 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           : (
             <div className="grid gap-5 items-start lg:gap-7 lg:grid-cols-[264px_minmax(0,1fr)]">
               {/* Navigation: every week down the left, the open one showing its sessions */}
-              <div style={{ background: C.card, borderRadius: 18, padding: 10, overflowX: 'hidden' }}
-                className="order-2 lg:order-1 lg:sticky lg:top-2 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto hide-scrollbar">
+              <div style={{ background: C.card, borderRadius: 18, overflowX: 'hidden' }}
+                className="p-2 sm:p-2.5 max-h-[46vh] overflow-y-auto lg:max-h-[calc(100vh-120px)] lg:sticky lg:top-2 hide-scrollbar">
                 {weeks.map(w => {
                   const rows = recEntries.filter((e: any) => e.week === w);
                   const expanded = activeWeek === w;
@@ -556,7 +530,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
                           {rows.map((entry: any, idx: number) => (
                             <PlaylistRow key={entry.id} entry={entry} index={idx + 1} C={C}
                               active={activeEntry?.id === entry.id}
-                              onSelect={() => setActiveEntryId(entry.id)}/>
+                              onSelect={() => selectSession(entry.id)}/>
                           ))}
                         </div>
                       )}
@@ -565,11 +539,9 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
                 })}
               </div>
               {/* Stage: what is playing */}
-              <div className="order-1 lg:order-2 min-w-0">
+              <div ref={stageRef} className="min-w-0 scroll-mt-4">
               {activeEntry
-                ? <SessionStage entry={activeEntry} C={C}
-                    onPrev={() => step(-1)} onNext={() => step(1)}
-                    hasPrev={position > 0} hasNext={position >= 0 && position < recEntries.length - 1}/>
+                ? <SessionStage entry={activeEntry} C={C}/>
                 : <p style={{ fontSize: 13, color: C.faint, padding: '24px 0' }}>Pick a recording to start watching.</p>
               }
               </div>
