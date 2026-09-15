@@ -168,6 +168,12 @@ export default function CreateRecordingPage() {
           .insert({ ...payload, created_by: session.user.id }).select('id').single();
         if (e) throw e;
         recId = data!.id;
+        // The recording row exists from here on. If saving the sessions below fails the
+        // author stays on this page with everything still typed in, so adopt the row as
+        // the edit target -- without this, pressing Save again creates a second recording.
+        // The URL follows so a reload continues editing the same row rather than a third.
+        setEditId(recId);
+        window.history.replaceState(null, '', `/create/recording?edit=${recId}`);
       }
 
       if (entries.length) {
