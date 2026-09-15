@@ -15,7 +15,7 @@ import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   ArrowLeft, BookOpen, Calendar, ChevronLeft, ChevronRight, Download, ExternalLink, FileText,
-  Globe, Paperclip, Play, Video,
+  Mic, Paperclip, Play, PlayCircle, Video,
 } from 'lucide-react';
 import { safeEmbedUrl } from '@/lib/safe-embed-url';
 import { formatAttachmentSize, safeAttachmentUrl } from '@/lib/lesson-attachment';
@@ -254,6 +254,30 @@ function chip(C: typeof LIGHT_C): React.CSSProperties {
 // recording hosted elsewhere still reads as the video rather than as a notice.
 const SURFACE = 'linear-gradient(135deg, #0f1115 0%, #181d26 55%, #0d1014 100%)';
 
+// The picture on a link banner: the three things a class recording is made of, floating
+// as tiles the way an illustration would. Decorative, so it is hidden from readers and
+// dropped entirely on a narrow screen where the banner needs its width for words.
+function RecordingIcons({ C, dim = false }: { C: typeof LIGHT_C; dim?: boolean }) {
+  const tile = (Icon: any, style: React.CSSProperties, size: number, glyph: number, tint?: string) => (
+    <span aria-hidden style={{
+      position: 'absolute', width: size, height: size, borderRadius: 18,
+      background: tint ?? C.card, display: 'flex', alignItems: 'center', justifyContent: 'center',
+      boxShadow: '0 12px 26px rgba(0,0,0,0.10)', ...style,
+    }}>
+      <Icon size={glyph} style={{ color: tint ? (C === DARK_C ? '#111' : '#fff') : C.muted }}/>
+    </span>
+  );
+
+  return (
+    <div aria-hidden className="hidden sm:block"
+      style={{ position: 'relative', width: 212, height: 124, flexShrink: 0, opacity: dim ? 0.45 : 1 }}>
+      {tile(Video, { left: 0, top: 26, transform: 'rotate(-10deg)' }, 62, 25)}
+      {tile(PlayCircle, { left: 72, top: 4, transform: 'rotate(5deg)' }, 76, 32, C.green)}
+      {tile(Mic, { left: 158, top: 42, transform: 'rotate(-6deg)' }, 54, 22)}
+    </div>
+  );
+}
+
 // Where a recording actually lives, for the cases where it cannot play in the app.
 // Naming it is the honest version of a play button that opens a new tab -- but a
 // student reads "Microsoft OneDrive", not "festman-my.sharepoint.com", so the hosts
@@ -313,40 +337,30 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}/>
           </div>
-        : openHref
-          ? <a href={openHref} target="_blank" rel="noopener noreferrer"
-              className="group relative flex flex-col items-center justify-center gap-3 overflow-hidden"
-              style={{ height: 172, textDecoration: 'none', background: SURFACE }}>
-              {/* Light thrown from below, so the button looks like the source of it */}
-              <span aria-hidden style={{ position: 'absolute', inset: 0,
-                background: `radial-gradient(440px 170px at 50% 122%, ${C.green}3d, transparent 72%)` }}/>
-              <span aria-hidden style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200,
-                borderRadius: '50%', background: `${C.green}1f`, filter: 'blur(44px)' }}/>
-
-              <span className="relative transition-transform duration-200 group-hover:-translate-y-0.5"
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 999,
-                  background: C.green, color: accent, fontSize: 13.5, fontWeight: 800,
-                  boxShadow: `0 12px 34px ${C.green}59` }}>
-                Open recording <ExternalLink size={14}/>
-              </span>
-
-              <span className="relative" style={{ display: 'flex', alignItems: 'center', gap: 6,
-                padding: '4px 12px', borderRadius: 999, maxWidth: '86%',
-                background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
-                <Globe size={11} style={{ color: 'rgba(255,255,255,0.55)', flexShrink: 0 }}/>
-                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)' }} className="truncate">
-                  {source || 'Another site'}
-                </span>
-              </span>
-            </a>
-          : <div className="relative flex flex-col items-center justify-center gap-3 overflow-hidden"
-              style={{ height: 172, background: SURFACE }}>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 999,
-                background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
-                color: 'rgba(255,255,255,0.6)', fontSize: 12.5, fontWeight: 600 }}>
-                <ExternalLink size={14}/> No link yet
-              </span>
+        : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
+            padding: '28px 30px', background: `linear-gradient(120deg, ${C.green}1a 0%, ${C.green}0d 60%, transparent 100%)` }}>
+            <div style={{ minWidth: 0 }}>
+              <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>Class recording</p>
+              <p style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 4 }}>
+                {openHref
+                  ? (source ? `Watch on ${source}` : 'Watch this recording')
+                  : 'Not added yet'}
+              </p>
+              {openHref
+                ? <a href={openHref} target="_blank" rel="noopener noreferrer"
+                    className="transition-opacity hover:opacity-90"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 16,
+                      padding: '11px 20px', borderRadius: 12, background: C.green, color: accent,
+                      fontSize: 13.5, fontWeight: 800, textDecoration: 'none' }}>
+                    Open recording <ExternalLink size={14}/>
+                  </a>
+                : <p style={{ fontSize: 12.5, color: C.faint, marginTop: 8 }}>
+                    Your instructor has not added this recording yet.
+                  </p>
+              }
             </div>
+            <RecordingIcons C={C} dim={!openHref}/>
+          </div>
       }
 
       <div style={{ padding: '24px 26px 26px' }}>
