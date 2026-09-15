@@ -15,7 +15,7 @@ import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   ArrowLeft, BookOpen, Calendar, ChevronLeft, ChevronRight, Download, ExternalLink, FileText,
-  Paperclip, Play, Video,
+  Globe, Paperclip, Play, Video,
 } from 'lucide-react';
 import { safeEmbedUrl } from '@/lib/safe-embed-url';
 import { formatAttachmentSize, safeAttachmentUrl } from '@/lib/lesson-attachment';
@@ -250,6 +250,10 @@ function chip(C: typeof LIGHT_C): React.CSSProperties {
   };
 }
 
+// The dark ground a session's video sits on, and that the link band borrows so a
+// recording hosted elsewhere still reads as the video rather than as a notice.
+const SURFACE = 'linear-gradient(135deg, #0f1115 0%, #181d26 55%, #0d1014 100%)';
+
 // Where a recording actually lives, for the cases where it cannot play in the app.
 // Naming the host is the honest version of a play button that opens a new tab.
 function linkHost(url: string): string {
@@ -272,6 +276,7 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
   // other authored destination does rather than straight into an href.
   const openHref = safeAttachmentUrl(entry.url ?? '');
   const host = linkHost(entry.url ?? '');
+  const accent = C === DARK_C ? '#111' : '#fff';
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
 
   const navBtn = (enabled: boolean) => ({
@@ -286,33 +291,50 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
     <motion.div key={entry.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}
       style={{ background: C.card, borderRadius: 18, overflow: 'hidden' }}>
       {embed
-        ? <div style={{ background: '#000', aspectRatio: '16 / 9', maxWidth: '100%' }}>
+        ? <div style={{ background: SURFACE, aspectRatio: '16 / 9', maxWidth: '100%' }}>
             <iframe src={embed} title={entry.topic} allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}/>
           </div>
         : openHref
           ? <a href={openHref} target="_blank" rel="noopener noreferrer"
-              className="transition-opacity hover:opacity-90"
-              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                gap: 6, height: 150, background: '#15171c', textDecoration: 'none' }}>
-              <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.14)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ExternalLink size={18} style={{ color: '#fff' }}/>
+              className="group relative flex flex-col items-center justify-center gap-3 overflow-hidden"
+              style={{ height: 172, textDecoration: 'none', background: SURFACE }}>
+              {/* Light thrown from below, so the button looks like the source of it */}
+              <span aria-hidden style={{ position: 'absolute', inset: 0,
+                background: `radial-gradient(440px 170px at 50% 122%, ${C.green}3d, transparent 72%)` }}/>
+              <span aria-hidden style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200,
+                borderRadius: '50%', background: `${C.green}1f`, filter: 'blur(44px)' }}/>
+
+              <span className="relative transition-transform duration-200 group-hover:-translate-y-0.5"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '11px 22px', borderRadius: 999,
+                  background: C.green, color: accent, fontSize: 13.5, fontWeight: 800,
+                  boxShadow: `0 12px 34px ${C.green}59` }}>
+                Open recording <ExternalLink size={14}/>
               </span>
-              <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Open recording</span>
-              <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.6)', padding: '0 16px', textAlign: 'center' }}>
-                {host ? `Plays outside the app on ${host}` : 'Plays outside the app'}
+
+              <span className="relative" style={{ display: 'flex', alignItems: 'center', gap: 6,
+                padding: '4px 12px', borderRadius: 999, maxWidth: '86%',
+                background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <Globe size={11} style={{ color: 'rgba(255,255,255,0.55)', flexShrink: 0 }}/>
+                <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.72)' }} className="truncate">
+                  {host || 'External host'}
+                </span>
+              </span>
+
+              <span className="relative" style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
+                Plays outside the app, in a new tab
               </span>
             </a>
-          : <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-              gap: 6, height: 150, background: '#15171c' }}>
-              <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.1)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ExternalLink size={18} style={{ color: 'rgba(255,255,255,0.5)' }}/>
+          : <div className="relative flex flex-col items-center justify-center gap-3 overflow-hidden"
+              style={{ height: 172, background: SURFACE }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 18px', borderRadius: 999,
+                background: 'rgba(255,255,255,0.07)', border: '1px solid rgba(255,255,255,0.1)',
+                color: 'rgba(255,255,255,0.6)', fontSize: 12.5, fontWeight: 600 }}>
+                <ExternalLink size={14}/> No link yet
               </span>
-              <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)' }}>
-                This recording link is not available yet.
+              <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.42)' }}>
+                Your instructor has not added this recording yet
               </span>
             </div>
       }
