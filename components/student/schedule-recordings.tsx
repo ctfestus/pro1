@@ -208,21 +208,22 @@ function AuthoredText({ value, style }: { value: string; style?: React.CSSProper
 function SessionResources({ attachments, C }: { attachments: RecordingAttachment[]; C: typeof LIGHT_C }) {
   if (!attachments.length) return null;
   return (
-    <div style={{ marginTop: 18 }}>
+    <div style={{ marginTop: 26 }}>
       <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700,
         color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
         <Paperclip size={12}/> Resources
       </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {attachments.map(att => {
           const size = formatAttachmentSize(att.size);
           return (
             <a key={att.id} href={recordingAttachmentHref(att)} target="_blank" rel="noopener noreferrer"
               download={att.kind === 'file' ? att.name : undefined}
-              style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
                 borderRadius: 12, background: C.pill, textDecoration: 'none' }}>
               <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
-                background: C.card, borderRadius: 6, padding: '3px 6px', flexShrink: 0 }}>
+                background: C.card, borderRadius: 6, padding: '3px 6px', flexShrink: 0,
+                border: `1px solid ${C.divider}` }}>
                 {recordingAttachmentBadge(att)}
               </span>
               <span style={{ flex: 1, minWidth: 0 }}>
@@ -240,6 +241,12 @@ function SessionResources({ attachments, C }: { attachments: RecordingAttachment
   );
 }
 
+// Where a recording actually lives, for the cases where it cannot play in the app.
+// Naming the host is the honest version of a play button that opens a new tab.
+function linkHost(url: string): string {
+  try { return new URL(url).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
+
 // The session the student is watching: the video itself, what the class covered, the
 // files for it, and the way on to the next one. One session is always on stage -- the
 // list beside it switches which, so nothing collapses underfoot while you are watching.
@@ -255,6 +262,7 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
   // Authored by hand, so the fallback link goes through the same protocol check every
   // other authored destination does rather than straight into an href.
   const openHref = safeAttachmentUrl(entry.url ?? '');
+  const host = linkHost(entry.url ?? '');
   const accent = C === DARK_C ? '#111' : '#fff';
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
 
@@ -267,54 +275,66 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
   } as React.CSSProperties);
 
   return (
-    <motion.div key={entry.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}>
+    <motion.div key={entry.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}
+      style={{ background: C.card, borderRadius: 18, overflow: 'hidden' }}>
       {embed
-        ? <div style={{ borderRadius: 16, overflow: 'hidden', background: '#000', aspectRatio: '16 / 9', maxWidth: '100%' }}>
+        ? <div style={{ background: '#000', aspectRatio: '16 / 9', maxWidth: '100%' }}>
             <iframe src={embed} title={entry.topic} allowFullScreen
               allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}/>
           </div>
         : openHref
-          ? <a href={openHref} target="_blank" rel="noopener noreferrer"
-              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-                borderRadius: 16, aspectRatio: '16 / 9', background: C.card, textDecoration: 'none',
-                color: C.text, fontSize: 14, fontWeight: 700, flexDirection: 'column' }}>
-              <span style={{ width: 52, height: 52, borderRadius: '50%', background: C.green,
+          ? <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
+              padding: '22px 26px', borderBottom: `1px solid ${C.divider}` }}>
+              <span style={{ width: 40, height: 40, borderRadius: 12, background: C.pill, flexShrink: 0,
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Play size={20} fill={accent} style={{ color: accent, marginLeft: 3 }}/>
+                <ExternalLink size={17} style={{ color: C.muted }}/>
               </span>
-              Watch this recording
-              <span style={{ fontSize: 12, fontWeight: 500, color: C.faint }}>Opens in a new tab</span>
-            </a>
-          : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center',
-              borderRadius: 16, aspectRatio: '16 / 9', background: C.card, color: C.faint, fontSize: 13 }}>
-              This recording link is not available yet.
+              <span style={{ flex: 1, minWidth: 180 }}>
+                <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: C.text }}>
+                  This recording plays outside the app
+                </span>
+                <span style={{ display: 'block', fontSize: 12, color: C.faint, marginTop: 2 }}>
+                  {host ? `Hosted on ${host}` : 'Hosted elsewhere'}
+                </span>
+              </span>
+              <a href={openHref} target="_blank" rel="noopener noreferrer"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 12,
+                  background: C.green, color: accent, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
+                Open recording <ExternalLink size={14}/>
+              </a>
+            </div>
+          : <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '22px 26px',
+              borderBottom: `1px solid ${C.divider}`, color: C.faint, fontSize: 13 }}>
+              <ExternalLink size={15}/> This recording link is not available yet.
             </div>
       }
 
-      <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
-        letterSpacing: '0.08em', marginTop: 16 }}>
-        Week {entry.week}
-      </p>
-      <h3 style={{ fontSize: 18, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 4 }}>
-        {entry.topic}
-      </h3>
+      <div style={{ padding: '24px 26px 26px' }}>
+        <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
+          letterSpacing: '0.08em' }}>
+          Week {entry.week}
+        </p>
+        <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 6 }}>
+          {entry.topic}
+        </h3>
 
-      <AuthoredText value={entry.description ?? ''}
-        style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.65, marginTop: 10 }}/>
+        <AuthoredText value={entry.description ?? ''}
+          style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: 14, maxWidth: '68ch' }}/>
 
-      <SessionResources attachments={attachments} C={C}/>
+        <SessionResources attachments={attachments} C={C}/>
 
-      {(hasPrev || hasNext) && (
-        <div style={{ display: 'flex', gap: 8, marginTop: 20 }}>
-          <button onClick={onPrev} disabled={!hasPrev} style={navBtn(hasPrev)}>
-            <ChevronLeft size={15}/> Previous
-          </button>
-          <button onClick={onNext} disabled={!hasNext} style={{ ...navBtn(hasNext), flex: 1 }}>
-            Next recording <ChevronRight size={15}/>
-          </button>
-        </div>
-      )}
+        {(hasPrev || hasNext) && (
+          <div style={{ display: 'flex', gap: 8, marginTop: 28 }}>
+            <button onClick={onPrev} disabled={!hasPrev} style={navBtn(hasPrev)}>
+              <ChevronLeft size={15}/> Previous
+            </button>
+            <button onClick={onNext} disabled={!hasNext} style={{ ...navBtn(hasNext), flex: 1 }}>
+              Next recording <ChevronRight size={15}/>
+            </button>
+          </div>
+        )}
+      </div>
     </motion.div>
   );
 }
@@ -329,7 +349,9 @@ function PlaylistRow({ entry, index, active, C, onSelect }: {
   onSelect: () => void;
 }) {
   const count = (entry.attachments ?? []).length;
+  const external = !safeEmbedUrl(entry.url ?? '');
   const meta = [
+    external ? 'Opens in a new tab' : '',
     entry.description ? 'Notes' : '',
     count ? `${count} resource${count !== 1 ? 's' : ''}` : '',
   ].filter(Boolean).join(' - ');
@@ -337,14 +359,16 @@ function PlaylistRow({ entry, index, active, C, onSelect }: {
   return (
     <button onClick={onSelect}
       style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-        padding: '10px 12px', borderRadius: 12, border: 'none', cursor: 'pointer',
+        padding: '12px', borderRadius: 12, border: 'none', cursor: 'pointer',
         background: active ? C.pill : 'transparent' }}>
       <span style={{ width: 28, height: 28, borderRadius: 9, flexShrink: 0,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: active ? C.green : C.pill,
         color: active ? (C === DARK_C ? '#111' : '#fff') : C.muted,
         fontSize: 12, fontWeight: 700 }}>
-        {active ? <Play size={12} fill={C === DARK_C ? '#111' : '#fff'} style={{ marginLeft: 1 }}/> : index}
+        {active && !external
+          ? <Play size={12} fill={C === DARK_C ? '#111' : '#fff'} style={{ marginLeft: 1 }}/>
+          : active ? <ExternalLink size={12}/> : index}
       </span>
       <span style={{ flex: 1, minWidth: 0 }}>
         <span style={{ display: 'block', fontSize: 13, fontWeight: active ? 700 : 600, color: C.text }} className="truncate">
@@ -465,7 +489,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     return (
       <motion.div ref={topRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
         {/* Back + title */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
           <button onClick={() => setSelected(null)}
             style={{ width: 34, height: 34, borderRadius: 10,
               background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -482,13 +506,13 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
 
         {/* Description */}
         <AuthoredText value={selected.description ?? ''}
-          style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}/>
+          style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 22, maxWidth: '72ch' }}/>
 
         {recEntries.length === 0
           ? <EmptyState icon={Video} title="Nothing published yet"
               body="Recordings for this programme will appear here once your instructor publishes them."/>
           : (
-            <div className="grid gap-4 items-start lg:grid-cols-[minmax(0,1fr)_320px]">
+            <div className="grid gap-5 items-start lg:gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
               {/* Stage: what is playing */}
               {activeEntry
                 ? <SessionStage entry={activeEntry} C={C}
@@ -498,7 +522,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
               }
 
               {/* Playlist: the week, and what is in it */}
-              <div style={{ background: C.card, borderRadius: 16, padding: 12 }}>
+              <div style={{ background: C.card, borderRadius: 18, padding: 14 }}>
                 {weeks.length > 1 && (
                   <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 6 }} className="hide-scrollbar">
                     {weeks.map(w => (
@@ -516,10 +540,10 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
                   </div>
                 )}
                 <p style={{ fontSize: 11, fontWeight: 700, color: C.faint, textTransform: 'uppercase',
-                  letterSpacing: '0.08em', padding: '8px 12px 6px' }}>
+                  letterSpacing: '0.08em', padding: '10px 12px 8px' }}>
                   Week {currentWeek} - {weekEntries.length} recording{weekEntries.length !== 1 ? 's' : ''}
                 </p>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 2, maxHeight: 460, overflowY: 'auto' }}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 4, maxHeight: 460, overflowY: 'auto' }}
                   className="hide-scrollbar">
                   {weekEntries.length === 0
                     ? <p style={{ fontSize: 12, color: C.faint, padding: '8px 12px' }}>No recordings for this week.</p>
@@ -539,7 +563,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
 
   /* -- List view -- */
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
+    <div className="grid gap-4 sm:grid-cols-2">
       {recordings.map((rec, i) => {
         const rows = entries[rec.id] ?? [];
         const weekCount = new Set(rows.map((r: any) => r.week)).size;
@@ -548,8 +572,8 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           <motion.button key={rec.id} onClick={() => openRecording(rec)}
             initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
             className="text-left w-full"
-            style={{ background: C.card, borderRadius: 16, padding: 16, cursor: 'pointer',
-              display: 'flex', alignItems: 'flex-start', gap: 14 }}>
+            style={{ background: C.card, borderRadius: 18, padding: 20, cursor: 'pointer',
+              display: 'flex', alignItems: 'flex-start', gap: 16 }}>
             <div style={{ width: 46, height: 46, borderRadius: 14, background: C.green,
               display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
               <Play size={18} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>

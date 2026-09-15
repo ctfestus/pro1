@@ -8,6 +8,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { safeEmbedUrl } from '@/lib/safe-embed-url';
 import { AttachmentPicker } from '@/components/AttachmentPicker';
 import { formatAttachmentSize } from '@/lib/lesson-attachment';
 import {
@@ -390,9 +391,12 @@ function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, o
   onRemoveAttachment: (id: string, attachmentId: string) => void;
 }) {
   const [showPicker, setShowPicker] = useState(false);
+  // Say it while the link is being pasted, not after a student finds out: only some hosts
+  // can be framed, and the rest send the student off the platform.
+  const playsInApp = !!safeEmbedUrl(entry.url.trim());
   // What the collapsed row has to say for itself: whether this session is finished.
   const summary = [
-    entry.url.trim() ? 'Video link' : 'No video link yet',
+    entry.url.trim() ? (playsInApp ? 'Plays in app' : 'Opens in a new tab') : 'No video link yet',
     entry.attachments.length ? `${entry.attachments.length} resource${entry.attachments.length !== 1 ? 's' : ''}` : '',
   ].filter(Boolean).join(' - ');
 
@@ -441,8 +445,12 @@ function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, o
         <input value={entry.url} onChange={e => onUpdate(entry.id, 'url', e.target.value)}
           placeholder="https://youtu.be/..."
           style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 13 }}/>
-        <p style={{ fontSize: 11, color: C.faint, marginTop: 5 }}>
-          YouTube, Vimeo, Canva and Bunny links play inside the app. Anything else opens in a new tab.
+        <p style={{ fontSize: 11, color: playsInApp ? C.green : C.faint, marginTop: 5 }}>
+          {!entry.url.trim()
+            ? 'YouTube, Vimeo, Canva and Bunny links play inside the app. Anything else opens in a new tab.'
+            : playsInApp
+              ? 'Plays inside the app.'
+              : 'Students will open this one in a new tab. Paste a YouTube, Vimeo, Canva or Bunny link to have it play here.'}
         </p>
       </div>
 
