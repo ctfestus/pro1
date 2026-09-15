@@ -279,6 +279,10 @@ function SessionStage({ entry, C }: { entry: any; C: typeof LIGHT_C }) {
   const openHref = safeAttachmentUrl(entry.url ?? '');
   const accent = C === DARK_C ? '#111' : '#fff';
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
+  // An empty rich-text field still arrives as markup, so ask what it actually says.
+  // With nothing to say and nothing to hand out, the body below is just white space.
+  const notes = toPlainText(entry.description).trim() ? entry.description as string : '';
+  const hasBody = !!embed || !!notes || attachments.length > 0;
 
   return (
     <motion.div key={entry.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}
@@ -316,24 +320,26 @@ function SessionStage({ entry, C }: { entry: any; C: typeof LIGHT_C }) {
           </div>
       }
 
-      <div className="p-5 pb-6 sm:p-6 sm:pt-6 sm:pb-7">
-        {/* Only a session that plays inline needs titling here -- the banner above an
-            external recording already carries its week and topic. */}
-        {embed && (<>
-          <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
-            letterSpacing: '0.08em' }}>
-            Week {entry.week}
-          </p>
-          <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 6 }}>
-            {entry.topic}
-          </h3>
-        </>)}
+      {hasBody && (
+        <div className="p-5 pb-6 sm:p-6 sm:pt-6 sm:pb-7">
+          {/* Only a session that plays inline needs titling here -- the banner above an
+              external recording already carries its week and topic. */}
+          {embed && (<>
+            <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
+              letterSpacing: '0.08em' }}>
+              Week {entry.week}
+            </p>
+            <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 6 }}>
+              {entry.topic}
+            </h3>
+          </>)}
 
-        <AuthoredText value={entry.description ?? ''}
-          style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: embed ? 14 : 0 }}/>
+          <AuthoredText value={notes}
+            style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: embed ? 14 : 0 }}/>
 
-        <SessionResources attachments={attachments} C={C}/>
-      </div>
+          <SessionResources attachments={attachments} C={C}/>
+        </div>
+      )}
     </motion.div>
   );
 }
