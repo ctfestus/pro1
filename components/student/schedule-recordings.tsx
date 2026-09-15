@@ -272,7 +272,6 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
   // other authored destination does rather than straight into an href.
   const openHref = safeAttachmentUrl(entry.url ?? '');
   const host = linkHost(entry.url ?? '');
-  const accent = C === DARK_C ? '#111' : '#fff';
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
 
   const navBtn = (enabled: boolean) => ({
@@ -293,29 +292,28 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}/>
           </div>
         : openHref
-          ? <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap',
-              padding: '22px 26px', borderBottom: `1px solid ${C.divider}` }}>
-              <span style={{ width: 40, height: 40, borderRadius: 12, background: C.pill, flexShrink: 0,
+          ? <a href={openHref} target="_blank" rel="noopener noreferrer"
+              className="transition-opacity hover:opacity-90"
+              style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                gap: 6, height: 150, background: '#15171c', textDecoration: 'none' }}>
+              <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.14)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <ExternalLink size={17} style={{ color: C.muted }}/>
+                <ExternalLink size={18} style={{ color: '#fff' }}/>
               </span>
-              <span style={{ flex: 1, minWidth: 180 }}>
-                <span style={{ display: 'block', fontSize: 14, fontWeight: 700, color: C.text }}>
-                  This recording plays outside the app
-                </span>
-                <span style={{ display: 'block', fontSize: 12, color: C.faint, marginTop: 2 }}>
-                  {host ? `Hosted on ${host}` : 'Hosted elsewhere'}
-                </span>
+              <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>Open recording</span>
+              <span style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.6)', padding: '0 16px', textAlign: 'center' }}>
+                {host ? `Plays outside the app on ${host}` : 'Plays outside the app'}
               </span>
-              <a href={openHref} target="_blank" rel="noopener noreferrer"
-                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', borderRadius: 12,
-                  background: C.green, color: accent, fontSize: 13, fontWeight: 700, textDecoration: 'none' }}>
-                Open recording <ExternalLink size={14}/>
-              </a>
-            </div>
-          : <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '22px 26px',
-              borderBottom: `1px solid ${C.divider}`, color: C.faint, fontSize: 13 }}>
-              <ExternalLink size={15}/> This recording link is not available yet.
+            </a>
+          : <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+              gap: 6, height: 150, background: '#15171c' }}>
+              <span style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(255,255,255,0.1)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <ExternalLink size={18} style={{ color: 'rgba(255,255,255,0.5)' }}/>
+              </span>
+              <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.6)' }}>
+                This recording link is not available yet.
+              </span>
             </div>
       }
 
