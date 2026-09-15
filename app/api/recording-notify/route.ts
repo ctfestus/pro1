@@ -27,7 +27,7 @@ export async function POST(req: NextRequest) {
   const db = adminClient();
 
   const { data: recording } = await db
-    .from('recordings').select('id, title, cohort_ids, cover_image').eq('id', recordingId).single();
+    .from('recordings').select('id, title, cohort_ids').eq('id', recordingId).single();
 
   if (!recording) return NextResponse.json({ error: 'Recording not found' }, { status: 404 });
 
@@ -62,7 +62,6 @@ export async function POST(req: NextRequest) {
       recordingTitle: recording.title,
       newWeeks: weeks,
       dashboardUrl,
-      coverImage: recording.cover_image ?? null,
       branding,
     }),
   }));
