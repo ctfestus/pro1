@@ -425,14 +425,14 @@ export default function AssignmentExperiencePlayer({
 
   function downloadDataset() {
     if (!config.dataset) return;
-    if (config.dataset.csvContent) {
+    if (config.dataset.url) {
+      window.open(config.dataset.url, '_blank', 'noopener,noreferrer');
+    } else if (config.dataset.csvContent) {
       const blob = new Blob([config.dataset.csvContent], { type: 'text/csv' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = config.dataset.filename;
       a.click(); URL.revokeObjectURL(url);
-    } else if (config.dataset.url) {
-      window.open(config.dataset.url, '_blank', 'noopener,noreferrer');
     }
   }
 

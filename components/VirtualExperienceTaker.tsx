@@ -454,7 +454,6 @@ export default function VirtualExperienceTaker({
     setUploadErrors(prev => ({ ...prev, [reqId]: '' }));
     setUploadingReq(reqId);
     try {
-      const ext  = file.name.split('.').pop();
       const path = `submissions/${formId}/${encodeURIComponent(studentEmail)}/${reqId}-${Date.now()}-${safeVeUploadName(file.name)}`;
       const { error } = await supabase.storage.from('form-assets').upload(path, file, { upsert: true });
       if (error) throw error;
@@ -632,14 +631,14 @@ export default function VirtualExperienceTaker({
 
   const downloadDataset = () => {
     if (!config.dataset) return;
-    if (config.dataset.csvContent) {
+    if (config.dataset.url) {
+      window.open(config.dataset.url, '_blank', 'noopener,noreferrer');
+    } else if (config.dataset.csvContent) {
       const blob = new Blob([config.dataset.csvContent], { type: 'text/csv' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = config.dataset.filename;
       a.click(); URL.revokeObjectURL(url);
-    } else if (config.dataset.url) {
-      window.open(config.dataset.url, '_blank', 'noopener,noreferrer');
     }
   };
 

@@ -27,6 +27,7 @@ import {
   type SQLResult,
   type SQLRuntime,
 } from '@/lib/sql-engine';
+import { workbookRows, workbookSheetNames } from '@/lib/workbook-rows';
 
 export type DatasetFile = { name: string; url: string };
 export type AnalystTaskType = 'sql' | 'analytics';
@@ -865,10 +866,7 @@ function DatasetDetailPane({
   }
 
   async function expandXLSXEntries(buf: ArrayBuffer, fileName: string, includeFilePrefix: boolean): Promise<PreviewEntry[]> {
-    const ExcelJS = (await import('exceljs')).default;
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf);
-    const sheets = wb.worksheets.map(sheet => sheet.name);
+    const sheets = await workbookSheetNames(buf);
     const names = sheets.length ? sheets : ['Sheet 1'];
     return names.map(sheetName => ({
       name: names.length > 1 ? (includeFilePrefix ? `${fileName}: ${sheetName}` : sheetName) : fileName,
@@ -877,36 +875,6 @@ function DatasetDetailPane({
       xlsxBuf: buf,
       sheetName,
     }));
-  }
-
-  function workbookCellText(value: unknown): string {
-    if (value == null) return '';
-    if (value instanceof Date) return value.toISOString();
-    if (typeof value !== 'object') return String(value);
-    const record = value as Record<string, any>;
-    if ('result' in record) return workbookCellText(record.result);
-    if ('text' in record) return workbookCellText(record.text);
-    if ('hyperlink' in record && 'text' in record) return workbookCellText(record.text);
-    if (Array.isArray(record.richText)) return record.richText.map(part => part?.text ?? '').join('');
-    return JSON.stringify(value);
-  }
-
-  async function workbookRows(buf: ArrayBuffer, sheetName?: string): Promise<string[][]> {
-    const ExcelJS = (await import('exceljs')).default;
-    const wb = new ExcelJS.Workbook();
-    await wb.xlsx.load(buf);
-    const ws = (sheetName ? wb.getWorksheet(sheetName) : undefined) ?? wb.worksheets[0];
-    if (!ws) return [];
-    const rows: string[][] = [];
-    for (let rowIndex = 1; rowIndex <= ws.rowCount; rowIndex += 1) {
-      const row = ws.getRow(rowIndex);
-      const values: string[] = [];
-      for (let colIndex = 1; colIndex <= ws.columnCount; colIndex += 1) {
-        values.push(workbookCellText(row.getCell(colIndex).value));
-      }
-      rows.push(values);
-    }
-    return rows;
   }
 
   function parseCSVContent(csv: string) {

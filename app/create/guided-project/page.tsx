@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
+import { uploadToGithub } from '@/lib/uploadToGithub';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { ImageLibrary } from '@/components/ImageLibrary';
@@ -35,6 +36,28 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+
+const TEXT_DATASET_EXTENSIONS = new Set(['.csv', '.tsv', '.txt']);
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const VE_DATASET_UPLOAD_MAX_BYTES = 4.3 * 1024 * 1024;
+const VE_DATASET_UPLOAD_MAX_LABEL = '4.3 MB';
+
+function datasetExtension(name: string): string {
+  const dot = name.lastIndexOf('.');
+  return dot >= 0 ? name.slice(dot).toLowerCase() : '';
+}
+
+function isTextDatasetFile(file: File): boolean {
+  const ext = datasetExtension(file.name);
+  if (ext) return TEXT_DATASET_EXTENSIONS.has(ext);
+  return ['text/csv', 'text/tab-separated-values', 'text/plain'].includes(file.type);
+}
+
+function isXlsxDatasetFile(file: File): boolean {
+  const ext = datasetExtension(file.name);
+  if (ext) return ext === '.xlsx';
+  return file.type === XLSX_MIME;
+}
 
 function SortableVEShell({ id, children }: {
   id: string;
@@ -453,6 +476,8 @@ function VirtualExperienceCreatePageInner() {
   const [datasetCsv,      setDatasetCsv]      = useState('');
   const [datasetFilename, setDatasetFilename]  = useState('');
   const [datasetDescription, setDatasetDescription] = useState('');
+  const [datasetFileUrl,  setDatasetFileUrl]   = useState('');
+  const [datasetUploadNote, setDatasetUploadNote] = useState('');
   const [datasetUrl,      setDatasetUrl]       = useState('');
   const [datasetInputTab, setDatasetInputTab]  = useState<'upload'|'link'>('upload');
   const [uploadingDataset, setUploadingDataset] = useState(false);
@@ -1007,6 +1032,55 @@ function VirtualExperienceCreatePageInner() {
     setBunnyCollection('');
   };
 
+  const uploadedDatasetUrl = datasetFileUrl.trim();
+  const pastedDatasetUrl = datasetUrl.trim();
+  const preferredDatasetUrl = uploadedDatasetUrl || pastedDatasetUrl;
+
+  const draftDataset = () => {
+    if (uploadedDatasetUrl) {
+      return {
+        filename: datasetFilename || 'dataset',
+        description: datasetDescription.trim(),
+        url: uploadedDatasetUrl,
+      };
+    }
+    if (datasetCsv.trim()) {
+      return {
+        filename: datasetFilename || 'dataset.csv',
+        description: datasetDescription.trim(),
+        csvContent: datasetCsv,
+      };
+    }
+    if (pastedDatasetUrl) {
+      return {
+        filename: '',
+        description: datasetDescription.trim(),
+        url: pastedDatasetUrl,
+      };
+    }
+    return undefined;
+  };
+
+  const mergeDraftDatasetIntoGeneratedConfig = (generatedConfig: any) => {
+    if (!generatedConfig) return generatedConfig;
+    if (uploadedDatasetUrl) {
+      const existingDataset = { ...(generatedConfig.dataset || {}) };
+      delete existingDataset.csvContent;
+      generatedConfig.dataset = {
+        ...existingDataset,
+        filename: datasetFilename || existingDataset.filename || 'dataset',
+        url: uploadedDatasetUrl,
+      };
+    } else if (!datasetCsv.trim() && preferredDatasetUrl) {
+      generatedConfig.dataset = { ...(generatedConfig.dataset || {}), url: preferredDatasetUrl };
+      if (!generatedConfig.dataset.filename) generatedConfig.dataset.filename = datasetFilename || '';
+    }
+    if (datasetDescription.trim() && generatedConfig.dataset) {
+      generatedConfig.dataset = { ...generatedConfig.dataset, description: datasetDescription.trim() };
+    }
+    return generatedConfig;
+  };
+
   // Generate
   const handleGenerate = async () => {
     setGenerating(true); setGenError('');
@@ -1025,19 +1099,7 @@ function VirtualExperienceCreatePageInner() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Generation failed');
       // Merge instructor-provided URL/description into dataset (whether AI-generated or instructor-provided)
-      if (json.config) {
-        if (datasetUrl.trim()) {
-          json.config.dataset = { ...(json.config.dataset || {}), url: datasetUrl.trim() };
-        }
-        // If only a URL was given with no CSV, create a minimal dataset entry
-        if (!datasetCsv.trim() && datasetUrl.trim() && !json.config.dataset) {
-          json.config.dataset = { filename: '', description: '', url: datasetUrl.trim() };
-        }
-        // Instructor-provided description takes precedence over the AI's own
-        if (datasetDescription.trim() && json.config.dataset) {
-          json.config.dataset = { ...json.config.dataset, description: datasetDescription.trim() };
-        }
-      }
+      mergeDraftDatasetIntoGeneratedConfig(json.config);
       setConfig(attachLessonDocs(json.config));
       setBackgroundDraft(htmlToPlainText(json.config.background || ''));
       setTitle(json.config.company ? `${json.config.company} - ${effectiveIndustry.charAt(0).toUpperCase()+effectiveIndustry.slice(1)} Project` : 'Virtual Experience');
@@ -1064,6 +1126,7 @@ function VirtualExperienceCreatePageInner() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Generation failed');
+      mergeDraftDatasetIntoGeneratedConfig(json.config);
       setConfig(attachLessonDocs(json.config));
       setBackgroundDraft(htmlToPlainText(json.config.background || ''));
       setTitle(json.config.company ? `${json.config.company} - ${effectiveIndustry.charAt(0).toUpperCase()+effectiveIndustry.slice(1)} Project` : 'Virtual Experience');
@@ -1080,11 +1143,7 @@ function VirtualExperienceCreatePageInner() {
   // Manual scaffold
   const handleManual = () => {
     const ind = INDUSTRIES.find(i => i.id === industry) || INDUSTRIES[0];
-    const dataset = datasetCsv.trim()
-      ? { filename: datasetFilename || 'dataset.csv', description: datasetDescription.trim(), csvContent: datasetCsv, url: datasetUrl.trim() || undefined }
-      : datasetUrl.trim()
-        ? { filename: '', description: datasetDescription.trim(), url: datasetUrl.trim() }
-        : undefined;
+    const dataset = draftDataset();
     const blankConfig: any = {
       isVirtualExperience: true,
       industry: effectiveIndustry,
@@ -1133,14 +1192,52 @@ function VirtualExperienceCreatePageInner() {
     if (!file) return;
     setDatasetFilename(file.name);
     setUploadingDataset(true);
-
-    // Read into memory for AI generation use
-    const text = await file.text();
-    setDatasetCsv(text);
-
-    // Storage upload happens server-side in guided-project-save when the VE is saved
-
-    setUploadingDataset(false);
+    setGenError('');
+    try {
+      if (file.size > VE_DATASET_UPLOAD_MAX_BYTES) {
+        setDatasetCsv('');
+        setDatasetFilename('');
+        setDatasetFileUrl('');
+        setDatasetUploadNote('');
+        setGenError(`Dataset files are limited to ${VE_DATASET_UPLOAD_MAX_LABEL}.`);
+        return;
+      }
+      if (isTextDatasetFile(file)) {
+        const text = await file.text();
+        setDatasetCsv(text);
+        setDatasetFileUrl('');
+        setDatasetUploadNote('');
+        return;
+      }
+      const { url } = await uploadToGithub(file, 've-datasets');
+      setDatasetFileUrl(url);
+      if (isXlsxDatasetFile(file)) {
+        try {
+          const { firstWorkbookSheetRows, rowsToCsv } = await import('@/lib/workbook-rows');
+          const { sheetName, rows } = await firstWorkbookSheetRows(await file.arrayBuffer());
+          setDatasetCsv(rowsToCsv(rows));
+          setDatasetUploadNote(`AI will read the first sheet, "${sheetName}". Students will download the original workbook.`);
+        } catch {
+          setDatasetCsv('');
+          setDatasetUploadNote('Workbook uploaded for student download, but AI could not read a sheet preview. Generation will use the brief instead.');
+        }
+      } else if (datasetExtension(file.name) === '.xls') {
+        setDatasetCsv('');
+        setDatasetUploadNote('Legacy XLS files are uploaded for student download. AI cannot read them here, so generation will use the brief unless you paste CSV.');
+      } else {
+        setDatasetCsv('');
+        setDatasetUploadNote('File uploaded for student download. AI will generate from the brief unless you paste CSV.');
+      }
+    } catch (err: any) {
+      setDatasetCsv('');
+      setDatasetFilename('');
+      setDatasetFileUrl('');
+      setDatasetUploadNote('');
+      setGenError(err?.message || 'Dataset upload failed. Please try again.');
+    } finally {
+      setUploadingDataset(false);
+      e.target.value = '';
+    }
   };
 
   // Replace or attach the dataset on an already-generated VE (Overview tab), writing
@@ -1150,8 +1247,27 @@ function VirtualExperienceCreatePageInner() {
     if (!file) return;
     setUploadingDatasetReplace(true);
     try {
-      const text = await file.text();
-      setConfig(c => c ? { ...c, dataset: { filename: file.name, description: c.dataset?.description || '', csvContent: text, url: c.dataset?.url } } : c);
+      if (file.size > VE_DATASET_UPLOAD_MAX_BYTES) {
+        setDatasetCsv('');
+        setDatasetUploadNote('');
+        alert(`Dataset files are limited to ${VE_DATASET_UPLOAD_MAX_LABEL}.`);
+        return;
+      }
+      if (isTextDatasetFile(file)) {
+        const text = await file.text();
+        setDatasetCsv('');
+        setDatasetUploadNote('');
+        setConfig(c => c ? { ...c, dataset: { filename: file.name, description: c.dataset?.description || '', csvContent: text, url: undefined } } : c);
+        return;
+      }
+      const { url } = await uploadToGithub(file, 've-datasets');
+      setDatasetCsv('');
+      setDatasetUploadNote('');
+      setConfig(c => c ? { ...c, dataset: { filename: file.name, description: c.dataset?.description || '', url } } : c);
+    } catch (err: any) {
+      setDatasetCsv('');
+      setDatasetUploadNote('');
+      alert(err?.message || 'Dataset upload failed. Please try again.');
     } finally {
       setUploadingDatasetReplace(false);
       e.target.value = '';
@@ -1230,15 +1346,17 @@ function VirtualExperienceCreatePageInner() {
   const downloadDataset = () => {
     const dataset = (config as any)?.dataset;
     if (!dataset) return;
-    const content = datasetCsv.trim() || dataset.csvContent || '';
+    if (dataset.url) {
+      window.open(dataset.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const content = dataset.csvContent || '';
     if (content) {
       const blob = new Blob([content], { type: 'text/csv' });
       const url  = URL.createObjectURL(blob);
       const a    = document.createElement('a');
       a.href = url; a.download = dataset.filename || 'dataset.csv'; a.click();
       URL.revokeObjectURL(url);
-    } else if (dataset.url) {
-      window.open(dataset.url, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -1661,15 +1779,15 @@ function VirtualExperienceCreatePageInner() {
                     {datasetInputTab === 'upload' && (
                       <>
                         <div className="flex items-center gap-2">
-                          <input ref={datasetRef} type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={handleDatasetFileUpload}/>
+                          <input ref={datasetRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetFileUpload}/>
                           <button onClick={() => datasetRef.current?.click()}
                             className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-70"
                             style={{ border: `1px solid ${C.cardBorder}`, color: C.muted, background: C.card }}>
                             {uploadingDataset ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
-                            {datasetFilename ? datasetFilename : 'Upload CSV file'}
+                            {datasetFilename ? datasetFilename : 'Upload CSV or Excel file'}
                           </button>
                           {datasetFilename && (
-                            <button onClick={() => { setDatasetCsv(''); setDatasetFilename(''); setDatasetUrl(''); }}
+                            <button onClick={() => { setDatasetCsv(''); setDatasetFilename(''); setDatasetFileUrl(''); setDatasetUploadNote(''); }}
                               className="hover:opacity-70 transition-opacity" style={{ color: C.faint }}>
                               <X className="w-3.5 h-3.5"/>
                             </button>
@@ -1689,6 +1807,11 @@ function VirtualExperienceCreatePageInner() {
                             {creationMode === 'ai' && ' · AI will generate questions from these exact values'}
                           </div>
                         )}
+                        {datasetUploadNote && (
+                          <p className="text-[12px]" style={{ color: C.faint }}>
+                            {datasetUploadNote}
+                          </p>
+                        )}
                       </>
                     )}
 
@@ -1704,10 +1827,15 @@ function VirtualExperienceCreatePageInner() {
                           The link will be shown to students as the dataset source.
                           {creationMode === 'ai' && ' To let AI generate questions from your data, paste the CSV content in the Upload tab instead.'}
                         </p>
+                        {datasetFileUrl.trim() && (
+                          <p className="text-[12px]" style={{ color: C.faint }}>
+                            The uploaded dataset file is active. Clear it on the Upload tab if you want this link to be used instead.
+                          </p>
+                        )}
                       </div>
                     )}
 
-                    {(datasetCsv.trim() || datasetUrl.trim()) && (
+                    {(datasetCsv.trim() || preferredDatasetUrl) && (
                       <div className="space-y-1">
                         <label className="text-[12px] font-medium" style={{ color: C.faint }}>Description shown to students</label>
                         <textarea
@@ -1959,7 +2087,7 @@ function VirtualExperienceCreatePageInner() {
 
                     {/* Dataset - replace/attach/remove works here even for an already-saved VE */}
                     <div className="p-4 rounded-2xl" style={{ background: C.card, border: `1px dashed ${C.cardBorder}` }}>
-                      <input ref={datasetReplaceRef} type="file" accept=".csv,.tsv,.txt" className="hidden" onChange={handleDatasetReplace} />
+                      <input ref={datasetReplaceRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetReplace} />
                       {dataset ? (
                         <div className="flex items-start gap-2">
                           <span className="text-base flex-shrink-0 mt-0.5">📊</span>
@@ -1969,7 +2097,7 @@ function VirtualExperienceCreatePageInner() {
                               <button onClick={() => datasetReplaceRef.current?.click()} disabled={uploadingDatasetReplace}
                                 className="flex items-center gap-1 text-[11px] font-semibold flex-shrink-0 hover:opacity-70 transition-opacity" style={{ color: C.cta }}>
                                 {uploadingDatasetReplace ? <Loader2 className="w-3 h-3 animate-spin" /> : <Upload className="w-3 h-3" />}
-                                {uploadingDatasetReplace ? 'Uploading…' : 'Replace file'}
+                                {uploadingDatasetReplace ? 'Uploading...' : 'Replace file'}
                               </button>
                               <button onClick={removeDataset} title="Remove dataset"
                                 className="flex-shrink-0 hover:text-red-400 transition-colors" style={{ color: C.faint }}>
@@ -1999,7 +2127,7 @@ function VirtualExperienceCreatePageInner() {
                         <button onClick={() => datasetReplaceRef.current?.click()} disabled={uploadingDatasetReplace}
                           className="flex items-center gap-2 text-[12px] font-semibold hover:opacity-70 transition-opacity" style={{ color: C.cta }}>
                           {uploadingDatasetReplace ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                          {uploadingDatasetReplace ? 'Uploading…' : 'Attach a dataset'}
+                          {uploadingDatasetReplace ? 'Uploading...' : 'Attach a dataset'}
                         </button>
                       )}
                     </div>
@@ -2493,7 +2621,7 @@ function VirtualExperienceCreatePageInner() {
                                                           const file = e.target.files?.[0];
                                                           if (!file) return;
                                                           try {
-                                                            const url = await uploadToCloudinary(file, 've-email-attachments');
+                                                            const { url } = await uploadToGithub(file, 've-email-attachments');
                                                             updateReq(mod.id, les.id, req.id, { attachments: [...(req.attachments || []), { name: file.name, url, mimeType: file.type }] });
                                                           } catch { alert('Upload failed'); }
                                                           e.target.value = '';
@@ -2574,7 +2702,7 @@ function VirtualExperienceCreatePageInner() {
                                                             const file = e.target.files?.[0];
                                                             if (!file) return;
                                                             try {
-                                                              const url = await uploadToCloudinary(file, 've-email-attachments');
+                                                              const { url } = await uploadToGithub(file, 've-email-attachments');
                                                               updateReq(mod.id, les.id, req.id, { attachments: [...(req.attachments || []), { name: file.name, url, mimeType: file.type }] });
                                                             } catch { alert('Upload failed'); }
                                                             e.target.value = '';

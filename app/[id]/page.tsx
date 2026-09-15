@@ -1706,12 +1706,12 @@ export default function PublicFormPage() {
                 {/* Dataset download (VE only) */}
                 {!isShortCourse && (dataset?.csvContent || dataset?.url) && (
                   <button onClick={() => {
-                    if (dataset.csvContent) {
+                    if (dataset.url) {
+                      window.open(dataset.url, '_blank', 'noopener,noreferrer');
+                    } else if (dataset.csvContent) {
                       const blob = new Blob([dataset.csvContent], { type: 'text/csv' });
                       const url = URL.createObjectURL(blob);
                       const a = document.createElement('a'); a.href = url; a.download = dataset.filename || 'dataset.csv'; a.click(); URL.revokeObjectURL(url);
-                    } else if (dataset.url) {
-                      window.open(dataset.url, '_blank', 'noopener,noreferrer');
                     }
                   }}
                   style={{ width: '100%', padding: '11px', borderRadius: 10, background: 'transparent', color: gp.body, fontSize: 13, fontWeight: 600, border: `1px solid ${gp.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
