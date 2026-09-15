@@ -228,6 +228,7 @@ export default function DocumentReviewPlayer({
         isDark={isDark}
         planName={entitlement.planName}
         upgradeUrl={entitlement.upgradeUrl}
+        priceLabel={entitlement.priceLabel}
         message="Document reviews are part of a paid plan. Upgrade to submit your report and get feedback."
       >
       <div className="space-y-3">
@@ -258,7 +259,7 @@ export default function DocumentReviewPlayer({
           }
         </div>
 
-        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} message={error} upgradeUrl={upgradeUrl} />}
+        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} message={error} upgradeUrl={upgradeUrl} />}
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <button onClick={handleSubmit} disabled={analyzing || !file}

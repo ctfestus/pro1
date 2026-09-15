@@ -202,6 +202,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
         isDark={isDark}
         planName={entitlement.planName}
         upgradeUrl={entitlement.upgradeUrl}
+        priceLabel={entitlement.priceLabel}
         message="Excel reviews are part of a paid plan. Upgrade to submit your workbook and get feedback."
       >
       <div className="space-y-3">
@@ -233,7 +234,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
           }
         </div>
 
-        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} message={error} upgradeUrl={upgradeUrl} />}
+        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} message={error} upgradeUrl={upgradeUrl} />}
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <button onClick={handleSubmit} disabled={analyzing || !file}

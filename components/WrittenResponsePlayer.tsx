@@ -241,12 +241,12 @@ export default function WrittenResponsePlayer({
         {error && (
           <div className="flex flex-col items-start">
             <p className="text-xs text-red-400 font-medium">{error}</p>
-            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} />}
+            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
           </div>
         )}
 
         {entitlement.dailyExhausted && (
-          <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} upgradeUrl={entitlement.upgradeUrl} />
+          <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
         )}
 
         <button onClick={handleSubmit} disabled={analyzing || !canSubmit || entitlement.dailyExhausted}
@@ -307,7 +307,7 @@ export default function WrittenResponsePlayer({
       {error && (
           <div className="flex flex-col items-start">
             <p className="text-xs text-red-400 font-medium">{error}</p>
-            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} />}
+            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
           </div>
         )}
 

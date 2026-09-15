@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabase';
-import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
+import { AI_REVIEW_UPGRADE_URL, aiReviewPriceLabel } from '@/lib/ai-review-upgrade';
 
 export interface AiReviewEntitlement {
   loading: boolean;
@@ -22,6 +22,8 @@ export interface AiReviewEntitlement {
   resetsInSeconds: number | null;
   /** True only when we positively know the allowance is spent -- never on a missing answer. */
   dailyExhausted: boolean;
+  /** The cheapest way onto the recommended plan, already worded. Null when unknown. */
+  priceLabel: string | null;
 }
 
 type Verdict = Omit<AiReviewEntitlement, 'loading'>;
@@ -34,6 +36,7 @@ const UNLOCKED: Verdict = {
   dailyRemaining: null,
   resetsInSeconds: null,
   dailyExhausted: false,
+  priceLabel: null,
 };
 
 let cached: Promise<Verdict> | null = null;
@@ -59,6 +62,7 @@ async function load(): Promise<Verdict> {
       // Only a real zero counts. An unreadable counter must not put an exhausted message in front
       // of a learner who still has their review.
       dailyExhausted: !!json.locked && dailyRemaining === 0,
+      priceLabel: aiReviewPriceLabel(json.priceAmount, json.priceCurrency, json.priceMonths),
     };
   } catch {
     // Never lock on a failure to ask. The route itself already refuses to guess, and the server
