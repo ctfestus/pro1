@@ -340,21 +340,22 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
         : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
             padding: '28px 30px', background: `linear-gradient(120deg, ${C.green}1a 0%, ${C.green}0d 60%, transparent 100%)` }}>
             <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 12.5, color: C.muted, fontWeight: 600 }}>Class recording</p>
-              <p style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 4 }}>
-                {openHref
-                  ? (source ? `Watch on ${source}` : 'Watch this recording')
-                  : 'Not added yet'}
+              <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
+                letterSpacing: '0.08em' }}>
+                Week {entry.week}
               </p>
+              <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 4 }}>
+                {entry.topic}
+              </h3>
               {openHref
                 ? <a href={openHref} target="_blank" rel="noopener noreferrer"
                     className="transition-opacity hover:opacity-90"
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 16,
                       padding: '11px 20px', borderRadius: 12, background: C.green, color: accent,
                       fontSize: 13.5, fontWeight: 800, textDecoration: 'none' }}>
-                    Open recording <ExternalLink size={14}/>
+                    {source ? `Open on ${source}` : 'Open recording'} <ExternalLink size={14}/>
                   </a>
-                : <p style={{ fontSize: 12.5, color: C.faint, marginTop: 8 }}>
+                : <p style={{ fontSize: 12.5, color: C.faint, marginTop: 10 }}>
                     Your instructor has not added this recording yet.
                   </p>
               }
@@ -364,16 +365,20 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
       }
 
       <div style={{ padding: '24px 26px 26px' }}>
-        <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
-          letterSpacing: '0.08em' }}>
-          Week {entry.week}
-        </p>
-        <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 6 }}>
-          {entry.topic}
-        </h3>
+        {/* Only a session that plays inline needs titling here -- the banner above an
+            external recording already carries its week and topic. */}
+        {embed && (<>
+          <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
+            letterSpacing: '0.08em' }}>
+            Week {entry.week}
+          </p>
+          <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 6 }}>
+            {entry.topic}
+          </h3>
+        </>)}
 
         <AuthoredText value={entry.description ?? ''}
-          style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: 14 }}/>
+          style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: embed ? 14 : 0 }}/>
 
         <SessionResources attachments={attachments} C={C}/>
 
