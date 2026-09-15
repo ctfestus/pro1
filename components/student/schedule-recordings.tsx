@@ -320,7 +320,7 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
         </h3>
 
         <AuthoredText value={entry.description ?? ''}
-          style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: 14, maxWidth: '68ch' }}/>
+          style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: 14 }}/>
 
         <SessionResources attachments={attachments} C={C}/>
 
@@ -506,7 +506,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
 
         {/* Description */}
         <AuthoredText value={selected.description ?? ''}
-          style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 22, maxWidth: '72ch' }}/>
+          style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginBottom: 22 }}/>
 
         {recEntries.length === 0
           ? <EmptyState icon={Video} title="Nothing published yet"
