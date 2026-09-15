@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, DARK_C, useC } from '@/lib/theme';
-import { ArrowLeft, Plus, Loader2, Save, X, Check, ChevronDown, Paperclip, Trash2, Video } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Save, X, Upload, Check, ChevronDown, Images, Paperclip, Trash2, Video } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sanitizeRichText } from '@/lib/sanitize';
+import { uploadToCloudinary, deleteFromCloudinary } from '@/lib/uploadToCloudinary';
+import { ImageLibrary } from '@/components/ImageLibrary';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { safeEmbedUrl } from '@/lib/safe-embed-url';
 import { AttachmentPicker } from '@/components/AttachmentPicker';
@@ -50,6 +52,11 @@ export default function CreateRecordingPage() {
   // Fields
   const [title, setTitle]               = useState('');
   const [description, setDescription]   = useState('');
+  const [coverImage, setCoverImage]         = useState('');
+  const [showCoverLibrary, setShowCoverLibrary] = useState(false);
+  const [originalCoverImage, setOriginalCoverImage] = useState('');
+  const [coverUploading, setCoverUploading] = useState(false);
+  const coverRef = useRef<HTMLInputElement>(null);
   const [status, setStatus]             = useState<'draft' | 'published'>('draft');
   const [cohorts, setCohorts]           = useState<{ id: string; name: string }[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
@@ -88,6 +95,8 @@ export default function CreateRecordingPage() {
         if (rec) {
           setTitle(rec.title ?? '');
           setDescription(rec.description ?? '');
+          setCoverImage(rec.cover_image ?? '');
+          setOriginalCoverImage(rec.cover_image ?? '');
           setStatus(rec.status ?? 'draft');
           if (rec.cohort_ids?.length) setSelectedCohortIds(rec.cohort_ids);
         }
@@ -154,6 +163,7 @@ export default function CreateRecordingPage() {
       const payload = {
         title: trimmedTitle,
         description: sanitizeRichText(description) || null,
+        cover_image: coverImage.trim() || null,
         cohort_ids: selectedCohortIds,
         status,
       };
@@ -162,6 +172,9 @@ export default function CreateRecordingPage() {
       if (editId) {
         const { error: e } = await supabase.from('recordings').update({ ...payload, updated_at: new Date().toISOString() }).eq('id', editId);
         if (e) throw e;
+        if (originalCoverImage && originalCoverImage !== coverImage.trim()) {
+          await deleteFromCloudinary(originalCoverImage).catch(() => {});
+        }
         await supabase.from('recording_entries').delete().eq('recording_id', editId);
       } else {
         const { data, error: e } = await supabase.from('recordings')
@@ -250,6 +263,50 @@ export default function CreateRecordingPage() {
                 <label style={lbl(C)}>Description</label>
                 <RichTextEditor value={description} onChange={setDescription}
                   placeholder="Brief overview of the programme or course..." enableAiAssist/>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={lbl(C)}>Cover Image</label>
+                <input ref={coverRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  setCoverUploading(true);
+                  try { const url = await uploadToCloudinary(file, 'covers'); setCoverImage(url); }
+                  catch (err: any) { setError(err?.message || 'Image upload failed.'); }
+                  finally { setCoverUploading(false); e.target.value = ''; }
+                }}/>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input type="url" value={coverImage} onChange={e => setCoverImage(e.target.value)}
+                    placeholder="https://example.com/image.jpg" style={{ ...inp(C), flex: 1 }}/>
+                  <button type="button" onClick={() => coverRef.current?.click()} disabled={coverUploading}
+                    style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10,
+                      border: 'none', background: C.pill, color: C.muted,
+                      fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                    <Upload size={14}/>{coverUploading ? 'Uploading...' : 'Upload'}
+                  </button>
+                  <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
+                    style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
+                    <Images style={{ width: 14, height: 14 }}/>
+                  </button>
+                </div>
+                {coverImage.trim() && (
+                  <div style={{ marginTop: 10, borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.cardBorder}`, position: 'relative' }}>
+                    <img src={coverImage.trim()} alt="Cover" style={{ width: '100%', height: 160, objectFit: 'cover', display: 'block' }}
+                      onError={e => ((e.target as HTMLImageElement).style.display = 'none')}/>
+                    <button type="button" onClick={() => setCoverImage('')}
+                      style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.55)', border: 'none',
+                        borderRadius: '50%', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                      <X size={14} color="white"/>
+                    </button>
+                  </div>
+                )}
+                {showCoverLibrary && (
+                  <ImageLibrary
+                    uploadFolder="covers"
+                    initialFolder="covers"
+                    onSelect={url => setCoverImage(url)}
+                    onClose={() => setShowCoverLibrary(false)}
+                  />
+                )}
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>

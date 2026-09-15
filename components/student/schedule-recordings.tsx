@@ -14,11 +14,10 @@ import { DataPlaygroundGrid } from '@/components/data-playground/lazy';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
-  ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronRight, Download, ExternalLink,
-  FileText, Mic, Paperclip, Play, PlayCircle, Video,
+  ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronRight, Download, ExternalLink, FileText,
+  Paperclip, Play, Video,
 } from 'lucide-react';
-import { safeEmbedUrl } from '@/lib/safe-embed-url';
-import { formatAttachmentSize, safeAttachmentUrl } from '@/lib/lesson-attachment';
+import { formatAttachmentSize } from '@/lib/lesson-attachment';
 import { looksLikeHtml, toPlainText } from '@/lib/plain-text';
 import {
   normalizeRecordingAttachments, recordingAttachmentBadge, recordingAttachmentHref,
@@ -203,180 +202,60 @@ function AuthoredText({ value, style }: { value: string; style?: React.CSSProper
   return <p className="whitespace-pre-line" style={style}>{value}</p>;
 }
 
-// The resources handed out with a session: uploads download under the name the
-// instructor gave them, pasted links open where they live.
-function SessionResources({ attachments, C }: { attachments: RecordingAttachment[]; C: typeof LIGHT_C }) {
-  if (!attachments.length) return null;
-  return (
-    <div style={{ marginTop: 26 }}>
-      <p style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11, fontWeight: 700,
-        color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-        <Paperclip size={12}/> Resources
-      </p>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {attachments.map(att => {
-          const size = formatAttachmentSize(att.size);
-          return (
-            <a key={att.id} href={recordingAttachmentHref(att)} target="_blank" rel="noopener noreferrer"
-              download={att.kind === 'file' ? att.name : undefined}
-              style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px',
-                borderRadius: 12, background: C.pill, textDecoration: 'none' }}>
-              <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
-                background: C.card, borderRadius: 6, padding: '3px 6px', flexShrink: 0,
-                border: `1px solid ${C.divider}` }}>
-                {recordingAttachmentBadge(att)}
-              </span>
-              <span style={{ flex: 1, minWidth: 0 }}>
-                <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.text }} className="truncate">{att.name}</span>
-                {size && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{size}</span>}
-              </span>
-              {att.kind === 'file'
-                ? <Download size={14} style={{ color: C.faint, flexShrink: 0 }}/>
-                : <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>}
-            </a>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-// The dark ground a session's video sits on, and that the link band borrows so a
-// recording hosted elsewhere still reads as the video rather than as a notice.
-const SURFACE = 'linear-gradient(135deg, #0f1115 0%, #181d26 55%, #0d1014 100%)';
-
-// The picture on a link banner: the three things a class recording is made of, floating
-// as tiles the way an illustration would. Decorative, so it is hidden from readers and
-// dropped entirely on a narrow screen where the banner needs its width for words.
-function RecordingIcons({ C, dim = false }: { C: typeof LIGHT_C; dim?: boolean }) {
-  const tile = (Icon: any, style: React.CSSProperties, size: number, glyph: number, tint?: string) => (
-    <span aria-hidden style={{
-      position: 'absolute', width: size, height: size, borderRadius: 18,
-      background: tint ?? C.card, display: 'flex', alignItems: 'center', justifyContent: 'center',
-      boxShadow: '0 12px 26px rgba(0,0,0,0.10)', ...style,
-    }}>
-      <Icon size={glyph} style={{ color: tint ? (C === DARK_C ? '#111' : '#fff') : C.muted }}/>
-    </span>
-  );
-
-  return (
-    <div aria-hidden className="hidden sm:block"
-      style={{ position: 'relative', width: 212, height: 124, flexShrink: 0, opacity: dim ? 0.45 : 1 }}>
-      {tile(Video, { left: 0, top: 26, transform: 'rotate(-10deg)' }, 62, 25)}
-      {tile(PlayCircle, { left: 72, top: 4, transform: 'rotate(5deg)' }, 76, 32, C.green)}
-      {tile(Mic, { left: 158, top: 42, transform: 'rotate(-6deg)' }, 54, 22)}
-    </div>
-  );
-}
-
-// The session the student is watching: the video itself, what the class covered, the
-// files for it, and the way on to the next one. One session is always on stage -- the
-// list beside it switches which, so nothing collapses underfoot while you are watching.
-function SessionStage({ entry, C }: { entry: any; C: typeof LIGHT_C }) {
-  const embed = safeEmbedUrl(entry.url);
-  // Authored by hand, so the fallback link goes through the same protocol check every
-  // other authored destination does rather than straight into an href.
-  const openHref = safeAttachmentUrl(entry.url ?? '');
-  const accent = C === DARK_C ? '#111' : '#fff';
+// What a class came with: the instructor's notes for the session, and the files handed
+// out with it. Folded away under the recording so the week still reads as a list.
+function SessionExtras({ entry, C }: { entry: any; C: typeof LIGHT_C }) {
+  const [open, setOpen] = useState(false);
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
-  // An empty rich-text field still arrives as markup, so ask what it actually says.
-  // With nothing to say and nothing to hand out, the body below is just white space.
+  // An untouched rich-text field still arrives as markup, so ask what it actually says.
   const notes = toPlainText(entry.description).trim() ? entry.description as string : '';
-  const hasBody = !!embed || !!notes || attachments.length > 0;
+  if (!notes && !attachments.length) return null;
+
+  const summary = [
+    notes ? 'Session notes' : '',
+    attachments.length ? `${attachments.length} file${attachments.length !== 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(' - ');
 
   return (
-    <motion.div key={entry.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.18 }}
-      style={{ background: C.card, borderRadius: 18, overflow: 'hidden' }}>
-      {embed
-        ? <div style={{ background: SURFACE, aspectRatio: '16 / 9', maxWidth: '100%' }}>
-            <iframe src={embed} title={entry.topic} allowFullScreen
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}/>
+    <div style={{ padding: '0 16px 12px' }}>
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', border: 'none',
+          background: 'transparent', cursor: 'pointer', color: C.muted, fontSize: 12, fontWeight: 600 }}>
+        <ChevronDown size={13} style={{ transform: open ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
+        {summary}
+      </button>
+
+      {open && (<>
+        <AuthoredText value={notes}
+          style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginTop: 6 }}/>
+
+        {attachments.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: notes ? 12 : 6 }}>
+            {attachments.map(att => {
+              const size = formatAttachmentSize(att.size);
+              return (
+                <a key={att.id} href={recordingAttachmentHref(att)} target="_blank" rel="noopener noreferrer"
+                  download={att.kind === 'file' ? att.name : undefined}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                    borderRadius: 12, background: C.pill, textDecoration: 'none' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
+                    background: C.card, borderRadius: 6, padding: '3px 6px', flexShrink: 0 }}>
+                    {recordingAttachmentBadge(att)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.text }} className="truncate">{att.name}</span>
+                    {size && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{size}</span>}
+                  </span>
+                  {att.kind === 'file'
+                    ? <Download size={14} style={{ color: C.faint, flexShrink: 0 }}/>
+                    : <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>}
+                </a>
+              );
+            })}
           </div>
-        : <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 20,
-            padding: '28px 30px', background: `linear-gradient(120deg, ${C.green}1a 0%, ${C.green}0d 60%, transparent 100%)` }}>
-            <div style={{ minWidth: 0 }}>
-              <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
-                letterSpacing: '0.08em' }}>
-                Week {entry.week}
-              </p>
-              <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 4 }}>
-                {entry.topic}
-              </h3>
-              {openHref
-                ? <a href={openHref} target="_blank" rel="noopener noreferrer"
-                    className="transition-opacity hover:opacity-90"
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 16,
-                      padding: '11px 20px', borderRadius: 12, background: C.green, color: accent,
-                      fontSize: 13.5, fontWeight: 800, textDecoration: 'none' }}>
-                    <Download size={15}/> Download recording
-                  </a>
-                : <p style={{ fontSize: 12.5, color: C.faint, marginTop: 10 }}>
-                    Your instructor has not added this recording yet.
-                  </p>
-              }
-            </div>
-            <RecordingIcons C={C} dim={!openHref}/>
-          </div>
-      }
-
-      {hasBody && (
-        <div className="p-5 pb-6 sm:p-6 sm:pt-6 sm:pb-7">
-          {/* Only a session that plays inline needs titling here -- the banner above an
-              external recording already carries its week and topic. */}
-          {embed && (<>
-            <p style={{ fontSize: 11, fontWeight: 700, color: C.green, textTransform: 'uppercase',
-              letterSpacing: '0.08em' }}>
-              Week {entry.week}
-            </p>
-            <h3 style={{ fontSize: 19, fontWeight: 800, color: C.text, lineHeight: 1.3, marginTop: 6 }}>
-              {entry.topic}
-            </h3>
-          </>)}
-
-          <AuthoredText value={notes}
-            style={{ fontSize: 13.5, color: C.muted, lineHeight: 1.75, marginTop: embed ? 14 : 0 }}/>
-
-          <SessionResources attachments={attachments} C={C}/>
-        </div>
-      )}
-    </motion.div>
-  );
-}
-
-// One line in the week's playlist. Says enough to choose with: the topic, and whether
-// the class came with notes or files.
-function PlaylistRow({ entry, index, active, C, onSelect }: {
-  entry: any;
-  index: number;
-  active: boolean;
-  C: typeof LIGHT_C;
-  onSelect: () => void;
-}) {
-  // Nothing but the topic: what a session comes with is the stage's business, and this
-  // list is long enough once a programme runs ten weeks.
-  const external = !safeEmbedUrl(entry.url ?? '');
-
-  return (
-    <button onClick={onSelect}
-      className="transition-colors"
-      style={{ display: 'flex', alignItems: 'center', gap: 10, textAlign: 'left',
-        padding: '9px 10px 9px 12px', border: 'none', cursor: 'pointer', borderRadius: 10,
-        borderLeft: `2px solid ${active ? C.green : C.divider}`,
-        borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
-        background: active ? C.pill : 'transparent' }}>
-      <span style={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-        color: active ? C.green : C.faint, fontSize: 11, fontWeight: 700 }}>
-        {active
-          ? (external ? <ExternalLink size={12}/> : <Play size={11} fill={C.green}/>)
-          : index}
-      </span>
-      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 700 : 500,
-        color: active ? C.text : C.muted }}
-        className="truncate">
-        {entry.topic}
-      </span>
-    </button>
+        )}
+      </>)}
+    </div>
   );
 }
 
@@ -386,11 +265,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   const [loading, setLoading]       = useState(true);
   const [selected, setSelected]     = useState<any | null>(null);
   const [activeWeek, setActiveWeek] = useState<number | null>(null);
-  // The session on stage. A week always has one playing, so arriving at a recording or
-  // switching week puts that week's first session up rather than an empty frame.
-  const [activeEntryId, setActiveEntryId] = useState<string | null>(null);
   const topRef = useRef<HTMLDivElement>(null);
-  const stageRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -400,25 +275,10 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
       const cohortId = isIndividualCohort((student as any)?.cohort?.cohort_kind) ? null : student?.cohort_id;
       if (!cohortId) { setLoading(false); return; }
       const { data } = await supabase.from('recordings')
-        .select('id, title, description')
+        .select('id, title, description, cover_image')
         .contains('cohort_ids', [cohortId]).eq('status', 'published')
         .order('created_at', { ascending: false });
-      const recs = data ?? [];
-      setRecordings(recs);
-      // The list card promises how much is inside, so the sessions come with it rather
-      // than one fetch per card. It also means opening a recording needs no round trip.
-      if (recs.length) {
-        const { data: rows } = await supabase.from('recording_entries')
-          .select('id, recording_id, week, topic, url, description, attachments, order_index')
-          .in('recording_id', recs.map(r => r.id)).order('week').order('order_index');
-        const grouped: Record<string, any[]> = {};
-        (rows ?? []).forEach((row: any) => {
-          (grouped[row.recording_id] ||= []).push({
-            ...row, attachments: normalizeRecordingAttachments(row.attachments),
-          });
-        });
-        setEntries(grouped);
-      }
+      setRecordings(data ?? []);
       setLoading(false);
     };
     load();
@@ -436,24 +296,20 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
         ...row, attachments: normalizeRecordingAttachments(row.attachments),
       }));
       setEntries(prev => ({ ...prev, [rec.id]: rows }));
-      openFirstWeek(rows);
+      const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
+      setActiveWeek(firstWeek);
     } else {
-      openFirstWeek(entries[rec.id]);
+      const rows = entries[rec.id];
+      const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
+      setActiveWeek(firstWeek);
     }
   }
 
-  function openFirstWeek(rows: any[]) {
-    const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
-    setActiveWeek(firstWeek);
-    setActiveEntryId(rows.find((r: any) => r.week === firstWeek)?.id ?? null);
-  }
-
   if (loading) return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {[0,1,2,3].map(i => (
-        <div key={i} className="rounded-2xl p-4 flex gap-3" style={{ background: C.card }}>
-          <Sk w={46} h={46} r={14}/>
-          <div className="flex-1 space-y-2 pt-1"><Sk h={13} w="65%"/><Sk h={10} w="40%"/></div>
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {[0,1,2,3,4,5].map(i => (
+        <div key={i} className="rounded-2xl overflow-hidden" style={{ background: C.card }}>
+          <Sk h={160} r={0}/><div className="p-3 space-y-2"><Sk h={13} w="70%"/><Sk h={10} w="45%"/></div>
         </div>
       ))}
     </div>
@@ -467,133 +323,124 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
   if (selected) {
     const recEntries = entries[selected.id] ?? [];
     const weeks = [...new Set(recEntries.map((e: any) => e.week))].sort((a, b) => a - b);
-    const activeEntry = recEntries.find((e: any) => e.id === activeEntryId) ?? recEntries[0] ?? null;
-
-    // A week opens and closes on its own. Choosing a session is what changes the stage,
-    // so a student can look through week 7 without losing what they are watching.
-    const toggleWeek = (week: number) => setActiveWeek(current => current === week ? null : week);
-
-    // On a phone the outline sits above the video, so a tap has to carry the reader down
-    // to what they just chose. On a desktop the stage is already beside them.
-    const selectSession = (id: string) => {
-      setActiveEntryId(id);
-      if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-        window.requestAnimationFrame(() => stageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
-      }
-    };
+    const currentWeek = activeWeek ?? weeks[0] ?? null;
+    const weekEntries = recEntries.filter((e: any) => e.week === currentWeek);
+    const totalEntries = recEntries.length;
 
     return (
       <motion.div ref={topRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-        {/* Programme header: what this is, and the way back */}
-        <div style={{ background: C.card, borderRadius: 18, marginBottom: 20 }} className="p-4 sm:p-6">
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-            <button onClick={() => setSelected(null)} aria-label="Back to recordings"
-              style={{ width: 38, height: 38, borderRadius: 12, border: 'none',
-                background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                cursor: 'pointer', flexShrink: 0 }}>
-              <ArrowLeft size={16} style={{ color: C.text }}/>
-            </button>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 20, fontWeight: 800, color: C.text, lineHeight: 1.2 }} className="truncate">
-                {selected.title}
-              </p>
-            </div>
+        {/* Back + title */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
+          <button onClick={() => setSelected(null)}
+            style={{ width: 34, height: 34, borderRadius: 10,
+              background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', flexShrink: 0 }}>
+            <ArrowLeft size={15} style={{ color: C.text }}/>
+          </button>
+          <div style={{ minWidth: 0 }}>
+            <p style={{ fontSize: 16, fontWeight: 800, color: C.text, lineHeight: 1.2 }} className="truncate">{selected.title}</p>
+            <p style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>{totalEntries} recording{totalEntries !== 1 ? 's' : ''} - {weeks.length} week{weeks.length !== 1 ? 's' : ''}</p>
           </div>
-
-          <AuthoredText value={selected.description ?? ''}
-            style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginTop: 18,
-              paddingTop: 18, borderTop: `1px solid ${C.divider}` }}/>
         </div>
 
-        {recEntries.length === 0
-          ? <EmptyState icon={Video} title="Nothing published yet"
-              body="Recordings for this programme will appear here once your instructor publishes them."/>
-          : (
-            <div className="grid gap-5 items-start lg:gap-7 lg:grid-cols-[264px_minmax(0,1fr)]">
-              {/* Navigation: every week down the left, the open one showing its sessions */}
-              <div style={{ background: C.card, borderRadius: 18, overflowX: 'hidden' }}
-                className="p-2 sm:p-2.5 max-h-[46vh] overflow-y-auto lg:max-h-[calc(100vh-120px)] lg:sticky lg:top-2 hide-scrollbar">
-                {weeks.map(w => {
-                  const rows = recEntries.filter((e: any) => e.week === w);
-                  const expanded = activeWeek === w;
-                  const playingHere = rows.some((e: any) => e.id === activeEntry?.id);
-                  return (
-                    <div key={w} style={{ marginBottom: 2 }}>
-                      <button onClick={() => toggleWeek(w)} aria-expanded={expanded}
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
-                          padding: '9px 6px', border: 'none', cursor: 'pointer', background: 'transparent' }}>
-                        <ChevronDown size={13} style={{ color: C.faint, flexShrink: 0,
-                          transform: expanded ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 700,
-                          textTransform: 'uppercase', letterSpacing: '0.08em',
-                          color: playingHere ? C.green : C.muted }}>
-                          Week {w}
-                        </span>
-                        <span style={{ fontSize: 11, color: C.faint, flexShrink: 0 }}>{rows.length}</span>
-                      </button>
-                      {expanded && (
-                        <div style={{ display: 'flex', flexDirection: 'column', paddingLeft: 7 }}>
-                          {rows.map((entry: any, idx: number) => (
-                            <PlaylistRow key={entry.id} entry={entry} index={idx + 1} C={C}
-                              active={activeEntry?.id === entry.id}
-                              onSelect={() => selectSession(entry.id)}/>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-              {/* Stage: what is playing */}
-              <div ref={stageRef} className="min-w-0 scroll-mt-4">
-              {activeEntry
-                ? <SessionStage entry={activeEntry} C={C}/>
-                : <p style={{ fontSize: 13, color: C.faint, padding: '24px 0' }}>Pick a recording to start watching.</p>
-              }
-              </div>
+        {/* Cover banner */}
+        {selected.cover_image && (
+          <div style={{ borderRadius: 16, overflow: 'hidden', marginBottom: 16, height: 180,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.12)' }}>
+            <img src={selected.cover_image} alt={selected.title} style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'top' }}/>
+          </div>
+        )}
 
-            </div>
-          )}
+        {/* Description */}
+        <AuthoredText value={selected.description ?? ''}
+          style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}/>
+
+        {/* Week tabs */}
+        {weeks.length > 0 && (
+          <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4, marginBottom: 16 }}
+            className="hide-scrollbar">
+            {weeks.map(w => (
+              <button key={w} onClick={() => setActiveWeek(w)}
+                style={{
+                  padding: '6px 14px', borderRadius: 999, fontSize: 13, fontWeight: 700,
+                  whiteSpace: 'nowrap', cursor: 'pointer', flexShrink: 0, border: 'none',
+                  background: currentWeek === w ? C.green : C.pill,
+                  color: currentWeek === w ? (C === DARK_C ? '#111' : '#fff') : C.muted,
+                  transition: 'all 0.15s',
+                }}>
+                Week {w}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Entries for selected week */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {weekEntries.length === 0
+            ? <p style={{ fontSize: 13, color: C.faint, textAlign: 'center', padding: '24px 0' }}>No recordings for this week.</p>
+            : weekEntries.map((entry: any, idx: number) => (
+                <motion.div key={entry.id}
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
+                  style={{ borderRadius: 16, background: C.card }}>
+                  <a href={entry.url} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+                      textDecoration: 'none' }}>
+                    {/* Play button */}
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.green,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Play size={16} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="truncate">
+                        {entry.topic}
+                      </p>
+                      <p style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Week {entry.week} - Recording {idx + 1}</p>
+                    </div>
+                    <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>
+                  </a>
+                  <SessionExtras entry={entry} C={C}/>
+                </motion.div>
+              ))
+          }
+        </div>
       </motion.div>
     );
   }
 
-  /* -- List view -- */
+  /* -- Grid view -- */
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      {recordings.map((rec, i) => {
-        const rows = entries[rec.id] ?? [];
-        const weekCount = new Set(rows.map((r: any) => r.week)).size;
-        const blurb = toPlainText(rec.description);
-        return (
-          <motion.button key={rec.id} onClick={() => openRecording(rec)}
-            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
-            className="text-left w-full"
-            style={{ background: C.card, borderRadius: 18, padding: 20, cursor: 'pointer',
-              display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-            <div style={{ width: 46, height: 46, borderRadius: 14, background: C.green,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-              <Play size={18} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>
+    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      {recordings.map((rec, i) => (
+        <motion.button key={rec.id} onClick={() => openRecording(rec)}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }}
+          className="text-left w-full"
+          style={{ background: C.card, borderRadius: 16,
+            overflow: 'hidden', cursor: 'pointer' }}>
+          {/* Cover */}
+          <div style={{ height: 160, background: C.pill, position: 'relative', overflow: 'hidden' }}>
+            {rec.cover_image
+              ? <img src={rec.cover_image} alt={rec.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }}/>
+              : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Video size={28} style={{ color: C.faint }}/>
+                </div>
+            }
+            {/* Play overlay */}
+            <div style={{ position: 'absolute', inset: 0, background: 'rgba(0,0,0,0.25)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'rgba(255,255,255,0.92)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                boxShadow: '0 2px 10px rgba(0,0,0,0.22)' }}>
+                <Play size={14} fill={C.green} style={{ color: C.green, marginLeft: 2 }}/>
+              </div>
             </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <p style={{ fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="line-clamp-2">
-                {rec.title}
-              </p>
-              <p style={{ fontSize: 12, color: C.faint, marginTop: 3 }}>
-                {rows.length
-                  ? `${rows.length} recording${rows.length !== 1 ? 's' : ''} - ${weekCount} week${weekCount !== 1 ? 's' : ''}`
-                  : 'No recordings yet'}
-              </p>
-              {blurb && (
-                <p style={{ fontSize: 12.5, color: C.muted, lineHeight: 1.5, marginTop: 8 }} className="line-clamp-2">
-                  {blurb}
-                </p>
-              )}
-            </div>
-            <ChevronRight size={16} style={{ color: C.faint, flexShrink: 0, marginTop: 2 }}/>
-          </motion.button>
-        );
-      })}
+          </div>
+          {/* Info */}
+          <div style={{ padding: '10px 12px 12px' }}>
+            <p style={{ fontSize: 13, fontWeight: 700, color: C.text, lineHeight: 1.3 }}
+              className="line-clamp-2">{rec.title}</p>
+          </div>
+        </motion.button>
+      ))}
     </div>
   );
 }
