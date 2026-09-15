@@ -269,29 +269,6 @@ function RecordingIcons({ C, dim = false }: { C: typeof LIGHT_C; dim?: boolean }
   );
 }
 
-// Where a recording actually lives, for the cases where it cannot play in the app.
-// Naming it is the honest version of a play button that opens a new tab -- but a
-// student reads "Microsoft OneDrive", not "festman-my.sharepoint.com", so the hosts
-// that turn up in practice get their real names and anything else falls back to the
-// bare domain.
-const LINK_SOURCES: [RegExp, string][] = [
-  [/(^|\.)sharepoint\.com$/, 'Microsoft OneDrive'],
-  [/(^|\.)onedrive\.live\.com$/, 'Microsoft OneDrive'],
-  [/(^|\.)stream\.microsoft\.com$/, 'Microsoft Stream'],
-  [/(^|\.)teams\.microsoft\.com$/, 'Microsoft Teams'],
-  [/(^|\.)drive\.google\.com$/, 'Google Drive'],
-  [/(^|\.)docs\.google\.com$/, 'Google Docs'],
-  [/(^|\.)zoom\.us$/, 'Zoom'],
-  [/(^|\.)dropbox\.com$/, 'Dropbox'],
-  [/(^|\.)loom\.com$/, 'Loom'],
-];
-
-function linkSource(url: string): string {
-  let hostname: string;
-  try { hostname = new URL(url).hostname.toLowerCase().replace(/^www\./, ''); } catch { return ''; }
-  return LINK_SOURCES.find(([pattern]) => pattern.test(hostname))?.[1] ?? hostname;
-}
-
 // The session the student is watching: the video itself, what the class covered, the
 // files for it, and the way on to the next one. One session is always on stage -- the
 // list beside it switches which, so nothing collapses underfoot while you are watching.
@@ -307,7 +284,6 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
   // Authored by hand, so the fallback link goes through the same protocol check every
   // other authored destination does rather than straight into an href.
   const openHref = safeAttachmentUrl(entry.url ?? '');
-  const source = linkSource(entry.url ?? '');
   const accent = C === DARK_C ? '#111' : '#fff';
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
 
@@ -344,7 +320,7 @@ function SessionStage({ entry, C, onPrev, onNext, hasPrev, hasNext }: {
                     style={{ display: 'inline-flex', alignItems: 'center', gap: 8, marginTop: 16,
                       padding: '11px 20px', borderRadius: 12, background: C.green, color: accent,
                       fontSize: 13.5, fontWeight: 800, textDecoration: 'none' }}>
-                    {source ? `Open on ${source}` : 'Open recording'} <ExternalLink size={14}/>
+                    <Download size={15}/> Download recording
                   </a>
                 : <p style={{ fontSize: 12.5, color: C.faint, marginTop: 10 }}>
                     Your instructor has not added this recording yet.
@@ -397,33 +373,28 @@ function PlaylistRow({ entry, index, active, C, onSelect }: {
   C: typeof LIGHT_C;
   onSelect: () => void;
 }) {
-  const count = (entry.attachments ?? []).length;
+  // Nothing but the topic: what a session comes with is the stage's business, and this
+  // list is long enough once a programme runs ten weeks.
   const external = !safeEmbedUrl(entry.url ?? '');
-  const meta = [
-    external ? 'Opens in a new tab' : '',
-    entry.description ? 'Notes' : '',
-    count ? `${count} resource${count !== 1 ? 's' : ''}` : '',
-  ].filter(Boolean).join(' - ');
 
   return (
     <button onClick={onSelect}
+      className="transition-colors"
       style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', textAlign: 'left',
-        padding: '12px', borderRadius: 12, border: 'none', cursor: 'pointer',
-        background: active ? C.pill : 'transparent' }}>
-      <span style={{ width: 28, height: 28, borderRadius: 9, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: active ? C.green : C.pill,
-        color: active ? (C === DARK_C ? '#111' : '#fff') : C.muted,
-        fontSize: 12, fontWeight: 700 }}>
-        {active && !external
-          ? <Play size={12} fill={C === DARK_C ? '#111' : '#fff'} style={{ marginLeft: 1 }}/>
-          : active ? <ExternalLink size={12}/> : index}
+        padding: '9px 10px 9px 12px', border: 'none', cursor: 'pointer', borderRadius: 10,
+        borderLeft: `2px solid ${active ? C.green : C.divider}`, marginLeft: 6,
+        borderTopLeftRadius: 0, borderBottomLeftRadius: 0,
+        background: active ? C.card : 'transparent' }}>
+      <span style={{ width: 16, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        color: active ? C.green : C.faint, fontSize: 11, fontWeight: 700 }}>
+        {active
+          ? (external ? <ExternalLink size={12}/> : <Play size={11} fill={C.green}/>)
+          : index}
       </span>
-      <span style={{ flex: 1, minWidth: 0 }}>
-        <span style={{ display: 'block', fontSize: 13, fontWeight: active ? 700 : 600, color: C.text }} className="truncate">
-          {entry.topic}
-        </span>
-        {meta && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{meta}</span>}
+      <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: active ? 700 : 500,
+        color: active ? C.text : C.muted }}
+        className="truncate">
+        {entry.topic}
       </span>
     </button>
   );
@@ -558,38 +529,29 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           ? <EmptyState icon={Video} title="Nothing published yet"
               body="Recordings for this programme will appear here once your instructor publishes them."/>
           : (
-            <div className="grid gap-5 items-start lg:gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-              {/* Stage: what is playing */}
-              {activeEntry
-                ? <SessionStage entry={activeEntry} C={C}
-                    onPrev={() => step(-1)} onNext={() => step(1)}
-                    hasPrev={position > 0} hasNext={position >= 0 && position < recEntries.length - 1}/>
-                : <p style={{ fontSize: 13, color: C.faint, padding: '24px 0' }}>Pick a recording to start watching.</p>
-              }
-
-              {/* Playlist: every week down the side, the open one showing its sessions */}
-              <div style={{ background: C.card, borderRadius: 18, padding: 10 }}
-                className="lg:max-h-[560px] lg:overflow-y-auto hide-scrollbar">
+            <div className="grid gap-5 items-start lg:gap-7 lg:grid-cols-[264px_minmax(0,1fr)]">
+              {/* Navigation: every week down the left, the open one showing its sessions */}
+              <div className="order-2 lg:order-1 lg:sticky lg:top-2 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto hide-scrollbar">
                 {weeks.map(w => {
                   const rows = recEntries.filter((e: any) => e.week === w);
                   const expanded = activeWeek === w;
                   const playingHere = rows.some((e: any) => e.id === activeEntry?.id);
                   return (
-                    <div key={w}>
+                    <div key={w} style={{ marginBottom: 2 }}>
                       <button onClick={() => toggleWeek(w)} aria-expanded={expanded}
                         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', textAlign: 'left',
-                          padding: '11px 12px', borderRadius: 12, border: 'none', cursor: 'pointer',
-                          background: 'transparent' }}>
-                        <ChevronDown size={14} style={{ color: C.faint, flexShrink: 0,
+                          padding: '9px 6px', border: 'none', cursor: 'pointer', background: 'transparent' }}>
+                        <ChevronDown size={13} style={{ color: C.faint, flexShrink: 0,
                           transform: expanded ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
-                        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700,
-                          color: playingHere ? C.green : C.text }}>
+                        <span style={{ flex: 1, minWidth: 0, fontSize: 11, fontWeight: 700,
+                          textTransform: 'uppercase', letterSpacing: '0.08em',
+                          color: playingHere ? C.green : C.muted }}>
                           Week {w}
                         </span>
                         <span style={{ fontSize: 11, color: C.faint, flexShrink: 0 }}>{rows.length}</span>
                       </button>
                       {expanded && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4, padding: '2px 0 8px 10px' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
                           {rows.map((entry: any, idx: number) => (
                             <PlaylistRow key={entry.id} entry={entry} index={idx + 1} C={C}
                               active={activeEntry?.id === entry.id}
@@ -601,6 +563,16 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
                   );
                 })}
               </div>
+              {/* Stage: what is playing */}
+              <div className="order-1 lg:order-2 min-w-0">
+              {activeEntry
+                ? <SessionStage entry={activeEntry} C={C}
+                    onPrev={() => step(-1)} onNext={() => step(1)}
+                    hasPrev={position > 0} hasNext={position >= 0 && position < recEntries.length - 1}/>
+                : <p style={{ fontSize: 13, color: C.faint, padding: '24px 0' }}>Pick a recording to start watching.</p>
+              }
+              </div>
+
             </div>
           )}
       </motion.div>
