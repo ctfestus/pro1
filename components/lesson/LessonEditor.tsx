@@ -34,7 +34,7 @@ import { LessonRuntimeProvider } from '@/components/lesson/LessonRuntimeContext'
 import { useTenant } from '@/components/TenantProvider';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { AudioPicker } from '@/components/lesson/AudioPicker';
-import { AttachmentPicker } from '@/components/lesson/AttachmentPicker';
+import { AttachmentPicker } from '@/components/AttachmentPicker';
 import { InteractiveInsertMenu } from '@/components/lesson/InteractiveInsertMenu';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { sanitizeRichText } from '@/lib/sanitize';

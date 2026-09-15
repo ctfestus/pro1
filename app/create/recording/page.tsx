@@ -3,16 +3,31 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, DARK_C, useC } from '@/lib/theme';
-import { ArrowLeft, Plus, Loader2, Save, X, Upload, Check, Images } from 'lucide-react';
+import { ArrowLeft, Plus, Loader2, Save, X, Upload, Check, ChevronDown, Images, Paperclip, Trash2, Video } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { uploadToCloudinary, deleteFromCloudinary } from '@/lib/uploadToCloudinary';
 import { ImageLibrary } from '@/components/ImageLibrary';
+import { RichTextEditor } from '@/components/RichTextEditor';
+import { safeEmbedUrl } from '@/lib/safe-embed-url';
+import { AttachmentPicker } from '@/components/AttachmentPicker';
+import { formatAttachmentSize } from '@/lib/lesson-attachment';
+import {
+  isUploadedAttachmentUrl, normalizeRecordingAttachments, recordingAttachmentBadge,
+  type RecordingAttachment,
+} from '@/lib/recording-attachments';
 
 // --- Design tokens: standard palette from lib/theme.ts ---
 
-interface Entry { id: string; week: number; topic: string; url: string; }
+interface Entry {
+  id: string;
+  week: number;
+  topic: string;
+  url: string;
+  description: string;
+  attachments: RecordingAttachment[];
+}
 
 function inp(C: typeof LIGHT_C) {
   return {
@@ -46,6 +61,9 @@ export default function CreateRecordingPage() {
   const [cohorts, setCohorts]           = useState<{ id: string; name: string }[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [entries, setEntries]           = useState<Entry[]>([]);
+  // Sessions start collapsed so a long programme stays scannable; a session the author
+  // just added opens on its own, since the next thing they do is type into it.
+  const [openSessionIds, setOpenSessionIds] = useState<Set<string>>(new Set());
   const [originalWeeks, setOriginalWeeks] = useState<Set<number>>(new Set());
 
   const toggleCohort = (id: string) =>
@@ -85,6 +103,8 @@ export default function CreateRecordingPage() {
         if (entriesData) {
           setEntries(entriesData.map((e: any) => ({
             id: e.id, week: e.week, topic: e.topic, url: e.url,
+            description: e.description ?? '',
+            attachments: normalizeRecordingAttachments(e.attachments),
           })));
           setOriginalWeeks(new Set(entriesData.map((e: any) => e.week)));
         }
@@ -93,13 +113,37 @@ export default function CreateRecordingPage() {
     init();
   }, [router]);
 
-  function addEntry() {
+  function addEntry(week?: number) {
     const maxWeek = entries.length ? Math.max(...entries.map(e => e.week)) : 0;
-    setEntries(prev => [...prev, { id: crypto.randomUUID(), week: maxWeek + 1, topic: '', url: '' }]);
+    const id = crypto.randomUUID();
+    setEntries(prev => [...prev, {
+      id, week: week ?? maxWeek + 1, topic: '', url: '',
+      description: '', attachments: [],
+    }]);
+    setOpenSessionIds(prev => new Set(prev).add(id));
+  }
+  function toggleSession(id: string) {
+    setOpenSessionIds(prev => {
+      const next = new Set(prev);
+      if (!next.delete(id)) next.add(id);
+      return next;
+    });
   }
   function removeEntry(id: string) { setEntries(prev => prev.filter(e => e.id !== id)); }
-  function updateEntry(id: string, field: keyof Entry, value: string | number) {
+  function updateEntry<K extends keyof Entry>(id: string, field: K, value: Entry[K]) {
     setEntries(prev => prev.map(e => e.id === id ? { ...e, [field]: value } : e));
+  }
+  function addAttachment(id: string, attachment: RecordingAttachment) {
+    setEntries(prev => prev.map(e => e.id === id ? { ...e, attachments: [...e.attachments, attachment] } : e));
+  }
+  // Removal only drops the reference. The uploaded object stays: nothing is saved until
+  // the form is submitted, so deleting it here would break the live session for students
+  // whenever an author removes a resource and then cancels. Same trade lesson attachments
+  // make -- an orphaned object costs storage, a deleted one costs a broken download.
+  function removeAttachment(id: string, attachmentId: string) {
+    setEntries(prev => prev.map(e => e.id === id
+      ? { ...e, attachments: e.attachments.filter(a => a.id !== attachmentId) }
+      : e));
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -108,7 +152,7 @@ export default function CreateRecordingPage() {
     const trimmedTitle = title.trim();
     if (!trimmedTitle) { setError('Title is required.'); return; }
     if (entries.some(e => !e.topic.trim() || !e.url.trim())) {
-      setError('Each recording must have a topic and a URL.'); return;
+      setError('Each session must have a topic and a video link.'); return;
     }
 
     setSaving(true);
@@ -137,6 +181,12 @@ export default function CreateRecordingPage() {
           .insert({ ...payload, created_by: session.user.id }).select('id').single();
         if (e) throw e;
         recId = data!.id;
+        // The recording row exists from here on. If saving the sessions below fails the
+        // author stays on this page with everything still typed in, so adopt the row as
+        // the edit target -- without this, pressing Save again creates a second recording.
+        // The URL follows so a reload continues editing the same row rather than a third.
+        setEditId(recId);
+        window.history.replaceState(null, '', `/create/recording?edit=${recId}`);
       }
 
       if (entries.length) {
@@ -145,6 +195,8 @@ export default function CreateRecordingPage() {
           week: en.week,
           topic: en.topic.trim(),
           url: en.url.trim(),
+          description: sanitizeRichText(en.description) || null,
+          attachments: en.attachments,
           order_index: idx,
         }));
         const { error: entErr } = await supabase.from('recording_entries').insert(rows);
@@ -209,9 +261,8 @@ export default function CreateRecordingPage() {
 
               <div style={{ marginBottom: 16 }}>
                 <label style={lbl(C)}>Description</label>
-                <textarea value={description} onChange={e => setDescription(e.target.value)}
-                  placeholder="Brief overview of the programme or course…"
-                  rows={3} style={{ ...inp(C), resize: 'vertical', lineHeight: 1.6 }}/>
+                <RichTextEditor value={description} onChange={setDescription}
+                  placeholder="Brief overview of the programme or course..." enableAiAssist/>
               </div>
 
               <div style={{ marginBottom: 16 }}>
@@ -230,7 +281,7 @@ export default function CreateRecordingPage() {
                     style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 14px', borderRadius: 10,
                       border: 'none', background: C.pill, color: C.muted,
                       fontSize: 13, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                    <Upload size={14}/>{coverUploading ? 'Uploading…' : 'Upload'}
+                    <Upload size={14}/>{coverUploading ? 'Uploading...' : 'Upload'}
                   </button>
                   <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
                     style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.pill, color: C.muted, cursor: 'pointer', flexShrink: 0 }}>
@@ -302,96 +353,53 @@ export default function CreateRecordingPage() {
 
             <div style={{ height: 1, background: C.divider }} />
 
-            {/* Section: Recordings */}
+            {/* Section: Sessions */}
             <div style={{ padding: '26px 30px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 20 }}>
                 <div>
-                  <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 2 }}>Recordings</h2>
-                  <p style={{ fontSize: 13, color: C.faint }}>Add each session with its week number, topic, and link.</p>
+                  <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 2 }}>Sessions</h2>
+                  <p style={{ fontSize: 13, color: C.faint }}>Each session takes a week number, a topic and a video link. Add notes and the files students need for that class.</p>
                 </div>
-                <button type="button" onClick={addEntry}
+                <button type="button" onClick={() => addEntry()}
                   style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', borderRadius: 10,
-                    background: C.cta, color: C.ctaText, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none' }}>
-                  <Plus size={14}/> Add Recording
+                    background: C.cta, color: C.ctaText, fontSize: 13, fontWeight: 600, cursor: 'pointer', border: 'none', flexShrink: 0 }}>
+                  <Plus size={14}/> Add Session
                 </button>
               </div>
 
               {entries.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '32px 0', color: C.faint, fontSize: 14 }}>
-                  No recordings yet. Click &quot;Add Recording&quot; to get started.
+                <div style={{ textAlign: 'center', padding: '36px 16px', borderRadius: 14, background: C.pill }}>
+                  <Video size={22} style={{ color: C.faint }}/>
+                  <p style={{ fontSize: 14, fontWeight: 600, color: C.muted, marginTop: 10 }}>No sessions yet</p>
+                  <p style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>Add your first session to start building this programme.</p>
                 </div>
               )}
 
               {weeks.map(week => {
                 const weekEntries = entries.filter(e => e.week === week);
                 return (
-                  <div key={week} style={{ marginBottom: 20 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>
-                      Week {week}
+                  <div key={week} style={{ marginBottom: 22 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 10 }}>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: C.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                        Week {week} <span style={{ color: C.faint, fontWeight: 600 }}>({weekEntries.length})</span>
+                      </div>
+                      <button type="button" onClick={() => addEntry(week)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: 'none',
+                          background: C.pill, color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+                        <Plus size={12}/> Add to week {week}
+                      </button>
                     </div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-                      {weekEntries.map(entry => (
-                        <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr auto', gap: 8, alignItems: 'center',
-                          background: C.pill, borderRadius: 12, padding: '12px 14px' }}>
-                          <div>
-                            <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Week</label>
-                            <input type="number" min={1} value={entry.week}
-                              onChange={e => updateEntry(entry.id, 'week', parseInt(e.target.value) || 1)}
-                              style={{ ...inp(C), background: C.card, padding: '7px 10px', fontSize: 13 }}/>
-                          </div>
-                          <div>
-                            <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Topic</label>
-                            <input value={entry.topic} onChange={e => updateEntry(entry.id, 'topic', e.target.value)}
-                              placeholder="e.g. Introduction to Pivot Tables"
-                              style={{ ...inp(C), background: C.card, padding: '7px 10px', fontSize: 13 }}/>
-                          </div>
-                          <div>
-                            <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Recording URL</label>
-                            <input value={entry.url} onChange={e => updateEntry(entry.id, 'url', e.target.value)}
-                              placeholder="https://..."
-                              style={{ ...inp(C), background: C.card, padding: '7px 10px', fontSize: 13 }}/>
-                          </div>
-                          <button type="button" onClick={() => removeEntry(entry.id)}
-                            style={{ marginTop: 18, padding: 7, borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)',
-                              color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                            <X size={14}/>
-                          </button>
-                        </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {weekEntries.map((entry, idx) => (
+                        <SessionCard key={entry.id} entry={entry} position={idx + 1} C={C}
+                          open={openSessionIds.has(entry.id)} onToggle={() => toggleSession(entry.id)}
+                          onUpdate={updateEntry} onRemove={removeEntry}
+                          onAddAttachment={addAttachment} onRemoveAttachment={removeAttachment}/>
                       ))}
                     </div>
                   </div>
                 );
               })}
-
-              {/* Entries not yet grouped (new ones before week is set) */}
-              {entries.filter(e => !weeks.includes(e.week)).map(entry => (
-                <div key={entry.id} style={{ display: 'grid', gridTemplateColumns: '80px 1fr 1fr auto', gap: 8, alignItems: 'center',
-                  background: C.pill, borderRadius: 12, padding: '12px 14px', marginBottom: 10 }}>
-                  <div>
-                    <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Week</label>
-                    <input type="number" min={1} value={entry.week}
-                      onChange={e => updateEntry(entry.id, 'week', parseInt(e.target.value) || 1)}
-                      style={{ ...inp(C), background: C.card, padding: '7px 10px', fontSize: 13 }}/>
-                  </div>
-                  <div>
-                    <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Topic</label>
-                    <input value={entry.topic} onChange={e => updateEntry(entry.id, 'topic', e.target.value)}
-                      placeholder="e.g. Introduction to Pivot Tables"
-                      style={{ ...inp(C), background: C.card, padding: '7px 10px', fontSize: 13 }}/>
-                  </div>
-                  <div>
-                    <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Recording URL</label>
-                    <input value={entry.url} onChange={e => updateEntry(entry.id, 'url', e.target.value)}
-                      placeholder="https://..."
-                      style={{ ...inp(C), background: C.card, padding: '7px 10px', fontSize: 13 }}/>
-                  </div>
-                  <button type="button" onClick={() => removeEntry(entry.id)}
-                    style={{ marginTop: 18, padding: 7, borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)',
-                      color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
-                    <X size={14}/>
-                  </button>
-                </div>
-              ))}
             </div>
 
           </div>
@@ -422,6 +430,153 @@ export default function CreateRecordingPage() {
 
         </form>
       </div>
+    </div>
+  );
+}
+
+// One session row in the editor. Kept in this file because only this editor renders it;
+// it holds the picker's open/closed state so two cards can never share one dialog.
+function SessionCard({ entry, position, C, open, onToggle, onUpdate, onRemove, onAddAttachment, onRemoveAttachment }: {
+  entry: Entry;
+  position: number;
+  C: typeof LIGHT_C;
+  open: boolean;
+  onToggle: () => void;
+  onUpdate: <K extends keyof Entry>(id: string, field: K, value: Entry[K]) => void;
+  onRemove: (id: string) => void;
+  onAddAttachment: (id: string, attachment: RecordingAttachment) => void;
+  onRemoveAttachment: (id: string, attachmentId: string) => void;
+}) {
+  const [showPicker, setShowPicker] = useState(false);
+  // Say it while the link is being pasted, not after a student finds out: only some hosts
+  // can be framed, and the rest send the student off the platform.
+  const playsInApp = !!safeEmbedUrl(entry.url.trim());
+  // What the collapsed row has to say for itself: whether this session is finished.
+  const summary = [
+    entry.url.trim() ? (playsInApp ? 'Plays in app' : 'Opens in a new tab') : 'No video link yet',
+    entry.attachments.length ? `${entry.attachments.length} resource${entry.attachments.length !== 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(' - ');
+
+  return (
+    <div style={{ background: C.pill, borderRadius: 14, padding: open ? '14px 16px' : '4px 6px 4px 16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: open ? 12 : 0 }}>
+        <button type="button" onClick={onToggle} aria-expanded={open}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 0, padding: '8px 0',
+            background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}>
+          <ChevronDown size={14} style={{ color: C.faint, flexShrink: 0,
+            transform: open ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: 13, fontWeight: 700,
+              color: entry.topic.trim() ? C.text : C.faint }} className="truncate">
+              {entry.topic.trim() || `Session ${position}`}
+            </span>
+            {!open && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{summary}</span>}
+          </span>
+        </button>
+        <button type="button" onClick={() => onRemove(entry.id)} aria-label="Remove session"
+          style={{ padding: 6, borderRadius: 8, border: 'none', background: 'rgba(239,68,68,0.1)',
+            color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+          <Trash2 size={14}/>
+        </button>
+      </div>
+
+      {open && (<>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 86, flexShrink: 0 }}>
+          <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Week</label>
+          <input type="number" min={1} value={entry.week}
+            onChange={e => onUpdate(entry.id, 'week', parseInt(e.target.value) || 1)}
+            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 13 }}/>
+        </div>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Topic</label>
+          <input value={entry.topic} onChange={e => onUpdate(entry.id, 'topic', e.target.value)}
+            placeholder="e.g. Introduction to Pivot Tables"
+            style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 13 }}/>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Video link</label>
+        <input value={entry.url} onChange={e => onUpdate(entry.id, 'url', e.target.value)}
+          placeholder="https://youtu.be/..."
+          style={{ ...inp(C), background: C.card, padding: '8px 10px', fontSize: 13 }}/>
+        <p style={{ fontSize: 11, color: playsInApp ? C.green : C.faint, marginTop: 5 }}>
+          {!entry.url.trim()
+            ? 'YouTube, Vimeo, Canva and Bunny links play inside the app. Anything else opens in a new tab.'
+            : playsInApp
+              ? 'Plays inside the app.'
+              : 'Students will open this one in a new tab. Paste a YouTube, Vimeo, Canva or Bunny link to have it play here.'}
+        </p>
+      </div>
+
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ ...lbl(C), marginBottom: 4, fontSize: 11 }}>Session notes</label>
+        <RichTextEditor value={entry.description}
+          onChange={html => onUpdate(entry.id, 'description', html)}
+          bgOverride={C.card}
+          placeholder="What this class covered, homework, timestamps..."
+          enableAiAssist/>
+      </div>
+
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 8 }}>
+          <label style={{ ...lbl(C), marginBottom: 0, fontSize: 11 }}>Resources</label>
+          <button type="button" onClick={() => setShowPicker(true)}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, padding: '5px 10px', borderRadius: 8, border: 'none',
+              background: C.card, color: C.muted, fontSize: 12, fontWeight: 600, cursor: 'pointer', flexShrink: 0 }}>
+            <Paperclip size={12}/> Add file or link
+          </button>
+        </div>
+        {entry.attachments.length === 0
+          ? <p style={{ fontSize: 12, color: C.faint }}>No resources yet. Upload the workbook or slides, or paste a link.</p>
+          : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {entry.attachments.map(att => {
+                const size = formatAttachmentSize(att.size);
+                return (
+                  <div key={att.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px',
+                    borderRadius: 10, background: C.card }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
+                      background: C.pill, borderRadius: 6, padding: '3px 6px', flexShrink: 0 }}>
+                      {recordingAttachmentBadge(att)}
+                    </span>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 13, fontWeight: 600, color: C.text }} className="truncate">{att.name}</p>
+                      <p style={{ fontSize: 11, color: C.faint, marginTop: 1 }}>
+                        {att.kind === 'file' ? (size ? `Uploaded file - ${size}` : 'Uploaded file') : 'External link'}
+                      </p>
+                    </div>
+                    <button type="button" onClick={() => onRemoveAttachment(entry.id, att.id)} aria-label={`Remove ${att.name}`}
+                      style={{ padding: 6, borderRadius: 8, border: 'none', background: 'transparent',
+                        color: C.faint, cursor: 'pointer', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                      <X size={14}/>
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+      </div>
+
+      {showPicker && (
+        <AttachmentPicker
+          folder="recording-files"
+          onSelect={picked => {
+            onAddAttachment(entry.id, {
+              id: crypto.randomUUID(),
+              name: picked.fileName || 'Attached file',
+              url: picked.href,
+              kind: isUploadedAttachmentUrl(picked.href) ? 'file' : 'link',
+              size: picked.fileSize,
+            });
+            setShowPicker(false);
+          }}
+          onClose={() => setShowPicker(false)}
+        />
+      )}
+      </>)}
     </div>
   );
 }

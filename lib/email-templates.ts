@@ -784,10 +784,9 @@ export function recordingPublishedEmail(data: {
   recordingTitle: string;
   newWeeks: number[];
   dashboardUrl: string;
-  coverImage?: string | null;
   branding?: EmailBranding;
 }) {
-  const { name, recordingTitle, newWeeks, dashboardUrl, coverImage, branding } = data;
+  const { name, recordingTitle, newWeeks, dashboardUrl, branding } = data;
 
   const weekLabel = newWeeks.length === 1
     ? `Week ${newWeeks[0]}`
@@ -795,11 +794,6 @@ export function recordingPublishedEmail(data: {
 
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-
-    ${coverImage ? `
-    <a href="${dashboardUrl}" style="display:block;text-decoration:none;margin:16px 0;border-radius:0;overflow:hidden;border:1px solid #e5e7eb;">
-      <img src="${resolveCoverUrl(coverImage, IMG_EMAIL)}" alt="${recordingTitle}" width="600" style="display:block;width:100%;height:200px;object-fit:cover;" />
-    </a>` : ''}
 
     <p><b>${weekLabel}</b> recordings for <b>${recordingTitle}</b> are now available. Log in to watch them and stay on track with your programme.</p>
 

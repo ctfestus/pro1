@@ -1,10 +1,11 @@
 'use client';
 
-// Small modal for choosing the file behind an interactive lesson attachment block:
-// upload one (Supabase Storage, max 25 MB) OR paste a direct URL. Returns the URL plus
-// the name and size the block displays, which an upload knows and a pasted URL does not
-// (the object key we upload under is a timestamp, so the original name has to travel
-// alongside it). Mirrors the AudioPicker overlay/theme conventions.
+// Small modal for choosing a file an authoring surface attaches -- a lesson attachment
+// block, a class-recording resource: upload one (Supabase Storage, max 25 MB) OR paste a
+// direct URL. Returns the URL plus the name and size the caller displays, which an upload
+// knows and a pasted URL does not (the object key we upload under is a timestamp, so the
+// original name has to travel alongside it). Mirrors the AudioPicker overlay/theme
+// conventions.
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -23,11 +24,13 @@ export interface PickedAttachment {
 interface Props {
   onSelect: (file: PickedAttachment) => void;
   onClose: () => void;
+  /** Storage folder uploads are filed under. Per surface, so cleanup stays legible. */
+  folder?: string;
 }
 
 const MAX_BYTES = 25 * 1024 * 1024;
 
-export function AttachmentPicker({ onSelect, onClose }: Props) {
+export function AttachmentPicker({ onSelect, onClose, folder = 'lesson-files' }: Props) {
   const C = useC();
   const [url, setUrl] = useState('');
   const [uploading, setUploading] = useState(false);
@@ -101,7 +104,7 @@ export function AttachmentPicker({ onSelect, onClose }: Props) {
     setError('');
     setUploading(true);
     try {
-      const uploaded = await uploadToStorage(file, 'lesson-files');
+      const uploaded = await uploadToStorage(file, folder);
       // Abandoned while the bytes were in flight. The object exists but nothing will ever
       // reference it, and no undo can bring the reference back, so it is safe to remove now.
       if (outcome.current !== 'open') { void deleteUploadedFile(uploaded); return; }

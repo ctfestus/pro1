@@ -637,6 +637,10 @@ CREATE TABLE public.recording_entries (
   week         integer     NOT NULL CHECK (week >= 1),
   topic        text        NOT NULL,
   url          text        NOT NULL,
+  description  text,
+  -- [{ id, name, url, kind: 'file' | 'link', size }] -- per-session resources (migration 210)
+  attachments  jsonb       NOT NULL DEFAULT '[]'::jsonb
+                             CHECK (jsonb_typeof(attachments) = 'array'),
   order_index  integer     NOT NULL DEFAULT 0,
   created_at   timestamptz NOT NULL DEFAULT now()
 );

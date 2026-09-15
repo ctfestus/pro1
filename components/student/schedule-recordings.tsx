@@ -14,8 +14,15 @@ import { DataPlaygroundGrid } from '@/components/data-playground/lazy';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
-  ArrowLeft, BookOpen, Calendar, ChevronRight, ExternalLink, FileText, Play, Video,
+  ArrowLeft, BookOpen, Calendar, ChevronDown, ChevronRight, Download, ExternalLink, FileText,
+  Paperclip, Play, Video,
 } from 'lucide-react';
+import { formatAttachmentSize } from '@/lib/lesson-attachment';
+import { looksLikeHtml, toPlainText } from '@/lib/plain-text';
+import {
+  normalizeRecordingAttachments, recordingAttachmentBadge, recordingAttachmentHref,
+  type RecordingAttachment,
+} from '@/lib/recording-attachments';
 
 // --- Data Center section ---
 async function getDataCenterAuthHeaders(): Promise<HeadersInit | undefined> {
@@ -184,6 +191,74 @@ function ScheduleDetail({ schedule, C, onBack }: { schedule: any; C: typeof LIGH
   );
 }
 
+// Descriptions written before the rich-text editor are plain text with real newlines, and
+// handing those to dangerouslySetInnerHTML would collapse the author's spacing into one
+// paragraph. Render markup as markup, plain text as text.
+function AuthoredText({ value, style }: { value: string; style?: React.CSSProperties }) {
+  if (!value?.trim()) return null;
+  if (looksLikeHtml(value)) {
+    return <div style={style} dangerouslySetInnerHTML={{ __html: sanitizeRichText(value) }}/>;
+  }
+  return <p className="whitespace-pre-line" style={style}>{value}</p>;
+}
+
+// What a class came with: the instructor's notes for the session, and the files handed
+// out with it. Folded away under the recording so the week still reads as a list.
+function SessionExtras({ entry, C }: { entry: any; C: typeof LIGHT_C }) {
+  const [open, setOpen] = useState(false);
+  const attachments: RecordingAttachment[] = entry.attachments ?? [];
+  // An untouched rich-text field still arrives as markup, so ask what it actually says.
+  const notes = toPlainText(entry.description).trim() ? entry.description as string : '';
+  if (!notes && !attachments.length) return null;
+
+  const summary = [
+    notes ? 'Session notes' : '',
+    attachments.length ? `${attachments.length} file${attachments.length !== 1 ? 's' : ''}` : '',
+  ].filter(Boolean).join(' - ');
+
+  return (
+    <div style={{ padding: '0 16px 12px' }}>
+      <button onClick={() => setOpen(v => !v)} aria-expanded={open}
+        style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 0', border: 'none',
+          background: 'transparent', cursor: 'pointer', color: C.muted, fontSize: 12, fontWeight: 600 }}>
+        <ChevronDown size={13} style={{ transform: open ? 'rotate(180deg)' : 'rotate(-90deg)', transition: 'transform 0.15s' }}/>
+        {summary}
+      </button>
+
+      {open && (<>
+        <AuthoredText value={notes}
+          style={{ fontSize: 13, color: C.muted, lineHeight: 1.7, marginTop: 6 }}/>
+
+        {attachments.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: notes ? 12 : 6 }}>
+            {attachments.map(att => {
+              const size = formatAttachmentSize(att.size);
+              return (
+                <a key={att.id} href={recordingAttachmentHref(att)} target="_blank" rel="noopener noreferrer"
+                  download={att.kind === 'file' ? att.name : undefined}
+                  style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px',
+                    borderRadius: 12, background: C.pill, textDecoration: 'none' }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.04em', color: C.muted,
+                    background: C.card, borderRadius: 6, padding: '3px 6px', flexShrink: 0 }}>
+                    {recordingAttachmentBadge(att)}
+                  </span>
+                  <span style={{ flex: 1, minWidth: 0 }}>
+                    <span style={{ display: 'block', fontSize: 13, fontWeight: 600, color: C.text }} className="truncate">{att.name}</span>
+                    {size && <span style={{ display: 'block', fontSize: 11, color: C.faint, marginTop: 1 }}>{size}</span>}
+                  </span>
+                  {att.kind === 'file'
+                    ? <Download size={14} style={{ color: C.faint, flexShrink: 0 }}/>
+                    : <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>}
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </>)}
+    </div>
+  );
+}
+
 export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIGHT_C }) {
   const [recordings, setRecordings] = useState<any[]>([]);
   const [entries, setEntries]       = useState<Record<string, any[]>>({});
@@ -215,9 +290,11 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     topRef.current?.closest('main')?.scrollTo({ top: 0, behavior: 'smooth' });
     if (!entries[rec.id]) {
       const { data } = await supabase.from('recording_entries')
-        .select('id, week, topic, url, order_index')
+        .select('id, week, topic, url, description, attachments, order_index')
         .eq('recording_id', rec.id).order('week').order('order_index');
-      const rows = data ?? [];
+      const rows = (data ?? []).map((row: any) => ({
+        ...row, attachments: normalizeRecordingAttachments(row.attachments),
+      }));
       setEntries(prev => ({ ...prev, [rec.id]: rows }));
       const firstWeek = rows.length ? Math.min(...rows.map((r: any) => r.week)) : null;
       setActiveWeek(firstWeek);
@@ -262,7 +339,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           </button>
           <div style={{ minWidth: 0 }}>
             <p style={{ fontSize: 16, fontWeight: 800, color: C.text, lineHeight: 1.2 }} className="truncate">{selected.title}</p>
-            <p style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>{totalEntries} recording{totalEntries !== 1 ? 's' : ''} · {weeks.length} week{weeks.length !== 1 ? 's' : ''}</p>
+            <p style={{ fontSize: 12, color: C.faint, marginTop: 1 }}>{totalEntries} recording{totalEntries !== 1 ? 's' : ''} - {weeks.length} week{weeks.length !== 1 ? 's' : ''}</p>
           </div>
         </div>
 
@@ -275,10 +352,8 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
         )}
 
         {/* Description */}
-        {selected.description && (
-          <p style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}
-            dangerouslySetInnerHTML={{ __html: sanitizeRichText(selected.description) }}/>
-        )}
+        <AuthoredText value={selected.description ?? ''}
+          style={{ fontSize: 13, color: C.muted, lineHeight: 1.6, marginBottom: 16 }}/>
 
         {/* Week tabs */}
         {weeks.length > 0 && (
@@ -304,25 +379,27 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
           {weekEntries.length === 0
             ? <p style={{ fontSize: 13, color: C.faint, textAlign: 'center', padding: '24px 0' }}>No recordings for this week.</p>
             : weekEntries.map((entry: any, idx: number) => (
-                <motion.a key={entry.id} href={entry.url} target="_blank" rel="noopener noreferrer"
+                <motion.div key={entry.id}
                   initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: idx * 0.04 }}
-                  style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
-                    borderRadius: 16, background: C.card,
-                    textDecoration: 'none', transition: 'transform 0.15s, box-shadow 0.15s' }}
-                  className="hover:scale-[1.01]">
-                  {/* Play button */}
-                  <div style={{ width: 40, height: 40, borderRadius: 12, background: C.green,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Play size={16} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="truncate">
-                      {entry.topic}
-                    </p>
-                    <p style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Week {entry.week} · Recording {idx + 1}</p>
-                  </div>
-                  <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>
-                </motion.a>
+                  style={{ borderRadius: 16, background: C.card }}>
+                  <a href={entry.url} target="_blank" rel="noopener noreferrer"
+                    style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px',
+                      textDecoration: 'none' }}>
+                    {/* Play button */}
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: C.green,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <Play size={16} fill={C === DARK_C ? '#111' : '#fff'} style={{ color: C === DARK_C ? '#111' : '#fff', marginLeft: 2 }}/>
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.3 }} className="truncate">
+                        {entry.topic}
+                      </p>
+                      <p style={{ fontSize: 11, color: C.faint, marginTop: 2 }}>Week {entry.week} - Recording {idx + 1}</p>
+                    </div>
+                    <ExternalLink size={14} style={{ color: C.faint, flexShrink: 0 }}/>
+                  </a>
+                  <SessionExtras entry={entry} C={C}/>
+                </motion.div>
               ))
           }
         </div>

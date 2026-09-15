@@ -10,7 +10,7 @@ import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tip
 import { Download, File as FileIcon, FileArchive, FileSpreadsheet, FileText, Replace } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
-import { AttachmentPicker } from '@/components/lesson/AttachmentPicker';
+import { AttachmentPicker } from '@/components/AttachmentPicker';
 import {
   attachmentDownloadUrl,
   attachmentExtension,
