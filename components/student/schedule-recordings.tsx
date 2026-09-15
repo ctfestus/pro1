@@ -241,15 +241,6 @@ function SessionResources({ attachments, C }: { attachments: RecordingAttachment
   );
 }
 
-// Small count pill used by the programme header.
-function chip(C: typeof LIGHT_C): React.CSSProperties {
-  return {
-    display: 'inline-flex', alignItems: 'center', gap: 5,
-    padding: '4px 10px', borderRadius: 999, background: C.pill,
-    color: C.muted, fontSize: 11.5, fontWeight: 600, whiteSpace: 'nowrap',
-  };
-}
-
 // The dark ground a session's video sits on, and that the link band borrows so a
 // recording hosted elsewhere still reads as the video rather than as a notice.
 const SURFACE = 'linear-gradient(135deg, #0f1115 0%, #181d26 55%, #0d1014 100%)';
@@ -526,7 +517,6 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
     const weeks = [...new Set(recEntries.map((e: any) => e.week))].sort((a, b) => a - b);
     const currentWeek = activeWeek ?? weeks[0] ?? null;
     const weekEntries = recEntries.filter((e: any) => e.week === currentWeek);
-    const totalEntries = recEntries.length;
     const activeEntry = recEntries.find((e: any) => e.id === activeEntryId) ?? weekEntries[0] ?? null;
     const position = activeEntry ? recEntries.indexOf(activeEntry) : -1;
 
@@ -546,7 +536,7 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
 
     return (
       <motion.div ref={topRef} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-        {/* Programme header: what this is, how much of it there is, and the way back */}
+        {/* Programme header: what this is, and the way back */}
         <div style={{ background: C.card, borderRadius: 18, padding: '20px 24px', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
             <button onClick={() => setSelected(null)} aria-label="Back to recordings"
@@ -559,17 +549,6 @@ export function RecordingsSection({ userId, C }: { userId: string; C: typeof LIG
               <p style={{ fontSize: 20, fontWeight: 800, color: C.text, lineHeight: 1.2 }} className="truncate">
                 {selected.title}
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
-                <span style={chip(C)}>
-                  <Video size={12}/> {totalEntries} recording{totalEntries !== 1 ? 's' : ''}
-                </span>
-                <span style={chip(C)}>
-                  <Calendar size={12}/> {weeks.length} week{weeks.length !== 1 ? 's' : ''}
-                </span>
-                {activeEntry && recEntries.length > 1 && (
-                  <span style={chip(C)}>Watching {position + 1} of {recEntries.length}</span>
-                )}
-              </div>
             </div>
           </div>
 
