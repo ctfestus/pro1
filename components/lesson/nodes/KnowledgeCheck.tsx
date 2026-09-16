@@ -20,7 +20,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { AiReviewUpgradeNote, aiReviewResetWording } from '@/components/AiReviewUpgradePrompt';
+import { AiReviewUpgradeNote, aiReviewResetWording, aiReviewAllowanceWording } from '@/components/AiReviewUpgradePrompt';
 import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
@@ -99,7 +99,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
   const [reviewError, setReviewError] = useState('');
   // Set only when the free-tier daily cap answered this attempt, not for ordinary failures.
   const [reviewUpgradeUrl, setReviewUpgradeUrl] = useState('');
-  const entitlement = useAiReviewEntitlement();
+  const entitlement = useAiReviewEntitlement('practiceChecks');
 
   const setOption = (i: number, value: string) =>
     updateAttributes({ options: options.map((o, j) => (j === i ? value : o)) });
@@ -468,20 +468,28 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
             aria-label={question || 'Your response'}
             onChange={(e) => setTyped(e.target.value)}
           />
-          {!answered && entitlement.dailyExhausted && (
+          {/* Not part of this plan at all. Said before they write, not after they submit. */}
+          {!answered && entitlement.locked && (
             <p className="lesson-check__error" role="status">
-              Your AI review for today is used. Your free plan includes one a day. {aiReviewResetWording(entitlement.resetsInSeconds)}
+              {entitlement.canUpgrade
+                ? 'Practice checks are not part of your plan.'
+                : 'Practice checks are currently turned off.'}
+            </p>
+          )}
+          {!answered && !entitlement.locked && entitlement.exhausted && (
+            <p className="lesson-check__error" role="status">
+              No practice checks left today. {aiReviewAllowanceWording(entitlement.limit)} {aiReviewResetWording(entitlement.resetsInSeconds)}
             </p>
           )}
           {!answered && (
-            <button type="button" className="lesson-check__submit" disabled={!typed.trim() || reviewing || entitlement.dailyExhausted} onClick={submitWritten}>
+            <button type="button" className="lesson-check__submit" disabled={!typed.trim() || reviewing || entitlement.exhausted || entitlement.locked} onClick={submitWritten}>
               {reviewing
                 ? <><Loader2 width={13} height={13} className="lesson-check__spin" /> Reviewing...</>
                 : <><Sparkles width={13} height={13} /> Check my answer</>}
             </button>
           )}
           {reviewError && <p className="lesson-check__error" role="status">{reviewError}</p>}
-          {(reviewUpgradeUrl || (!answered && entitlement.dailyExhausted)) && (
+          {entitlement.canUpgrade && (reviewUpgradeUrl || (!answered && (entitlement.exhausted || entitlement.locked))) && (
             <AiReviewUpgradeNote accentColor={accentColor || 'currentColor'} upgradeUrl={reviewUpgradeUrl || entitlement.upgradeUrl} priceLabel={entitlement.priceLabel} />
           )}
         </div>

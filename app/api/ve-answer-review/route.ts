@@ -3,15 +3,14 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { bumpRateLimit } from '@/lib/rate-limit';
+import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
 import { readBoundedJson } from '@/lib/bounded-json';
-import { enforceStudentAiReviewPlanLimit } from '@/lib/ai-review-plan-limit';
 import type { AuthedUser } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
 
-const RATE_LIMIT = 10;
-const RATE_WINDOW_SECONDS = 86400;
+// Read from settings rather than declared here, so the AI features tab is the one place
+// this number lives. A constant left behind would quietly ignore whatever an admin typed.
 // Max length of a written answer we send to the model (HTML stripped). Keep the client-side
 // caps/counters in the VE players (VirtualExperienceTaker, AssignmentExperiencePlayer) in sync.
 const MAX_ANSWER_CHARS = 2000;
@@ -27,25 +26,12 @@ const MAX_BODY_BYTES = 128 * 1024;
 const VE_COLUMNS = 'user_id, modules, company, role, industry';
 
 async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
-  const redis = getRedis();
-  // Fail closed. This route spends a metered AI quota, so a limiter that cannot be
-  // reached must not silently become no limiter at all -- an outage is exactly when an
-  // unbounded bill would be run up.
-  if (!redis) return NextResponse.json({ error: 'AI review is unavailable right now. Please try again shortly.' }, { status: 503 });
-  try {
-    const planLimit = await enforceStudentAiReviewPlanLimit(auth, redis);
-    if (planLimit) return planLimit;
-    if (await bumpRateLimit(redis, `rate:ve-answer-review:${auth.user.id}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
-      return NextResponse.json(
-        { error: `Limit reached: ${RATE_LIMIT} AI reviews per day. Try again tomorrow.` },
-        { status: 429 },
-      );
-    }
-  } catch {
-    // Same reasoning as above: an unreachable limiter refuses rather than waves through.
-    return NextResponse.json({ error: 'AI review is unavailable right now. Please try again shortly.' }, { status: 503 });
-  }
-  return null;
+  // Fails closed. This route spends a metered AI quota, so a limiter that cannot be reached must
+  // not silently become no limiter at all -- an outage is exactly when an unbounded bill would be
+  // run up.
+  return enforceAiFeatureLimit(auth, getRedis(), 'veAnswers', {
+    unavailableMessage: 'AI review is unavailable right now. Please try again shortly.',
+  });
 }
 
 

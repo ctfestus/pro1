@@ -1,13 +1,45 @@
 'use client';
 
-// Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
+// The platform settings page.
+//
+// Grouped into tabs rather than one long scroll: branding, email, access, the landing page and
+// the AI limits are unrelated jobs, and an admin who came to flip one switch should not have to
+// scroll past four other things to find it.
+//
+// The first four tabs share one form and one save, because the settings route saves the row in a
+// single POST -- tabs are how it is read, not how it is stored. Tool logos and AI limits each own
+// their own save, so the shared button is hidden on those.
 
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { CheckCircle2, Loader2, Upload, XCircle } from 'lucide-react';
+import { AiFeaturesTab } from '@/components/dashboard/AiFeaturesTab';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { ToolIconsPanel } from '@/components/dashboard/ToolIconsPanel';
+
+type TabId = 'identity' | 'email' | 'access' | 'ai' | 'tools';
+
+const TABS: { id: TabId; label: string }[] = [
+  { id: 'identity', label: 'Identity' },
+  { id: 'email',    label: 'Email' },
+  { id: 'access',   label: 'Access' },
+  { id: 'ai',       label: 'AI features' },
+  { id: 'tools',    label: 'Tool logos' },
+];
+
+// Each tab saves only what it owns. The settings route already guards every field with
+// `!== undefined`, so a partial body updates those columns and leaves the rest alone -- a tab
+// cannot overwrite a field an admin never opened.
+//
+// There is no Landing page tab. Its fields -- hero headline, stats, footer tagline -- were
+// collected by this form, dropped by the save route, which has no mapping for them, and read back
+// from platform_settings columns that were never created. An admin could type a headline, be told
+// it saved, and find it gone on reload. The landing page is edited in the Site section, which
+// stores a template and config in its own table and works.
+const IDENTITY_FIELDS = ['appName', 'orgName', 'appUrl', 'appDescription', 'logoUrl', 'logoDarkUrl', 'faviconUrl', 'brandColor'] as const;
+const EMAIL_FIELDS    = ['senderName', 'teamName', 'supportEmail', 'emailBannerUrl'] as const;
+const ACCESS_FIELDS   = ['publicSignupEnabled'] as const;
 
 export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
   const [form, setForm] = useState({
@@ -26,16 +58,6 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
     // Access. The only non-string field here, so it is set from the row explicitly below rather
     // than falling through the ?? '' pattern the text fields use.
     publicSignupEnabled: false,
-    // Landing page
-    primaryColor:    '',
-    accentColor:     '',
-    heroTitle:       '',
-    heroTitleAccent: '',
-    heroSubheadline: '',
-    heroPrimaryCta:  '',
-    footerTagline:   '',
-    statsEnrolled:   '',
-    statsRating:     '',
   });
   const [loading, setLoading]         = useState(true);
   // Why the section could not load, so an expired session reads differently from a dropped
@@ -48,6 +70,15 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
   const [faviconUploading, setFaviconUploading]         = useState(false);
   const [emailBannerUploading, setEmailBannerUploading] = useState(false);
   const [msg, setMsg]                 = useState<{ ok: boolean; text: string } | null>(null);
+  const [tab, setTab]                 = useState<TabId>('identity');
+
+  // Which fields each tab saves. Tabs absent from here own their own save: AI limits and tool
+  // logos each write a different table.
+  const SAVE_TABS: Partial<Record<TabId, readonly (keyof typeof form)[]>> = {
+    identity: IDENTITY_FIELDS,
+    email: EMAIL_FIELDS,
+    access: ACCESS_FIELDS,
+  };
   const logoInputRef                  = useRef<HTMLInputElement>(null);
   const logoDarkInputRef              = useRef<HTMLInputElement>(null);
   const faviconInputRef               = useRef<HTMLInputElement>(null);
@@ -77,15 +108,6 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           supportEmail:    data.support_email    ?? '',
           appDescription:  data.app_description  ?? '',
           publicSignupEnabled: data.public_signup_enabled === true,
-          primaryColor:    data.primary_color    ?? '',
-          accentColor:     data.accent_color     ?? '',
-          heroTitle:       data.hero_title       ?? '',
-          heroTitleAccent: data.hero_title_accent ?? '',
-          heroSubheadline: data.hero_subheadline ?? '',
-          heroPrimaryCta:  data.hero_primary_cta ?? '',
-          footerTagline:   data.footer_tagline   ?? '',
-          statsEnrolled:   data.stats_enrolled   ?? '',
-          statsRating:     data.stats_rating     ?? '',
         });
       }
     } catch {
@@ -98,20 +120,23 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleSave = async () => {
+  const handleSave = async (fields: readonly (keyof typeof form)[]) => {
     setSaving(true);
     setMsg(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
+      // Only this tab's fields. Sending the whole form would make every save a save of everything,
+      // which is the thing separating the tabs was meant to stop.
+      const payload = Object.fromEntries(fields.map(key => [key, form[key]]));
       const res = await fetch('/api/platform-settings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error ?? 'Save failed');
-      setMsg({ ok: true, text: 'Platform settings saved. Changes will reflect across the platform within 60 seconds.' });
+      setMsg({ ok: true, text: 'Saved. Changes reflect across the platform within 60 seconds.' });
     } catch (e: any) {
       setMsg({ ok: false, text: e.message });
     } finally {
@@ -218,22 +243,47 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
 
   return (
     <div className="space-y-5 max-w-3xl">
+      {/* One row of tabs rather than one long page. Scrolls sideways on a phone instead of
+          wrapping into a block that pushes the settings themselves below the fold. */}
+      <div className="flex gap-1.5 overflow-x-auto pb-1">
+        {TABS.map(t => {
+          const active = tab === t.id;
+          return (
+            <button
+              key={t.id}
+              type="button"
+              onClick={() => setTab(t.id)}
+              className="flex-shrink-0 px-3.5 py-2 rounded-xl text-xs font-semibold transition-opacity hover:opacity-80"
+              style={{
+                // C.card, not C.pill: white in light mode and the dark surface in dark, so an
+                // unselected tab reads as a raised control rather than a sunken grey chip.
+                background: active ? C.cta : C.card,
+                color: active ? C.ctaText : C.muted,
+                border: `1px solid ${active ? C.cta : C.cardBorder}`,
+              }}
+            >
+              {t.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {tab === 'identity' && (
       <div className="rounded-2xl p-5 space-y-5" style={{ ...cardStyle(C) }}>
         <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Platform Branding</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Identity</h2>
           <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-            Override the default branding for this deployment. Changes are stored in the database and applied across emails and the platform.
+            What this deployment is called and how it looks. Stored in the database and applied across the platform.
           </p>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
           {field('appName',     'App / Platform Name',  'e.g. Your Platform Name',  'Used in page titles and emails.')}
           {field('orgName',     'Organisation Name',    'e.g. Your Organisation',   'Used in certificates and formal text.')}
-          {field('supportEmail','Support Email',        'support@yourapp.com',      'Shown in footer of emails.')}
           {field('appUrl',      'App URL',              'https://yourapp.com', 'Base URL used in email links.')}
         </div>
 
-        {field('appDescription', 'App Description', 'Empowering Africans with practical AI skills…', 'Used in SEO meta description tag.')}
+        {field('appDescription', 'App Description', 'Empowering Africans with practical AI skills...', 'Used in SEO meta description tag.')}
 
         <div className="space-y-1">
           <label className="text-xs font-semibold" style={{ color: C.muted }}>Logo</label>
@@ -315,6 +365,47 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
         </div>
 
         <div className="space-y-1">
+          <label className="text-xs font-semibold" style={{ color: C.muted }}>Brand Colour</label>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              value={form.brandColor || '#00bf63'}
+              onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
+              className="w-10 h-9 rounded-lg cursor-pointer border-0 p-0.5"
+              style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}
+            />
+            <input
+              type="text"
+              value={form.brandColor}
+              onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
+              placeholder="#00bf63"
+              className="flex-1 px-3 py-2 rounded-xl text-sm outline-none font-mono"
+              style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
+            />
+          </div>
+          <p className="text-[11px]" style={{ color: C.faint }}>Used for buttons and accents on certificate defaults.</p>
+        </div>
+
+      </div>
+      )}
+
+      {tab === 'email' && (
+      <div className="rounded-2xl p-5 space-y-5" style={{ ...cardStyle(C) }}>
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Email</h2>
+          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
+            How messages from this platform are signed and where replies go.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
+          {field('senderName', 'Email Sender Name', 'e.g. Your Team - Learning Experience', 'Shown as sender label in emails.')}
+          {field('teamName',   'Team Sign-off Name', 'e.g. The Team',                        'Used in email footers.')}
+        </div>
+
+        {field('supportEmail','Support Email',        'support@yourapp.com',      'Shown in footer of emails.')}
+
+        <div className="space-y-1">
           <label className="text-xs font-semibold" style={{ color: C.muted }}>Email Banner</label>
           <input ref={emailBannerInputRef} type="file" accept="image/*" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) handleEmailBannerUpload(f); e.target.value = ''; }} />
@@ -348,35 +439,10 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           <p className="text-[11px]" style={{ color: C.faint }}>Full-width header image for emails. 600px wide recommended. If not set, the logo is used.</p>
         </div>
 
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Brand Colour</label>
-          <div className="flex items-center gap-3">
-            <input
-              type="color"
-              value={form.brandColor || '#00bf63'}
-              onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
-              className="w-10 h-9 rounded-lg cursor-pointer border-0 p-0.5"
-              style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}
-            />
-            <input
-              type="text"
-              value={form.brandColor}
-              onChange={e => setForm(prev => ({ ...prev, brandColor: e.target.value }))}
-              placeholder="#00bf63"
-              className="flex-1 px-3 py-2 rounded-xl text-sm outline-none font-mono"
-              style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
-            />
-          </div>
-          <p className="text-[11px]" style={{ color: C.faint }}>Used for buttons and accents on certificate defaults.</p>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          {field('senderName', 'Email Sender Name', 'e.g. Your Team - Learning Experience', 'Shown as sender label in emails.')}
-          {field('teamName',   'Team Sign-off Name', 'e.g. The Team',                        'Used in email footers.')}
-        </div>
       </div>
+      )}
 
-      {/* Access */}
+      {tab === 'access' && (
       <div className="rounded-2xl p-5 space-y-4" style={{ ...cardStyle(C) }}>
         <div>
           <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Access</h2>
@@ -421,111 +487,37 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
         )}
       </div>
 
-      {/* Landing Page */}
-      <div className="rounded-2xl p-5 space-y-5" style={{ ...cardStyle(C) }}>
-        <div>
-          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Landing Page</h2>
-          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
-            Customise the public-facing homepage for this deployment.
-          </p>
-        </div>
+      )}
 
-        {/* Colours */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" style={{ color: C.muted }}>Primary Colour</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={form.primaryColor || '#0e09dd'}
-                onChange={e => setForm(prev => ({ ...prev, primaryColor: e.target.value }))}
-                className="w-10 h-9 rounded-lg cursor-pointer border-0 p-0.5"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }} />
-              <input type="text" value={form.primaryColor}
-                onChange={e => setForm(prev => ({ ...prev, primaryColor: e.target.value }))}
-                placeholder="#0e09dd"
-                className="flex-1 px-3 py-2 rounded-xl text-sm outline-none font-mono"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
-            </div>
-            <p className="text-[11px]" style={{ color: C.faint }}>Nav, hero, section backgrounds.</p>
-          </div>
-          <div className="space-y-1">
-            <label className="text-xs font-semibold" style={{ color: C.muted }}>Accent Colour</label>
-            <div className="flex items-center gap-2">
-              <input type="color" value={form.accentColor || '#ff9933'}
-                onChange={e => setForm(prev => ({ ...prev, accentColor: e.target.value }))}
-                className="w-10 h-9 rounded-lg cursor-pointer border-0 p-0.5"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }} />
-              <input type="text" value={form.accentColor}
-                onChange={e => setForm(prev => ({ ...prev, accentColor: e.target.value }))}
-                placeholder="#ff9933"
-                className="flex-1 px-3 py-2 rounded-xl text-sm outline-none font-mono"
-                style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
-            </div>
-            <p className="text-[11px]" style={{ color: C.faint }}>Buttons, highlight text, icons.</p>
-          </div>
-        </div>
-
-        {/* Hero */}
-        <div className="grid grid-cols-2 gap-4">
-          {field('heroTitle',       'Hero Headline',        'Build the skills Africa',     'First line of the hero heading.')}
-          {field('heroTitleAccent', 'Hero Headline Accent', 'needs right now.',            'Second line -- shown in accent colour.')}
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Hero Subheadline</label>
-          <textarea
-            value={form.heroSubheadline}
-            onChange={e => setForm(prev => ({ ...prev, heroSubheadline: e.target.value }))}
-            placeholder="Enrol in courses, attend live workshops…"
-            rows={3}
-            className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
-            style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
-          />
-          <p className="text-[11px]" style={{ color: C.faint }}>Paragraph below the hero headline.</p>
-        </div>
-        {field('heroPrimaryCta', 'Primary CTA Button Text', 'Start learning free', 'Main call-to-action button on the hero.')}
-
-        {/* Stats */}
-        <div className="grid grid-cols-2 gap-4">
-          {field('statsEnrolled', 'Enrolled Stat', '10,000+', 'e.g. "5,000+" shown as social proof.')}
-          {field('statsRating',   'Rating Stat',   '4.9',     'Star rating displayed in the hero.')}
-        </div>
-
-        {/* Footer */}
-        <div className="space-y-1">
-          <label className="text-xs font-semibold" style={{ color: C.muted }}>Footer Tagline</label>
-          <textarea
-            value={form.footerTagline}
-            onChange={e => setForm(prev => ({ ...prev, footerTagline: e.target.value }))}
-            placeholder="The learning platform built for professionals. Learn, practise, and prove your skills."
-            rows={2}
-            className="w-full px-3 py-2 rounded-xl text-sm outline-none resize-none"
-            style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }}
-          />
-          <p className="text-[11px]" style={{ color: C.faint }}>Short description shown in the footer.</p>
-        </div>
-
-        {msg && (
-          <div className={`flex items-start gap-2 text-xs px-3 py-2.5 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
-            style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
-            {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
-            {msg.text}
-          </div>
-        )}
-
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
-          style={{ background: C.cta, color: C.ctaText }}>
-          {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : 'Save Platform Settings'}
-        </button>
-      </div>
+      {tab === 'ai' && <AiFeaturesTab C={C} />}
 
       {/* Tool logos live in their own table with their own save, so they are never caught up
           in the platform-settings form above. */}
-      <div className="rounded-2xl p-5 mt-8" style={{ ...cardStyle(C) }}>
-        <ToolIconsPanel C={C}/>
-      </div>
+      {tab === 'tools' && (
+        <div className="rounded-2xl p-5" style={{ ...cardStyle(C) }}>
+          <ToolIconsPanel C={C}/>
+        </div>
+      )}
 
+      {SAVE_TABS[tab] && (
+        <div className="space-y-3">
+          {msg && (
+            <div className={`flex items-start gap-2 text-xs px-3 py-2.5 rounded-xl ${msg.ok ? 'text-emerald-600' : 'text-red-500'}`}
+              style={{ background: msg.ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)' }}>
+              {msg.ok ? <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/> : <XCircle className="w-3.5 h-3.5 flex-shrink-0 mt-0.5"/>}
+              {msg.text}
+            </div>
+          )}
+
+          <button
+            onClick={() => handleSave(SAVE_TABS[tab]!)}
+            disabled={saving}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition-opacity hover:opacity-80"
+            style={{ background: C.cta, color: C.ctaText }}>
+            {saving ? <Loader2 className="w-4 h-4 animate-spin mx-auto"/> : 'Save changes'}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

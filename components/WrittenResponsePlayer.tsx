@@ -16,6 +16,7 @@ import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
 import { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
+import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
 import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 
 interface SectionIssue {
@@ -88,7 +89,7 @@ export default function WrittenResponsePlayer({
   // Set only when the daily free-tier cap answered this attempt, so the upsell shows for that
   // and not for an ordinary failure.
   const [upgradeUrl, setUpgradeUrl] = useState('');
-  const entitlement = useAiReviewEntitlement();
+  const entitlement = useAiReviewEntitlement('writtenReviews');
 
   const card   = isDark ? '#1a1a1a' : '#ffffff';
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
@@ -199,7 +200,18 @@ export default function WrittenResponsePlayer({
         </div>
       );
     }
+    // Locked before the work, not after it. A plan with this reviewer set to 0 must not hand a
+    // learner a composer, take their answer, and only then refuse it.
     return (
+      <AiReviewLockOverlay
+        locked={entitlement.locked}
+        accentColor={accentColor}
+        isDark={isDark}
+        planName={entitlement.planName}
+        upgradeUrl={entitlement.upgradeUrl}
+        canUpgrade={entitlement.canUpgrade}
+        message="Written reviews are not part of your plan."
+      >
       <div className="space-y-3">
         <AiReviewWorkspaceHeader
           icon={<PenLine className="w-5 h-5" />}
@@ -241,15 +253,15 @@ export default function WrittenResponsePlayer({
         {error && (
           <div className="flex flex-col items-start">
             <p className="text-xs text-red-400 font-medium">{error}</p>
-            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
+            {upgradeUrl && entitlement.canUpgrade && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
           </div>
         )}
 
-        {entitlement.dailyExhausted && (
-          <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
+        {entitlement.exhausted && (
+          <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={entitlement.upgradeUrl} />
         )}
 
-        <button onClick={handleSubmit} disabled={analyzing || !canSubmit || entitlement.dailyExhausted}
+        <button onClick={handleSubmit} disabled={analyzing || !canSubmit || entitlement.exhausted}
           className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
           style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
           {analyzing
@@ -257,6 +269,7 @@ export default function WrittenResponsePlayer({
             : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
         </button>
       </div>
+      </AiReviewLockOverlay>
     );
   }
 
@@ -307,7 +320,7 @@ export default function WrittenResponsePlayer({
       {error && (
           <div className="flex flex-col items-start">
             <p className="text-xs text-red-400 font-medium">{error}</p>
-            {upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
+            {upgradeUrl && entitlement.canUpgrade && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
           </div>
         )}
 

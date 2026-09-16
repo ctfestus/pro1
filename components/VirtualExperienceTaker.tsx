@@ -11,7 +11,7 @@ import {
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { supabase } from '@/lib/supabase';
-import { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
+import AiReviewUpgradePrompt, { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { sanitizeRichText, sanitizeEmailContent } from '@/lib/sanitize';
@@ -295,7 +295,7 @@ export default function VirtualExperienceTaker({
   // `errored: true` marks a review that never actually ran (validation / rate-limit / server /
   // network) - it is shown as a neutral "could not review" state, never a pass/fail grade.
   const [aiFeedback,   setAiFeedback]   = useState<Record<string, { passed: boolean; feedback: string; score: number; errored?: boolean; upgradeUrl?: string } | null>>({});
-  const entitlement = useAiReviewEntitlement();
+  const entitlement = useAiReviewEntitlement('veAnswers');
   const [saveError,    setSaveError]    = useState<string | null>(null);
   const saveTimeout  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mainScrollRef = useRef<HTMLDivElement>(null);
@@ -1594,7 +1594,7 @@ export default function VirtualExperienceTaker({
                                   setAiFeedback(prev => ({ ...prev, [req.id]: { passed, feedback: fb, score } }));
                                   setProgress(prev => { const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: true, aiErrored: undefined, aiPassed: passed, aiFeedback: fb, aiScore: score } }; saveProgress(next, currentModId, currentLesId); return next; });
                                 } else {
-                                  // A review that never ran. Two different things land here and they must not
+                                  // A review that never ran. Three different things land here and they must not
                                   // be treated alike. A fault -- reviewer down, bad request, timeout -- is not
                                   // the student's doing, so it still marks the step done rather than trapping
                                   // them. A spent free-tier credit is the rule working as intended; marking that
@@ -1696,7 +1696,7 @@ export default function VirtualExperienceTaker({
                                 {feedback && fbTone && (
                                   <div style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, paddingTop: 18 }}>
                                     {feedback.upgradeUrl ? (
-                                      <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={feedback.upgradeUrl} />
+                                      <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={feedback.upgradeUrl} />
                                     ) : (
                                     <MailThreadMsg isDark={isDark} from={manager}>
                                       <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
@@ -1752,13 +1752,28 @@ export default function VirtualExperienceTaker({
                               </div>
                             ) : (
                               <div style={{ padding: '14px 22px 18px' }}>
-                                {req.aiReview && entitlement.dailyExhausted && (
+                                {/* Not part of this plan at all. Said before they write, not after they send. */}
+                                {req.aiReview && entitlement.locked && (
                                   <div style={{ marginBottom: 12 }}>
-                                    <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
+                                    <AiReviewUpgradePrompt
+                                      accentColor={accentColor}
+                                      isDark={isDark ?? false}
+                                      planName={entitlement.planName}
+                                      priceLabel={entitlement.priceLabel}
+                                      canUpgrade={entitlement.canUpgrade}
+                                      upgradeUrl={entitlement.upgradeUrl}
+                                      title="AI review is not part of your plan"
+                                      message="You can still write and send your answer. It just will not be reviewed by AI."
+                                    />
+                                  </div>
+                                )}
+                                {req.aiReview && !entitlement.locked && entitlement.exhausted && (
+                                  <div style={{ marginBottom: 12 }}>
+                                    <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={entitlement.upgradeUrl} />
                                   </div>
                                 )}
                                 <MailComposer isDark={isDark} accent={accentColor} to={manager} subject={efSubject}
-                                  value={noteVal} onChange={(html) => setNote(req.id, html)} canSend={hasContent && !(req.aiReview && entitlement.dailyExhausted)} onSend={handleSend}
+                                  value={noteVal} onChange={(html) => setNote(req.id, html)} canSend={hasContent && !(req.aiReview && entitlement.exhausted && !entitlement.locked)} onSend={handleSend}
                                   placeholder={rounds.length ? 'Write a new reply...' : 'Write your reply...'}
                                   maxChars={req.aiReview ? 2000 : undefined}
                                   onDiscard={() => { setNote(req.id, ''); setOpenReplies(prev => { const n = new Set(prev); n.delete(req.id); return n; }); }} />
@@ -2576,13 +2591,25 @@ export default function VirtualExperienceTaker({
                                   {noteVal.length} / 2000
                                 </p>
                               )}
-                              {!showDone && entitlement.dailyExhausted && (
-                                <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
+                              {!showDone && entitlement.locked && (
+                                <AiReviewUpgradePrompt
+                                  accentColor={accentColor}
+                                  isDark={isDark ?? false}
+                                  planName={entitlement.planName}
+                                  priceLabel={entitlement.priceLabel}
+                                  canUpgrade={entitlement.canUpgrade}
+                                  upgradeUrl={entitlement.upgradeUrl}
+                                  title="AI review is not part of your plan"
+                                  message="You can still write and send your answer. It just will not be reviewed by AI."
+                                />
+                              )}
+                              {!showDone && !entitlement.locked && entitlement.exhausted && (
+                                <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={entitlement.upgradeUrl} />
                               )}
                               {!showDone && (
                                 <button
                                   onClick={handleSubmitAi}
-                                  disabled={noteVal.trim().length === 0 || reviewing || entitlement.dailyExhausted}
+                                  disabled={noteVal.trim().length === 0 || reviewing || (entitlement.exhausted && !entitlement.locked)}
                                   className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                                   style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
                                   {reviewing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -2597,7 +2624,7 @@ export default function VirtualExperienceTaker({
                                   <div className="min-w-0">
                                     <p className="text-[13px] font-bold" style={{ color: isDark ? '#cbd5e1' : '#64748b' }}>Review unavailable</p>
                                     <p className="text-[13px] leading-relaxed mt-0.5" style={{ color: isDark ? '#ccc' : '#444' }}>{feedback.feedback}</p>
-                                    {feedback.upgradeUrl && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={feedback.upgradeUrl} priceLabel={entitlement.priceLabel} />}
+                                    {feedback.upgradeUrl && entitlement.canUpgrade && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={feedback.upgradeUrl} priceLabel={entitlement.priceLabel} />}
                                   </div>
                                 </div>
                               )}

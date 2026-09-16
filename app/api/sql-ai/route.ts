@@ -1,15 +1,15 @@
 import { generateJSON } from '@/lib/ai';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { bumpRateLimit } from '@/lib/rate-limit';
+import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const RATE_LIMIT = 60;
-const RATE_WINDOW_SECONDS = 3600;
+// Read from settings rather than declared here, so the AI features tab is the one place
+// this number lives. A constant left behind would quietly ignore whatever an admin typed.
 
 interface ColumnInfo { name: string; type?: string }
 interface TableInfo  { tableName: string; columns: ColumnInfo[] }
@@ -21,30 +21,15 @@ function adminClient() {
   return createClient(url, key);
 }
 
-async function getSessionUser(req: NextRequest): Promise<{ id: string } | null> {
+async function getSessionUser(req: NextRequest): Promise<AuthedUser | null> {
   const auth = await requireUser(req);
-  return isAuthError(auth) ? null : { id: auth.user.id };
+  return isAuthError(auth) ? null : auth;
 }
 
-async function checkRateLimit(userId: string): Promise<NextResponse | null> {
-  const redis = getRedis();
-  if (!redis) return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
-
-  try {
-    const key = `rate:sql-ai:${userId}`;
-    if (await bumpRateLimit(redis, key, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
-      const ttl = await redis.ttl(key).catch(() => RATE_WINDOW_SECONDS);
-      const retryAfter = Math.max(1, ttl > 0 ? ttl : RATE_WINDOW_SECONDS);
-      return NextResponse.json(
-        { error: `SQL AI limit reached. You can make up to ${RATE_LIMIT} requests per hour.` },
-        { status: 429, headers: { 'Retry-After': String(retryAfter) } },
-      );
-    }
-  } catch {
-    return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
-  }
-
-  return null;
+async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
+  return enforceAiFeatureLimit(auth, getRedis(), 'sqlHelper', {
+    unavailableMessage: 'Service temporarily unavailable',
+  });
 }
 
 function schemaText(tables: TableInfo[]): string {
@@ -70,7 +55,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    const rateLimitError = await checkRateLimit(sessionUser.id);
+    const rateLimitError = await checkRateLimit(sessionUser);
     if (rateLimitError) return rateLimitError;
 
     if (action === 'explain-error') {

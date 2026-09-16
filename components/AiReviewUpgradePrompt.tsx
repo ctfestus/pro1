@@ -13,6 +13,24 @@ interface Props {
   upgradeUrl?: string;
   /** The cheapest way onto the plan, already worded. Omitted entirely when unknown. */
   priceLabel?: string | null;
+  /**
+   * Whether this learner has anything to upgrade to.
+   *
+   * False for subscribers, bootcamp learners and staff: a feature can be closed on their plan too,
+   * but sending them to the pricing page would offer to sell them what they already have.
+   */
+  canUpgrade?: boolean;
+}
+
+/**
+ * Follows the setting rather than hardcoding a number, which stops being true the moment it moves.
+ *
+ * Says "for this reviewer" because the allowance is per reviewer now, not one pot shared across
+ * them -- a learner out of written reviews may still have practice checks.
+ */
+export function aiReviewAllowanceWording(limit: number | null | undefined): string {
+  const n = typeof limit === 'number' && limit > 0 ? limit : 1;
+  return `Your plan includes ${n} a day for this reviewer.`;
 }
 
 /** "about 7 hours" / "about 40 minutes" -- vague on purpose, since the exact second is noise. */
@@ -39,12 +57,18 @@ export function AiReviewDailyLimitNotice({
   resetsInSeconds = null,
   upgradeUrl = AI_REVIEW_UPGRADE_URL,
   priceLabel = null,
+  limit = null,
+  canUpgrade = true,
 }: {
   accentColor: string;
   isDark: boolean;
   resetsInSeconds?: number | null;
   upgradeUrl?: string;
   priceLabel?: string | null;
+  /** The allowance in force, so the copy follows the setting instead of spelling out a number. */
+  limit?: number | null;
+  /** A subscriber who has run out simply waits. There is nothing above them to buy. */
+  canUpgrade?: boolean;
 }) {
   const muted = isDark ? '#cbd5e1' : '#64748b';
   return (
@@ -54,11 +78,11 @@ export function AiReviewDailyLimitNotice({
     >
       <Clock className="mt-0.5 h-4 w-4 flex-shrink-0" style={{ color: muted }} />
       <div className="min-w-0">
-        <p className="text-[13px] font-bold" style={{ color: muted }}>Your AI review for today is used</p>
+        <p className="text-[13px] font-bold" style={{ color: muted }}>No AI reviews left for this today</p>
         <p className="mt-0.5 text-[13px] leading-relaxed" style={{ color: isDark ? '#ccc' : '#444' }}>
-          Your free plan includes one AI review a day. {aiReviewResetWording(resetsInSeconds)}
+          {aiReviewAllowanceWording(limit)} {aiReviewResetWording(resetsInSeconds)}
         </p>
-        <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={priceLabel} />
+        {canUpgrade && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={priceLabel} />}
       </div>
     </div>
   );
@@ -105,9 +129,16 @@ export default function AiReviewUpgradePrompt({
   message = 'Reviews of uploaded work are part of a paid plan. Upgrade to submit your file and get feedback.',
   upgradeUrl = AI_REVIEW_UPGRADE_URL,
   priceLabel = null,
+  canUpgrade = true,
 }: Props) {
   const text = isDark ? '#f8fafc' : '#111827';
   const muted = isDark ? '#a1a1aa' : '#667085';
+
+  // Whoever cannot upgrade gets the plain version, whatever the surface asked for. The copy a
+  // surface supplies is written to sell -- "upgrade to submit your workbook" -- and this card also
+  // reaches bootcamp learners and staff, who read the paid column without being on a plan at all.
+  const heading = canUpgrade ? title : 'This AI reviewer is turned off';
+  const body = canUpgrade ? message : 'It is not available on this platform right now. Your instructor can turn it back on.';
   // The price belongs on the button itself: a figure sitting under it reads as small print, and
   // a learner deciding whether to click should not have to look elsewhere for the cost. The plan
   // name gives way to the price when there is one -- the pricing page names the plan on arrival,
@@ -122,10 +153,11 @@ export default function AiReviewUpgradePrompt({
     <div className="flex max-w-sm flex-col items-center gap-3 px-5 py-6 text-center">
       <LockKeyhole className="h-6 w-6" style={{ color: muted }} />
       <div>
-        <p className="text-sm font-semibold" style={{ color: text }}>{title}</p>
-        <p className="mt-1.5 text-xs leading-relaxed" style={{ color: muted }}>{message}</p>
+        <p className="text-sm font-semibold" style={{ color: text }}>{heading}</p>
+        <p className="mt-1.5 text-xs leading-relaxed" style={{ color: muted }}>{body}</p>
       </div>
 
+      {canUpgrade && (
       <a
         href={upgradeUrl}
         target="_blank"
@@ -137,6 +169,7 @@ export default function AiReviewUpgradePrompt({
       >
         {label} <ArrowUpRight className="h-4 w-4" />
       </a>
+      )}
     </div>
   );
 }

@@ -5,6 +5,11 @@ vi.mock('@/lib/api-auth', () => ({
   isAuthError: (value: any) => !!value?.error,
 }));
 
+vi.mock('@/lib/ai-limits-server', async () => {
+  const { AI_LIMIT_DEFAULTS } = await import('@/lib/ai-limits');
+  return { getAiLimits: async () => AI_LIMIT_DEFAULTS, aiTierFor: async () => 'paid' };
+});
+
 vi.mock('@/lib/redis', () => ({
   getRedis: vi.fn(),
 }));
@@ -101,7 +106,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   redis = redisStub();
   mockGetRedis.mockReturnValue(redis as any);
-  mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, getActorDb: () => courseStub(COURSE) as any, serviceDb: {} as any, token: 't' } as any);
+  mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, actor: { id: 'u1' }, getActorDb: () => courseStub(COURSE) as any, serviceDb: {} as any, token: 't' } as any);
   mockGenerateText.mockResolvedValue('An answer.');
 });
 
@@ -171,7 +176,7 @@ describe('POST /api/lesson-tutor - refusals', () => {
   });
 
   it('returns 403 when the course has not opted into the tutor', async () => {
-    mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, getActorDb: () => courseStub({ ...COURSE, ai_tutor_enabled: false }) as any, serviceDb: {} as any, token: 't' } as any);
+    mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, actor: { id: 'u1' }, getActorDb: () => courseStub({ ...COURSE, ai_tutor_enabled: false }) as any, serviceDb: {} as any, token: 't' } as any);
     const POST = await loadRoute();
     const res = await post(POST, ask('What is a median?'));
     expect(res.status).toBe(403);
@@ -180,7 +185,7 @@ describe('POST /api/lesson-tutor - refusals', () => {
   });
 
   it('returns 404 for a course the caller cannot read', async () => {
-    mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, getActorDb: () => courseStub(null) as any, serviceDb: {} as any, token: 't' } as any);
+    mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, actor: { id: 'u1' }, getActorDb: () => courseStub(null) as any, serviceDb: {} as any, token: 't' } as any);
     const POST = await loadRoute();
     const res = await post(POST, ask('What is a median?'));
     expect(res.status).toBe(404);

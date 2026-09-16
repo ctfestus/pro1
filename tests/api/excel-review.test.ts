@@ -6,6 +6,11 @@ vi.mock('@/lib/api-auth', () => ({
   isAuthError: (value: any) => !!value?.error,
 }));
 
+vi.mock('@/lib/ai-limits-server', async () => {
+  const { AI_LIMIT_DEFAULTS } = await import('@/lib/ai-limits');
+  return { getAiLimits: async () => AI_LIMIT_DEFAULTS, aiTierFor: async () => 'paid' };
+});
+
 vi.mock('@/lib/redis', () => ({ getRedis: () => ({}) }));
 vi.mock('@/lib/rate-limit', () => ({ bumpRateLimit: vi.fn(async () => false) }));
 vi.mock('@/lib/ai', () => ({ generateJSON: vi.fn() }));
@@ -57,7 +62,8 @@ const CRITERIA = ['B12 contains a formula', 'B16 contains a formula', 'Values ag
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockRequireUser.mockResolvedValue({ user: { id: 'u1' } } as any);
+  // The gate meters per learner, so the stub carries the actor real auth always supplies.
+  mockRequireUser.mockResolvedValue({ user: { id: 'u1' }, actor: { id: 'u1' } } as any);
 });
 
 describe('POST /api/excel-review - rubric gating', () => {

@@ -3087,6 +3087,10 @@ CREATE TABLE IF NOT EXISTS public.platform_settings (
   -- migration 183. Off by default: deploying the column opens nothing, and turning it back off
   -- closes public signups again with no deploy. app/auth/callback reads it per request.
   public_signup_enabled boolean NOT NULL DEFAULT false,
+  -- migration 211: per-feature AI request limits, so a pricing decision is not a deploy. Null or
+  -- a missing key falls back to the defaults compiled into lib/ai-limits.ts, which also holds the
+  -- ceilings every value is validated against before it is written.
+  ai_limits       jsonb,
   updated_at      timestamptz DEFAULT now()
 );
 

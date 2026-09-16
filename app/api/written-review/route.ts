@@ -16,9 +16,8 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { bumpRateLimit } from '@/lib/rate-limit';
+import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
 import { readBoundedJson } from '@/lib/bounded-json';
-import { enforceStudentAiReviewPlanLimit } from '@/lib/ai-review-plan-limit';
 import type { AuthedUser } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
@@ -27,8 +26,9 @@ export const dynamic = 'force-dynamic';
 // counter, a student who worked through their lesson's ungraded knowledge checks could not then
 // submit the graded question -- practising would lock them out of assessed work. The graded budget
 // is sized to the player's 2 attempts per question; practice gets the larger allowance.
-const RATE_LIMITS = { brief: 20, full: 10 } as const;
-const RATE_WINDOW_SECONDS = 86400;
+// Read from settings rather than declared here, so the AI features tab is the one place
+// this number lives. A constant left behind would quietly ignore whatever an admin typed.
+type ReviewDepth = 'brief' | 'full';
 // Max length of the answer we send to the model. Keep the player-side counters in sync
 // (WrittenResponsePlayer, KnowledgeCheck). Not exported: a route module may only export handlers.
 const MAX_ANSWER_CHARS = 6000;
@@ -53,24 +53,13 @@ const MAX_RUBRIC_ITEM_CHARS = 300;
 // (/api/document-review also fails closed; that one is upload-heavy and far more expensive.)
 //
 // Do not "make this consistent" with the other AI routes without checking the caller first.
-async function checkRateLimit(auth: AuthedUser, depth: keyof typeof RATE_LIMITS): Promise<NextResponse | null> {
-  const redis = getRedis();
-  if (!redis) return null;
-  const limit = RATE_LIMITS[depth];
-  try {
-    const planLimit = await enforceStudentAiReviewPlanLimit(auth, redis, { failOpen: true });
-    if (planLimit) return planLimit;
-    if (await bumpRateLimit(redis, `rate:written-review:${depth}:${auth.user.id}`, limit, RATE_WINDOW_SECONDS)) {
-      const kind = depth === 'brief' ? 'practice checks' : 'written reviews';
-      return NextResponse.json(
-        { error: `Limit reached: ${limit} ${kind} per day. Try again tomorrow.` },
-        { status: 429 },
-      );
-    }
-  } catch {
-    // fail open if Redis is unavailable -- see the note above the function
-  }
-  return null;
+async function checkRateLimit(auth: AuthedUser, depth: ReviewDepth): Promise<NextResponse | null> {
+  // Fails OPEN, unlike the upload reviewers. This one is cheap and used constantly inside lessons,
+  // so refusing every learner over a Redis blip costs more in trust than the requests cost in
+  // money. Do not "make this consistent" with the others without checking the caller first.
+  return enforceAiFeatureLimit(auth, getRedis(), depth === 'brief' ? 'practiceChecks' : 'writtenReviews', {
+    failOpen: true,
+  });
 }
 
 const responseSchema = {

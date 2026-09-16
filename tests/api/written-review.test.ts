@@ -11,11 +11,17 @@
 // bumpRateLimit and readBoundedJson are intentionally NOT mocked -- the point is to exercise the
 // real limiter path, since that is where the regression lived.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { makeSupabaseStub } from '../helpers/supabaseStub';
 
 vi.mock('@/lib/api-auth', () => ({
   requireUser: vi.fn(),
   isAuthError: (value: any) => !!value?.error,
 }));
+
+vi.mock('@/lib/ai-limits-server', async () => {
+  const { AI_LIMIT_DEFAULTS } = await import('@/lib/ai-limits');
+  return { getAiLimits: async () => AI_LIMIT_DEFAULTS, aiTierFor: async () => 'paid' };
+});
 
 vi.mock('@/lib/redis', () => ({
   getRedis: vi.fn(),
@@ -71,7 +77,17 @@ const answerBody = (extra: Record<string, unknown> = {}) => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mockRequireUser.mockResolvedValue({ user: { id: 'student-1' }, token: 'test-token' } as any);
+  mockRequireUser.mockResolvedValue({
+    user: { id: 'student-1' },
+    actor: { id: 'student-1' },
+    // The gate reads the caller's plan before spending a counter. Stubbed as an active subscriber
+    // so these tests still exercise the paid caps they were written against.
+    serviceDb: makeSupabaseStub({
+      students: { data: { role: 'student', cohort_id: null, enrollment_model: null } },
+      individual_subscriptions: { data: { status: 'active', current_period_end: '2099-01-01T00:00:00Z' } },
+    }) as any,
+    token: 'test-token',
+  } as any);
   mockGetRedis.mockReturnValue(redisStub() as any);
   mockGenerateJSON.mockResolvedValue({
     overallScore: 82,
@@ -97,7 +113,7 @@ describe('POST /api/written-review - fails open by design', () => {
   });
 
   it('returns 429 once over the graded daily cap, and does not call the model', async () => {
-    // RATE_LIMITS.full is 10, so an eleventh attempt is over.
+    // The paid allowance for written reviews is 10, so an eleventh attempt is over.
     mockGetRedis.mockReturnValue(redisStub(11) as any);
     const res = await post(answerBody());
     expect(res.status).toBe(429);

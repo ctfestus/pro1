@@ -18,11 +18,12 @@ interface Props {
   message?: string;
   upgradeUrl?: string;
   priceLabel?: string | null;
+  canUpgrade?: boolean;
   children: ReactNode;
 }
 
 export default function AiReviewLockOverlay({
-  locked, accentColor, isDark, planName, message, upgradeUrl, priceLabel, children,
+  locked, accentColor, isDark, planName, message, upgradeUrl, priceLabel, canUpgrade, children,
 }: Props) {
   if (!locked) return <>{children}</>;
 
@@ -47,6 +48,7 @@ export default function AiReviewLockOverlay({
           message={message}
           upgradeUrl={upgradeUrl}
           priceLabel={priceLabel}
+          canUpgrade={canUpgrade}
         />
       </div>
     </div>
