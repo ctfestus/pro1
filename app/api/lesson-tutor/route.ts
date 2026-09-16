@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateText, GEMINI_MODEL } from '@/lib/ai';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
+import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
 import { lessonPlainText } from '@/lib/lesson-doc';
 import {
   MAX_QUESTION_CHARS, MAX_LESSON_CHARS, MAX_OUTPUT_TOKENS, TUTOR_SYSTEM_INSTRUCTION,
@@ -55,7 +56,9 @@ const AI_OPTS = {
 // allocation between them. Overridable per deployment because the right numbers depend
 // entirely on which plan the tutor key sits on.
 const num = (v: string | undefined, fallback: number) => (Number(v) > 0 ? Number(v) : fallback);
-const USER_HOURLY_LIMIT = num(process.env.TUTOR_USER_HOURLY_LIMIT, 15);
+// The per-learner limit comes from settings. The two GLOBAL ceilings below stay in env: they
+// are the circuit breaker on the AI account, not a product setting, and a form that can raise
+// them is a form that can run up a bill.
 const GLOBAL_HOURLY_LIMIT = num(process.env.TUTOR_GLOBAL_HOURLY_LIMIT, 120);
 const GLOBAL_DAILY_LIMIT = num(process.env.TUTOR_GLOBAL_DAILY_LIMIT, 600);
 const HOUR_SECONDS = 3600;
@@ -63,21 +66,21 @@ const DAY_SECONDS = 86400;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function checkRateLimit(userId: string): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
   const redis = getRedis();
-  // Fail closed -- the tutor runs on a metered AI quota, so an unavailable limiter
-  // must not become an unlimited one.
+  // Fail closed -- the tutor runs on a metered AI quota, so an unavailable limiter must not become
+  // an unlimited one.
   if (!redis) return NextResponse.json({ error: 'The tutor is unavailable right now.' }, { status: 503 });
+
+  // The caller's own cap is checked first so a student who is already over their limit cannot
+  // spend from the shared platform budget on the way to being refused.
+  const own = await enforceAiFeatureLimit(auth, redis, 'lessonTutor', {
+    unavailableMessage: 'The tutor is unavailable right now.',
+  });
+  if (own) return own;
+
   try {
-    // The caller's own cap is checked first so a student who is already over their limit
-    // cannot spend from the shared platform budget on the way to being refused.
-    if (await bumpRateLimit(redis, `rate:lesson-tutor:${userId}`, USER_HOURLY_LIMIT, HOUR_SECONDS)) {
-      return NextResponse.json(
-        { error: `You have reached ${USER_HOURLY_LIMIT} tutor questions this hour. Try again a bit later.` },
-        { status: 429 },
-      );
-    }
-    // Platform-wide. Worded without numbers: a student has no way to act on a global ceiling,
+    // Platform-wide, and worded without numbers: a student has no way to act on a global ceiling,
     // so telling them the count would only read as a broken feature.
     if (await bumpRateLimit(redis, 'rate:lesson-tutor:global:day', GLOBAL_DAILY_LIMIT, DAY_SECONDS)) {
       return NextResponse.json(
@@ -94,6 +97,7 @@ async function checkRateLimit(userId: string): Promise<NextResponse | null> {
   } catch {
     return NextResponse.json({ error: 'The tutor is unavailable right now.' }, { status: 503 });
   }
+
   return null;
 }
 
@@ -172,7 +176,7 @@ export async function POST(req: NextRequest) {
   // wrong slide type, empty lesson -- still consumed a slot from the shared platform
   // allowance, so a bad or hostile caller could drain the day's budget without ever reaching
   // the model.
-  const limited = await checkRateLimit(auth.user.id);
+  const limited = await checkRateLimit(auth);
   if (limited) return limited;
 
   try {

@@ -90,7 +90,7 @@ export default function DocumentReviewPlayer({
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]       = useState('');
   const [upgradeUrl, setUpgradeUrl] = useState('');
-  const entitlement = useAiReviewEntitlement();
+  const entitlement = useAiReviewEntitlement('documentReview');
   const inputRef   = useRef<HTMLInputElement>(null);
 
   const bg     = isDark ? '#0f0f0f' : '#f8fafc';
@@ -259,7 +259,7 @@ export default function DocumentReviewPlayer({
           }
         </div>
 
-        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} message={error} upgradeUrl={upgradeUrl} />}
+        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} canUpgrade={entitlement.canUpgrade} message={error} upgradeUrl={upgradeUrl} />}
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <button onClick={handleSubmit} disabled={analyzing || !file}

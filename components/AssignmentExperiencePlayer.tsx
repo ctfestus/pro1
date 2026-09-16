@@ -9,7 +9,7 @@ import {
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { supabase } from '@/lib/supabase';
-import { AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
+import AiReviewUpgradePrompt, { AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { sanitizeRichText, sanitizeEmailContent } from '@/lib/sanitize';
@@ -231,7 +231,7 @@ export default function AssignmentExperiencePlayer({
   // `errored: true` marks a review that never actually ran (validation / rate-limit / server /
   // network) - shown as a neutral "could not review" state, never a pass/fail grade.
   const [aiFeedback,      setAiFeedback]      = useState<Record<string, { passed: boolean; feedback: string; score: number; errored?: boolean; upgradeUrl?: string } | null>>({});
-  const entitlement = useAiReviewEntitlement();
+  const entitlement = useAiReviewEntitlement('veAnswers');
   async function getAuthHeader(): Promise<Record<string, string>> {
     const { data: { session } } = await supabase.auth.getSession();
     const token = session?.access_token ?? '';
@@ -1129,8 +1129,9 @@ export default function AssignmentExperiencePlayer({
                                     updateProgress(req.id, { notes: val, completed: true, aiErrored: undefined, aiPassed: passed, aiFeedback: fb, aiScore: score });
                                   } else {
                                     // A review that never ran. A fault is not the student's doing, so it still
-                                    // marks the step done. A spent free-tier credit is the rule working, and
-                                    // marking that done would hand them every remaining AI step for free.
+                                    // marks the step done. A spent allowance is the rule working, and marking
+                                    // that done would hand them every remaining AI step for free. A plan that
+                                    // excludes the reviewer also marks done: it never resets, so blocking traps them.
                                     const fb = json.error || 'We could not complete an AI review of your response right now. Please edit your answer if needed and try again.';
                                     const up = json.code === 'daily_limit_reached' ? String(json.upgradeUrl || AI_REVIEW_UPGRADE_URL) : undefined;
                                     setAiFeedback(prev => ({ ...prev, [req.id]: { passed: false, feedback: fb, score: 0, errored: true, upgradeUrl: up } }));
@@ -1219,7 +1220,7 @@ export default function AssignmentExperiencePlayer({
                                   {feedback && fbTone && (
                                     <div style={{ borderTop: `1px solid ${divider}`, paddingTop: 18 }}>
                                       {feedback.upgradeUrl ? (
-                                        <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={feedback.upgradeUrl} />
+                                        <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={feedback.upgradeUrl} />
                                       ) : (
                                       <MailThreadMsg isDark={isDark} from={manager}>
                                         <p style={{ margin: '0 0 12px' }}>{fbErrored ? 'I could not review your response just now:' : 'Hi, here is my feedback on your response:'}</p>
@@ -1272,13 +1273,28 @@ export default function AssignmentExperiencePlayer({
                                 </div>
                               ) : (
                                 <div style={{ padding: '14px 22px 18px' }}>
-                                  {req.aiReview && entitlement.dailyExhausted && (
+                                  {/* Not part of this plan at all. Said before they write, not after they send. */}
+                                {req.aiReview && entitlement.locked && (
+                                  <div style={{ marginBottom: 12 }}>
+                                    <AiReviewUpgradePrompt
+                                      accentColor={accent}
+                                      isDark={isDark}
+                                      planName={entitlement.planName}
+                                      priceLabel={entitlement.priceLabel}
+                                      canUpgrade={entitlement.canUpgrade}
+                                      upgradeUrl={entitlement.upgradeUrl}
+                                      title="AI review is not part of your plan"
+                                      message="You can still write and send your answer. It just will not be reviewed by AI."
+                                    />
+                                  </div>
+                                )}
+                                {req.aiReview && !entitlement.locked && entitlement.exhausted && (
                                     <div style={{ marginBottom: 12 }}>
-                                      <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} upgradeUrl={entitlement.upgradeUrl} />
+                                      <AiReviewDailyLimitNotice accentColor={accent} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={entitlement.upgradeUrl} />
                                     </div>
                                   )}
                                   <MailComposer isDark={isDark} accent={accent} to={manager} subject={efSubject}
-                                    value={val} onChange={(html) => updateProgress(req.id, { notes: html })} canSend={hasContent && !(req.aiReview && entitlement.dailyExhausted)} onSend={handleSend}
+                                    value={val} onChange={(html) => updateProgress(req.id, { notes: html })} canSend={hasContent && !(req.aiReview && entitlement.exhausted && !entitlement.locked)} onSend={handleSend}
                                     placeholder={rounds.length ? 'Write a new reply...' : 'Write your reply...'}
                                     maxChars={req.aiReview ? 2000 : undefined}
                                     onDiscard={() => { updateProgress(req.id, { notes: '' }); setOpenReplies(prev => { const n = new Set(prev); n.delete(req.id); return n; }); }} />

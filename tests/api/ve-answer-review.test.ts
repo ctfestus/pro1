@@ -6,6 +6,11 @@ vi.mock('@/lib/api-auth', () => ({
   isAuthError: (value: any) => !!value?.error,
 }));
 
+vi.mock('@/lib/ai-limits-server', async () => {
+  const { AI_LIMIT_DEFAULTS } = await import('@/lib/ai-limits');
+  return { getAiLimits: async () => AI_LIMIT_DEFAULTS, aiTierFor: async () => 'paid' };
+});
+
 vi.mock('@/lib/redis', () => ({
   getRedis: vi.fn(),
 }));
@@ -76,8 +81,14 @@ beforeEach(() => {
   vi.clearAllMocks();
   mockRequireUser.mockResolvedValue({
     user: { id: 'u1' },
+    actor: { id: 'u1' },
     getActorDb: () => makeSupabaseStub({ virtual_experiences: { data: VE_ROW } }) as any,
-    serviceDb: makeSupabaseStub({ virtual_experiences: { data: null } }) as any,
+    serviceDb: makeSupabaseStub({
+      // The gate reads the caller's plan before spending a counter.
+      students: { data: { role: 'student', cohort_id: null, enrollment_model: null } },
+      individual_subscriptions: { data: { status: 'active', current_period_end: '2099-01-01T00:00:00Z' } },
+      virtual_experiences: { data: null },
+    }) as any,
     token: 't',
   } as any);
   mockGetRedis.mockReturnValue(redisStub() as any);
@@ -189,8 +200,12 @@ describe('POST /api/ve-answer-review - auth, rate limit, validation', () => {
   it('404s when the caller cannot read the VE and no assignment grants access', async () => {
     mockRequireUser.mockResolvedValue({
       user: { id: 'u1' },
+      actor: { id: 'u1' },
       getActorDb: () => makeSupabaseStub({ virtual_experiences: { data: null } }) as any,
       serviceDb: makeSupabaseStub({
+        // The gate reads the caller's plan before spending a counter. These blocks bring their
+        // own students row, so only the subscription lookup is added.
+        individual_subscriptions: { data: null },
         virtual_experiences: { data: VE_ROW },
         students: { data: { role: 'student', cohort_id: 'c-9' } },
         assignments: { data: [] },

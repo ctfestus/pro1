@@ -97,7 +97,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
   const [analyzing, setAnalyzing] = useState(false);
   const [error, setError]       = useState('');
   const [upgradeUrl, setUpgradeUrl] = useState('');
-  const entitlement = useAiReviewEntitlement();
+  const entitlement = useAiReviewEntitlement('codeReview');
   const [inputMode, setInputMode] = useState<'paste' | 'upload'>('paste');
   const [uploadedFileName, setUploadedFileName] = useState('');
   const [issueFilter, setIssueFilter] = useState<'all' | LineIssue['severity']>('all');
@@ -344,7 +344,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
           )}
         </div>
 
-        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} message={error} upgradeUrl={upgradeUrl} />}
+        {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} canUpgrade={entitlement.canUpgrade} message={error} upgradeUrl={upgradeUrl} />}
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
         <button onClick={handleSubmit} disabled={analyzing}

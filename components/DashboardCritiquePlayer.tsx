@@ -133,7 +133,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
   const [analyzing, setAnalyzing]       = useState(false);
   const [error, setError]               = useState('');
   const [upgradeUrl, setUpgradeUrl]     = useState('');
-  const entitlement                     = useAiReviewEntitlement();
+  const entitlement                     = useAiReviewEntitlement('dashboardReview');
   const [hoveredId, setHoveredId]       = useState<string | null>(null);
   const [mousePos, setMousePos]         = useState({ x: 0, y: 0 });
   const [zonesVisible, setZonesVisible] = useState(true);
@@ -304,6 +304,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         isDark={isDark}
         planName={entitlement.planName}
         priceLabel={entitlement.priceLabel}
+        canUpgrade={entitlement.canUpgrade}
         upgradeUrl={entitlement.upgradeUrl}
         message="Dashboard reviews are part of a paid plan. Upgrade to submit your screenshot and get element-level coaching."
       >
@@ -369,6 +370,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         isDark={isDark}
         planName={entitlement.planName}
         priceLabel={entitlement.priceLabel}
+        canUpgrade={entitlement.canUpgrade}
         message={error}
         upgradeUrl={upgradeUrl}
       />

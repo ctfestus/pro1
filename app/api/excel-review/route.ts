@@ -4,15 +4,14 @@ import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { bumpRateLimit } from '@/lib/rate-limit';
+import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
 import ExcelJS from 'exceljs';
 import { collectRubricGrades, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
-import { enforceStudentAiReviewPlanLimit } from '@/lib/ai-review-plan-limit';
 
 export const dynamic = 'force-dynamic';
 
-const RATE_LIMIT = 3;
-const RATE_WINDOW_SECONDS = 86400;
+// Read from settings rather than declared here, so the AI features tab is the one place
+// this number lives. A constant left behind would quietly ignore whatever an admin typed.
 const MAX_FORMULAS = 200;
 const MAX_SHEETS = 5;
 const MAX_ROWS_PER_SHEET = 5_000;
@@ -34,24 +33,11 @@ async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse
 }
 
 async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
-  const redis = getRedis();
-  if (!redis) return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
-  try {
-    const planLimit = await enforceStudentAiReviewPlanLimit(auth, redis, {
-      paidOnly: true,
-      unavailableMessage: 'Service temporarily unavailable',
-    });
-    if (planLimit) return planLimit;
-    if (await bumpRateLimit(redis, `rate:excel-review:${auth.user.id}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
-      return NextResponse.json(
-        { error: `Limit reached: ${RATE_LIMIT} Excel reviews per day. Try again tomorrow.` },
-        { status: 429 },
-      );
-    }
-  } catch {
-    return NextResponse.json({ error: 'Service temporarily unavailable' }, { status: 503 });
-  }
-  return null;
+  // Whether this reviewer is included at all, and how many a day, both come from settings now --
+  // a free learner is refused because the free column says 0, not because a route says so.
+  return enforceAiFeatureLimit(auth, getRedis(), 'excelReview', {
+    unavailableMessage: 'Service temporarily unavailable',
+  });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

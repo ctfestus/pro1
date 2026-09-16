@@ -1,17 +1,17 @@
 import { Type } from '@google/genai';
-import { requireUser, isAuthError } from '@/lib/api-auth';
+import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { bumpRateLimit } from '@/lib/rate-limit';
+import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
 
 export const dynamic = 'force-dynamic';
 
 // Clarification chat turns are cheap flash calls, so the cap is looser than the
 // graded-review routes. Nothing from this route is ever persisted -- the thread
 // lives only in the player's session state by design.
-const RATE_LIMIT = 20;
-const RATE_WINDOW_SECONDS = 86400;
+// Read from settings rather than declared here, so the AI features tab is the one place
+// this number lives. A constant left behind would quietly ignore whatever an admin typed.
 const MAX_QUESTION_CHARS = 500;
 const MAX_HISTORY_TURNS = 8;
 const MAX_OUTLINE_MISSIONS = 40;
@@ -20,24 +20,10 @@ const MAX_PLAN_CHARS = 8000;
 
 const VE_COLUMNS = 'user_id, modules, company, role, industry, manager_name, manager_title, background';
 
-async function checkRateLimit(userId: string): Promise<NextResponse | null> {
-  const redis = getRedis();
-  // Fail closed. This route spends a metered AI quota, so a limiter that cannot be
-  // reached must not silently become no limiter at all -- an outage is exactly when an
-  // unbounded bill would be run up.
-  if (!redis) return NextResponse.json({ error: 'The assistant is unavailable right now. Please try again shortly.' }, { status: 503 });
-  try {
-    if (await bumpRateLimit(redis, `rate:ve-brief-chat:${userId}`, RATE_LIMIT, RATE_WINDOW_SECONDS)) {
-      return NextResponse.json(
-        { error: `Limit reached: ${RATE_LIMIT} questions per day. Try again tomorrow.` },
-        { status: 429 },
-      );
-    }
-  } catch {
-    // Same reasoning as above: an unreachable limiter refuses rather than waves through.
-    return NextResponse.json({ error: 'The assistant is unavailable right now. Please try again shortly.' }, { status: 503 });
-  }
-  return null;
+async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
+  return enforceAiFeatureLimit(auth, getRedis(), 'briefChat', {
+    unavailableMessage: 'Service temporarily unavailable',
+  });
 }
 
 const responseSchema = {
@@ -55,7 +41,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
 
-  const rateLimitError = await checkRateLimit(auth.user.id);
+  const rateLimitError = await checkRateLimit(auth);
   if (rateLimitError) return rateLimitError;
 
   const body = await req.json();
