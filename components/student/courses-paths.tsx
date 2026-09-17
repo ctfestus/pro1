@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -1047,6 +1047,8 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
   const [courses,   setCourses]   = useState<any[]>([]);
   const [deadlines, setDeadlines] = useState<Record<string, Date | null>>({});
   const [loading,   setLoading]   = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [detailCourse, setDetailCourse] = useState<any>(null);
   // VE attempt status map: formId -> { started, completed }
   const [veStatusMap, setVeStatusMap] = useState<Record<string, { started: boolean; completed: boolean }>>({});
@@ -1057,21 +1059,28 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
   const searchTimer = useRef<any>(null);
 
   useEffect(() => {
+    let cancelled = false;
     const load = async () => {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) { setLoading(false); return; }
+      setLoadError(false);
+      try {
+      // getUser resolves with { user: null, error } on a network or auth failure. The page
+      // redirects a signed-out visitor before this mounts, so an error here is a real failure.
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      if (userError) throw userError;
+      if (!user) return;
       const effectiveUserId = userIdProp ?? user.id;
 
       // Get student's cohort -- original_cohort_id being set means they're currently in outstanding
-      const { data: student } = await supabase
+      const { data: student, error: studentError } = await supabase
         .from('students')
         .select('cohort_id, original_cohort_id, payment_exempt')
         .eq('id', effectiveUserId)
         .single();
+      if (studentError) throw studentError;
 
       // Query by student_id only -- cohort_id filter breaks when student is moved to outstanding cohort
-      const { data: enrollment } = await supabase
+      const { data: enrollment, error: enrollmentError } = await supabase
         .from('bootcamp_enrollments')
         .select('access_status, total_fee, deposit_required, paid_total, payment_plan, bootcamp_ends_at, cohort_id, payment_installments ( due_date, status )')
         .eq('student_id', effectiveUserId)
@@ -1082,15 +1091,22 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+      // maybeSingle treats "no enrollment" as success, so an error here is a real failure.
+      // Swallowing it would silently unlock content for a student who has not paid.
+      if (enrollmentError) throw enrollmentError;
 
       // Compute access live so overdue/grace status reflects today's date without needing an admin action
       let liveStatus = enrollment?.access_status ?? null;
       if (enrollment) {
-        const { data: settings } = await supabase
+        const { data: settings, error: settingsError } = await supabase
           .from('cohort_payment_settings')
           .select('post_bootcamp_access_months, grace_period_days')
           .eq('cohort_id', enrollment.cohort_id)
           .maybeSingle();
+        // grace_period_days falls back to null, which computeAccess reads as no grace at all.
+        // Swallowing an error here would mark a student inside their grace period overdue and
+        // take their courses away, so fail to the retry screen instead of inventing settings.
+        if (settingsError) throw settingsError;
         liveStatus = computeAccess({
           payment_plan:                enrollment.payment_plan as any,
           total_fee:                   Number(enrollment.total_fee),
@@ -1105,6 +1121,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
 
       const restrictedByPayment = !student?.payment_exempt && ['pending_deposit', 'overdue', 'expired'].includes(liveStatus ?? '');
       const outstanding = !!student?.original_cohort_id || restrictedByPayment;
+      if (cancelled) return;
       setIsOutstandingInternal(outstanding);
 
       // Get session token for authenticated API calls
@@ -1120,21 +1137,31 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
               ? query.or(`available_to_everyone.eq.true,cohort_ids.cs.{${student.cohort_id}}`)
               : query.eq('available_to_everyone', true);
           })()
-        : Promise.resolve({ data: [] });
-      const [{ data: cohortCourseRows }, { data: attempts }, certsRes] = await Promise.all([
+        : Promise.resolve({ data: [], error: null });
+      const [
+        { data: cohortCourseRows, error: coursesError },
+        { data: attempts, error: attemptsError },
+        certsRes,
+      ] = await Promise.all([
         courseCatalogQuery,
         supabase.from('course_attempts')
           .select('course_id, score, points, current_question_index, completed_at, passed, updated_at, answers')
           .eq('student_id', effectiveUserId)
           .order('started_at', { ascending: false }),
+        // A dropped certificates request must not take the whole course list down with it --
+        // without the badge is far better than a Courses tab stuck on its skeleton.
         token
           ? fetch('/api/course', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
               body: JSON.stringify({ action: 'get-my-certificates' }),
-            }).then(r => r.json())
+            }).then(r => r.ok ? r.json() : { certs: [] }).catch(() => ({ certs: [] }))
           : Promise.resolve({ certs: [] }),
       ]);
+      // A failed catalogue or attempts query resolves with null data, which would render as
+      // "No courses yet". Surface it as a retry instead of pretending the student has nothing.
+      if (coursesError) throw coursesError;
+      if (attemptsError) throw attemptsError;
 
       // Build cert lookup: form_id -> cert id
       const certMap: Record<string, string> = {};
@@ -1172,11 +1199,15 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
 
       let extraForms: any[] = [];
       if (extraIds.length) {
-        const { data } = await supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes, category, partner:partners(name, logo_url)').in('id', extraIds).eq('status', 'published');
+        const { data, error: extraError } = await supabase.from('courses').select('id, title, slug, cover_image, questions, deadline_days, passmark, description, learn_outcomes, category, partner:partners(name, logo_url)').in('id', extraIds).eq('status', 'published');
+        // These are courses the student has actually attempted. Dropping them on error would
+        // read as lost progress, so surface the failure rather than a partial list.
+        if (extraError) throw extraError;
         extraForms = (data ?? []).map(normalizeCourse);
       }
 
       const allForms = [...cohortCourses, ...extraForms];
+      if (cancelled) return;
       setCourses(allForms.map(f => ({ ...progressMap[f.id], form: f, form_id: f.id, cert_id: certMap[f.id] ?? null })));
 
       // Fetch cohort_assignments to compute deadlines
@@ -1196,6 +1227,7 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
             ? new Date(new Date(asgn.assigned_at).getTime() + Number(deadlineDays) * 86400000)
             : null;
         }
+        if (cancelled) return;
         setDeadlines(dlMap);
       }
 
@@ -1209,13 +1241,22 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
         for (const a of veAttempts) {
           map[a.ve_id] = { started: true, completed: Boolean(a.completed_at) };
         }
+        if (cancelled) return;
         setVeStatusMap(map);
       }
 
-      setLoading(false);
+      } catch (err) {
+        console.error('Failed to load courses', err);
+        // Without this the student sees the "No courses yet" empty state after a failed load.
+        if (!cancelled) setLoadError(true);
+      } finally {
+        // A superseded request must not clear the loader owned by the next request.
+        if (!cancelled) setLoading(false);
+      }
     };
-    load();
-  }, [userEmail, userIdProp]);
+    void load();
+    return () => { cancelled = true; };
+  }, [userEmail, userIdProp, refreshKey]);
 
 
   const searchResults = useMemo(() => {
@@ -1230,6 +1271,21 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
   }, [searchQuery, courses]);
 
   if (loading) return <CarouselSkeleton C={C}/>;
+
+  if (loadError) return (
+    <EmptyState
+      icon={RefreshCw}
+      title="Could not load your courses"
+      body="Check your connection and try again."
+      action={(
+        <button type="button" onClick={() => setRefreshKey(key => key + 1)}
+          className="text-sm font-semibold px-4 py-2.5 rounded-xl"
+          style={{ background: C.cta, color: C.ctaText }}>
+          Try again
+        </button>
+      )}
+    />
+  );
 
   return (
     <div className="space-y-6">
