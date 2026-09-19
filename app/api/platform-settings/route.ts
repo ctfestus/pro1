@@ -7,6 +7,7 @@ import { revalidateTag } from 'next/cache';
 import { adminClient } from '@/lib/admin-client';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
+import { normalizeGaMeasurementId } from '@/lib/analytics';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,6 +62,20 @@ export async function POST(req: NextRequest) {
   if (body.faviconUrl     !== undefined) record.favicon_url     = safeUrl(body.faviconUrl);
   if (body.emailBannerUrl !== undefined) record.email_banner_url = safeUrl(body.emailBannerUrl);
   if (body.whatsappCommunityUrl !== undefined) record.whatsapp_community_url = safeUrl(body.whatsappCommunityUrl);
+  // Rejected rather than nulled like the URL fields: a mistyped measurement ID collects nothing,
+  // and an admin who is told "saved" would go looking for visitor numbers that were never being
+  // recorded. Blank clears the column and turns analytics off.
+  if (body.googleAnalyticsId !== undefined) {
+    const raw = typeof body.googleAnalyticsId === 'string' ? body.googleAnalyticsId.trim() : '';
+    const gaId = raw ? normalizeGaMeasurementId(raw) : null;
+    if (raw && !gaId) {
+      return NextResponse.json(
+        { error: 'Measurement ID should look like G-XXXXXXXXXX. Copy it from GA4 Admin, Data streams.' },
+        { status: 400 },
+      );
+    }
+    record.google_analytics_id = gaId;
+  }
   // Coerced with === true rather than trusted: a form can send the string 'false', which is
   // truthy, and this one field decides whether strangers can create accounts on the platform.
   if (body.publicSignupEnabled !== undefined) record.public_signup_enabled = body.publicSignupEnabled === true;

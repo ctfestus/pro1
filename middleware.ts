@@ -71,14 +71,18 @@ export async function middleware(req: NextRequest) {
 
     // Production: nonce-only -- no unsafe-inline, no unsafe-eval.
     // Development: add unsafe-eval for HMR/webpack dev runtime.
+    // googletagmanager.com is listed unconditionally: the measurement ID lives in
+    // platform_settings so an admin can switch analytics on without a deploy, and middleware
+    // runs on the edge on every request -- reading the database here to decide would cost a
+    // round trip per page load to narrow a policy by one Google-owned host.
     isDev
-      ? `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com`
-      : `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com`,
+      ? `script-src 'self' 'nonce-${nonce}' 'unsafe-eval' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com https://www.googletagmanager.com`
+      : `script-src 'self' 'nonce-${nonce}' 'wasm-unsafe-eval' blob: https://cdn.jsdelivr.net https://challenges.cloudflare.com https://www.googletagmanager.com`,
 
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src 'self' https://fonts.gstatic.com",
     "img-src https: data: blob:",
-    `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://api.resend.com wss://*.supabase.co https://cdn.jsdelivr.net https://challenges.cloudflare.com https://raw.githubusercontent.com https://api.brandfetch.io${sentryIngest}`,
+    `connect-src 'self' ${supabaseUrl} https://*.supabase.co https://api.resend.com wss://*.supabase.co https://cdn.jsdelivr.net https://challenges.cloudflare.com https://raw.githubusercontent.com https://api.brandfetch.io https://www.googletagmanager.com https://www.google-analytics.com https://*.google-analytics.com https://*.analytics.google.com${sentryIngest}`,
     "worker-src 'self' blob: https://cdn.jsdelivr.net",
     // Allow <audio>/<video> from any https source (Supabase Storage, Cloudinary, and
     // author-pasted media URLs). Mirrors the permissive img-src https: policy.

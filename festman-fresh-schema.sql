@@ -3091,6 +3091,9 @@ CREATE TABLE IF NOT EXISTS public.platform_settings (
   -- a missing key falls back to the defaults compiled into lib/ai-limits.ts, which also holds the
   -- ceilings every value is validated against before it is written.
   ai_limits       jsonb,
+  -- migration 212: GA4 measurement ID (G-XXXXXXXXXX). Null means analytics are off. Validated on
+  -- write and again before it is rendered, because it is interpolated into an inline script.
+  google_analytics_id text,
   updated_at      timestamptz DEFAULT now()
 );
 

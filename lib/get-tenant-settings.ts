@@ -36,6 +36,9 @@ export const getTenantSettings = unstable_cache(
         faviconUrl:      data.favicon_url      || tenant.faviconUrl,
         emailBannerUrl:  data.email_banner_url || tenant.emailBannerUrl,
         whatsappCommunityUrl: data.whatsapp_community_url || tenant.whatsappCommunityUrl,
+        // No fallback on purpose: a cleared column means analytics off, and the || pattern the
+        // rest of this map uses would have resolved that to whatever was configured elsewhere.
+        googleAnalyticsId: data.google_analytics_id || '',
         // ?? not ||, and Boolean() not a bare pass-through: this is the only boolean in the
         // contract, and || would silently rewrite a stored false into the env fallback -- turning
         // signups back on for any tenant whose env said true. A stored false must stay false.
