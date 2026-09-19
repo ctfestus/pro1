@@ -13,6 +13,12 @@ export const tenant = {
   emailBannerUrl:  process.env.NEXT_PUBLIC_EMAIL_BANNER_URL  ?? '',
   whatsappCommunityUrl: process.env.NEXT_PUBLIC_WHATSAPP_COMMUNITY_URL ?? '',
 
+  // GA4 measurement ID. Deliberately NOT read from the environment, unlike everything else here:
+  // platform_settings.google_analytics_id is the only source. An env fallback cannot be told
+  // apart from a column an admin has just cleared, so clearing the field would have switched
+  // tracking straight back on. Empty means no analytics are loaded at all.
+  googleAnalyticsId: '',
+
   // Whether anyone may create their own account, as opposed to admissions being added by staff.
   // This is the ENV FALLBACK only, used when no platform_settings row exists; the real value lives
   // in the database so it can be switched without a deploy. Closed is the safe default, so an

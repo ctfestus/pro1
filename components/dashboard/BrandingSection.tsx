@@ -18,12 +18,13 @@ import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { ToolIconsPanel } from '@/components/dashboard/ToolIconsPanel';
 
-type TabId = 'identity' | 'email' | 'access' | 'ai' | 'tools';
+type TabId = 'identity' | 'email' | 'access' | 'analytics' | 'ai' | 'tools';
 
 const TABS: { id: TabId; label: string }[] = [
   { id: 'identity', label: 'Identity' },
   { id: 'email',    label: 'Email' },
   { id: 'access',   label: 'Access' },
+  { id: 'analytics', label: 'Analytics' },
   { id: 'ai',       label: 'AI features' },
   { id: 'tools',    label: 'Tool logos' },
 ];
@@ -40,6 +41,7 @@ const TABS: { id: TabId; label: string }[] = [
 const IDENTITY_FIELDS = ['appName', 'orgName', 'appUrl', 'appDescription', 'logoUrl', 'logoDarkUrl', 'faviconUrl', 'brandColor'] as const;
 const EMAIL_FIELDS    = ['senderName', 'teamName', 'supportEmail', 'emailBannerUrl'] as const;
 const ACCESS_FIELDS   = ['publicSignupEnabled'] as const;
+const ANALYTICS_FIELDS = ['googleAnalyticsId'] as const;
 
 export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
   const [form, setForm] = useState({
@@ -58,6 +60,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
     // Access. The only non-string field here, so it is set from the row explicitly below rather
     // than falling through the ?? '' pattern the text fields use.
     publicSignupEnabled: false,
+    googleAnalyticsId:   '',
   });
   const [loading, setLoading]         = useState(true);
   // Why the section could not load, so an expired session reads differently from a dropped
@@ -78,6 +81,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
     identity: IDENTITY_FIELDS,
     email: EMAIL_FIELDS,
     access: ACCESS_FIELDS,
+    analytics: ANALYTICS_FIELDS,
   };
   const logoInputRef                  = useRef<HTMLInputElement>(null);
   const logoDarkInputRef              = useRef<HTMLInputElement>(null);
@@ -108,6 +112,7 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
           supportEmail:    data.support_email    ?? '',
           appDescription:  data.app_description  ?? '',
           publicSignupEnabled: data.public_signup_enabled === true,
+          googleAnalyticsId:   data.google_analytics_id ?? '',
         });
       }
     } catch {
@@ -487,6 +492,21 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
         )}
       </div>
 
+      )}
+
+      {tab === 'analytics' && (
+      <div className="rounded-2xl p-5 space-y-4" style={{ ...cardStyle(C) }}>
+        <div>
+          <h2 className="text-xs font-semibold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Analytics</h2>
+          <p className="text-xs leading-relaxed" style={{ color: C.muted }}>
+            Connect Google Analytics 4 to see visitors, sessions and which pages they use. Leave
+            it blank and no analytics script is loaded at all.
+          </p>
+        </div>
+
+        {field('googleAnalyticsId', 'GA4 Measurement ID', 'G-XXXXXXXXXX',
+          'Find it in Google Analytics under Admin, Data streams, your web stream. Covers every page, signed in or out.')}
+      </div>
       )}
 
       {tab === 'ai' && <AiFeaturesTab C={C} />}

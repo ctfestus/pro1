@@ -11,6 +11,7 @@ import { resolveConfig } from '@/lib/site-templates';
 import { TenantProvider } from '@/components/TenantProvider';
 import ServiceWorkerRegistrar from '@/components/ServiceWorkerRegistrar';
 import InstallAppButton from '@/components/InstallAppButton';
+import GoogleAnalytics from '@/components/GoogleAnalytics';
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 // preload: false -- these fonts are only used when a form creator picks serif/mono
@@ -76,6 +77,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body nonce={nonce} suppressHydrationWarning>
         {/* Google Sans Text is a recent Google Fonts family not exposed by next/font here, so load it via a stylesheet link (React 19 hoists this to <head>). Used by the course/lesson font picker and the certificate font option. */}
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" />
+        <GoogleAnalytics measurementId={tenantSettings.googleAnalyticsId} nonce={nonce} />
         <NavigationProgress />
         <TenantProvider initialSettings={branding}>
           <ThemeProvider>
