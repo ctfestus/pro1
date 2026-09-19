@@ -1,13 +1,14 @@
 -- Google Analytics 4, configured per deployment rather than compiled in.
 --
 -- A tenant that wants visitor numbers should not need an environment variable and a redeploy to
--- get them, and two tenants sharing a build must not share a property. The measurement ID lives
--- beside the rest of the branding row, so an admin pastes it into Settings and it is live within
--- the 60 second tenant-settings cache.
+-- get them. The measurement ID lives beside the rest of the branding row, so an admin pastes it
+-- into Settings and it is live within the 60 second tenant-settings cache.
 --
--- Null means analytics are off, so deploying this column changes nothing on its own. The value is
--- validated against /^G-[A-Z0-9]{4,}$/i before it is written and again before it is rendered into
--- the page: it ends up inside an inline script, so it is never trusted from the row alone.
+-- Null means analytics are off, so deploying this column changes nothing on its own. There is
+-- deliberately no environment fallback: it could not be told apart from a column an admin had
+-- just cleared, which would have switched tracking straight back on. The format is checked by
+-- lib/analytics.ts on the way in and again before the tag is configured, so the row alone is
+-- never enough to decide what the page loads.
 
 ALTER TABLE public.platform_settings
   ADD COLUMN IF NOT EXISTS google_analytics_id text;

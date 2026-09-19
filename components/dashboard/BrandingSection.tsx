@@ -506,19 +506,6 @@ export function BrandingSection({ C }: { C: typeof LIGHT_C }) {
 
         {field('googleAnalyticsId', 'GA4 Measurement ID', 'G-XXXXXXXXXX',
           'Find it in Google Analytics under Admin, Data streams, your web stream. Covers every page, signed in or out.')}
-
-        <div className="text-[11px] leading-relaxed px-3 py-2.5 rounded-xl space-y-2" style={{ background: C.pill, color: C.muted }}>
-          <p>
-            A change here applies to pages loaded from about a minute after you save. Tabs already
-            open carry on as they were until someone reloads them, which is true of any analytics
-            tag: once it is running in a page it cannot be called back.
-          </p>
-          <p>
-            Page views inside the app are counted by GA4 enhanced measurement, which is on by
-            default. If your reports show only the first page of each visit, switch on Page changes
-            based on browser history events in your web stream settings.
-          </p>
-        </div>
       </div>
       )}
 
