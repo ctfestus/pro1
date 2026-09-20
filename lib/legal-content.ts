@@ -11,7 +11,7 @@
  * renewal, free access and preview features, organisation-administered seats, acceptable use, user
  * content, IP, feedback, copyright complaints, indemnity, disclaimers, liability, dispute
  * resolution and the usual boilerplate; and for privacy: categories collected, legal grounds,
- * cookies, analytics, AI, marketing opt-out, profiling, sharing, transfers, retention, rights,
+ * cookies, AI, marketing opt-out, profiling, sharing, transfers, retention, rights,
  * security and children). The wording is this platform's own and describes what this platform
  * actually does -- it is not lifted from another service, whose text would describe their
  * business rather than ours.
@@ -71,6 +71,9 @@ function contactPhrase(tenant: LegalTenant): string {
 export function privacyPolicy(tenant: LegalTenant): LegalDocument {
   const operator = operatorOf(tenant);
   const { appName } = tenant;
+  // False when no separate legal entity is set and the operator fell back to the app name. Saying
+  // "X is operated by X" reads like a bug, so that sentence is dropped rather than repeated.
+  const namedEntity = operator !== appName;
 
   return {
     title: 'Privacy Policy',
@@ -78,7 +81,9 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
     lastUpdated: LAST_UPDATED,
     intro: [
       `This policy explains what information ${appName} collects, why we collect it, who we share it with, how long we keep it, and the choices you have. It applies to the ${appName} website and to everything you do once you are signed in.`,
-      `${appName} is operated by ${operator}. Where ${operator} decides why and how your information is used, it is responsible for that use and is your first point of contact.`,
+      namedEntity
+        ? `${appName} is operated by ${operator}. Where ${operator} decides why and how your information is used, it is responsible for that use and is your first point of contact.`
+        : `Where ${appName} decides why and how your information is used, it is responsible for that use and is your first point of contact.`,
       'Where an organisation such as an employer or a training provider enrolled you, that organisation decides what you are enrolled on, who supervises you and how long you keep your place. It is responsible for its own use of your records, and depending on how it uses the platform it may be responsible for them alongside us or in its own right. If you were enrolled by an organisation, read its privacy notice as well as this one.',
     ],
     sections: [
@@ -135,7 +140,6 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
             'Send you service messages such as confirmations, reminders, grade notifications and password resets.',
             'Take payment and manage subscriptions.',
             'Keep the platform reliable, investigate faults, prevent abuse and enforce our terms.',
-            'Understand how the platform is used in aggregate so we can improve it.',
           ],
           'We do not sell your personal information, we do not share it for cross-context behavioural advertising, and we do not use your learning activity to build advertising profiles.',
         ],
@@ -146,7 +150,7 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
           'Where data protection law requires us to name a legal ground, these are the ones we rely on:',
           [
             'Performance of a contract, for running your account, giving you the access you or your organisation paid for, marking your work and issuing your certificates.',
-            'Legitimate interests, for keeping the platform secure and reliable, preventing abuse, diagnosing faults, and measuring in aggregate how the platform is used so we can improve it. We weigh those interests against your rights and use the least intrusive option that works.',
+            'Legitimate interests, for keeping the platform secure and reliable, preventing abuse and diagnosing faults. We weigh those interests against your rights and use the least intrusive option that works.',
             'Consent, for promotional messages. You can withdraw it at any time, and withdrawing it does not affect what we did before you withdrew it.',
             'Legal obligation, for keeping financial records and for responding to lawful requests.',
           ],
@@ -159,17 +163,9 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
           [
             'Signing you in and keeping you signed in for the length of your session.',
             'Remembering preferences such as your theme, or the tab you last opened.',
-            'Measuring how the platform is used, where analytics is enabled by your organisation.',
           ],
-          'The first two are necessary for the platform to work. If you block them in your browser, you will not be able to stay signed in. You can clear cookies and browser storage at any time through your browser settings.',
+          'The sign-in cookie is necessary for the platform to work, and if you block it in your browser you will not be able to stay signed in. Preference storage is optional, and clearing it resets those preferences. You can clear cookies and browser storage at any time through your browser settings.',
           'We do not use advertising cookies, and we do not allow advertising networks to track you across other websites. Any promotional cards you see on the platform are placed by your own organisation and are not served by an ad network.',
-        ],
-      },
-      {
-        heading: 'Analytics',
-        body: [
-          'Your organisation may enable a third-party analytics service to measure how the platform is used. Where it is enabled, that service receives page addresses, an approximate location derived from your IP address, and general device information. We remove authentication details from page addresses before they are sent.',
-          'Analytics is a platform-wide setting, not a per-visitor one. The administrator turns it on or off for everyone, and when it is off no analytics script loads at all. There is no separate switch for an individual visitor, so if you do not want to be measured, block cookies and scripts for this site in your browser.',
         ],
       },
       {
@@ -177,7 +173,7 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
         body: [
           'Parts of the platform use third-party AI models, for example to help an instructor draft course material, or to answer a learner\'s question about the lesson in front of them.',
           'When you use one of these features, the text needed to answer you is sent to the model provider. For the lesson assistant that is the content of the lesson and the question you asked, and what you ask it is never used to grade you.',
-          'We use paid AI API services whose terms do not permit submitted content to be used for model improvement. Providers may retain prompts and responses temporarily for security, abuse monitoring and legal compliance. We do not save lesson-assistant conversations to your platform account after the session ends.',
+          'We configure our paid AI API services so submitted content is not used for model improvement. Providers may retain prompts and responses temporarily for security, abuse monitoring and legal compliance. We do not save lesson-assistant conversations to your platform account after the session ends.',
           'We never send model providers your password, your payment details, or the personal details of other learners.',
         ],
       },
@@ -281,16 +277,21 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
 export function termsOfUse(tenant: LegalTenant): LegalDocument {
   const operator = operatorOf(tenant);
   const { appName } = tenant;
+  const namedEntity = operator !== appName;
   // Named outright when the operator has set one. Unset, the clause stays generic rather than
   // guessing a jurisdiction, which is why this is not defaulted to anything.
   const country = tenant.operatorCountry?.trim();
 
   return {
     title: 'Terms of Use',
-    summary: `The agreement between you and ${operator} for your use of ${appName}.`,
+    summary: namedEntity
+      ? `The agreement between you and ${operator} for your use of ${appName}.`
+      : `The agreement that governs your use of ${appName}.`,
     lastUpdated: LAST_UPDATED,
     intro: [
-      `These terms govern your use of ${appName}, which is operated by ${operator}. By creating an account or using the platform, you agree to them. If you do not agree, please do not use the platform.`,
+      namedEntity
+        ? `These terms govern your use of ${appName}, which is operated by ${operator}. By creating an account or using the platform, you agree to them. If you do not agree, please do not use the platform.`
+        : `These terms govern your use of ${appName}. By creating an account or using the platform, you agree to them. If you do not agree, please do not use the platform.`,
       'Our Privacy Policy explains how we handle your information and forms part of this agreement.',
     ],
     sections: [
