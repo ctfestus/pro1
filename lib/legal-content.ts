@@ -247,13 +247,6 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
         ],
       },
       {
-        heading: 'If you live in California',
-        body: [
-          'We do not sell personal information, and we do not share it for cross-context behavioural advertising. We have not done so in the last twelve months, which is why the platform carries no do-not-sell link.',
-          'You may still ask what we have collected about you, ask for it to be corrected or deleted, and receive it in a portable form, using the rights described above. We will not treat you differently for exercising them.',
-        ],
-      },
-      {
         heading: 'Security',
         body: [
           'We protect information with encryption in transit, access controls that limit each account to the records it is entitled to, and separate storage for private files such as graded work and model answers, which are served through short-lived links rather than public addresses.',
