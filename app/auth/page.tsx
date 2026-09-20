@@ -474,6 +474,17 @@ export default function AuthPage() {
             )}
           </p>
 
+          {/* The terms say that using the platform is agreement to them, so the screen where that
+              starts has to say so and link them. "Continuing" covers signing in, signing up and a
+              reset alike, so the line does not have to change with the mode. New tab, or a
+              half-filled form is lost. */}
+          <p className="mt-4 text-center text-xs leading-relaxed" style={{ color: t.toggleColor }}>
+            By continuing, you agree to our{' '}
+            <a href="/terms" target="_blank" rel="noreferrer" className="font-semibold hover:underline" style={{ color: t.accentText }}>Terms of Use</a>
+            {' '}and{' '}
+            <a href="/privacy" target="_blank" rel="noreferrer" className="font-semibold hover:underline" style={{ color: t.accentText }}>Privacy Policy</a>.
+          </p>
+
         </div>
       </motion.div>
     </main>

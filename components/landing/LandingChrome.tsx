@@ -753,6 +753,19 @@ export function LandingFooter({
             <p className="text-xs" style={{ color: 'rgba(255,255,255,0.24)' }}>
               &copy; {new Date().getFullYear()} {appName}. All rights reserved.
             </p>
+            <div className="flex items-center gap-5 flex-wrap">
+              {([
+                ['Privacy Policy', '/privacy'],
+                ['Terms of Use',   '/terms'],
+              ] as const).map(([label, href]) => (
+                <Link key={label} href={href} className="text-xs transition-colors"
+                  style={{ color: 'rgba(255,255,255,0.40)' }}
+                  onMouseEnter={e => { (e.currentTarget as HTMLElement).style.color = 'white'; }}
+                  onMouseLeave={e => { (e.currentTarget as HTMLElement).style.color = 'rgba(255,255,255,0.40)'; }}>
+                  {label}
+                </Link>
+              ))}
+            </div>
           </div>
         </div>
       </footer>

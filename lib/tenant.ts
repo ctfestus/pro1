@@ -2,6 +2,10 @@ export const tenant = {
   appName:         process.env.NEXT_PUBLIC_APP_NAME          ?? '',
   appDescription:  process.env.NEXT_PUBLIC_APP_DESCRIPTION   ?? '',
   orgName:         process.env.NEXT_PUBLIC_ORG_NAME          ?? '',
+  // The country the operator is established in, named by the governing-law clause on the
+  // legal pages. Env only, with no platform_settings column: it is a fact about the legal
+  // entity, not branding an admin should be able to edit. Empty leaves the clause generic.
+  operatorCountry: process.env.NEXT_PUBLIC_OPERATOR_COUNTRY  ?? '',
   appUrl:          (process.env.NEXT_PUBLIC_APP_URL           ?? '').replace(/\/$/, ''),
   logoUrl:         process.env.NEXT_PUBLIC_LOGO_URL          ?? '',
   logoDarkUrl:     process.env.NEXT_PUBLIC_LOGO_DARK_URL     ?? '',
