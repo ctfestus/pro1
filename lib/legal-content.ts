@@ -174,8 +174,8 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
         heading: 'AI features',
         body: [
           'Parts of the platform use third-party AI models, for example to help an instructor draft course material, or to answer a learner\'s question about the lesson in front of them.',
-          'When you use one of these features, the text needed to answer you is sent to the model provider. For the lesson assistant that is the content of the lesson and the question you asked. Those conversations are not kept after your session ends, and they are not used to grade you.',
-          'Where a provider offers a setting that keeps content out of model improvement, we use it. What a provider actually does with the text still depends on the account it is sent under and on that provider\'s own terms, and some free tiers allow the provider to use submitted content to improve its services. We cannot guarantee how a provider treats it, so please do not type personal or confidential information into an AI feature.',
+          'When you use one of these features, the text needed to answer you is sent to the model provider. For the lesson assistant that is the content of the lesson and the question you asked, and what you ask it is never used to grade you.',
+          'We use paid AI API services whose terms do not permit submitted content to be used for model improvement. Providers may retain prompts and responses temporarily for security, abuse monitoring and legal compliance. We do not save lesson-assistant conversations to your platform account after the session ends.',
           'We never send model providers your password, your payment details, or the personal details of other learners.',
         ],
       },
@@ -203,7 +203,7 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
           'We share information only where it is needed to run the platform:',
           [
             'With the organisation that gave you access, including its instructors and administrators.',
-            'With service providers who host the database, store files and images, send email, process payments, provide AI features and monitor errors on our behalf. They act on our instructions and may only use the information to provide that service to us.',
+            'With service providers who host the database, store files and images, send email, process payments, provide AI features and monitor errors on our behalf. They act on our instructions and may not use the information for their own purposes. Some of them keep it briefly for security, abuse monitoring and legal compliance, as their terms require.',
             'Where we are required to by law, or where it is necessary to protect the rights, safety or property of learners, the public or us.',
             'With a successor organisation if the platform or the business behind it is transferred, in which case this policy continues to apply until you are told otherwise.',
           ],
@@ -249,7 +249,8 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
       {
         heading: 'Security',
         body: [
-          'We protect information with encryption in transit, access controls that limit each account to the records it is entitled to, and separate storage for private files such as graded work and model answers, which are served through short-lived links rather than public addresses.',
+          'We protect information with encryption in transit and access controls that limit each account to the records it is entitled to.',
+          'Files are stored in two different ways, and it is worth knowing which is which. Model answers and other material an instructor releases to you after grading are held in private storage and reached only through links that expire shortly after they are issued. Files you upload, including the work you submit for an assignment, are stored at long web addresses that are not listed or searchable anywhere, but that do not themselves require a login: anyone who is given one of those addresses can open the file. Please keep that in mind when you decide what to upload.',
           'No system is completely secure. Please use a strong and unique password, and tell us at once if you believe someone else has used your account. If a breach affects your information and the law requires it, we will notify you and the relevant authority without undue delay.',
         ],
       },
