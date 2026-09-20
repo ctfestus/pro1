@@ -29,6 +29,7 @@ export default async function PrivacyPage() {
         appName: tenant.appName,
         orgName: tenant.orgName,
         supportEmail: tenant.supportEmail,
+        operatorCountry: tenant.operatorCountry,
       })}
       siteConfig={config}
       primaryColor={config.primaryColor || tenant.primaryColor}

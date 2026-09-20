@@ -42,6 +42,8 @@ export interface LegalTenant {
   /** The legal entity behind the platform, when the tenant has set one. */
   orgName?: string;
   supportEmail?: string;
+  /** The country the operator is established in, when the tenant has set one. */
+  operatorCountry?: string;
 }
 
 /** The date both documents carry until their wording next changes. */
@@ -279,6 +281,9 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
 export function termsOfUse(tenant: LegalTenant): LegalDocument {
   const operator = operatorOf(tenant);
   const { appName } = tenant;
+  // Named outright when the operator has set one. Unset, the clause stays generic rather than
+  // guessing a jurisdiction, which is why this is not defaulted to anything.
+  const country = tenant.operatorCountry?.trim();
 
   return {
     title: 'Terms of Use',
@@ -459,7 +464,9 @@ export function termsOfUse(tenant: LegalTenant): LegalDocument {
       {
         heading: 'Governing law',
         body: [
-          `These terms are governed by the law of the country in which ${operator} is established, and the courts of that country have jurisdiction. This does not remove any protection given to you by the mandatory law of the country you live in, or your right to bring a claim there where the law allows it.`,
+          country
+            ? `These terms are governed by the law of ${country}, and the courts of ${country} have jurisdiction. This does not remove any protection given to you by the mandatory law of the country you live in, or your right to bring a claim there where the law allows it.`
+            : `These terms are governed by the law of the country in which ${operator} is established, and the courts of that country have jurisdiction. This does not remove any protection given to you by the mandatory law of the country you live in, or your right to bring a claim there where the law allows it.`,
         ],
       },
       {

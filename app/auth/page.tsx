@@ -474,6 +474,14 @@ export default function AuthPage() {
             )}
           </p>
 
+          {/* The terms say that creating an account is agreement to them, so they have to be
+              reachable from the screen where that happens. New tab, or a half-filled form is lost. */}
+          <p className="mt-4 text-center text-xs" style={{ color: t.toggleColor }}>
+            <a href="/terms" target="_blank" rel="noreferrer" className="hover:underline">Terms of Use</a>
+            <span className="mx-2" aria-hidden="true">&middot;</span>
+            <a href="/privacy" target="_blank" rel="noreferrer" className="hover:underline">Privacy Policy</a>
+          </p>
+
         </div>
       </motion.div>
     </main>
