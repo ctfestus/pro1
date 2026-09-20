@@ -11,6 +11,10 @@
  * terms are 26, so without a persistent way to move around them, the only way to find one clause
  * is to scroll past the other twenty-five.
  *
+ * Unlike the landing and pricing pages, which are light whatever the reader has chosen, these
+ * follow the app theme: they are read end to end rather than skimmed, and a wall of body text is
+ * the worst thing to serve at full brightness to someone who asked for dark.
+ *
  * The signed-in check happens here rather than on the server, for the same reason the pricing page
  * does it here: the page is cached and served to everyone, so baking a session into it would hand
  * one visitor's state to the next. It only decides which words the nav carries.
@@ -19,6 +23,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
+import { useTheme } from '@/components/ThemeProvider';
+import { useC } from '@/lib/theme';
 import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
 import type { SiteConfig } from '@/lib/site-templates';
 import type { LegalDocument } from '@/lib/legal-content';
@@ -26,16 +32,10 @@ import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { buildNavGroups } from '@/lib/landing-nav';
 import { FONTS } from '@/lib/fonts';
 
-const INK = '#101828';
-const BODY = '#475467';
-const META = '#98A2B3';
-const HAIRLINE = '#E8ECF1';
-const MARKER = '#D0D5DD';
-
 /**
  * These documents get saved and printed, so they get a print stylesheet. Nav, contents rail and
- * footer are screen furniture and come off the page; the body goes black on white and sections
- * stop breaking across a page boundary mid-clause.
+ * footer are screen furniture and come off the page; the body goes black on white whichever theme
+ * the reader is in, and sections stop breaking across a page boundary mid-clause.
  */
 const PRINT_CSS = `
 @media print {
@@ -43,7 +43,7 @@ const PRINT_CSS = `
   .legal-page { background: #fff !important; padding-top: 0 !important; }
   .legal-body { max-width: none !important; }
   .legal-section { break-inside: avoid; border-color: #ddd !important; }
-  .legal-section h2, .legal-lead, .legal-section p, .legal-section li { color: #000 !important; }
+  .legal-page h1, .legal-page h2, .legal-page p, .legal-page li { color: #000 !important; }
 }
 @media (prefers-reduced-motion: no-preference) {
   .legal-page { scroll-behavior: smooth; }
@@ -81,9 +81,22 @@ export function LegalPageClient({
   doc, siteConfig, primaryColor, accentColor, headingFont, bodyFont, programmes,
 }: LegalPageClientProps) {
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
+  const { theme } = useTheme();
+  const C = useC();
+  const dark = theme === 'dark';
   const [user, setUser] = useState<any>(null);
   const [scrolled, setScrolled] = useState(false);
   const [activeId, setActiveId] = useState('');
+
+  // White in light, the app's dark surface in dark. Not C.page in light: that is the slightly
+  // grey app background, and a document reads better on the paper colour than on the desk.
+  const pageBg = dark ? C.page : '#FFFFFF';
+  const railIdle = dark ? C.faint : '#667085';
+  // DARK_C.text (#ACB8C5) and DARK_C.muted (#A8B5C2) sit within a few points of each other. That
+  // is fine for chrome, where weight and position carry the hierarchy, and wrong for a document,
+  // where a heading and the paragraph under it come out the same grey and the structure vanishes.
+  // Headings get a brighter ink in dark; in light C.text is already near-black.
+  const heading = dark ? '#E8EEF5' : C.text;
 
   // Same builder the landing page uses. Its section anchors do not exist here, which is what
   // navLinkHref is for: they become links home instead of scroll targets.
@@ -159,8 +172,8 @@ export function LegalPageClient({
           aria-current={active ? 'true' : undefined}
           className="-ml-px block border-l-2 py-[7px] pl-4 text-[13px] leading-snug transition-colors"
           style={{
-            borderColor: active ? primaryColor : 'transparent',
-            color: active ? INK : '#667085',
+            borderColor: active ? C.cta : 'transparent',
+            color: active ? heading : railIdle,
             fontWeight: active ? 700 : 500,
           }}
         >
@@ -171,7 +184,7 @@ export function LegalPageClient({
   });
 
   return (
-    <main className="legal-page min-h-screen pt-16" style={{ background: '#F3F6F5', fontFamily: bFont }}>
+    <main className="legal-page min-h-screen pt-16" style={{ background: pageBg, fontFamily: bFont }}>
       <style>{PRINT_CSS}</style>
       {fontStylesheets.map(url => <link key={url} rel="stylesheet" href={url} />)}
 
@@ -180,6 +193,7 @@ export function LegalPageClient({
           appName={appName}
           logoUrl={logoUrl}
           logoDarkUrl={logoDarkUrl}
+          isPageDark={dark}
           scrolled={scrolled}
           user={user}
           profile={null}
@@ -197,15 +211,15 @@ export function LegalPageClient({
         <header className="max-w-[46ch]">
           <h1
             className="text-[34px] font-black leading-[1.05] tracking-[-0.04em] sm:text-5xl"
-            style={{ color: INK, fontFamily: hFont, textWrap: 'balance' }}
+            style={{ color: heading, fontFamily: hFont, textWrap: 'balance' }}
           >
             {doc.title}
           </h1>
-          <p className="mt-4 text-[17px] leading-7" style={{ color: BODY }}>{doc.summary}</p>
-          <p className="mt-5 text-xs" style={{ color: META }}>Updated {doc.lastUpdated}</p>
+          <p className="mt-4 text-[17px] leading-7" style={{ color: C.muted }}>{doc.summary}</p>
+          <p className="mt-5 text-xs" style={{ color: C.faint }}>Updated {doc.lastUpdated}</p>
         </header>
 
-        <div className="mt-10 h-px sm:mt-12" style={{ background: HAIRLINE }} />
+        <div className="mt-10 h-px sm:mt-12" style={{ background: C.divider }} />
 
         <div className="mt-8 gap-12 lg:grid lg:grid-cols-[228px_minmax(0,1fr)] lg:items-start">
           {/* Contents. A rail on wide screens, a disclosure on phones, where 26 permanent links
@@ -213,20 +227,20 @@ export function LegalPageClient({
           <nav aria-label="Contents" className="legal-screen-only lg:sticky lg:top-24">
             <details className="lg:hidden" name="legal-contents">
               <summary
-                className="flex cursor-pointer list-none items-center justify-between rounded-xl bg-white px-4 py-3 text-sm font-bold marker:content-none"
-                style={{ color: INK }}
+                className="flex cursor-pointer list-none items-center justify-between rounded-xl px-4 py-3 text-sm font-bold marker:content-none"
+                style={{ background: C.card, color: heading }}
               >
                 Contents ({sections.length} sections)
-                <ChevronDown className="legal-contents-chevron h-4 w-4" style={{ color: META }} aria-hidden="true" />
+                <ChevronDown className="legal-contents-chevron h-4 w-4" style={{ color: C.faint }} aria-hidden="true" />
               </summary>
-              <ol className="mt-2 rounded-xl bg-white py-2 pl-4 pr-3">{contentsLinks}</ol>
+              <ol className="mt-2 rounded-xl py-2 pl-4 pr-3" style={{ background: C.card }}>{contentsLinks}</ol>
             </details>
 
             <div className="hidden lg:block">
-              <p className="text-[13px] font-bold" style={{ color: INK }}>Contents</p>
+              <p className="text-[13px] font-bold" style={{ color: heading }}>Contents</p>
               <ol
                 className="mt-3 max-h-[calc(100vh-11rem)] overflow-y-auto border-l pl-0"
-                style={{ borderColor: HAIRLINE }}
+                style={{ borderColor: C.divider }}
               >
                 {contentsLinks}
               </ol>
@@ -237,8 +251,8 @@ export function LegalPageClient({
             {doc.intro.map((paragraph, index) => (
               <p
                 key={index}
-                className="legal-lead text-[17px] leading-[1.7]"
-                style={{ color: '#344054', marginTop: index ? '1rem' : 0 }}
+                className="text-[17px] leading-[1.7]"
+                style={{ color: C.muted, marginTop: index ? '1rem' : 0 }}
               >
                 {paragraph}
               </p>
@@ -249,16 +263,16 @@ export function LegalPageClient({
                 key={section.id}
                 id={section.id}
                 className="legal-section mt-10 scroll-mt-28 pt-10"
-                style={{ borderTop: `1px solid ${HAIRLINE}` }}
+                style={{ borderTop: `1px solid ${C.divider}` }}
               >
                 <div className="grid grid-cols-[1.75rem_minmax(0,1fr)] gap-x-2 sm:grid-cols-[2.5rem_minmax(0,1fr)]">
-                  <span aria-hidden="true" className="pt-[3px] text-sm font-bold" style={{ color: MARKER }}>
+                  <span aria-hidden="true" className="pt-[3px] text-sm font-bold" style={{ color: C.faint, opacity: 0.55 }}>
                     {index + 1}
                   </span>
                   <div>
                     <h2
                       className="text-[19px] font-black tracking-[-0.02em] sm:text-xl"
-                      style={{ color: INK, fontFamily: hFont }}
+                      style={{ color: heading, fontFamily: hFont }}
                     >
                       {section.heading}
                     </h2>
@@ -269,19 +283,19 @@ export function LegalPageClient({
                             <li
                               key={item}
                               className="relative pl-5 text-[15.5px] leading-[1.75]"
-                              style={{ color: BODY }}
+                              style={{ color: C.muted }}
                             >
                               <span
                                 aria-hidden="true"
                                 className="absolute left-0 top-[11px] h-1.5 w-1.5 rounded-full"
-                                style={{ background: MARKER }}
+                                style={{ background: C.faint, opacity: 0.55 }}
                               />
                               {item}
                             </li>
                           ))}
                         </ul>
                       ) : (
-                        <p key={blockIndex} className="mt-4 text-[15.5px] leading-[1.75]" style={{ color: BODY }}>
+                        <p key={blockIndex} className="mt-4 text-[15.5px] leading-[1.75]" style={{ color: C.muted }}>
                           {block}
                         </p>
                       )
@@ -297,6 +311,7 @@ export function LegalPageClient({
       <div className="legal-screen-only">
         <LandingFooter
           appName={appName}
+          isPageDark={dark}
           primaryColor={primaryColor}
           fontFamily={bFont}
           user={user}
