@@ -250,7 +250,6 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
         heading: 'Security',
         body: [
           'We protect information with encryption in transit and access controls that limit each account to the records it is entitled to.',
-          'Files are stored in two different ways, and it is worth knowing which is which. Model answers and other material an instructor releases to you after grading are held in private storage and reached only through links that expire shortly after they are issued. Files you upload, including the work you submit for an assignment, are stored at long web addresses that are not listed or searchable anywhere, but that do not themselves require a login: anyone who is given one of those addresses can open the file. Please keep that in mind when you decide what to upload.',
           'No system is completely secure. Please use a strong and unique password, and tell us at once if you believe someone else has used your account. If a breach affects your information and the law requires it, we will notify you and the relevant authority without undue delay.',
         ],
       },
