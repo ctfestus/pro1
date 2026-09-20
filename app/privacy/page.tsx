@@ -25,7 +25,7 @@ export default async function PrivacyPage() {
 
   return (
     <LegalPageClient
-      document={privacyPolicy({
+      doc={privacyPolicy({
         appName: tenant.appName,
         orgName: tenant.orgName,
         supportEmail: tenant.supportEmail,

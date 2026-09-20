@@ -25,7 +25,7 @@ export default async function TermsPage() {
 
   return (
     <LegalPageClient
-      document={termsOfUse({
+      doc={termsOfUse({
         appName: tenant.appName,
         orgName: tenant.orgName,
         supportEmail: tenant.supportEmail,
