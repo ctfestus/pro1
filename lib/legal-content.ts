@@ -8,7 +8,7 @@
  * correctly without it.
  *
  * Coverage follows what a mature learning platform's terms and policy address (account, plans and
- * renewal, trials and preview features, organisation-administered seats, acceptable use, user
+ * renewal, free access and preview features, organisation-administered seats, acceptable use, user
  * content, IP, feedback, copyright complaints, indemnity, disclaimers, liability, dispute
  * resolution and the usual boilerplate; and for privacy: categories collected, legal grounds,
  * cookies, analytics, AI, marketing opt-out, profiling, sharing, transfers, retention, rights,
@@ -76,8 +76,8 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
     lastUpdated: LAST_UPDATED,
     intro: [
       `This policy explains what information ${appName} collects, why we collect it, who we share it with, how long we keep it, and the choices you have. It applies to the ${appName} website and to everything you do once you are signed in.`,
-      `${appName} is operated by ${operator}. For the information described here, ${operator} is the data controller, which means it is the party that decides why and how the information is used and is answerable for it.`,
-      'Where an organisation such as an employer or a training provider enrolled you, that organisation decides what you are enrolled on and who supervises you, and it is responsible for its own use of your records.',
+      `${appName} is operated by ${operator}. Where ${operator} decides why and how your information is used, it is responsible for that use and is your first point of contact.`,
+      'Where an organisation such as an employer or a training provider enrolled you, that organisation decides what you are enrolled on, who supervises you and how long you keep your place. It is responsible for its own use of your records, and depending on how it uses the platform it may be responsible for them alongside us or in its own right. If you were enrolled by an organisation, read its privacy notice as well as this one.',
     ],
     sections: [
       {
@@ -144,8 +144,8 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
           'Where data protection law requires us to name a legal ground, these are the ones we rely on:',
           [
             'Performance of a contract, for running your account, giving you the access you or your organisation paid for, marking your work and issuing your certificates.',
-            'Legitimate interests, for keeping the platform secure and reliable, preventing abuse, diagnosing faults, and understanding in aggregate how the platform is used so we can improve it. We weigh those interests against your rights and use the least intrusive option that works.',
-            'Consent, for optional things such as promotional messages and, where your organisation enables it, analytics. You can withdraw consent at any time, and withdrawing it does not affect what we did before you withdrew it.',
+            'Legitimate interests, for keeping the platform secure and reliable, preventing abuse, diagnosing faults, and measuring in aggregate how the platform is used so we can improve it. We weigh those interests against your rights and use the least intrusive option that works.',
+            'Consent, for promotional messages. You can withdraw it at any time, and withdrawing it does not affect what we did before you withdrew it.',
             'Legal obligation, for keeping financial records and for responding to lawful requests.',
           ],
         ],
@@ -167,7 +167,7 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
         heading: 'Analytics',
         body: [
           'Your organisation may enable a third-party analytics service to measure how the platform is used. Where it is enabled, that service receives page addresses, an approximate location derived from your IP address, and general device information. We remove authentication details from page addresses before they are sent.',
-          'Analytics is configured by the platform administrator and can be switched off from the administration settings, which stops the service loading for everyone.',
+          'Analytics is a platform-wide setting, not a per-visitor one. The administrator turns it on or off for everyone, and when it is off no analytics script loads at all. There is no separate switch for an individual visitor, so if you do not want to be measured, block cookies and scripts for this site in your browser.',
         ],
       },
       {
@@ -175,7 +175,7 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
         body: [
           'Parts of the platform use third-party AI models, for example to help an instructor draft course material, or to answer a learner\'s question about the lesson in front of them.',
           'When you use one of these features, the text needed to answer you is sent to the model provider. For the lesson assistant that is the content of the lesson and the question you asked. Those conversations are not kept after your session ends, and they are not used to grade you.',
-          'What a provider may do with that text depends on the plan the feature runs on. On a paid plan, providers do not use it to train their models. Where a feature runs on a provider\'s free tier, that provider may use the content to improve its own services. For that reason, please do not type personal or confidential information into an AI feature.',
+          'Where a provider offers a setting that keeps content out of model improvement, we use it. What a provider actually does with the text still depends on the account it is sent under and on that provider\'s own terms, and some free tiers allow the provider to use submitted content to improve its services. We cannot guarantee how a provider treats it, so please do not type personal or confidential information into an AI feature.',
           'We never send model providers your password, your payment details, or the personal details of other learners.',
         ],
       },
@@ -256,8 +256,8 @@ export function privacyPolicy(tenant: LegalTenant): LegalDocument {
       {
         heading: 'Children',
         body: [
-          'The platform is built for adult and professional learners, and is not directed at children under 13. We do not knowingly collect information from them, and we will delete it if we find that we have.',
-          'Where an organisation enrols learners below the age of majority in their country, that organisation is responsible for obtaining the consent its local law requires.',
+          'The platform is built for adult and professional learners. It is not directed at children under 13, and accounts must not be created for them. Organisations must not enrol them either. We do not knowingly collect information from a child under 13, and if we learn that we have, we delete it and close the account.',
+          'Where an organisation enrols learners who are above 13 but below the age of majority in their country, that organisation must obtain the consent its local law requires before doing so.',
         ],
       },
       {
@@ -293,6 +293,7 @@ export function termsOfUse(tenant: LegalTenant): LegalDocument {
         heading: 'Who can use the platform',
         body: [
           'You may use the platform if you can form a binding contract where you live, or if an organisation has enrolled you and is responsible for you. If you are using the platform on behalf of an organisation, you confirm that you are authorised to accept these terms for it.',
+          'The platform is not for children under 13. Do not create an account for a child under 13, and do not enrol one. Where a learner is above 13 but below the age of majority where they live, the organisation enrolling them must first obtain the consent their local law requires.',
         ],
       },
       {
@@ -317,9 +318,9 @@ export function termsOfUse(tenant: LegalTenant): LegalDocument {
         ],
       },
       {
-        heading: 'Free access, trials and preview features',
+        heading: 'Free access and preview features',
         body: [
-          'Some material is free, and a plan may include a trial period. Free and trial access can be changed, limited or withdrawn, and may carry limits on how much of a feature you can use.',
+          'Some material is free to anyone with an account. Free access can be changed, limited or withdrawn, and may carry limits on how much of a feature you can use.',
           'Features marked as new, preview or beta are provided as they are while we finish them. They may behave unpredictably, change without notice, or be withdrawn, and we do not promise they will become part of a paid plan.',
         ],
       },
@@ -327,7 +328,7 @@ export function termsOfUse(tenant: LegalTenant): LegalDocument {
         heading: 'Payments and renewals',
         body: [
           'Where access is paid, the price, the currency and the length of access are shown before you pay. Payment is taken through a third-party payment provider and is subject to that provider\'s own terms.',
-          'Access begins once payment is confirmed and ends when the period you paid for ends. Where a subscription renews automatically, this is stated at the point of purchase, and you can cancel future renewals from your account before the next charge. Cancelling stops the next charge; it does not shorten the period you have already paid for.',
+          'You buy a fixed length of access. It begins once payment is confirmed and ends on the date shown. Nothing charges you again, and there is no subscription to cancel: when the period is over, access to the paid content closes until you choose to buy again. We email you before it runs out.',
           'Taxes, and any charges applied by your bank or card issuer, are your responsibility. If a payment fails or is reversed, we may suspend access until it is settled.',
         ],
       },
@@ -444,7 +445,7 @@ export function termsOfUse(tenant: LegalTenant): LegalDocument {
         heading: 'Limitation of liability',
         body: [
           'To the fullest extent the law allows, we are not liable for indirect or consequential loss, for lost profits, for lost opportunity, or for loss or corruption of data.',
-          'Where liability can be limited, our total liability for all claims is limited to the amount you paid for access in the twelve months before the claim arose, or, if you paid nothing, to a nominal amount.',
+          'Where liability can be limited, our total liability for all claims is limited to the amount you paid for access in the twelve months before the claim arose. If you paid nothing in that period, it is limited to the greatest extent the applicable law allows.',
           'Nothing in these terms limits liability that cannot be limited by law, including liability for death or personal injury caused by negligence, or for fraud.',
         ],
       },
