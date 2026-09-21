@@ -1528,9 +1528,26 @@ BEGIN
 END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_recalc_student_xp ON public.course_attempts;
-CREATE TRIGGER trg_recalc_student_xp
-  AFTER INSERT OR UPDATE OR DELETE ON public.course_attempts
+-- Split by event and gated on points (migration 214): save-progress writes this row once per
+-- answered question, and a save that did not move points cannot change the XP total. Re-running
+-- the aggregate on every autosave was pure lock contention on the student's student_xp row.
+DROP TRIGGER IF EXISTS trg_recalc_student_xp        ON public.course_attempts;
+DROP TRIGGER IF EXISTS trg_recalc_student_xp_insert ON public.course_attempts;
+DROP TRIGGER IF EXISTS trg_recalc_student_xp_update ON public.course_attempts;
+DROP TRIGGER IF EXISTS trg_recalc_student_xp_delete ON public.course_attempts;
+
+CREATE TRIGGER trg_recalc_student_xp_insert
+  AFTER INSERT ON public.course_attempts
+  FOR EACH ROW EXECUTE FUNCTION public.recalc_student_xp();
+
+CREATE TRIGGER trg_recalc_student_xp_update
+  AFTER UPDATE ON public.course_attempts
+  FOR EACH ROW
+  WHEN (NEW.points IS DISTINCT FROM OLD.points)
+  EXECUTE FUNCTION public.recalc_student_xp();
+
+CREATE TRIGGER trg_recalc_student_xp_delete
+  AFTER DELETE ON public.course_attempts
   FOR EACH ROW EXECUTE FUNCTION public.recalc_student_xp();
 
 -- Prevent direct PostgREST writes to outcome fields (CWE-345 / CWE-863).
@@ -3593,8 +3610,24 @@ RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
 BEGIN PERFORM public.check_and_award_badges(COALESCE(NEW.student_id, OLD.student_id)); RETURN COALESCE(NEW, OLD); END;
 $$;
 
-DROP TRIGGER IF EXISTS trg_check_badges_on_attempt ON public.course_attempts;
-CREATE TRIGGER trg_check_badges_on_attempt AFTER INSERT OR UPDATE ON public.course_attempts FOR EACH ROW EXECUTE FUNCTION public.trg_check_badges();
+-- Completion-only (migration 214): course badges depend on completed attempts and streak badges on
+-- student_streaks, so neither can change on a mid-course autosave. The streak trigger below still
+-- covers the streak_* badges.
+DROP TRIGGER IF EXISTS trg_check_badges_on_attempt        ON public.course_attempts;
+DROP TRIGGER IF EXISTS trg_check_badges_on_attempt_insert ON public.course_attempts;
+DROP TRIGGER IF EXISTS trg_check_badges_on_attempt_update ON public.course_attempts;
+
+CREATE TRIGGER trg_check_badges_on_attempt_insert
+  AFTER INSERT ON public.course_attempts
+  FOR EACH ROW
+  WHEN (NEW.completed_at IS NOT NULL)
+  EXECUTE FUNCTION public.trg_check_badges();
+
+CREATE TRIGGER trg_check_badges_on_attempt_update
+  AFTER UPDATE ON public.course_attempts
+  FOR EACH ROW
+  WHEN (OLD.completed_at IS NULL AND NEW.completed_at IS NOT NULL)
+  EXECUTE FUNCTION public.trg_check_badges();
 
 CREATE OR REPLACE FUNCTION public.trg_check_badges_on_streak()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
