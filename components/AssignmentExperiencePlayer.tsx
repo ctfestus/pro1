@@ -65,6 +65,7 @@ interface Requirement {
   rubric?: string[];
   schema?: string;
   context?: string;
+  reviewSheetNames?: string[];
   minScore?: number;
   documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
   aiReview?: boolean;
@@ -1464,7 +1465,8 @@ export default function AssignmentExperiencePlayer({
                                     )}
                                     {req.type === 'excel_review' && (
                                       <ExcelReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={false}
-                                        savedResult={undefined} context={req.context} rubric={req.rubric} minScore={req.minScore}
+                                        savedResult={undefined} context={req.context} reviewSheetNames={req.reviewSheetNames}
+                                        reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} rubric={req.rubric} minScore={req.minScore}
                                         onReviewStart={startReview} onReviewError={onReviewError}
                                         onComplete={(result, passed) => { finishReview(); updateProgress(req.id, { completed: passed, notes: buildReviewNotes('excel_review', result, saved?.notes) }); }} />
                                     )}
@@ -1523,7 +1525,7 @@ export default function AssignmentExperiencePlayer({
                                         ); })()}
                                         {req.type === 'excel_review' && (() => { const r = isFullReport('excel_review', savedReport) ? savedReport : undefined; return (
                                           <ExcelReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
-                                            savedResult={r as any} context={req.context} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
+                                            savedResult={r as any} context={req.context} reviewSheetNames={req.reviewSheetNames} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
                                         ); })()}
                                         {req.type === 'document_review' && (() => { const r = isFullReport('document_review', savedReport) ? savedReport : undefined; return (
                                           <DocumentReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
@@ -1984,6 +1986,8 @@ export default function AssignmentExperiencePlayer({
                                 savedResult={savedResult}
                                 rubric={req.rubric}
                                 context={req.context}
+                                reviewSheetNames={req.reviewSheetNames}
+                                reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }}
                                 minScore={req.minScore}
                                 onComplete={(result, passed) => {
                                   updateProgress(req.id, { completed: passed, notes: buildReviewNotes('excel_review', result, saved?.notes) });

@@ -5,6 +5,7 @@ import { LEGACY_RUNTIME_POINTS_SYSTEM, normalizeFormConfig, normalizePointsSyste
 import { compareResults, SQLResult, SQLTableConfig } from '@/lib/sql-engine';
 import { computeServerSqlResult } from '@/lib/sql-engine-server';
 import { ExperienceGuideResolutionError, resolveTransferredExperienceGuide } from '@/lib/experience-guide';
+import { normalizeAssignmentReviewSheetNames, normalizeCourseReviewSheetNames, normalizeExperienceReviewSheetNames } from '@/lib/excel-review-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -187,6 +188,12 @@ export async function POST(req: NextRequest) {
     // Collapse them to the canonical shape once, here, so the writes below read only canonical keys.
     let cfg: any = normalizeFormConfig(body.config);
 
+    // Worksheet lists are cleaned where that is safe and refused where it is not, so an import
+    // cannot leave a configuration behind that only fails later, on a student's review.
+    const courseSheets = normalizeCourseReviewSheetNames(cfg.questions);
+    if (courseSheets.error) return NextResponse.json({ error: courseSheets.error }, { status: 400 });
+    cfg = { ...cfg, questions: courseSheets.questions };
+
     const sqlPreflight = await preflightImportedCourseSql(cfg);
     cfg = sqlPreflight.config;
     const sqlWarnings = sqlPreflight.warnings;
@@ -262,6 +269,11 @@ export async function POST(req: NextRequest) {
     const cfg = body.config;
     if (!cfg) return NextResponse.json({ error: 'config required' }, { status: 400 });
 
+    // Worksheet lists are cleaned where that is safe and refused where it is not, so an import
+    // cannot leave a configuration behind that only fails later, on a student's review.
+    const experienceSheets = normalizeExperienceReviewSheetNames(cfg.modules);
+    if (experienceSheets.error) return NextResponse.json({ error: experienceSheets.error }, { status: 400 });
+
     const title = body.title || cfg.title || 'Imported Virtual Experience';
     const verifyGuide = async (publishing: boolean) => {
       try {
@@ -305,7 +317,7 @@ export async function POST(req: NextRequest) {
           manager_title:  cfg.managerTitle ?? null,
           guide_id:       verifiedGuide.guideId,
           guide_snapshot: verifiedGuide.snapshot,
-          modules:        cfg.modules ?? [],
+          modules:        experienceSheets.modules ?? [],
           dataset:        cfg.dataset ?? null,
           cover_image:    cfg.coverImage ?? null,
           deadline_days:  cfg.deadline_days ?? null,
@@ -350,7 +362,7 @@ export async function POST(req: NextRequest) {
         manager_title:  cfg.managerTitle ?? null,
         guide_id:       verifiedGuide.guideId,
         guide_snapshot: verifiedGuide.snapshot,
-        modules:        cfg.modules ?? [],
+        modules:        experienceSheets.modules ?? [],
         dataset:        cfg.dataset ?? null,
         cover_image:    cfg.coverImage ?? null,
         deadline_days:  cfg.deadline_days ?? null,
@@ -377,6 +389,11 @@ export async function POST(req: NextRequest) {
     const title = d.title || 'Imported Assignment';
     const resources: any[] = body.resources ?? [];
 
+    // Worksheet lists are cleaned where that is safe and refused where it is not, so a config that
+    // breaks the rules is reported here rather than reaching the database as a generic failure.
+    const assignmentConfig = normalizeAssignmentReviewSheetNames(d.type ?? null, d.config ?? null);
+    if (assignmentConfig.error) return NextResponse.json({ error: assignmentConfig.error }, { status: 400 });
+
     if (importMode === 'sync') {
       const { data: existing } = await supabase
         .from('assignments').select('id').eq('created_by', user.id).eq('title', title).maybeSingle();
@@ -394,7 +411,7 @@ export async function POST(req: NextRequest) {
           submission_instructions: d.submission_instructions ?? null,
           cover_image:             d.cover_image ?? null,
           type:                    d.type ?? null,
-          config:                  d.config ?? null,
+          config:                  assignmentConfig.config,
         }).eq('id', existing.id);
         if (upErr) {
           console.error('[content-import] assignment update:', upErr.message);
@@ -439,7 +456,7 @@ export async function POST(req: NextRequest) {
       cohort_ids:              [],
       deadline_date:           null,
       type:                    d.type ?? null,
-      config:                  d.config ?? null,
+      config:                  assignmentConfig.config,
     }).select('id').single();
 
     if (aErr) {

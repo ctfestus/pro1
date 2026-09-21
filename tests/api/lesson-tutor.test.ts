@@ -66,6 +66,7 @@ function courseStub(row: any) {
 
 function redisStub() {
   return {
+    get: vi.fn(async () => 0),
     incr: vi.fn(async () => 1),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),

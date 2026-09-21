@@ -2,11 +2,18 @@ import { Type } from '@google/genai';
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { reserveAiFeatureLimit, spendAiFeatureReservation, type AiFeatureReservation } from '@/lib/ai-feature-gate';
 import ExcelJS from 'exceljs';
-import { collectRubricGrades, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
+import { collectRubricGrades, reviewPassed, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
+import {
+  canAccessAssignedVirtualExperience,
+  findExcelReviewItem,
+  normalizeExcelReviewConfig,
+  parseExcelReviewTarget,
+  type ExcelReviewConfig,
+  type ExcelReviewTarget,
+} from '@/lib/excel-review-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,25 +26,67 @@ const MAX_TOTAL_CELLS = 50_000;
 const MAX_TEXT_BYTES = 300_000;
 const EXTRACTION_TIMEOUT_MS = 20_000;
 
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
 async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse> {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
   return auth;
 }
 
-async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
-  // Whether this reviewer is included at all, and how many a day, both come from settings now --
-  // a free learner is refused because the free column says 0, not because a route says so.
-  return enforceAiFeatureLimit(auth, getRedis(), 'excelReview', {
+async function reserveReview(auth: AuthedUser): Promise<AiFeatureReservation | NextResponse> {
+  return reserveAiFeatureLimit(auth, getRedis(), 'excelReview', {
     unavailableMessage: 'Service temporarily unavailable',
   });
+}
+
+async function loadVirtualExperience(auth: AuthedUser, target: Extract<ExcelReviewTarget, { source: 'virtual_experience' }>): Promise<any | null> {
+  const direct = await auth.getActorDb()
+    .from('virtual_experiences')
+    .select('modules')
+    .eq('id', target.contentId)
+    .maybeSingle();
+  if (direct.data) return direct.data;
+  if (!target.assignmentId) return null;
+
+  const svc = auth.serviceDb;
+  const [{ data: ve }, { data: assignment }, { data: caller }, { data: memberships }] = await Promise.all([
+    svc.from('virtual_experiences').select('id, user_id, modules').eq('id', target.contentId).maybeSingle(),
+    svc.from('assignments').select('id, created_by, status, config, cohort_ids, group_ids').eq('id', target.assignmentId).maybeSingle(),
+    svc.from('students').select('role, cohort_id').eq('id', auth.user.id).maybeSingle(),
+    svc.from('group_members').select('group_id').eq('student_id', auth.user.id),
+  ]);
+  if (!ve || !assignment || assignment.status !== 'published' || assignment.config?.ve_form_id !== target.contentId) return null;
+
+  const allowed = canAccessAssignedVirtualExperience({
+    userId: auth.user.id,
+    callerRole: caller?.role,
+    callerCohortId: caller?.cohort_id,
+    callerGroupIds: (memberships ?? []).map((membership: any) => membership.group_id as string),
+    experienceOwnerId: ve.user_id,
+    assignmentOwnerId: assignment.created_by,
+    assignmentCohortIds: assignment.cohort_ids,
+    assignmentGroupIds: assignment.group_ids,
+  });
+  return allowed ? ve : null;
+}
+
+async function resolveReviewConfig(auth: AuthedUser, target: ExcelReviewTarget): Promise<ExcelReviewConfig | NextResponse> {
+  let stored: any = null;
+  if (target.source === 'course') {
+    stored = (await auth.getActorDb().from('courses').select('questions').eq('id', target.contentId).maybeSingle()).data;
+  } else if (target.source === 'assignment') {
+    stored = (await auth.getActorDb().from('assignments').select('type, config').eq('id', target.contentId).maybeSingle()).data;
+  } else {
+    stored = await loadVirtualExperience(auth, target);
+  }
+
+  const item = stored ? findExcelReviewItem(target, stored) : null;
+  if (!item) return NextResponse.json({ error: 'Excel review activity not found.' }, { status: 404 });
+
+  const config = normalizeExcelReviewConfig(item);
+  if (config.sheetNameError) {
+    return NextResponse.json({ error: `The instructor's worksheet configuration is invalid: ${config.sheetNameError}` }, { status: 400 });
+  }
+  return config;
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -48,56 +97,105 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(handle!));
 }
 
-async function extractFromWorkbook(buffer: ArrayBuffer): Promise<string> {
+interface WorkbookExtraction {
+  text: string;
+  reviewedSheetNames: string[];
+  partiallyReviewedSheetNames: string[];
+  missingSheetNames: string[];
+  availableSheetNames: string[];
+  truncated: boolean;
+}
+
+async function extractFromWorkbook(buffer: ArrayBuffer, requestedSheetNames: string[]): Promise<WorkbookExtraction> {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buffer);
 
+  const availableSheetNames = wb.worksheets.map(ws => ws.name);
+  const sheetsByName = new Map(wb.worksheets.map(ws => [ws.name.trim().toLowerCase(), ws]));
+  const missingSheetNames = requestedSheetNames.filter(name => !sheetsByName.has(name.toLowerCase()));
+  const selectedSheets = requestedSheetNames.length > 0
+    ? requestedSheetNames.flatMap(name => {
+        const worksheet = sheetsByName.get(name.toLowerCase());
+        return worksheet ? [worksheet] : [];
+      })
+    : wb.worksheets.slice(0, MAX_SHEETS);
+
   const sections: string[] = [];
+  const reviewedSheetNames: string[] = [];
+  const partiallyReviewedSheetNames: string[] = [];
   let totalCells = 0;
   let totalChars = 0;
-  let aborted = false;
 
-  for (const ws of wb.worksheets.slice(0, MAX_SHEETS)) {
-    if (aborted) break;
+  // The cell and character budgets belong to the workbook, not to one worksheet, so each selected
+  // sheet takes only its share of whatever is left. Recomputed per sheet, so a sheet that uses less
+  // than its share hands the rest to the ones after it. A single shared pot let an oversized first
+  // worksheet spend all of it and leave a later required worksheet unopened, which is the one case
+  // a student cannot do anything about: the instructor chose both sheets.
+  selectedSheets.forEach((ws, index) => {
+    const sheetsLeft = selectedSheets.length - index;
+    const cellCeiling = totalCells + Math.ceil((MAX_TOTAL_CELLS - totalCells) / sheetsLeft);
+    const charCeiling = totalChars + Math.ceil((MAX_TEXT_BYTES - totalChars) / sheetsLeft);
+
     const lines: string[] = [`Sheet: ${ws.name}`];
     let formulaCount = 0;
+    let formulaLimitNoted = false;
     let rowCount = 0;
+    let sheetTruncated = false;
 
     ws.eachRow((row) => {
-      if (aborted || rowCount >= MAX_ROWS_PER_SHEET) return;
+      if (rowCount >= MAX_ROWS_PER_SHEET) { sheetTruncated = true; return; }
       rowCount++;
       row.eachCell({ includeEmpty: false }, (cell) => {
-        if (aborted || totalCells >= MAX_TOTAL_CELLS) { aborted = true; return; }
+        if (totalCells >= cellCeiling) { sheetTruncated = true; return; }
         totalCells++;
         const addr = cell.address;
         if (cell.formula) {
-          if (formulaCount >= MAX_FORMULAS) return;
+          // A listing cap, not an extraction limit: the sheet was read, the prompt just stops
+          // enumerating. It must not mark the sheet as partially extracted.
+          if (formulaCount >= MAX_FORMULAS) {
+            if (!formulaLimitNoted) {
+              lines.push(`  ... (formula listing capped at ${MAX_FORMULAS} formulas)`);
+              formulaLimitNoted = true;
+            }
+            return;
+          }
           const raw = cell.value;
           const result = raw !== null && typeof raw === 'object' && 'result' in raw
             ? (raw as any).result
             : undefined;
           const val = result !== undefined ? ` => ${result}` : '';
           const line = `  ${addr}: =${cell.formula}${val}`;
+          if (totalChars + line.length > charCeiling) { sheetTruncated = true; return; }
           totalChars += line.length;
-          if (totalChars > MAX_TEXT_BYTES) { aborted = true; return; }
           lines.push(line);
           formulaCount++;
-          if (formulaCount >= MAX_FORMULAS) lines.push(`  ... (truncated at ${MAX_FORMULAS} formulas)`);
         } else if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
           const line = `  ${addr}: ${cell.value}`;
+          if (totalChars + line.length > charCeiling) { sheetTruncated = true; return; }
           totalChars += line.length;
-          if (totalChars > MAX_TEXT_BYTES) { aborted = true; return; }
           lines.push(line);
         }
       });
     });
 
     if (lines.length === 1) lines.push('(empty)');
+    if (sheetTruncated) {
+      lines.push('  ... (worksheet partially extracted: review limit reached)');
+      partiallyReviewedSheetNames.push(ws.name);
+    } else {
+      reviewedSheetNames.push(ws.name);
+    }
     sections.push(lines.join('\n'));
-  }
+  });
 
-  if (aborted) sections.push('... (workbook truncated: extraction limit reached)');
-  return sections.join('\n\n');
+  return {
+    text: sections.join('\n\n'),
+    reviewedSheetNames,
+    partiallyReviewedSheetNames,
+    missingSheetNames,
+    availableSheetNames,
+    truncated: partiallyReviewedSheetNames.length > 0,
+  };
 }
 
 
@@ -206,14 +304,21 @@ export async function POST(req: NextRequest) {
     const auth = await authenticate(req);
     if (auth instanceof NextResponse) return auth;
 
-    const rateLimitError = await checkRateLimit(auth);
-    if (rateLimitError) return rateLimitError;
+    const reservation = await reserveReview(auth);
+    if (reservation instanceof NextResponse) return reservation;
 
     const formData = await req.formData();
-    const file     = formData.get('file') as File | null;
-    const context  = (formData.get('context') as string | null) ?? '';
-    const rubricRaw = formData.get('rubric') as string | null;
-    const rubric   = rubricRaw ? JSON.parse(rubricRaw) as string[] : [];
+    const file = formData.get('file') as File | null;
+    const reviewTargetRaw = formData.get('reviewTarget');
+    let reviewTarget: ExcelReviewTarget | null = null;
+    if (typeof reviewTargetRaw === 'string') {
+      try { reviewTarget = parseExcelReviewTarget(JSON.parse(reviewTargetRaw)); } catch {}
+    }
+    if (!reviewTarget) return NextResponse.json({ error: 'A saved Excel review activity is required.' }, { status: 400 });
+
+    const storedConfig = await resolveReviewConfig(auth, reviewTarget);
+    if (storedConfig instanceof NextResponse) return storedConfig;
+    const { context, rubric, minScore, reviewSheetNames } = storedConfig;
 
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
 
@@ -226,8 +331,18 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'File too large. Maximum size is 5 MB.' }, { status: 413 });
     }
 
-    const buffer   = await file.arrayBuffer();
-    const extracted = await withTimeout(extractFromWorkbook(buffer), EXTRACTION_TIMEOUT_MS);
+    const buffer = await file.arrayBuffer();
+    const extraction = await withTimeout(extractFromWorkbook(buffer, reviewSheetNames), EXTRACTION_TIMEOUT_MS);
+
+    if (extraction.missingSheetNames.length > 0) {
+      return NextResponse.json({
+        error: `Required worksheet${extraction.missingSheetNames.length === 1 ? '' : 's'} not found: ${extraction.missingSheetNames.join(', ')}. Available worksheets: ${extraction.availableSheetNames.join(', ') || 'none'}.`,
+        missingSheetNames: extraction.missingSheetNames,
+        availableSheetNames: extraction.availableSheetNames,
+      }, { status: 400 });
+    }
+
+    const extracted = extraction.text;
 
     if (!extracted.trim()) {
       return NextResponse.json({ error: 'No data found in the spreadsheet.' }, { status: 400 });
@@ -237,11 +352,19 @@ export async function POST(req: NextRequest) {
       ? `\nINSTRUCTOR CONTEXT -- WHAT THIS SPREADSHEET SHOULD DO:\n${context.trim()}\n`
       : '';
 
+    const sheetBlock = reviewSheetNames.length > 0
+      ? `\nINSTRUCTOR-SPECIFIED WORKSHEETS:\nReview only these worksheets: ${reviewSheetNames.join(', ')}.\n`
+      : '';
+
+    const truncationBlock = extraction.truncated
+      ? `\nEXTRACTION LIMITATION:\nThese worksheets were only partially extracted: ${extraction.partiallyReviewedSheetNames.join(', ')}. Judge only what is listed above. A criterion whose evidence would sit in cells you cannot see is not met: mark it as not passed, and say in its comment that the required cells could not be read. State the evidence limitation in the summary.\n`
+      : '';
+
     const rubricBlock = rubric.length > 0
       ? `\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION BY ID\nThis rubric is what the student was actually asked to do, and it decides whether they pass. Return one "rubricGrades" entry per criterion: its "id" exactly as numbered below, a "passed" boolean, and a 1-2 sentence "comment" naming the cells or sheets you checked.\n\nGrade every id exactly once. Ids you omit are marked as not met and count against the student, ids you repeat are ignored after the first, and ids that are not on this list are discarded -- so a criterion you skip cannot be made up for by grading another one twice.\n\nMark a criterion "passed" only when the extracted contents show it was met. Absence of evidence is a fail, not a pass: if a criterion requires formulas in named cells and those cells hold constants, or are missing entirely, it fails. Never pass a criterion because the displayed value looks right.\n\nCriteria:\n${rubric.map((c, i) => `id ${rubricCriterionId(i)}: ${c}`).join('\n')}\n`
       : '';
 
-    const prompt = `${SYSTEM_PROMPT}${contextBlock}${rubricBlock}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
+    const prompt = `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}${rubricBlock}${truncationBlock}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
 
     const schema = schemaFor(rubric.length > 0);
     const usageContext = {
@@ -251,13 +374,29 @@ export async function POST(req: NextRequest) {
         extractedChars: extracted.length,
         contextChars: context.length,
         rubricCriteria: rubric.length,
+        reviewedSheetNames: JSON.stringify(extraction.reviewedSheetNames),
+        reviewedSheetCount: extraction.reviewedSheetNames.length,
+        partiallyReviewedSheetNames: JSON.stringify(extraction.partiallyReviewedSheetNames),
+        extractionTruncated: extraction.truncated,
       },
     };
+    const spendError = await spendAiFeatureReservation(reservation);
+    if (spendError) return spendError;
     // The narrative half of the review always comes from the first attempt; only the grades
     // merge, so the report a student reads is one coherent response rather than two spliced.
     const parsed = await generateJSON(prompt, schema, { temperature: 0.2, usageContext });
 
-    if (rubric.length === 0) return NextResponse.json({ ...parsed, rubricScore: null });
+    if (rubric.length === 0) {
+      const result = { ...parsed, rubricScore: null };
+      return NextResponse.json({
+        ...result,
+        passed: reviewPassed(result, minScore),
+        minScore,
+        reviewedSheetNames: extraction.reviewedSheetNames,
+        partiallyReviewedSheetNames: extraction.partiallyReviewedSheetNames,
+        extractionTruncated: extraction.truncated,
+      });
+    }
 
     let graded = collectRubricGrades(rubric, parsed?.rubricGrades);
 
@@ -283,12 +422,21 @@ export async function POST(req: NextRequest) {
 
     // The pass gate reads this, not overallScore. Computed here so every consumer -- the VE
     // player, the course player, and any saved report re-rendered later -- gates identically.
-    return NextResponse.json({
+    const rubricScore = rubricPassRate(graded.grades, rubric.length);
+    const result = {
       ...parsed,
       rubricGrades: graded.grades,
-      rubricScore: rubricPassRate(graded.grades, rubric.length),
+      rubricScore,
       rubricCriteriaCount: rubric.length,
       rubricUngraded: graded.ungraded,
+    };
+    return NextResponse.json({
+      ...result,
+      passed: reviewPassed(result, minScore, rubric.length),
+      minScore,
+      reviewedSheetNames: extraction.reviewedSheetNames,
+      partiallyReviewedSheetNames: extraction.partiallyReviewedSheetNames,
+      extractionTruncated: extraction.truncated,
     });
   } catch (err: any) {
     console.error('excel-review error:', err);

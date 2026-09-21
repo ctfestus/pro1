@@ -12,6 +12,7 @@ import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
 import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
+import type { ExcelReviewTarget } from '@/lib/excel-review-config';
 
 interface RubricGrade { criterion: string; passed: boolean; comment: string; }
 interface SheetIssue {
@@ -38,6 +39,11 @@ interface ReviewResult {
   rubricScore?: number | null;
   rubricCriteriaCount?: number;
   rubricUngraded?: number;
+  reviewedSheetNames?: string[];
+  partiallyReviewedSheetNames?: string[];
+  extractionTruncated?: boolean;
+  passed?: boolean;
+  minScore?: number;
 }
 
 interface Props {
@@ -48,6 +54,8 @@ interface Props {
   savedResult?: ReviewResult;
   reviewsUsed?: number;
   context?: string;
+  reviewSheetNames?: string[];
+  reviewTarget?: ExcelReviewTarget;
   rubric?: string[];
   minScore?: number;
   maxReviews?: number;
@@ -73,7 +81,7 @@ function scoreColor(n: number) {
   return '#ef4444';
 }
 
-export default function ExcelReviewPlayer({ reqId, isDark, accentColor, completed, savedResult, reviewsUsed = 0, context, rubric, minScore, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+export default function ExcelReviewPlayer({ reqId, isDark, accentColor, completed, savedResult, reviewsUsed = 0, context, reviewSheetNames, reviewTarget, rubric, minScore, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   const shouldLock = maxReviews === undefined || atLimit || reviewsUsed === 0;
   // Offer Reset (try again) only while attempts remain. Once a submission is terminal -- completed
@@ -117,6 +125,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
 
   async function handleSubmit() {
     if (!file) { setError('Please upload your Excel file first.'); return; }
+    if (!reviewTarget) { setError('Save this activity before running its Excel review.'); return; }
     setError('');
     setUpgradeUrl('');
     setAnalyzing(true);
@@ -125,8 +134,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       const { data: { session } } = await supabase.auth.getSession();
       const fd = new FormData();
       fd.append('file', file);
-      if (context?.trim()) fd.append('context', context.trim());
-      if (rubric?.length) fd.append('rubric', JSON.stringify(rubric));
+      fd.append('reviewTarget', JSON.stringify(reviewTarget));
 
       const res = await fetch('/api/excel-review', {
         method: 'POST',
@@ -140,7 +148,12 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       }
       if (json.error) throw new Error(json.error);
       setResult(json);
-      onComplete(json, reviewPassed(json, minScore, json.rubricCriteriaCount ?? rubric?.length ?? 0));
+      // The route decides the gate from the config it loaded; the local fallback only covers a
+      // response from before it sent one.
+      const passed = typeof json.passed === 'boolean'
+        ? json.passed
+        : reviewPassed(json, minScore, json.rubricCriteriaCount ?? rubric?.length ?? 0);
+      onComplete(json, passed);
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
       onReviewError?.();
@@ -208,6 +221,12 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       <div className="space-y-3">
         <AiReviewWorkspaceHeader icon={<FileSpreadsheet className="w-5 h-5" />} title="Review your workbook" description="Upload the completed Excel workbook for an evidence-based review against the assignment rubric." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
         <AiReviewDisclaimer isDark={isDark} />
+        {reviewSheetNames && reviewSheetNames.length > 0 && (
+          <div className="px-4 py-3" style={{ background: isDark ? 'rgba(255,255,255,0.045)' : '#f8fafc', borderLeft: `3px solid ${accentColor}` }}>
+            <p className="text-xs font-semibold" style={{ color: text }}>Required worksheets</p>
+            <p className="text-xs mt-1" style={{ color: muted }}>{reviewSheetNames.join(', ')}</p>
+          </div>
+        )}
         {/* Drop zone */}
         <div
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
@@ -258,6 +277,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
   // with the review; the `rubric` prop covers a report saved before the route sent it.
   const criteriaCount = result.rubricCriteriaCount ?? rubric?.length ?? 0;
   const gate = reviewGate(result, criteriaCount);
+  const effectiveMinScore = result.minScore ?? minScore;
   const rubricTotal = Math.max(criteriaCount, result.rubricGrades?.length ?? 0);
   const rubricPassedCount = result.rubricGrades?.filter(g => g.passed).length ?? 0;
   // The AI occasionally skips a criterion or grades another twice despite being told not to, and
@@ -273,6 +293,21 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       <AiReviewDisclaimer isDark={isDark} />
       {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
         <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
+      )}
+
+      {/* The review still decides a pass or fail; it says so when part of the workbook was too
+          large to read, so a student can see which sheets the verdict was based on. */}
+      {result.extractionTruncated && (
+        <div className="flex items-start gap-3 px-4 py-3" style={{ background: isDark ? 'rgba(245,158,11,0.10)' : '#fffbeb', borderLeft: '3px solid #f59e0b' }}>
+          <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+          <div>
+            <p className="text-sm font-semibold" style={{ color: text }}>Part of your workbook was too large to read</p>
+            <p className="text-xs mt-1" style={{ color: muted }}>
+              This result is based only on the parts that could be read.
+              {result.partiallyReviewedSheetNames?.length ? ` Read in part: ${result.partiallyReviewedSheetNames.join(', ')}.` : ''}
+            </p>
+          </div>
+        </div>
       )}
 
       <AiStructuredReviewReport
@@ -421,14 +456,14 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
       </>}
 
       {/* Completion / gate */}
-      {minScore && gate.score < minScore ? (
+      {effectiveMinScore && gate.score < effectiveMinScore ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
               {gate.fromRubric
-                ? `Rubric not met | ${rubricPassedCount} of ${rubricTotal} criteria passed (${gate.score.toFixed(1)}/100) | Required: ${minScore}/100`
-                : `Minimum score not reached | ${gate.score.toFixed(1)}/100 | Required: ${minScore}/100`}
+                ? `Rubric not met | ${rubricPassedCount} of ${rubricTotal} criteria passed (${gate.score.toFixed(1)}/100) | Required: ${effectiveMinScore}/100`
+                : `Minimum score not reached | ${gate.score.toFixed(1)}/100 | Required: ${effectiveMinScore}/100`}
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, update your workbook, and submit another review.</p>
           </div>

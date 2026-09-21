@@ -22,6 +22,7 @@ import { SYNC_ENABLED } from '@/lib/sync';
 import { exportAssignment, exportAllAssignments, exportCSV, exportGroupCSV } from '@/lib/dashboard-export';
 import { PushButton, PushAllButton, StudentAvatar } from '@/components/dashboard/primitives';
 import { ImportButton } from '@/components/dashboard/ImportButton';
+import { excelReviewSaveErrorMessage } from '@/lib/excel-review-config';
 
 export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
   const { theme } = useTheme();
@@ -263,7 +264,7 @@ export function AssignmentsManageSection({ C }: { C: typeof LIGHT_C }) {
       .insert({ ...rest, title: `Copy of ${a.title}`, status: 'draft', cohort_ids: [], group_ids: [], deadline_date: null })
       .select('*')
       .single();
-    if (error) { setDuplicatingId(null); window.alert(error.message); return; }
+    if (error) { setDuplicatingId(null); window.alert(excelReviewSaveErrorMessage(error, 'Could not duplicate this assignment. Please try again.')); return; }
 
     // The copy is a series of non-atomic inserts; collect anything that fails to copy so the
     // instructor is told rather than being shown a false "duplicated" success.

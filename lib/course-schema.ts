@@ -10,6 +10,7 @@
 
 import type { ThemeColor, ThemeMode } from '@/lib/theme-types';
 import type { LessonDoc } from '@/lib/lesson-doc';
+import { normalizeReviewSheetNames } from '@/lib/excel-review-config';
 
 export type { ThemeColor, ThemeMode };
 export type { LessonDoc };
@@ -100,6 +101,7 @@ export interface CourseQuestion {
   rubric?: string[];
   schema?: string;
   context?: string;
+  reviewSheetNames?: string[];
   minScore?: number;
   reviewLanguage?: string;
   documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
@@ -423,6 +425,10 @@ export function normalizeQuestions(questions: any[] | undefined): CourseQuestion
     if (!normalized.correctAnswer && typeof normalized.correct === 'number' && Array.isArray(normalized.options)) {
       normalized.correctAnswer = normalized.options[normalized.correct] ?? '';
     }
+    if (normalized.reviewSheetNames !== undefined) {
+      const sheetNames = normalizeReviewSheetNames(normalized.reviewSheetNames);
+      if (!sheetNames.error) normalized.reviewSheetNames = sheetNames.names;
+    }
     return normalized as CourseQuestion;
   });
 }
@@ -478,6 +484,11 @@ export function validateFormConfig(config: FormConfig | null | undefined): Valid
   const isEvent = Boolean(config.eventDetails?.isEvent);
   if (!isCourse && !isEvent) {
     return { ok: false, error: 'config must set isCourse or eventDetails.isEvent' };
+  }
+  for (const question of config.questions ?? []) {
+    if (question.type !== 'excel_review') continue;
+    const sheetNames = normalizeReviewSheetNames(question.reviewSheetNames);
+    if (sheetNames.error) return { ok: false, error: sheetNames.error };
   }
   return { ok: true };
 }

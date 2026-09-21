@@ -817,6 +817,8 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               savedResult={(() => { const rep = parseReviewNotes(submission?.response_text)?.report; return isFullReport('excel_review', rep) ? rep : undefined; })()}
               rubric={assignment.config?.rubric}
               context={assignment.config?.context}
+              reviewSheetNames={assignment.config?.reviewSheetNames}
+              reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               minScore={assignment.config?.minScore}
               onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(result.overallScore, buildReviewNotes('excel_review', result, submission?.response_text))}
             />

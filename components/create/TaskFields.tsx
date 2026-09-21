@@ -207,6 +207,19 @@ export function TaskFields({ task, onChange, C }: {
         </div>
       )}
 
+      {task.type === 'excel_review' && (
+        <div style={fieldGroupStyle}>
+          <label style={labelStyle(C)}>Worksheets to evaluate <span style={{ fontWeight: 400, color: C.faint }}>(optional, one per line)</span></label>
+          <textarea
+            value={(task.reviewSheetNames ?? []).join('\n')}
+            onChange={e => onChange({ reviewSheetNames: e.target.value.split('\n') })}
+            placeholder={'Revenue Forecast\nSummary Dashboard'}
+            style={{ ...textareaStyle(C), fontFamily: 'monospace', fontSize: 12 }}
+          />
+          <p style={hintStyle(C)}>Only these worksheets are sent to the AI reviewer. Names are matched without regard to letter case.</p>
+        </div>
+      )}
+
       {showSchema && (
         <div style={fieldGroupStyle}>
           <label style={labelStyle(C)}>Database schema <span style={{ fontWeight: 400, color: C.faint }}>(optional, for SQL)</span></label>

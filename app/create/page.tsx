@@ -4036,6 +4036,19 @@ const [isSaving, setIsSaving] = useState(false);
                               </div>
                             )}
 
+                            {qType === 'excel_review' && (
+                              <div>
+                                <label className={labelCls} style={labelStyle}>Worksheets to evaluate <span style={{ color: C.faint }}>(optional, one per line)</span></label>
+                                <textarea
+                                  value={(q.reviewSheetNames ?? []).join('\n')}
+                                  onChange={e => handleUpdateQuestion(q.id, { reviewSheetNames: e.target.value.split('\n') })}
+                                  className={`${inputCls} min-h-[72px] resize-y font-mono text-xs`}
+                                  style={inputStyle}
+                                  placeholder={'Revenue Forecast\nSummary Dashboard'}
+                                />
+                              </div>
+                            )}
+
                             {/* Model answer + length floor (written_response only) */}
                             {qType === 'written_response' && (<>
                               <div>

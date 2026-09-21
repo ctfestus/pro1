@@ -78,6 +78,7 @@ interface Requirement {
   rubric?: string[];
   schema?: string;
   context?: string;
+  reviewSheetNames?: string[];
   minScore?: number;
   documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
   aiReview?: boolean;
@@ -1944,7 +1945,8 @@ export default function VirtualExperienceTaker({
                                   )}
                                   {req.type === 'excel_review' && (
                                     <ExcelReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
-                                      savedResult={undefined} context={req.context} rubric={req.rubric} minScore={req.minScore}
+                                      savedResult={undefined} context={req.context} reviewSheetNames={req.reviewSheetNames}
+                                      reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} rubric={req.rubric} minScore={req.minScore}
                                       onReviewStart={startReview} onReviewError={onReviewError}
                                       onComplete={(result, passed) => { finishReview(); markDone(buildReviewNotes('excel_review', result, saved?.notes), passed); }} />
                                   )}
@@ -2005,7 +2007,7 @@ export default function VirtualExperienceTaker({
                                       {req.type === 'excel_review' && savedReport && (
                                         <ExcelReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                                           savedResult={isFullReport('excel_review', savedReport) ? savedReport as any : undefined}
-                                          context={req.context} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
+                                          context={req.context} reviewSheetNames={req.reviewSheetNames} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
                                       )}
                                       {req.type === 'document_review' && savedReport && (
                                         <DocumentReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
@@ -2460,6 +2462,8 @@ export default function VirtualExperienceTaker({
                               completed={done}
                               savedResult={(() => { const rep = parseReviewNotes(saved?.notes)?.report; return isFullReport('excel_review', rep) ? rep : undefined; })()}
                               context={req.context}
+                              reviewSheetNames={req.reviewSheetNames}
+                              reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }}
                               rubric={req.rubric}
                               minScore={req.minScore}
                               onComplete={(result, passed) => {

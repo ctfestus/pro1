@@ -273,6 +273,10 @@ export async function PUT(req: NextRequest) {
   if (found.row.user_id !== user.id && role !== 'admin' && role !== 'staff') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+  if (found.table === 'courses') {
+    const valid = validateFormConfig(config);
+    if (!valid.ok) return NextResponse.json({ error: valid.error }, { status: 400 });
+  }
 
   const formStatus = bodyStatus === 'draft' ? 'draft' : (bodyStatus === 'published' ? 'published' : found.row.status);
   const slugValue = preferredSlug?.trim() || undefined;

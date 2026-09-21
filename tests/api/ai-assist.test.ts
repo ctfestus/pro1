@@ -32,6 +32,7 @@ function post(body: Record<string, unknown>): Promise<Response> {
 
 function redisStub(count = 1) {
   return {
+    get: vi.fn(async () => Math.max(0, count - 1)),
     incr: vi.fn(async () => count),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),
