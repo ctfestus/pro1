@@ -39,6 +39,7 @@ export interface AssignmentTask {
   rubric?: string[];
   schema?: string;                   // code_review (SQL schema)
   context?: string;                  // excel_review / document_review
+  reviewSheetNames?: string[];       // excel_review
   minScore?: number;
   documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
 }

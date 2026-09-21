@@ -6,7 +6,11 @@ vi.mock('@/lib/ai-limits-server', () => ({
 }));
 
 import { aiTierFor, getAiLimits } from '@/lib/ai-limits-server';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import {
+  enforceAiFeatureLimit,
+  reserveAiFeatureLimit,
+  spendAiFeatureReservation,
+} from '@/lib/ai-feature-gate';
 import { AI_LIMIT_DEFAULTS, type AiLimits } from '@/lib/ai-limits';
 
 const mockTier = vi.mocked(aiTierFor);
@@ -17,6 +21,7 @@ const auth = { actor: { id: 'u1' }, serviceDb: {} } as any;
 /** Counts from 1 upward, so `over` forces the limiter past whatever limit is in force. */
 function redisStub(count = 1) {
   return {
+    get: vi.fn(async () => Math.max(0, count - 1)),
     incr: vi.fn(async () => count),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),
@@ -73,6 +78,18 @@ describe('an allowance that has been spent', () => {
 
   it('lets a caller under the limit through', async () => {
     expect(await enforceAiFeatureLimit(auth, redisStub(1) as any, 'practiceChecks')).toBeNull();
+  });
+
+  it('checks availability without spending until the caller commits', async () => {
+    const redis = redisStub(1);
+
+    const reservation = await reserveAiFeatureLimit(auth, redis as any, 'practiceChecks');
+
+    expect(reservation).not.toBeInstanceOf(Response);
+    expect(redis.get).toHaveBeenCalledOnce();
+    expect(redis.incr).not.toHaveBeenCalled();
+    expect(await spendAiFeatureReservation(reservation as any)).toBeNull();
+    expect(redis.incr).toHaveBeenCalledOnce();
   });
 });
 

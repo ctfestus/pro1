@@ -3,6 +3,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import { adminClient } from '@/lib/admin-client';
 import { LEGACY_RUNTIME_POINTS_SYSTEM, normalizeFormConfig, normalizePointsSystem } from '@/lib/course-schema';
 import { ExperienceGuideResolutionError, resolveTransferredExperienceGuide } from '@/lib/experience-guide';
+import { normalizeAssignmentReviewSheetNames, normalizeCourseReviewSheetNames, normalizeExperienceReviewSheetNames } from '@/lib/excel-review-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -59,6 +60,12 @@ export async function POST(req: NextRequest) {
     // Ingest boundary: the pushing platform may run an older version that still sends
     // legacy aliases (course_timer, points_enabled, ...). Collapse to canonical once, here.
     const cfg   = normalizeFormConfig(payload.config) as any;
+
+    // Worksheet lists are cleaned where that is safe and refused where it is not, so an import
+    // cannot leave a configuration behind that only fails later, on a student's review.
+    const courseSheets = normalizeCourseReviewSheetNames(cfg.questions);
+    if (courseSheets.error) return NextResponse.json({ error: courseSheets.error }, { status: 400 });
+    cfg.questions = courseSheets.questions;
     const title = payload.title || cfg.title || 'Synced Course';
 
     const { data: existing } = await db
@@ -128,6 +135,11 @@ export async function POST(req: NextRequest) {
   if (type === 'virtual_experience') {
     const cfg   = payload.config;
     if (!cfg) return NextResponse.json({ error: 'config required' }, { status: 400 });
+
+    // Worksheet lists are cleaned where that is safe and refused where it is not, so an import
+    // cannot leave a configuration behind that only fails later, on a student's review.
+    const experienceSheets = normalizeExperienceReviewSheetNames(cfg.modules);
+    if (experienceSheets.error) return NextResponse.json({ error: experienceSheets.error }, { status: 400 });
     const title = payload.title || cfg.title || 'Synced Virtual Experience';
     const verifyGuide = async (publishing: boolean) => {
       try {
@@ -171,7 +183,7 @@ export async function POST(req: NextRequest) {
         manager_title:  cfg.managerTitle ?? null,
         guide_id:       verifiedGuide.guideId,
         guide_snapshot: verifiedGuide.snapshot,
-        modules:        cfg.modules ?? [],
+        modules:        experienceSheets.modules ?? [],
         dataset:        cfg.dataset ?? null,
         cover_image:    cfg.coverImage ?? null,
         deadline_days:  cfg.deadline_days ?? null,
@@ -215,7 +227,7 @@ export async function POST(req: NextRequest) {
         manager_title:  cfg.managerTitle ?? null,
         guide_id:       verifiedGuide.guideId,
         guide_snapshot: verifiedGuide.snapshot,
-        modules:        cfg.modules ?? [],
+        modules:        experienceSheets.modules ?? [],
         dataset:        cfg.dataset ?? null,
         cover_image:    cfg.coverImage ?? null,
         deadline_days:  cfg.deadline_days ?? null,
@@ -241,6 +253,11 @@ export async function POST(req: NextRequest) {
     const title     = d.title || 'Synced Assignment';
     const resources: any[] = payload.resources ?? [];
 
+    // Worksheet lists are cleaned where that is safe and refused where it is not, so a config that
+    // breaks the rules is reported here rather than reaching the database as a generic failure.
+    const assignmentConfig = normalizeAssignmentReviewSheetNames(d.type ?? null, d.config ?? null);
+    if (assignmentConfig.error) return NextResponse.json({ error: assignmentConfig.error }, { status: 400 });
+
     const { data: existing } = await db
       .from('assignments').select('id').eq('created_by', userId).eq('title', title).maybeSingle();
 
@@ -258,7 +275,7 @@ export async function POST(req: NextRequest) {
         submission_instructions: d.submission_instructions ?? null,
         cover_image:             d.cover_image ?? null,
         type:                    d.type ?? null,
-        config:                  d.config ?? null,
+        config:                  assignmentConfig.config,
       }).eq('id', existing.id);
       if (upErr) {
         console.error('[sync-receive] assignment update:', upErr.message);
@@ -297,7 +314,7 @@ export async function POST(req: NextRequest) {
       cohort_ids:              [],
       deadline_date:           null,
       type:                    d.type ?? null,
-      config:                  d.config ?? null,
+      config:                  assignmentConfig.config,
     }).select('id').single();
 
     if (aErr) {

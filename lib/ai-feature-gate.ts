@@ -53,84 +53,115 @@ interface GateOptions {
   unavailableMessage?: string;
 }
 
-export async function enforceAiFeatureLimit(
+export interface AiFeatureReservation {
+  actorId: string;
+  canUpgrade: boolean;
+  failOpen: boolean;
+  key: AiFeatureKey;
+  limit: number;
+  redis: Redis | null;
+  unavailableMessage: string;
+}
+
+function limitReachedResponse(key: AiFeatureKey, limit: number, canUpgrade: boolean): NextResponse {
+  const spec = aiFeature(key);
+  return NextResponse.json({
+    error: `You have used your ${limit} ${spec.noun} ${windowWording(key)}. This resets ${spec.window === 'hour' ? 'within the hour' : 'within a day of your first one'}.`,
+    code: 'daily_limit_reached',
+    ...(canUpgrade ? { upgradeUrl: AI_REVIEW_UPGRADE_URL } : {}),
+  }, { status: 429 });
+}
+
+export async function reserveAiFeatureLimit(
   auth: Pick<AuthedUser, 'actor' | 'serviceDb'>,
   redis: Redis | null,
   key: AiFeatureKey,
   options: GateOptions = {},
-): Promise<NextResponse | null> {
-  const unavailable = options.unavailableMessage ?? 'This AI feature is unavailable right now. Please try again shortly.';
+): Promise<AiFeatureReservation | NextResponse> {
+  const unavailableMessage = options.unavailableMessage ?? 'This AI feature is unavailable right now. Please try again shortly.';
+  const failOpen = options.failOpen === true;
 
-  // Without an identity there is no per-learner counter to spend, and an unmeterable request is
-  // exactly what the fail-closed routes exist to refuse. requireUser always supplies this, so in
-  // practice it only catches a malformed caller.
+  // Without an identity there is no per-learner counter to reserve. Fail-closed routes refuse;
+  // fail-open routes carry an empty reservation so the spend phase preserves their old behavior.
   const actorId = auth.actor?.id;
-  if (!actorId) {
-    return options.failOpen ? null : NextResponse.json({ error: unavailable }, { status: 503 });
-  }
+  if (!actorId) return failOpen ? { actorId: '', canUpgrade: false, failOpen, key, limit: 1, redis: null, unavailableMessage } : NextResponse.json({ error: unavailableMessage }, { status: 503 });
 
-  // Two different failures, and failOpen answers only one of them.
-  //
-  // Who this caller is, and what their plan allows, are POLICY. If either lookup fails we do not
-  // know whether this feature is switched off, and running it anyway is how a fail-open route
-  // quietly reopens something an admin closed. That refuses regardless of failOpen.
+  // Tier and limit lookups are policy, not metering. If either is unavailable we cannot know
+  // whether an administrator switched the feature off, so even fail-open routes refuse here.
   let who;
   let limits;
   try {
     who = await aiTierFor(auth);
     limits = await getAiLimits();
   } catch {
-    return NextResponse.json({ error: unavailable }, { status: 503 });
+    return NextResponse.json({ error: unavailableMessage }, { status: 503 });
   }
 
-  const spec = aiFeature(key);
   const limit = limitForAudience(limits, key, who);
   const canUpgrade = upgradeImproves(limits, key, who);
-  const upgrade = canUpgrade ? { upgradeUrl: AI_REVIEW_UPGRADE_URL } : {};
-
-  // Checked before the counter, and before Redis is even consulted. A feature set to 0 is off, and
-  // an unreachable limiter is no reason to run it anyway.
+  // A zero limit means the feature is disabled. Check it before touching Redis so a limiter outage
+  // cannot quietly reopen a feature that policy has closed.
   if (limit <= 0) {
     return NextResponse.json({
       error: canUpgrade
         ? 'This AI feature is not included in your plan. Upgrade to unlock it.'
-        // Says nothing about a plan: this also reaches bootcamp learners and staff, who are not on
-        // one. And nothing about waiting, because waiting will not help.
         : 'This AI feature is currently turned off.',
       code: 'paid_plan_required',
-      ...upgrade,
+      ...(canUpgrade ? { upgradeUrl: AI_REVIEW_UPGRADE_URL } : {}),
     }, { status: 402 });
   }
 
-  // From here on the only question is METERING, which is what failOpen was written for: refusing
-  // every learner over a Redis blip costs more in trust than the requests cost in money.
   if (!redis) {
-    return options.failOpen ? null : NextResponse.json({ error: unavailable }, { status: 503 });
+    // failOpen applies only to the counter. Policy and identity were already resolved above.
+    return failOpen
+      ? { actorId, canUpgrade, failOpen, key, limit, redis, unavailableMessage }
+      : NextResponse.json({ error: unavailableMessage }, { status: 503 });
   }
 
   try {
-    if (await bumpRateLimit(redis, `${spec.rateKey}:${actorId}`, limit, windowSeconds(key))) {
-      return NextResponse.json({
-        // Says what they had and when it returns -- never that the feature is off, which would
-        // tell someone to stop asking for something they get back in a few hours.
-        error: `You have used your ${limit} ${spec.noun} ${windowWording(key)}. This resets ${spec.window === 'hour' ? 'within the hour' : 'within a day of your first one'}.`,
-        code: 'daily_limit_reached',
-        ...upgrade,
-      }, { status: 429 });
-    }
+    // Reservation reads the current budget without incrementing it. Expensive validation can now
+    // happen before spend, while callers who are already out of allowance still stop immediately.
+    const budget = await peekAiFeatureBudget(actorId, redis, key, limit);
+    if (budget.remaining <= 0) return limitReachedResponse(key, limit, canUpgrade);
   } catch {
-    return options.failOpen ? null : NextResponse.json({ error: unavailable }, { status: 503 });
+    if (!failOpen) return NextResponse.json({ error: unavailableMessage }, { status: 503 });
   }
 
+  return { actorId, canUpgrade, failOpen, key, limit, redis, unavailableMessage };
+}
+
+export async function spendAiFeatureReservation(reservation: AiFeatureReservation): Promise<NextResponse | null> {
+  const { actorId, canUpgrade, failOpen, key, limit, redis, unavailableMessage } = reservation;
+  if (!redis || !actorId) return failOpen ? null : NextResponse.json({ error: unavailableMessage }, { status: 503 });
+  try {
+    // The increment remains atomic, so concurrent reservations cannot both spend the final slot.
+    if (await bumpRateLimit(redis, `${aiFeature(key).rateKey}:${actorId}`, limit, windowSeconds(key))) {
+      return limitReachedResponse(key, limit, canUpgrade);
+    }
+  } catch {
+    return failOpen ? null : NextResponse.json({ error: unavailableMessage }, { status: 503 });
+  }
   return null;
 }
 
+export async function enforceAiFeatureLimit(
+  auth: Pick<AuthedUser, 'actor' | 'serviceDb'>,
+  redis: Redis | null,
+  key: AiFeatureKey,
+  options: GateOptions = {},
+): Promise<NextResponse | null> {
+  const reservation = await reserveAiFeatureLimit(auth, redis, key, options);
+  if (reservation instanceof NextResponse) return reservation;
+  return spendAiFeatureReservation(reservation);
+}
+
 /**
- * What a learner has left, WITHOUT spending any of it.
+ * What a learner has left, WITHOUT spending any allowance.
  *
  * So a surface can say "you have none left today" before a learner writes an answer or uploads a
  * workbook, rather than taking the work and refusing it. Deliberately not `bumpRateLimit`: asking
- * how many are left must never be the thing that uses one up.
+ * how many are left must never be the thing that uses one up. A peek may repair a missing expiry
+ * on an existing counter so an old Redis failure cannot block the learner forever.
  */
 export interface AiFeatureBudget {
   limit: number;
@@ -148,6 +179,9 @@ export async function peekAiFeatureBudget(
   const counterKey = `${aiFeature(key).rateKey}:${actorId}`;
   const [rawCount, ttl] = await Promise.all([redis.get(counterKey), redis.ttl(counterKey)]);
   const used = Number(rawCount ?? 0);
+  // A failed EXPIRE after an earlier increment can leave an immortal counter. Reservations do not
+  // increment, but they must retain the limiter's self-healing behavior when they encounter one.
+  if (used > 0 && ttl === -1) await redis.expire(counterKey, windowSeconds(key)).catch(() => {});
   return {
     limit,
     remaining: Math.max(0, limit - (Number.isFinite(used) ? used : 0)),

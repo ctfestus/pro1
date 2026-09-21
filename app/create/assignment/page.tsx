@@ -23,6 +23,7 @@ import { ALLOWED_SOLUTION_EXTENSIONS, isAllowedSolutionFile, isCompleteSolution,
 import type { LessonDoc } from '@/lib/lesson-doc';
 import { RubricFileImportActions } from '@/components/RubricFileImportActions';
 import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
+import { excelReviewSaveErrorMessage, normalizeReviewSheetNames } from '@/lib/excel-review-config';
 
 
 type AssignmentType = 'standard' | 'code_review' | 'excel_review' | 'dashboard_critique' | 'virtual_experience' | 'document_review';
@@ -116,6 +117,7 @@ export default function CreateAssignmentPage() {
   const [passingScore, setPassingScore]     = useState<number>(DEFAULT_PASS_MARK); // submission pass grade
   const [schema, setSchema]                 = useState('');        // for code_review
   const [context, setContext]               = useState('');        // for excel_review
+  const [reviewSheetNamesText, setReviewSheetNamesText] = useState(''); // one worksheet per line
   const [veFormId, setVeFormId]             = useState('');        // for virtual_experience
   const [scenarios, setScenarios]           = useState<AssignmentScenario[]>([]); // for standard
   const [introDoc, setIntroDoc]             = useState<LessonDoc | undefined>(undefined); // standard overview (interactive)
@@ -227,6 +229,7 @@ export default function CreateAssignmentPage() {
             if (cfg.passingScore != null) setPassingScore(cfg.passingScore);
             if (cfg.schema) setSchema(cfg.schema);
             if (cfg.context) setContext(cfg.context);
+            if (Array.isArray(cfg.reviewSheetNames)) setReviewSheetNamesText(cfg.reviewSheetNames.join('\n'));
             if (cfg.ve_form_id) setVeFormId(cfg.ve_form_id);
             if (Array.isArray(cfg.scenarios)) {
               // Answer keys live in a server-only table; re-inject them into the editor state.
@@ -254,11 +257,19 @@ export default function CreateAssignmentPage() {
 
   function buildConfig(): Record<string, any> | null {
     const rubric = rubricText.split('\n').map(s => s.trim()).filter(Boolean);
+    const reviewSheetNames = normalizeReviewSheetNames(reviewSheetNamesText.split('\n')).names;
+    const normalizedScenarios = scenarios.map(scenario => ({
+      ...scenario,
+      tasks: scenario.tasks.map(task => {
+        if (task.type !== 'excel_review') return task;
+        return { ...task, reviewSheetNames: normalizeReviewSheetNames(task.reviewSheetNames).names };
+      }),
+    }));
     const base: Record<string, any> | null = (() => {
       switch (assignmentType) {
-        case 'standard':           return scenarios.length ? { scenarios: stripAnswerKeys(scenarios), ...(introDoc ? { introDoc } : {}), ...(introBody.trim() ? { introBody: sanitizeRichText(introBody) } : {}) } : null;
+        case 'standard':           return normalizedScenarios.length ? { scenarios: stripAnswerKeys(normalizedScenarios), ...(introDoc ? { introDoc } : {}), ...(introBody.trim() ? { introBody: sanitizeRichText(introBody) } : {}) } : null;
         case 'code_review':        return { rubric, minScore, ...(schema.trim() ? { schema: schema.trim() } : {}) };
-        case 'excel_review':       return { rubric, minScore, ...(context.trim() ? { context: context.trim() } : {}) };
+        case 'excel_review':       return { rubric, minScore, ...(context.trim() ? { context: context.trim() } : {}), ...(reviewSheetNames.length ? { reviewSheetNames } : {}) };
         case 'dashboard_critique': return { rubric };
         case 'document_review':    return { rubric, minScore, ...(context.trim() ? { context: context.trim() } : {}) };
         case 'virtual_experience': return veFormId ? { ve_form_id: veFormId } : null;
@@ -358,6 +369,13 @@ export default function CreateAssignmentPage() {
     if (!trimmedTitle) { setError('Title is required.'); return; }
     if (assignmentType === 'virtual_experience' && !veFormId) {
       setError('Please select a Virtual Experience.'); return;
+    }
+    const configuredSheetLists = assignmentType === 'excel_review'
+      ? [reviewSheetNamesText.split('\n')]
+      : scenarios.flatMap(scenario => scenario.tasks.filter(task => task.type === 'excel_review').map(task => task.reviewSheetNames));
+    for (const configuredSheets of configuredSheetLists) {
+      const normalized = normalizeReviewSheetNames(configuredSheets);
+      if (normalized.error) { setError(normalized.error); return; }
     }
     // Block publishing an incomplete scenario assignment (drafts may stay incomplete).
     if (assignmentType === 'standard' && status === 'published') {
@@ -503,7 +521,7 @@ export default function CreateAssignmentPage() {
 
       router.push('/dashboard#assignments');
     } catch (err: any) {
-      setError(err?.message || 'Something went wrong. Please try again.');
+      setError(excelReviewSaveErrorMessage(err, 'Something went wrong. Please try again.'));
     } finally {
       setLoading(false);
     }
@@ -836,15 +854,27 @@ export default function CreateAssignmentPage() {
 
                   {/* Context (excel_review) */}
                   {assignmentType === 'excel_review' && (
-                    <div style={fieldGroupStyle}>
-                      <label style={labelStyle(C)}>Business Context <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional)</span></label>
-                      <textarea
-                        value={context}
-                        onChange={e => setContext(e.target.value)}
-                        placeholder="Describe the business scenario or rules the AI should apply when reviewing the spreadsheet..."
-                        style={textareaStyle(C)}
-                      />
-                    </div>
+                    <>
+                      <div style={fieldGroupStyle}>
+                        <label style={labelStyle(C)}>Business Context <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional)</span></label>
+                        <textarea
+                          value={context}
+                          onChange={e => setContext(e.target.value)}
+                          placeholder="Describe the business scenario or rules the AI should apply when reviewing the spreadsheet..."
+                          style={textareaStyle(C)}
+                        />
+                      </div>
+                      <div style={fieldGroupStyle}>
+                        <label style={labelStyle(C)}>Worksheets to evaluate <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>(optional, one per line)</span></label>
+                        <textarea
+                          value={reviewSheetNamesText}
+                          onChange={e => setReviewSheetNamesText(e.target.value)}
+                          placeholder={'Revenue Forecast\nSummary Dashboard'}
+                          style={{ ...textareaStyle(C), fontFamily: 'monospace', fontSize: 12 }}
+                        />
+                        <p style={hintStyle(C)}>Only these worksheets are sent to the AI reviewer. Names are matched without regard to letter case.</p>
+                      </div>
+                    </>
                   )}
 
                 </>

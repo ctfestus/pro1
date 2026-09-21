@@ -295,7 +295,8 @@ export default function StandardAssignmentPlayer({
         onComplete={(result: any) => patch(task.id, { report: result, score: typeof result?.overallScore === 'number' ? result.overallScore : null })} />;
     }
     if (task.type === 'excel_review') {
-      return <ExcelReviewPlayer {...common} savedResult={a.report} context={task.context}
+      return <ExcelReviewPlayer {...common} savedResult={a.report} context={task.context} reviewSheetNames={task.reviewSheetNames}
+        reviewTarget={{ source: 'assignment', contentId: assignmentId, itemId: task.id }}
         onComplete={(result: any) => patch(task.id, { report: result, score: typeof result?.overallScore === 'number' ? result.overallScore : null })} />;
     }
     if (task.type === 'document_review') {

@@ -209,6 +209,7 @@ interface Requirement {
   rubric?: string[];
   schema?: string;
   context?: string;
+  reviewSheetNames?: string[];
   minScore?: number;
   documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
   aiReview?: boolean;
@@ -2993,6 +2994,18 @@ function VirtualExperienceCreatePageInner() {
                                                       rows={4}
                                                       spellCheck={false}
                                                       placeholder="Include the domain so the AI applies the right expertise. e.g. This is a financial model for a retail business. B5 should calculate total revenue using SUMIF on column D, C10 should show profit margin as a percentage. Or: This is an HR payroll sheet. Column F should calculate net pay after tax deductions. Or: This is a BI sales dashboard for a fintech company. D12 should show month-on-month growth using XLOOKUP."
+                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
+                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}`, lineHeight: 1.6 }}
+                                                    />
+                                                  </div>
+                                                  <div>
+                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Worksheets to evaluate (optional)</p>
+                                                    <textarea
+                                                      value={(req.reviewSheetNames ?? []).join('\n')}
+                                                      onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
+                                                      rows={3}
+                                                      spellCheck={false}
+                                                      placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
                                                       className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
                                                       style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}`, lineHeight: 1.6 }}
                                                     />

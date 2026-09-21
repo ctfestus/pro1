@@ -4,6 +4,7 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { sendAssignmentNotifications } from '@/lib/send-assignment-notification';
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
 import { ExperienceGuideResolutionError, resolveExperienceGuide } from '@/lib/experience-guide';
+import { normalizeExperienceReviewSheetNames } from '@/lib/excel-review-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -40,6 +41,12 @@ export async function POST(req: NextRequest) {
   const formStatus = bodyStatus === 'draft' ? 'draft' : 'published';
   if (!title?.trim()) return NextResponse.json({ error: 'Title is required' }, { status: 400 });
   if (!config)        return NextResponse.json({ error: 'Config is required' }, { status: 400 });
+
+  // Shared with the import and sync routes, so every path that stores a requirement applies the
+  // same worksheet rules: clean what is safe, refuse what is not.
+  const experienceSheets = normalizeExperienceReviewSheetNames(config.modules);
+  if (experienceSheets.error) return NextResponse.json({ error: experienceSheets.error }, { status: 400 });
+  const normalizedModules = experienceSheets.modules ?? [];
 
   if (formStatus === 'published') {
     const readinessIssues = validateVirtualExperienceForPublish(config);
@@ -91,7 +98,7 @@ export async function POST(req: NextRequest) {
     mode:           config.mode          ?? null,
     font:           config.font          ?? null,
     custom_accent:  config.customAccent  ?? null,
-    modules:        config.modules       ?? [],
+    modules:        normalizedModules,
     industry:       config.industry      ?? null,
     difficulty:     config.difficulty    ?? null,
     role:           config.role          ?? null,

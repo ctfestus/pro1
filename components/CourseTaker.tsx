@@ -4182,6 +4182,8 @@ export function CourseTaker({
                       savedResult={reviewSaved?.report}
                       reviewsUsed={reviewSaved?.count ?? 0}
                       context={currentQuestion.context}
+                      reviewSheetNames={currentQuestion.reviewSheetNames}
+                      reviewTarget={formId ? { source: 'course', contentId: formId, itemId: currentQuestion.id } : undefined}
                       rubric={currentQuestion.rubric}
                       minScore={currentQuestion.minScore}
                       maxReviews={2}
