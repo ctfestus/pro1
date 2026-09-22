@@ -67,7 +67,11 @@ function courseStub(row: any) {
 function redisStub() {
   return {
     get: vi.fn(async () => 0),
-    incr: vi.fn(async () => 1),
+    // The learner's own counter is charged by the limiter's Lua; the platform ceilings still use
+    // INCR, so `incr` here means the shared budget was spent.
+    eval: vi.fn(async (script: string, _keys: string[], _args: unknown[]) =>
+      (script.includes('DECR') ? 0 : [1, 3000])),
+    incr: vi.fn(async (_key: string) => 1),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),
     ttl: vi.fn(async () => 3000),
@@ -219,6 +223,23 @@ describe('POST /api/lesson-tutor - invalid slides do not consume the allowance',
     expect(res.status).toBe(200);
     expect(redis.incr).toHaveBeenCalled();
     expect(mockGenerateText).toHaveBeenCalledTimes(1);
+  });
+
+  it('gives the day and the learner back when the hourly ceiling is what refuses', async () => {
+    // The ceilings are charged in order, so the day was already spent by the time the hour turned
+    // the question away. An hour of retries through a busy spell could drain the whole day's
+    // budget without a single question reaching the model.
+    redis.incr.mockImplementation(async (key: string) => (key.endsWith(':hour') ? 1_000_000 : 1));
+    const POST = await loadRoute();
+
+    const res = await post(POST, ask('What is a median?'));
+
+    expect(res.status).toBe(429);
+    expect(mockGenerateText).not.toHaveBeenCalled();
+    const putBack = redis.eval.mock.calls
+      .filter(([script]) => String(script).includes('DECR'))
+      .map(([, keys]) => keys[0]);
+    expect(putBack).toEqual(['rate:lesson-tutor:global:day', 'rate:lesson-tutor:u1']);
   });
 });
 

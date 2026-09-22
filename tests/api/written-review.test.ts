@@ -51,16 +51,20 @@ function post(body: Record<string, unknown>): Promise<Response> {
 function redisStub(count = 1) {
   return {
     get: vi.fn(async () => Math.max(0, count - 1)),
-    incr: vi.fn(async (_key: string) => count),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),
     ttl: vi.fn(async () => 86000),
+    // Stands in for the limiter's Lua: refuse at the limit, otherwise count one and report how
+    // much of the charged window is left.
+    eval: vi.fn(async (script: string, _keys: string[], args: unknown[]) =>
+      (script.includes('DECR') ? 0 : (Math.max(0, count - 1) >= Number(args[0]) ? [0, 0] : [1, 86000]))),
   };
 }
 
 function throwingRedis() {
   return {
-    incr: vi.fn(async (_key: string) => { throw new Error('redis unreachable'); }),
+    get: vi.fn(async () => 0),
+    eval: vi.fn(async () => { throw new Error('redis unreachable'); }),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),
     ttl: vi.fn(async () => 86000),
@@ -132,8 +136,8 @@ describe('POST /api/written-review - fails open by design', () => {
     mockGetRedis.mockReturnValue(practice as any);
     await post(answerBody({ depth: 'brief' }));
 
-    const gradedKey = graded.incr.mock.calls[0][0];
-    const practiceKey = practice.incr.mock.calls[0][0];
+    const gradedKey = graded.eval.mock.calls[0][1][0];
+    const practiceKey = practice.eval.mock.calls[0][1][0];
     expect(gradedKey).not.toBe(practiceKey);
     expect(gradedKey).toContain('full');
     expect(practiceKey).toContain('brief');

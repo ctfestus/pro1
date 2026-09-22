@@ -3,7 +3,7 @@ import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -26,8 +26,8 @@ async function getSessionUser(req: NextRequest): Promise<AuthedUser | null> {
   return isAuthError(auth) ? null : auth;
 }
 
-async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
-  return enforceAiFeatureLimit(auth, getRedis(), 'sqlHelper', {
+async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
+  return chargeAiFeature(auth, getRedis(), 'sqlHelper', {
     unavailableMessage: 'Service temporarily unavailable',
   });
 }
@@ -44,6 +44,10 @@ function stripHtml(html: string): string {
 }
 
 export async function POST(req: NextRequest) {
+  // Set only once an attempt has actually been taken. This route validates inside the same try, so
+  // a failure before the spend must not hand back an allowance nobody used.
+  let refundAttempt: (() => Promise<void>) | null = null;
+
   try {
     const sessionUser = await getSessionUser(req);
     if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -55,8 +59,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     }
 
-    const rateLimitError = await checkRateLimit(sessionUser);
-    if (rateLimitError) return rateLimitError;
+    const charge = await checkRateLimit(sessionUser);
+    if (charge.response) return charge.response;
+    // Only an attempt the counter really took can be given back.
+    const receipt = charge.receipt;
+    if (receipt) refundAttempt = () => refundAiFeature(receipt);
 
     if (action === 'explain-error') {
       const prompt = `You are a helpful SQL tutor for beginners. A student ran this SQL query and got an error.
@@ -101,6 +108,8 @@ Return JSON: { "hint": "..." }`;
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
   } catch (err: any) {
     console.error('[sql-ai]', err);
+    // The answer never came, so it should not have cost them a request.
+    await refundAttempt?.();
     return NextResponse.json({ error: 'AI unavailable. Please try again.' }, { status: 500 });
   }
 }

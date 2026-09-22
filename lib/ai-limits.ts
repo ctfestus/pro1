@@ -48,9 +48,15 @@ export type AiTier = 'free' | 'paid';
  */
 export type AiAudience = AiTier | 'staff';
 
-/** What this audience gets of a feature. Staff read the shipped paid number, never the setting. */
+/**
+ * What this audience gets of a feature.
+ *
+ * Staff read their own shipped number, never the learner settings. Giving them the learner figure
+ * was wrong twice over: an instructor testing a reviewer runs it far more often than anyone taking
+ * the course, and because the settings page is scoped to learners, there was no way to raise it.
+ */
 export function limitForAudience(limits: AiLimits, key: AiFeatureKey, who: AiAudience): number {
-  if (who === 'staff') return aiFeature(key).paid;
+  if (who === 'staff') return aiFeature(key).staff;
   return limits[key][who];
 }
 
@@ -89,6 +95,14 @@ export interface AiFeatureSpec {
   /** The values that were hardcoded, kept as the fallback so an empty setting changes nothing. */
   free: number;
   paid: number;
+  /**
+   * What an instructor gets, which is not a learner number and not editable here.
+   *
+   * Authoring means running the same reviewer over and over against a rubric that is still being
+   * written, so these sit well above the learner allowances -- but they are still numbers, because
+   * a looping script on a staff account would otherwise have no brake at all.
+   */
+  staff: number;
 }
 
 /**
@@ -106,34 +120,34 @@ export interface AiFeatureSpec {
  */
 export const AI_FEATURES: AiFeatureSpec[] = [
   { key: 'practiceChecks', label: 'Practice checks', window: 'day', rateKey: 'rate:written-review:brief',
-    noun: 'practice checks', max: 200, free: 1, paid: 20,
+    noun: 'practice checks', max: 200, free: 1, paid: 20, staff: 100,
     hint: 'The short check inside a lesson knowledge check.' },
   { key: 'writtenReviews', label: 'Written reviews', window: 'day', rateKey: 'rate:written-review:full',
-    noun: 'written reviews', max: 100, free: 1, paid: 10,
+    noun: 'written reviews', max: 100, free: 1, paid: 10, staff: 50,
     hint: 'A full written answer reviewed against the rubric.' },
   { key: 'veAnswers', label: 'Virtual experience answers', window: 'day', rateKey: 'rate:ve-answer-review',
-    noun: 'AI reviews', max: 100, free: 1, paid: 10,
+    noun: 'AI reviews', max: 100, free: 1, paid: 10, staff: 50,
     hint: 'The written answer check inside a virtual experience.' },
   { key: 'excelReview', label: 'Excel review', window: 'day', rateKey: 'rate:excel-review',
-    noun: 'Excel reviews', max: 50, free: 0, paid: 3,
+    noun: 'Excel reviews', max: 50, free: 0, paid: 3, staff: 25,
     hint: 'Reviews an uploaded workbook. Costs more to run than a text review.' },
   { key: 'documentReview', label: 'Document review', window: 'day', rateKey: 'rate:document-review',
-    noun: 'document reviews', max: 50, free: 0, paid: 3,
+    noun: 'document reviews', max: 50, free: 0, paid: 3, staff: 25,
     hint: 'Reviews an uploaded report.' },
   { key: 'dashboardReview', label: 'Dashboard review', window: 'day', rateKey: 'rate:dashboard-critique',
-    noun: 'dashboard analyses', max: 50, free: 0, paid: 3,
+    noun: 'dashboard analyses', max: 50, free: 0, paid: 3, staff: 25,
     hint: 'Reviews an uploaded dashboard screenshot.' },
   { key: 'codeReview', label: 'Code review', window: 'day', rateKey: 'rate:code-review',
-    noun: 'code reviews', max: 50, free: 0, paid: 3,
+    noun: 'code reviews', max: 50, free: 0, paid: 3, staff: 25,
     hint: 'Reviews pasted or uploaded code.' },
   { key: 'lessonTutor', label: 'Lesson tutor', window: 'hour', rateKey: 'rate:lesson-tutor',
-    noun: 'tutor questions', max: 100, free: 15, paid: 15,
+    noun: 'tutor questions', max: 100, free: 15, paid: 15, staff: 50,
     hint: 'Questions about a lesson. Platform-wide ceilings stay in env and are not editable here.' },
   { key: 'sqlHelper', label: 'SQL helper', window: 'hour', rateKey: 'rate:sql-ai',
-    noun: 'requests', max: 300, free: 60, paid: 60,
+    noun: 'requests', max: 300, free: 60, paid: 60, staff: 200,
     hint: 'The AI helper inside SQL exercises.' },
   { key: 'briefChat', label: 'Brief chat questions', window: 'day', rateKey: 'rate:ve-brief-chat',
-    noun: 'questions', max: 200, free: 20, paid: 20,
+    noun: 'questions', max: 200, free: 20, paid: 20, staff: 100,
     hint: 'Questions a learner can ask about a virtual experience brief.' },
 ];
 

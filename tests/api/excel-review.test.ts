@@ -13,17 +13,17 @@ vi.mock('@/lib/ai-limits-server', async () => {
 });
 
 vi.mock('@/lib/redis', () => ({ getRedis: () => ({ get: vi.fn(async () => 0), ttl: vi.fn(async () => -2) }) }));
-vi.mock('@/lib/rate-limit', () => ({ bumpRateLimit: vi.fn(async () => false) }));
+vi.mock('@/lib/rate-limit', () => ({ spendRateLimit: vi.fn(async () => ({ allowed: true, ttlSeconds: 3600 })) }));
 vi.mock('@/lib/ai', () => ({ generateJSON: vi.fn() }));
 
 import { requireUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { bumpRateLimit } from '@/lib/rate-limit';
+import { spendRateLimit } from '@/lib/rate-limit';
 import { POST } from '@/app/api/excel-review/route';
 
 const mockRequireUser = vi.mocked(requireUser);
 const mockGenerateJSON = vi.mocked(generateJSON);
-const mockBumpRateLimit = vi.mocked(bumpRateLimit);
+const mockSpendRateLimit = vi.mocked(spendRateLimit);
 
 // A workbook whose required total is typed in rather than calculated -- the submission shape the
 // rubric gate exists for.
@@ -184,7 +184,7 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(json.missingSheetNames).toEqual(['Forecast']);
     expect(json.availableSheetNames).toEqual(['Income Statements']);
     expect(mockGenerateJSON).not.toHaveBeenCalled();
-    expect(mockBumpRateLimit).not.toHaveBeenCalled();
+    expect(mockSpendRateLimit).not.toHaveBeenCalled();
   });
 
   it('loads review configuration from storage and ignores client-supplied replacements', async () => {
@@ -216,7 +216,7 @@ describe('POST /api/excel-review - rubric gating', () => {
 
     expect(status).toBe(404);
     expect(mockGenerateJSON).not.toHaveBeenCalled();
-    expect(mockBumpRateLimit).not.toHaveBeenCalled();
+    expect(mockSpendRateLimit).not.toHaveBeenCalled();
   });
 
   it('keeps the legacy first-five worksheet cap when no worksheets were configured', async () => {
@@ -255,7 +255,7 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(json.passed).toBe(true);
     expect(json.partiallyReviewedSheetNames).toEqual([]);
     expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('formula listing capped at 200 formulas');
-    expect(mockBumpRateLimit).toHaveBeenCalledTimes(1);
+    expect(mockSpendRateLimit).toHaveBeenCalledTimes(1);
   });
 
   it('still decides a pass or fail when the byte budget cuts off a reached worksheet', async () => {
@@ -273,7 +273,7 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(json.partiallyReviewedSheetNames).toEqual(['Very Large']);
     // The model is told what it could not see, and what to do about a criterion it cannot check.
     expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('mark it as not passed');
-    expect(mockBumpRateLimit).toHaveBeenCalledTimes(1);
+    expect(mockSpendRateLimit).toHaveBeenCalledTimes(1);
   });
 
   it('loads an accessible virtual experience review configuration through actor RLS', async () => {
@@ -319,7 +319,7 @@ describe('POST /api/excel-review - rubric gating', () => {
 
     expect(status).toBe(404);
     expect(mockGenerateJSON).not.toHaveBeenCalled();
-    expect(mockBumpRateLimit).not.toHaveBeenCalled();
+    expect(mockSpendRateLimit).not.toHaveBeenCalled();
   });
 
   it('allows a virtual experience assignment that targets the caller cohort', async () => {
@@ -370,14 +370,14 @@ describe('POST /api/excel-review - rubric gating', () => {
   it('rejects malformed review targets without spending allowance', async () => {
     const { status } = await review(undefined, { targetRaw: 'not-json' });
     expect(status).toBe(400);
-    expect(mockBumpRateLimit).not.toHaveBeenCalled();
+    expect(mockSpendRateLimit).not.toHaveBeenCalled();
   });
 
   it('rejects malformed stored worksheet lists', async () => {
     const { status, json } = await review(undefined, { reviewSheetNames: 'Income Statements' as any });
     expect(status).toBe(400);
     expect(json.error).toContain('Worksheet names must be a list');
-    expect(mockBumpRateLimit).not.toHaveBeenCalled();
+    expect(mockSpendRateLimit).not.toHaveBeenCalled();
   });
 
   it('rejects more than twenty configured worksheets', async () => {
@@ -386,7 +386,7 @@ describe('POST /api/excel-review - rubric gating', () => {
     });
     expect(status).toBe(400);
     expect(json.error).toContain('no more than 20');
-    expect(mockBumpRateLimit).not.toHaveBeenCalled();
+    expect(mockSpendRateLimit).not.toHaveBeenCalled();
   });
 
   it('rejects configured worksheet names longer than Excel allows', async () => {
@@ -395,7 +395,7 @@ describe('POST /api/excel-review - rubric gating', () => {
     });
     expect(status).toBe(400);
     expect(json.error).toContain('31 characters or fewer');
-    expect(mockBumpRateLimit).not.toHaveBeenCalled();
+    expect(mockSpendRateLimit).not.toHaveBeenCalled();
   });
 
   it('leaves the gate on the quality score when no rubric was set', async () => {

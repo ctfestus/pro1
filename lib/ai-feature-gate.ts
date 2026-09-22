@@ -26,7 +26,7 @@
 import { NextResponse } from 'next/server';
 import type { Redis } from '@upstash/redis';
 import type { AuthedUser } from '@/lib/api-auth';
-import { bumpRateLimit } from '@/lib/rate-limit';
+import { refundRateLimit, spendRateLimit } from '@/lib/rate-limit';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import {
   aiFeature,
@@ -130,28 +130,101 @@ export async function reserveAiFeatureLimit(
   return { actorId, canUpgrade, failOpen, key, limit, redis, unavailableMessage };
 }
 
-export async function spendAiFeatureReservation(reservation: AiFeatureReservation): Promise<NextResponse | null> {
-  const { actorId, canUpgrade, failOpen, key, limit, redis, unavailableMessage } = reservation;
-  if (!redis || !actorId) return failOpen ? null : NextResponse.json({ error: unavailableMessage }, { status: 503 });
-  try {
-    // The increment remains atomic, so concurrent reservations cannot both spend the final slot.
-    if (await bumpRateLimit(redis, `${aiFeature(key).rateKey}:${actorId}`, limit, windowSeconds(key))) {
-      return limitReachedResponse(key, limit, canUpgrade);
-    }
-  } catch {
-    return failOpen ? null : NextResponse.json({ error: unavailableMessage }, { status: 503 });
-  }
-  return null;
+/**
+ * Proof that an attempt was really taken, and which window took it.
+ *
+ * Only a spend can issue one, and only a holder of one can refund. That makes the mistake
+ * unavailable rather than merely discouraged: nothing can hand back an attempt it did not take.
+ */
+export interface AiFeatureReceipt {
+  counterKey: string;
+  redis: Redis;
+  /**
+   * Local clock reading after which the charged window has certainly rolled.
+   *
+   * A model call can outlive the window it was charged in. Refunding after that point would credit
+   * whichever window is running by then, which is somebody's fresh allowance. Infinity is a counter
+   * with no expiry, left by an older failure: it never rolls, so a refund always lands on the same
+   * one.
+   */
+  windowEndsAt: number;
 }
 
-export async function enforceAiFeatureLimit(
+export interface AiFeatureCharge {
+  /** The refusal to return, or null to carry on. */
+  response: NextResponse | null;
+  /**
+   * The receipt, or null when the counter never moved -- a refusal, or a fail-open route waved
+   * through because the limiter could not be reached. Only the spend itself knows which.
+   */
+  receipt: AiFeatureReceipt | null;
+}
+
+export async function spendAiFeatureReservation(reservation: AiFeatureReservation): Promise<AiFeatureCharge> {
+  const { actorId, canUpgrade, failOpen, key, limit, redis, unavailableMessage } = reservation;
+  // Nothing was counted on this path, whichever way the route leans.
+  const notCounted = (): AiFeatureCharge => ({
+    response: failOpen ? null : NextResponse.json({ error: unavailableMessage }, { status: 503 }),
+    receipt: null,
+  });
+  if (!redis || !actorId) return notCounted();
+  const counterKey = `${aiFeature(key).rateKey}:${actorId}`;
+  try {
+    // Refusing and incrementing are one step, so a request that is turned away never adds to the
+    // counter -- otherwise a concurrent refund would only undo somebody else's refusal.
+    const spend = await spendRateLimit(redis, counterKey, limit, windowSeconds(key));
+    if (!spend.allowed) return { response: limitReachedResponse(key, limit, canUpgrade), receipt: null };
+    return {
+      response: null,
+      receipt: {
+        counterKey,
+        redis,
+        windowEndsAt: spend.ttlSeconds === null ? Infinity : Date.now() + spend.ttlSeconds * 1000,
+      },
+    };
+  } catch {
+    return notCounted();
+  }
+}
+
+/**
+ * How close to the end of a window a refund is still trusted.
+ *
+ * The deadline compares a local clock against an expiry Redis keeps by its own, so the two can
+ * disagree slightly. A margin wider than any plausible drift means the last moments of a window are
+ * skipped rather than credited to the next one.
+ */
+const REFUND_SAFETY_MS = 5_000;
+
+/**
+ * Give an attempt back, because the work it paid for never happened.
+ *
+ * The counter has to be spent BEFORE the model runs -- otherwise it is not a spend limit at all,
+ * and a caller could run expensive requests and only be stopped afterwards. The cost of that order
+ * is that a model failure took an attempt for a review nobody received. On the free plan that is
+ * someone's whole day, for a timeout they did not cause.
+ *
+ * So the refusal path refunds. Deliberately quiet: a refund that fails must not turn a model error
+ * into a second error, and the counter expires within the window regardless.
+ */
+export async function refundAiFeature(receipt: AiFeatureReceipt): Promise<void> {
+  if (Date.now() + REFUND_SAFETY_MS >= receipt.windowEndsAt) return;
+  try {
+    await refundRateLimit(receipt.redis, receipt.counterKey);
+  } catch {
+    // Nothing to do. The window rolls the counter anyway.
+  }
+}
+
+/** Charge an attempt, and hand back the receipt if one was really taken. */
+export async function chargeAiFeature(
   auth: Pick<AuthedUser, 'actor' | 'serviceDb'>,
   redis: Redis | null,
   key: AiFeatureKey,
   options: GateOptions = {},
-): Promise<NextResponse | null> {
+): Promise<AiFeatureCharge> {
   const reservation = await reserveAiFeatureLimit(auth, redis, key, options);
-  if (reservation instanceof NextResponse) return reservation;
+  if (reservation instanceof NextResponse) return { response: reservation, receipt: null };
   return spendAiFeatureReservation(reservation);
 }
 
@@ -159,7 +232,7 @@ export async function enforceAiFeatureLimit(
  * What a learner has left, WITHOUT spending any allowance.
  *
  * So a surface can say "you have none left today" before a learner writes an answer or uploads a
- * workbook, rather than taking the work and refusing it. Deliberately not `bumpRateLimit`: asking
+ * workbook, rather than taking the work and refusing it. Deliberately not a spend: asking
  * how many are left must never be the thing that uses one up. A peek may repair a missing expiry
  * on an existing counter so an old Redis failure cannot block the learner forever.
  */

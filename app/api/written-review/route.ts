@@ -16,7 +16,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 import { readBoundedJson } from '@/lib/bounded-json';
 import type { AuthedUser } from '@/lib/api-auth';
 
@@ -53,11 +53,15 @@ const MAX_RUBRIC_ITEM_CHARS = 300;
 // (/api/document-review also fails closed; that one is upload-heavy and far more expensive.)
 //
 // Do not "make this consistent" with the other AI routes without checking the caller first.
-async function checkRateLimit(auth: AuthedUser, depth: ReviewDepth): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser, depth: ReviewDepth) {
   // Fails OPEN, unlike the upload reviewers. This one is cheap and used constantly inside lessons,
   // so refusing every learner over a Redis blip costs more in trust than the requests cost in
   // money. Do not "make this consistent" with the others without checking the caller first.
-  return enforceAiFeatureLimit(auth, getRedis(), depth === 'brief' ? 'practiceChecks' : 'writtenReviews', {
+  //
+  // Failing open means it can allow a request through WITHOUT counting it, which is exactly why
+  // this reports whether the charge landed: refunding a request that was waved past a broken
+  // counter would credit the learner against somebody else's earlier, real attempt.
+  return chargeAiFeature(auth, getRedis(), depth === 'brief' ? 'practiceChecks' : 'writtenReviews', {
     failOpen: true,
   });
 }
@@ -222,8 +226,8 @@ Rules:
 Return ONLY valid JSON. No markdown fences.`;
 
   // Consume the daily quota only now, so a rejected or empty attempt never spent one.
-  const rateLimitError = await checkRateLimit(auth, brief ? 'brief' : 'full');
-  if (rateLimitError) return rateLimitError;
+  const charge = await checkRateLimit(auth, brief ? 'brief' : 'full');
+  if (charge.response) return charge.response;
 
   try {
     const parsed = await generateJSON(prompt, responseSchema, {
@@ -267,6 +271,10 @@ Return ONLY valid JSON. No markdown fences.`;
     });
   } catch (err: any) {
     console.error('[written-review]', err);
+    // The review never happened, so it should not have cost them an attempt -- but only if one was
+    // actually taken. Practice checks and full reviews meter separately, so the refund also has to
+    // name the counter that was spent.
+    if (charge.receipt) await refundAiFeature(charge.receipt);
     return NextResponse.json({
       error: 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.',
     }, { status: 503 });

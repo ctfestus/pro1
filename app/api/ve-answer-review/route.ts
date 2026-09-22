@@ -3,7 +3,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 import { readBoundedJson } from '@/lib/bounded-json';
 import type { AuthedUser } from '@/lib/api-auth';
 
@@ -25,11 +25,11 @@ const MAX_BODY_BYTES = 128 * 1024;
 
 const VE_COLUMNS = 'user_id, modules, company, role, industry';
 
-async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
   // Fails closed. This route spends a metered AI quota, so a limiter that cannot be reached must
   // not silently become no limiter at all -- an outage is exactly when an unbounded bill would be
   // run up.
-  return enforceAiFeatureLimit(auth, getRedis(), 'veAnswers', {
+  return chargeAiFeature(auth, getRedis(), 'veAnswers', {
     unavailableMessage: 'AI review is unavailable right now. Please try again shortly.',
   });
 }
@@ -175,8 +175,8 @@ Score 0-100 (60+ passes). Write exactly 2-3 sentences of feedback. Rules:
 
   // Consume the daily quota only now: the request is valid and the caller is authorized for a
   // real review, so a rejected attempt above never spent one of the student's ten.
-  const rateLimitError = await checkRateLimit(auth);
-  if (rateLimitError) return rateLimitError;
+  const charge = await checkRateLimit(auth);
+  if (charge.response) return charge.response;
 
   try {
     const parsed = await generateJSON(prompt, responseSchema, { temperature: 0.4 });
@@ -187,6 +187,8 @@ Score 0-100 (60+ passes). Write exactly 2-3 sentences of feedback. Rules:
     });
   } catch (err: any) {
     console.error('[ve-answer-review]', err);
+    // The review never happened, so it should not have cost them an attempt.
+    if (charge.receipt) await refundAiFeature(charge.receipt);
     return NextResponse.json({ error: 'AI review failed. Please try again.' }, { status: 500 });
   }
 }

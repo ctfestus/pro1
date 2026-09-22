@@ -63,10 +63,13 @@ function post(body: Record<string, unknown>): Promise<Response> {
 function redisStub(count = 1) {
   return {
     get: vi.fn(async () => Math.max(0, count - 1)),
-    incr: vi.fn(async () => count),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),
     ttl: vi.fn(async () => RATE_TTL_SENTINEL),
+    // Stands in for the limiter's Lua: refuse at the limit, otherwise count one and report how
+    // much of the charged window is left.
+    eval: vi.fn(async (script: string, _keys: string[], args: unknown[]) =>
+      (script.includes('DECR') ? 0 : (Math.max(0, count - 1) >= Number(args[0]) ? [0, 0] : [1, RATE_TTL_SENTINEL]))),
   };
 }
 const RATE_TTL_SENTINEL = 86000;
@@ -111,7 +114,8 @@ describe('POST /api/ve-brief-chat - auth and rate limiting', () => {
 
   it('fails closed when the limiter throws', async () => {
     mockGetRedis.mockReturnValue({
-      incr: vi.fn(async () => { throw new Error('redis down'); }),
+      get: vi.fn(async () => 0),
+      eval: vi.fn(async () => { throw new Error('redis down'); }),
       expire: vi.fn(), del: vi.fn(), ttl: vi.fn(),
     } as any);
     expect((await post(askBody())).status).toBe(503);
@@ -125,14 +129,10 @@ describe('POST /api/ve-brief-chat - auth and rate limiting', () => {
     expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 
-  it('deletes the counter key if it could not get a TTL', async () => {
-    const redis = redisStub(1);
-    redis.expire.mockResolvedValue(0 as any);
-    mockGetRedis.mockReturnValue(redis as any);
-    mockGenerateJSON.mockResolvedValue({ reply: 'Q3 only.' });
-    await post(askBody());
-    expect(redis.del).toHaveBeenCalled();
-  });
+  // A counter that was incremented but failed to get a TTL used to be deleted on the next pass, to
+  // stop it blocking the learner forever. Counting and expiring now happen in one script, so that
+  // state cannot arise here; `bumpRateLimit`, which the platform-wide ceilings still use, keeps its
+  // own cover for it in tests/lib/rate-limit.test.ts.
 
   it('repairs a TTL-less key on the over-limit path', async () => {
     const redis = redisStub(21);
@@ -146,6 +146,16 @@ describe('POST /api/ve-brief-chat - auth and rate limiting', () => {
 describe('POST /api/ve-brief-chat - validation and access', () => {
   it('rejects a missing veId/reqId', async () => {
     expect((await post({ question: 'Hi?' })).status).toBe(400);
+  });
+
+  it('does not spend a question on a request it refuses', async () => {
+    // The charge used to happen before any of these checks, so a malformed body drained an
+    // allowance for an answer that was never going to come.
+    const redis = redisStub();
+    mockGetRedis.mockReturnValue(redis as any);
+
+    expect((await post({ question: 'Hi?' })).status).toBe(400);
+    expect(redis.eval).not.toHaveBeenCalled();
   });
 
   it('rejects an empty question', async () => {
