@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateText, GEMINI_MODEL } from '@/lib/ai';
 import { getRedis } from '@/lib/redis';
-import { bumpRateLimit } from '@/lib/rate-limit';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { bumpRateLimit, refundRateLimit } from '@/lib/rate-limit';
+import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 import { lessonPlainText } from '@/lib/lesson-doc';
 import {
   MAX_QUESTION_CHARS, MAX_LESSON_CHARS, MAX_OUTPUT_TOKENS, TUTOR_SYSTEM_INSTRUCTION,
@@ -63,42 +63,65 @@ const GLOBAL_HOURLY_LIMIT = num(process.env.TUTOR_GLOBAL_HOURLY_LIMIT, 120);
 const GLOBAL_DAILY_LIMIT = num(process.env.TUTOR_GLOBAL_DAILY_LIMIT, 600);
 const HOUR_SECONDS = 3600;
 const DAY_SECONDS = 86400;
+const GLOBAL_DAY_KEY = 'rate:lesson-tutor:global:day';
+const GLOBAL_HOUR_KEY = 'rate:lesson-tutor:global:hour';
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
-async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
-  const redis = getRedis();
+const unavailable = (): AiFeatureCharge => ({
   // Fail closed -- the tutor runs on a metered AI quota, so an unavailable limiter must not become
   // an unlimited one.
-  if (!redis) return NextResponse.json({ error: 'The tutor is unavailable right now.' }, { status: 503 });
+  response: NextResponse.json({ error: 'The tutor is unavailable right now.' }, { status: 503 }),
+  receipt: null,
+});
+
+async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
+  const redis = getRedis();
+  if (!redis) return unavailable();
 
   // The caller's own cap is checked first so a student who is already over their limit cannot
   // spend from the shared platform budget on the way to being refused.
-  const own = await enforceAiFeatureLimit(auth, redis, 'lessonTutor', {
+  const own = await chargeAiFeature(auth, redis, 'lessonTutor', {
     unavailableMessage: 'The tutor is unavailable right now.',
   });
-  if (own) return own;
+  if (own.response) return own;
+
+  // The ceilings are checked in order, so by the time one of them refuses, the ones before it have
+  // already been charged for a question that is not going to be answered. Everything charged on the
+  // way here goes back: the day's budget, and the learner's own attempt.
+  let daySpent = false;
+  const release = async () => {
+    try {
+      if (daySpent) await refundRateLimit(redis, GLOBAL_DAY_KEY);
+    } catch {
+      // Nothing to do. The window rolls the counter anyway.
+    }
+    if (own.receipt) await refundAiFeature(own.receipt);
+  };
+
+  const refuseGlobally = async (error: string): Promise<AiFeatureCharge> => {
+    await release();
+    return { response: NextResponse.json({ error }, { status: 429 }), receipt: null };
+  };
 
   try {
     // Platform-wide, and worded without numbers: a student has no way to act on a global ceiling,
     // so telling them the count would only read as a broken feature.
-    if (await bumpRateLimit(redis, 'rate:lesson-tutor:global:day', GLOBAL_DAILY_LIMIT, DAY_SECONDS)) {
-      return NextResponse.json(
-        { error: 'The tutor has reached its limit for today. Please try again tomorrow.' },
-        { status: 429 },
-      );
+    if (await bumpRateLimit(redis, GLOBAL_DAY_KEY, GLOBAL_DAILY_LIMIT, DAY_SECONDS)) {
+      return refuseGlobally('The tutor has reached its limit for today. Please try again tomorrow.');
     }
-    if (await bumpRateLimit(redis, 'rate:lesson-tutor:global:hour', GLOBAL_HOURLY_LIMIT, HOUR_SECONDS)) {
-      return NextResponse.json(
-        { error: 'The tutor is busy right now. Please try again in a little while.' },
-        { status: 429 },
-      );
+    daySpent = true;
+    if (await bumpRateLimit(redis, GLOBAL_HOUR_KEY, GLOBAL_HOURLY_LIMIT, HOUR_SECONDS)) {
+      // Without this, an hour spent retrying through a busy spell would eat the whole day's budget
+      // without a single question ever reaching the model.
+      return refuseGlobally('The tutor is busy right now. Please try again in a little while.');
     }
   } catch {
-    return NextResponse.json({ error: 'The tutor is unavailable right now.' }, { status: 503 });
+    await release();
+    return unavailable();
   }
 
-  return null;
+  return own;
 }
 
 const stripHtml = (v: unknown, cap: number) =>
@@ -176,8 +199,8 @@ export async function POST(req: NextRequest) {
   // wrong slide type, empty lesson -- still consumed a slot from the shared platform
   // allowance, so a bad or hostile caller could drain the day's budget without ever reaching
   // the model.
-  const limited = await checkRateLimit(auth);
-  if (limited) return limited;
+  const charge = await checkRateLimit(auth);
+  if (charge.response) return charge.response;
 
   try {
     // The tutor's own system instruction replaces lib/ai's ASCII-only default, which would
@@ -189,6 +212,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ reply });
   } catch (err) {
     console.error('[lesson-tutor]', (err as Error).message);
+    // The tutor never answered, so it should not have cost them a question. Only the learner's own
+    // allowance is given back -- the platform-wide ceilings are a spend brake, not an entitlement.
+    if (charge.receipt) await refundAiFeature(charge.receipt);
     return NextResponse.json({ error: 'The tutor could not answer right now. Please try again.' }, { status: 502 });
   }
 }

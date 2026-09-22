@@ -4,7 +4,7 @@ import { generateVisionJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,10 +27,10 @@ async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse
   return auth;
 }
 
-async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
   // Whether this reviewer is included at all, and how many a day, both come from settings now --
   // a free learner is refused because the free column says 0, not because a route says so.
-  return enforceAiFeatureLimit(auth, getRedis(), 'dashboardReview', {
+  return chargeAiFeature(auth, getRedis(), 'dashboardReview', {
     unavailableMessage: 'Service temporarily unavailable',
   });
 }
@@ -226,12 +226,13 @@ elementType values: HEADER | KPI_CARD | BAR_CHART | LINE_CHART | PIE_CHART | STA
 Return ONLY valid JSON matching the schema. No markdown fences, no explanation text outside the JSON.`;
 
 export async function POST(req: NextRequest) {
+  // Set only once an attempt has actually been taken, so a failure before that point cannot hand
+  // back an allowance nobody spent.
+  let refundAttempt: (() => Promise<void>) | null = null;
+
   try {
     const auth = await authenticate(req);
     if (auth instanceof NextResponse) return auth;
-
-    const rateLimitError = await checkRateLimit(auth);
-    if (rateLimitError) return rateLimitError;
 
     const { imageBase64, mimeType = 'image/png', rubric } = await req.json();
     if (!imageBase64) return NextResponse.json({ error: 'imageBase64 required' }, { status: 400 });
@@ -242,6 +243,14 @@ export async function POST(req: NextRequest) {
         { status: 413 },
       );
     }
+
+    // Charged only once the request is worth running. Taking the attempt first meant a missing or
+    // oversized screenshot drained an allowance for a review that was never going to happen.
+    const charge = await checkRateLimit(auth);
+    if (charge.response) return charge.response;
+    // Only an attempt the counter really took can be given back.
+    const receipt = charge.receipt;
+    if (receipt) refundAttempt = () => refundAiFeature(receipt);
 
 
 
@@ -265,6 +274,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(parsed);
   } catch (err: any) {
     console.error('dashboard-critique error:', err);
+    // The review never happened, so it should not have cost them an attempt.
+    await refundAttempt?.();
     return NextResponse.json({
       error: 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.',
     }, { status: 503 });

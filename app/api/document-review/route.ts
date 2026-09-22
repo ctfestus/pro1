@@ -3,7 +3,7 @@ import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 import { GoogleGenAI } from '@google/genai';
 import { logAiUsage } from '@/lib/ai-usage';
 
@@ -34,10 +34,10 @@ async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse
   return auth;
 }
 
-async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
+async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
   // Whether this reviewer is included at all, and how many a day, both come from settings now --
   // a free learner is refused because the free column says 0, not because a route says so.
-  return enforceAiFeatureLimit(auth, getRedis(), 'documentReview', {
+  return chargeAiFeature(auth, getRedis(), 'documentReview', {
     unavailableMessage: 'Service temporarily unavailable',
   });
 }
@@ -129,6 +129,10 @@ Also provide:
 Return ONLY valid JSON. No markdown fences.`;
 
 export async function POST(req: NextRequest) {
+  // Set only once an attempt has actually been taken, so a failure before that point cannot hand
+  // back an allowance nobody spent.
+  let refundAttempt: (() => Promise<void>) | null = null;
+
   try {
     const auth = await authenticate(req);
     if (auth instanceof NextResponse) return auth;
@@ -151,8 +155,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Rate limit checked after validation so bad requests don't burn credits
-    const rateLimitError = await checkRateLimit(auth);
-    if (rateLimitError) return rateLimitError;
+    const charge = await checkRateLimit(auth);
+    if (charge.response) return charge.response;
+    // Only an attempt the counter really took can be given back.
+    const receipt = charge.receipt;
+    if (receipt) refundAttempt = () => refundAiFeature(receipt);
 
     const buffer = await file.arrayBuffer();
 
@@ -207,6 +214,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(parsed);
   } catch (err: any) {
     console.error('[document-review] error:', err);
+    // The review never happened, so it should not have cost them an attempt.
+    await refundAttempt?.();
     return NextResponse.json({
       error: 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.',
     }, { status: 503 });

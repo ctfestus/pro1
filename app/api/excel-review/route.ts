@@ -3,7 +3,7 @@ import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { reserveAiFeatureLimit, spendAiFeatureReservation, type AiFeatureReservation } from '@/lib/ai-feature-gate';
+import { refundAiFeature, reserveAiFeatureLimit, spendAiFeatureReservation, type AiFeatureReservation } from '@/lib/ai-feature-gate';
 import ExcelJS from 'exceljs';
 import { collectRubricGrades, reviewPassed, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
 import {
@@ -300,6 +300,10 @@ Also provide:
 Return ONLY valid JSON. No markdown fences.`;
 
 export async function POST(req: NextRequest) {
+  // Set only once an attempt has actually been taken, so a failure before that point cannot hand
+  // back an allowance nobody spent.
+  let refundAttempt: (() => Promise<void>) | null = null;
+
   try {
     const auth = await authenticate(req);
     if (auth instanceof NextResponse) return auth;
@@ -380,8 +384,11 @@ export async function POST(req: NextRequest) {
         extractionTruncated: extraction.truncated,
       },
     };
-    const spendError = await spendAiFeatureReservation(reservation);
-    if (spendError) return spendError;
+    const charge = await spendAiFeatureReservation(reservation);
+    if (charge.response) return charge.response;
+    // Only an attempt the counter really took can be given back.
+    const receipt = charge.receipt;
+    if (receipt) refundAttempt = () => refundAiFeature(receipt);
     // The narrative half of the review always comes from the first attempt; only the grades
     // merge, so the report a student reads is one coherent response rather than two spliced.
     const parsed = await generateJSON(prompt, schema, { temperature: 0.2, usageContext });
@@ -440,6 +447,8 @@ export async function POST(req: NextRequest) {
     });
   } catch (err: any) {
     console.error('excel-review error:', err);
+    // The review never happened, so it should not have cost them an attempt.
+    await refundAttempt?.();
     return NextResponse.json({
       error: 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.',
     }, { status: 503 });

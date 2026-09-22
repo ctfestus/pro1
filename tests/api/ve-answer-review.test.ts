@@ -67,10 +67,13 @@ function post(body: Record<string, unknown>): Promise<Response> {
 function redisStub(count = 1) {
   return {
     get: vi.fn(async () => Math.max(0, count - 1)),
-    incr: vi.fn(async () => count),
     expire: vi.fn(async () => 1),
     del: vi.fn(async () => 1),
     ttl: vi.fn(async () => 86000),
+    // Stands in for the limiter's Lua: refuse at the limit, otherwise count one and report how
+    // much of the charged window is left.
+    eval: vi.fn(async (script: string, _keys: string[], args: unknown[]) =>
+      (script.includes('DECR') ? 0 : (Math.max(0, count - 1) >= Number(args[0]) ? [0, 0] : [1, 86000]))),
   };
 }
 
@@ -113,7 +116,8 @@ describe('POST /api/ve-answer-review - auth, rate limit, validation', () => {
 
   it('fails closed when the limiter throws', async () => {
     mockGetRedis.mockReturnValue({
-      incr: vi.fn(async () => { throw new Error('redis down'); }),
+      get: vi.fn(async () => 0),
+      eval: vi.fn(async () => { throw new Error('redis down'); }),
       expire: vi.fn(), del: vi.fn(), ttl: vi.fn(),
     } as any);
     expect((await post(answerBody())).status).toBe(503);
@@ -151,7 +155,7 @@ describe('POST /api/ve-answer-review - auth, rate limit, validation', () => {
     const redis = redisStub();
     mockGetRedis.mockReturnValue(redis as any);
     expect((await post(answerBody({ studentAnswer: 'a'.repeat(2001) }))).status).toBe(400);
-    expect(redis.incr).not.toHaveBeenCalled();
+    expect(redis.eval).not.toHaveBeenCalled();
     expect(mockGenerateJSON).not.toHaveBeenCalled();
   });
 

@@ -3,7 +3,7 @@ import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { enforceAiFeatureLimit } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,8 +20,8 @@ const MAX_PLAN_CHARS = 8000;
 
 const VE_COLUMNS = 'user_id, modules, company, role, industry, manager_name, manager_title, background';
 
-async function checkRateLimit(auth: AuthedUser): Promise<NextResponse | null> {
-  return enforceAiFeatureLimit(auth, getRedis(), 'briefChat', {
+async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
+  return chargeAiFeature(auth, getRedis(), 'briefChat', {
     unavailableMessage: 'Service temporarily unavailable',
   });
 }
@@ -40,9 +40,6 @@ const stripHtml = (v: unknown, cap: number) =>
 export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
-
-  const rateLimitError = await checkRateLimit(auth);
-  if (rateLimitError) return rateLimitError;
 
   const body = await req.json();
   const question = stripHtml(body?.question, MAX_QUESTION_CHARS + 1);
@@ -108,6 +105,12 @@ export async function POST(req: NextRequest) {
   if (!brief || brief.type !== 'briefing') {
     return NextResponse.json({ error: 'Brief not found.' }, { status: 404 });
   }
+
+  // Charged only once the question is worth answering. Taking it first meant a malformed body, a
+  // virtual experience they cannot see, or a requirement that is not a brief all drained a
+  // question for an answer that was never going to come.
+  const charge = await checkRateLimit(auth);
+  if (charge.response) return charge.response;
 
   const managerName  = stripHtml(ve.manager_name, 80) || 'the manager';
   const managerTitle = stripHtml(ve.manager_title, 80);
@@ -192,6 +195,8 @@ Reply in character as ${managerName}. Rules:
     return NextResponse.json({ reply });
   } catch (err: any) {
     console.error('[ve-brief-chat]', err);
+    // The answer never came, so it should not have cost them a question.
+    if (charge.receipt) await refundAiFeature(charge.receipt);
     return NextResponse.json({ error: 'Could not send your question right now. Please try again.' }, { status: 500 });
   }
 }
