@@ -145,6 +145,9 @@ export type SiteConfig = {
   // Ad card image layout ('' = full-cover background, 'side' = image beside bg colour: right on desktop, bottom on mobile)
   ad1ImageLayout: string; ad2ImageLayout: string; ad3ImageLayout: string;
   midAd1ImageLayout: string; midAd2ImageLayout: string;
+  // Per-card visibility ('1' = hidden). Hiding keeps the card's content so it can come back as it was.
+  hideAd1: string; hideAd2: string; hideAd3: string;
+  hideMidAd1: string; hideMidAd2: string;
   // Top ad banner full-width hero mode ('1' = edge-to-edge image banner with white text panel)
   adBannerFullWidth: string;
   // Dark mode (Modern template -- '1' = dark, '' = light)
@@ -192,6 +195,7 @@ const ELEVATE_EMPTY = {
   midAd2Label: '', midAd2Title: '', midAd2Description: '', midAd2CtaText: '', midAd2CtaUrl: '', midAd2BgColor: '', midAd2BgImage: '',
   hideMidAdBanner: '',
   ad1ImageLayout: '', ad2ImageLayout: '', ad3ImageLayout: '', midAd1ImageLayout: '', midAd2ImageLayout: '', adBannerFullWidth: '',
+  hideAd1: '', hideAd2: '', hideAd3: '', hideMidAd1: '', hideMidAd2: '',
   siteDarkMode: '',
 };
 
@@ -216,6 +220,7 @@ const MOMENTUM_EMPTY = {
   midAd2Label: '', midAd2Title: '', midAd2Description: '', midAd2CtaText: '', midAd2CtaUrl: '', midAd2BgColor: '', midAd2BgImage: '',
   hideMidAdBanner: '',
   ad1ImageLayout: '', ad2ImageLayout: '', ad3ImageLayout: '', midAd1ImageLayout: '', midAd2ImageLayout: '', adBannerFullWidth: '',
+  hideAd1: '', hideAd2: '', hideAd3: '', hideMidAd1: '', hideMidAd2: '',
   siteDarkMode: '',
 };
 
@@ -400,6 +405,7 @@ export const TEMPLATES: Template[] = [
       midAd2Label: 'Free', midAd2Title: 'Start your first course today', midAd2Description: 'No credit card required. Access your first course free and experience the platform before you commit.', midAd2CtaText: 'Get started free', midAd2CtaUrl: '/auth?mode=signup', midAd2BgColor: '#064E3B', midAd2BgImage: '',
       hideMidAdBanner: '',
       ad1ImageLayout: '', ad2ImageLayout: '', ad3ImageLayout: '', midAd1ImageLayout: '', midAd2ImageLayout: '', adBannerFullWidth: '',
+      hideAd1: '', hideAd2: '', hideAd3: '', hideMidAd1: '', hideMidAd2: '',
       siteDarkMode: '',
     },
   },
