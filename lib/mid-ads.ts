@@ -19,25 +19,26 @@ export type AdCard = {
   imageLayout?: string;
 };
 
-/** The two mid-page cards, in the order they are shown. */
+/** The mid-page cards an admin has not switched off, in the order they are shown. */
 export function midAdCardsFrom(config: Partial<SiteConfig>): AdCard[] {
-  return [
-    {
+  const cards: (AdCard | null)[] = [
+    config.hideMidAd1 === '1' ? null : {
       label: config.midAd1Label ?? '', title: config.midAd1Title ?? '',
       description: config.midAd1Description ?? '', ctaText: config.midAd1CtaText ?? '',
       ctaUrl: config.midAd1CtaUrl ?? '', bgColor: config.midAd1BgColor ?? '',
       bgImage: config.midAd1BgImage ?? '', imageLayout: config.midAd1ImageLayout ?? '',
     },
-    {
+    config.hideMidAd2 === '1' ? null : {
       label: config.midAd2Label ?? '', title: config.midAd2Title ?? '',
       description: config.midAd2Description ?? '', ctaText: config.midAd2CtaText ?? '',
       ctaUrl: config.midAd2CtaUrl ?? '', bgColor: config.midAd2BgColor ?? '',
       bgImage: config.midAd2BgImage ?? '', imageLayout: config.midAd2ImageLayout ?? '',
     },
   ];
+  return cards.filter((c): c is AdCard => c !== null);
 }
 
-/** True when an admin has actually set these up and not switched them off. */
+/** True when at least one card is set up and neither it nor the whole banner is switched off. */
 export function hasMidAds(config: Partial<SiteConfig>): boolean {
   return config.hideMidAdBanner !== '1' && midAdCardsFrom(config).some(ad => ad.title);
 }

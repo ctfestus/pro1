@@ -6,7 +6,7 @@ import { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, ArrowRight, Check, CheckCircle2, ChevronDown, ExternalLink, Loader2, Upload, X, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
-import { TEMPLATES as SITE_TEMPLATES } from '@/lib/site-templates';
+import { TEMPLATES as SITE_TEMPLATES, resolveConfig, type SiteConfig } from '@/lib/site-templates';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 
 function loadFont(family: string) {
@@ -124,6 +124,11 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
     setConfig(prev => ({ ...prev, [key]: value }));
   };
 
+  // What the landing page actually shows: saved values over the template's defaults. Fields read
+  // from this so a default the admin never touched is visible and editable, not a placeholder that
+  // looks empty while the live page renders it. Edits still go to `config`, which is what is saved.
+  const view = resolveConfig(template, config as Partial<SiteConfig>) as Record<string, string>;
+
   const handleSave = async () => {
     setSaving(true);
     setMsg(null);
@@ -149,7 +154,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   const tf = (key: string, label: string, placeholder: string, hint?: string) => (
     <div className="space-y-1">
       <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
-      <input type="text" value={config[key] ?? ''} onChange={e => set(key, e.target.value)}
+      <input type="text" value={view[key] ?? ''} onChange={e => set(key, e.target.value)}
         placeholder={placeholder} className="w-full px-3 py-2 rounded-lg text-sm outline-none"
         style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
       {hint && <p className="text-[11px]" style={{ color: C.faint }}>{hint}</p>}
@@ -157,7 +162,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   );
 
   const cf = (key: string, label: string, fallback: string, hint?: string) => {
-    const val = config[key] || fallback;
+    const val = view[key] || fallback;
     return (
       <div className="space-y-1">
         <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
@@ -170,7 +175,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
             </span>
           </label>
-          <input type="text" value={config[key] ?? ''} onChange={e => set(key, e.target.value)}
+          <input type="text" value={view[key] ?? ''} onChange={e => set(key, e.target.value)}
             placeholder={fallback} className="w-24 px-2 py-2 rounded-lg text-xs outline-none font-mono"
             style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
         </div>
@@ -182,7 +187,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   const taf = (key: string, label: string, placeholder: string, hint?: string, rows = 3) => (
     <div className="space-y-1">
       <label className="text-xs font-semibold" style={{ color: C.muted }}>{label}</label>
-      <textarea value={config[key] ?? ''} onChange={e => set(key, e.target.value)}
+      <textarea value={view[key] ?? ''} onChange={e => set(key, e.target.value)}
         placeholder={placeholder} rows={rows} className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
         style={{ background: C.pill, border: `1px solid ${C.cardBorder}`, color: C.text }} />
       {hint && <p className="text-[11px]" style={{ color: C.faint }}>{hint}</p>}
@@ -190,7 +195,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   );
 
   const imgUpload = (key: string, label: string, hint?: string) => {
-    const url = config[key] ?? '';
+    const url = view[key] ?? '';
     const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) return;
@@ -234,7 +239,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
       <div className="grid grid-cols-2 gap-1.5">
         {FONT_OPTIONS.map(f => {
           loadFont(f);
-          const active = (config[key] || fallback) === f;
+          const active = (view[key] || fallback) === f;
           return (
             <button key={f} onClick={() => set(key, f)}
               className="px-3 py-2 rounded text-sm text-left transition-all"
@@ -254,13 +259,31 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
 
   // Visibility toggle -- '1' means hidden
   const Vis = (key: string) => {
-    const hidden = config[key] === '1';
+    const hidden = view[key] === '1';
     return (
       <div className="flex items-center justify-between pb-3 mb-1 border-b" style={{ borderColor: C.cardBorder }}>
         <span className="text-xs font-semibold" style={{ color: C.muted }}>Show this section</span>
         <button onClick={() => set(key, hidden ? '' : '1')}
           className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-          style={{ background: hidden ? C.cardBorder : (config.primaryColor || '#0e09dd') }}>
+          style={{ background: hidden ? C.cardBorder : (view.primaryColor || '#0e09dd') }}>
+          <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
+            style={{ left: hidden ? 2 : 22 }} />
+        </button>
+      </div>
+    );
+  };
+
+  // Ad-card header with its own show switch -- hiding keeps the card's content for later
+  const cardHead = (n: string, key: string) => {
+    const hidden = view[key] === '1';
+    return (
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold uppercase tracking-widest" style={{ color: C.muted }}>
+          Card {n}{hidden && <span className="ml-2 normal-case tracking-normal font-semibold" style={{ color: C.faint }}>Hidden</span>}
+        </p>
+        <button onClick={() => set(key, hidden ? '' : '1')} aria-label={hidden ? `Show card ${n}` : `Hide card ${n}`}
+          className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
+          style={{ background: hidden ? C.cardBorder : (view.primaryColor || '#0056D2') }}>
           <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
             style={{ left: hidden ? 2 : 22 }} />
         </button>
@@ -275,7 +298,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
         <label className="text-xs font-semibold" style={{ color: C.muted }}>Image layout</label>
         <div className="flex gap-1.5">
           {([['', 'Full background'], ['side', 'Beside text']] as const).map(([val, lbl]) => {
-            const active = (config[key] || '') === val;
+            const active = (view[key] || '') === val;
             return (
               <button key={val || 'cover'} onClick={() => set(key, val)}
                 className="flex-1 px-3 py-2 rounded-lg text-xs font-semibold transition-all"
@@ -307,7 +330,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
   );
   // Colour swatch dot for section header preview
   const Dot = (k: string, fb: string) => (
-    <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: config[k] || fb, border: '1.5px solid rgba(0,0,0,0.12)' }} />
+    <span className="w-3.5 h-3.5 rounded-full flex-shrink-0" style={{ background: view[k] || fb, border: '1.5px solid rgba(0,0,0,0.12)' }} />
   );
   // Sub-label divider inside a section
   const Sub = (t: string) => (
@@ -376,7 +399,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
           <>{Dot('primaryColor','#0e09dd')}</>,
           <>
             {imgUpload('heroImageUrl', 'Background Image', 'Leave blank to use a colour gradient.')}
-            {config.heroImageUrl && <>
+            {view.heroImageUrl && <>
               {Sub('Image Overlay')}
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {cf('heroOverlayColor', 'Overlay colour', '#000000')}
@@ -384,12 +407,12 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
               <div className="flex items-center gap-3">
                 <span className="text-xs" style={{ color: C.muted }}>Opacity</span>
                 <input type="range" min="0" max="100" step="5"
-                  value={config.heroOverlayOpacity ?? '58'}
+                  value={view.heroOverlayOpacity ?? '58'}
                   onChange={e => set('heroOverlayOpacity', e.target.value)}
                   className="flex-1"
-                  style={{ accentColor: config.primaryColor || '#0e09dd' }}
+                  style={{ accentColor: view.primaryColor || '#0e09dd' }}
                 />
-                <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{config.heroOverlayOpacity ?? '58'}%</span>
+                <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{view.heroOverlayOpacity ?? '58'}%</span>
               </div>
             </>}
             {tf('heroTitle',        'Headline',        'Build the skills Africa')}
@@ -399,12 +422,12 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
             <div className="space-y-1">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-semibold" style={{ color: C.muted }}>Hero Font Size</label>
-                <span className="text-xs font-mono" style={{ color: C.faint }}>{config.heroFontSize || '62'}px</span>
+                <span className="text-xs font-mono" style={{ color: C.faint }}>{view.heroFontSize || '62'}px</span>
               </div>
               <input type="range" min="36" max="96" step="1"
-                value={config.heroFontSize || '62'}
+                value={view.heroFontSize || '62'}
                 onChange={e => set('heroFontSize', e.target.value)}
-                className="w-full" style={{ accentColor: config.primaryColor || '#0e09dd' }}
+                className="w-full" style={{ accentColor: view.primaryColor || '#0e09dd' }}
               />
               <p className="text-[11px]" style={{ color: C.faint }}>Desktop headline size -- mobile scales proportionally.</p>
             </div>
@@ -440,12 +463,12 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
             <div className="flex items-center gap-3">
               <span className="text-xs" style={{ color: C.muted }}>Opacity</span>
               <input type="range" min="0" max="100" step="5"
-                value={config.cardOverlayOpacity ?? '55'}
+                value={view.cardOverlayOpacity ?? '55'}
                 onChange={e => set('cardOverlayOpacity', e.target.value)}
                 className="flex-1"
-                style={{ accentColor: config.primaryColor || '#0e09dd' }}
+                style={{ accentColor: view.primaryColor || '#0e09dd' }}
               />
-              <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{config.cardOverlayOpacity ?? '55'}%</span>
+              <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{view.cardOverlayOpacity ?? '55'}%</span>
             </div>
             {Sub('Fallback Cards (shown when no live content)')}
             {['1','2','3'].map(n => (
@@ -484,12 +507,12 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
             {Sub('Image Overlay')}
             <div className="flex items-center gap-3">
               <input type="range" min="0" max="100" step="5"
-                value={config.statImgOverlay ?? '60'}
+                value={view.statImgOverlay ?? '60'}
                 onChange={e => set('statImgOverlay', e.target.value)}
                 className="flex-1"
-                style={{ accentColor: config.primaryColor || '#0e09dd' }}
+                style={{ accentColor: view.primaryColor || '#0e09dd' }}
               />
-              <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{config.statImgOverlay ?? '60'}%</span>
+              <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{view.statImgOverlay ?? '60'}%</span>
             </div>
           </>
         )}
@@ -560,7 +583,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
             {taf('footerTagline', 'Tagline', 'Empowering the next generation of professionals.', undefined, 2)}
             {Sub('Background Image')}
             {imgUpload('footerBgImageUrl', 'Background image', 'Optional -- replaces the solid colour background.')}
-            {config.footerBgImageUrl && <>
+            {view.footerBgImageUrl && <>
               {Sub('Image Overlay')}
               <div className="grid grid-cols-2 gap-3 mb-2">
                 {cf('footerOverlayColor', 'Overlay colour', '#0a0a1a')}
@@ -568,12 +591,12 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
               <div className="flex items-center gap-3">
                 <span className="text-xs" style={{ color: C.muted }}>Opacity</span>
                 <input type="range" min="0" max="100" step="5"
-                  value={config.footerOverlayOpacity ?? '75'}
+                  value={view.footerOverlayOpacity ?? '75'}
                   onChange={e => set('footerOverlayOpacity', e.target.value)}
                   className="flex-1"
-                  style={{ accentColor: config.accentColor || '#e94560' }}
+                  style={{ accentColor: view.accentColor || '#e94560' }}
                 />
-                <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{config.footerOverlayOpacity ?? '75'}%</span>
+                <span className="text-xs font-mono w-10 text-right" style={{ color: C.muted }}>{view.footerOverlayOpacity ?? '75'}%</span>
               </div>
             </>}
             {Sub('Custom Links Column')}
@@ -604,11 +627,11 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
                 <p className="text-xs font-semibold" style={{ color: C.text }}>Enable dark mode</p>
                 <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Switches the landing page to a dark background.</p>
               </div>
-              <button onClick={() => set('siteDarkMode', config.siteDarkMode === '1' ? '' : '1')}
+              <button onClick={() => set('siteDarkMode', view.siteDarkMode === '1' ? '' : '1')}
                 className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-                style={{ background: config.siteDarkMode === '1' ? (config.primaryColor || '#0056D2') : C.cardBorder }}>
+                style={{ background: view.siteDarkMode === '1' ? (view.primaryColor || '#0056D2') : C.cardBorder }}>
                 <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
-                  style={{ left: config.siteDarkMode === '1' ? 22 : 2 }} />
+                  style={{ left: view.siteDarkMode === '1' ? 22 : 2 }} />
               </button>
             </div>
           </>
@@ -623,16 +646,16 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
                 <p className="text-xs font-semibold" style={{ color: C.text }}>Full-width banner</p>
                 <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>Edge-to-edge image banner with a white text panel on the left. Off = contained cards.</p>
               </div>
-              <button onClick={() => set('adBannerFullWidth', config.adBannerFullWidth === '1' ? '' : '1')}
+              <button onClick={() => set('adBannerFullWidth', view.adBannerFullWidth === '1' ? '' : '1')}
                 className="relative w-10 h-5 rounded-full transition-colors flex-shrink-0"
-                style={{ background: config.adBannerFullWidth === '1' ? (config.primaryColor || '#0056D2') : C.cardBorder }}>
+                style={{ background: view.adBannerFullWidth === '1' ? (view.primaryColor || '#0056D2') : C.cardBorder }}>
                 <span className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all"
-                  style={{ left: config.adBannerFullWidth === '1' ? 22 : 2 }} />
+                  style={{ left: view.adBannerFullWidth === '1' ? 22 : 2 }} />
               </button>
             </div>
             {(['1','2','3'] as const).map(n => (
               <div key={n} className="border rounded-lg p-4 space-y-2" style={{ borderColor: C.cardBorder }}>
-                <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: C.muted }}>Card {n}</p>
+                {cardHead(n, `hideAd${n}`)}
                 {tf(`ad${n}Label`,       'Badge label',       n === '1' ? 'New' : n === '2' ? 'Featured' : 'Popular')}
                 {tf(`ad${n}Title`,       'Headline',          'Start your learning journey today')}
                 {taf(`ad${n}Description`,'Description',       'Short description text', undefined, 2)}
@@ -642,7 +665,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
                   {cf(`ad${n}BgColor`,   'Background colour', '#0056D2')}
                 </div>
                 {imgUpload(`ad${n}BgImage`, 'Image', 'Optional. Choose how it displays below.')}
-                {config[`ad${n}BgImage`] && imgLayout(`ad${n}ImageLayout`)}
+                {view[`ad${n}BgImage`] && imgLayout(`ad${n}ImageLayout`)}
               </div>
             ))}
           </>
@@ -655,7 +678,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
             <p className="text-[11px]" style={{ color: C.faint }}>Two cards shown between Learning Paths and Virtual Experiences.</p>
             {(['1','2'] as const).map(n => (
               <div key={n} className="border rounded-lg p-4 space-y-2" style={{ borderColor: C.cardBorder }}>
-                <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: C.muted }}>Card {n}</p>
+                {cardHead(n, `hideMidAd${n}`)}
                 {tf(`midAd${n}Label`,       'Badge label',       n === '1' ? 'Trending' : 'Free')}
                 {tf(`midAd${n}Title`,       'Headline',          'Start your learning journey today')}
                 {taf(`midAd${n}Description`,'Description',       'Short description text', undefined, 2)}
@@ -665,7 +688,7 @@ export function SiteSettingsSection({ C }: { C: typeof LIGHT_C }) {
                   {cf(`midAd${n}BgColor`,   'Background colour', '#0056D2')}
                 </div>
                 {imgUpload(`midAd${n}BgImage`, 'Image', 'Optional. Choose how it displays below.')}
-                {config[`midAd${n}BgImage`] && imgLayout(`midAd${n}ImageLayout`)}
+                {view[`midAd${n}BgImage`] && imgLayout(`midAd${n}ImageLayout`)}
               </div>
             ))}
           </>

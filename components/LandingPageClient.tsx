@@ -16,6 +16,7 @@ import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
 import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
+import { hasMidAds, midAdCardsFrom, type AdCard } from '@/lib/mid-ads';
 import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
 import { buildNavGroups, groupByField } from '@/lib/landing-nav';
 import { toPlainText } from '@/lib/plain-text';
@@ -934,13 +935,12 @@ function getCategoryIcon(title: string, type: ProgrammeItem['type']): React.Elem
 }
 
 // --- Ad banner carousel ---
-type AdCard = { label: string; title: string; description: string; ctaText: string; ctaUrl: string; bgColor: string; bgImage: string; imageLayout?: string; };
 
 const BANNER_AUTO_MS = 6500;
 
 function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard[]; hFont?: string; bFont?: string; fullWidth?: boolean; isDark?: boolean }) {
   const cards = ads.filter(a => a.title);
-  const [idx, setIdx] = useState(0);
+  const [storedIdx, setIdx] = useState(0);
   const [paused, setPaused] = useState(false);
   // Kept apart from `paused`. That one is the transient hover/swipe hold, so folding the two
   // together would let moving the mouse away restart a carousel the visitor deliberately stopped.
@@ -952,6 +952,9 @@ function LandingAdBanner({ ads, hFont, bFont, fullWidth, isDark }: { ads: AdCard
   const [containerW, setContainerW] = useState(0);
   const GAP = fullWidth ? 0 : 16;
   const max = Math.max(0, cards.length - 1);
+  // Clamped on read: switching off the card on screen shortens the list under a stored index,
+  // which would otherwise point past the end and leave the track scrolled onto nothing.
+  const idx = Math.min(storedIdx, max);
 
   useEffect(() => {
     if (!clipRef.current) return;
@@ -1500,10 +1503,8 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
     ad1Label, ad1Title, ad1Description, ad1CtaText, ad1CtaUrl, ad1BgColor, ad1BgImage, ad1ImageLayout,
     ad2Label, ad2Title, ad2Description, ad2CtaText, ad2CtaUrl, ad2BgColor, ad2BgImage, ad2ImageLayout,
     ad3Label, ad3Title, ad3Description, ad3CtaText, ad3CtaUrl, ad3BgColor, ad3BgImage, ad3ImageLayout,
+    hideAd1, hideAd2, hideAd3,
     hideAdBanner,
-    midAd1Label, midAd1Title, midAd1Description, midAd1CtaText, midAd1CtaUrl, midAd1BgColor, midAd1BgImage, midAd1ImageLayout,
-    midAd2Label, midAd2Title, midAd2Description, midAd2CtaText, midAd2CtaUrl, midAd2BgColor, midAd2BgImage, midAd2ImageLayout,
-    hideMidAdBanner,
     adBannerFullWidth,
     siteDarkMode,
   } = siteConfig;
@@ -1531,15 +1532,12 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
   const certs     = programmes.filter(p => p.type === 'certification');
 
   const courseGroups = groupByField(courses, 'category');
-  const adCards: AdCard[] = [
-    { label: ad1Label, title: ad1Title, description: ad1Description, ctaText: ad1CtaText, ctaUrl: ad1CtaUrl, bgColor: ad1BgColor, bgImage: ad1BgImage, imageLayout: ad1ImageLayout },
-    { label: ad2Label, title: ad2Title, description: ad2Description, ctaText: ad2CtaText, ctaUrl: ad2CtaUrl, bgColor: ad2BgColor, bgImage: ad2BgImage, imageLayout: ad2ImageLayout },
-    { label: ad3Label, title: ad3Title, description: ad3Description, ctaText: ad3CtaText, ctaUrl: ad3CtaUrl, bgColor: ad3BgColor, bgImage: ad3BgImage, imageLayout: ad3ImageLayout },
-  ];
-  const midAdCards: AdCard[] = [
-    { label: midAd1Label, title: midAd1Title, description: midAd1Description, ctaText: midAd1CtaText, ctaUrl: midAd1CtaUrl, bgColor: midAd1BgColor, bgImage: midAd1BgImage, imageLayout: midAd1ImageLayout },
-    { label: midAd2Label, title: midAd2Title, description: midAd2Description, ctaText: midAd2CtaText, ctaUrl: midAd2CtaUrl, bgColor: midAd2BgColor, bgImage: midAd2BgImage, imageLayout: midAd2ImageLayout },
-  ];
+  const adCards = ([
+    hideAd1 === '1' ? null : { label: ad1Label, title: ad1Title, description: ad1Description, ctaText: ad1CtaText, ctaUrl: ad1CtaUrl, bgColor: ad1BgColor, bgImage: ad1BgImage, imageLayout: ad1ImageLayout },
+    hideAd2 === '1' ? null : { label: ad2Label, title: ad2Title, description: ad2Description, ctaText: ad2CtaText, ctaUrl: ad2CtaUrl, bgColor: ad2BgColor, bgImage: ad2BgImage, imageLayout: ad2ImageLayout },
+    hideAd3 === '1' ? null : { label: ad3Label, title: ad3Title, description: ad3Description, ctaText: ad3CtaText, ctaUrl: ad3CtaUrl, bgColor: ad3BgColor, bgImage: ad3BgImage, imageLayout: ad3ImageLayout },
+  ] as (AdCard | null)[]).filter((c): c is AdCard => c !== null);
+  const midAdCards = midAdCardsFrom(siteConfig);
 
 
   // Shared with the pricing page, so both public pages offer the same Learn menu.
@@ -1583,7 +1581,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       />
 
       {/* AD BANNER */}
-      {hideAdBanner !== '1' && (
+      {hideAdBanner !== '1' && adCards.some(card => card.title) && (
         adBannerFullWidth === '1' ? (
           <div className="pt-16 md:pt-20">
             <LandingAdBanner ads={adCards} hFont={hFont} bFont={bFont} fullWidth isDark={isPageDark} />
@@ -1633,7 +1631,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
       )}
 
       {/* MID-PAGE AD BANNER */}
-      {hideMidAdBanner !== '1' && midAdCards.some(a => a.title) && (
+      {hasMidAds(siteConfig) && (
         <MidAdBanner ads={midAdCards} hFont={hFont} bFont={bFont} isDark={isPageDark} />
       )}
 
