@@ -723,7 +723,7 @@ export default function AssignmentExperiencePlayer({
               {/* Lesson title */}
               <div className="px-6 py-5 border-b" style={{ borderColor: divider }}>
                 <p className="text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: accent }}>{currentMod?.title}</p>
-                <h2 className="text-base font-bold" style={{ color: text }}>{currentLes.title}</h2>
+                <h2 className="text-xl font-bold leading-snug" style={{ color: text }}>{currentLes.title}</h2>
               </div>
 
               {/* Video */}

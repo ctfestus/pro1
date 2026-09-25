@@ -57,10 +57,10 @@ export function DeliverableChecklist({
 
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: mutedColor }}>
+          <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: mutedColor }}>
             Deliverable
           </p>
-          <h4 className="mt-1 text-[15px] font-semibold leading-snug" style={{ color: textColor }}>
+          <h4 className="mt-1 text-xl font-bold leading-snug tracking-tight" style={{ color: textColor }}>
             {title}
           </h4>
         </div>
@@ -138,10 +138,10 @@ export function DeliverableChecklist({
           />
         </span>
         <span className="min-w-0 flex-1">
-          <span className="block text-[13px] font-semibold" style={{ color: textColor }}>
+          <span className="block text-[14px] font-semibold" style={{ color: textColor }}>
             {completed ? 'Deliverable completed' : 'I have completed this deliverable'}
           </span>
-          <span aria-live="polite" className="mt-0.5 block text-[11px]" style={{ color: completed ? accentColor : mutedColor }}>
+          <span aria-live="polite" className="mt-0.5 block text-[12px]" style={{ color: completed ? accentColor : mutedColor }}>
             {completed && !readOnly
               ? 'Progress updated. You can undo this until submission'
               : completed
