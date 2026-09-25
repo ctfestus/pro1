@@ -3,6 +3,8 @@
 // Callout block: a styled note / tip / warning / info / success box that holds any
 // block content. Has an editable title, an editable eyebrow label, a pickable icon, a variant
 // (which sets the color scheme), and optional border-style + free border-color overrides.
+// Authors can also pick the corner shape, which edge the accent bar sits on, and a free accent
+// color that replaces the variant's color across the bar, icon, label and tint.
 //
 // The variant sets the COLOR scheme and supplies the default label + icon. `label` and `icon`
 // override those independently, so a warning-coloured box can read "Watch out" with a clock on it.
@@ -32,6 +34,22 @@ const VARIANTS: Record<CalloutVariant, { label: string; Icon: typeof Info }> = {
   info: { label: 'Info', Icon: Info },
   success: { label: 'Success', Icon: CheckCircle2 },
 };
+
+type CalloutShape = 'rounded' | 'square';
+type CalloutAccentPosition = 'left' | 'top' | 'right' | 'bottom' | 'none';
+
+const SHAPE_OPTIONS: { value: CalloutShape; label: string }[] = [
+  { value: 'rounded', label: 'Rounded' },
+  { value: 'square', label: 'Square' },
+];
+
+const ACCENT_POSITION_OPTIONS: { value: CalloutAccentPosition; label: string }[] = [
+  { value: 'left', label: 'Left' },
+  { value: 'top', label: 'Top' },
+  { value: 'right', label: 'Right' },
+  { value: 'bottom', label: 'Bottom' },
+  { value: 'none', label: 'None' },
+];
 
 const VARIANT_OPTIONS: { value: CalloutVariant; label: string }[] = [
   { value: 'note', label: 'Note' },
@@ -88,6 +106,11 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
   const title = (node.attrs.title as string) || '';
   const borderStyle = (node.attrs.borderStyle as BorderStyle) || 'solid';
   const borderColor = (node.attrs.borderColor as string) || '';
+  const shape: CalloutShape = node.attrs.shape === 'square' ? 'square' : 'rounded';
+  const accentPosition: CalloutAccentPosition = ACCENT_POSITION_OPTIONS.some((o) => o.value === node.attrs.accentPosition)
+    ? (node.attrs.accentPosition as CalloutAccentPosition)
+    : 'left';
+  const accentColor = ((node.attrs.accentColor as string) || '').trim();
   const actionLabel = (node.attrs.actionLabel as string) || '';
   const actionUrl = (node.attrs.actionUrl as string) || '';
   const [actionOpen, setActionOpen] = useState(!!(actionLabel || actionUrl));
@@ -95,9 +118,16 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
   const safeUrl = safeCalloutActionUrl(actionUrl);
 
   // Override border inline; leave color to the variant CSS unless a custom one is set.
-  const wrapperStyle: React.CSSProperties = borderStyle === 'none'
-    ? { border: 'none' }
-    : { borderStyle, borderWidth: 1, borderColor: borderColor || 'var(--callout-border)' };
+  // A custom accent re-declares the callout's color vars inline so it wins over the variant.
+  const wrapperStyle = {
+    ...(borderStyle === 'none'
+      ? { border: 'none' }
+      : { borderStyle, borderWidth: 1, borderColor: borderColor || 'var(--callout-border)' }),
+    ...(accentColor ? {
+      '--callout-accent': accentColor,
+      '--callout-ink': `color-mix(in oklab, ${accentColor} 78%, #000)`,
+    } : {}),
+  } as React.CSSProperties;
 
   const duplicateSelf = () => {
     if (typeof getPos !== 'function') return;
@@ -119,7 +149,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
   };
 
   return (
-    <NodeViewWrapper className="lesson-callout" data-variant={variant} style={wrapperStyle}>
+    <NodeViewWrapper className="lesson-callout" data-variant={variant} data-shape={shape} data-accent={accentPosition} data-custom-accent={accentColor ? '' : undefined} style={wrapperStyle}>
       <div className="lesson-callout__icon-wrap" contentEditable={false}>
         <Icon className="lesson-callout__icon" width={17} height={17} />
       </div>
@@ -145,12 +175,15 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
           {editable && (
             <div className="lesson-callout__controls">
               <button type="button" className="lesson-callout__control" aria-label="Duplicate callout" title="Duplicate" onMouseDown={(event) => { event.preventDefault(); duplicateSelf(); }}><Copy width={13} height={13} /></button>
-              <StyleMenu width={272}>
+              <StyleMenu width={288}>
                 <MenuRow label="Style"><Segmented<CalloutVariant> value={variant} onChange={(v) => updateAttributes({ variant: v })} options={VARIANT_OPTIONS} /></MenuRow>
+                <MenuRow label="Shape"><Segmented<CalloutShape> value={shape} onChange={(v) => updateAttributes({ shape: v })} options={SHAPE_OPTIONS} /></MenuRow>
+                <MenuRow label="Accent bar"><Segmented<CalloutAccentPosition> value={accentPosition} onChange={(v) => updateAttributes({ accentPosition: v })} options={ACCENT_POSITION_OPTIONS} /></MenuRow>
+                <MenuRow label="Accent color"><ColorField value={accentColor} onChange={(v) => updateAttributes({ accentColor: v })} title="Accent color" /></MenuRow>
                 <MenuRow label="Icon"><IconPicker value={iconKey} onChange={(v) => updateAttributes({ icon: v })} options={ICON_OPTIONS} /></MenuRow>
                 <MenuRow label="Border"><Segmented<BorderStyle> value={borderStyle} onChange={(v) => updateAttributes({ borderStyle: v })} options={BORDER_STYLE_OPTIONS} /></MenuRow>
                 {borderStyle !== 'none' && (
-                  <MenuRow label="Color"><ColorField value={borderColor} onChange={(v) => updateAttributes({ borderColor: v })} /></MenuRow>
+                  <MenuRow label="Border color"><ColorField value={borderColor} onChange={(v) => updateAttributes({ borderColor: v })} /></MenuRow>
                 )}
               </StyleMenu>
               <button type="button" className="lesson-callout__control lesson-callout__remove" aria-label="Remove callout" title="Remove" onMouseDown={(event) => { event.preventDefault(); removeSelf(); }}><X width={13} height={13} /></button>
@@ -198,6 +231,10 @@ export const Callout = Node.create({
       icon: { default: '' },
       borderStyle: { default: 'none' },
       borderColor: { default: '' },
+      // Defaults reproduce the original look: rounded corners, bar on the left, variant color.
+      shape: { default: 'rounded' },
+      accentPosition: { default: 'left' },
+      accentColor: { default: '' },
       actionLabel: { default: '' },
       actionUrl: { default: '' },
     };
