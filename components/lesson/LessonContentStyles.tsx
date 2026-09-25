@@ -205,6 +205,13 @@ export function LessonContentStyles() {
 .lesson-content .lesson-callout[data-variant="warning"] { --callout-accent: #f59e0b; --callout-ink: #a16207; }
 .lesson-content .lesson-callout[data-variant="info"] { --callout-accent: #3b82f6; --callout-ink: #1d4ed8; }
 .lesson-content .lesson-callout[data-variant="success"] { --callout-accent: #22c55e; --callout-ink: #15803d; }
+.lesson-content .lesson-callout[data-accent="right"] { padding-left: 17px; padding-right: 14px; }
+.lesson-content .lesson-callout[data-accent="right"]::before { inset: 0 0 0 auto; }
+.lesson-content .lesson-callout[data-accent="top"]::before { inset: 0 0 auto 0; width: auto; height: 3px; }
+.lesson-content .lesson-callout[data-accent="bottom"]::before { inset: auto 0 0 0; width: auto; height: 3px; }
+.lesson-content .lesson-callout[data-accent="top"], .lesson-content .lesson-callout[data-accent="bottom"], .lesson-content .lesson-callout[data-accent="none"] { padding-left: 16px; }
+.lesson-content .lesson-callout[data-accent="none"]::before { display: none; }
+.lesson-content.dark .lesson-callout[data-custom-accent] { --callout-surface: color-mix(in oklab, var(--callout-accent) 8%, rgba(255,255,255,0.035)); }
 @media (max-width: 560px) {
   .lesson-content .lesson-callout { grid-template-columns: 32px minmax(0,1fr); gap: 10px; padding: 13px 13px 13px 11px; border-radius: 13px; }
   .lesson-content .lesson-callout__icon-wrap { width: 32px; height: 32px; border-radius: 9px; }
@@ -212,7 +219,11 @@ export function LessonContentStyles() {
   .lesson-content .lesson-callout__action-editor .lesson-callout__action-input:first-child { grid-column: 1; }
   .lesson-content .lesson-callout__action-editor .lesson-callout__action-input:nth-child(2) { grid-column: 1; }
   .lesson-content .lesson-callout__remove-action { grid-column: 2; grid-row: 1 / span 2; }
+  .lesson-content .lesson-callout[data-accent="right"] { padding-left: 13px; padding-right: 11px; }
+  .lesson-content .lesson-callout[data-accent="top"], .lesson-content .lesson-callout[data-accent="bottom"], .lesson-content .lesson-callout[data-accent="none"] { padding-left: 13px; }
 }
+.lesson-content .lesson-callout[data-shape="square"] { border-radius: 0; }
+.lesson-content .lesson-callout[data-shape="square"] .lesson-callout__icon-wrap { border-radius: 4px; }
 
 /* Suppress the global :focus-visible outline (globals.css) on the editor surface.
    Needs :focus-visible + !important to beat that rule; the editor shows its own
