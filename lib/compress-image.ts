@@ -39,7 +39,6 @@ export const COVER_PROFILE: CompressProfile = { maxDim: 2000, targetBytes: 1.2 *
 /** Upload folders that opt in to a tighter profile. Everything else gets DEFAULT_PROFILE. */
 const PROFILES: Record<string, CompressProfile> = {
   covers: COVER_PROFILE,
-  'application-covers': COVER_PROFILE,
   'datasets/covers': COVER_PROFILE,
 };
 

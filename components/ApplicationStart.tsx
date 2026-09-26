@@ -142,13 +142,14 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
 
   const post = form.config.postSubmission;
   const coverImage = form.config.coverImage?.trim();
+  const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
   const coverPlacement = form.config.coverImagePlacement ?? 'header';
   if (submission) {
     const statusUrl = `/applications/${encodeURIComponent(sessionToken)}`;
     return (
       <main className="min-h-screen px-4 py-10" style={{ background: C.page }}>
         <div className="max-w-2xl mx-auto space-y-4">
-          {coverImage && <div className="h-44 sm:h-56 overflow-hidden rounded-2xl" style={cardStyle(C)}><img src={coverImage} alt={`${form.config.title} cover`} className="h-full w-full object-cover" /></div>}
+          {coverImage && <div className="h-44 sm:h-56 overflow-hidden rounded-2xl" style={cardStyle(C)}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
           <div className="rounded-2xl p-7 sm:p-9 text-center" style={cardStyle(C)}>
             <CheckCircle2 className="w-14 h-14 mx-auto mb-4" style={{ color: C.successText }} />
             <h1 className="text-2xl font-bold" style={{ color: C.text }}>Application received</h1>
@@ -174,9 +175,9 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   return (
     <main className="min-h-screen px-4 py-8" style={{ background: C.page }}>
       <div className="max-w-2xl mx-auto">
-        {coverImage && coverPlacement === 'header' && <div className="mb-4 h-48 overflow-hidden rounded-2xl sm:h-64" style={cardStyle(C)}><img src={coverImage} alt={`${form.config.title} cover`} className="h-full w-full object-cover" /></div>}
+        {coverImage && coverPlacement === 'header' && <div className="mb-4 h-48 overflow-hidden rounded-2xl sm:h-64" style={cardStyle(C)}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
         <form onSubmit={submit} className="rounded-2xl p-6 sm:p-9" style={cardStyle(C)}>
-          {coverImage && coverPlacement === 'inside' && <div className="-mx-2 mb-7 h-44 overflow-hidden rounded-xl sm:h-56"><img src={coverImage} alt={`${form.config.title} cover`} className="h-full w-full object-cover" /></div>}
+          {coverImage && coverPlacement === 'inside' && <div className="-mx-2 mb-7 h-44 overflow-hidden rounded-xl sm:h-56"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
           <div className="mb-7">
             <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: C.text }}>{form.config.title}</h1>
             <p className="mt-3 text-sm leading-6 whitespace-pre-line" style={{ color: C.muted }}>{form.config.description}</p>

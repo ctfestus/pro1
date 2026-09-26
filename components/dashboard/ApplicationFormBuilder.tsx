@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type CSSProperties, type DragEvent } from 'react';
+import { useState, type CSSProperties } from 'react';
 import {
   ArrowDown,
   ArrowLeft,
@@ -12,11 +12,9 @@ import {
   Eye,
   FileText,
   GripVertical,
-  Image as ImageIcon,
   LayoutTemplate,
   Link2,
   ListChecks,
-  Loader2,
   Lock,
   Plus,
   Send,
@@ -24,11 +22,11 @@ import {
   Sparkles,
   Square,
   Trash2,
-  UploadCloud,
   Workflow,
   X,
 } from 'lucide-react';
 import { ApplicationStart } from '@/components/ApplicationStart';
+import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import {
   APPLICATION_QUESTION_TYPES,
   type ApplicationCondition,
@@ -39,7 +37,6 @@ import {
 } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import type { ThemeColors } from '@/lib/theme';
-import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 
 const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
   short_text: 'Short answer',
@@ -293,7 +290,6 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   const [activeQuestionId, setActiveQuestionId] = useState(initial.config.questions[0]?.id ?? '');
   const [draggedQuestionId, setDraggedQuestionId] = useState('');
   const [saving, setSaving] = useState(false);
-  const [uploadingCover, setUploadingCover] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
   const config = form.config;
@@ -340,23 +336,6 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
     setQuestions(questions); setActiveQuestionId(questions[Math.min(index, questions.length - 1)]?.id ?? '');
   }
 
-  async function uploadCover(file: File) {
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) { setError('Choose a JPG, PNG, or WebP image.'); return; }
-    setUploadingCover(true); setError('');
-    try { const url = await uploadToCloudinary(file, 'application-covers'); setConfig({ coverImage: url, coverImagePlacement: config.coverImagePlacement ?? 'header' }); }
-    catch (reason) { setError((reason as Error).message || 'Could not upload the cover image.'); }
-    finally { setUploadingCover(false); }
-  }
-  function coverDrop(event: DragEvent<HTMLDivElement>) { event.preventDefault(); const file = event.dataTransfer.files?.[0]; if (file) void uploadCover(file); }
-
-  const coverInput = (
-    <label className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
-      {uploadingCover ? <Loader2 className="h-4 w-4 animate-spin" /> : <UploadCloud className="h-4 w-4" />}
-      {uploadingCover ? 'Uploading...' : config.coverImage ? 'Replace image' : 'Upload cover'}
-      <input type="file" className="hidden" accept="image/jpeg,image/png,image/webp" disabled={uploadingCover} onChange={event => { const file = event.target.files?.[0]; if (file) void uploadCover(file); event.target.value = ''; }} />
-    </label>
-  );
-
   return (
     <div className="min-h-screen pb-16" style={{ color: C.text }}>
       <div className="sticky top-0 z-30 -mx-4 mb-6 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6" style={{ background: C.nav }}>
@@ -383,8 +362,18 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
           <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
             <div className="space-y-5">
               <section className="overflow-hidden rounded-2xl" style={panelStyle}>
-                <div className="relative grid min-h-48 place-items-center overflow-hidden p-5 text-center" style={{ background: `linear-gradient(135deg, ${C.input}, ${C.lime})` }} onDragOver={event => event.preventDefault()} onDrop={coverDrop}>
-                  {config.coverImage ? <><img src={config.coverImage} alt="Form cover preview" className="absolute inset-0 h-full w-full object-cover" /><div className="absolute inset-0 bg-black/40" /><div className="relative flex flex-wrap items-center justify-center gap-2">{coverInput}<button type="button" onClick={() => setConfig({ coverImage: '' })} className="flex items-center gap-2 rounded-xl bg-white/90 px-4 py-2.5 text-sm font-semibold text-slate-800"><Trash2 className="h-4 w-4" /> Remove</button></div></> : <div><span className="mx-auto mb-3 grid h-12 w-12 place-items-center rounded-2xl bg-white/80" style={{ color: C.cta }}><ImageIcon className="h-6 w-6" /></span><h2 className="font-bold" style={{ color: C.text }}>Add a cover image</h2><p className="mx-auto mt-1 mb-4 max-w-md text-xs leading-5" style={{ color: C.muted }}>Create a recognizable header for applicants. JPG, PNG, or WebP works best at 1600 x 600.</p>{coverInput}<p className="mt-3 text-[11px]" style={{ color: C.faint }}>You can also drag an image here.</p></div>}
+                <div className="p-5 sm:p-6">
+                  <SectionHeading icon={LayoutTemplate} title="Cover image" description="Choose from Pexels, upload a new image, or reuse one from your image library." C={C} />
+                  <div className="mt-5">
+                    <PexelsImagePicker
+                      value={config.coverImage || null}
+                      altValue={config.coverImageAlt || null}
+                      onChange={(url, alt) => setConfig({ coverImage: url, coverImageAlt: alt, coverImagePlacement: config.coverImagePlacement ?? 'header' })}
+                      onClear={() => setConfig({ coverImage: '', coverImageAlt: '' })}
+                      C={C}
+                      token={token}
+                    />
+                  </div>
                 </div>
                 {config.coverImage && <div className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="text-xs font-semibold" style={{ color: C.text }}>Image placement</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Choose how applicants see the image.</p></div><div className="flex rounded-xl p-1" style={{ background: C.input }}>{([['header', 'Wide header'], ['inside', 'Inside form']] as const).map(([value, text]) => <button key={value} type="button" onClick={() => setConfig({ coverImagePlacement: value })} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: (config.coverImagePlacement ?? 'header') === value ? C.card : 'transparent', color: (config.coverImagePlacement ?? 'header') === value ? C.text : C.faint }}>{text}</button>)}</div></div>}
               </section>

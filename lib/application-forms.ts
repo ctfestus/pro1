@@ -44,6 +44,7 @@ export interface ApplicationFormConfig {
   title: string;
   description: string;
   coverImage?: string;
+  coverImageAlt?: string;
   coverImagePlacement?: 'header' | 'inside';
   eligibility: string;
   opensAt: string;
@@ -199,6 +200,7 @@ export function newApplicationFormConfig(template: ApplicationTemplateKey = 'boo
     title: starter.label,
     description: starter.description,
     coverImage: '',
+    coverImageAlt: '',
     coverImagePlacement: 'header',
     eligibility: '',
     opensAt: '',
