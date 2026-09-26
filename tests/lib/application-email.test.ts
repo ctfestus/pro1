@@ -31,7 +31,11 @@ describe('application emails', () => {
     });
 
     const message = send.mock.calls[0][0];
-    expect(message.html).toContain('https://cdn.example/email-banner.png');
+    expect(message.html).toContain('cid:application-email-header');
+    expect(message.attachments).toEqual([expect.objectContaining({
+      path: 'https://cdn.example/email-banner.png',
+      contentId: 'application-email-header',
+    })]);
     expect(message.html).toContain('https://live.example/applications/secure-token');
     expect(message.html).not.toContain('https://stale.example/applications/secure-token');
     expect(message.html).toContain('background:#123456');
@@ -45,6 +49,7 @@ describe('application emails', () => {
 
     const message = send.mock.calls[0][0];
     expect(message.html).toContain('https://live.example/applications/decision-token');
-    expect(message.html).toContain('https://cdn.example/email-banner.png');
+    expect(message.html).toContain('cid:application-email-header');
+    expect(message.attachments[0].path).toBe('https://cdn.example/email-banner.png');
   });
 });

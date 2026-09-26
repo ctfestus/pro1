@@ -20,12 +20,26 @@ async function settings(preferredBaseUrl?: string) {
   return { tenant, from, appUrl };
 }
 
-function frame(tenant: Awaited<ReturnType<typeof getTenantSettings>>, title: string, body: string): string {
+function inlineHeader(tenant: Awaited<ReturnType<typeof getTenantSettings>>) {
+  const path = tenant.emailBannerUrl || tenant.logoUrl;
+  if (!path) return { src: '', attachments: [] };
+  let extension = 'jpg';
+  try {
+    const candidate = new URL(path).pathname.split('.').pop()?.toLowerCase();
+    if (candidate && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(candidate)) extension = candidate;
+  } catch {}
+  return {
+    src: 'cid:application-email-header',
+    attachments: [{ path, filename: `application-email-header.${extension}`, contentId: 'application-email-header' }],
+  };
+}
+
+function frame(tenant: Awaited<ReturnType<typeof getTenantSettings>>, title: string, body: string, headerSrc: string): string {
   const appName = escapeHtml(tenant.appName || 'the platform');
-  const banner = tenant.emailBannerUrl
-    ? `<img src="${escapeHtml(tenant.emailBannerUrl)}" alt="${appName}" width="600" style="width:100%;height:auto;display:block">`
-    : tenant.logoUrl
-      ? `<div style="padding:24px 30px 0"><img src="${escapeHtml(tenant.logoUrl)}" alt="${appName}" style="height:48px;width:auto;display:block;object-fit:contain"></div>`
+  const banner = tenant.emailBannerUrl && headerSrc
+    ? `<img src="${escapeHtml(headerSrc)}" alt="${appName}" width="600" style="width:100%;height:auto;display:block">`
+    : tenant.logoUrl && headerSrc
+      ? `<div style="padding:24px 30px 0"><img src="${escapeHtml(headerSrc)}" alt="${appName}" style="height:48px;width:auto;display:block;object-fit:contain"></div>`
       : '';
   return `<!doctype html><html><body style="margin:0;background:#f2f5fa;font-family:Arial,sans-serif;color:#111"><div style="max-width:620px;margin:0 auto;padding:32px 18px"><div style="background:#fff;border-radius:18px;overflow:hidden">${banner}<div style="padding:30px"><p style="margin:0 0 18px;font-size:13px;color:#64748b">${appName}</p><h1 style="font-size:22px;margin:0 0 16px">${escapeHtml(title)}</h1>${body}</div></div></div></body></html>`;
 }
@@ -44,11 +58,12 @@ export async function sendApplicationConfirmationEmail(input: {
   baseUrl?: string;
 }): Promise<void> {
   const { tenant, from, appUrl } = await settings(input.baseUrl);
+  const header = inlineHeader(tenant);
   const url = absolutePath(appUrl, `/applications/${encodeURIComponent(input.token)}`);
   const title = `Application received: ${input.formTitle}`;
   const body = `<p style="font-size:15px;line-height:1.65">${escapeHtml(input.confirmationMessage)}</p><p style="font-size:15px"><strong>Reference:</strong> ${escapeHtml(input.reference)}</p>${linkButton(url, 'Check application status', tenant.brandColor)}`;
   const { error } = await resend.emails.send({
-    from, to: input.email, subject: title, html: frame(tenant, title, body),
+    from, to: input.email, subject: title, html: frame(tenant, title, body, header.src), attachments: header.attachments,
     headers: { 'X-Entity-Ref-ID': input.reference },
   });
   if (error) throw new Error(error.message || 'Could not send application confirmation email.');
@@ -63,10 +78,11 @@ export async function sendApplicationDecisionEmail(input: {
   baseUrl?: string;
 }): Promise<void> {
   const { tenant, from, appUrl } = await settings(input.baseUrl);
+  const header = inlineHeader(tenant);
   const url = absolutePath(appUrl, `/applications/${encodeURIComponent(input.token)}`);
   const body = `<p style="font-size:15px;line-height:1.65;white-space:pre-line">${escapeHtml(input.body)}</p>${linkButton(url, 'View application status', tenant.brandColor)}`;
   const { error } = await resend.emails.send(
-    { from, to: input.email, subject: input.subject, html: frame(tenant, input.subject, body) },
+    { from, to: input.email, subject: input.subject, html: frame(tenant, input.subject, body, header.src), attachments: header.attachments },
     { idempotencyKey: `application-message/${input.messageId}` },
   );
   if (error) throw new Error(error.message || 'Could not send application message.');
