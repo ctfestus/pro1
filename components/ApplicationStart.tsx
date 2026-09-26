@@ -194,7 +194,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
         {coverImage && coverPlacement === 'header' && <div className="mb-4 h-52 overflow-hidden sm:h-80" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
         <form onSubmit={submit} className="space-y-4">
           <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
-            {coverImage && coverPlacement === 'inside' ? <div className="h-48 overflow-hidden sm:h-72"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div> : <div className="h-1.5" style={{ background: C.cta }} />}
+            {coverImage && coverPlacement === 'inside' && <div className="h-48 overflow-hidden sm:h-72"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
             <div className="p-6 sm:p-9">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.lime, color: C.cta }}>Programme application</span>
