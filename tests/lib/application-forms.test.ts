@@ -12,9 +12,20 @@ import {
 describe('application form contract', () => {
   it('creates editable starter forms without fixed system questions', () => {
     const config = newApplicationFormConfig('internship');
+    expect(config.coverImage).toBe('');
+    expect(config.coverImagePlacement).toBe('header');
     expect(config.questions.some(question => question.label === 'Full name')).toBe(true);
     expect(config.questions.every(question => question.id.startsWith('q-'))).toBe(true);
     config.questions[0].label = 'Preferred name';
+    expect(validateApplicationForm(config)).toEqual([]);
+  });
+
+  it('validates applicant cover images and their placement', () => {
+    const config = newApplicationFormConfig();
+    config.coverImage = 'not-a-url';
+    expect(validateApplicationForm(config)).toContain('Cover image URL is invalid.');
+    config.coverImage = 'https://cdn.example.com/application-cover.webp';
+    config.coverImagePlacement = 'inside';
     expect(validateApplicationForm(config)).toEqual([]);
   });
 
@@ -40,11 +51,15 @@ describe('application form contract', () => {
     config.closesAt = '2026-10-01T00:00:00.000Z';
     expect(validateApplicationForm(config, 'published')).toContain('Closing date must be after the opening date.');
     config.opensAt = '2026-09-01T00:00:00.000Z';
+    config.coverImage = 'https://cdn.example.com/application-cover.webp';
+    config.coverImagePlacement = 'inside';
     const form: ApplicationFormRecord = {
       id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'test', status: 'published',
       createdAt: '', updatedAt: '', config,
     };
     expect(formAvailability(form, new Date('2026-09-25T00:00:00.000Z'))).toBe('open');
     expect(publicApplicationForm(form).config.stages[1].name).toBe(config.stages[1].applicantLabel);
+    expect(publicApplicationForm(form).config.coverImage).toBe(config.coverImage);
+    expect(publicApplicationForm(form).config.coverImagePlacement).toBe('inside');
   });
 });

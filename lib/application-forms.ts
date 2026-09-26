@@ -43,6 +43,8 @@ export interface ApplicationPostSubmission {
 export interface ApplicationFormConfig {
   title: string;
   description: string;
+  coverImage?: string;
+  coverImagePlacement?: 'header' | 'inside';
   eligibility: string;
   opensAt: string;
   closesAt: string;
@@ -196,6 +198,8 @@ export function newApplicationFormConfig(template: ApplicationTemplateKey = 'boo
   return {
     title: starter.label,
     description: starter.description,
+    coverImage: '',
+    coverImagePlacement: 'header',
     eligibility: '',
     opensAt: '',
     closesAt: '',
@@ -229,6 +233,8 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   const errors: string[] = [];
   if (!config.title?.trim()) errors.push('Title is required.');
   if (!config.description?.trim()) errors.push('Description is required.');
+  if (config.coverImage && !isSafeHttpUrl(config.coverImage)) errors.push('Cover image URL is invalid.');
+  if (config.coverImagePlacement && !['header', 'inside'].includes(config.coverImagePlacement)) errors.push('Cover image placement is invalid.');
   if (!config.confirmationMessage?.trim()) errors.push('Confirmation message is required.');
   if (!Array.isArray(config.questions) || config.questions.length === 0) errors.push('Add at least one question.');
   const ids = new Set<string>();
