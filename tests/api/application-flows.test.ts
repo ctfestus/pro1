@@ -99,6 +99,8 @@ describe('application end-to-end route boundaries', () => {
   });
 
   it('submits directly from the shared registration URL without an email-link step', async () => {
+    const relatedItem = { id: 'course-1', title: 'Data bootcamp', slug: 'data-bootcamp', type: 'course' };
+    related.mockResolvedValue([relatedItem]);
     const response = await submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -109,6 +111,8 @@ describe('application end-to-end route boundaries', () => {
     expect(response.status).toBe(200);
     expect(value.submission.state).toBe('submitted');
     expect(value.token).toBeTruthy();
+    expect(value.postSubmission).toEqual(config.postSubmission);
+    expect(value.relatedItems).toEqual([relatedItem]);
     expect(saveSubmission.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
       email: 'applicant@example.com',
       state: 'submitted',
@@ -154,5 +158,29 @@ describe('application end-to-end route boundaries', () => {
     expect(saved.privateNotes[0].body).toBe('Strong application');
     expect(saved.stageId).toBe('screening');
     expect(saved.score).toBe(88);
+  });
+
+  it('moves the application stage when a decision message is sent', async () => {
+    const response = await reviewApplication(new Request('http://localhost/api/application-submissions/submission-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: { type: 'acceptance', subject: 'Application accepted', body: 'Welcome to the programme.' },
+      }),
+    }) as any, { params: Promise.resolve({ id: 'submission-1' }) });
+
+    expect(response.status).toBe(200);
+    const saved = saveSubmission.mock.calls.at(-1)?.[0];
+    expect(saved.stageId).toBe('accepted');
+    expect(saved.statusHistory.at(-1)).toEqual(expect.objectContaining({
+      stageId: 'accepted',
+      stageName: 'Accepted',
+      messageType: 'acceptance',
+    }));
+    expect(sendDecision).toHaveBeenCalledOnce();
+
+    getSubmissionByTokenHash.mockResolvedValue(saved);
+    const statusResponse = await applicantStatus(new Request('http://localhost') as any, { params: Promise.resolve({ token: 'token' }) });
+    expect((await statusResponse.json()).submission.status).toBe('Accepted');
   });
 });

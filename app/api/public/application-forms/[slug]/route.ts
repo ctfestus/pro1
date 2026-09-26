@@ -213,6 +213,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
       emailSent,
       token,
       submission: publicSubmission(form, submitted),
+      postSubmission: form.config.postSubmission,
       relatedItems: await resolveApplicationRelatedItems(form.config),
     });
   } catch (error) {

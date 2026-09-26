@@ -2,15 +2,15 @@
 
 import { useState } from 'react';
 import { ArrowDown, ArrowUp, Eye, Loader2, Plus, Trash2, X } from 'lucide-react';
-import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
+import { ApplicationStart } from '@/components/ApplicationStart';
 import {
   APPLICATION_QUESTION_TYPES,
-  type ApplicationAnswer,
   type ApplicationFormRecord,
   type ApplicationQuestion,
   type ApplicationQuestionType,
 } from '@/lib/application-forms';
-import { modalStyle, type ThemeColors } from '@/lib/theme';
+import type { ApplicationRelatedItem } from '@/lib/application-related';
+import { type ThemeColors } from '@/lib/theme';
 
 const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
   short_text: 'Short text', long_text: 'Long text', email: 'Email', phone: 'Phone', number: 'Number', date: 'Date',
@@ -24,7 +24,7 @@ function newQuestion(): ApplicationQuestion {
 export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack, onSaved }: {
   initial: ApplicationFormRecord;
   token: string;
-  relatedItems: { id: string; title: string; slug: string }[];
+  relatedItems: ApplicationRelatedItem[];
   C: ThemeColors;
   onBack: () => void;
   onSaved: (form: ApplicationFormRecord) => void;
@@ -33,7 +33,6 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
-  const [previewAnswers, setPreviewAnswers] = useState<Record<string, ApplicationAnswer>>({});
   const config = form.config;
   const setConfig = (patch: Partial<typeof config>) => setForm(previous => ({ ...previous, config: { ...previous.config, ...patch } }));
   const input = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: '10px 11px', outline: 'none' };
@@ -142,7 +141,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
         {config.postSubmission.type === 'events' && <div className="max-h-52 overflow-y-auto space-y-2">{relatedItems.length === 0 ? <p className="text-xs" style={{ color: C.faint }}>No published courses or events are available.</p> : relatedItems.map(item => { const checked = (config.postSubmission.relatedEventIds ?? []).includes(item.id); return <label key={item.id} className="flex items-center gap-2 rounded-xl p-3" style={{ background: C.input, color: C.text }}><input type="checkbox" checked={checked} onChange={() => setConfig({ postSubmission: { ...config.postSubmission, relatedEventIds: checked ? (config.postSubmission.relatedEventIds ?? []).filter(id => id !== item.id) : [...(config.postSubmission.relatedEventIds ?? []), item.id] } })} style={{ accentColor: C.cta }} /><span className="text-sm">{item.title}</span></label>; })}</div>}
       </section>
 
-      {preview && <div className="fixed inset-0 z-50 grid place-items-center p-4" style={{ background: 'rgba(0,0,0,0.55)' }}><div className="w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl p-6" style={modalStyle(C)}><div className="flex items-center justify-between mb-5"><div><p className="text-xs font-semibold" style={{ color: C.cta }}>Preview</p><h2 className="text-xl font-bold" style={{ color: C.text }}>{config.title}</h2></div><button onClick={() => setPreview(false)}><X className="w-5 h-5" style={{ color: C.muted }} /></button></div><p className="text-sm mb-6 whitespace-pre-line" style={{ color: C.muted }}>{config.description}</p><ApplicationQuestionFields questions={config.questions} answers={previewAnswers} onChange={setPreviewAnswers} C={C} /></div></div>}
+      {preview && <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.page }}><div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3" style={{ background: C.card, borderBottom: `1px solid ${C.cardBorder}` }}><div><p className="text-xs font-semibold" style={{ color: C.cta }}>Participant preview</p><p className="text-xs" style={{ color: C.faint }}>This is the same form participants will see.</p></div><button onClick={() => setPreview(false)} className="p-2 rounded-xl" style={{ background: C.pill }} aria-label="Close preview"><X className="w-5 h-5" style={{ color: C.muted }} /></button></div><ApplicationStart previewForm={form} previewRelatedItems={relatedItems.filter(item => (config.postSubmission.relatedEventIds ?? []).includes(item.id))} /></div>}
     </div>
   );
 }

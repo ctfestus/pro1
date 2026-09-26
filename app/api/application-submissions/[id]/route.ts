@@ -24,6 +24,23 @@ type ReviewBody = {
   message?: { type: 'interview' | 'acceptance' | 'waitlist' | 'decline' | 'custom'; subject: string; body: string };
 };
 
+type ApplicationMessageType = NonNullable<ReviewBody['message']>['type'];
+
+function messageStageId(form: NonNullable<Awaited<ReturnType<typeof getApplicationForm>>>, type: ApplicationMessageType): string | undefined {
+  if (!type || type === 'custom') return undefined;
+  const aliases: Record<string, string[]> = {
+    interview: ['interview'],
+    acceptance: ['accepted', 'acceptance', 'admitted'],
+    waitlist: ['waitlisted', 'waitlist'],
+    decline: ['declined', 'decline', 'rejected'],
+  };
+  const candidates = aliases[type] ?? [];
+  return form.config.stages.find(stage => {
+    const values = [stage.id, stage.name, stage.applicantLabel].map(value => value.toLowerCase());
+    return candidates.some(candidate => values.some(value => value === candidate || value.includes(candidate)));
+  })?.id;
+}
+
 export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const auth = await requireRole(req, ['admin', 'instructor', 'staff']);
   if (isAuthError(auth)) return auth.error;
@@ -44,7 +61,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.score !== undefined && body.score !== null && (!Number.isFinite(body.score) || body.score < 0 || body.score > 100)) {
       return NextResponse.json({ error: 'Score must be between 0 and 100.' }, { status: 400 });
     }
-    if (body.stageId && !form.config.stages.some(stage => stage.id === body.stageId)) {
+    const nextStageId = body.stageId ?? (body.message ? messageStageId(form, body.message.type) : undefined);
+    if (nextStageId && !form.config.stages.some(stage => stage.id === nextStageId)) {
       return NextResponse.json({ error: 'Select a valid application stage.' }, { status: 400 });
     }
     if (body.note !== undefined && (!body.note.trim() || body.note.length > 5000)) {
@@ -61,8 +79,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (body.note) updated.privateNotes = [...updated.privateNotes, {
       id: newApplicationId('note'), body: body.note.trim(), authorEmail: auth.actor.email ?? '', createdAt: now,
     }];
-    if (body.stageId && body.stageId !== submission.stageId) {
-      const stage = form.config.stages.find(item => item.id === body.stageId)!;
+    if (nextStageId && nextStageId !== submission.stageId) {
+      const stage = form.config.stages.find(item => item.id === nextStageId)!;
       updated.stageId = stage.id;
       updated.statusHistory = [...updated.statusHistory, {
         id: newApplicationId('status'), stageId: stage.id, stageName: stage.name,
@@ -87,7 +105,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     await saveApplicationSubmission(updated);
     await appendApplicationAudit({
       id: newApplicationId('audit'), entityType: 'submission', entityId: updated.id,
-      action: body.message ? `message:${body.message.type}` : body.stageId ? 'stage_changed' : body.note ? 'private_note_added' : 'review_updated',
+      action: body.message ? `message:${body.message.type}` : nextStageId ? 'stage_changed' : body.note ? 'private_note_added' : 'review_updated',
       actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
       details: { stageId: updated.stageId, reviewerId: updated.assignedReviewerId, score: updated.score },
     });

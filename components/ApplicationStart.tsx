@@ -3,20 +3,28 @@
 import { useEffect, useState } from 'react';
 import { CheckCircle2, Clock, ExternalLink, Loader2 } from 'lucide-react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
-import type { ApplicationAnswer } from '@/lib/application-forms';
+import { validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
+import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { useC, cardStyle } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export function ApplicationStart({ slug }: { slug: string }) {
+type PublicApplicationForm = ApplicationFormRecord & { availability: 'open' | 'not_open' | 'paused' | 'closed' };
+
+export function ApplicationStart({ slug = '', previewForm, previewRelatedItems = [] }: {
+  slug?: string;
+  previewForm?: ApplicationFormRecord;
+  previewRelatedItems?: ApplicationRelatedItem[];
+}) {
   const C = useC();
-  const [form, setForm] = useState<any>(null);
+  const preview = Boolean(previewForm);
+  const [form, setForm] = useState<any>(() => previewForm ? { ...previewForm, availability: 'open' } : null);
   const [email, setEmail] = useState('');
   const [answers, setAnswers] = useState<Record<string, ApplicationAnswer>>({});
   const [sessionToken, setSessionToken] = useState('');
   const [submission, setSubmission] = useState<any>(null);
   const [relatedItems, setRelatedItems] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!previewForm);
   const [submitting, setSubmitting] = useState(false);
   const [emailWarning, setEmailWarning] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -24,6 +32,11 @@ export function ApplicationStart({ slug }: { slug: string }) {
   const [message, setMessage] = useState('');
 
   useEffect(() => {
+    if (previewForm) {
+      setForm({ ...previewForm, availability: 'open' });
+      setLoading(false);
+      return;
+    }
     fetch(`/api/public/application-forms/${encodeURIComponent(slug)}`)
       .then(async response => ({ ok: response.ok, data: await response.json() }))
       .then(({ ok, data }) => {
@@ -32,19 +45,20 @@ export function ApplicationStart({ slug }: { slug: string }) {
       })
       .catch(error => setMessage(error.message || 'This application form is temporarily unavailable.'))
       .finally(() => setLoading(false));
-  }, [slug]);
+  }, [previewForm, slug]);
 
   useEffect(() => {
-    if (!submission || form?.config?.postSubmission?.type !== 'redirect') return;
+    if (preview || !submission || form?.config?.postSubmission?.type !== 'redirect') return;
     try {
       const url = new URL(form.config.postSubmission.redirectUrl);
       if (!['http:', 'https:'].includes(url.protocol)) return;
       const timer = window.setTimeout(() => { window.location.href = url.toString(); }, 3000);
       return () => window.clearTimeout(timer);
     } catch { return; }
-  }, [form, submission]);
+  }, [form, preview, submission]);
 
   async function ensureUploadToken(): Promise<string> {
+    if (preview) throw new Error('File uploads are not sent in preview.');
     const normalizedEmail = email.trim().toLowerCase();
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
       setEmailError('Enter your email address before uploading a file.');
@@ -64,6 +78,25 @@ export function ApplicationStart({ slug }: { slug: string }) {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (preview) {
+      const normalizedEmail = email.trim().toLowerCase();
+      setEmailError('');
+      setErrors({});
+      if (!EMAIL_PATTERN.test(normalizedEmail)) {
+        setEmailError('Enter a valid email address.');
+        return;
+      }
+      const validationErrors = validateApplicationAnswers(form.config, answers);
+      if (Object.keys(validationErrors).length) {
+        setErrors(validationErrors);
+        return;
+      }
+      setSubmission({ reference: 'PREVIEW-APPLICATION', status: 'Application received' });
+      setSessionToken('preview');
+      setRelatedItems(previewRelatedItems);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     const normalizedEmail = email.trim().toLowerCase();
     setEmailError('');
     setErrors({});
@@ -87,6 +120,9 @@ export function ApplicationStart({ slug }: { slug: string }) {
       setSessionToken(value.token);
       setSubmission(value.submission);
       setRelatedItems(value.relatedItems ?? []);
+      setForm((current: PublicApplicationForm | null) => value.postSubmission && current
+        ? { ...current, config: { ...current.config, postSubmission: value.postSubmission } }
+        : current);
       setEmailWarning(value.emailSent === false);
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error) {
@@ -118,12 +154,14 @@ export function ApplicationStart({ slug }: { slug: string }) {
               <div className="rounded-xl p-4" style={{ background: C.input }}><p className="text-xs" style={{ color: C.faint }}>Reference number</p><p className="font-bold mt-1" style={{ color: C.text }}>{submission.reference}</p></div>
               <div className="rounded-xl p-4" style={{ background: C.input }}><p className="text-xs" style={{ color: C.faint }}>Current status</p><p className="font-bold mt-1" style={{ color: C.successText }}>{submission.status}</p></div>
             </div>
-            <a href={statusUrl} className="inline-flex items-center gap-2 mt-5 text-sm font-semibold" style={{ color: C.cta }}>Check application status <ExternalLink className="w-4 h-4" /></a>
+            {preview
+              ? <span className="inline-flex items-center gap-2 mt-5 text-sm font-semibold" style={{ color: C.cta }}>Check application status <ExternalLink className="w-4 h-4" /></span>
+              : <a href={statusUrl} className="inline-flex items-center gap-2 mt-5 text-sm font-semibold" style={{ color: C.cta }}>Check application status <ExternalLink className="w-4 h-4" /></a>}
             {emailWarning && <p className="mt-4 text-xs" style={{ color: C.errorText }}>Your application was received, but the confirmation email could not be sent. Keep the reference number and status link shown here.</p>}
           </div>
           {post.type === 'notice' && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="text-sm mt-2 whitespace-pre-line" style={{ color: C.muted }}>{post.noticeBody}</p></div>}
           {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl p-3 font-semibold text-sm" style={{ background: C.cta, color: C.ctaText }}>{post.buttonLabel || 'Continue'} <ExternalLink className="w-4 h-4" /></a>}
-          {post.type === 'redirect' && <div className="rounded-xl p-4 text-center text-sm" style={{ ...cardStyle(C), color: C.muted }}><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Redirecting in a moment...</div>}
+          {post.type === 'redirect' && <div className="rounded-xl p-4 text-center text-sm" style={{ ...cardStyle(C), color: C.muted }}>{preview ? 'Participants will be redirected after submission.' : <><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Redirecting in a moment...</>}</div>}
           {post.type === 'events' && relatedItems.length > 0 && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="font-bold mb-3" style={{ color: C.text }}>You might also like</h2><div className="space-y-2">{relatedItems.map(item => <a key={item.id} href={`/${item.slug || item.id}`} className="flex items-center justify-between rounded-xl p-3 text-sm" style={{ background: C.input, color: C.text }}><span>{item.title}</span><ExternalLink className="w-4 h-4" /></a>)}</div></div>}
         </div>
       </main>
@@ -147,8 +185,8 @@ export function ApplicationStart({ slug }: { slug: string }) {
               className="w-full px-3 py-3 rounded-xl outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${C.inputBorder}` }} />
             <p className="text-xs mt-1.5" style={{ color: emailError ? C.errorText : C.faint }}>{emailError || 'A confirmation and private status link will be sent after you submit.'}</p>
           </div>
-          <ApplicationQuestionFields questions={form.config.questions} answers={answers} onChange={setAnswers} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} />
-          {message && <p className="mt-5 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
+          <ApplicationQuestionFields questions={form.config.questions} answers={answers} onChange={setAnswers} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} />
+          {message && <p className="mt-5 rounded-xl p-3 text-sm" style={{ background: preview ? C.successBg : C.errorBg, color: preview ? C.successText : C.errorText }}>{message}</p>}
           <button type="submit" disabled={submitting} className="w-full mt-8 px-5 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: C.cta, color: C.ctaText }}>
             {submitting && <Loader2 className="w-4 h-4 animate-spin" />} Submit application
           </button>

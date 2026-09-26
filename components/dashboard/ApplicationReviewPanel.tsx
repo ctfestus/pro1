@@ -77,6 +77,20 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     setMessageType(type); setSubject(MESSAGE_PRESETS[type].subject); setBody(MESSAGE_PRESETS[type].body);
   }
 
+  function stageName(item: any): string {
+    return form.config.stages.find(stage => stage.id === item.stageId)?.name ?? item.stageId;
+  }
+
+  function stageForMessage(type: keyof typeof MESSAGE_PRESETS): string | undefined {
+    const aliases: Record<keyof typeof MESSAGE_PRESETS, string[]> = {
+      interview: ['interview'], acceptance: ['accepted', 'acceptance', 'admitted'],
+      waitlist: ['waitlisted', 'waitlist'], decline: ['declined', 'decline', 'rejected'],
+    };
+    return form.config.stages.find(stage => aliases[type].some(alias =>
+      [stage.id, stage.name, stage.applicantLabel].some(value => value.toLowerCase().includes(alias)),
+    ))?.id;
+  }
+
   async function exportCsv() {
     setExporting(true); setError('');
     try {
@@ -105,7 +119,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       <div className="grid lg:grid-cols-[320px_1fr] gap-5 items-start">
         <div className="rounded-2xl p-4" style={{ background: C.card }}>
           <div className="space-y-2 mb-3"><div className="relative"><Search className="w-4 h-4 absolute left-3 top-3" style={{ color: C.faint }} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search email or reference" style={{ ...input, paddingLeft: 34 }} /></div><select value={stageFilter} onChange={event => setStageFilter(event.target.value)} style={input}><option value="">All stages</option>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div>
-          <div className="space-y-2 max-h-[65vh] overflow-y-auto">{filtered.length === 0 ? <p className="text-sm text-center py-8" style={{ color: C.faint }}>No applications found.</p> : filtered.map(item => <button key={item.id} onClick={() => setSelectedId(item.id)} className="w-full text-left rounded-xl p-3" style={{ background: item.id === selectedId ? C.lime : C.input }}><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold truncate" style={{ color: C.text }}>{item.email}</p><span className="text-[10px] rounded-full px-2 py-1" style={{ background: C.card, color: C.successText }}>{form.config.stages.find(stage => stage.id === item.stageId)?.name ?? item.stageId}</span></div><p className="text-xs mt-1" style={{ color: C.faint }}>{item.reference} - {item.state}</p></button>)}</div>
+          <div className="space-y-2 max-h-[65vh] overflow-y-auto">{filtered.length === 0 ? <p className="text-sm text-center py-8" style={{ color: C.faint }}>No applications found.</p> : filtered.map(item => <button key={item.id} onClick={() => setSelectedId(item.id)} className="w-full text-left rounded-xl p-3" style={{ background: item.id === selectedId ? C.lime : C.input }}><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold truncate" style={{ color: C.text }}>{item.email}</p><span className="text-[10px] rounded-full px-2 py-1" style={{ background: C.card, color: C.successText }}>{stageName(item)}</span></div><p className="text-xs mt-1" style={{ color: C.faint }}>{item.reference} - Status: {stageName(item)}</p></button>)}</div>
         </div>
 
         <div className="rounded-2xl p-5 sm:p-6 min-h-80" style={{ background: C.card }}>
@@ -122,7 +136,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
 
             <div><h4 className="text-sm font-bold mb-2" style={{ color: C.text }}>Private notes</h4><p className="text-xs mb-3" style={{ color: C.faint }}>Only staff with review access can see these notes.</p><div className="space-y-2 mb-3">{selected.privateNotes?.map((item: any) => <div key={item.id} className="rounded-xl p-3" style={{ background: C.input }}><p className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{item.body}</p><p className="text-[10px] mt-2" style={{ color: C.faint }}>{item.authorEmail} - {new Date(item.createdAt).toLocaleString()}</p></div>)}</div><textarea rows={3} value={note} onChange={event => setNote(event.target.value)} placeholder="Add a private note" style={{ ...input, resize: 'vertical' }} /><button disabled={busy || !note.trim()} onClick={() => void update({ note })} className="mt-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>Add note</button></div>
 
-            <div><h4 className="text-sm font-bold mb-2" style={{ color: C.text }}>Send applicant message</h4><div className="flex flex-wrap gap-2 mb-3">{(Object.keys(MESSAGE_PRESETS) as (keyof typeof MESSAGE_PRESETS)[]).map(type => <button key={type} onClick={() => pickPreset(type)} className="px-3 py-1.5 rounded-full text-xs font-semibold capitalize" style={{ background: messageType === type ? C.cta : C.pill, color: messageType === type ? C.ctaText : C.muted }}>{type}</button>)}</div><div className="space-y-2"><input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Subject" style={input} /><textarea rows={5} value={body} onChange={event => setBody(event.target.value)} placeholder="Message" style={{ ...input, resize: 'vertical' }} /><button disabled={busy || !subject.trim() || !body.trim()} onClick={() => void update({ message: { type: messageType, subject, body } })} className="px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send message</button></div>{selected.messages?.length > 0 && <p className="text-xs mt-3 flex items-center gap-1" style={{ color: C.faint }}><Mail className="w-3.5 h-3.5" /> {selected.messages.length} message{selected.messages.length === 1 ? '' : 's'} sent</p>}</div>
+            <div><h4 className="text-sm font-bold mb-2" style={{ color: C.text }}>Send applicant message</h4><div className="flex flex-wrap gap-2 mb-3">{(Object.keys(MESSAGE_PRESETS) as (keyof typeof MESSAGE_PRESETS)[]).map(type => <button key={type} onClick={() => pickPreset(type)} className="px-3 py-1.5 rounded-full text-xs font-semibold capitalize" style={{ background: messageType === type ? C.cta : C.pill, color: messageType === type ? C.ctaText : C.muted }}>{type}</button>)}</div><div className="space-y-2"><input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Subject" style={input} /><textarea rows={5} value={body} onChange={event => setBody(event.target.value)} placeholder="Message" style={{ ...input, resize: 'vertical' }} /><button disabled={busy || !subject.trim() || !body.trim()} onClick={() => void update({ stageId: stageForMessage(messageType), message: { type: messageType, subject, body } })} className="px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send message</button></div>{selected.messages?.length > 0 && <p className="text-xs mt-3 flex items-center gap-1" style={{ color: C.faint }}><Mail className="w-3.5 h-3.5" /> {selected.messages.length} message{selected.messages.length === 1 ? '' : 's'} sent</p>}</div>
           </div>}
         </div>
       </div>

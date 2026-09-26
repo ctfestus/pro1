@@ -9,7 +9,7 @@ import {
 } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
-export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, disabled = false }: {
+export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, previewUploads = false, disabled = false }: {
   questions: ApplicationQuestion[];
   answers: Record<string, ApplicationAnswer>;
   onChange: (answers: Record<string, ApplicationAnswer>) => void;
@@ -17,6 +17,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
   C: ThemeColors;
   uploadToken?: string;
   ensureUploadToken?: () => Promise<string>;
+  previewUploads?: boolean;
   disabled?: boolean;
 }) {
   const [uploading, setUploading] = useState<string | null>(null);
@@ -25,6 +26,10 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
   const inputStyle = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: '11px 12px', outline: 'none' };
 
   async function upload(questionId: string, file: File) {
+    if (previewUploads) {
+      set(questionId, { url: '#', publicId: 'preview', name: file.name, size: file.size, type: file.type });
+      return;
+    }
     setUploading(questionId);
     setUploadError(previous => ({ ...previous, [questionId]: '' }));
     try {

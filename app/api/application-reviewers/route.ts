@@ -12,11 +12,13 @@ export async function GET(req: NextRequest) {
     auth.serviceDb.from('events').select('id, title, slug, user_id, status').eq('status', 'published').limit(500),
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  const visible = auth.role === 'admin'
-    ? [...(courses ?? []), ...(events ?? [])]
-    : [...(courses ?? []), ...(events ?? [])].filter(item => item.user_id === auth.actor.id);
+  const items = [
+    ...(courses ?? []).map(item => ({ ...item, type: 'course' as const })),
+    ...(events ?? []).map(item => ({ ...item, type: 'event' as const })),
+  ];
+  const visible = auth.role === 'admin' ? items : items.filter(item => item.user_id === auth.actor.id);
   return NextResponse.json({
     reviewers: reviewers ?? [],
-    relatedItems: visible.map(item => ({ id: item.id, title: item.title, slug: item.slug })),
+    relatedItems: visible.map(item => ({ id: item.id, title: item.title, slug: item.slug, type: item.type })),
   });
 }
