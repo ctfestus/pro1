@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Loader2, Upload } from 'lucide-react';
+import { useState, type CSSProperties } from 'react';
+import { Check, ChevronDown, FileCheck2, Loader2, Upload } from 'lucide-react';
 import {
   isQuestionVisible,
   type ApplicationAnswer,
@@ -9,7 +9,7 @@ import {
 } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
-export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, previewUploads = false, disabled = false }: {
+export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, previewUploads = false, disabled = false, startAt = 2 }: {
   questions: ApplicationQuestion[];
   answers: Record<string, ApplicationAnswer>;
   onChange: (answers: Record<string, ApplicationAnswer>) => void;
@@ -19,11 +19,21 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
   ensureUploadToken?: () => Promise<string>;
   previewUploads?: boolean;
   disabled?: boolean;
+  startAt?: number;
 }) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<Record<string, string>>({});
+  const visibleQuestions = questions.filter(question => isQuestionVisible(question, answers));
   const set = (id: string, value: ApplicationAnswer) => onChange({ ...answers, [id]: value });
-  const inputStyle = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: '11px 12px', outline: 'none' };
+  const inputStyle: CSSProperties = {
+    width: '100%',
+    background: C.input,
+    color: C.text,
+    border: `1px solid ${C.inputBorder}`,
+    borderRadius: 14,
+    padding: '13px 14px',
+    outline: 'none',
+  };
 
   async function upload(questionId: string, file: File) {
     if (previewUploads) {
@@ -48,85 +58,126 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
     }
   }
 
+  function optionStyle(selected: boolean): CSSProperties {
+    return {
+      background: selected ? C.lime : C.input,
+      color: C.text,
+      border: `1px solid ${selected ? C.cta : 'transparent'}`,
+      borderRadius: 14,
+    };
+  }
+
   return (
-    <div className="space-y-6">
-      {questions.filter(question => isQuestionVisible(question, answers)).map(question => {
+    <div className="space-y-4">
+      {visibleQuestions.map((question, index) => {
         const value = answers[question.id];
         const error = errors[question.id] || uploadError[question.id];
         return (
-          <div key={question.id}>
-            <label className="block text-sm font-semibold mb-1.5" style={{ color: C.text }}>
-              {question.label}{question.required ? ' *' : ''}
-            </label>
-            {question.helpText && <p className="text-xs mb-2" style={{ color: C.faint }}>{question.helpText}</p>}
+          <section key={question.id} className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
+            <div className="mb-4 flex items-start gap-3">
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: error ? C.errorBg : C.lime, color: error ? C.errorText : C.cta }}>{startAt + index}</span>
+              <div className="min-w-0 flex-1">
+                <label className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>
+                  {question.label}{question.required && <span className="ml-1" style={{ color: C.errorText }}>*</span>}
+                </label>
+                {question.helpText && <p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>{question.helpText}</p>}
+              </div>
+              {!question.required && <span className="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.faint }}>Optional</span>}
+            </div>
 
             {question.type === 'long_text' && (
-              <textarea disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder}
-                onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical' }} />
+              <textarea disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder || 'Type your answer'} onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical', minHeight: 132 }} />
             )}
+
             {['short_text', 'email', 'phone', 'number', 'date'].includes(question.type) && (
-              <input disabled={disabled} type={question.type === 'short_text' ? 'text' : question.type === 'phone' ? 'tel' : question.type}
-                value={String(value ?? '')} placeholder={question.placeholder}
-                onChange={event => set(question.id, question.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value)} style={inputStyle} />
+              <input
+                disabled={disabled}
+                type={question.type === 'short_text' ? 'text' : question.type === 'phone' ? 'tel' : question.type}
+                value={String(value ?? '')}
+                placeholder={question.placeholder || 'Type your answer'}
+                onChange={event => set(question.id, question.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value)}
+                style={inputStyle}
+              />
             )}
+
             {question.type === 'dropdown' && (
-              <select disabled={disabled} value={String(value ?? '')} onChange={event => set(question.id, event.target.value)} style={inputStyle}>
-                <option value="">Select an option</option>
-                {(question.options ?? []).map(option => <option key={option} value={option}>{option}</option>)}
-              </select>
-            )}
-            {(question.type === 'single_choice' || question.type === 'yes_no') && (
-              <div className="space-y-2">
-                {(question.type === 'yes_no' ? ['Yes', 'No'] : question.options ?? []).map(option => (
-                  <label key={option} className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 cursor-pointer" style={{ background: C.input, color: C.text }}>
-                    <input disabled={disabled} type="radio" name={question.id} checked={value === option} onChange={() => set(question.id, option)} style={{ accentColor: C.cta }} />
-                    <span className="text-sm">{option}</span>
-                  </label>
-                ))}
+              <div className="relative">
+                <select disabled={disabled} value={String(value ?? '')} onChange={event => set(question.id, event.target.value)} className="appearance-none" style={{ ...inputStyle, paddingRight: 44 }}>
+                  <option value="">Select an option</option>
+                  {(question.options ?? []).map(option => <option key={option} value={option}>{option}</option>)}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.faint }} />
               </div>
             )}
-            {question.type === 'multiple_choice' && (
-              <div className="space-y-2">
-                {(question.options ?? []).map(option => {
-                  const selected = Array.isArray(value) && value.includes(option);
+
+            {(question.type === 'single_choice' || question.type === 'yes_no') && (
+              <div className={question.type === 'yes_no' ? 'grid grid-cols-2 gap-2.5' : 'grid gap-2.5'}>
+                {(question.type === 'yes_no' ? ['Yes', 'No'] : question.options ?? []).map(option => {
+                  const selected = value === option;
                   return (
-                    <label key={option} className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 cursor-pointer" style={{ background: C.input, color: C.text }}>
-                      <input disabled={disabled} type="checkbox" checked={selected} onChange={() => {
-                        const current = Array.isArray(value) ? value.map(String) : [];
-                        set(question.id, selected ? current.filter(item => item !== option) : [...current, option]);
-                      }} style={{ accentColor: C.cta }} />
-                      <span className="text-sm">{option}</span>
+                    <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
+                      <input className="sr-only" disabled={disabled} type="radio" name={question.id} checked={selected} onChange={() => set(question.id, option)} />
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
+                        {selected && <span className="h-2 w-2 rounded-full bg-white" />}
+                      </span>
+                      <span className="text-sm font-medium">{option}</span>
                     </label>
                   );
                 })}
               </div>
             )}
+
+            {question.type === 'multiple_choice' && (
+              <div className="grid gap-2.5">
+                {(question.options ?? []).map(option => {
+                  const selected = Array.isArray(value) && value.includes(option);
+                  return (
+                    <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
+                      <input className="sr-only" disabled={disabled} type="checkbox" checked={selected} onChange={() => {
+                        const current = Array.isArray(value) ? value.map(String) : [];
+                        set(question.id, selected ? current.filter(item => item !== option) : [...current, option]);
+                      }} />
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
+                        {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                      </span>
+                      <span className="text-sm font-medium">{option}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            )}
+
             {question.type === 'consent' && (
-              <label className="flex items-start gap-3 rounded-xl px-3 py-3 cursor-pointer" style={{ background: C.input, color: C.text }}>
-                <input disabled={disabled} type="checkbox" checked={value === true} onChange={event => set(question.id, event.target.checked)} className="mt-0.5" style={{ accentColor: C.cta }} />
-                <span className="text-sm">I agree</span>
+              <label className="flex cursor-pointer items-start gap-3 px-4 py-4 transition-colors" style={optionStyle(value === true)}>
+                <input className="sr-only" disabled={disabled} type="checkbox" checked={value === true} onChange={event => set(question.id, event.target.checked)} />
+                <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ border: `2px solid ${value === true ? C.cta : C.inputBorder}`, background: value === true ? C.cta : C.card }}>
+                  {value === true && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                </span>
+                <span className="text-sm leading-5">I agree and give my consent.</span>
               </label>
             )}
+
             {question.type === 'file' && (
-              <div className="rounded-xl p-3" style={{ background: C.input }}>
+              <div className="rounded-2xl p-4" style={{ background: C.input, border: `1px dashed ${error ? C.errorText : C.inputBorder}` }}>
                 {typeof value === 'object' && value && !Array.isArray(value) && 'url' in value ? (
-                  <div className="flex items-center justify-between gap-3">
-                    <a href={value.url} target="_blank" rel="noopener noreferrer" className="text-sm underline truncate" style={{ color: C.cta }}>{value.name}</a>
-                    {!disabled && <button type="button" onClick={() => set(question.id, null)} className="text-xs" style={{ color: C.deleteText }}>Remove</button>}
+                  <div className="flex items-center gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.lime, color: C.cta }}><FileCheck2 className="h-5 w-5" /></span>
+                    <div className="min-w-0 flex-1"><a href={value.url} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-semibold" style={{ color: C.text }}>{value.name}</a><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>File ready</p></div>
+                    {!disabled && <button type="button" onClick={() => set(question.id, null)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: C.card, color: C.deleteText }}>Remove</button>}
                   </div>
                 ) : (
-                  <label className="flex items-center justify-center gap-2 py-2 cursor-pointer text-sm font-semibold" style={{ color: C.muted }}>
-                    {uploading === question.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-                    {uploading === question.id ? 'Uploading...' : 'Choose file (max 10 MB)'}
-                    <input disabled={disabled || uploading === question.id} type="file" className="hidden"
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.webp,.zip"
-                      onChange={event => { const file = event.target.files?.[0]; if (file) void upload(question.id, file); event.target.value = ''; }} />
+                  <label className="flex cursor-pointer flex-col items-center justify-center gap-2 py-4 text-center">
+                    <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}>{uploading === question.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}</span>
+                    <span className="text-sm font-semibold" style={{ color: C.text }}>{uploading === question.id ? 'Uploading...' : 'Choose a file'}</span>
+                    <span className="text-[11px]" style={{ color: C.faint }}>PDF, Office files, images, text, or ZIP up to 10 MB</span>
+                    <input disabled={disabled || uploading === question.id} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.webp,.zip" onChange={event => { const file = event.target.files?.[0]; if (file) void upload(question.id, file); event.target.value = ''; }} />
                   </label>
                 )}
               </div>
             )}
-            {error && <p className="text-xs mt-1.5" style={{ color: C.errorText }}>{error}</p>}
-          </div>
+
+            {error && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{error}</p>}
+          </section>
         );
       })}
     </div>

@@ -1,13 +1,21 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CheckCircle2, Clock, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Clock, ExternalLink, Loader2, Mail, Send, ShieldCheck } from 'lucide-react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
-import { validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
+import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { useC, cardStyle } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function hasAnswer(value: ApplicationAnswer | undefined): boolean {
+  if (value === null || value === undefined || value === '') return false;
+  if (Array.isArray(value)) return value.length > 0;
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'object') return Boolean(value.url);
+  return true;
+}
 
 type PublicApplicationForm = ApplicationFormRecord & { availability: 'open' | 'not_open' | 'paused' | 'closed' };
 
@@ -144,60 +152,87 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const coverImage = form.config.coverImage?.trim();
   const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
   const coverPlacement = form.config.coverImagePlacement ?? 'header';
+  const visibleQuestions = form.config.questions.filter((question: any) => isQuestionVisible(question, answers));
+  const requiredQuestions = visibleQuestions.filter((question: any) => question.required);
+  const requiredComplete = (EMAIL_PATTERN.test(email.trim()) ? 1 : 0) + requiredQuestions.filter((question: any) => hasAnswer(answers[question.id])).length;
+  const requiredTotal = requiredQuestions.length + 1;
+  const progress = Math.round((requiredComplete / requiredTotal) * 100);
   if (submission) {
     const statusUrl = `/applications/${encodeURIComponent(sessionToken)}`;
     return (
-      <main className="min-h-screen px-4 py-10" style={{ background: C.page }}>
-        <div className="max-w-2xl mx-auto space-y-4">
-          {coverImage && <div className="h-44 sm:h-56 overflow-hidden rounded-2xl" style={cardStyle(C)}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
-          <div className="rounded-2xl p-7 sm:p-9 text-center" style={cardStyle(C)}>
-            <CheckCircle2 className="w-14 h-14 mx-auto mb-4" style={{ color: C.successText }} />
-            <h1 className="text-2xl font-bold" style={{ color: C.text }}>Application received</h1>
-            <p className="mt-2 text-sm" style={{ color: C.muted }}>{form.config.confirmationMessage}</p>
-            <div className="mt-6 grid sm:grid-cols-2 gap-3 text-left">
-              <div className="rounded-xl p-4" style={{ background: C.input }}><p className="text-xs" style={{ color: C.faint }}>Reference number</p><p className="font-bold mt-1" style={{ color: C.text }}>{submission.reference}</p></div>
-              <div className="rounded-xl p-4" style={{ background: C.input }}><p className="text-xs" style={{ color: C.faint }}>Current status</p><p className="font-bold mt-1" style={{ color: C.successText }}>{submission.status}</p></div>
+      <main className="relative min-h-screen overflow-hidden px-4 py-8 sm:py-12" style={{ background: C.page }}>
+        <div className="pointer-events-none fixed -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: C.lime, opacity: 0.55 }} />
+        <div className="relative mx-auto max-w-3xl space-y-4">
+          {coverImage && <div className="h-48 overflow-hidden sm:h-72" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
+          <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 24 }}>
+            <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: C.lime, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
+            <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.successText }}>Successfully submitted</p>
+            <h1 className="mt-2 text-2xl font-bold sm:text-3xl" style={{ color: C.text }}>Application received</h1>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-6" style={{ color: C.muted }}>{form.config.confirmationMessage}</p>
+            <div className="mt-7 grid gap-3 text-left sm:grid-cols-2">
+              <div className="p-4" style={{ background: C.input, borderRadius: 16 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Reference number</p><p className="mt-1 font-bold" style={{ color: C.text }}>{submission.reference}</p></div>
+              <div className="p-4" style={{ background: C.lime, borderRadius: 16 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Current status</p><p className="mt-1 font-bold" style={{ color: C.successText }}>{submission.status}</p></div>
             </div>
             {preview
-              ? <span className="inline-flex items-center gap-2 mt-5 text-sm font-semibold" style={{ color: C.cta }}>Check application status <ExternalLink className="w-4 h-4" /></span>
-              : <a href={statusUrl} className="inline-flex items-center gap-2 mt-5 text-sm font-semibold" style={{ color: C.cta }}>Check application status <ExternalLink className="w-4 h-4" /></a>}
-            {emailWarning && <p className="mt-4 text-xs" style={{ color: C.errorText }}>Your application was received, but the confirmation email could not be sent. Keep the reference number and status link shown here.</p>}
-          </div>
-          {post.type === 'notice' && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="text-sm mt-2 whitespace-pre-line" style={{ color: C.muted }}>{post.noticeBody}</p></div>}
-          {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl p-3 font-semibold text-sm" style={{ background: C.cta, color: C.ctaText }}>{post.buttonLabel || 'Continue'} <ExternalLink className="w-4 h-4" /></a>}
-          {post.type === 'redirect' && <div className="rounded-xl p-4 text-center text-sm" style={{ ...cardStyle(C), color: C.muted }}>{preview ? 'Participants will be redirected after submission.' : <><Loader2 className="w-4 h-4 animate-spin inline mr-2" />Redirecting in a moment...</>}</div>}
-          {post.type === 'events' && relatedItems.length > 0 && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="font-bold mb-3" style={{ color: C.text }}>You might also like</h2><div className="space-y-2">{relatedItems.map(item => <a key={item.id} href={`/${item.slug || item.id}`} className="flex items-center justify-between rounded-xl p-3 text-sm" style={{ background: C.input, color: C.text }}><span>{item.title}</span><ExternalLink className="w-4 h-4" /></a>)}</div></div>}
+              ? <span className="mt-6 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.cta }}>Check application status <ArrowRight className="h-4 w-4" /></span>
+              : <a href={statusUrl} className="mt-6 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.cta }}>Check application status <ArrowRight className="h-4 w-4" /></a>}
+            {emailWarning && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>Your application was received, but the confirmation email could not be sent. Keep the reference number and status link shown here.</p>}
+          </section>
+          {post.type === 'notice' && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 20 }}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{post.noticeBody}</p></section>}
+          {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 p-4 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText, borderRadius: 16 }}>{post.buttonLabel || 'Continue'} <ExternalLink className="h-4 w-4" /></a>}
+          {post.type === 'redirect' && <div className="p-4 text-center text-sm" style={{ ...cardStyle(C), color: C.muted, borderRadius: 16 }}>{preview ? 'Participants will be redirected after submission.' : <><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Redirecting in a moment...</>}</div>}
+          {post.type === 'events' && relatedItems.length > 0 && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 20 }}><h2 className="mb-3 font-bold" style={{ color: C.text }}>You might also like</h2><div className="space-y-2.5">{relatedItems.map(item => <a key={item.id} href={`/${item.slug || item.id}`} className="flex items-center justify-between gap-3 p-4 text-sm font-medium" style={{ background: C.input, color: C.text, borderRadius: 14 }}><span>{item.title}</span><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}><ArrowRight className="h-4 w-4" /></span></a>)}</div></section>}
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen px-4 py-8" style={{ background: C.page }}>
-      <div className="max-w-2xl mx-auto">
-        {coverImage && coverPlacement === 'header' && <div className="mb-4 h-48 overflow-hidden rounded-2xl sm:h-64" style={cardStyle(C)}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
-        <form onSubmit={submit} className="rounded-2xl p-6 sm:p-9" style={cardStyle(C)}>
-          {coverImage && coverPlacement === 'inside' && <div className="-mx-2 mb-7 h-44 overflow-hidden rounded-xl sm:h-56"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
-          <div className="mb-7">
-            <h1 className="text-2xl sm:text-3xl font-bold" style={{ color: C.text }}>{form.config.title}</h1>
-            <p className="mt-3 text-sm leading-6 whitespace-pre-line" style={{ color: C.muted }}>{form.config.description}</p>
-            {form.config.eligibility && <div className="mt-5 rounded-xl p-4" style={{ background: C.input }}><p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: C.faint }}>Eligibility</p><p className="text-sm whitespace-pre-line" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
-            {form.config.closesAt && <p className="flex items-center gap-2 text-xs mt-4" style={{ color: C.faint }}><Clock className="w-4 h-4" /> Closes {new Date(form.config.closesAt).toLocaleString()}</p>}
-          </div>
+    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:py-10" style={{ background: C.page }}>
+      <div className="pointer-events-none fixed -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: C.lime, opacity: 0.55 }} />
+      <div className="relative mx-auto max-w-3xl">
+        {coverImage && coverPlacement === 'header' && <div className="mb-4 h-52 overflow-hidden sm:h-80" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
+        <form onSubmit={submit} className="space-y-4">
+          <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
+            {coverImage && coverPlacement === 'inside' ? <div className="h-48 overflow-hidden sm:h-72"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div> : <div className="h-1.5" style={{ background: C.cta }} />}
+            <div className="p-6 sm:p-9">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.lime, color: C.cta }}>Programme application</span>
+                {form.config.closesAt && <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium" style={{ background: C.pill, color: C.muted }}><Clock className="h-3.5 w-3.5" /> Closes {new Date(form.config.closesAt).toLocaleDateString()}</span>}
+              </div>
+              <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
+              <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
+              {form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.input, borderRadius: 16 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
+              {form.availability === 'open' && <div className="mt-7">
+                <div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-semibold" style={{ color: C.text }}>Required fields</span><span style={{ color: C.faint }}>{requiredComplete} of {requiredTotal} complete</span></div>
+                <div className="h-2 overflow-hidden rounded-full" style={{ background: C.input }}><div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress}%`, background: C.cta }} /></div>
+                <div className="mt-3 flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div>
+              </div>}
+            </div>
+          </section>
 
           {form.availability === 'open' ? <>
-            <div className="mb-6">
-              <label className="block text-sm font-semibold mb-1.5" style={{ color: C.text }}>Email address *</label>
-              <input type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com"
-                className="w-full px-3 py-3 rounded-xl outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${C.inputBorder}` }} />
-              <p className="text-xs mt-1.5" style={{ color: emailError ? C.errorText : C.faint }}>{emailError || 'A confirmation and private status link will be sent after you submit.'}</p>
-            </div>
-            <ApplicationQuestionFields questions={form.config.questions} answers={answers} onChange={setAnswers} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} />
-            {message && <p className="mt-5 rounded-xl p-3 text-sm" style={{ background: preview ? C.successBg : C.errorBg, color: preview ? C.successText : C.errorText }}>{message}</p>}
-            <button type="submit" disabled={submitting} className="w-full mt-8 px-5 py-3 rounded-xl font-semibold text-sm flex items-center justify-center gap-2 disabled:opacity-60" style={{ background: C.cta, color: C.ctaText }}>
-              {submitting && <Loader2 className="w-4 h-4 animate-spin" />} Submit application
-            </button>
-          </> : <div className="rounded-xl p-4 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>}
+            <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: emailError ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
+              <div className="mb-4 flex items-start gap-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: emailError ? C.errorBg : C.lime, color: emailError ? C.errorText : C.cta }}>1</span>
+                <div className="min-w-0 flex-1"><label className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>Email address <span style={{ color: C.errorText }}>*</span></label><p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>We will send your confirmation and private status link here.</p></div>
+                <Mail className="mt-1 h-5 w-5 shrink-0" style={{ color: C.faint }} />
+              </div>
+              <input type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com" className="w-full px-4 py-3.5 outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${emailError ? C.errorText : C.inputBorder}`, borderRadius: 14 }} />
+              {emailError && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{emailError}</p>}
+            </section>
+
+            <ApplicationQuestionFields questions={form.config.questions} answers={answers} onChange={setAnswers} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} startAt={2} />
+
+            {message && <p className="rounded-2xl p-4 text-sm" style={{ background: preview ? C.successBg : C.errorBg, color: preview ? C.successText : C.errorText }}>{message}</p>}
+
+            <section className="flex flex-col gap-4 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5" style={{ background: C.card }}>
+              <div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: C.lime, color: C.cta }}><Send className="h-5 w-5" /></span><div><p className="text-sm font-bold" style={{ color: C.text }}>Ready to submit?</p><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Review your answers before sending.</p></div></div>
+              <button type="submit" disabled={submitting} className="flex min-h-12 items-center justify-center gap-2 px-6 text-sm font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText, borderRadius: 14 }}>
+                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {submitting ? 'Submitting...' : 'Submit application'}
+              </button>
+            </section>
+          </> : <div className="p-5 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 16 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>}
         </form>
       </div>
     </main>
