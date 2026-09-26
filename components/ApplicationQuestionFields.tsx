@@ -60,7 +60,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
   function optionStyle(selected: boolean): CSSProperties {
     return {
-      background: selected ? C.lime : C.input,
+      background: selected ? C.pill : C.input,
       color: C.text,
       border: `1px solid ${selected ? C.cta : 'transparent'}`,
       borderRadius: 14,
@@ -75,7 +75,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
         return (
           <section key={question.id} className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
             <div className="mb-4 flex items-start gap-3">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: error ? C.errorBg : C.lime, color: error ? C.errorText : C.cta }}>{startAt + index}</span>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: error ? C.errorBg : C.pill, color: error ? C.errorText : C.muted }}>{startAt + index}</span>
               <div className="min-w-0 flex-1">
                 <label className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>
                   {question.label}{question.required && <span className="ml-1" style={{ color: C.errorText }}>*</span>}
@@ -161,7 +161,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
               <div className="rounded-2xl p-4" style={{ background: C.input, border: `1px dashed ${error ? C.errorText : C.inputBorder}` }}>
                 {typeof value === 'object' && value && !Array.isArray(value) && 'url' in value ? (
                   <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.lime, color: C.cta }}><FileCheck2 className="h-5 w-5" /></span>
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><FileCheck2 className="h-5 w-5" /></span>
                     <div className="min-w-0 flex-1"><a href={value.url} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-semibold" style={{ color: C.text }}>{value.name}</a><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>File ready</p></div>
                     {!disabled && <button type="button" onClick={() => set(question.id, null)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: C.card, color: C.deleteText }}>Remove</button>}
                   </div>

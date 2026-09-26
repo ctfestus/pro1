@@ -160,18 +160,17 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   if (submission) {
     const statusUrl = `/applications/${encodeURIComponent(sessionToken)}`;
     return (
-      <main className="relative min-h-screen overflow-hidden px-4 py-8 sm:py-12" style={{ background: C.page }}>
-        <div className="pointer-events-none fixed -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: C.lime, opacity: 0.55 }} />
+      <main className="min-h-screen px-4 py-8 sm:py-12" style={{ background: C.page }}>
         <div className="relative mx-auto max-w-3xl space-y-4">
           {coverImage && <div className="h-48 overflow-hidden sm:h-72" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
           <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 24 }}>
-            <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: C.lime, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
+            <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.successText }}>Successfully submitted</p>
             <h1 className="mt-2 text-2xl font-bold sm:text-3xl" style={{ color: C.text }}>Application received</h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6" style={{ color: C.muted }}>{form.config.confirmationMessage}</p>
             <div className="mt-7 grid gap-3 text-left sm:grid-cols-2">
               <div className="p-4" style={{ background: C.input, borderRadius: 16 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Reference number</p><p className="mt-1 font-bold" style={{ color: C.text }}>{submission.reference}</p></div>
-              <div className="p-4" style={{ background: C.lime, borderRadius: 16 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Current status</p><p className="mt-1 font-bold" style={{ color: C.successText }}>{submission.status}</p></div>
+              <div className="p-4" style={{ background: C.successBg, borderRadius: 16 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Current status</p><p className="mt-1 font-bold" style={{ color: C.successText }}>{submission.status}</p></div>
             </div>
             {preview
               ? <span className="mt-6 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.cta }}>Check application status <ArrowRight className="h-4 w-4" /></span>
@@ -188,16 +187,15 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden px-4 py-6 sm:py-10" style={{ background: C.page }}>
-      <div className="pointer-events-none fixed -right-24 -top-24 h-72 w-72 rounded-full blur-3xl" style={{ background: C.lime, opacity: 0.55 }} />
-      <div className="relative mx-auto max-w-3xl">
+    <main className="min-h-screen px-4 py-6 sm:py-10" style={{ background: C.page }}>
+      <div className="mx-auto max-w-3xl">
         {coverImage && coverPlacement === 'header' && <div className="mb-4 h-52 overflow-hidden sm:h-80" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
         <form onSubmit={submit} className="space-y-4">
           <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
             {coverImage && coverPlacement === 'inside' && <div className="h-48 overflow-hidden sm:h-72"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
             <div className="p-6 sm:p-9">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.lime, color: C.cta }}>Programme application</span>
+                <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
                 {form.config.closesAt && <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium" style={{ background: C.pill, color: C.muted }}><Clock className="h-3.5 w-3.5" /> Closes {new Date(form.config.closesAt).toLocaleDateString()}</span>}
               </div>
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
@@ -214,7 +212,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
           {form.availability === 'open' ? <>
             <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: emailError ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
               <div className="mb-4 flex items-start gap-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: emailError ? C.errorBg : C.lime, color: emailError ? C.errorText : C.cta }}>1</span>
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: emailError ? C.errorBg : C.pill, color: emailError ? C.errorText : C.muted }}>1</span>
                 <div className="min-w-0 flex-1"><label className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>Email address <span style={{ color: C.errorText }}>*</span></label><p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>We will send your confirmation and private status link here.</p></div>
                 <Mail className="mt-1 h-5 w-5 shrink-0" style={{ color: C.faint }} />
               </div>
@@ -227,7 +225,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
             {message && <p className="rounded-2xl p-4 text-sm" style={{ background: preview ? C.successBg : C.errorBg, color: preview ? C.successText : C.errorText }}>{message}</p>}
 
             <section className="flex flex-col gap-4 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5" style={{ background: C.card }}>
-              <div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: C.lime, color: C.cta }}><Send className="h-5 w-5" /></span><div><p className="text-sm font-bold" style={{ color: C.text }}>Ready to submit?</p><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Review your answers before sending.</p></div></div>
+              <div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><Send className="h-5 w-5" /></span><div><p className="text-sm font-bold" style={{ color: C.text }}>Ready to submit?</p><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Review your answers before sending.</p></div></div>
               <button type="submit" disabled={submitting} className="flex min-h-12 items-center justify-center gap-2 px-6 text-sm font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText, borderRadius: 14 }}>
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {submitting ? 'Submitting...' : 'Submit application'}
               </button>
