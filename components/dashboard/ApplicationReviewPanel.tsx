@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Loader2, Mail, Search, Send } from 'lucide-react';
+import { ArrowLeft, Download, Loader2, Mail, Search, Send } from 'lucide-react';
 import type { ApplicationFormRecord } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
@@ -31,6 +31,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [selectedId, setSelectedId] = useState('');
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('');
@@ -76,11 +77,30 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     setMessageType(type); setSubject(MESSAGE_PRESETS[type].subject); setBody(MESSAGE_PRESETS[type].body);
   }
 
+  async function exportCsv() {
+    setExporting(true); setError('');
+    try {
+      const params = new URLSearchParams({ format: 'csv' });
+      if (query.trim()) params.set('q', query.trim());
+      if (stageFilter) params.set('stage', stageFilter);
+      const response = await fetch(`/api/application-forms/${form.id}/submissions?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!response.ok) {
+        const value = await response.json().catch(() => ({}));
+        throw new Error(value.error || 'Could not export applications.');
+      }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = url; link.download = `${form.slug}-applications.csv`;
+      document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+    } catch (reason) { setError((reason as Error).message); }
+    finally { setExporting(false); }
+  }
+
   if (loading) return <div className="py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: C.cta }} /></div>;
   return (
     <div className="space-y-5">
       <button onClick={onBack} className="text-sm font-semibold flex items-center gap-1" style={{ color: C.muted }}><ArrowLeft className="w-4 h-4" /> Back to forms</button>
-      <div><h2 className="text-xl font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="text-sm mt-1" style={{ color: C.faint }}>{submissions.filter(item => item.state === 'submitted').length} submitted applications</p></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="text-sm mt-1" style={{ color: C.faint }}>{submissions.filter(item => item.state === 'submitted').length} submitted applications</p></div><button onClick={() => void exportCsv()} disabled={exporting} className="px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Export CSV</button></div>
       {error && <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
       <div className="grid lg:grid-cols-[320px_1fr] gap-5 items-start">
         <div className="rounded-2xl p-4" style={{ background: C.card }}>

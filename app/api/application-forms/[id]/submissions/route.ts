@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
+import { applicationSubmissionsCsv } from '@/lib/application-export';
 import { getApplicationForm, listApplicationSubmissions } from '@/lib/application-sheets';
 
 export const dynamic = 'force-dynamic';
@@ -21,6 +22,15 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (reviewer) submissions = submissions.filter(item => item.assignedReviewerId === reviewer);
     if (query) submissions = submissions.filter(item => `${item.email} ${item.reference}`.toLowerCase().includes(query));
     submissions.sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
+    if (req.nextUrl.searchParams.get('format') === 'csv') {
+      return new NextResponse(applicationSubmissionsCsv(form, submissions), {
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${form.slug}-applications.csv"`,
+          'Cache-Control': 'private, no-store',
+        },
+      });
+    }
     return NextResponse.json({
       submissions: submissions.map(({ tokenHash: _tokenHash, ...item }) => item),
     });

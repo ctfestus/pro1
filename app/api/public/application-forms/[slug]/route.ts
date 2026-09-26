@@ -201,6 +201,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
         reference: submitted.reference,
         token,
         confirmationMessage: form.config.confirmationMessage,
+        baseUrl: new URL(req.url).origin,
       });
     } catch (error) {
       emailSent = false;

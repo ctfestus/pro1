@@ -77,6 +77,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       await saveApplicationSubmission(updated);
       await sendApplicationDecisionEmail({
         email: updated.email, subject: body.message.subject.trim(), body: body.message.body.trim(), token, messageId,
+        baseUrl: new URL(req.url).origin,
       });
       updated.messages = [...updated.messages, {
         id: messageId, type: body.message.type, subject: body.message.subject.trim(), body: body.message.body.trim(),

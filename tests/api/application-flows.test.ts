@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
 
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(), listForms: vi.fn(), getForm: vi.fn(), getFormBySlug: vi.fn(), getSubmission: vi.fn(),
@@ -30,6 +31,7 @@ vi.mock('@/lib/application-related', () => ({ resolveApplicationRelatedItems: mo
 import { newApplicationFormConfig } from '@/lib/application-forms';
 import { POST as createForm } from '@/app/api/application-forms/route';
 import { PATCH as updateForm } from '@/app/api/application-forms/[id]/route';
+import { GET as exportSubmissions } from '@/app/api/application-forms/[id]/submissions/route';
 import { POST as submitPublicForm } from '@/app/api/public/application-forms/[slug]/route';
 import { GET as applicantStatus, POST as submitApplication } from '@/app/api/public/applications/[token]/route';
 import { PATCH as reviewApplication } from '@/app/api/application-submissions/[id]/route';
@@ -121,6 +123,28 @@ describe('application end-to-end route boundaries', () => {
     expect(value.submission.status).toBe('Application received');
     expect(value.submission.privateNotes).toBeUndefined();
     expect(value.submission.tokenHash).toBeUndefined();
+  });
+
+  it('exports submitted applications as CSV without secure tokens or private notes', async () => {
+    listSubmissions.mockResolvedValue([{
+      ...submission,
+      state: 'submitted',
+      submittedAt: '2026-09-26T10:00:00.000Z',
+      privateNotes: [{ id: 'note-1', body: 'Internal only' }],
+      answers: requiredAnswers,
+    }]);
+    const response = await exportSubmissions(
+      new NextRequest('http://localhost/api/application-forms/form-1/submissions?format=csv'),
+      { params: Promise.resolve({ id: form.id }) },
+    );
+    const csv = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get('content-type')).toContain('text/csv');
+    expect(response.headers.get('content-disposition')).toContain('bootcamp-applications.csv');
+    expect(csv).toContain('applicant@example.com');
+    expect(csv).not.toContain('hash');
+    expect(csv).not.toContain('Internal only');
   });
 
   it('records private review notes and stage changes', async () => {

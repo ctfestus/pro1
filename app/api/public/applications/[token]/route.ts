@@ -89,7 +89,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ token:
     try {
       await sendApplicationConfirmationEmail({
         email: updated.email, formTitle: found.form.config.title, reference: updated.reference,
-        token, confirmationMessage: found.form.config.confirmationMessage,
+        token, confirmationMessage: found.form.config.confirmationMessage, baseUrl: new URL(req.url).origin,
       });
     } catch (error) {
       emailSent = false;
