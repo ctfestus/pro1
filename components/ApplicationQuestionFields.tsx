@@ -9,13 +9,14 @@ import {
 } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
-export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, disabled = false }: {
+export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, disabled = false }: {
   questions: ApplicationQuestion[];
   answers: Record<string, ApplicationAnswer>;
   onChange: (answers: Record<string, ApplicationAnswer>) => void;
   errors?: Record<string, string>;
   C: ThemeColors;
   uploadToken?: string;
+  ensureUploadToken?: () => Promise<string>;
   disabled?: boolean;
 }) {
   const [uploading, setUploading] = useState<string | null>(null);
@@ -24,13 +25,14 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
   const inputStyle = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: '11px 12px', outline: 'none' };
 
   async function upload(questionId: string, file: File) {
-    if (!uploadToken) return;
     setUploading(questionId);
     setUploadError(previous => ({ ...previous, [questionId]: '' }));
     try {
+      const token = uploadToken || await ensureUploadToken?.();
+      if (!token) throw new Error('Enter your email address before uploading a file.');
       const data = new FormData();
       data.set('file', file);
-      const response = await fetch(`/api/public/applications/${encodeURIComponent(uploadToken)}/upload`, { method: 'POST', body: data });
+      const response = await fetch(`/api/public/applications/${encodeURIComponent(token)}/upload`, { method: 'POST', body: data });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Upload failed.');
       set(questionId, json.file);

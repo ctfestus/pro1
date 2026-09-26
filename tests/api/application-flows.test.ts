@@ -1,18 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  requireRole: vi.fn(), listForms: vi.fn(), getForm: vi.fn(), getSubmission: vi.fn(),
+  requireRole: vi.fn(), listForms: vi.fn(), getForm: vi.fn(), getFormBySlug: vi.fn(), getSubmission: vi.fn(),
   getSubmissionByTokenHash: vi.fn(), listSubmissions: vi.fn(), saveForm: vi.fn(),
   saveSubmission: vi.fn(), appendAudit: vi.fn(), sendConfirmation: vi.fn(),
   sendDecision: vi.fn(), related: vi.fn(),
 }));
-const { requireRole, listForms, getForm, getSubmission, getSubmissionByTokenHash, listSubmissions,
+const { requireRole, listForms, getForm, getFormBySlug, getSubmission, getSubmissionByTokenHash, listSubmissions,
   saveForm, saveSubmission, appendAudit, sendConfirmation, sendDecision, related } = mocks;
 
 vi.mock('@/lib/api-auth', () => ({ requireRole: mocks.requireRole, isAuthError: (value: any) => Boolean(value?.error) }));
 vi.mock('@/lib/application-sheets', () => ({
   listApplicationForms: mocks.listForms,
   getApplicationForm: mocks.getForm,
+  getApplicationFormBySlug: mocks.getFormBySlug,
   getApplicationSubmission: mocks.getSubmission,
   getApplicationSubmissionByTokenHash: mocks.getSubmissionByTokenHash,
   listApplicationSubmissions: mocks.listSubmissions,
@@ -28,6 +29,7 @@ vi.mock('@/lib/application-related', () => ({ resolveApplicationRelatedItems: mo
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
 import { POST as createForm } from '@/app/api/application-forms/route';
+import { POST as submitPublicForm } from '@/app/api/public/application-forms/[slug]/route';
 import { GET as applicantStatus, POST as submitApplication } from '@/app/api/public/applications/[token]/route';
 import { PATCH as reviewApplication } from '@/app/api/application-submissions/[id]/route';
 
@@ -45,7 +47,7 @@ const submission = { id: 'submission-1', formId: form.id, reference: 'APP-1', em
 beforeEach(() => {
   vi.clearAllMocks();
   requireRole.mockResolvedValue({ role: 'admin', actor: { id: 'owner-1', email: 'owner@example.com' }, user: { id: 'owner-1' }, serviceDb: {} });
-  listForms.mockResolvedValue([]); getForm.mockResolvedValue(form); getSubmission.mockResolvedValue(submission);
+  listForms.mockResolvedValue([]); getForm.mockResolvedValue(form); getFormBySlug.mockResolvedValue(form); getSubmission.mockResolvedValue(submission);
   getSubmissionByTokenHash.mockResolvedValue(submission); listSubmissions.mockResolvedValue([submission]);
   saveForm.mockResolvedValue(undefined); saveSubmission.mockResolvedValue(undefined); appendAudit.mockResolvedValue(undefined);
   sendConfirmation.mockResolvedValue(undefined); sendDecision.mockResolvedValue(undefined); related.mockResolvedValue([]);
@@ -64,6 +66,24 @@ describe('application end-to-end route boundaries', () => {
     expect(response.status).toBe(200);
     expect(saveSubmission.mock.calls.at(-1)?.[0].state).toBe('submitted');
     expect(appendAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'submitted' }));
+  });
+
+  it('submits directly from the shared registration URL without an email-link step', async () => {
+    const response = await submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit', email: 'applicant@example.com', answers: requiredAnswers }),
+    }) as any, { params: Promise.resolve({ slug: 'bootcamp' }) });
+    const value = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(value.submission.state).toBe('submitted');
+    expect(value.token).toBeTruthy();
+    expect(saveSubmission.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      email: 'applicant@example.com',
+      state: 'submitted',
+    }));
+    expect(sendConfirmation).toHaveBeenCalledOnce();
   });
 
   it('returns applicant status without private review data', async () => {

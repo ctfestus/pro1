@@ -45,28 +45,6 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ token:
   }
 }
 
-export async function PATCH(req: NextRequest, context: { params: Promise<{ token: string }> }) {
-  const { token } = await context.params;
-  const body = await req.json().catch(() => null) as null | { answers?: Record<string, ApplicationAnswer> };
-  if (!body?.answers || JSON.stringify(body.answers).length > 250_000) {
-    return NextResponse.json({ error: 'The application answers are invalid or too large.' }, { status: 400 });
-  }
-  try {
-    const found = await resolve(token);
-    if (!found) return NextResponse.json({ error: 'This application link is invalid or expired.' }, { status: 404 });
-    if (found.submission.state === 'submitted') return NextResponse.json({ error: 'This application has already been submitted.' }, { status: 409 });
-    if (formAvailability(found.form) !== 'open') return NextResponse.json({ error: 'This application form is not accepting changes.' }, { status: 409 });
-    const allowed = new Set(found.form.config.questions.map(item => item.id));
-    const answers = Object.fromEntries(Object.entries(body.answers).filter(([id]) => allowed.has(id)));
-    const updated = { ...found.submission, answers, updatedAt: new Date().toISOString() };
-    await saveApplicationSubmission(updated);
-    return NextResponse.json({ ok: true, submission: publicSubmission(found.form, updated) });
-  } catch (error) {
-    console.error('[public/applications/save]', error);
-    return NextResponse.json({ error: 'Could not save this application.' }, { status: 503 });
-  }
-}
-
 export async function POST(req: NextRequest, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
   const body = await req.json().catch(() => null) as null | { answers?: Record<string, ApplicationAnswer> };

@@ -26,20 +26,6 @@ function linkButton(url: string, label: string): string {
   return `<p style="margin:24px 0"><a href="${escapeHtml(url)}" style="display:inline-block;background:#00bf63;color:#fff;text-decoration:none;padding:12px 18px;border-radius:10px;font-weight:700">${escapeHtml(label)}</a></p><p style="font-size:12px;color:#64748b;word-break:break-all">${escapeHtml(url)}</p>`;
 }
 
-export async function sendApplicationAccessEmail(input: {
-  email: string;
-  formTitle: string;
-  token: string;
-  existing: boolean;
-}): Promise<void> {
-  const { tenant, from } = await settings();
-  const url = `${tenant.appUrl}/applications/${encodeURIComponent(input.token)}`;
-  const title = input.existing ? `Continue: ${input.formTitle}` : `Your application link: ${input.formTitle}`;
-  const body = `<p style="font-size:15px;line-height:1.65">Use the secure link below to complete, save, submit, or check this application. Keep this link private.</p>${linkButton(url, input.existing ? 'Open application' : 'Start application')}`;
-  const { error } = await resend.emails.send({ from, to: input.email, subject: title, html: frame(tenant.appName, title, body) });
-  if (error) throw new Error(error.message || 'Could not send application access email.');
-}
-
 export async function sendApplicationConfirmationEmail(input: {
   email: string;
   formTitle: string;
