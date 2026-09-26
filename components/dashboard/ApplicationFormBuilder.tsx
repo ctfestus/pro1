@@ -44,7 +44,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
     try {
       const response = await fetch(`/api/application-forms/${form.id}`, {
         method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ config: form.config, status }),
+        body: JSON.stringify({ config: form.config, slug: form.slug, status }),
       });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'Could not save the form.');
@@ -74,8 +74,19 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
       {error && <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
 
       <section className="rounded-2xl p-5 sm:p-6 space-y-4" style={{ background: C.card }}>
-        <div><h2 className="font-bold" style={{ color: C.text }}>Form details</h2><p className="text-xs mt-1" style={{ color: C.faint }}>Public URL: /apply/{form.slug}</p></div>
+        <div><h2 className="font-bold" style={{ color: C.text }}>Form details</h2><p className="text-xs mt-1" style={{ color: C.faint }}>Set the registration link that participants will receive.</p></div>
         <div><label className="block text-xs font-semibold mb-1" style={label}>Title *</label><input value={config.title} onChange={event => setConfig({ title: event.target.value })} style={input} /></div>
+        <div>
+          <label className="block text-xs font-semibold mb-1" style={label}>Registration URL *</label>
+          <div className="flex items-center rounded-xl overflow-hidden" style={{ border: `1px solid ${C.inputBorder}`, background: C.input }}>
+            <span className="text-sm pl-3 whitespace-nowrap" style={{ color: C.faint }}>/apply/</span>
+            <input value={form.slug} onChange={event => {
+              const slug = event.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+/, '').slice(0, 64);
+              setForm(previous => ({ ...previous, slug }));
+            }} onBlur={() => setForm(previous => ({ ...previous, slug: previous.slug.replace(/-+$/, '') || 'application' }))} aria-label="Registration URL" className="flex-1 min-w-0" style={{ ...input, border: 0, borderRadius: 0 }} />
+          </div>
+          <p className="text-xs mt-1.5" style={{ color: C.faint }}>Use a unique name such as data-bootcamp-2026. Changing a published URL will stop the old link from working.</p>
+        </div>
         <div><label className="block text-xs font-semibold mb-1" style={label}>Description *</label><textarea rows={4} value={config.description} onChange={event => setConfig({ description: event.target.value })} style={{ ...input, resize: 'vertical' }} /></div>
         <div><label className="block text-xs font-semibold mb-1" style={label}>Eligibility information</label><textarea rows={4} value={config.eligibility} onChange={event => setConfig({ eligibility: event.target.value })} style={{ ...input, resize: 'vertical' }} /></div>
         <div className="grid sm:grid-cols-2 gap-3">

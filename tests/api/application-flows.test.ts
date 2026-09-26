@@ -29,6 +29,7 @@ vi.mock('@/lib/application-related', () => ({ resolveApplicationRelatedItems: mo
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
 import { POST as createForm } from '@/app/api/application-forms/route';
+import { PATCH as updateForm } from '@/app/api/application-forms/[id]/route';
 import { POST as submitPublicForm } from '@/app/api/public/application-forms/[slug]/route';
 import { GET as applicantStatus, POST as submitApplication } from '@/app/api/public/applications/[token]/route';
 import { PATCH as reviewApplication } from '@/app/api/application-submissions/[id]/route';
@@ -59,6 +60,33 @@ describe('application end-to-end route boundaries', () => {
     expect(response.status).toBe(200);
     expect((await response.json()).form.status).toBe('draft');
     expect(saveForm).toHaveBeenCalledOnce();
+  });
+
+  it('saves a custom registration URL', async () => {
+    const response = await updateForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: 'data-bootcamp-2026' }),
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    expect(response.status).toBe(200);
+    expect(saveForm).toHaveBeenCalledWith(expect.objectContaining({ slug: 'data-bootcamp-2026' }));
+    expect(appendAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'updated',
+      details: { fromSlug: 'bootcamp', toSlug: 'data-bootcamp-2026' },
+    }));
+  });
+
+  it('rejects a registration URL already used by another form', async () => {
+    listForms.mockResolvedValue([{ ...form, id: 'form-2', slug: 'data-bootcamp-2026' }]);
+    const response = await updateForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ slug: 'data-bootcamp-2026' }),
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain('already in use');
   });
 
   it('validates and stores a submitted application with a reference', async () => {
