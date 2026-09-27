@@ -34,41 +34,55 @@ function ApplicationDeadlineTimer({ closesAt, C }: { closesAt: string; C: ThemeC
   }, [deadline]);
 
   if (expired) {
-    return <span className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold" style={{ background: C.errorBg, color: C.errorText }}><Clock className="h-3.5 w-3.5" /> Applications closed</span>;
+    return <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: C.errorBg, color: C.errorText }}><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.card }}><Clock className="h-5 w-5" /></span><div><p className="text-sm font-bold">Applications closed</p><p className="mt-0.5 text-xs opacity-75">The application deadline has passed.</p></div></div>;
   }
 
   const totalSeconds = Math.floor(remaining / 1000);
   const units = [
-    { label: 'd', value: Math.floor(totalSeconds / 86400) },
-    { label: 'h', value: Math.floor((totalSeconds % 86400) / 3600) },
-    { label: 'm', value: Math.floor((totalSeconds % 3600) / 60) },
-    { label: 's', value: totalSeconds % 60 },
+    { label: 'Days', value: Math.floor(totalSeconds / 86400) },
+    { label: 'Hours', value: Math.floor((totalSeconds % 86400) / 3600) },
+    { label: 'Minutes', value: Math.floor((totalSeconds % 3600) / 60) },
+    { label: 'Seconds', value: totalSeconds % 60 },
   ];
+  const closingDate = new Date(closesAt).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
   return (
-    <div
-      className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-medium"
-      style={{ background: C.pill, color: C.muted }}
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.35, ease: 'easeOut' }}
+      className="overflow-hidden rounded-2xl p-4 sm:p-5"
+      style={{ background: C.input }}
+      role="timer"
       aria-label={`Applications close in ${units[0].value} days, ${units[1].value} hours, ${units[2].value} minutes, and ${units[3].value} seconds`}
-      title={`Closes ${new Date(closesAt).toLocaleString()}`}
     >
-      <motion.span animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
-        <Clock className="h-3.5 w-3.5" style={{ color: C.accent }} />
-      </motion.span>
-      <span className="hidden sm:inline">Closes in</span>
-      <span className="flex items-center gap-1" aria-hidden="true">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.card, color: C.accent }}>
+            <motion.span className="absolute inset-0 rounded-xl" style={{ background: C.accent }} animate={{ scale: [1, 1.35], opacity: [0.18, 0] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }} />
+            <Clock className="relative h-4.5 w-4.5" />
+          </span>
+          <div>
+            <p className="text-sm font-bold" style={{ color: C.text }}>Applications close in</p>
+            <p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>{closingDate}</p>
+          </div>
+        </div>
+        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: C.card, color: C.muted }}><motion.span className="h-1.5 w-1.5 rounded-full" style={{ background: C.accent }} animate={{ opacity: [0.35, 1, 0.35] }} transition={{ duration: 1.4, repeat: Infinity }} /> Live</span>
+      </div>
+      <div className="mt-4 grid grid-cols-4 gap-2 sm:gap-3" aria-hidden="true">
         {units.map(unit => (
-          <span key={unit.label} className="inline-flex min-w-[27px] items-baseline justify-center overflow-hidden rounded-md px-1 py-0.5 tabular-nums" style={{ background: C.card, color: C.text }}>
+          <div key={unit.label} className="relative overflow-hidden rounded-xl px-1 py-3 text-center sm:py-4" style={{ background: C.card }}>
             <AnimatePresence initial={false} mode="popLayout">
-              <motion.span key={unit.value} initial={{ opacity: 0, y: -7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 7 }} transition={{ duration: 0.18 }} className="font-bold">
+              <motion.span key={unit.value} initial={{ opacity: 0, y: -12, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: 12, filter: 'blur(4px)' }} transition={{ duration: 0.22, ease: 'easeOut' }} className="block text-xl font-bold tabular-nums sm:text-2xl" style={{ color: C.text }}>
                 {String(unit.value).padStart(2, '0')}
               </motion.span>
             </AnimatePresence>
-            <span className="ml-0.5 text-[9px]" style={{ color: C.faint }}>{unit.label}</span>
-          </span>
+            <span className="mt-1 block text-[8px] font-bold uppercase tracking-wider sm:text-[9px]" style={{ color: C.faint }}>{unit.label}</span>
+            {unit.label === 'Seconds' && <motion.span key={unit.value} className="absolute inset-x-0 bottom-0 h-0.5 origin-left" style={{ background: C.accent }} initial={{ scaleX: 1 }} animate={{ scaleX: 0 }} transition={{ duration: 1, ease: 'linear' }} />}
+          </div>
         ))}
-      </span>
-    </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -249,10 +263,10 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
             <div className="p-6 sm:p-9">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
-                {form.config.closesAt && <ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} />}
               </div>
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
               <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
+              {form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
               {form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.input, borderRadius: 16 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
               {form.availability === 'open' && <div className="mt-6 flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div>}
             </div>
