@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, type CSSProperties } from 'react';
-import { ArrowLeft, ArrowRight, CheckCircle2, Clock, CornerDownLeft, ExternalLink, Loader2, Mail, MessageCircleMore, PencilLine, Send, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock, CornerDownLeft, ExternalLink, Loader2, Mail, PencilLine, Send, ShieldCheck } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
@@ -78,7 +78,7 @@ function ApplicationDeadlineTimer({ closesAt, C }: { closesAt: string; C: ThemeC
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
       className="relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 sm:px-4"
-      style={{ background: C.input }}
+      style={{ background: C.skeleton }}
       role="timer"
       aria-label={`Applications close in ${units[0].value} days, ${units[1].value} hours, ${units[2].value} minutes, and ${units[3].value} seconds`}
     >
@@ -131,6 +131,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [emailError, setEmailError] = useState('');
   const [message, setMessage] = useState('');
+  const [started, setStarted] = useState(false);
   const [activeStep, setActiveStep] = useState(0);
   const [reviewing, setReviewing] = useState(false);
   const [stepDirection, setStepDirection] = useState(1);
@@ -249,7 +250,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     return <div className="min-h-screen grid place-items-center px-4" style={{ background: baseC.page, color: baseC.errorText }}>{message}</div>;
   }
 
-  const C = applicationThemeColors(baseC, form.config.themeColor, form.config.theme ?? 'platform', form.config.customTheme);
+  const C = applicationThemeColors(baseC, form.config.themeColor, form.config.theme ?? 'platform', form.config.customTheme, form.config.themeMode ?? 'light');
   const themedPageStyle = { background: C.page, '--application-focus-color': C.cta } as CSSProperties;
   const post = form.config.postSubmission;
   const coverImage = form.config.coverImage?.trim();
@@ -298,7 +299,10 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     if (currentStep > 0) {
       setStepDirection(-1);
       setActiveStep(currentStep - 1);
+      return;
     }
+    setStarted(false);
+    window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40);
   }
   if (submission) {
     const statusUrl = `/applications/${encodeURIComponent(sessionToken)}`;
@@ -332,26 +336,24 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   return (
     <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-6 sm:py-10" style={themedPageStyle}>
       <div className="mx-auto max-w-3xl">
-        {coverImage && coverPlacement === 'header' && <div className="mb-4 h-52 overflow-hidden sm:h-80" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
         <form onSubmit={submit} className="space-y-4">
-          <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
-            {coverImage && coverPlacement === 'inside' && <div className="h-48 overflow-hidden sm:h-72"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
-            <div className="p-6 sm:p-9">
-              <div className="flex flex-wrap items-center gap-2">
+          {!started ? <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="space-y-4">
+            {coverImage && coverPlacement === 'header' && <div className="h-52 overflow-hidden sm:h-80" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
+            <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
+              {coverImage && coverPlacement === 'inside' && <div className="h-48 overflow-hidden sm:h-72"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
+              <div className="p-6 sm:p-9">
                 <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
+                <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
+                <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
+                {form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
+                {form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
+                {form.availability === 'open' ? <div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div> : <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>}
               </div>
-              <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
-              <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
-              {form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
-              {form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.input, borderRadius: 16 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
-              {form.availability === 'open' && <div className="mt-6 flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div>}
-            </div>
-          </section>
-
-          {form.availability === 'open' ? <section className="rounded-3xl" style={{ background: C.card }}>
+            </section>
+          </motion.div> : form.availability === 'open' ? <section className="rounded-3xl" style={{ background: C.card }}>
             <div className={`sticky ${preview ? 'top-16' : 'top-2'} z-20 rounded-t-3xl px-5 py-4 sm:px-7`} style={{ background: C.card }} aria-label={`Application progress: ${flowProgress}%`}>
               <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold"><span style={{ color: C.muted }}>{reviewing ? 'Review your application' : `Question ${currentStep + 1} of ${stepCount}`}</span><span className="tabular-nums" style={{ color: C.faint }}>{flowProgress}%</span></div>
-              <div className="h-1 overflow-hidden rounded-sm" style={{ background: C.input }}><motion.div className="h-full rounded-sm" animate={{ width: `${flowProgress}%` }} transition={{ duration: 0.35, ease: 'easeOut' }} style={{ background: C.cta }} /></div>
+              <div className="h-1 overflow-hidden rounded-sm" style={{ background: C.skeleton }}><motion.div className="h-full rounded-sm" animate={{ width: `${flowProgress}%` }} transition={{ duration: 0.35, ease: 'easeOut' }} style={{ background: C.cta }} /></div>
             </div>
 
             <div className="min-h-[390px] p-6 sm:min-h-[430px] sm:p-9">
@@ -359,7 +361,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                 {reviewing ? <motion.div key="review" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
                   <div className="mb-7 flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.input, color: C.cta }}><CheckCircle2 className="h-4.5 w-4.5" /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}>Final check</p><h2 className="text-xl font-bold sm:text-2xl" style={{ color: C.text }}>Everything look right?</h2></div></div>
                   <div className="space-y-2">
-                    {[{ id: 'email', label: 'Email address', value: email, step: 0 }, ...visibleQuestions.map((question: any, index: number) => ({ id: question.id, label: question.label, value: answers[question.id], step: index + 1 }))].map(item => <button key={item.id} type="button" onClick={() => editStep(item.step)} className="group flex w-full items-center gap-3 rounded-xl p-3 text-left" style={{ background: C.input }}><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>{item.label}</span><span className="mt-1 block truncate text-sm font-medium" style={{ color: C.text }}>{answerSummary(item.value)}</span></span><PencilLine className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" style={{ color: C.cta }} /></button>)}
+                    {[{ id: 'email', label: 'Email address', value: email, step: 0 }, ...visibleQuestions.map((question: any, index: number) => ({ id: question.id, label: question.label, value: answers[question.id], step: index + 1 }))].map(item => <button key={item.id} type="button" onClick={() => editStep(item.step)} className="group flex w-full items-center gap-3 rounded-lg border p-3 text-left" style={{ background: C.input, borderColor: C.inputBorder }}><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>{item.label}</span><span className="mt-1 block truncate text-sm font-medium" style={{ color: C.text }}>{answerSummary(item.value)}</span></span><PencilLine className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" style={{ color: C.cta }} /></button>)}
                   </div>
                   {message && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
                   <div className="mt-7 flex items-center justify-between gap-3">
@@ -367,7 +369,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                     <button type="submit" disabled={submitting} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText }}>{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {submitting ? 'Submitting...' : 'Submit application'}</button>
                   </div>
                 </motion.div> : <motion.div key={currentQuestion?.id ?? 'email'} custom={stepDirection} initial={{ opacity: 0, x: stepDirection > 0 ? 34 : -34 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: stepDirection > 0 ? -34 : 34 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
-                  <div className="mb-7 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}><span className="relative grid h-8 w-8 place-items-center rounded-xl" style={{ background: C.input, color: C.cta }}><MessageCircleMore className="h-4 w-4" /><motion.span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full" style={{ background: C.accent }} animate={{ scale: [1, 1.35, 1], opacity: [1, 0.55, 1] }} transition={{ duration: 1.5, repeat: Infinity }} /></span> Application assistant</div>
+                  <div className="mb-7 flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}><motion.span className="h-2.5 w-2.5 rounded-full" style={{ background: C.cta }} animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.45, 1, 0.45] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }} /> Application assistant</div>
                   <TypewriterPrompt key={currentQuestion?.id ?? 'email-prompt'} text={currentQuestion?.label ?? 'Where should we send your confirmation and private status updates?'} C={C} />
                   <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}><span>{currentQuestion?.helpText || (currentQuestion ? 'Take your time. You can review this before submitting.' : 'No account is needed. We use this email only for this application.')}</span>{currentQuestion && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>
                   <div className="mt-8" onKeyDown={event => { const target = event.target as HTMLInputElement; if (event.key === 'Enter' && !event.shiftKey && target.tagName === 'INPUT' && !['checkbox', 'radio', 'file'].includes(target.type)) { event.preventDefault(); continueFlow(); } }}>
@@ -375,13 +377,13 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                   </div>
                   {message && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
                   <div className="mt-8 flex items-center justify-between gap-3">
-                    <button type="button" onClick={previousStep} disabled={currentStep === 0} className="flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-semibold disabled:invisible" style={{ background: C.input, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Back</button>
+                    <button type="button" onClick={previousStep} className="flex items-center gap-2 rounded-lg border px-4 py-3 text-xs font-semibold" style={{ background: C.input, borderColor: C.inputBorder, color: C.muted }}><ArrowLeft className="h-4 w-4" /> {currentStep === 0 ? 'Overview' : 'Back'}</button>
                     <div className="flex items-center gap-3">{enterAdvances && <span className="hidden items-center gap-1.5 text-[10px] sm:flex" style={{ color: C.faint }}>Press Enter <CornerDownLeft className="h-3 w-3" /></span>}<button type="button" onClick={continueFlow} className="flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>{currentStep >= stepCount - 1 ? 'Review answers' : 'Continue'} <ArrowRight className="h-4 w-4" /></button></div>
                   </div>
                 </motion.div>}
               </AnimatePresence>
             </div>
-          </section> : <div className="p-5 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 16 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>}
+          </section> : null}
         </form>
       </div>
     </main>

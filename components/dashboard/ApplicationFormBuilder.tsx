@@ -24,6 +24,7 @@ import {
   ListChecks,
   Lock,
   Minus,
+  Moon,
   Palette,
   Phone,
   Plus,
@@ -32,6 +33,7 @@ import {
   ShieldCheck,
   Sparkles,
   Square,
+  Sun,
   Trash2,
   ToggleLeft,
   Upload,
@@ -401,7 +403,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
   const config = form.config;
-  const selectedThemeColor = applicationThemeColors(C, config.themeColor, config.theme ?? 'platform', config.customTheme).cta;
+  const applicationPreviewTheme = applicationThemeColors(C, config.themeColor, config.theme ?? 'platform', config.customTheme, config.themeMode ?? 'light');
+  const selectedThemeColor = applicationPreviewTheme.cta;
 
   const setConfig = (patch: Partial<typeof config>) => setForm(previous => ({ ...previous, config: { ...previous.config, ...patch } }));
   const inputStyle: CSSProperties = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 12, padding: '11px 12px', outline: 'none' };
@@ -510,8 +513,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
         {tab === 'settings' && (
           <div className="mx-auto max-w-6xl space-y-5">
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>
-              <SectionHeading icon={Palette} title="Theme color" description="Choose one color for buttons, progress, active fields, and indicators. Light tints are created automatically for the background and inputs." C={C} />
-              <div className="mt-5 flex flex-col gap-4 rounded-2xl p-4 sm:flex-row sm:items-center" style={{ background: C.input }}>
+              <SectionHeading icon={Palette} title="Form appearance" description="Choose a color for actions and focus rings, then select a light or dark neutral interface." C={C} />
+              <div className="mt-5 flex flex-col gap-4 rounded-2xl p-4 lg:flex-row lg:items-center" style={{ background: C.input }}>
                 <label className="flex min-w-0 flex-1 cursor-pointer items-center gap-3 rounded-xl p-3" style={{ background: C.card }}>
                   <input
                     type="color"
@@ -522,10 +525,16 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                   />
                   <span className="min-w-0"><span className="block text-xs font-semibold" style={{ color: C.text }}>Application color</span><span className="mt-0.5 block font-mono text-[10px] uppercase" style={{ color: C.faint }}>{selectedThemeColor}</span></span>
                 </label>
+                <div className="flex rounded-xl p-1" style={{ background: C.card }} aria-label="Application color mode">
+                  {([['light', 'Light', Sun], ['dark', 'Dark', Moon]] as const).map(([value, label, Icon]) => {
+                    const selected = (config.themeMode ?? 'light') === value;
+                    return <button key={value} type="button" onClick={() => setConfig({ themeMode: value })} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: selected ? C.cta : 'transparent', color: selected ? C.ctaText : C.muted }} aria-pressed={selected}><Icon className="h-3.5 w-3.5" /> {label}</button>;
+                  })}
+                </div>
                 <div className="flex shrink-0 items-center gap-2" aria-label="Generated theme preview">
-                  <span className="h-10 w-14 rounded-lg" style={{ background: selectedThemeColor }} title="Main color" />
-                  <span className="h-10 w-14 rounded-lg" style={{ background: `color-mix(in srgb, ${selectedThemeColor} 11%, #ffffff)` }} title="Input color" />
-                  <span className="h-10 w-14 rounded-lg" style={{ background: `color-mix(in srgb, ${selectedThemeColor} 6%, #ffffff)` }} title="Background color" />
+                  <span className="h-10 w-14 rounded-lg" style={{ background: selectedThemeColor }} title="Action color" />
+                  <span className="h-10 w-14 rounded-lg" style={{ background: applicationPreviewTheme.input, boxShadow: `inset 0 0 0 1px ${applicationPreviewTheme.inputBorder}` }} title="Input color" />
+                  <span className="h-10 w-14 rounded-lg" style={{ background: applicationPreviewTheme.page }} title="Background color" />
                 </div>
               </div>
             </section>

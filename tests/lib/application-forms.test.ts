@@ -8,6 +8,7 @@ import {
   validateApplicationForm,
   type ApplicationFormRecord,
 } from '@/lib/application-forms';
+import { applicationThemeColors } from '@/lib/application-theme-presets';
 
 describe('application form contract', () => {
   it('creates editable starter forms without fixed system questions', () => {
@@ -16,6 +17,7 @@ describe('application form contract', () => {
     expect(config.coverImageAlt).toBe('');
     expect(config.coverImagePlacement).toBe('header');
     expect(config.themeColor).toBe('');
+    expect(config.themeMode).toBe('light');
     expect(config.questions.some(question => question.label === 'Full name')).toBe(true);
     expect(config.questions.every(question => question.id.startsWith('q-'))).toBe(true);
     config.questions[0].label = 'Preferred name';
@@ -28,6 +30,23 @@ describe('application form contract', () => {
     expect(validateApplicationForm(config)).toEqual([]);
     config.themeColor = 'green';
     expect(validateApplicationForm(config)).toContain('Theme color must use a six-digit hex value.');
+    config.themeColor = '#23E6C8';
+    config.themeMode = 'dark';
+    expect(validateApplicationForm(config)).toEqual([]);
+    config.themeMode = 'dim' as 'dark';
+    expect(validateApplicationForm(config)).toContain('Theme mode is invalid.');
+  });
+
+  it('uses neutral form controls in light and dark application modes', () => {
+    const base = { cta: '#00BF63' } as Parameters<typeof applicationThemeColors>[0];
+    const light = applicationThemeColors(base, '#0056D2', 'platform', undefined, 'light');
+    const dark = applicationThemeColors(base, '#0056D2', 'platform', undefined, 'dark');
+    expect(light.input).toBe('#FFFFFF');
+    expect(light.inputBorder).toBe('#DDE1E7');
+    expect(dark.input).toBe('#191D26');
+    expect(dark.inputBorder).toBe('#343B48');
+    expect(light.cta).toBe('#0056D2');
+    expect(dark.cta).toBe('#0056D2');
   });
 
   it('validates applicant cover images and their placement', () => {

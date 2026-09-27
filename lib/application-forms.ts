@@ -2,6 +2,7 @@ import {
   APPLICATION_THEME_IDS,
   type ApplicationCustomTheme,
   type ApplicationThemeId,
+  type ApplicationThemeMode,
 } from '@/lib/application-theme-presets';
 
 export const APPLICATION_QUESTION_TYPES = [
@@ -57,6 +58,7 @@ export interface ApplicationFormConfig {
   closesAt: string;
   confirmationMessage: string;
   themeColor?: string;
+  themeMode?: ApplicationThemeMode;
   // Legacy fields retained for forms saved before the single-color theme control.
   theme?: ApplicationThemeId;
   customTheme?: ApplicationCustomTheme;
@@ -217,6 +219,7 @@ export function newApplicationFormConfig(template: ApplicationTemplateKey = 'boo
     closesAt: '',
     confirmationMessage: 'Thank you. Your application has been received and our team will review it.',
     themeColor: '',
+    themeMode: 'light',
     questions: starter.questions(),
     stages: DEFAULT_APPLICATION_STAGES.map(stage => ({ ...stage })),
     postSubmission: { type: 'default' },
@@ -250,6 +253,7 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   if (config.coverImagePlacement && !['header', 'inside'].includes(config.coverImagePlacement)) errors.push('Cover image placement is invalid.');
   if (!config.confirmationMessage?.trim()) errors.push('Confirmation message is required.');
   if (config.themeColor && !/^#[0-9a-f]{6}$/i.test(config.themeColor)) errors.push('Theme color must use a six-digit hex value.');
+  if (config.themeMode && !['light', 'dark'].includes(config.themeMode)) errors.push('Theme mode is invalid.');
   if (config.theme && !APPLICATION_THEME_IDS.includes(config.theme)) errors.push('Application theme is invalid.');
   if (config.theme === 'custom') {
     const customColors = Object.values(config.customTheme ?? {});
