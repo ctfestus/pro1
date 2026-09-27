@@ -209,7 +209,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
           {form.availability === 'open' ? <>
             <aside className={`sticky ${preview ? 'top-20' : 'top-3'} z-20 rounded-2xl px-4 py-3 sm:px-5`} style={{ background: C.card }} aria-label={`Application progress: ${requiredComplete} of ${requiredTotal} required fields complete`}>
               <div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-semibold" style={{ color: C.text }}>Application progress</span><span style={{ color: C.faint }}>{requiredComplete} of {requiredTotal} required</span></div>
-              <div className="h-2 overflow-hidden rounded-full" style={{ background: C.input }}><div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress}%`, background: C.cta }} /></div>
+              <div className="h-1.5 overflow-hidden rounded-sm" style={{ background: C.input }}><div className="h-full rounded-sm transition-all duration-300" style={{ width: `${progress}%`, background: C.cta }} /></div>
             </aside>
 
             <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: emailError ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>

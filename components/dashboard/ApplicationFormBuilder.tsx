@@ -1,34 +1,46 @@
 'use client';
 
-import { useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
+  AlignLeft,
+  AtSign,
   ArrowDown,
   ArrowLeft,
   ArrowUp,
   CalendarClock,
+  CalendarDays,
   Check,
+  ChevronDown,
+  ChevronsUpDown,
   Circle,
+  CircleDot,
   Copy,
   Eye,
   FileText,
   GripVertical,
+  Hash,
   LayoutTemplate,
   Link2,
   ListChecks,
   Lock,
+  Minus,
+  Phone,
   Plus,
   Send,
   Settings2,
+  ShieldCheck,
   Sparkles,
   Square,
   Trash2,
+  ToggleLeft,
+  Upload,
   Workflow,
   X,
+  type LucideIcon,
 } from 'lucide-react';
 import { ApplicationStart } from '@/components/ApplicationStart';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import {
-  APPLICATION_QUESTION_TYPES,
   type ApplicationCondition,
   type ApplicationFormRecord,
   type ApplicationPostSubmission,
@@ -36,7 +48,7 @@ import {
   type ApplicationQuestionType,
 } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
-import type { ThemeColors } from '@/lib/theme';
+import { modalStyle, type ThemeColors } from '@/lib/theme';
 
 const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
   short_text: 'Short answer',
@@ -54,6 +66,28 @@ const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
 };
 
 const CHOICE_TYPES: ApplicationQuestionType[] = ['single_choice', 'multiple_choice', 'dropdown'];
+
+const QUESTION_TYPE_ICONS: Record<ApplicationQuestionType, LucideIcon> = {
+  short_text: Minus,
+  long_text: AlignLeft,
+  email: AtSign,
+  phone: Phone,
+  number: Hash,
+  date: CalendarDays,
+  single_choice: CircleDot,
+  multiple_choice: ListChecks,
+  dropdown: ChevronsUpDown,
+  yes_no: ToggleLeft,
+  file: Upload,
+  consent: ShieldCheck,
+};
+
+const QUESTION_TYPE_GROUPS: Array<{ label: string; types: ApplicationQuestionType[] }> = [
+  { label: 'Text', types: ['short_text', 'long_text'] },
+  { label: 'Contact and details', types: ['email', 'phone', 'number', 'date'] },
+  { label: 'Choice', types: ['single_choice', 'multiple_choice', 'dropdown', 'yes_no'] },
+  { label: 'Other', types: ['file', 'consent'] },
+];
 
 const TABS = [
   { id: 'questions', label: 'Questions', icon: ListChecks },
@@ -99,15 +133,90 @@ function SectionHeading({ icon: Icon, title, description, C, action }: {
   return (
     <div className="flex items-start justify-between gap-4">
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.lime, color: C.cta }}>
-          <Icon className="h-5 w-5" />
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.muted }}>
+          <Icon className="h-4 w-4" />
         </span>
         <div>
-          <h2 className="font-bold" style={{ color: C.text }}>{title}</h2>
-          <p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>{description}</p>
+          <h2 className="text-sm font-semibold" style={{ color: C.text }}>{title}</h2>
+          <p className="mt-1 text-[11px] leading-5" style={{ color: C.faint }}>{description}</p>
         </div>
       </div>
       {action}
+    </div>
+  );
+}
+
+function QuestionTypePicker({ value, index, C, onChange }: {
+  value: ApplicationQuestionType;
+  index: number;
+  C: ThemeColors;
+  onChange: (type: ApplicationQuestionType) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const ActiveIcon = QUESTION_TYPE_ICONS[value];
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+    };
+    const closeWithEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    document.addEventListener('keydown', closeWithEscape);
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside);
+      document.removeEventListener('keydown', closeWithEscape);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative ml-auto w-full max-w-48">
+      <button
+        type="button"
+        onClick={() => setOpen(current => !current)}
+        className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-medium"
+        style={{ background: C.input, color: C.text }}
+        aria-label={`Question ${index + 1} type`}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <ActiveIcon className="h-4 w-4 shrink-0" style={{ color: C.faint }} />
+        <span className="min-w-0 flex-1 truncate">{TYPE_LABELS[value]}</span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} style={{ color: C.faint }} />
+      </button>
+      {open && (
+        <div className="absolute right-0 top-[calc(100%+8px)] z-50 max-h-[min(70vh,440px)] w-64 overflow-y-auto rounded-2xl p-2" style={modalStyle(C)} role="listbox" aria-label="Question type">
+          {QUESTION_TYPE_GROUPS.map((group, groupIndex) => (
+            <div key={group.label} className={groupIndex > 0 ? 'mt-1 border-t pt-1' : ''} style={groupIndex > 0 ? { borderColor: C.inputBorder } : undefined}>
+              <p className="px-3 pb-1 pt-2 text-[9px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>{group.label}</p>
+              {group.types.map(type => {
+                const Icon = QUESTION_TYPE_ICONS[type];
+                const selected = value === type;
+                return (
+                  <button
+                    key={type}
+                    type="button"
+                    role="option"
+                    aria-selected={selected}
+                    onClick={event => { event.stopPropagation(); onChange(type); setOpen(false); }}
+                    onMouseEnter={event => { if (!selected) event.currentTarget.style.background = C.input; }}
+                    onMouseLeave={event => { if (!selected) event.currentTarget.style.background = 'transparent'; }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs transition-colors"
+                    style={{ background: selected ? C.pill : 'transparent', color: C.text }}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" style={{ color: selected ? C.cta : C.faint }} />
+                    <span className="flex-1 font-medium">{TYPE_LABELS[type]}</span>
+                    {selected && <Check className="h-3.5 w-3.5" style={{ color: C.cta }} />}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -119,10 +228,10 @@ function Toggle({ checked, onChange, label, C }: {
   C: ThemeColors;
 }) {
   return (
-    <label className="flex cursor-pointer items-center gap-2.5 text-sm font-medium" style={{ color: C.text }}>
+    <label className="flex cursor-pointer items-center gap-2 text-xs font-medium" style={{ color: C.text }}>
       <input className="sr-only" type="checkbox" checked={checked} onChange={event => onChange(event.target.checked)} />
-      <span className="relative h-6 w-11 rounded-full transition-colors" style={{ background: checked ? C.cta : C.inputBorder }}>
-        <span className="absolute top-1 h-4 w-4 rounded-full bg-white transition-all" style={{ left: checked ? 24 : 4 }} />
+      <span className="relative h-5 w-9 rounded-full transition-colors" style={{ background: checked ? C.cta : C.inputBorder }}>
+        <span className="absolute top-[3px] h-3.5 w-3.5 rounded-full bg-white transition-all" style={{ left: checked ? 19 : 3 }} />
       </span>
       {label}
     </label>
@@ -174,13 +283,13 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
 
   const surface: CSSProperties = {
     background: C.card,
-    boxShadow: dragOver ? `inset 0 3px 0 ${C.cta}` : active ? `inset 4px 0 0 ${C.cta}` : 'none',
+    boxShadow: dragOver ? `inset 0 2px 0 ${C.cta}` : 'none',
     opacity: dragging ? 0.55 : 1,
   };
 
   return (
     <article
-      className="relative overflow-hidden rounded-2xl p-4 transition-shadow sm:p-5"
+      className={`relative rounded-2xl p-4 transition-shadow sm:p-5 ${active ? 'z-10' : ''}`}
       style={surface}
       onClick={onActivate}
       onDragEnter={event => { event.preventDefault(); if (!dragging) setDragOver(true); }}
@@ -188,6 +297,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
       onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false); }}
       onDrop={event => { event.preventDefault(); setDragOver(false); onDrop(); }}
     >
+      {active && <span className="absolute bottom-4 left-0 top-4 w-[3px]" style={{ background: C.cta, borderRadius: 2 }} />}
       <div className="mb-4 flex items-center gap-2">
         <button
           type="button"
@@ -203,20 +313,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
           <span className="hidden text-[10px] font-semibold sm:inline">Drag to reorder</span>
         </button>
         <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold" style={{ background: C.pill, color: C.muted }}>{index + 1}</span>
-        <div className="ml-auto w-full max-w-52">
-          <select
-            value={question.type}
-            onChange={event => {
-              const type = event.target.value as ApplicationQuestionType;
-              onUpdate({ type, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined });
-            }}
-            className="w-full"
-            style={{ ...inputStyle, padding: '9px 10px', background: C.input }}
-            aria-label={`Question ${index + 1} type`}
-          >
-            {APPLICATION_QUESTION_TYPES.map(type => <option key={type} value={type}>{TYPE_LABELS[type]}</option>)}
-          </select>
-        </div>
+        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined })} />
       </div>
 
       <input
@@ -225,7 +322,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
         onFocus={onActivate}
         aria-label={`Question ${index + 1} label`}
         placeholder="Question"
-        className="w-full text-base font-semibold"
+        className="w-full text-sm font-semibold"
         style={{ ...inputStyle, background: C.input }}
       />
       <input
@@ -349,31 +446,31 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
     <div className="min-h-screen pb-16" style={{ color: C.text }}>
       <div className="sticky top-0 z-30 -mx-4 mb-6 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6" style={{ background: C.nav }}>
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
-          <button type="button" onClick={onBack} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: C.pill, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Forms</button>
+          <button type="button" onClick={onBack} className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Forms</button>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2"><h1 className="truncate text-sm font-bold sm:text-base" style={{ color: C.text }}>{config.title || 'Untitled application'}</h1><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: form.status === 'published' ? C.successText : C.muted }}>{form.status}</span></div>
             <p className="mt-0.5 hidden text-xs sm:block" style={{ color: C.faint }}>/apply/{form.slug}</p>
           </div>
-          <button type="button" onClick={() => setPreview(true)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-semibold" style={{ background: C.pill, color: C.muted }}><Eye className="h-4 w-4" /> Preview</button>
-          <button type="button" onClick={() => void save()} disabled={saving} className="rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60" style={{ background: C.pill, color: C.text }}>{saving ? 'Saving...' : 'Save'}</button>
-          <button type="button" onClick={() => void save('published')} disabled={saving} className="rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText }}>{form.status === 'published' ? 'Update live form' : 'Publish'}</button>
+          <button type="button" onClick={() => setPreview(true)} className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><Eye className="h-4 w-4" /> Preview</button>
+          <button type="button" onClick={() => void save()} disabled={saving} className="rounded-xl px-4 py-2 text-xs font-semibold disabled:opacity-60" style={{ background: C.pill, color: C.text }}>{saving ? 'Saving...' : 'Save'}</button>
+          <button type="button" onClick={() => void save('published')} disabled={saving} className="rounded-xl px-4 py-2 text-xs font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText }}>{form.status === 'published' ? 'Update live form' : 'Publish'}</button>
         </div>
       </div>
 
       <div className="mx-auto max-w-6xl">
         <nav className="mb-6 flex gap-1 overflow-x-auto rounded-2xl p-1.5" style={{ background: C.card }} aria-label="Form builder sections">
-          {TABS.map(item => { const Icon = item.icon; const selected = tab === item.id; return <button key={item.id} type="button" onClick={() => setTab(item.id)} className="flex min-w-fit flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold transition-colors sm:text-sm" style={{ background: selected ? C.cta : 'transparent', color: selected ? C.ctaText : C.muted }}><Icon className="h-4 w-4" /> {item.label}</button>; })}
+          {TABS.map(item => { const Icon = item.icon; const selected = tab === item.id; return <button key={item.id} type="button" onClick={() => setTab(item.id)} className="flex min-w-fit flex-1 items-center justify-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold transition-colors" style={{ background: selected ? C.cta : 'transparent', color: selected ? C.ctaText : C.muted }}><Icon className="h-3.5 w-3.5" /> {item.label}</button>; })}
         </nav>
 
         {error && <div className="mb-5 flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div>}
 
         {tab === 'questions' && (
-          <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_220px]">
+          <div className="mx-auto max-w-3xl">
             <div className="space-y-5">
               <section className="overflow-hidden rounded-2xl" style={panelStyle}>
                 <div className="p-5 sm:p-6">
                   <SectionHeading icon={LayoutTemplate} title="Cover image" description="Choose from Pexels, upload a new image, or reuse one from your image library." C={C} />
-                  <div className="mt-5">
+                  <div className="mt-4 flex justify-center">
                     <PexelsImagePicker
                       value={config.coverImage || null}
                       altValue={config.coverImageAlt || null}
@@ -381,6 +478,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                       onClear={() => setConfig({ coverImage: '', coverImageAlt: '' })}
                       C={C}
                       token={token}
+                      previewMaxWidth={520}
                     />
                   </div>
                 </div>
@@ -389,17 +487,20 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
 
               <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>
                 <div className="mb-2 flex items-center gap-2 text-xs font-semibold" style={{ color: C.cta }}><LayoutTemplate className="h-4 w-4" /> Form introduction</div>
-                <input value={config.title} onChange={event => setConfig({ title: event.target.value })} placeholder="Form title" className="w-full bg-transparent text-2xl font-bold outline-none sm:text-3xl" style={{ color: C.text }} />
-                <textarea rows={3} value={config.description} onChange={event => setConfig({ description: event.target.value })} placeholder="Describe the programme and what applicants should expect." className="mt-3 w-full resize-none bg-transparent text-sm leading-6 outline-none" style={{ color: C.muted }} />
+                <input value={config.title} onChange={event => setConfig({ title: event.target.value })} placeholder="Form title" className="w-full bg-transparent text-xl font-bold outline-none sm:text-2xl" style={{ color: C.text }} />
+                <textarea rows={3} value={config.description} onChange={event => setConfig({ description: event.target.value })} placeholder="Describe the programme and what applicants should expect." className="mt-3 w-full resize-none bg-transparent text-xs leading-5 outline-none" style={{ color: C.muted }} />
               </section>
+
+              <div className="flex items-end justify-between gap-4 px-1">
+                <div><h2 className="text-sm font-semibold" style={{ color: C.text }}>Questions</h2><p className="mt-1 text-[11px]" style={{ color: C.faint }}>Email plus {config.questions.length} custom question{config.questions.length === 1 ? '' : 's'}.</p></div>
+                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{config.questions.length + 1} fields</span>
+              </div>
 
               <div className="rounded-2xl p-4" style={{ ...panelStyle, background: C.input }}><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}><Lock className="h-4 w-4" /></span><div className="flex-1"><p className="text-sm font-semibold" style={{ color: C.text }}>Email address <span style={{ color: C.errorText }}>*</span></p><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Required system field used for confirmation and secure status access.</p></div><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase" style={{ color: C.successText }}>Always required</span></div></div>
 
               <div className="space-y-4">{config.questions.map((question, index) => <QuestionEditorCard key={question.id} question={question} index={index} questions={config.questions} active={activeQuestionId === question.id} dragging={draggedQuestionId === question.id} C={C} inputStyle={inputStyle} onActivate={() => setActiveQuestionId(question.id)} onUpdate={patch => updateQuestion(index, patch)} onMove={direction => moveQuestion(index, direction)} onDuplicate={() => duplicateQuestion(index)} onRemove={() => removeQuestion(index)} onDragStart={() => setDraggedQuestionId(question.id)} onDragEnd={() => setDraggedQuestionId('')} onDrop={() => dropQuestion(index)} />)}</div>
-              <button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-4 text-sm font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button>
+              <button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button>
             </div>
-
-            <aside className="space-y-3 lg:sticky lg:top-28"><div className="rounded-2xl p-3" style={panelStyle}><p className="px-2 pb-2 text-[10px] font-bold uppercase tracking-widest" style={{ color: C.faint }}>Build tools</p><button type="button" onClick={() => addQuestion(config.questions.findIndex(item => item.id === activeQuestionId))} className="flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}><Plus className="h-4 w-4" /> Add question</button><button type="button" onClick={() => setPreview(true)} className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold" style={{ background: C.input, color: C.text }}><Eye className="h-4 w-4" /> Preview form</button><button type="button" onClick={() => setTab('settings')} className="mt-2 flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left text-sm font-semibold" style={{ background: C.input, color: C.text }}><Settings2 className="h-4 w-4" /> Form settings</button></div><div className="rounded-2xl p-4" style={{ background: C.lime }}><p className="text-xs font-bold" style={{ color: C.text }}>{config.questions.length + 1} fields</p><p className="mt-1 text-[11px] leading-5" style={{ color: C.muted }}>Email plus {config.questions.length} custom question{config.questions.length === 1 ? '' : 's'}.</p></div></aside>
           </div>
         )}
 
@@ -417,8 +518,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
 
         {tab === 'completion' && (
           <div className="mx-auto max-w-4xl space-y-5">
-            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Send} title="After submission" description="Choose what applicants see immediately after completing the form." C={C} /><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{POST_OPTIONS.map(option => { const selected = config.postSubmission.type === option.value; return <button key={option.value} type="button" onClick={() => setConfig({ postSubmission: { ...config.postSubmission, type: option.value } })} className="relative rounded-2xl p-4 text-left" style={{ background: selected ? C.lime : C.input, boxShadow: selected ? `inset 0 0 0 2px ${C.cta}` : 'none' }}>{selected && <span className="absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full" style={{ background: C.cta, color: C.ctaText }}><Check className="h-3.5 w-3.5" /></span>}<p className="pr-7 text-sm font-bold" style={{ color: C.text }}>{option.title}</p><p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>{option.description}</p></button>; })}</div></section>
-            {config.postSubmission.type !== 'default' && <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Sparkles} title="Customize the completion" description="These details appear below the application confirmation." C={C} /><div className="mt-5">{config.postSubmission.type === 'redirect' && <div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Redirect URL</label><input type="url" value={config.postSubmission.redirectUrl ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, redirectUrl: event.target.value } })} placeholder="https://example.com/next" style={inputStyle} /></div>}{config.postSubmission.type === 'button' && <div className="grid gap-3 sm:grid-cols-2"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Button label</label><input value={config.postSubmission.buttonLabel ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, buttonLabel: event.target.value } })} placeholder="Continue" style={inputStyle} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Button URL</label><input type="url" value={config.postSubmission.buttonUrl ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, buttonUrl: event.target.value } })} placeholder="https://example.com" style={inputStyle} /></div></div>}{config.postSubmission.type === 'notice' && <div className="space-y-3"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Notice title</label><input value={config.postSubmission.noticeTitle ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, noticeTitle: event.target.value } })} placeholder="What happens next" style={inputStyle} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Notice message</label><textarea rows={4} value={config.postSubmission.noticeBody ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, noticeBody: event.target.value } })} placeholder="Share timelines, preparation steps, or contact details." style={{ ...inputStyle, resize: 'vertical' }} /></div></div>}{config.postSubmission.type === 'events' && <div><p className="mb-3 text-xs font-semibold" style={{ color: C.muted }}>Choose programmes to recommend</p><div className="grid max-h-80 gap-2 overflow-y-auto sm:grid-cols-2">{relatedItems.length === 0 ? <p className="text-xs" style={{ color: C.faint }}>No published courses or events are available.</p> : relatedItems.map(item => { const checked = (config.postSubmission.relatedEventIds ?? []).includes(item.id); return <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-xl p-3" style={{ background: checked ? C.lime : C.input, color: C.text }}><input type="checkbox" checked={checked} onChange={() => setConfig({ postSubmission: { ...config.postSubmission, relatedEventIds: checked ? (config.postSubmission.relatedEventIds ?? []).filter(id => id !== item.id) : [...(config.postSubmission.relatedEventIds ?? []), item.id] } })} style={{ accentColor: C.cta }} /><span className="min-w-0 flex-1 truncate text-sm font-medium">{item.title}</span><span className="text-[10px] uppercase" style={{ color: C.faint }}>{item.type}</span></label>; })}</div></div>}</div></section>}
+            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Send} title="After submission" description="Choose what applicants see immediately after completing the form." C={C} /><div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{POST_OPTIONS.map(option => { const selected = config.postSubmission.type === option.value; return <button key={option.value} type="button" onClick={() => setConfig({ postSubmission: { ...config.postSubmission, type: option.value } })} className="relative rounded-2xl p-4 text-left" style={{ background: selected ? C.pill : C.input, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }}>{selected && <span className="absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-full" style={{ background: C.cta, color: C.accent }}><Check className="h-3.5 w-3.5" /></span>}<p className="pr-7 text-xs font-bold" style={{ color: C.text }}>{option.title}</p><p className="mt-1 text-[11px] leading-5" style={{ color: C.faint }}>{option.description}</p></button>; })}</div></section>
+            {config.postSubmission.type !== 'default' && <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Sparkles} title="Customize the completion" description="These details appear below the application confirmation." C={C} /><div className="mt-5">{config.postSubmission.type === 'redirect' && <div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Redirect URL</label><input type="url" value={config.postSubmission.redirectUrl ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, redirectUrl: event.target.value } })} placeholder="https://example.com/next" style={inputStyle} /></div>}{config.postSubmission.type === 'button' && <div className="grid gap-3 sm:grid-cols-2"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Button label</label><input value={config.postSubmission.buttonLabel ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, buttonLabel: event.target.value } })} placeholder="Continue" style={inputStyle} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Button URL</label><input type="url" value={config.postSubmission.buttonUrl ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, buttonUrl: event.target.value } })} placeholder="https://example.com" style={inputStyle} /></div></div>}{config.postSubmission.type === 'notice' && <div className="space-y-3"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Notice title</label><input value={config.postSubmission.noticeTitle ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, noticeTitle: event.target.value } })} placeholder="What happens next" style={inputStyle} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Notice message</label><textarea rows={4} value={config.postSubmission.noticeBody ?? ''} onChange={event => setConfig({ postSubmission: { ...config.postSubmission, noticeBody: event.target.value } })} placeholder="Share timelines, preparation steps, or contact details." style={{ ...inputStyle, resize: 'vertical' }} /></div></div>}{config.postSubmission.type === 'events' && <div><p className="mb-3 text-xs font-semibold" style={{ color: C.muted }}>Choose programmes to recommend</p><div className="grid max-h-80 gap-2 overflow-y-auto sm:grid-cols-2">{relatedItems.length === 0 ? <p className="text-xs" style={{ color: C.faint }}>No published courses or events are available.</p> : relatedItems.map(item => { const checked = (config.postSubmission.relatedEventIds ?? []).includes(item.id); return <label key={item.id} className="flex cursor-pointer items-center gap-3 rounded-xl p-3" style={{ background: checked ? C.pill : C.input, color: C.text, boxShadow: checked ? `inset 0 0 0 1px ${C.cta}` : 'none' }}><input type="checkbox" checked={checked} onChange={() => setConfig({ postSubmission: { ...config.postSubmission, relatedEventIds: checked ? (config.postSubmission.relatedEventIds ?? []).filter(id => id !== item.id) : [...(config.postSubmission.relatedEventIds ?? []), item.id] } })} style={{ accentColor: C.cta }} /><span className="min-w-0 flex-1 truncate text-xs font-medium">{item.title}</span><span className="text-[9px] uppercase" style={{ color: C.faint }}>{item.type}</span></label>; })}</div></div>}</div></section>}
           </div>
         )}
       </div>
