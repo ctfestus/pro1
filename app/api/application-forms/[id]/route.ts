@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { validateApplicationForm, type ApplicationFormConfig, type ApplicationFormStatus } from '@/lib/application-forms';
-import { appendApplicationAudit, getApplicationForm, listApplicationForms, listApplicationSubmissions, saveApplicationForm } from '@/lib/application-sheets';
+import { appendApplicationAudit, deleteApplicationFormData, getApplicationForm, listApplicationForms, listApplicationSubmissions, saveApplicationForm } from '@/lib/application-sheets';
 import { newApplicationId } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';
@@ -60,5 +60,27 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   } catch (error) {
     console.error('[application-forms/id/patch]', error);
     return NextResponse.json({ error: (error as Error).message || 'Could not update application form.' }, { status: 503 });
+  }
+}
+
+export async function DELETE(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const auth = await requireRole(req, ['admin', 'instructor']);
+  if (isAuthError(auth)) return auth.error;
+  const { id } = await context.params;
+  try {
+    const form = await getApplicationForm(id);
+    if (!form) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
+    if (auth.role !== 'admin' && form.ownerId !== auth.actor.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    const result = await deleteApplicationFormData(id);
+    if (!result.deleted) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
+    await appendApplicationAudit({
+      id: newApplicationId('audit'), entityType: 'form', entityId: form.id,
+      action: 'deleted', actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: new Date().toISOString(),
+      details: { title: form.config.title, slug: form.slug, submissionCount: result.submissionCount },
+    });
+    return NextResponse.json({ deleted: true, submissionCount: result.submissionCount });
+  } catch (error) {
+    console.error('[application-forms/id/delete]', error);
+    return NextResponse.json({ error: (error as Error).message || 'Could not delete application form.' }, { status: 503 });
   }
 }

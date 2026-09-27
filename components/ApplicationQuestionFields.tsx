@@ -118,7 +118,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                     <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
                       <input className="sr-only" disabled={disabled} type="radio" name={question.id} checked={selected} onChange={() => set(question.id, option)} />
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
-                        {selected && <span className="h-2 w-2 rounded-full bg-white" />}
+                        {selected && <span className="h-2 w-2 rounded-full" style={{ background: C.accent }} />}
                       </span>
                       <span className="text-sm font-medium">{option}</span>
                     </label>
@@ -138,7 +138,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                         set(question.id, selected ? current.filter(item => item !== option) : [...current, option]);
                       }} />
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
-                        {selected && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                        {selected && <Check className="h-3 w-3" strokeWidth={3} style={{ color: C.accent }} />}
                       </span>
                       <span className="text-sm font-medium">{option}</span>
                     </label>
@@ -151,7 +151,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
               <label className="flex cursor-pointer items-start gap-3 px-4 py-4 transition-colors" style={optionStyle(value === true)}>
                 <input className="sr-only" disabled={disabled} type="checkbox" checked={value === true} onChange={event => set(question.id, event.target.checked)} />
                 <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ border: `2px solid ${value === true ? C.cta : C.inputBorder}`, background: value === true ? C.cta : C.card }}>
-                  {value === true && <Check className="h-3 w-3 text-white" strokeWidth={3} />}
+                  {value === true && <Check className="h-3 w-3" strokeWidth={3} style={{ color: C.accent }} />}
                 </span>
                 <span className="text-sm leading-5">I agree and give my consent.</span>
               </label>

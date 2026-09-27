@@ -8,8 +8,8 @@ export async function GET(req: NextRequest) {
   if (isAuthError(auth)) return auth.error;
   const [{ data: reviewers, error }, { data: courses }, { data: events }] = await Promise.all([
     auth.serviceDb.from('students').select('id, email, full_name, role').in('role', ['admin', 'instructor', 'staff']).order('full_name').limit(500),
-    auth.serviceDb.from('courses').select('id, title, slug, user_id, status').eq('status', 'published').limit(500),
-    auth.serviceDb.from('events').select('id, title, slug, user_id, status').eq('status', 'published').limit(500),
+    auth.serviceDb.from('courses').select('id, title, slug, user_id, status, description, cover_image, category').eq('status', 'published').limit(500),
+    auth.serviceDb.from('events').select('id, title, slug, user_id, status, description, cover_image, event_date, event_type, location').eq('status', 'published').limit(500),
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   const items = [
@@ -19,6 +19,8 @@ export async function GET(req: NextRequest) {
   const visible = auth.role === 'admin' ? items : items.filter(item => item.user_id === auth.actor.id);
   return NextResponse.json({
     reviewers: reviewers ?? [],
-    relatedItems: visible.map(item => ({ id: item.id, title: item.title, slug: item.slug, type: item.type })),
+    relatedItems: visible.map(item => item.type === 'course'
+      ? { id: item.id, title: item.title, slug: item.slug, type: item.type, description: item.description ?? '', coverImage: item.cover_image ?? '', category: item.category ?? '' }
+      : { id: item.id, title: item.title, slug: item.slug, type: item.type, description: item.description ?? '', coverImage: item.cover_image ?? '', date: item.event_date ?? '', eventType: item.event_type ?? '', location: item.location ?? '' }),
   });
 }

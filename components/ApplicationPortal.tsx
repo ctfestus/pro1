@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { CheckCircle2, ExternalLink, Loader2 } from 'lucide-react';
+import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
+import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { useC, cardStyle } from '@/lib/theme';
 
 export function ApplicationPortal({ token }: { token: string }) {
@@ -59,7 +61,7 @@ export function ApplicationPortal({ token }: { token: string }) {
         </div>
         {post.type === 'notice' && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="text-sm mt-2 whitespace-pre-line" style={{ color: C.muted }}>{post.noticeBody}</p></div>}
         {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl p-3 font-semibold text-sm" style={{ background: C.cta, color: C.ctaText }}>{post.buttonLabel || 'Continue'} <ExternalLink className="w-4 h-4" /></a>}
-        {post.type === 'events' && data.relatedItems?.length > 0 && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="font-bold mb-3" style={{ color: C.text }}>You might also like</h2><div className="space-y-2">{data.relatedItems.map((item: any) => <a key={item.id} href={`/${item.slug || item.id}`} className="flex items-center justify-between rounded-xl p-3 text-sm" style={{ background: C.input, color: C.text }}><span>{item.title}</span><ExternalLink className="w-4 h-4" /></a>)}</div></div>}
+        {post.type === 'events' && data.relatedItems?.length > 0 && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="mb-4 font-bold" style={{ color: C.text }}>You might also like</h2><ApplicationRelatedCards items={data.relatedItems as ApplicationRelatedItem[]} C={C} /></div>}
       </div>
     </main>
   );

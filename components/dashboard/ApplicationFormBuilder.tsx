@@ -129,11 +129,12 @@ function Toggle({ checked, onChange, label, C }: {
   );
 }
 
-function QuestionEditorCard({ question, index, questions, active, C, inputStyle, onActivate, onUpdate, onMove, onDuplicate, onRemove, onDragStart, onDrop }: {
+function QuestionEditorCard({ question, index, questions, active, dragging, C, inputStyle, onActivate, onUpdate, onMove, onDuplicate, onRemove, onDragStart, onDragEnd, onDrop }: {
   question: ApplicationQuestion;
   index: number;
   questions: ApplicationQuestion[];
   active: boolean;
+  dragging: boolean;
   C: ThemeColors;
   inputStyle: CSSProperties;
   onActivate: () => void;
@@ -142,9 +143,11 @@ function QuestionEditorCard({ question, index, questions, active, C, inputStyle,
   onDuplicate: () => void;
   onRemove: () => void;
   onDragStart: () => void;
+  onDragEnd: () => void;
   onDrop: () => void;
 }) {
   const [logicOpen, setLogicOpen] = useState(Boolean(question.condition));
+  const [dragOver, setDragOver] = useState(false);
   const isChoice = CHOICE_TYPES.includes(question.type);
 
   function updateOption(optionIndex: number, value: string) {
@@ -171,7 +174,8 @@ function QuestionEditorCard({ question, index, questions, active, C, inputStyle,
 
   const surface: CSSProperties = {
     background: C.card,
-    boxShadow: active ? `inset 4px 0 0 ${C.cta}` : 'none',
+    boxShadow: dragOver ? `inset 0 3px 0 ${C.cta}` : active ? `inset 4px 0 0 ${C.cta}` : 'none',
+    opacity: dragging ? 0.55 : 1,
   };
 
   return (
@@ -179,19 +183,24 @@ function QuestionEditorCard({ question, index, questions, active, C, inputStyle,
       className="relative overflow-hidden rounded-2xl p-4 transition-shadow sm:p-5"
       style={surface}
       onClick={onActivate}
-      onDragOver={event => event.preventDefault()}
-      onDrop={event => { event.preventDefault(); onDrop(); }}
+      onDragEnter={event => { event.preventDefault(); if (!dragging) setDragOver(true); }}
+      onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; }}
+      onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOver(false); }}
+      onDrop={event => { event.preventDefault(); setDragOver(false); onDrop(); }}
     >
       <div className="mb-4 flex items-center gap-2">
         <button
           type="button"
           draggable
-          onDragStart={event => { event.dataTransfer.effectAllowed = 'move'; onDragStart(); }}
-          className="cursor-grab rounded-lg p-1.5 active:cursor-grabbing"
-          style={{ color: C.faint }}
+          onDragStart={event => { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', question.id); onDragStart(); }}
+          onDragEnd={onDragEnd}
+          className="flex cursor-grab items-center gap-1.5 rounded-lg px-2 py-1.5 active:cursor-grabbing"
+          style={{ background: dragging ? C.pill : C.input, color: dragging ? C.cta : C.faint }}
           aria-label={`Drag question ${index + 1}`}
+          title="Drag to reorder"
         >
           <GripVertical className="h-4 w-4" />
+          <span className="hidden text-[10px] font-semibold sm:inline">Drag to reorder</span>
         </button>
         <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold" style={{ background: C.pill, color: C.muted }}>{index + 1}</span>
         <div className="ml-auto w-full max-w-52">
@@ -386,7 +395,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
 
               <div className="rounded-2xl p-4" style={{ ...panelStyle, background: C.input }}><div className="flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}><Lock className="h-4 w-4" /></span><div className="flex-1"><p className="text-sm font-semibold" style={{ color: C.text }}>Email address <span style={{ color: C.errorText }}>*</span></p><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Required system field used for confirmation and secure status access.</p></div><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase" style={{ color: C.successText }}>Always required</span></div></div>
 
-              <div className="space-y-4">{config.questions.map((question, index) => <QuestionEditorCard key={question.id} question={question} index={index} questions={config.questions} active={activeQuestionId === question.id} C={C} inputStyle={inputStyle} onActivate={() => setActiveQuestionId(question.id)} onUpdate={patch => updateQuestion(index, patch)} onMove={direction => moveQuestion(index, direction)} onDuplicate={() => duplicateQuestion(index)} onRemove={() => removeQuestion(index)} onDragStart={() => setDraggedQuestionId(question.id)} onDrop={() => dropQuestion(index)} />)}</div>
+              <div className="space-y-4">{config.questions.map((question, index) => <QuestionEditorCard key={question.id} question={question} index={index} questions={config.questions} active={activeQuestionId === question.id} dragging={draggedQuestionId === question.id} C={C} inputStyle={inputStyle} onActivate={() => setActiveQuestionId(question.id)} onUpdate={patch => updateQuestion(index, patch)} onMove={direction => moveQuestion(index, direction)} onDuplicate={() => duplicateQuestion(index)} onRemove={() => removeQuestion(index)} onDragStart={() => setDraggedQuestionId(question.id)} onDragEnd={() => setDraggedQuestionId('')} onDrop={() => dropQuestion(index)} />)}</div>
               <button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-4 text-sm font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button>
             </div>
 

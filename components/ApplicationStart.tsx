@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, Clock, ExternalLink, Loader2, Mail, Send, ShieldCheck } from 'lucide-react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
+import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
 import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { useC, cardStyle } from '@/lib/theme';
@@ -180,7 +181,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
           {post.type === 'notice' && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 20 }}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{post.noticeBody}</p></section>}
           {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 p-4 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText, borderRadius: 16 }}>{post.buttonLabel || 'Continue'} <ExternalLink className="h-4 w-4" /></a>}
           {post.type === 'redirect' && <div className="p-4 text-center text-sm" style={{ ...cardStyle(C), color: C.muted, borderRadius: 16 }}>{preview ? 'Participants will be redirected after submission.' : <><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Redirecting in a moment...</>}</div>}
-          {post.type === 'events' && relatedItems.length > 0 && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 20 }}><h2 className="mb-3 font-bold" style={{ color: C.text }}>You might also like</h2><div className="space-y-2.5">{relatedItems.map(item => <a key={item.id} href={`/${item.slug || item.id}`} className="flex items-center justify-between gap-3 p-4 text-sm font-medium" style={{ background: C.input, color: C.text, borderRadius: 14 }}><span>{item.title}</span><span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}><ArrowRight className="h-4 w-4" /></span></a>)}</div></section>}
+          {post.type === 'events' && relatedItems.length > 0 && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 20 }}><h2 className="mb-4 font-bold" style={{ color: C.text }}>You might also like</h2><ApplicationRelatedCards items={relatedItems} C={C} /></section>}
         </div>
       </main>
     );
@@ -201,15 +202,16 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
               <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
               {form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.input, borderRadius: 16 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
-              {form.availability === 'open' && <div className="mt-7">
-                <div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-semibold" style={{ color: C.text }}>Required fields</span><span style={{ color: C.faint }}>{requiredComplete} of {requiredTotal} complete</span></div>
-                <div className="h-2 overflow-hidden rounded-full" style={{ background: C.input }}><div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress}%`, background: C.cta }} /></div>
-                <div className="mt-3 flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div>
-              </div>}
+              {form.availability === 'open' && <div className="mt-6 flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div>}
             </div>
           </section>
 
           {form.availability === 'open' ? <>
+            <aside className={`sticky ${preview ? 'top-20' : 'top-3'} z-20 rounded-2xl px-4 py-3 sm:px-5`} style={{ background: C.card }} aria-label={`Application progress: ${requiredComplete} of ${requiredTotal} required fields complete`}>
+              <div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-semibold" style={{ color: C.text }}>Application progress</span><span style={{ color: C.faint }}>{requiredComplete} of {requiredTotal} required</span></div>
+              <div className="h-2 overflow-hidden rounded-full" style={{ background: C.input }}><div className="h-full rounded-full transition-all duration-300" style={{ width: `${progress}%`, background: C.cta }} /></div>
+            </aside>
+
             <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: emailError ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
               <div className="mb-4 flex items-start gap-3">
                 <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: emailError ? C.errorBg : C.pill, color: emailError ? C.errorText : C.muted }}>1</span>

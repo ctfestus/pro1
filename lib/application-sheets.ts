@@ -160,6 +160,28 @@ export async function saveApplicationForm(form: ApplicationFormRecord): Promise<
   else await replaceRow(FORM_SHEET, 'H', index + 2, formToRow(form));
 }
 
+export async function deleteApplicationFormData(formId: string): Promise<{ deleted: boolean; submissionCount: number }> {
+  const [forms, submissions] = await Promise.all([
+    rows(FORM_SHEET, 'H'),
+    rows(SUBMISSION_SHEET, 'Q'),
+  ]);
+  const formIndex = forms.findIndex(row => row[0] === formId);
+  if (formIndex === -1) return { deleted: false, submissionCount: 0 };
+
+  const submissionIndexes = submissions
+    .map((row, index) => row[1] === formId ? index : -1)
+    .filter(index => index >= 0);
+  const ranges = [
+    `${quoteSheet(FORM_SHEET)}!A${formIndex + 2}:H${formIndex + 2}`,
+    ...submissionIndexes.map(index => `${quoteSheet(SUBMISSION_SHEET)}!A${index + 2}:Q${index + 2}`),
+  ];
+  await getGoogleSheetsClient().spreadsheets.values.batchClear({
+    spreadsheetId: getGoogleSpreadsheetId(),
+    requestBody: { ranges },
+  });
+  return { deleted: true, submissionCount: submissionIndexes.length };
+}
+
 export async function listApplicationSubmissions(formId?: string): Promise<ApplicationSubmissionRecord[]> {
   const all = (await rows(SUBMISSION_SHEET, 'Q')).filter(row => row[0]).map(submissionFromRow);
   return formId ? all.filter(item => item.formId === formId) : all;

@@ -4,11 +4,11 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(), listForms: vi.fn(), getForm: vi.fn(), getFormBySlug: vi.fn(), getSubmission: vi.fn(),
   getSubmissionByTokenHash: vi.fn(), listSubmissions: vi.fn(), saveForm: vi.fn(),
-  saveSubmission: vi.fn(), appendAudit: vi.fn(), sendConfirmation: vi.fn(),
+  deleteFormData: vi.fn(), saveSubmission: vi.fn(), appendAudit: vi.fn(), sendConfirmation: vi.fn(),
   sendDecision: vi.fn(), related: vi.fn(),
 }));
 const { requireRole, listForms, getForm, getFormBySlug, getSubmission, getSubmissionByTokenHash, listSubmissions,
-  saveForm, saveSubmission, appendAudit, sendConfirmation, sendDecision, related } = mocks;
+  saveForm, deleteFormData, saveSubmission, appendAudit, sendConfirmation, sendDecision, related } = mocks;
 
 vi.mock('@/lib/api-auth', () => ({ requireRole: mocks.requireRole, isAuthError: (value: any) => Boolean(value?.error) }));
 vi.mock('@/lib/application-sheets', () => ({
@@ -19,6 +19,7 @@ vi.mock('@/lib/application-sheets', () => ({
   getApplicationSubmissionByTokenHash: mocks.getSubmissionByTokenHash,
   listApplicationSubmissions: mocks.listSubmissions,
   saveApplicationForm: mocks.saveForm,
+  deleteApplicationFormData: mocks.deleteFormData,
   saveApplicationSubmission: mocks.saveSubmission,
   appendApplicationAudit: mocks.appendAudit,
 }));
@@ -30,7 +31,7 @@ vi.mock('@/lib/application-related', () => ({ resolveApplicationRelatedItems: mo
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
 import { POST as createForm } from '@/app/api/application-forms/route';
-import { PATCH as updateForm } from '@/app/api/application-forms/[id]/route';
+import { DELETE as deleteForm, PATCH as updateForm } from '@/app/api/application-forms/[id]/route';
 import { GET as exportSubmissions } from '@/app/api/application-forms/[id]/submissions/route';
 import { POST as submitPublicForm } from '@/app/api/public/application-forms/[slug]/route';
 import { GET as applicantStatus, POST as submitApplication } from '@/app/api/public/applications/[token]/route';
@@ -52,7 +53,7 @@ beforeEach(() => {
   requireRole.mockResolvedValue({ role: 'admin', actor: { id: 'owner-1', email: 'owner@example.com' }, user: { id: 'owner-1' }, serviceDb: {} });
   listForms.mockResolvedValue([]); getForm.mockResolvedValue(form); getFormBySlug.mockResolvedValue(form); getSubmission.mockResolvedValue(submission);
   getSubmissionByTokenHash.mockResolvedValue(submission); listSubmissions.mockResolvedValue([submission]);
-  saveForm.mockResolvedValue(undefined); saveSubmission.mockResolvedValue(undefined); appendAudit.mockResolvedValue(undefined);
+  saveForm.mockResolvedValue(undefined); deleteFormData.mockResolvedValue({ deleted: true, submissionCount: 2 }); saveSubmission.mockResolvedValue(undefined); appendAudit.mockResolvedValue(undefined);
   sendConfirmation.mockResolvedValue(undefined); sendDecision.mockResolvedValue(undefined); related.mockResolvedValue([]);
 });
 
@@ -89,6 +90,30 @@ describe('application end-to-end route boundaries', () => {
 
     expect(response.status).toBe(409);
     expect((await response.json()).error).toContain('already in use');
+  });
+
+  it('deletes an owned form and its submissions', async () => {
+    const response = await deleteForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'DELETE',
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ deleted: true, submissionCount: 2 });
+    expect(deleteFormData).toHaveBeenCalledWith(form.id);
+    expect(appendAudit).toHaveBeenCalledWith(expect.objectContaining({
+      action: 'deleted',
+      details: expect.objectContaining({ title: form.config.title, submissionCount: 2 }),
+    }));
+  });
+
+  it('prevents an instructor from deleting another instructor form', async () => {
+    requireRole.mockResolvedValue({ role: 'instructor', actor: { id: 'other-owner', email: 'other@example.com' }, user: { id: 'other-owner' }, serviceDb: {} });
+    const response = await deleteForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'DELETE',
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    expect(response.status).toBe(403);
+    expect(deleteFormData).not.toHaveBeenCalled();
   });
 
   it('validates and stores a submitted application with a reference', async () => {
