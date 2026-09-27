@@ -46,6 +46,10 @@ select:focus-visible,
 .application-theme-scope [contenteditable="true"]:focus-visible {
   outline-color: var(--application-focus-color) !important;
 }
+.application-theme-scope .application-dropdown-trigger:focus-visible {
+  outline: 2px solid var(--application-focus-color) !important;
+  outline-offset: 1px;
+}
 /* CodeMirror editors (SQL workbench, etc.) show focus via their own active-line
    tint, and their editable surface is a [contenteditable] that the rule above
    would ring in green -- a 2px outline the scroller clips into a stray green bar
