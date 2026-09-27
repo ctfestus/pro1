@@ -37,6 +37,15 @@ select:focus-visible,
 [data-theme="dark"] [contenteditable="true"]:focus-visible {
   outline-color: #00bf63 !important;
 }
+
+/* Application forms can use a per-form theme. Keep the global accessible focus ring, but source
+   its color from that form instead of forcing the platform green over every selected theme. */
+.application-theme-scope input:focus-visible,
+.application-theme-scope textarea:focus-visible,
+.application-theme-scope select:focus-visible,
+.application-theme-scope [contenteditable="true"]:focus-visible {
+  outline-color: var(--application-focus-color) !important;
+}
 /* CodeMirror editors (SQL workbench, etc.) show focus via their own active-line
    tint, and their editable surface is a [contenteditable] that the rule above
    would ring in green -- a 2px outline the scroller clips into a stray green bar
