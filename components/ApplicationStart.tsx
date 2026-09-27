@@ -34,15 +34,15 @@ function ApplicationDeadlineTimer({ closesAt, C }: { closesAt: string; C: ThemeC
   }, [deadline]);
 
   if (expired) {
-    return <div className="flex items-center gap-3 rounded-2xl p-4" style={{ background: C.errorBg, color: C.errorText }}><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.card }}><Clock className="h-5 w-5" /></span><div><p className="text-sm font-bold">Applications closed</p><p className="mt-0.5 text-xs opacity-75">The application deadline has passed.</p></div></div>;
+    return <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5" style={{ background: C.errorBg, color: C.errorText }}><span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: C.card }}><Clock className="h-3.5 w-3.5" /></span><div><p className="text-xs font-bold uppercase tracking-wider">Applications closed</p><p className="text-[10px] opacity-70">The deadline has passed.</p></div></div>;
   }
 
   const totalSeconds = Math.floor(remaining / 1000);
   const units = [
-    { label: 'Days', value: Math.floor(totalSeconds / 86400) },
-    { label: 'Hours', value: Math.floor((totalSeconds % 86400) / 3600) },
-    { label: 'Minutes', value: Math.floor((totalSeconds % 3600) / 60) },
-    { label: 'Seconds', value: totalSeconds % 60 },
+    { label: 'Days', shortLabel: 'D', value: Math.floor(totalSeconds / 86400) },
+    { label: 'Hours', shortLabel: 'H', value: Math.floor((totalSeconds % 86400) / 3600) },
+    { label: 'Minutes', shortLabel: 'M', value: Math.floor((totalSeconds % 3600) / 60) },
+    { label: 'Seconds', shortLabel: 'S', value: totalSeconds % 60 },
   ];
   const closingDate = new Date(closesAt).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit' });
 
@@ -51,34 +51,34 @@ function ApplicationDeadlineTimer({ closesAt, C }: { closesAt: string; C: ThemeC
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35, ease: 'easeOut' }}
-      className="overflow-hidden rounded-2xl p-4 sm:p-5"
+      className="relative flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 sm:px-4"
       style={{ background: C.input }}
       role="timer"
       aria-label={`Applications close in ${units[0].value} days, ${units[1].value} hours, ${units[2].value} minutes, and ${units[3].value} seconds`}
     >
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3">
-          <span className="relative grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.card, color: C.accent }}>
-            <motion.span className="absolute inset-0 rounded-xl" style={{ background: C.accent }} animate={{ scale: [1, 1.35], opacity: [0.18, 0] }} transition={{ duration: 1.8, repeat: Infinity, ease: 'easeOut' }} />
-            <Clock className="relative h-4.5 w-4.5" />
-          </span>
-          <div>
-            <p className="text-sm font-bold" style={{ color: C.text }}>Applications close in</p>
-            <p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>{closingDate}</p>
-          </div>
+      <motion.span className="pointer-events-none absolute inset-y-0 w-12 -skew-x-12" style={{ background: `linear-gradient(90deg, transparent, color-mix(in srgb, ${C.accent} 14%, transparent), transparent)` }} animate={{ left: ['-20%', '120%'] }} transition={{ duration: 4, repeat: Infinity, repeatDelay: 1.5, ease: 'easeInOut' }} />
+      <div className="relative flex min-w-0 items-center gap-2.5">
+        <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: C.card, color: C.accent }}>
+          <motion.span className="absolute h-1.5 w-1.5 rounded-full" style={{ background: C.accent }} animate={{ opacity: [1, 0.25, 1], scale: [1, 0.75, 1] }} transition={{ duration: 1.2, repeat: Infinity }} />
+          <Clock className="h-3.5 w-3.5 opacity-0" />
+        </span>
+        <div className="min-w-0">
+          <p className="whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: C.muted }}>Closes in</p>
+          <p className="hidden truncate text-[9px] sm:block" style={{ color: C.faint }}>{closingDate}</p>
         </div>
-        <span className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider" style={{ background: C.card, color: C.muted }}><motion.span className="h-1.5 w-1.5 rounded-full" style={{ background: C.accent }} animate={{ opacity: [0.35, 1, 0.35] }} transition={{ duration: 1.4, repeat: Infinity }} /> Live</span>
       </div>
-      <div className="mt-4 grid grid-cols-4 gap-2 sm:gap-3" aria-hidden="true">
-        {units.map(unit => (
-          <div key={unit.label} className="relative overflow-hidden rounded-xl px-1 py-3 text-center sm:py-4" style={{ background: C.card }}>
-            <AnimatePresence initial={false} mode="popLayout">
-              <motion.span key={unit.value} initial={{ opacity: 0, y: -12, filter: 'blur(4px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: 12, filter: 'blur(4px)' }} transition={{ duration: 0.22, ease: 'easeOut' }} className="block text-xl font-bold tabular-nums sm:text-2xl" style={{ color: C.text }}>
-                {String(unit.value).padStart(2, '0')}
-              </motion.span>
-            </AnimatePresence>
-            <span className="mt-1 block text-[8px] font-bold uppercase tracking-wider sm:text-[9px]" style={{ color: C.faint }}>{unit.label}</span>
-            {unit.label === 'Seconds' && <motion.span key={unit.value} className="absolute inset-x-0 bottom-0 h-0.5 origin-left" style={{ background: C.accent }} initial={{ scaleX: 1 }} animate={{ scaleX: 0 }} transition={{ duration: 1, ease: 'linear' }} />}
+      <div className="relative ml-auto flex items-center" style={{ fontFamily: 'var(--font-mono), ui-monospace, monospace' }} aria-hidden="true">
+        {units.map((unit, index) => (
+          <div key={unit.label} className="flex items-center">
+            <span className="relative inline-flex min-w-[34px] items-baseline justify-center overflow-hidden rounded-lg px-1.5 py-1.5 sm:min-w-[42px]" style={{ background: C.card }}>
+              <AnimatePresence initial={false} mode="popLayout">
+                <motion.span key={unit.value} initial={{ opacity: 0, y: -8, filter: 'blur(3px)' }} animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }} exit={{ opacity: 0, y: 8, filter: 'blur(3px)' }} transition={{ duration: 0.18, ease: 'easeOut' }} className="text-sm font-bold tabular-nums sm:text-base" style={{ color: unit.label === 'Seconds' ? C.accent : C.text }}>
+                  {String(unit.value).padStart(2, '0')}
+                </motion.span>
+              </AnimatePresence>
+              <span className="ml-0.5 text-[7px] font-bold" style={{ color: C.faint }}>{unit.shortLabel}</span>
+            </span>
+            {index < units.length - 1 && <motion.span className="mx-0.5 text-[10px] font-bold sm:mx-1" style={{ color: C.faint }} animate={{ opacity: [0.3, 1, 0.3] }} transition={{ duration: 1, repeat: Infinity }}>:</motion.span>}
           </div>
         ))}
       </div>
