@@ -21,7 +21,7 @@ function itemMeta(item: ApplicationRelatedItem): string {
 
 export function ApplicationRelatedCards({ items, C }: { items: ApplicationRelatedItem[]; C: ThemeColors }) {
   return (
-    <div className="space-y-4">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {items.map(item => {
         const cover = resolveCoverUrl(item.coverImage);
         const description = toPlainText(item.description);
