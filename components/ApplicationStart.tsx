@@ -161,7 +161,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   if (submission) {
     const statusUrl = `/applications/${encodeURIComponent(sessionToken)}`;
     return (
-      <main className="min-h-screen px-4 py-8 sm:py-12" style={{ background: C.page }}>
+      <main className="platform-font-scope min-h-screen px-4 py-8 sm:py-12" style={{ background: C.page }}>
         <div className="relative mx-auto max-w-3xl space-y-4">
           {coverImage && <div className="h-48 overflow-hidden sm:h-72" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
           <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 24 }}>
@@ -188,7 +188,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   }
 
   return (
-    <main className="min-h-screen px-4 py-6 sm:py-10" style={{ background: C.page }}>
+    <main className="platform-font-scope min-h-screen px-4 py-6 sm:py-10" style={{ background: C.page }}>
       <div className="mx-auto max-w-3xl">
         {coverImage && coverPlacement === 'header' && <div className="mb-4 h-52 overflow-hidden sm:h-80" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
         <form onSubmit={submit} className="space-y-4">

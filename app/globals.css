@@ -90,6 +90,14 @@ body {
   overflow-x: hidden;
 }
 
+.platform-font-scope {
+  font-family: var(--platform-body-font, var(--font-sans), sans-serif);
+}
+
+.platform-font-scope :where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--platform-heading-font, var(--platform-body-font, var(--font-sans), sans-serif));
+}
+
 /* Balance multi-line headings so the last line isn't a lone orphan word.
    Only affects headings that wrap; single-line headings are untouched. */
 h1, h2, h3, h4 {

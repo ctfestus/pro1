@@ -215,7 +215,7 @@ export default function DashboardPage() {
   // -- Loading skeleton ---
   if (loading) {
     return (
-      <div className="min-h-screen animate-pulse" style={{ background: C.page }}>
+      <div className="platform-font-scope min-h-screen animate-pulse" style={{ background: C.page }}>
         <div className="sticky top-0 z-20 border-b px-6 md:px-10 h-14 flex items-center justify-between backdrop-blur-md" style={{ background: C.nav, borderColor: C.navBorder }}>
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-lg" style={{ background: C.skeleton }}/>
@@ -258,8 +258,7 @@ export default function DashboardPage() {
   const eventCount  = forms.filter(f => getFormType(f) === 'event').length;
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: C.page }}>
-      <style>{`@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'); *{font-family:'Inter',sans-serif;}`}</style>
+    <div className="platform-font-scope min-h-screen flex flex-col" style={{ background: C.page }}>
 
       {/* -- Navbar -- */}
       <nav className="sticky top-0 z-30 border-b h-14 flex items-center justify-between px-4 md:px-6 backdrop-blur-md flex-shrink-0"
