@@ -15,21 +15,19 @@ describe('application form contract', () => {
     expect(config.coverImage).toBe('');
     expect(config.coverImageAlt).toBe('');
     expect(config.coverImagePlacement).toBe('header');
-    expect(config.theme).toBe('platform');
-    expect(config.customTheme?.primary).toMatch(/^#[0-9A-F]{6}$/i);
+    expect(config.themeColor).toBe('');
     expect(config.questions.some(question => question.label === 'Full name')).toBe(true);
     expect(config.questions.every(question => question.id.startsWith('q-'))).toBe(true);
     config.questions[0].label = 'Preferred name';
     expect(validateApplicationForm(config)).toEqual([]);
   });
 
-  it('validates custom application themes without changing the sheet contract', () => {
+  it('validates the single application theme color', () => {
     const config = newApplicationFormConfig();
-    config.theme = 'custom';
-    config.customTheme = { background: '#071316', surface: '#0C2024', primary: '#23E6C8', accent: '#FFB547', text: '#F2FFFD' };
+    config.themeColor = '#23E6C8';
     expect(validateApplicationForm(config)).toEqual([]);
-    config.customTheme.primary = 'green';
-    expect(validateApplicationForm(config)).toContain('Custom theme colors must use six-digit hex values.');
+    config.themeColor = 'green';
+    expect(validateApplicationForm(config)).toContain('Theme color must use a six-digit hex value.');
   });
 
   it('validates applicant cover images and their placement', () => {

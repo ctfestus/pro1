@@ -7,7 +7,7 @@ import { ApplicationQuestionFields } from '@/components/ApplicationQuestionField
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
 import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
-import { applicationThemeColors, DEFAULT_APPLICATION_CUSTOM_THEME } from '@/lib/application-theme-presets';
+import { applicationThemeColors } from '@/lib/application-theme-presets';
 import { useC, cardStyle, type ThemeColors } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -249,7 +249,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     return <div className="min-h-screen grid place-items-center px-4" style={{ background: baseC.page, color: baseC.errorText }}>{message}</div>;
   }
 
-  const C = applicationThemeColors(baseC, form.config.theme ?? 'platform', form.config.customTheme ?? DEFAULT_APPLICATION_CUSTOM_THEME);
+  const C = applicationThemeColors(baseC, form.config.themeColor, form.config.theme ?? 'platform', form.config.customTheme);
   const themedPageStyle = { background: C.page, '--application-focus-color': C.cta } as CSSProperties;
   const post = form.config.postSubmission;
   const coverImage = form.config.coverImage?.trim();
