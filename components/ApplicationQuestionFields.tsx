@@ -9,7 +9,7 @@ import {
 } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
-export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, previewUploads = false, disabled = false, startAt = 2 }: {
+export function ApplicationQuestionFields({ questions, answers, onChange, errors = {}, C, uploadToken, ensureUploadToken, previewUploads = false, disabled = false, startAt = 2, focused = false, autoFocus = false }: {
   questions: ApplicationQuestion[];
   answers: Record<string, ApplicationAnswer>;
   onChange: (answers: Record<string, ApplicationAnswer>) => void;
@@ -20,6 +20,8 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
   previewUploads?: boolean;
   disabled?: boolean;
   startAt?: number;
+  focused?: boolean;
+  autoFocus?: boolean;
 }) {
   const [uploading, setUploading] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<Record<string, string>>({});
@@ -37,7 +39,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
   async function upload(questionId: string, file: File) {
     if (previewUploads) {
-      set(questionId, { url: '#', publicId: 'preview', name: file.name, size: file.size, type: file.type });
+      set(questionId, { url: '#', publicId: 'applications/preview', name: file.name, size: file.size, type: file.type });
       return;
     }
     setUploading(questionId);
@@ -73,8 +75,8 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
         const value = answers[question.id];
         const error = errors[question.id] || uploadError[question.id];
         return (
-          <section key={question.id} className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
-            <div className="mb-4 flex items-start gap-3">
+          <section key={question.id} className={focused ? '' : 'rounded-2xl p-5 sm:p-6'} style={focused ? undefined : { background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
+            {!focused && <div className="mb-4 flex items-start gap-3">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: error ? C.errorBg : C.pill, color: error ? C.errorText : C.muted }}>{startAt + index}</span>
               <div className="min-w-0 flex-1">
                 <label className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>
@@ -83,15 +85,16 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                 {question.helpText && <p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>{question.helpText}</p>}
               </div>
               {!question.required && <span className="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.faint }}>Optional</span>}
-            </div>
+            </div>}
 
             {question.type === 'long_text' && (
-              <textarea disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder || 'Type your answer'} onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical', minHeight: 132 }} />
+              <textarea autoFocus={autoFocus} disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder || 'Type your answer'} onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical', minHeight: 132 }} />
             )}
 
             {['short_text', 'email', 'phone', 'number', 'date'].includes(question.type) && (
               <input
                 disabled={disabled}
+                autoFocus={autoFocus}
                 type={question.type === 'short_text' ? 'text' : question.type === 'phone' ? 'tel' : question.type}
                 value={String(value ?? '')}
                 placeholder={question.placeholder || 'Type your answer'}
@@ -102,7 +105,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
             {question.type === 'dropdown' && (
               <div className="relative">
-                <select disabled={disabled} value={String(value ?? '')} onChange={event => set(question.id, event.target.value)} className="appearance-none" style={{ ...inputStyle, paddingRight: 44 }}>
+                <select autoFocus={autoFocus} disabled={disabled} value={String(value ?? '')} onChange={event => set(question.id, event.target.value)} className="appearance-none" style={{ ...inputStyle, paddingRight: 44 }}>
                   <option value="">Select an option</option>
                   {(question.options ?? []).map(option => <option key={option} value={option}>{option}</option>)}
                 </select>
@@ -112,11 +115,11 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
             {(question.type === 'single_choice' || question.type === 'yes_no') && (
               <div className={question.type === 'yes_no' ? 'grid grid-cols-2 gap-2.5' : 'grid gap-2.5'}>
-                {(question.type === 'yes_no' ? ['Yes', 'No'] : question.options ?? []).map(option => {
+                {(question.type === 'yes_no' ? ['Yes', 'No'] : question.options ?? []).map((option, optionIndex) => {
                   const selected = value === option;
                   return (
                     <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
-                      <input className="sr-only" disabled={disabled} type="radio" name={question.id} checked={selected} onChange={() => set(question.id, option)} />
+                      <input autoFocus={autoFocus && optionIndex === 0} className="sr-only" disabled={disabled} type="radio" name={question.id} checked={selected} onChange={() => set(question.id, option)} />
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
                         {selected && <span className="h-2 w-2 rounded-full" style={{ background: C.accent }} />}
                       </span>
@@ -129,11 +132,11 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
             {question.type === 'multiple_choice' && (
               <div className="grid gap-2.5">
-                {(question.options ?? []).map(option => {
+                {(question.options ?? []).map((option, optionIndex) => {
                   const selected = Array.isArray(value) && value.includes(option);
                   return (
                     <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
-                      <input className="sr-only" disabled={disabled} type="checkbox" checked={selected} onChange={() => {
+                      <input autoFocus={autoFocus && optionIndex === 0} className="sr-only" disabled={disabled} type="checkbox" checked={selected} onChange={() => {
                         const current = Array.isArray(value) ? value.map(String) : [];
                         set(question.id, selected ? current.filter(item => item !== option) : [...current, option]);
                       }} />
@@ -149,7 +152,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
             {question.type === 'consent' && (
               <label className="flex cursor-pointer items-start gap-3 px-4 py-4 transition-colors" style={optionStyle(value === true)}>
-                <input className="sr-only" disabled={disabled} type="checkbox" checked={value === true} onChange={event => set(question.id, event.target.checked)} />
+                <input autoFocus={autoFocus} className="sr-only" disabled={disabled} type="checkbox" checked={value === true} onChange={event => set(question.id, event.target.checked)} />
                 <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ border: `2px solid ${value === true ? C.cta : C.inputBorder}`, background: value === true ? C.cta : C.card }}>
                   {value === true && <Check className="h-3 w-3" strokeWidth={3} style={{ color: C.accent }} />}
                 </span>

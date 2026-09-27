@@ -24,6 +24,7 @@ import {
   ListChecks,
   Lock,
   Minus,
+  Palette,
   Phone,
   Plus,
   Send,
@@ -48,6 +49,12 @@ import {
   type ApplicationQuestionType,
 } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
+import {
+  APPLICATION_THEME_PRESETS,
+  DEFAULT_APPLICATION_CUSTOM_THEME,
+  type ApplicationCustomTheme,
+  type ApplicationThemeId,
+} from '@/lib/application-theme-presets';
 import { modalStyle, type ThemeColors } from '@/lib/theme';
 
 const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
@@ -506,6 +513,19 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
 
         {tab === 'settings' && (
           <div className="mx-auto max-w-6xl space-y-5">
+            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>
+              <SectionHeading icon={Palette} title="Form theme" description="Choose a complete visual mood. Platform follows your current brand settings." C={C} />
+              <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[...APPLICATION_THEME_PRESETS, { id: 'custom' as const, name: 'Custom', description: 'Build your own color system.', swatches: Object.values(config.customTheme ?? DEFAULT_APPLICATION_CUSTOM_THEME).slice(0, 3) }].map(theme => {
+                  const selected = (config.theme ?? 'platform') === theme.id;
+                  const swatches = theme.id === 'platform' ? [C.page, C.cta, C.accent] : theme.swatches;
+                  return <button key={theme.id} type="button" onClick={() => setConfig({ theme: theme.id as ApplicationThemeId })} className="rounded-2xl p-4 text-left transition-transform hover:-translate-y-0.5" style={{ background: selected ? C.pill : C.input, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }}><div className="mb-4 flex items-center gap-1.5">{swatches.map((color, index) => <span key={`${color}-${index}`} className="h-5 flex-1 rounded-md" style={{ background: color }} />)}</div><div className="flex items-center justify-between gap-3"><div><p className="text-xs font-bold" style={{ color: C.text }}>{theme.name}</p><p className="mt-1 text-[10px] leading-4" style={{ color: C.faint }}>{theme.description}</p></div>{selected && <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full" style={{ background: C.cta, color: C.accent }}><Check className="h-3.5 w-3.5" /></span>}</div></button>;
+                })}
+              </div>
+              {(config.theme ?? 'platform') === 'custom' && <div className="mt-4 grid gap-3 rounded-2xl p-4 sm:grid-cols-5" style={{ background: C.input }}>{([
+                ['background', 'Background'], ['surface', 'Cards'], ['primary', 'Primary'], ['accent', 'Accent'], ['text', 'Text'],
+              ] as Array<[keyof ApplicationCustomTheme, string]>).map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-xl p-2" style={{ background: C.card }}><input type="color" value={(config.customTheme ?? DEFAULT_APPLICATION_CUSTOM_THEME)[key]} onChange={event => setConfig({ customTheme: { ...(config.customTheme ?? DEFAULT_APPLICATION_CUSTOM_THEME), [key]: event.target.value } })} className="h-8 w-8 cursor-pointer rounded-lg border-0 bg-transparent p-0" aria-label={`${label} color`} /><span className="text-[10px] font-semibold" style={{ color: C.muted }}>{label}</span></label>)}</div>}
+            </section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Link2} title="Registration link" description="Customize the public link that you share with applicants." C={C} /><div className="mt-5 flex items-center overflow-hidden rounded-xl" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}><span className="pl-3 text-sm" style={{ color: C.faint }}>/apply/</span><input value={form.slug} onChange={event => { const slug = event.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+/, '').slice(0, 64); setForm(previous => ({ ...previous, slug })); }} onBlur={() => setForm(previous => ({ ...previous, slug: previous.slug.replace(/-+$/, '') || 'application' }))} aria-label="Registration URL" className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm font-semibold outline-none" style={{ color: C.text }} /></div><p className="mt-2 text-xs" style={{ color: C.faint }}>Changing a published URL stops the old link from working.</p></section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={FileText} title="Applicant guidance" description="Add eligibility details and the message shown after submission." C={C} /><div className="mt-5 space-y-4"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Eligibility information</label><textarea rows={5} value={config.eligibility} onChange={event => setConfig({ eligibility: event.target.value })} placeholder="Who should apply and what should they prepare?" style={{ ...inputStyle, resize: 'vertical' }} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Confirmation message *</label><textarea rows={4} value={config.confirmationMessage} onChange={event => setConfig({ confirmationMessage: event.target.value })} placeholder="Thank applicants and explain what happens next." style={{ ...inputStyle, resize: 'vertical' }} /></div></div></section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={CalendarClock} title="Application window" description="Leave either date empty if the form should remain open-ended." C={C} /><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Opening date</label><input type="datetime-local" value={config.opensAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ opensAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Closing date</label><input type="datetime-local" value={config.closesAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ closesAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div></div></section>

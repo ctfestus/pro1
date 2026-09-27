@@ -1,3 +1,10 @@
+import {
+  APPLICATION_THEME_IDS,
+  DEFAULT_APPLICATION_CUSTOM_THEME,
+  type ApplicationCustomTheme,
+  type ApplicationThemeId,
+} from '@/lib/application-theme-presets';
+
 export const APPLICATION_QUESTION_TYPES = [
   'short_text', 'long_text', 'email', 'phone', 'number', 'date', 'single_choice',
   'multiple_choice', 'dropdown', 'yes_no', 'file', 'consent',
@@ -50,6 +57,8 @@ export interface ApplicationFormConfig {
   opensAt: string;
   closesAt: string;
   confirmationMessage: string;
+  theme?: ApplicationThemeId;
+  customTheme?: ApplicationCustomTheme;
   questions: ApplicationQuestion[];
   stages: ApplicationStage[];
   postSubmission: ApplicationPostSubmission;
@@ -206,6 +215,8 @@ export function newApplicationFormConfig(template: ApplicationTemplateKey = 'boo
     opensAt: '',
     closesAt: '',
     confirmationMessage: 'Thank you. Your application has been received and our team will review it.',
+    theme: 'platform',
+    customTheme: { ...DEFAULT_APPLICATION_CUSTOM_THEME },
     questions: starter.questions(),
     stages: DEFAULT_APPLICATION_STAGES.map(stage => ({ ...stage })),
     postSubmission: { type: 'default' },
@@ -238,6 +249,11 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   if (config.coverImage && !isSafeHttpUrl(config.coverImage)) errors.push('Cover image URL is invalid.');
   if (config.coverImagePlacement && !['header', 'inside'].includes(config.coverImagePlacement)) errors.push('Cover image placement is invalid.');
   if (!config.confirmationMessage?.trim()) errors.push('Confirmation message is required.');
+  if (config.theme && !APPLICATION_THEME_IDS.includes(config.theme)) errors.push('Application theme is invalid.');
+  if (config.theme === 'custom') {
+    const customColors = Object.values(config.customTheme ?? {});
+    if (customColors.length !== 5 || customColors.some(value => !/^#[0-9a-f]{6}$/i.test(value))) errors.push('Custom theme colors must use six-digit hex values.');
+  }
   if (!Array.isArray(config.questions) || config.questions.length === 0) errors.push('Add at least one question.');
   const ids = new Set<string>();
   for (const item of config.questions ?? []) {

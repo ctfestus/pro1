@@ -1,25 +1,51 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowRight, CheckCircle2, Clock, ExternalLink, Loader2, Mail, Send, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, ArrowRight, CheckCircle2, Clock, CornerDownLeft, ExternalLink, Loader2, Mail, MessageCircleMore, PencilLine, Send, ShieldCheck } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
 import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
+import { applicationThemeColors, DEFAULT_APPLICATION_CUSTOM_THEME } from '@/lib/application-theme-presets';
 import { useC, cardStyle, type ThemeColors } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function hasAnswer(value: ApplicationAnswer | undefined): boolean {
-  if (value === null || value === undefined || value === '') return false;
-  if (Array.isArray(value)) return value.length > 0;
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'object') return Boolean(value.url);
-  return true;
+function answerSummary(value: ApplicationAnswer | undefined): string {
+  if (value === null || value === undefined || value === '') return 'Not answered';
+  if (Array.isArray(value)) return value.length ? value.join(', ') : 'Not answered';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (typeof value === 'object') return value.name || 'Uploaded file';
+  return String(value);
 }
 
 type PublicApplicationForm = ApplicationFormRecord & { availability: 'open' | 'not_open' | 'paused' | 'closed' };
+
+function TypewriterPrompt({ text, C }: { text: string; C: ThemeColors }) {
+  const [visible, setVisible] = useState('');
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      const reducedMotionTimer = window.setTimeout(() => setVisible(text), 0);
+      return () => window.clearTimeout(reducedMotionTimer);
+    }
+    let index = 0;
+    const timer = window.setInterval(() => {
+      index += 1;
+      setVisible(text.slice(0, index));
+      if (index >= text.length) window.clearInterval(timer);
+    }, 22);
+    return () => window.clearInterval(timer);
+  }, [text]);
+
+  return (
+    <h2 className="text-xl font-bold leading-snug sm:text-3xl" style={{ color: C.text }} aria-label={text}>
+      <span aria-hidden="true">{visible}</span>
+      <motion.span aria-hidden="true" className="ml-0.5 inline-block h-[1em] w-0.5 align-[-0.12em]" style={{ background: C.accent }} animate={{ opacity: [1, 0, 1] }} transition={{ duration: 0.85, repeat: Infinity }} />
+    </h2>
+  );
+}
 
 function ApplicationDeadlineTimer({ closesAt, C }: { closesAt: string; C: ThemeColors }) {
   const [now, setNow] = useState(() => Date.now());
@@ -91,7 +117,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   previewForm?: ApplicationFormRecord;
   previewRelatedItems?: ApplicationRelatedItem[];
 }) {
-  const C = useC();
+  const baseC = useC();
   const preview = Boolean(previewForm);
   const [form, setForm] = useState<any>(() => previewForm ? { ...previewForm, availability: 'open' } : null);
   const [email, setEmail] = useState('');
@@ -105,6 +131,9 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [emailError, setEmailError] = useState('');
   const [message, setMessage] = useState('');
+  const [activeStep, setActiveStep] = useState(0);
+  const [reviewing, setReviewing] = useState(false);
+  const [stepDirection, setStepDirection] = useState(1);
 
   useEffect(() => {
     if (previewForm) {
@@ -153,31 +182,29 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (preview) {
-      const normalizedEmail = email.trim().toLowerCase();
-      setEmailError('');
-      setErrors({});
-      if (!EMAIL_PATTERN.test(normalizedEmail)) {
-        setEmailError('Enter a valid email address.');
-        return;
-      }
-      const validationErrors = validateApplicationAnswers(form.config, answers);
-      if (Object.keys(validationErrors).length) {
-        setErrors(validationErrors);
-        return;
-      }
-      setSubmission({ reference: 'PREVIEW-APPLICATION', status: 'Application received' });
-      setSessionToken('preview');
-      setRelatedItems(previewRelatedItems);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
-      return;
-    }
     const normalizedEmail = email.trim().toLowerCase();
     setEmailError('');
     setErrors({});
     setMessage('');
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
       setEmailError('Enter a valid email address.');
+      setReviewing(false);
+      setActiveStep(0);
+      return;
+    }
+    const validationErrors = validateApplicationAnswers(form.config, answers);
+    if (Object.keys(validationErrors).length) {
+      setErrors(validationErrors);
+      const firstInvalid = visibleQuestions.findIndex((question: any) => validationErrors[question.id]);
+      setReviewing(false);
+      setActiveStep(firstInvalid >= 0 ? firstInvalid + 1 : 0);
+      return;
+    }
+    if (preview) {
+      setSubmission({ reference: 'PREVIEW-APPLICATION', status: 'Application received' });
+      setSessionToken('preview');
+      setRelatedItems(previewRelatedItems);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
     setSubmitting(true);
@@ -189,7 +216,14 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
       });
       const value = await response.json();
       if (!response.ok) {
-        if (value.errors) setErrors(value.errors);
+        if (value.errors) {
+          setErrors(value.errors);
+          const firstInvalid = visibleQuestions.findIndex((question: any) => value.errors[question.id]);
+          if (firstInvalid >= 0) {
+            setReviewing(false);
+            setActiveStep(firstInvalid + 1);
+          }
+        }
         throw new Error(value.error || 'Could not submit this application.');
       }
       setSessionToken(value.token);
@@ -208,22 +242,63 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   }
 
   if (loading) {
-    return <div className="min-h-screen grid place-items-center" style={{ background: C.page }}><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.cta }} /></div>;
+    return <div className="min-h-screen grid place-items-center" style={{ background: baseC.page }}><Loader2 className="w-6 h-6 animate-spin" style={{ color: baseC.cta }} /></div>;
   }
 
   if (!form) {
-    return <div className="min-h-screen grid place-items-center px-4" style={{ background: C.page, color: C.errorText }}>{message}</div>;
+    return <div className="min-h-screen grid place-items-center px-4" style={{ background: baseC.page, color: baseC.errorText }}>{message}</div>;
   }
 
+  const C = applicationThemeColors(baseC, form.config.theme ?? 'platform', form.config.customTheme ?? DEFAULT_APPLICATION_CUSTOM_THEME);
   const post = form.config.postSubmission;
   const coverImage = form.config.coverImage?.trim();
   const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
   const coverPlacement = form.config.coverImagePlacement ?? 'header';
   const visibleQuestions = form.config.questions.filter((question: any) => isQuestionVisible(question, answers));
-  const requiredQuestions = visibleQuestions.filter((question: any) => question.required);
-  const requiredComplete = (EMAIL_PATTERN.test(email.trim()) ? 1 : 0) + requiredQuestions.filter((question: any) => hasAnswer(answers[question.id])).length;
-  const requiredTotal = requiredQuestions.length + 1;
-  const progress = Math.round((requiredComplete / requiredTotal) * 100);
+  const stepCount = visibleQuestions.length + 1;
+  const currentStep = Math.min(activeStep, Math.max(0, stepCount - 1));
+  const currentQuestion = currentStep === 0 ? null : visibleQuestions[currentStep - 1];
+  const flowProgress = reviewing ? 100 : Math.round(((currentStep + 1) / (stepCount + 1)) * 100);
+  const enterAdvances = currentStep === 0 || Boolean(currentQuestion && ['short_text', 'email', 'phone', 'number', 'date'].includes(currentQuestion.type));
+
+  function editStep(index: number) {
+    setStepDirection(-1);
+    setReviewing(false);
+    setActiveStep(index);
+    window.setTimeout(() => window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' }), 40);
+  }
+
+  function continueFlow() {
+    setEmailError('');
+    if (currentStep === 0) {
+      if (!EMAIL_PATTERN.test(email.trim().toLowerCase())) {
+        setEmailError('Enter a valid email address.');
+        return;
+      }
+    } else if (currentQuestion) {
+      const validation = validateApplicationAnswers(form.config, answers);
+      if (validation[currentQuestion.id]) {
+        setErrors(previous => ({ ...previous, [currentQuestion.id]: validation[currentQuestion.id] }));
+        return;
+      }
+      setErrors(previous => ({ ...previous, [currentQuestion.id]: '' }));
+    }
+    setStepDirection(1);
+    if (currentStep >= stepCount - 1) setReviewing(true);
+    else setActiveStep(currentStep + 1);
+  }
+
+  function previousStep() {
+    if (reviewing) {
+      setReviewing(false);
+      setActiveStep(Math.max(0, stepCount - 1));
+      return;
+    }
+    if (currentStep > 0) {
+      setStepDirection(-1);
+      setActiveStep(currentStep - 1);
+    }
+  }
   if (submission) {
     const statusUrl = `/applications/${encodeURIComponent(sessionToken)}`;
     return (
@@ -272,33 +347,40 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
             </div>
           </section>
 
-          {form.availability === 'open' ? <>
-            <aside className={`sticky ${preview ? 'top-20' : 'top-3'} z-20 rounded-2xl px-4 py-3 sm:px-5`} style={{ background: C.card }} aria-label={`Application progress: ${requiredComplete} of ${requiredTotal} required fields complete`}>
-              <div className="mb-2 flex items-center justify-between gap-3 text-xs"><span className="font-semibold" style={{ color: C.text }}>Application progress</span><span style={{ color: C.faint }}>{requiredComplete} of {requiredTotal} required</span></div>
-              <div className="h-1.5 overflow-hidden rounded-sm" style={{ background: C.input }}><div className="h-full rounded-sm transition-all duration-300" style={{ width: `${progress}%`, background: C.cta }} /></div>
-            </aside>
+          {form.availability === 'open' ? <section className="rounded-3xl" style={{ background: C.card }}>
+            <div className={`sticky ${preview ? 'top-16' : 'top-2'} z-20 rounded-t-3xl px-5 py-4 sm:px-7`} style={{ background: C.card }} aria-label={`Application progress: ${flowProgress}%`}>
+              <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold"><span style={{ color: C.muted }}>{reviewing ? 'Review your application' : `Question ${currentStep + 1} of ${stepCount}`}</span><span className="tabular-nums" style={{ color: C.faint }}>{flowProgress}%</span></div>
+              <div className="h-1 overflow-hidden rounded-sm" style={{ background: C.input }}><motion.div className="h-full rounded-sm" animate={{ width: `${flowProgress}%` }} transition={{ duration: 0.35, ease: 'easeOut' }} style={{ background: C.cta }} /></div>
+            </div>
 
-            <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card, boxShadow: emailError ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
-              <div className="mb-4 flex items-start gap-3">
-                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: emailError ? C.errorBg : C.pill, color: emailError ? C.errorText : C.muted }}>1</span>
-                <div className="min-w-0 flex-1"><label className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>Email address <span style={{ color: C.errorText }}>*</span></label><p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>We will send your confirmation and private status link here.</p></div>
-                <Mail className="mt-1 h-5 w-5 shrink-0" style={{ color: C.faint }} />
-              </div>
-              <input type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com" className="w-full px-4 py-3.5 outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${emailError ? C.errorText : C.inputBorder}`, borderRadius: 14 }} />
-              {emailError && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{emailError}</p>}
-            </section>
-
-            <ApplicationQuestionFields questions={form.config.questions} answers={answers} onChange={setAnswers} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} startAt={2} />
-
-            {message && <p className="rounded-2xl p-4 text-sm" style={{ background: preview ? C.successBg : C.errorBg, color: preview ? C.successText : C.errorText }}>{message}</p>}
-
-            <section className="flex flex-col gap-4 rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5" style={{ background: C.card }}>
-              <div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><Send className="h-5 w-5" /></span><div><p className="text-sm font-bold" style={{ color: C.text }}>Ready to submit?</p><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Review your answers before sending.</p></div></div>
-              <button type="submit" disabled={submitting} className="flex min-h-12 items-center justify-center gap-2 px-6 text-sm font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText, borderRadius: 14 }}>
-                {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {submitting ? 'Submitting...' : 'Submit application'}
-              </button>
-            </section>
-          </> : <div className="p-5 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 16 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>}
+            <div className="min-h-[390px] p-6 sm:min-h-[430px] sm:p-9">
+              <AnimatePresence mode="wait" custom={stepDirection}>
+                {reviewing ? <motion.div key="review" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
+                  <div className="mb-7 flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.input, color: C.cta }}><CheckCircle2 className="h-4.5 w-4.5" /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}>Final check</p><h2 className="text-xl font-bold sm:text-2xl" style={{ color: C.text }}>Everything look right?</h2></div></div>
+                  <div className="space-y-2">
+                    {[{ id: 'email', label: 'Email address', value: email, step: 0 }, ...visibleQuestions.map((question: any, index: number) => ({ id: question.id, label: question.label, value: answers[question.id], step: index + 1 }))].map(item => <button key={item.id} type="button" onClick={() => editStep(item.step)} className="group flex w-full items-center gap-3 rounded-xl p-3 text-left" style={{ background: C.input }}><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>{item.label}</span><span className="mt-1 block truncate text-sm font-medium" style={{ color: C.text }}>{answerSummary(item.value)}</span></span><PencilLine className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" style={{ color: C.cta }} /></button>)}
+                  </div>
+                  {message && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
+                  <div className="mt-7 flex items-center justify-between gap-3">
+                    <button type="button" onClick={previousStep} className="flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-semibold" style={{ background: C.input, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Back</button>
+                    <button type="submit" disabled={submitting} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText }}>{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {submitting ? 'Submitting...' : 'Submit application'}</button>
+                  </div>
+                </motion.div> : <motion.div key={currentQuestion?.id ?? 'email'} custom={stepDirection} initial={{ opacity: 0, x: stepDirection > 0 ? 34 : -34 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: stepDirection > 0 ? -34 : 34 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
+                  <div className="mb-7 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}><span className="relative grid h-8 w-8 place-items-center rounded-xl" style={{ background: C.input, color: C.cta }}><MessageCircleMore className="h-4 w-4" /><motion.span className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full" style={{ background: C.accent }} animate={{ scale: [1, 1.35, 1], opacity: [1, 0.55, 1] }} transition={{ duration: 1.5, repeat: Infinity }} /></span> Application assistant</div>
+                  <TypewriterPrompt key={currentQuestion?.id ?? 'email-prompt'} text={currentQuestion?.label ?? 'Where should we send your confirmation and private status updates?'} C={C} />
+                  <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}><span>{currentQuestion?.helpText || (currentQuestion ? 'Take your time. You can review this before submitting.' : 'No account is needed. We use this email only for this application.')}</span>{currentQuestion && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>
+                  <div className="mt-8" onKeyDown={event => { const target = event.target as HTMLInputElement; if (event.key === 'Enter' && !event.shiftKey && target.tagName === 'INPUT' && !['checkbox', 'radio', 'file'].includes(target.type)) { event.preventDefault(); continueFlow(); } }}>
+                    {currentStep === 0 ? <div><div className="relative"><Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.faint }} /><input autoFocus type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com" className="w-full py-4 pl-11 pr-4 text-base outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${emailError ? C.errorText : C.inputBorder}`, borderRadius: 14 }} /></div>{emailError && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{emailError}</p>}</div> : currentQuestion && <ApplicationQuestionFields questions={[currentQuestion]} answers={answers} onChange={next => { setAnswers(next); setErrors(previous => ({ ...previous, [currentQuestion.id]: '' })); }} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} focused autoFocus />}
+                  </div>
+                  {message && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
+                  <div className="mt-8 flex items-center justify-between gap-3">
+                    <button type="button" onClick={previousStep} disabled={currentStep === 0} className="flex items-center gap-2 rounded-xl px-4 py-3 text-xs font-semibold disabled:invisible" style={{ background: C.input, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Back</button>
+                    <div className="flex items-center gap-3">{enterAdvances && <span className="hidden items-center gap-1.5 text-[10px] sm:flex" style={{ color: C.faint }}>Press Enter <CornerDownLeft className="h-3 w-3" /></span>}<button type="button" onClick={continueFlow} className="flex min-h-11 items-center gap-2 rounded-xl px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>{currentStep >= stepCount - 1 ? 'Review answers' : 'Continue'} <ArrowRight className="h-4 w-4" /></button></div>
+                  </div>
+                </motion.div>}
+              </AnimatePresence>
+            </div>
+          </section> : <div className="p-5 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 16 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>}
         </form>
       </div>
     </main>
