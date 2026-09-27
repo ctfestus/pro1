@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from 'react';
 import { ArrowRight, CheckCircle2, Clock, ExternalLink, Loader2, Mail, Send, ShieldCheck } from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
 import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
-import { useC, cardStyle } from '@/lib/theme';
+import { useC, cardStyle, type ThemeColors } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,6 +20,57 @@ function hasAnswer(value: ApplicationAnswer | undefined): boolean {
 }
 
 type PublicApplicationForm = ApplicationFormRecord & { availability: 'open' | 'not_open' | 'paused' | 'closed' };
+
+function ApplicationDeadlineTimer({ closesAt, C }: { closesAt: string; C: ThemeColors }) {
+  const [now, setNow] = useState(() => Date.now());
+  const deadline = new Date(closesAt).getTime();
+  const remaining = Number.isFinite(deadline) ? Math.max(0, deadline - now) : 0;
+  const expired = !Number.isFinite(deadline) || remaining === 0;
+
+  useEffect(() => {
+    if (!Number.isFinite(deadline) || deadline <= Date.now()) return;
+    const interval = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [deadline]);
+
+  if (expired) {
+    return <span className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold" style={{ background: C.errorBg, color: C.errorText }}><Clock className="h-3.5 w-3.5" /> Applications closed</span>;
+  }
+
+  const totalSeconds = Math.floor(remaining / 1000);
+  const units = [
+    { label: 'd', value: Math.floor(totalSeconds / 86400) },
+    { label: 'h', value: Math.floor((totalSeconds % 86400) / 3600) },
+    { label: 'm', value: Math.floor((totalSeconds % 3600) / 60) },
+    { label: 's', value: totalSeconds % 60 },
+  ];
+
+  return (
+    <div
+      className="flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-[11px] font-medium"
+      style={{ background: C.pill, color: C.muted }}
+      aria-label={`Applications close in ${units[0].value} days, ${units[1].value} hours, ${units[2].value} minutes, and ${units[3].value} seconds`}
+      title={`Closes ${new Date(closesAt).toLocaleString()}`}
+    >
+      <motion.span animate={{ scale: [1, 1.12, 1] }} transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}>
+        <Clock className="h-3.5 w-3.5" style={{ color: C.accent }} />
+      </motion.span>
+      <span className="hidden sm:inline">Closes in</span>
+      <span className="flex items-center gap-1" aria-hidden="true">
+        {units.map(unit => (
+          <span key={unit.label} className="inline-flex min-w-[27px] items-baseline justify-center overflow-hidden rounded-md px-1 py-0.5 tabular-nums" style={{ background: C.card, color: C.text }}>
+            <AnimatePresence initial={false} mode="popLayout">
+              <motion.span key={unit.value} initial={{ opacity: 0, y: -7 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 7 }} transition={{ duration: 0.18 }} className="font-bold">
+                {String(unit.value).padStart(2, '0')}
+              </motion.span>
+            </AnimatePresence>
+            <span className="ml-0.5 text-[9px]" style={{ color: C.faint }}>{unit.label}</span>
+          </span>
+        ))}
+      </span>
+    </div>
+  );
+}
 
 export function ApplicationStart({ slug = '', previewForm, previewRelatedItems = [] }: {
   slug?: string;
@@ -197,7 +249,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
             <div className="p-6 sm:p-9">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
-                {form.config.closesAt && <span className="flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-medium" style={{ background: C.pill, color: C.muted }}><Clock className="h-3.5 w-3.5" /> Closes {new Date(form.config.closesAt).toLocaleDateString()}</span>}
+                {form.config.closesAt && <ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} />}
               </div>
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
               <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
