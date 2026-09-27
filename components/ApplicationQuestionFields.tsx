@@ -118,7 +118,7 @@ function ApplicationDropdown({ questionId, value, options, onChange, C, disabled
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => choose(option)}
                 className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors"
-                style={{ background: selected || active ? C.input : C.card, color: C.text }}
+                style={{ background: selected || active ? C.skeleton : C.card, color: C.text }}
               >
                 <span className="min-w-0 flex-1 truncate">{option}</span>
                 {selected && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ background: C.cta, color: '#FFFFFF' }}><Check className="h-3 w-3" strokeWidth={3} /></span>}

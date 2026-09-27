@@ -256,6 +256,9 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const coverImage = form.config.coverImage?.trim();
   const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
   const coverPlacement = form.config.coverImagePlacement ?? 'header';
+  const coverFit = form.config.coverImageFit ?? 'cover';
+  const coverPosition = form.config.coverImagePosition ?? 'center';
+  const coverImageStyle: CSSProperties = { objectFit: coverFit, objectPosition: coverPosition };
   const visibleQuestions = form.config.questions.filter((question: any) => isQuestionVisible(question, answers));
   const stepCount = visibleQuestions.length + 1;
   const currentStep = Math.min(activeStep, Math.max(0, stepCount - 1));
@@ -309,7 +312,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     return (
       <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-8 sm:py-12" style={themedPageStyle}>
         <div className="relative mx-auto max-w-3xl space-y-4">
-          {coverImage && <div className="h-48 overflow-hidden sm:h-72" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
+          {coverImage && <div className="h-40 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full" style={coverImageStyle} /></div>}
           <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 24 }}>
             <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.successText }}>Successfully submitted</p>
@@ -336,21 +339,21 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   return (
     <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-6 sm:py-10" style={themedPageStyle}>
       <div className="mx-auto max-w-3xl">
+        {coverImage && coverPlacement === 'header' && <div className="mb-4 h-36 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full" style={coverImageStyle} /></div>}
         <form onSubmit={submit} className="space-y-4">
-          {!started ? <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease: 'easeOut' }} className="space-y-4">
-            {coverImage && coverPlacement === 'header' && <div className="h-52 overflow-hidden sm:h-80" style={{ ...cardStyle(C), borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
-            <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
-              {coverImage && coverPlacement === 'inside' && <div className="h-48 overflow-hidden sm:h-72"><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
-              <div className="p-6 sm:p-9">
-                <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
-                <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
-                <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
-                {form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
-                {form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
-                {form.availability === 'open' ? <div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div> : <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>}
-              </div>
-            </section>
-          </motion.div> : form.availability === 'open' ? <section className="rounded-3xl" style={{ background: C.card }}>
+          <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
+            {coverImage && coverPlacement === 'inside' && <div className="h-36 overflow-hidden sm:h-52" style={{ background: C.skeleton }}><img src={coverImage} alt={coverAlt} className="h-full w-full" style={coverImageStyle} /></div>}
+            <div className="p-6 sm:p-9">
+              <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
+              <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
+              <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
+              {!started && form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
+              {!started && form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
+              {!started && (form.availability === 'open' ? <div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div> : <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>)}
+            </div>
+          </section>
+
+          {started && form.availability === 'open' ? <section className="rounded-3xl" style={{ background: C.card }}>
             <div className={`sticky ${preview ? 'top-16' : 'top-2'} z-20 rounded-t-3xl px-5 py-4 sm:px-7`} style={{ background: C.card }} aria-label={`Application progress: ${flowProgress}%`}>
               <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold"><span style={{ color: C.muted }}>{reviewing ? 'Review your application' : `Question ${currentStep + 1} of ${stepCount}`}</span><span className="tabular-nums" style={{ color: C.faint }}>{flowProgress}%</span></div>
               <div className="h-1 overflow-hidden rounded-sm" style={{ background: C.skeleton }}><motion.div className="h-full rounded-sm" animate={{ width: `${flowProgress}%` }} transition={{ duration: 0.35, ease: 'easeOut' }} style={{ background: C.cta }} /></div>

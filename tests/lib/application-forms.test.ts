@@ -16,6 +16,8 @@ describe('application form contract', () => {
     expect(config.coverImage).toBe('');
     expect(config.coverImageAlt).toBe('');
     expect(config.coverImagePlacement).toBe('header');
+    expect(config.coverImageFit).toBe('cover');
+    expect(config.coverImagePosition).toBe('center');
     expect(config.themeColor).toBe('');
     expect(config.themeMode).toBe('light');
     expect(config.questions.some(question => question.label === 'Full name')).toBe(true);
@@ -56,6 +58,8 @@ describe('application form contract', () => {
     config.coverImage = 'https://cdn.example.com/application-cover.webp';
     config.coverImageAlt = 'Students working together';
     config.coverImagePlacement = 'inside';
+    config.coverImageFit = 'contain';
+    config.coverImagePosition = 'top';
     expect(validateApplicationForm(config)).toEqual([]);
   });
 
@@ -84,6 +88,8 @@ describe('application form contract', () => {
     config.coverImage = 'https://cdn.example.com/application-cover.webp';
     config.coverImageAlt = 'Photo by Example Photographer';
     config.coverImagePlacement = 'inside';
+    config.coverImageFit = 'cover';
+    config.coverImagePosition = 'bottom';
     const form: ApplicationFormRecord = {
       id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'test', status: 'published',
       createdAt: '', updatedAt: '', config,
@@ -93,5 +99,7 @@ describe('application form contract', () => {
     expect(publicApplicationForm(form).config.coverImage).toBe(config.coverImage);
     expect(publicApplicationForm(form).config.coverImageAlt).toBe(config.coverImageAlt);
     expect(publicApplicationForm(form).config.coverImagePlacement).toBe('inside');
+    expect(publicApplicationForm(form).config.coverImageFit).toBe('cover');
+    expect(publicApplicationForm(form).config.coverImagePosition).toBe('bottom');
   });
 });

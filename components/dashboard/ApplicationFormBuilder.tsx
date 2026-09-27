@@ -480,7 +480,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                     <PexelsImagePicker
                       value={config.coverImage || null}
                       altValue={config.coverImageAlt || null}
-                      onChange={(url, alt) => setConfig({ coverImage: url, coverImageAlt: alt, coverImagePlacement: config.coverImagePlacement ?? 'header' })}
+                      onChange={(url, alt) => setConfig({ coverImage: url, coverImageAlt: alt, coverImagePlacement: config.coverImagePlacement ?? 'header', coverImageFit: config.coverImageFit ?? 'cover', coverImagePosition: config.coverImagePosition ?? 'center' })}
                       onClear={() => setConfig({ coverImage: '', coverImageAlt: '' })}
                       C={C}
                       token={token}
@@ -488,7 +488,11 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                     />
                   </div>
                 </div>
-                {config.coverImage && <div className="flex flex-wrap items-center justify-between gap-3 p-4"><div><p className="text-xs font-semibold" style={{ color: C.text }}>Image placement</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Choose how applicants see the image.</p></div><div className="flex rounded-xl p-1" style={{ background: C.input }}>{([['header', 'Wide header'], ['inside', 'Inside form']] as const).map(([value, text]) => <button key={value} type="button" onClick={() => setConfig({ coverImagePlacement: value })} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: (config.coverImagePlacement ?? 'header') === value ? C.card : 'transparent', color: (config.coverImagePlacement ?? 'header') === value ? C.text : C.faint }}>{text}</button>)}</div></div>}
+                {config.coverImage && <div className="grid gap-4 p-4 sm:grid-cols-3">
+                  <div><p className="text-xs font-semibold" style={{ color: C.text }}>Placement</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Where the cover appears.</p><div className="mt-2 flex rounded-xl p-1" style={{ background: C.input }}>{([['header', 'Header'], ['inside', 'Inside']] as const).map(([value, text]) => { const selected = (config.coverImagePlacement ?? 'header') === value; return <button key={value} type="button" onClick={() => setConfig({ coverImagePlacement: value })} className="flex-1 rounded-lg px-2 py-2 text-[11px] font-semibold" style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.faint }}>{text}</button>; })}</div></div>
+                  <div><p className="text-xs font-semibold" style={{ color: C.text }}>Image fit</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Crop or show the full image.</p><div className="mt-2 flex rounded-xl p-1" style={{ background: C.input }}>{([['cover', 'Crop to fill'], ['contain', 'Fit image']] as const).map(([value, text]) => { const selected = (config.coverImageFit ?? 'cover') === value; return <button key={value} type="button" onClick={() => setConfig({ coverImageFit: value })} className="flex-1 rounded-lg px-2 py-2 text-[11px] font-semibold" style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.faint }}>{text}</button>; })}</div></div>
+                  <div className={(config.coverImageFit ?? 'cover') === 'contain' ? 'opacity-45' : ''}><p className="text-xs font-semibold" style={{ color: C.text }}>Crop focus</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Keep the important area visible.</p><div className="mt-2 flex rounded-xl p-1" style={{ background: C.input }}>{(['top', 'center', 'bottom'] as const).map(value => { const selected = (config.coverImagePosition ?? 'center') === value; return <button key={value} type="button" disabled={(config.coverImageFit ?? 'cover') === 'contain'} onClick={() => setConfig({ coverImagePosition: value })} className="flex-1 rounded-lg px-2 py-2 text-[11px] font-semibold capitalize disabled:cursor-not-allowed" style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.faint }}>{value}</button>; })}</div></div>
+                </div>}
               </section>
 
               <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>

@@ -53,6 +53,8 @@ export interface ApplicationFormConfig {
   coverImage?: string;
   coverImageAlt?: string;
   coverImagePlacement?: 'header' | 'inside';
+  coverImageFit?: 'cover' | 'contain';
+  coverImagePosition?: 'top' | 'center' | 'bottom';
   eligibility: string;
   opensAt: string;
   closesAt: string;
@@ -214,6 +216,8 @@ export function newApplicationFormConfig(template: ApplicationTemplateKey = 'boo
     coverImage: '',
     coverImageAlt: '',
     coverImagePlacement: 'header',
+    coverImageFit: 'cover',
+    coverImagePosition: 'center',
     eligibility: '',
     opensAt: '',
     closesAt: '',
@@ -251,6 +255,8 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   if (!config.description?.trim()) errors.push('Description is required.');
   if (config.coverImage && !isSafeHttpUrl(config.coverImage)) errors.push('Cover image URL is invalid.');
   if (config.coverImagePlacement && !['header', 'inside'].includes(config.coverImagePlacement)) errors.push('Cover image placement is invalid.');
+  if (config.coverImageFit && !['cover', 'contain'].includes(config.coverImageFit)) errors.push('Cover image fit is invalid.');
+  if (config.coverImagePosition && !['top', 'center', 'bottom'].includes(config.coverImagePosition)) errors.push('Cover image position is invalid.');
   if (!config.confirmationMessage?.trim()) errors.push('Confirmation message is required.');
   if (config.themeColor && !/^#[0-9a-f]{6}$/i.test(config.themeColor)) errors.push('Theme color must use a six-digit hex value.');
   if (config.themeMode && !['light', 'dark'].includes(config.themeMode)) errors.push('Theme mode is invalid.');
