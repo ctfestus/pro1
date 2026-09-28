@@ -26,6 +26,24 @@ export function getGoogleSheetsClient() {
   return google.sheets({ version: 'v4', auth });
 }
 
+export function getGoogleDriveClient() {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  if (!email || !privateKey) throw new Error('Google service account credentials are not configured.');
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: { client_email: email, private_key: privateKey },
+    scopes: ['https://www.googleapis.com/auth/drive.file'],
+  });
+  return google.drive({ version: 'v3', auth });
+}
+
+export function getApplicationResponsesFolderId(): string {
+  const folderId = process.env.GOOGLE_APPLICATION_RESPONSES_FOLDER_ID;
+  if (!folderId) throw new Error('GOOGLE_APPLICATION_RESPONSES_FOLDER_ID is not configured.');
+  return folderId;
+}
+
 export function getGoogleSpreadsheetId(): string {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not configured.');

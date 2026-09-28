@@ -1,70 +1,95 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const spreadsheetGet = vi.fn();
-const valuesGet = vi.fn();
-const valuesAppend = vi.fn();
-const valuesUpdate = vi.fn();
-const valuesBatchClear = vi.fn();
-const spreadsheetBatchUpdate = vi.fn();
+const mocks = vi.hoisted(() => ({
+  spreadsheetGet: vi.fn(), valuesGet: vi.fn(), valuesAppend: vi.fn(), valuesUpdate: vi.fn(),
+  valuesBatchUpdate: vi.fn(), valuesClear: vi.fn(), spreadsheetBatchUpdate: vi.fn(),
+  driveCreate: vi.fn(), indexUpsert: vi.fn(), getForm: vi.fn(),
+}));
+const {
+  spreadsheetGet, valuesGet, valuesAppend, valuesUpdate, valuesBatchUpdate, valuesClear,
+  spreadsheetBatchUpdate, driveCreate, indexUpsert, getForm,
+} = mocks;
 
 vi.mock('@/lib/sheets', () => ({
-  getGoogleSpreadsheetId: () => 'sheet-1',
+  getApplicationResponsesFolderId: () => 'folder-1',
+  getGoogleDriveClient: () => ({ files: { create: mocks.driveCreate, update: vi.fn() } }),
   getGoogleSheetsClient: () => ({
     spreadsheets: {
-      get: spreadsheetGet,
-      batchUpdate: spreadsheetBatchUpdate,
-      values: { get: valuesGet, append: valuesAppend, update: valuesUpdate, batchClear: valuesBatchClear },
+      get: mocks.spreadsheetGet,
+      batchUpdate: mocks.spreadsheetBatchUpdate,
+      values: { get: mocks.valuesGet, append: mocks.valuesAppend, update: mocks.valuesUpdate, batchUpdate: mocks.valuesBatchUpdate, clear: mocks.valuesClear },
     },
   }),
 }));
+vi.mock('@/lib/application-form-store', () => ({ getApplicationForm: mocks.getForm }));
+vi.mock('@/lib/admin-client', () => ({
+  adminClient: () => ({ from: () => ({ upsert: mocks.indexUpsert }) }),
+}));
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
-import { deleteApplicationFormData, resetApplicationSheetsSetupForTests, saveApplicationForm } from '@/lib/application-sheets';
+import { createApplicationResponseSpreadsheet, saveApplicationSubmission } from '@/lib/application-sheets';
 
-const headers: Record<string, string[]> = {
-  ApplicationForms: ['id', 'owner_id', 'owner_email', 'slug', 'status', 'created_at', 'updated_at', 'config_json'],
-  ApplicationSubmissions: ['id', 'form_id', 'reference', 'email', 'state', 'stage_id', 'assigned_reviewer_id', 'assigned_reviewer_email', 'score', 'created_at', 'updated_at', 'submitted_at', 'token_hash', 'answers_json', 'private_notes_json', 'status_history_json', 'messages_json'],
-  ApplicationAudit: ['id', 'entity_type', 'entity_id', 'action', 'actor_id', 'actor_email', 'occurred_at', 'details_json'],
+const form = {
+  id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'bootcamp', status: 'published' as const,
+  responseSpreadsheetId: 'response-sheet-1', responseSpreadsheetUrl: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit',
+  createdAt: '2026-09-25T00:00:00.000Z', updatedAt: '2026-09-25T00:00:00.000Z', config: newApplicationFormConfig(),
 };
 
+const submission = {
+  id: 'submission-1', formId: form.id, reference: 'APP-1', email: '=unsafe@example.com', state: 'submitted' as const,
+  stageId: 'submitted', assignedReviewerId: '', assignedReviewerEmail: '', score: null,
+  createdAt: '2026-09-25T01:00:00.000Z', updatedAt: '2026-09-25T01:00:00.000Z', submittedAt: '2026-09-25T01:00:00.000Z',
+  tokenHash: 'hash-1', answers: {}, privateNotes: [], statusHistory: [], messages: [],
+};
+
+const dataHeaders = [
+  'id', 'form_id', 'reference', 'email', 'state', 'stage_id', 'assigned_reviewer_id',
+  'assigned_reviewer_email', 'score', 'created_at', 'updated_at', 'submitted_at',
+  'token_hash', 'answers_json', 'private_notes_json', 'status_history_json', 'messages_json',
+];
+
 beforeEach(() => {
-  vi.clearAllMocks(); resetApplicationSheetsSetupForTests();
-  spreadsheetGet.mockResolvedValue({ data: { sheets: Object.keys(headers).map(title => ({ properties: { title } })) } });
+  vi.clearAllMocks();
+  getForm.mockResolvedValue(form);
+  driveCreate.mockResolvedValue({ data: { id: 'response-sheet-1', webViewLink: form.responseSpreadsheetUrl } });
+  spreadsheetGet.mockResolvedValue({ data: { sheets: [
+    { properties: { sheetId: 1, title: 'Responses' } },
+    { properties: { sheetId: 2, title: '_ApplicationData', hidden: true } },
+  ] } });
   valuesGet.mockImplementation(({ range }: { range: string }) => {
-    const title = Object.keys(headers).find(name => range.includes(name))!;
-    return Promise.resolve({ data: { values: range.endsWith('1:1') ? [headers[title]] : [headers[title]] } });
+    if (range.includes('_ApplicationData') && range.endsWith('1:1')) return Promise.resolve({ data: { values: [dataHeaders] } });
+    if (range.includes('Responses') && range.endsWith('1:2')) return Promise.resolve({ data: { values: [] } });
+    return Promise.resolve({ data: { values: [dataHeaders] } });
   });
-  valuesAppend.mockResolvedValue({ data: {} }); valuesUpdate.mockResolvedValue({ data: {} }); valuesBatchClear.mockResolvedValue({ data: {} });
+  valuesAppend.mockResolvedValue({ data: {} });
+  valuesUpdate.mockResolvedValue({ data: {} });
+  valuesBatchUpdate.mockResolvedValue({ data: {} });
+  valuesClear.mockResolvedValue({ data: {} });
+  spreadsheetBatchUpdate.mockResolvedValue({ data: {} });
+  indexUpsert.mockResolvedValue({ error: null });
 });
 
-describe('application Google Sheets storage', () => {
-  it('appends application records with RAW values to managed tabs', async () => {
-    await saveApplicationForm({
-      id: 'form-1', ownerId: 'owner-1', ownerEmail: '=unsafe@example.com', slug: 'bootcamp', status: 'draft',
-      createdAt: '2026-09-25T00:00:00.000Z', updatedAt: '2026-09-25T00:00:00.000Z', config: newApplicationFormConfig(),
-    });
-    expect(valuesAppend).toHaveBeenCalledOnce();
-    expect(valuesAppend.mock.calls[0][0].valueInputOption).toBe('RAW');
-    expect(valuesAppend.mock.calls[0][0].requestBody.values[0][2]).toBe('=unsafe@example.com');
-    expect(spreadsheetBatchUpdate).not.toHaveBeenCalled();
+describe('per-form Google Sheets response storage', () => {
+  it('creates a response spreadsheet in the configured Drive folder', async () => {
+    await expect(createApplicationResponseSpreadsheet({ ...form, responseSpreadsheetId: undefined, responseSpreadsheetUrl: undefined }))
+      .resolves.toEqual({ id: 'response-sheet-1', url: form.responseSpreadsheetUrl });
+    expect(driveCreate).toHaveBeenCalledWith(expect.objectContaining({
+      supportsAllDrives: true,
+      requestBody: expect.objectContaining({ parents: ['folder-1'], mimeType: 'application/vnd.google-apps.spreadsheet' }),
+    }));
   });
 
-  it('clears the form and its related submission rows', async () => {
-    valuesGet.mockImplementation(({ range }: { range: string }) => {
-      const title = Object.keys(headers).find(name => range.includes(name))!;
-      if (range.endsWith('1:1')) return Promise.resolve({ data: { values: [headers[title]] } });
-      if (title === 'ApplicationForms') return Promise.resolve({ data: { values: [headers[title], ['form-1'], ['form-2']] } });
-      if (title === 'ApplicationSubmissions') return Promise.resolve({ data: { values: [headers[title], ['submission-1', 'form-1'], ['submission-2', 'form-2'], ['submission-3', 'form-1']] } });
-      return Promise.resolve({ data: { values: [headers[title]] } });
-    });
-
-    await expect(deleteApplicationFormData('form-1')).resolves.toEqual({ deleted: true, submissionCount: 2 });
-    expect(valuesBatchClear).toHaveBeenCalledWith(expect.objectContaining({
-      requestBody: { ranges: [
-        "'ApplicationForms'!A2:H2",
-        "'ApplicationSubmissions'!A2:Q2",
-        "'ApplicationSubmissions'!A4:Q4",
-      ] },
-    }));
+  it('writes canonical and readable response rows with RAW values', async () => {
+    await saveApplicationSubmission(submission);
+    expect(valuesAppend).toHaveBeenCalledTimes(2);
+    expect(valuesAppend.mock.calls.every(call => call[0].valueInputOption === 'RAW')).toBe(true);
+    expect(valuesAppend.mock.calls[0][0].requestBody.values[0][3]).toBe('=unsafe@example.com');
+    expect(valuesAppend.mock.calls[1][0].requestBody.values[0][1]).toBe('=unsafe@example.com');
+    expect(indexUpsert).toHaveBeenCalledWith(expect.objectContaining({
+      id: submission.id,
+      form_id: form.id,
+      token_hashes: ['hash-1'],
+      state: 'submitted',
+    }), { onConflict: 'id' });
   });
 });

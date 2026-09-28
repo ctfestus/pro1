@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { validateApplicationForm, type ApplicationFormConfig, type ApplicationFormStatus } from '@/lib/application-forms';
-import { appendApplicationAudit, deleteApplicationFormData, getApplicationForm, listApplicationForms, listApplicationSubmissions, saveApplicationForm } from '@/lib/application-sheets';
+import { deleteApplicationForm, getApplicationForm, listApplicationForms, saveApplicationForm } from '@/lib/application-form-store';
+import { appendApplicationAudit, createApplicationResponseSpreadsheet, listApplicationSubmissions, trashApplicationResponseSpreadsheet } from '@/lib/application-sheets';
 import { newApplicationId } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';
@@ -42,9 +43,13 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       const taken = (await listApplicationForms()).some(item => item.id !== form.id && item.slug === slug);
       if (taken) return NextResponse.json({ error: 'That registration URL is already in use.' }, { status: 409 });
     }
-    const next = { ...form, slug, config: body.config ?? form.config, status: body.status ?? form.status, updatedAt: new Date().toISOString() };
+    let next = { ...form, slug, config: body.config ?? form.config, status: body.status ?? form.status, updatedAt: new Date().toISOString() };
     const errors = validateApplicationForm(next.config, next.status);
     if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 });
+    if (next.status === 'published' && !next.responseSpreadsheetId) {
+      const spreadsheet = await createApplicationResponseSpreadsheet(next);
+      next = { ...next, responseSpreadsheetId: spreadsheet.id, responseSpreadsheetUrl: spreadsheet.url };
+    }
     await saveApplicationForm(next);
     const details = {
       ...(body.status && body.status !== form.status ? { from: form.status, to: body.status } : {}),
@@ -71,14 +76,24 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     const form = await getApplicationForm(id);
     if (!form) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
     if (auth.role !== 'admin' && form.ownerId !== auth.actor.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    const result = await deleteApplicationFormData(id);
-    if (!result.deleted) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
+    const submissionCount = (await listApplicationSubmissions(id)).length;
     await appendApplicationAudit({
       id: newApplicationId('audit'), entityType: 'form', entityId: form.id,
       action: 'deleted', actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: new Date().toISOString(),
-      details: { title: form.config.title, slug: form.slug, submissionCount: result.submissionCount },
+      details: { title: form.config.title, slug: form.slug, submissionCount },
     });
-    return NextResponse.json({ deleted: true, submissionCount: result.submissionCount });
+    const deleted = await deleteApplicationForm(id);
+    if (!deleted) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
+    let spreadsheetTrashed = true;
+    if (form.responseSpreadsheetId) {
+      try {
+        await trashApplicationResponseSpreadsheet(form.responseSpreadsheetId);
+      } catch (error) {
+        spreadsheetTrashed = false;
+        console.error('[application-forms/id/delete-spreadsheet]', error);
+      }
+    }
+    return NextResponse.json({ deleted: true, submissionCount, spreadsheetTrashed });
   } catch (error) {
     console.error('[application-forms/id/delete]', error);
     return NextResponse.json({ error: (error as Error).message || 'Could not delete application form.' }, { status: 503 });

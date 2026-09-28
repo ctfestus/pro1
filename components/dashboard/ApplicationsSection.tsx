@@ -88,7 +88,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   }
 
   async function remove(form: ApplicationFormRecord) {
-    const confirmed = window.confirm(`Delete "${form.config.title}"? This permanently deletes the form and all of its application submissions. This cannot be undone.`);
+    const confirmed = window.confirm(`Delete "${form.config.title}"? The form will be removed and its response spreadsheet will be moved to Google Drive trash.`);
     if (!confirmed) return;
     setDeletingFormId(form.id); setError('');
     try {
@@ -96,6 +96,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'Could not delete application form.');
       setForms(previous => previous.filter(item => item.id !== form.id));
+      if (value.spreadsheetTrashed === false) setError('The form was deleted, but its Google response sheet could not be moved to trash.');
     } catch (reason) { setError((reason as Error).message); }
     finally { setDeletingFormId(''); }
   }

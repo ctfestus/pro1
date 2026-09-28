@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createHash } from 'crypto';
 import { cloudinary } from '@/lib/cloudinary-server';
 import { formAvailability } from '@/lib/application-forms';
-import { getApplicationForm, getApplicationSubmissionByTokenHash } from '@/lib/application-sheets';
+import { getApplicationForm } from '@/lib/application-form-store';
+import { getApplicationSubmissionByTokenHash } from '@/lib/application-sheets';
 import { hashApplicationAccessToken } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';

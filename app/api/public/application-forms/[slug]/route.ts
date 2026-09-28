@@ -10,11 +10,11 @@ import {
 } from '@/lib/application-forms';
 import {
   appendApplicationAudit,
-  getApplicationFormBySlug,
   getApplicationSubmissionByTokenHash,
   listApplicationSubmissions,
   saveApplicationSubmission,
 } from '@/lib/application-sheets';
+import { getApplicationFormBySlug } from '@/lib/application-form-store';
 import {
   hashApplicationAccessToken,
   newApplicationAccessToken,

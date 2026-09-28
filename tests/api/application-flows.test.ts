@@ -4,24 +4,30 @@ import { NextRequest } from 'next/server';
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(), listForms: vi.fn(), getForm: vi.fn(), getFormBySlug: vi.fn(), getSubmission: vi.fn(),
   getSubmissionByTokenHash: vi.fn(), listSubmissions: vi.fn(), saveForm: vi.fn(),
-  deleteFormData: vi.fn(), saveSubmission: vi.fn(), appendAudit: vi.fn(), sendConfirmation: vi.fn(),
-  sendDecision: vi.fn(), related: vi.fn(),
+  deleteStoredForm: vi.fn(), saveSubmission: vi.fn(), appendAudit: vi.fn(), sendConfirmation: vi.fn(),
+  sendDecision: vi.fn(), related: vi.fn(), createSpreadsheet: vi.fn(), trashSpreadsheet: vi.fn(), reviewerFormIds: vi.fn(),
 }));
 const { requireRole, listForms, getForm, getFormBySlug, getSubmission, getSubmissionByTokenHash, listSubmissions,
-  saveForm, deleteFormData, saveSubmission, appendAudit, sendConfirmation, sendDecision, related } = mocks;
+  saveForm, deleteStoredForm, saveSubmission, appendAudit, sendConfirmation, sendDecision, related,
+  createSpreadsheet, trashSpreadsheet, reviewerFormIds } = mocks;
 
 vi.mock('@/lib/api-auth', () => ({ requireRole: mocks.requireRole, isAuthError: (value: any) => Boolean(value?.error) }));
-vi.mock('@/lib/application-sheets', () => ({
+vi.mock('@/lib/application-form-store', () => ({
   listApplicationForms: mocks.listForms,
   getApplicationForm: mocks.getForm,
   getApplicationFormBySlug: mocks.getFormBySlug,
+  saveApplicationForm: mocks.saveForm,
+  deleteApplicationForm: mocks.deleteStoredForm,
+}));
+vi.mock('@/lib/application-sheets', () => ({
   getApplicationSubmission: mocks.getSubmission,
   getApplicationSubmissionByTokenHash: mocks.getSubmissionByTokenHash,
   listApplicationSubmissions: mocks.listSubmissions,
-  saveApplicationForm: mocks.saveForm,
-  deleteApplicationFormData: mocks.deleteFormData,
   saveApplicationSubmission: mocks.saveSubmission,
   appendApplicationAudit: mocks.appendAudit,
+  createApplicationResponseSpreadsheet: mocks.createSpreadsheet,
+  trashApplicationResponseSpreadsheet: mocks.trashSpreadsheet,
+  listApplicationFormIdsForReviewer: mocks.reviewerFormIds,
 }));
 vi.mock('@/lib/application-email', () => ({
   sendApplicationConfirmationEmail: mocks.sendConfirmation,
@@ -53,7 +59,9 @@ beforeEach(() => {
   requireRole.mockResolvedValue({ role: 'admin', actor: { id: 'owner-1', email: 'owner@example.com' }, user: { id: 'owner-1' }, serviceDb: {} });
   listForms.mockResolvedValue([]); getForm.mockResolvedValue(form); getFormBySlug.mockResolvedValue(form); getSubmission.mockResolvedValue(submission);
   getSubmissionByTokenHash.mockResolvedValue(submission); listSubmissions.mockResolvedValue([submission]);
-  saveForm.mockResolvedValue(undefined); deleteFormData.mockResolvedValue({ deleted: true, submissionCount: 2 }); saveSubmission.mockResolvedValue(undefined); appendAudit.mockResolvedValue(undefined);
+  saveForm.mockResolvedValue(undefined); deleteStoredForm.mockResolvedValue(true); saveSubmission.mockResolvedValue(undefined); appendAudit.mockResolvedValue(undefined);
+  createSpreadsheet.mockResolvedValue({ id: 'response-sheet-1', url: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit' });
+  trashSpreadsheet.mockResolvedValue(undefined); reviewerFormIds.mockResolvedValue([]);
   sendConfirmation.mockResolvedValue(undefined); sendDecision.mockResolvedValue(undefined); related.mockResolvedValue([]);
 });
 
@@ -80,6 +88,22 @@ describe('application end-to-end route boundaries', () => {
     }));
   });
 
+  it('creates a dedicated response spreadsheet when a form is first published', async () => {
+    getForm.mockResolvedValue({ ...form, status: 'draft', responseSpreadsheetId: undefined, responseSpreadsheetUrl: undefined });
+    const response = await updateForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'published' }),
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    expect(response.status).toBe(200);
+    expect(createSpreadsheet).toHaveBeenCalledOnce();
+    expect(saveForm).toHaveBeenCalledWith(expect.objectContaining({
+      responseSpreadsheetId: 'response-sheet-1',
+      responseSpreadsheetUrl: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit',
+    }));
+  });
+
   it('rejects a registration URL already used by another form', async () => {
     listForms.mockResolvedValue([{ ...form, id: 'form-2', slug: 'data-bootcamp-2026' }]);
     const response = await updateForm(new Request('http://localhost/api/application-forms/form-1', {
@@ -98,11 +122,11 @@ describe('application end-to-end route boundaries', () => {
     }) as any, { params: Promise.resolve({ id: form.id }) });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ deleted: true, submissionCount: 2 });
-    expect(deleteFormData).toHaveBeenCalledWith(form.id);
+    expect(await response.json()).toEqual({ deleted: true, submissionCount: 1, spreadsheetTrashed: true });
+    expect(deleteStoredForm).toHaveBeenCalledWith(form.id);
     expect(appendAudit).toHaveBeenCalledWith(expect.objectContaining({
       action: 'deleted',
-      details: expect.objectContaining({ title: form.config.title, submissionCount: 2 }),
+      details: expect.objectContaining({ title: form.config.title, submissionCount: 1 }),
     }));
   });
 
@@ -113,7 +137,7 @@ describe('application end-to-end route boundaries', () => {
     }) as any, { params: Promise.resolve({ id: form.id }) });
 
     expect(response.status).toBe(403);
-    expect(deleteFormData).not.toHaveBeenCalled();
+    expect(deleteStoredForm).not.toHaveBeenCalled();
   });
 
   it('validates and stores a submitted application with a reference', async () => {

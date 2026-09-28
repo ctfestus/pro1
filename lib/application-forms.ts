@@ -81,6 +81,8 @@ export interface ApplicationFormRecord {
   ownerEmail: string;
   slug: string;
   status: ApplicationFormStatus;
+  responseSpreadsheetId?: string;
+  responseSpreadsheetUrl?: string;
   createdAt: string;
   updatedAt: string;
   config: ApplicationFormConfig;

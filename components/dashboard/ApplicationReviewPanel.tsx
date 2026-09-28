@@ -7,6 +7,7 @@ import {
   ChevronRight,
   ClipboardList,
   Download,
+  ExternalLink,
   Inbox,
   Loader2,
   Mail,
@@ -248,7 +249,10 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
           <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><Inbox className="h-5 w-5" /></div>
           <div className="min-w-0"><h2 className="truncate text-lg font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="mt-0.5 text-xs" style={{ color: C.faint }}>{submittedCount} submitted application{submittedCount === 1 ? '' : 's'}</p></div>
         </div>
-        <button type="button" onClick={() => void exportCsv()} disabled={exporting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.card, color: C.text }}>{exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV</button>
+        <div className="flex flex-wrap items-center gap-2">
+          {form.responseSpreadsheetUrl && <a href={form.responseSpreadsheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: C.card, color: C.text }}><ExternalLink className="h-4 w-4" /> Open response sheet</a>}
+          <button type="button" onClick={() => void exportCsv()} disabled={exporting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.card, color: C.text }}>{exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV</button>
+        </div>
       </div>
 
       {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div>}

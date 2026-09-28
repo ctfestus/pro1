@@ -8,11 +8,10 @@ import {
   type ApplicationTemplateKey,
 } from '@/lib/application-forms';
 import {
-  appendApplicationAudit,
   listApplicationForms,
-  listApplicationSubmissions,
   saveApplicationForm,
-} from '@/lib/application-sheets';
+} from '@/lib/application-form-store';
+import { appendApplicationAudit, listApplicationFormIdsForReviewer } from '@/lib/application-sheets';
 import { newApplicationId } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';
@@ -34,9 +33,7 @@ export async function GET(req: NextRequest) {
     const forms = await listApplicationForms();
     if (auth.role === 'admin') return NextResponse.json({ forms });
     if (auth.role === 'instructor') return NextResponse.json({ forms: forms.filter(form => form.ownerId === auth.actor.id) });
-    const assignedFormIds = new Set((await listApplicationSubmissions())
-      .filter(item => item.assignedReviewerId === auth.actor.id)
-      .map(item => item.formId));
+    const assignedFormIds = new Set(await listApplicationFormIdsForReviewer(auth.actor.id));
     return NextResponse.json({ forms: forms.filter(form => assignedFormIds.has(form.id)) });
   } catch (error) {
     console.error('[application-forms/get]', error);

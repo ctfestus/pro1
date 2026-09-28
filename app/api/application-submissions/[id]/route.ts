@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import {
   appendApplicationAudit,
-  getApplicationForm,
   getApplicationSubmission,
   saveApplicationSubmission,
 } from '@/lib/application-sheets';
+import { getApplicationForm } from '@/lib/application-form-store';
 import {
   hashApplicationAccessToken,
   newApplicationAccessToken,
@@ -107,7 +107,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       id: newApplicationId('audit'), entityType: 'submission', entityId: updated.id,
       action: body.message ? `message:${body.message.type}` : nextStageId ? 'stage_changed' : body.note ? 'private_note_added' : 'review_updated',
       actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
-      details: { stageId: updated.stageId, reviewerId: updated.assignedReviewerId, score: updated.score },
+      details: { formId: form.id, stageId: updated.stageId, reviewerId: updated.assignedReviewerId, score: updated.score },
     });
     const { tokenHash: _tokenHash, ...safe } = updated;
     return NextResponse.json({ submission: safe });

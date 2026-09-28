@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { formAvailability, publicApplicationForm, validateApplicationAnswers, type ApplicationAnswer } from '@/lib/application-forms';
 import {
   appendApplicationAudit,
-  getApplicationForm,
   getApplicationSubmissionByTokenHash,
   listApplicationSubmissions,
   saveApplicationSubmission,
 } from '@/lib/application-sheets';
+import { getApplicationForm } from '@/lib/application-form-store';
 import { hashApplicationAccessToken, newApplicationId } from '@/lib/application-access';
 import { resolveApplicationRelatedItems } from '@/lib/application-related';
 import { sendApplicationConfirmationEmail } from '@/lib/application-email';
