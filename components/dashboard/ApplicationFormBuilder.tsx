@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   AlignLeft,
   AtSign,
@@ -25,9 +25,11 @@ import {
   Lock,
   Minus,
   Moon,
+  Move,
   Palette,
   Phone,
   Plus,
+  RotateCcw,
   Send,
   Settings2,
   ShieldCheck,
@@ -39,12 +41,14 @@ import {
   Upload,
   Workflow,
   X,
+  ZoomIn,
   type LucideIcon,
 } from 'lucide-react';
 import { ApplicationStart } from '@/components/ApplicationStart';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import {
   type ApplicationCondition,
+  type ApplicationFormConfig,
   type ApplicationFormRecord,
   type ApplicationPostSubmission,
   type ApplicationQuestion,
@@ -152,6 +156,102 @@ function withValidConditions(questions: ApplicationQuestion[]): ApplicationQuest
     available.add(question.id);
     return valid ? question : { ...question, condition: undefined };
   });
+}
+
+function clampCoverValue(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function CoverCropEditor({ src, alt, config, C, onChange }: {
+  src: string;
+  alt: string;
+  config: ApplicationFormConfig;
+  C: ThemeColors;
+  onChange: (patch: Partial<ApplicationFormConfig>) => void;
+}) {
+  const drag = useRef<{
+    pointerId: number;
+    clientX: number;
+    clientY: number;
+    positionX: number;
+    positionY: number;
+    width: number;
+    height: number;
+  } | null>(null);
+  const fit = config.coverImageFit ?? 'cover';
+  const legacyY = config.coverImagePosition === 'top' ? 0 : config.coverImagePosition === 'bottom' ? 100 : 50;
+  const positionX = clampCoverValue(config.coverImagePositionX ?? 50, 0, 100);
+  const positionY = clampCoverValue(config.coverImagePositionY ?? legacyY, 0, 100);
+  const zoom = clampCoverValue(config.coverImageZoom ?? 1, 1, 2.5);
+  const cropped = fit === 'cover';
+
+  function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (!cropped) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    drag.current = { pointerId: event.pointerId, clientX: event.clientX, clientY: event.clientY, positionX, positionY, width: bounds.width, height: bounds.height };
+    event.currentTarget.setPointerCapture(event.pointerId);
+  }
+
+  function moveCrop(event: ReactPointerEvent<HTMLDivElement>) {
+    const state = drag.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    const nextX = clampCoverValue(state.positionX - ((event.clientX - state.clientX) / state.width) * 100 / zoom, 0, 100);
+    const nextY = clampCoverValue(state.positionY - ((event.clientY - state.clientY) / state.height) * 100 / zoom, 0, 100);
+    onChange({ coverImagePositionX: Math.round(nextX), coverImagePositionY: Math.round(nextY) });
+  }
+
+  function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
+    if (drag.current?.pointerId === event.pointerId) drag.current = null;
+  }
+
+  function nudgeCrop(event: ReactKeyboardEvent<HTMLDivElement>) {
+    if (!cropped || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
+    event.preventDefault();
+    const movement = event.shiftKey ? 5 : 1;
+    if (event.key === 'ArrowLeft') onChange({ coverImagePositionX: clampCoverValue(positionX - movement, 0, 100) });
+    if (event.key === 'ArrowRight') onChange({ coverImagePositionX: clampCoverValue(positionX + movement, 0, 100) });
+    if (event.key === 'ArrowUp') onChange({ coverImagePositionY: clampCoverValue(positionY - movement, 0, 100) });
+    if (event.key === 'ArrowDown') onChange({ coverImagePositionY: clampCoverValue(positionY + movement, 0, 100) });
+  }
+
+  const imageStyle: CSSProperties = {
+    objectFit: fit,
+    objectPosition: `${positionX}% ${positionY}%`,
+    transform: cropped ? `scale(${zoom})` : 'none',
+    transformOrigin: `${positionX}% ${positionY}%`,
+  };
+
+  return (
+    <div className="mt-5 space-y-4">
+      <div
+        className={`relative aspect-[16/5] overflow-hidden rounded-xl outline-none ${cropped ? 'cursor-grab touch-none active:cursor-grabbing' : ''}`}
+        style={{ background: C.input, boxShadow: `inset 0 0 0 1px ${C.inputBorder}` }}
+        onPointerDown={startDrag}
+        onPointerMove={moveCrop}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+        onKeyDown={nudgeCrop}
+        tabIndex={cropped ? 0 : -1}
+        role="img"
+        aria-label={cropped ? 'Cover crop preview. Drag the image or use the arrow keys to reposition it.' : 'Full cover image preview.'}
+      >
+        <img src={src} alt={alt} draggable={false} className="pointer-events-none h-full w-full select-none" style={imageStyle} />
+        {cropped && <><span className="pointer-events-none absolute inset-y-0 left-1/3 w-px bg-white/45" /><span className="pointer-events-none absolute inset-y-0 right-1/3 w-px bg-white/45" /><span className="pointer-events-none absolute inset-x-0 top-1/3 h-px bg-white/45" /><span className="pointer-events-none absolute inset-x-0 bottom-1/3 h-px bg-white/45" /><span className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white"><Move className="h-3.5 w-3.5" /> Drag to reposition</span></>}
+      </div>
+
+      <div className="grid gap-4 rounded-xl p-4 lg:grid-cols-[minmax(160px,0.65fr)_minmax(220px,1fr)_auto] lg:items-end" style={{ background: C.input }}>
+        <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Cover location</span><select value={config.coverImagePlacement ?? 'header'} onChange={event => onChange({ coverImagePlacement: event.target.value as 'header' | 'inside' })} className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold outline-none" style={{ background: C.card, color: C.text, border: `1px solid ${C.inputBorder}` }}><option value="header">Above the form</option><option value="inside">Inside the introduction</option></select></label>
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-3"><label htmlFor="application-cover-zoom" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}><ZoomIn className="h-3.5 w-3.5" /> Zoom</label><span className="text-[10px] font-semibold tabular-nums" style={{ color: C.muted }}>{Math.round(zoom * 100)}%</span></div>
+          <input id="application-cover-zoom" type="range" min="1" max="2.5" step="0.05" value={zoom} disabled={!cropped} onChange={event => onChange({ coverImageZoom: Number(event.target.value) })} className="h-1.5 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-35" style={{ accentColor: C.cta }} />
+        </div>
+        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: C.card, color: C.text }}><input type="checkbox" checked={!cropped} onChange={event => onChange({ coverImageFit: event.target.checked ? 'contain' : 'cover' })} style={{ accentColor: C.cta }} /> Show full image</label>
+          <button type="button" onClick={() => onChange({ coverImageFit: 'cover', coverImagePosition: 'center', coverImagePositionX: 50, coverImagePositionY: 50, coverImageZoom: 1 })} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: C.card, color: C.muted }}><RotateCcw className="h-3.5 w-3.5" /> Reset</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function SectionHeading({ icon: Icon, title, description, C, action }: {
@@ -507,19 +607,15 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                     <PexelsImagePicker
                       value={config.coverImage || null}
                       altValue={config.coverImageAlt || null}
-                      onChange={(url, alt) => setConfig({ coverImage: url, coverImageAlt: alt, coverImagePlacement: config.coverImagePlacement ?? 'header', coverImageFit: config.coverImageFit ?? 'cover', coverImagePosition: config.coverImagePosition ?? 'center' })}
-                      onClear={() => setConfig({ coverImage: '', coverImageAlt: '' })}
+                      onChange={(url, alt) => setConfig({ coverImage: url, coverImageAlt: alt, coverImagePlacement: config.coverImagePlacement ?? 'header', coverImageFit: 'cover', coverImagePosition: 'center', coverImagePositionX: 50, coverImagePositionY: 50, coverImageZoom: 1 })}
+                      onClear={() => setConfig({ coverImage: '', coverImageAlt: '', coverImageFit: 'cover', coverImagePosition: 'center', coverImagePositionX: 50, coverImagePositionY: 50, coverImageZoom: 1 })}
                       C={C}
                       token={token}
                       previewMaxWidth={520}
                     />
                   </div>
                 </div>
-                {config.coverImage && <div className="grid gap-4 p-4 sm:grid-cols-3">
-                  <div><p className="text-xs font-semibold" style={{ color: C.text }}>Placement</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Where the cover appears.</p><div className="mt-2 flex rounded-xl p-1" style={{ background: C.input }}>{([['header', 'Header'], ['inside', 'Inside']] as const).map(([value, text]) => { const selected = (config.coverImagePlacement ?? 'header') === value; return <button key={value} type="button" onClick={() => setConfig({ coverImagePlacement: value })} className="flex-1 rounded-lg px-2 py-2 text-[11px] font-semibold" style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.faint }}>{text}</button>; })}</div></div>
-                  <div><p className="text-xs font-semibold" style={{ color: C.text }}>Image fit</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Crop or show the full image.</p><div className="mt-2 flex rounded-xl p-1" style={{ background: C.input }}>{([['cover', 'Crop to fill'], ['contain', 'Fit image']] as const).map(([value, text]) => { const selected = (config.coverImageFit ?? 'cover') === value; return <button key={value} type="button" onClick={() => setConfig({ coverImageFit: value })} className="flex-1 rounded-lg px-2 py-2 text-[11px] font-semibold" style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.faint }}>{text}</button>; })}</div></div>
-                  <div className={(config.coverImageFit ?? 'cover') === 'contain' ? 'opacity-45' : ''}><p className="text-xs font-semibold" style={{ color: C.text }}>Crop focus</p><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Keep the important area visible.</p><div className="mt-2 flex rounded-xl p-1" style={{ background: C.input }}>{(['top', 'center', 'bottom'] as const).map(value => { const selected = (config.coverImagePosition ?? 'center') === value; return <button key={value} type="button" disabled={(config.coverImageFit ?? 'cover') === 'contain'} onClick={() => setConfig({ coverImagePosition: value })} className="flex-1 rounded-lg px-2 py-2 text-[11px] font-semibold capitalize disabled:cursor-not-allowed" style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.faint }}>{value}</button>; })}</div></div>
-                </div>}
+                {config.coverImage && <div className="px-5 pb-5 sm:px-6 sm:pb-6"><CoverCropEditor src={config.coverImage} alt={config.coverImageAlt || `${config.title} cover`} config={config} C={C} onChange={setConfig} /></div>}
               </section>
 
               <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>

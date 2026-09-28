@@ -18,6 +18,9 @@ describe('application form contract', () => {
     expect(config.coverImagePlacement).toBe('header');
     expect(config.coverImageFit).toBe('cover');
     expect(config.coverImagePosition).toBe('center');
+    expect(config.coverImagePositionX).toBe(50);
+    expect(config.coverImagePositionY).toBe(50);
+    expect(config.coverImageZoom).toBe(1);
     expect(config.emailPrompt).toBe('What is your email address?');
     expect(config.emailHelpText).toBe('For confirmation and status updates.');
     expect(config.themeColor).toBe('');
@@ -62,7 +65,12 @@ describe('application form contract', () => {
     config.coverImagePlacement = 'inside';
     config.coverImageFit = 'contain';
     config.coverImagePosition = 'top';
+    config.coverImagePositionX = 35;
+    config.coverImagePositionY = 20;
+    config.coverImageZoom = 1.4;
     expect(validateApplicationForm(config)).toEqual([]);
+    config.coverImageZoom = 3;
+    expect(validateApplicationForm(config)).toContain('Cover image zoom is invalid.');
   });
 
   it('validates conditional required answers only when visible', () => {
@@ -92,6 +100,9 @@ describe('application form contract', () => {
     config.coverImagePlacement = 'inside';
     config.coverImageFit = 'cover';
     config.coverImagePosition = 'bottom';
+    config.coverImagePositionX = 42;
+    config.coverImagePositionY = 76;
+    config.coverImageZoom = 1.25;
     const form: ApplicationFormRecord = {
       id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'test', status: 'published',
       createdAt: '', updatedAt: '', config,
@@ -103,5 +114,8 @@ describe('application form contract', () => {
     expect(publicApplicationForm(form).config.coverImagePlacement).toBe('inside');
     expect(publicApplicationForm(form).config.coverImageFit).toBe('cover');
     expect(publicApplicationForm(form).config.coverImagePosition).toBe('bottom');
+    expect(publicApplicationForm(form).config.coverImagePositionX).toBe(42);
+    expect(publicApplicationForm(form).config.coverImagePositionY).toBe(76);
+    expect(publicApplicationForm(form).config.coverImageZoom).toBe(1.25);
   });
 });

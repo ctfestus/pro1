@@ -257,8 +257,16 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
   const coverPlacement = form.config.coverImagePlacement ?? 'header';
   const coverFit = form.config.coverImageFit ?? 'cover';
-  const coverPosition = form.config.coverImagePosition ?? 'center';
-  const coverImageStyle: CSSProperties = { objectFit: coverFit, objectPosition: coverPosition };
+  const legacyCoverY = form.config.coverImagePosition === 'top' ? 0 : form.config.coverImagePosition === 'bottom' ? 100 : 50;
+  const coverPositionX = form.config.coverImagePositionX ?? 50;
+  const coverPositionY = form.config.coverImagePositionY ?? legacyCoverY;
+  const coverZoom = form.config.coverImageZoom ?? 1;
+  const coverImageStyle: CSSProperties = {
+    objectFit: coverFit,
+    objectPosition: `${coverPositionX}% ${coverPositionY}%`,
+    transform: coverFit === 'cover' ? `scale(${coverZoom})` : 'none',
+    transformOrigin: `${coverPositionX}% ${coverPositionY}%`,
+  };
   const visibleQuestions = form.config.questions.filter((question: any) => isQuestionVisible(question, answers));
   const stepCount = visibleQuestions.length + 1;
   const currentStep = Math.min(activeStep, Math.max(0, stepCount - 1));

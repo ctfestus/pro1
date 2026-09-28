@@ -55,6 +55,9 @@ export interface ApplicationFormConfig {
   coverImagePlacement?: 'header' | 'inside';
   coverImageFit?: 'cover' | 'contain';
   coverImagePosition?: 'top' | 'center' | 'bottom';
+  coverImagePositionX?: number;
+  coverImagePositionY?: number;
+  coverImageZoom?: number;
   eligibility: string;
   opensAt: string;
   closesAt: string;
@@ -220,6 +223,9 @@ export function newApplicationFormConfig(template: ApplicationTemplateKey = 'boo
     coverImagePlacement: 'header',
     coverImageFit: 'cover',
     coverImagePosition: 'center',
+    coverImagePositionX: 50,
+    coverImagePositionY: 50,
+    coverImageZoom: 1,
     eligibility: '',
     opensAt: '',
     closesAt: '',
@@ -261,6 +267,9 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   if (config.coverImagePlacement && !['header', 'inside'].includes(config.coverImagePlacement)) errors.push('Cover image placement is invalid.');
   if (config.coverImageFit && !['cover', 'contain'].includes(config.coverImageFit)) errors.push('Cover image fit is invalid.');
   if (config.coverImagePosition && !['top', 'center', 'bottom'].includes(config.coverImagePosition)) errors.push('Cover image position is invalid.');
+  if (config.coverImagePositionX !== undefined && (!Number.isFinite(config.coverImagePositionX) || config.coverImagePositionX < 0 || config.coverImagePositionX > 100)) errors.push('Cover image horizontal position is invalid.');
+  if (config.coverImagePositionY !== undefined && (!Number.isFinite(config.coverImagePositionY) || config.coverImagePositionY < 0 || config.coverImagePositionY > 100)) errors.push('Cover image vertical position is invalid.');
+  if (config.coverImageZoom !== undefined && (!Number.isFinite(config.coverImageZoom) || config.coverImageZoom < 1 || config.coverImageZoom > 2.5)) errors.push('Cover image zoom is invalid.');
   if (!config.confirmationMessage?.trim()) errors.push('Confirmation message is required.');
   if (config.emailPrompt !== undefined && !config.emailPrompt.trim()) errors.push('Email question prompt is required.');
   if ((config.emailPrompt?.length ?? 0) > 160) errors.push('Email question prompt must be 160 characters or fewer.');
