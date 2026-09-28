@@ -66,8 +66,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [query, setQuery] = useState('');
   const [stageFilter, setStageFilter] = useState('');
   const [note, setNote] = useState('');
-  const [messageType, setMessageType] = useState<keyof typeof MESSAGE_PRESETS>('interview');
-  const [emailStageId, setEmailStageId] = useState(() => form.config.stages.find(stage => stage.id.toLowerCase().includes('interview') || stage.name.toLowerCase().includes('interview'))?.id ?? '');
+  const [messageType, setMessageType] = useState<ApplicationMessageType>('interview');
+  const [emailStageId, setEmailStageId] = useState('');
   const [subject, setSubject] = useState<string>(MESSAGE_PRESETS.interview.subject);
   const [body, setBody] = useState<string>(MESSAGE_PRESETS.interview.body);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -144,6 +144,25 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     setEmailStageId(stageForMessage(type) ?? '');
   }
 
+  function pickCustomEmail() {
+    setMessageType('custom');
+    setSubject('');
+    setBody('');
+    setEmailStageId(selected?.stageId ?? '');
+  }
+
+  function editEmailSubject(value: string) {
+    if (messageType !== 'custom' && !emailStageId) setEmailStageId(selected?.stageId ?? '');
+    setMessageType('custom');
+    setSubject(value);
+  }
+
+  function editEmailBody(value: string) {
+    if (messageType !== 'custom' && !emailStageId) setEmailStageId(selected?.stageId ?? '');
+    setMessageType('custom');
+    setBody(value);
+  }
+
   function stageName(item: any): string {
     return form.config.stages.find(stage => stage.id === item.stageId)?.name ?? item.stageId;
   }
@@ -170,7 +189,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   function openSubmission(id: string) {
     setSelectedId(id);
     setActiveTab('answers');
-    setEmailStageId(stageForMessage(messageType) ?? '');
+    const currentStageId = submissions.find(item => item.id === id)?.stageId ?? '';
+    setEmailStageId(messageType === 'custom' ? currentStageId : stageForMessage(messageType) ?? '');
   }
 
   function toggleAllVisible() {
@@ -192,16 +212,29 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     setBulkStageId(matchingStage ?? '');
   }
 
+  function editBulkEmailSubject(value: string) {
+    setBulkMessageType('custom');
+    setBulkSubject(value);
+  }
+
+  function editBulkEmailBody(value: string) {
+    setBulkMessageType('custom');
+    setBulkBody(value);
+  }
+
   async function applyBulkUpdate() {
     const targets = submissions.filter(item => selectedIds.has(item.id) && item.state === 'submitted');
     if (!targets.length) return;
-    if (!bulkStageId) { setError('Select a stage for the bulk update.'); return; }
+    const emailOnly = bulkSendEmail && bulkMessageType === 'custom' && !bulkStageId;
+    if (!bulkStageId && !emailOnly) { setError('Select a stage for the bulk update.'); return; }
     if (bulkSendEmail && (!bulkSubject.trim() || !bulkBody.trim())) {
       setError('Add an email subject and body before sending.');
       return;
     }
     const stage = form.config.stages.find(item => item.id === bulkStageId);
-    const confirmation = bulkSendEmail
+    const confirmation = emailOnly
+      ? `Email ${targets.length} applicant${targets.length === 1 ? '' : 's'} without changing their stages?`
+      : bulkSendEmail
       ? `Move ${targets.length} application${targets.length === 1 ? '' : 's'} to ${stage?.name ?? 'the selected stage'} and email each applicant?`
       : `Move ${targets.length} application${targets.length === 1 ? '' : 's'} to ${stage?.name ?? 'the selected stage'}?`;
     if (!window.confirm(confirmation)) return;
@@ -216,7 +249,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       setBulkProgress({ current: index + 1, total: targets.length });
       try {
         const result = await patchSubmission(item.id, {
-          stageId: bulkStageId,
+          ...(bulkStageId ? { stageId: bulkStageId } : {}),
           ...(bulkSendEmail ? { message: { type: bulkMessageType, subject: bulkSubject.trim(), body: bulkBody.trim() } } : {}),
         });
         updatedById.set(result.submission.id, result.submission);
@@ -230,7 +263,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     setSelectedIds(new Set([...failures, ...retryableWarnings].map(item => item.id)));
     const completed = targets.length - failures.length;
     const emailed = bulkSendEmail ? completed - warnings.filter(item => item.message.includes('email could not be sent')).length : 0;
-    setBulkResult(`${completed} application${completed === 1 ? '' : 's'} updated.${bulkSendEmail ? ` ${emailed} email${emailed === 1 ? '' : 's'} sent.` : ''}${failures.length ? ` ${failures.length} failed to update.` : ''}${warnings.length ? ` ${warnings.length} need attention.` : ''}`);
+    setBulkResult(`${completed} application${completed === 1 ? '' : 's'} ${emailOnly ? 'processed' : 'updated'}.${bulkSendEmail ? ` ${emailed} email${emailed === 1 ? '' : 's'} sent.` : ''}${failures.length ? ` ${failures.length} failed to ${emailOnly ? 'email' : 'update'}.` : ''}${warnings.length ? ` ${warnings.length} need attention.` : ''}`);
     if (failures.length || warnings.length) {
       const issue = failures[0] ?? warnings[0];
       setError(`${issue.email}: ${issue.message}`);
@@ -343,7 +376,28 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
 
                 {activeTab === 'notes' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Private notes</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Only staff with review access can see these notes.</p></div><div className="mb-4 space-y-2">{(selected.privateNotes ?? []).length === 0 ? <div className="rounded-lg p-5 text-center text-xs" style={{ background: C.input, color: C.faint }}>No private notes yet.</div> : selected.privateNotes.map((item: any) => <div key={item.id} className="rounded-lg p-4" style={{ background: C.input }}><p className="whitespace-pre-wrap text-sm leading-6" style={{ color: C.text }}>{item.body}</p><p className="mt-2 text-[10px]" style={{ color: C.faint }}>{item.authorEmail} | {new Date(item.createdAt).toLocaleString()}</p></div>)}</div><textarea rows={4} value={note} onChange={event => setNote(event.target.value)} placeholder="Write a private note about this application" style={{ ...input, resize: 'vertical' }} /><div className="mt-2 flex justify-end"><button type="button" disabled={busy || !note.trim()} onClick={() => void update({ note })} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? 'Saving...' : 'Add note'}</button></div></div>}
 
-                {activeTab === 'emails' && <div><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h4 className="text-sm font-bold" style={{ color: C.text }}>Applicant email</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>The email includes a secure link to the latest application status.</p></div>{selected.messages?.length > 0 && <span className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: C.faint }}><Mail className="h-3.5 w-3.5" /> {selected.messages.length} sent</span>}</div><div className="mb-3 flex flex-wrap gap-2">{(Object.keys(MESSAGE_PRESETS) as MessagePresetType[]).map(type => <button key={type} type="button" onClick={() => pickPreset(type)} className="rounded-full px-3 py-1.5 text-xs font-semibold capitalize" style={{ background: messageType === type ? C.cta : C.pill, color: messageType === type ? C.ctaText : C.muted }}>{type}</button>)}</div><div className="space-y-2"><label className="block text-[11px] font-semibold" style={{ color: C.muted }}>Status after this email</label><select value={emailStageId} onChange={event => setEmailStageId(event.target.value)} disabled={busy} style={input}><option value="">Select a stage</option>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name} - {stage.applicantLabel}</option>)}</select><input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Email subject" style={input} /><textarea rows={6} value={body} onChange={event => setBody(event.target.value)} placeholder="Write the applicant email" style={{ ...input, resize: 'vertical' }} /><div className="flex justify-end"><button type="button" disabled={busy || !emailStageId || !subject.trim() || !body.trim()} onClick={() => void update({ stageId: emailStageId, message: { type: messageType, subject, body } })} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send email</button></div></div>{selected.messages?.length > 0 && <div className="mt-6"><p className="mb-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Email history</p><div className="space-y-2">{[...selected.messages].reverse().map((item: any) => <div key={item.id} className="rounded-lg p-3" style={{ background: C.input }}><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold" style={{ color: C.text }}>{item.subject}</p><span className="text-[9px] uppercase" style={{ color: C.faint }}>{item.type}</span></div><p className="mt-1 line-clamp-2 text-[11px] leading-5" style={{ color: C.muted }}>{item.body}</p><p className="mt-1 text-[9px]" style={{ color: C.faint }}>{new Date(item.sentAt).toLocaleString()}</p></div>)}</div></div>}</div>}
+                {activeTab === 'emails' && <div>
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <div><h4 className="text-sm font-bold" style={{ color: C.text }}>Applicant email</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>The email includes a secure link to the latest application status.</p></div>
+                    {selected.messages?.length > 0 && <span className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: C.faint }}><Mail className="h-3.5 w-3.5" /> {selected.messages.length} sent</span>}
+                  </div>
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    {(Object.keys(MESSAGE_PRESETS) as MessagePresetType[]).map(type => <button key={type} type="button" onClick={() => pickPreset(type)} className="rounded-full px-3 py-1.5 text-xs font-semibold capitalize" style={{ background: messageType === type ? C.cta : C.pill, color: messageType === type ? C.ctaText : C.muted }}>{type}</button>)}
+                    <button type="button" onClick={pickCustomEmail} className="rounded-full px-3 py-1.5 text-xs font-semibold" style={{ background: messageType === 'custom' ? C.cta : C.pill, color: messageType === 'custom' ? C.ctaText : C.muted }}>Custom email</button>
+                  </div>
+                  <div className="space-y-2">
+                    <label className="block text-[11px] font-semibold" style={{ color: C.muted }}>Status after this email</label>
+                    <select value={emailStageId} onChange={event => setEmailStageId(event.target.value)} disabled={busy} style={input}>
+                      <option value="">{messageType === 'custom' ? 'Keep current status' : 'Select a stage'}</option>
+                      {form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name} - {stage.applicantLabel}</option>)}
+                    </select>
+                    {messageType === 'custom' && <p className="text-[11px]" style={{ color: C.faint }}>Check the selected stage before sending. A custom email can keep or change the applicant status.</p>}
+                    <input value={subject} onChange={event => editEmailSubject(event.target.value)} placeholder="Email subject" style={input} />
+                    <textarea rows={6} value={body} onChange={event => editEmailBody(event.target.value)} placeholder="Write the applicant email" style={{ ...input, resize: 'vertical' }} />
+                    <div className="flex justify-end"><button type="button" disabled={busy || (messageType !== 'custom' && !emailStageId) || !subject.trim() || !body.trim()} onClick={() => void update({ ...(emailStageId ? { stageId: emailStageId } : {}), message: { type: messageType, subject, body } })} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send email</button></div>
+                  </div>
+                  {selected.messages?.length > 0 && <div className="mt-6"><p className="mb-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Email history</p><div className="space-y-2">{[...selected.messages].reverse().map((item: any) => <div key={item.id} className="rounded-lg p-3" style={{ background: C.input }}><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold" style={{ color: C.text }}>{item.subject}</p><span className="text-[9px] uppercase" style={{ color: C.faint }}>{item.type}</span></div><p className="mt-1 line-clamp-2 text-[11px] leading-5" style={{ color: C.muted }}>{item.body}</p><p className="mt-1 text-[9px]" style={{ color: C.faint }}>{new Date(item.sentAt).toLocaleString()}</p></div>)}</div></div>}
+                </div>}
               </div>
             </>
           )}
@@ -353,12 +407,12 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       {bulkPanelOpen && selectedIds.size > 0 && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setBulkPanelOpen(false); }}>
           <section className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl shadow-2xl" style={{ background: C.card }} role="dialog" aria-modal="true" aria-labelledby="bulk-update-title">
-            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 p-5" style={{ background: C.card }}><div><h3 id="bulk-update-title" className="text-base font-bold" style={{ color: C.text }}>Update {selectedIds.size} application{selectedIds.size === 1 ? '' : 's'}</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>Choose a stage and decide whether applicants should be notified.</p></div><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg disabled:opacity-40" style={{ background: C.input, color: C.muted }} aria-label="Close bulk update"><X className="h-4 w-4" /></button></div>
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 p-5" style={{ background: C.card }}><div><h3 id="bulk-update-title" className="text-base font-bold" style={{ color: C.text }}>Update {selectedIds.size} application{selectedIds.size === 1 ? '' : 's'}</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>Move applicants to a stage, send a custom email, or do both.</p></div><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg disabled:opacity-40" style={{ background: C.input, color: C.muted }} aria-label="Close bulk update"><X className="h-4 w-4" /></button></div>
             <div className="space-y-4 px-5 pb-5">
-              <div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Move selected applications to</label><select value={bulkStageId} onChange={event => setBulkStageId(event.target.value)} disabled={busy} style={input}><option value="">Select a stage</option>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div>
+              <div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Move selected applications to</label><select value={bulkStageId} onChange={event => setBulkStageId(event.target.value)} disabled={busy} style={input}><option value="">{bulkSendEmail && bulkMessageType === 'custom' ? 'Keep each applicant in their current stage' : 'Select a stage'}</option>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div>
               <label className="flex cursor-pointer items-center gap-3 rounded-lg p-4" style={{ background: C.input, color: C.text }}><input type="checkbox" checked={bulkSendEmail} onChange={event => setBulkSendEmail(event.target.checked)} disabled={busy} style={{ accentColor: C.cta }} /><span><span className="block text-sm font-semibold">Email every selected applicant</span><span className="mt-0.5 block text-[11px]" style={{ color: C.faint }}>Each recipient gets an individual secure status link.</span></span></label>
-              {bulkSendEmail && <div className="rounded-lg p-4" style={{ background: C.input }}><div className="mb-3 flex flex-wrap gap-2">{(Object.keys(MESSAGE_PRESETS) as MessagePresetType[]).map(type => <button key={type} type="button" disabled={busy} onClick={() => pickBulkPreset(type)} className="rounded-full px-3 py-1.5 text-xs font-semibold capitalize disabled:opacity-50" style={{ background: bulkMessageType === type ? C.cta : C.card, color: bulkMessageType === type ? C.ctaText : C.muted }}>{type}</button>)}</div><div className="space-y-2"><input value={bulkSubject} onChange={event => { setBulkMessageType('custom'); setBulkSubject(event.target.value); }} disabled={busy} placeholder="Email subject" style={{ ...input, background: C.card }} /><textarea rows={5} value={bulkBody} onChange={event => { setBulkMessageType('custom'); setBulkBody(event.target.value); }} disabled={busy} placeholder="Choose a template or write the email" style={{ ...input, background: C.card, resize: 'vertical' }} /></div></div>}
-              <div className="flex flex-wrap items-center justify-between gap-3 pt-1"><p className="text-[10px] leading-5" style={{ color: C.faint }}>{bulkSendEmail ? 'Every successful email and status change is recorded.' : 'This changes the status without emailing applicants.'}</p><div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(false)} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button><button type="button" disabled={busy || !bulkStageId || (bulkSendEmail && (!bulkSubject.trim() || !bulkBody.trim()))} onClick={() => void applyBulkUpdate()} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{bulkProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : bulkSendEmail ? <Send className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{bulkProgress ? `Updating ${bulkProgress.current} of ${bulkProgress.total}` : bulkSendEmail ? 'Update and email' : 'Update status'}</button></div></div>
+              {bulkSendEmail && <div className="rounded-lg p-4" style={{ background: C.input }}><div className="mb-3 flex flex-wrap gap-2">{(Object.keys(MESSAGE_PRESETS) as MessagePresetType[]).map(type => <button key={type} type="button" disabled={busy} onClick={() => pickBulkPreset(type)} className="rounded-full px-3 py-1.5 text-xs font-semibold capitalize disabled:opacity-50" style={{ background: bulkMessageType === type ? C.cta : C.card, color: bulkMessageType === type ? C.ctaText : C.muted }}>{type}</button>)}<button type="button" disabled={busy} onClick={() => { setBulkMessageType('custom'); setBulkStageId(''); setBulkSubject(''); setBulkBody(''); }} className="rounded-full px-3 py-1.5 text-xs font-semibold disabled:opacity-50" style={{ background: bulkMessageType === 'custom' ? C.cta : C.card, color: bulkMessageType === 'custom' ? C.ctaText : C.muted }}>Custom email</button></div><div className="space-y-2"><input value={bulkSubject} onChange={event => editBulkEmailSubject(event.target.value)} disabled={busy} placeholder="Email subject" style={{ ...input, background: C.card }} /><textarea rows={5} value={bulkBody} onChange={event => editBulkEmailBody(event.target.value)} disabled={busy} placeholder="Choose a template or write the email" style={{ ...input, background: C.card, resize: 'vertical' }} /></div></div>}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1"><p className="text-[10px] leading-5" style={{ color: C.faint }}>{bulkSendEmail ? bulkStageId ? 'Successful emails and status changes are recorded.' : 'Each applicant keeps their current stage. Successful emails are recorded.' : 'This changes the status without emailing applicants.'}</p><div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(false)} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button><button type="button" disabled={busy || (!bulkStageId && !(bulkSendEmail && bulkMessageType === 'custom')) || (bulkSendEmail && (!bulkSubject.trim() || !bulkBody.trim()))} onClick={() => void applyBulkUpdate()} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{bulkProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : bulkSendEmail ? <Send className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{bulkProgress ? `Updating ${bulkProgress.current} of ${bulkProgress.total}` : bulkSendEmail ? bulkStageId ? 'Update and email' : 'Send email only' : 'Update status'}</button></div></div>
             </div>
           </section>
         </div>

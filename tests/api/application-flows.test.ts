@@ -389,6 +389,20 @@ describe('application end-to-end route boundaries', () => {
     expect((await statusResponse.json()).submission.status).toBe('Accepted');
   });
 
+  it('sends a custom email without changing the application stage', async () => {
+    const response = await reviewApplication(new Request('http://localhost/api/application-submissions/submission-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: { type: 'custom', subject: 'Application update', body: 'We will be in touch soon.' } }),
+    }) as any, { params: Promise.resolve({ id: 'submission-1' }) });
+
+    expect(response.status).toBe(200);
+    expect(persistedSubmission.stageId).toBe(submission.stageId);
+    expect(persistedSubmission.statusHistory).toEqual(submission.statusHistory);
+    expect(sendDecision).toHaveBeenCalledOnce();
+    expect(persistedSubmission.messages.at(-1)).toEqual(expect.objectContaining({ type: 'custom', subject: 'Application update' }));
+  });
+
   it('keeps the saved decision and warns when its email fails', async () => {
     sendDecision.mockRejectedValueOnce(new Error('Email unavailable'));
     const response = await reviewApplication(new Request('http://localhost/api/application-submissions/submission-1', {
