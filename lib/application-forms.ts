@@ -7,7 +7,7 @@ import {
 
 export const APPLICATION_QUESTION_TYPES = [
   'short_text', 'long_text', 'email', 'phone', 'number', 'date', 'single_choice',
-  'multiple_choice', 'dropdown', 'yes_no', 'file', 'consent',
+  'multiple_choice', 'dropdown', 'yes_no', 'file', 'consent', 'text_block',
 ] as const;
 
 export type ApplicationQuestionType = typeof APPLICATION_QUESTION_TYPES[number];
@@ -26,6 +26,7 @@ export interface ApplicationQuestion {
   type: ApplicationQuestionType;
   required: boolean;
   helpText?: string;
+  richText?: string;
   placeholder?: string;
   options?: string[];
   condition?: ApplicationCondition;
@@ -283,17 +284,21 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   }
   if (!Array.isArray(config.questions) || config.questions.length === 0) errors.push('Add at least one question.');
   const ids = new Set<string>();
+  const conditionSources = new Set<string>();
   for (const item of config.questions ?? []) {
     if (!item.id || ids.has(item.id)) errors.push('Every question must have a unique ID.');
     ids.add(item.id);
     if (!item.label?.trim()) errors.push('Every question needs a label.');
     if (!APPLICATION_QUESTION_TYPES.includes(item.type)) errors.push(`Unsupported question type: ${item.type}`);
+    if (item.type === 'text_block' && !item.richText?.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()) errors.push(`${item.label || 'Text block'} needs content.`);
+    if ((item.richText?.length ?? 0) > 100_000) errors.push(`${item.label || 'Text block'} content is too long.`);
     if (['single_choice', 'multiple_choice', 'dropdown'].includes(item.type) && (item.options ?? []).filter(Boolean).length < 2) {
       errors.push(`${item.label || 'Choice question'} needs at least two options.`);
     }
-    if (item.condition?.questionId && !ids.has(item.condition.questionId)) {
+    if (item.condition?.questionId && !conditionSources.has(item.condition.questionId)) {
       errors.push(`${item.label || 'Conditional question'} must depend on an earlier question.`);
     }
+    if (item.type !== 'text_block') conditionSources.add(item.id);
   }
   if ((config.postSubmission?.type === 'redirect') && !isSafeHttpUrl(config.postSubmission.redirectUrl ?? '')) {
     errors.push('Enter a valid HTTP or HTTPS redirect URL.');
@@ -334,6 +339,7 @@ export function validateApplicationAnswers(
   const errors: Record<string, string> = {};
   for (const item of config.questions) {
     if (!isQuestionVisible(item, answers)) continue;
+    if (item.type === 'text_block') continue;
     const value = answers[item.id];
     if (item.required && !present(value)) {
       errors[item.id] = 'This question is required.';

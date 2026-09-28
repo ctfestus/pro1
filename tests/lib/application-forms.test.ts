@@ -89,6 +89,21 @@ describe('application form contract', () => {
     expect(validateApplicationAnswers(config, hiddenAnswers).conditional).toBe('This question is required.');
   });
 
+  it('supports rich text blocks without treating them as applicant answers', () => {
+    const config = newApplicationFormConfig('bootcamp');
+    config.questions.splice(1, 0, {
+      id: 'programme-context',
+      label: 'Before you continue',
+      type: 'text_block',
+      required: false,
+      richText: '<p>Review the <strong>programme requirements</strong>.</p>',
+    });
+    expect(validateApplicationForm(config)).toEqual([]);
+    expect(validateApplicationAnswers(config, {})).not.toHaveProperty('programme-context');
+    config.questions[1].richText = '<p><br></p>';
+    expect(validateApplicationForm(config)).toContain('Before you continue needs content.');
+  });
+
   it('enforces publication dates and hides internal stage names publicly', () => {
     const config = newApplicationFormConfig();
     config.opensAt = '2026-10-10T00:00:00.000Z';

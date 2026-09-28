@@ -504,6 +504,16 @@ html .landing-scope .text-white { color: #fff !important; }
 [data-theme="dark"] .rich-content a       { color: #3E93FF; }
 [data-theme="dark"] .rich-content blockquote { color: #a1a1aa; }
 
+/* Application forms can use their own light or dark color mode independently of the platform. */
+.application-theme-scope .application-rich-content,
+.application-theme-scope .application-rich-content h1,
+.application-theme-scope .application-rich-content h2,
+.application-theme-scope .application-rich-content h3,
+.application-theme-scope .application-rich-content h4,
+.application-theme-scope .application-rich-content blockquote { color: inherit; }
+.application-theme-scope .application-rich-content a { color: var(--application-focus-color); }
+.application-theme-scope .application-rich-content blockquote { border-left-color: var(--application-focus-color); }
+
 /* Suppress Tailwind Typography default backtick pseudo-elements on inline code */
 .ve-lesson-body code::before,
 .ve-lesson-body code::after { content: none !important; }

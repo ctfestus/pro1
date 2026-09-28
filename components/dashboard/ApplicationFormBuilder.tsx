@@ -46,6 +46,7 @@ import {
 } from 'lucide-react';
 import { ApplicationStart } from '@/components/ApplicationStart';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
+import { RichTextEditor } from '@/components/RichTextEditor';
 import {
   type ApplicationCondition,
   type ApplicationFormConfig,
@@ -71,6 +72,7 @@ const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
   yes_no: 'Yes or no',
   file: 'File upload',
   consent: 'Consent',
+  text_block: 'Text block',
 };
 
 const CHOICE_TYPES: ApplicationQuestionType[] = ['single_choice', 'multiple_choice', 'dropdown'];
@@ -88,13 +90,14 @@ const QUESTION_TYPE_ICONS: Record<ApplicationQuestionType, LucideIcon> = {
   yes_no: ToggleLeft,
   file: Upload,
   consent: ShieldCheck,
+  text_block: FileText,
 };
 
 const QUESTION_TYPE_GROUPS: Array<{ label: string; types: ApplicationQuestionType[] }> = [
   { label: 'Text', types: ['short_text', 'long_text'] },
   { label: 'Contact and details', types: ['email', 'phone', 'number', 'date'] },
   { label: 'Choice', types: ['single_choice', 'multiple_choice', 'dropdown', 'yes_no'] },
-  { label: 'Other', types: ['file', 'consent'] },
+  { label: 'Other', types: ['text_block', 'file', 'consent'] },
 ];
 
 const TABS = [
@@ -145,15 +148,16 @@ const EMAIL_INTRO_OPTIONS = [
   },
 ] as const;
 
-function newQuestion(): ApplicationQuestion {
-  return { id: `q-${crypto.randomUUID()}`, label: 'Untitled question', type: 'short_text', required: false };
+function newQuestion(type: ApplicationQuestionType = 'short_text'): ApplicationQuestion {
+  if (type === 'text_block') return { id: `q-${crypto.randomUUID()}`, label: 'Information', type, required: false, richText: '<p>Add helpful context or instructions here.</p>' };
+  return { id: `q-${crypto.randomUUID()}`, label: 'Untitled question', type, required: false };
 }
 
 function withValidConditions(questions: ApplicationQuestion[]): ApplicationQuestion[] {
   const available = new Set<string>();
   return questions.map(question => {
     const valid = !question.condition || available.has(question.condition.questionId);
-    available.add(question.id);
+    if (question.type !== 'text_block') available.add(question.id);
     return valid ? question : { ...question, condition: undefined };
   });
 }
@@ -333,7 +337,7 @@ function QuestionTypePicker({ value, index, C, onChange }: {
                     role="option"
                     aria-selected={selected}
                     onClick={event => { event.stopPropagation(); onChange(type); setOpen(false); }}
-                    onMouseEnter={event => { if (!selected) event.currentTarget.style.background = C.input; }}
+                    onMouseEnter={event => { if (!selected) event.currentTarget.style.background = C.page; }}
                     onMouseLeave={event => { if (!selected) event.currentTarget.style.background = 'transparent'; }}
                     className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs transition-colors"
                     style={{ background: selected ? C.pill : 'transparent', color: C.text }}
@@ -389,6 +393,8 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
   const [logicOpen, setLogicOpen] = useState(Boolean(question.condition));
   const [dragOver, setDragOver] = useState(false);
   const isChoice = CHOICE_TYPES.includes(question.type);
+  const isTextBlock = question.type === 'text_block';
+  const conditionSources = questions.slice(0, index).filter(item => item.type !== 'text_block');
 
   function updateOption(optionIndex: number, value: string) {
     const options = [...(question.options ?? [])];
@@ -444,7 +450,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
           <span className="hidden text-[10px] font-semibold sm:inline">Drag to reorder</span>
         </button>
         <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold" style={{ background: C.pill, color: C.muted }}>{index + 1}</span>
-        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined })} />
+        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' ? false : question.required, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined })} />
       </div>
 
       <input
@@ -452,17 +458,19 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
         onChange={event => onUpdate({ label: event.target.value })}
         onFocus={onActivate}
         aria-label={`Question ${index + 1} label`}
-        placeholder="Question"
+        placeholder={isTextBlock ? 'Section heading' : 'Question'}
         className="w-full text-sm font-semibold"
         style={{ ...inputStyle, background: C.input }}
       />
-      <input
-        value={question.helpText ?? ''}
-        onChange={event => onUpdate({ helpText: event.target.value })}
-        placeholder="Description or help text (optional)"
-        className="mt-2 w-full text-sm"
-        style={{ ...inputStyle, background: 'transparent', borderColor: 'transparent', paddingLeft: 2 }}
-      />
+      {isTextBlock
+        ? <div className="mt-3"><RichTextEditor value={question.richText ?? ''} onChange={richText => onUpdate({ richText })} placeholder="Add context, instructions, links, or a formatted description." bgOverride={C.input} /></div>
+        : <input
+            value={question.helpText ?? ''}
+            onChange={event => onUpdate({ helpText: event.target.value })}
+            placeholder="Description or help text (optional)"
+            className="mt-2 w-full text-sm"
+            style={{ ...inputStyle, background: 'transparent', borderColor: 'transparent', paddingLeft: 2 }}
+          />}
 
       {isChoice && (
         <div className="mt-4 space-y-2">
@@ -477,7 +485,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
         </div>
       )}
 
-      {index > 0 && (
+      {conditionSources.length > 0 && (
         <div className="mt-4 rounded-xl p-3" style={{ background: C.input }}>
           <button type="button" onClick={() => setLogicOpen(value => !value)} className="flex w-full items-center justify-between gap-3 text-left">
             <span className="flex items-center gap-2 text-xs font-semibold" style={{ color: question.condition ? C.cta : C.muted }}><Sparkles className="h-4 w-4" /> Conditional logic {question.condition ? 'on' : 'off'}</span>
@@ -487,7 +495,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
             <div className="mt-3 grid gap-2 sm:grid-cols-3">
               <select value={question.condition?.questionId ?? ''} onChange={event => setConditionQuestion(event.target.value)} style={{ ...inputStyle, background: C.card }}>
                 <option value="">Always show</option>
-                {questions.slice(0, index).map(item => <option key={item.id} value={item.id}>If {item.label}</option>)}
+                {conditionSources.map(item => <option key={item.id} value={item.id}>If {item.label}</option>)}
               </select>
               {question.condition && (
                 <>
@@ -507,8 +515,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
         <button type="button" onClick={() => onMove(1)} disabled={index === questions.length - 1} className="rounded-lg p-2 disabled:opacity-25" style={{ color: C.muted }} aria-label="Move question down"><ArrowDown className="h-4 w-4" /></button>
         <button type="button" onClick={event => { event.stopPropagation(); onDuplicate(); }} className="rounded-lg p-2" style={{ color: C.muted }} aria-label="Duplicate question"><Copy className="h-4 w-4" /></button>
         <button type="button" onClick={event => { event.stopPropagation(); onRemove(); }} className="rounded-lg p-2" style={{ color: C.deleteText }} aria-label="Delete question"><Trash2 className="h-4 w-4" /></button>
-        <span className="mx-2 h-6 w-px" style={{ background: C.inputBorder }} />
-        <Toggle checked={question.required} onChange={required => onUpdate({ required })} label="Required" C={C} />
+        {!isTextBlock && <><span className="mx-2 h-6 w-px" style={{ background: C.inputBorder }} /><Toggle checked={question.required} onChange={required => onUpdate({ required })} label="Required" C={C} /></>}
       </div>
     </article>
   );
@@ -532,6 +539,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   const config = form.config;
   const applicationPreviewTheme = applicationThemeColors(C, config.themeColor, config.theme ?? 'platform', config.customTheme, config.themeMode ?? 'light');
   const selectedThemeColor = applicationPreviewTheme.cta;
+  const textBlockCount = config.questions.filter(item => item.type === 'text_block').length;
+  const answerFieldCount = config.questions.length - textBlockCount + 1;
 
   const setConfig = (patch: Partial<typeof config>) => setForm(previous => ({ ...previous, config: { ...previous.config, ...patch } }));
   const inputStyle: CSSProperties = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 12, padding: '11px 12px', outline: 'none' };
@@ -552,8 +561,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
     const questions = [...config.questions]; questions[index] = { ...questions[index], ...patch }; setConfig({ questions });
   }
   function setQuestions(questions: ApplicationQuestion[]) { setConfig({ questions: withValidConditions(questions) }); }
-  function addQuestion(afterIndex = config.questions.length - 1) {
-    const question = newQuestion(); const questions = [...config.questions]; questions.splice(afterIndex + 1, 0, question); setQuestions(questions); setActiveQuestionId(question.id);
+  function addQuestion(afterIndex = config.questions.length - 1, type: ApplicationQuestionType = 'short_text') {
+    const question = newQuestion(type); const questions = [...config.questions]; questions.splice(afterIndex + 1, 0, question); setQuestions(questions); setActiveQuestionId(question.id);
   }
   function moveQuestion(index: number, direction: -1 | 1) {
     const next = index + direction; if (next < 0 || next >= config.questions.length) return;
@@ -625,8 +634,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
               </section>
 
               <div className="flex items-end justify-between gap-4 px-1">
-                <div><h2 className="text-sm font-semibold" style={{ color: C.text }}>Questions</h2><p className="mt-1 text-[11px]" style={{ color: C.faint }}>Email plus {config.questions.length} custom question{config.questions.length === 1 ? '' : 's'}.</p></div>
-                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{config.questions.length + 1} fields</span>
+                <div><h2 className="text-sm font-semibold" style={{ color: C.text }}>Questions and content</h2><p className="mt-1 text-[11px]" style={{ color: C.faint }}>Email plus {config.questions.length} custom form item{config.questions.length === 1 ? '' : 's'}.</p></div>
+                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{answerFieldCount} fields{textBlockCount > 0 ? `, ${textBlockCount} text block${textBlockCount === 1 ? '' : 's'}` : ''}</span>
               </div>
 
               <section className="rounded-2xl p-4 sm:p-5" style={panelStyle}>
@@ -644,7 +653,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
               </section>
 
               <div className="space-y-4">{config.questions.map((question, index) => <QuestionEditorCard key={question.id} question={question} index={index} questions={config.questions} active={activeQuestionId === question.id} dragging={draggedQuestionId === question.id} C={C} inputStyle={inputStyle} onActivate={() => setActiveQuestionId(question.id)} onUpdate={patch => updateQuestion(index, patch)} onMove={direction => moveQuestion(index, direction)} onDuplicate={() => duplicateQuestion(index)} onRemove={() => removeQuestion(index)} onDragStart={() => setDraggedQuestionId(question.id)} onDragEnd={() => setDraggedQuestionId('')} onDrop={() => dropQuestion(index)} />)}</div>
-              <button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button>
+              <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button><button type="button" onClick={() => addQuestion(config.questions.length - 1, 'text_block')} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.muted }}><FileText className="h-4 w-4" /> Add text block</button></div>
             </div>
           </div>
         )}
@@ -678,7 +687,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
               </div>
             </section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Link2} title="Registration link" description="Customize the public link that you share with applicants." C={C} /><div className="mt-5 flex items-center overflow-hidden rounded-xl" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}><span className="pl-3 text-sm" style={{ color: C.faint }}>/apply/</span><input value={form.slug} onChange={event => { const slug = event.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+/, '').slice(0, 64); setForm(previous => ({ ...previous, slug })); }} onBlur={() => setForm(previous => ({ ...previous, slug: previous.slug.replace(/-+$/, '') || 'application' }))} aria-label="Registration URL" className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm font-semibold outline-none" style={{ color: C.text }} /></div><p className="mt-2 text-xs" style={{ color: C.faint }}>Changing a published URL stops the old link from working.</p></section>
-            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={FileText} title="Applicant guidance" description="Add eligibility details and the message shown after submission." C={C} /><div className="mt-5 space-y-4"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Eligibility information</label><textarea rows={5} value={config.eligibility} onChange={event => setConfig({ eligibility: event.target.value })} placeholder="Who should apply and what should they prepare?" style={{ ...inputStyle, resize: 'vertical' }} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Confirmation message *</label><textarea rows={4} value={config.confirmationMessage} onChange={event => setConfig({ confirmationMessage: event.target.value })} placeholder="Thank applicants and explain what happens next." style={{ ...inputStyle, resize: 'vertical' }} /></div></div></section>
+            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={FileText} title="Applicant guidance" description="Add eligibility details and the message shown after submission." C={C} /><div className="mt-5 space-y-4"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Eligibility information</label><RichTextEditor value={config.eligibility} onChange={eligibility => setConfig({ eligibility })} placeholder="Who should apply and what should they prepare?" bgOverride={C.input} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Confirmation message *</label><textarea rows={4} value={config.confirmationMessage} onChange={event => setConfig({ confirmationMessage: event.target.value })} placeholder="Thank applicants and explain what happens next." style={{ ...inputStyle, resize: 'vertical' }} /></div></div></section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={CalendarClock} title="Application window" description="Leave either date empty if the form should remain open-ended." C={C} /><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Opening date</label><input type="datetime-local" value={config.opensAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ opensAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Closing date</label><input type="datetime-local" value={config.closesAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ closesAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div></div></section>
           </div>
         )}

@@ -145,6 +145,24 @@ describe('application end-to-end route boundaries', () => {
     expect(sendConfirmation).toHaveBeenCalledOnce();
   });
 
+  it('does not store rich text blocks as applicant answers', async () => {
+    getFormBySlug.mockResolvedValue({
+      ...form,
+      config: {
+        ...config,
+        questions: [...config.questions, { id: 'context', label: 'Before you apply', type: 'text_block', required: false, richText: '<p>Read this first.</p>' }],
+      },
+    });
+    const response = await submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit', email: 'applicant@example.com', answers: { ...requiredAnswers, context: 'not an answer' } }),
+    }) as any, { params: Promise.resolve({ slug: 'bootcamp' }) });
+
+    expect(response.status).toBe(200);
+    expect(saveSubmission.mock.calls.at(-1)?.[0].answers).not.toHaveProperty('context');
+  });
+
   it('returns applicant status without private review data', async () => {
     getSubmissionByTokenHash.mockResolvedValue({ ...submission, state: 'submitted', privateNotes: [{ id: 'n', body: 'private' }], tokenHash: 'secret' });
     const response = await applicantStatus(new Request('http://localhost') as any, { params: Promise.resolve({ token: 'token' }) });

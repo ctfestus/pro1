@@ -7,6 +7,7 @@ import {
   type ApplicationAnswer,
   type ApplicationQuestion,
 } from '@/lib/application-forms';
+import { sanitizeRichText } from '@/lib/sanitize';
 import type { ThemeColors } from '@/lib/theme';
 
 function ApplicationDropdown({ questionId, value, options, onChange, C, disabled, autoFocus }: {
@@ -118,7 +119,7 @@ function ApplicationDropdown({ questionId, value, options, onChange, C, disabled
                 onMouseEnter={() => setActiveIndex(index)}
                 onClick={() => choose(option)}
                 className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-left text-sm transition-colors"
-                style={{ background: selected || active ? C.skeleton : C.card, color: C.text }}
+                style={{ background: selected || active ? C.page : C.card, color: C.text }}
               >
                 <span className="min-w-0 flex-1 truncate">{option}</span>
                 {selected && <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ background: C.cta, color: '#FFFFFF' }}><Check className="h-3 w-3" strokeWidth={3} /></span>}
@@ -196,6 +197,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
       {visibleQuestions.map((question, index) => {
         const value = answers[question.id];
         const error = errors[question.id] || uploadError[question.id];
+        const isTextBlock = question.type === 'text_block';
         return (
           <section key={question.id} className={focused ? '' : 'rounded-2xl p-5 sm:p-6'} style={focused ? undefined : { background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
             {!focused && <div className="mb-4 flex items-start gap-3">
@@ -206,8 +208,10 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                 </label>
                 {question.helpText && <p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>{question.helpText}</p>}
               </div>
-              {!question.required && <span className="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.faint }}>Optional</span>}
+              {!isTextBlock && !question.required && <span className="shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.faint }}>Optional</span>}
             </div>}
+
+            {isTextBlock && <div className="application-rich-content rich-content" style={{ color: C.muted }} dangerouslySetInnerHTML={{ __html: sanitizeRichText(question.richText ?? '') }} />}
 
             {question.type === 'long_text' && (
               <textarea autoFocus={autoFocus} disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder || 'Type your answer'} onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical', minHeight: 132 }} />
@@ -234,7 +238,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                 {(question.type === 'yes_no' ? ['Yes', 'No'] : question.options ?? []).map((option, optionIndex) => {
                   const selected = value === option;
                   return (
-                    <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
+                    <label key={option} onMouseEnter={event => { event.currentTarget.style.background = C.page; }} onMouseLeave={event => { event.currentTarget.style.background = C.input; }} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
                       <input autoFocus={autoFocus && optionIndex === 0} className="sr-only" disabled={disabled} type="radio" name={question.id} checked={selected} onChange={() => set(question.id, option)} />
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
                         {selected && <span className="h-2 w-2 rounded-full" style={{ background: '#FFFFFF' }} />}
@@ -251,7 +255,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                 {(question.options ?? []).map((option, optionIndex) => {
                   const selected = Array.isArray(value) && value.includes(option);
                   return (
-                    <label key={option} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
+                    <label key={option} onMouseEnter={event => { event.currentTarget.style.background = C.page; }} onMouseLeave={event => { event.currentTarget.style.background = C.input; }} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
                       <input autoFocus={autoFocus && optionIndex === 0} className="sr-only" disabled={disabled} type="checkbox" checked={selected} onChange={() => {
                         const current = Array.isArray(value) ? value.map(String) : [];
                         set(question.id, selected ? current.filter(item => item !== option) : [...current, option]);
@@ -267,7 +271,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
             )}
 
             {question.type === 'consent' && (
-              <label className="flex cursor-pointer items-start gap-3 px-4 py-4 transition-colors" style={optionStyle(value === true)}>
+              <label onMouseEnter={event => { event.currentTarget.style.background = C.page; }} onMouseLeave={event => { event.currentTarget.style.background = C.input; }} className="flex cursor-pointer items-start gap-3 px-4 py-4 transition-colors" style={optionStyle(value === true)}>
                 <input autoFocus={autoFocus} className="sr-only" disabled={disabled} type="checkbox" checked={value === true} onChange={event => set(question.id, event.target.checked)} />
                 <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ border: `2px solid ${value === true ? C.cta : C.inputBorder}`, background: value === true ? C.cta : C.card }}>
                   {value === true && <Check className="h-3 w-3" strokeWidth={3} style={{ color: '#FFFFFF' }} />}

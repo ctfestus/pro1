@@ -56,7 +56,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ token:
     if (!found) return NextResponse.json({ error: 'This application link is invalid or expired.' }, { status: 404 });
     if (found.submission.state === 'submitted') return NextResponse.json({ error: 'This application has already been submitted.' }, { status: 409 });
     if (formAvailability(found.form) !== 'open') return NextResponse.json({ error: 'The application deadline has passed or the form is not open.' }, { status: 409 });
-    const allowed = new Set(found.form.config.questions.map(item => item.id));
+    const allowed = new Set(found.form.config.questions.filter(item => item.type !== 'text_block').map(item => item.id));
     const answers = Object.fromEntries(Object.entries(body.answers).filter(([id]) => allowed.has(id)));
     const errors = validateApplicationAnswers(found.form.config, answers);
     for (const question of found.form.config.questions.filter(item => item.type === 'file')) {

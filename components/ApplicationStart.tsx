@@ -8,9 +8,18 @@ import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
 import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { applicationThemeColors } from '@/lib/application-theme-presets';
+import { sanitizeRichText } from '@/lib/sanitize';
 import { useC, cardStyle, type ThemeColors } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function applicationRichText(value: string): string {
+  if (/<\/?(?:p|br|strong|b|em|i|u|s|ul|ol|li|h[1-4]|blockquote|a|code|pre|hr|span|table|thead|tbody|tfoot|tr|th|td|caption)\b/i.test(value)) {
+    return sanitizeRichText(value);
+  }
+  const escaped = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  return sanitizeRichText(escaped.replace(/\r?\n/g, '<br>'));
+}
 
 function answerSummary(value: ApplicationAnswer | undefined): string {
   if (value === null || value === undefined || value === '') return 'Not answered';
@@ -119,7 +128,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
 }) {
   const baseC = useC();
   const preview = Boolean(previewForm);
-  const [form, setForm] = useState<any>(() => previewForm ? { ...previewForm, availability: 'open' } : null);
+  const [form, setForm] = useState<PublicApplicationForm | null>(() => previewForm ? { ...previewForm, availability: 'open' } : null);
   const [email, setEmail] = useState('');
   const [answers, setAnswers] = useState<Record<string, ApplicationAnswer>>({});
   const [sessionToken, setSessionToken] = useState('');
@@ -153,9 +162,10 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   }, [previewForm, slug]);
 
   useEffect(() => {
-    if (preview || !submission || form?.config?.postSubmission?.type !== 'redirect') return;
+    const redirectUrl = form?.config?.postSubmission?.redirectUrl;
+    if (preview || !submission || form?.config?.postSubmission?.type !== 'redirect' || !redirectUrl) return;
     try {
-      const url = new URL(form.config.postSubmission.redirectUrl);
+      const url = new URL(redirectUrl);
       if (!['http:', 'https:'].includes(url.protocol)) return;
       const timer = window.setTimeout(() => { window.location.href = url.toString(); }, 3000);
       return () => window.clearTimeout(timer);
@@ -183,6 +193,10 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (!form) {
+      setMessage('This application form is temporarily unavailable.');
+      return;
+    }
     const normalizedEmail = email.trim().toLowerCase();
     setEmailError('');
     setErrors({});
@@ -196,7 +210,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     const validationErrors = validateApplicationAnswers(form.config, answers);
     if (Object.keys(validationErrors).length) {
       setErrors(validationErrors);
-      const firstInvalid = visibleQuestions.findIndex((question: any) => validationErrors[question.id]);
+      const firstInvalid = visibleQuestions.findIndex(question => validationErrors[question.id]);
       setReviewing(false);
       setActiveStep(firstInvalid >= 0 ? firstInvalid + 1 : 0);
       return;
@@ -219,7 +233,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
       if (!response.ok) {
         if (value.errors) {
           setErrors(value.errors);
-          const firstInvalid = visibleQuestions.findIndex((question: any) => value.errors[question.id]);
+          const firstInvalid = visibleQuestions.findIndex(question => value.errors[question.id]);
           if (firstInvalid >= 0) {
             setReviewing(false);
             setActiveStep(firstInvalid + 1);
@@ -267,7 +281,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     transform: coverFit === 'cover' ? `scale(${coverZoom})` : 'none',
     transformOrigin: `${coverPositionX}% ${coverPositionY}%`,
   };
-  const visibleQuestions = form.config.questions.filter((question: any) => isQuestionVisible(question, answers));
+  const visibleQuestions = form.config.questions.filter(question => isQuestionVisible(question, answers));
   const stepCount = visibleQuestions.length + 1;
   const currentStep = Math.min(activeStep, Math.max(0, stepCount - 1));
   const currentQuestion = currentStep === 0 ? null : visibleQuestions[currentStep - 1];
@@ -276,7 +290,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     ? 'For confirmation and status updates.'
     : form.config.emailHelpText.trim();
   const currentHelpText = currentQuestion
-    ? currentQuestion.helpText || 'Take your time. You can review this before submitting.'
+    ? currentQuestion.type === 'text_block' ? '' : currentQuestion.helpText || 'Take your time. You can review this before submitting.'
     : emailHelpText;
   const flowProgress = reviewing ? 100 : Math.round(((currentStep + 1) / (stepCount + 1)) * 100);
   const enterAdvances = currentStep === 0 || Boolean(currentQuestion && ['short_text', 'email', 'phone', 'number', 'date'].includes(currentQuestion.type));
@@ -289,6 +303,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   }
 
   function continueFlow() {
+    if (!form) return;
     setEmailError('');
     if (currentStep === 0) {
       if (!EMAIL_PATTERN.test(email.trim().toLowerCase())) {
@@ -363,14 +378,14 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
               <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
               {!started && form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
-              {!started && form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.text }}>{form.config.eligibility}</p></div>}
+              {!started && form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><div className="application-rich-content rich-content compact mt-2" style={{ color: C.text }} dangerouslySetInnerHTML={{ __html: applicationRichText(form.config.eligibility) }} /></div>}
               {!started && (form.availability === 'open' ? <div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div> : <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>)}
             </div>
           </section>
 
           {started && form.availability === 'open' ? <section className="rounded-3xl" style={{ background: C.card }}>
             <div className={`sticky ${preview ? 'top-16' : 'top-2'} z-20 rounded-t-3xl px-5 py-4 sm:px-7`} style={{ background: C.card }} aria-label={`Application progress: ${flowProgress}%`}>
-              <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold"><span style={{ color: C.muted }}>{reviewing ? 'Review your application' : `Question ${currentStep + 1} of ${stepCount}`}</span><span className="tabular-nums" style={{ color: C.faint }}>{flowProgress}%</span></div>
+              <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold"><span style={{ color: C.muted }}>{reviewing ? 'Review your application' : `Step ${currentStep + 1} of ${stepCount}`}</span><span className="tabular-nums" style={{ color: C.faint }}>{flowProgress}%</span></div>
               <div className="h-1 overflow-hidden rounded-sm" style={{ background: C.skeleton }}><motion.div className="h-full rounded-sm" animate={{ width: `${flowProgress}%` }} transition={{ duration: 0.35, ease: 'easeOut' }} style={{ background: C.cta }} /></div>
             </div>
 
@@ -379,7 +394,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                 {reviewing ? <motion.div key="review" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
                   <div className="mb-7 flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.input, color: C.cta }}><CheckCircle2 className="h-4.5 w-4.5" /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}>Final check</p><h2 className="text-xl font-bold sm:text-2xl" style={{ color: C.text }}>Everything look right?</h2></div></div>
                   <div className="space-y-2">
-                    {[{ id: 'email', label: 'Email address', value: email, step: 0 }, ...visibleQuestions.map((question: any, index: number) => ({ id: question.id, label: question.label, value: answers[question.id], step: index + 1 }))].map(item => <button key={item.id} type="button" onClick={() => editStep(item.step)} className="group flex w-full items-center gap-3 rounded-lg border p-3 text-left" style={{ background: C.input, borderColor: C.inputBorder }}><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>{item.label}</span><span className="mt-1 block truncate text-sm font-medium" style={{ color: C.text }}>{answerSummary(item.value)}</span></span><PencilLine className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" style={{ color: C.cta }} /></button>)}
+                    {[{ id: 'email', label: 'Email address', value: email, step: 0, type: 'email' as const }, ...visibleQuestions.map((question, index) => ({ id: question.id, label: question.label, value: answers[question.id], step: index + 1, type: question.type })).filter(item => item.type !== 'text_block')].map(item => <button key={item.id} type="button" onClick={() => editStep(item.step)} className="group flex w-full items-center gap-3 rounded-lg border p-3 text-left" style={{ background: C.input, borderColor: C.inputBorder }}><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>{item.label}</span><span className="mt-1 block truncate text-sm font-medium" style={{ color: C.text }}>{answerSummary(item.value)}</span></span><PencilLine className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" style={{ color: C.cta }} /></button>)}
                   </div>
                   {message && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
                   <div className="mt-7 flex items-center justify-between gap-3">
@@ -389,7 +404,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                 </motion.div> : <motion.div key={currentQuestion?.id ?? 'email'} custom={stepDirection} initial={{ opacity: 0, x: stepDirection > 0 ? 34 : -34 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: stepDirection > 0 ? -34 : 34 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
                   <div className="mb-7 flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}><motion.span className="h-2.5 w-2.5 rounded-full" style={{ background: C.cta }} animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.45, 1, 0.45] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }} /> Application assistant</div>
                   <TypewriterPrompt key={currentQuestion?.id ?? 'email-prompt'} text={currentQuestion?.label ?? emailPrompt} C={C} />
-                  {(currentHelpText || (currentQuestion && !currentQuestion.required)) && <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}>{currentHelpText && <span>{currentHelpText}</span>}{currentQuestion && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>}
+                  {(currentHelpText || (currentQuestion && currentQuestion.type !== 'text_block' && !currentQuestion.required)) && <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}>{currentHelpText && <span>{currentHelpText}</span>}{currentQuestion && currentQuestion.type !== 'text_block' && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>}
                   <div className="mt-8" onKeyDown={event => { const target = event.target as HTMLInputElement; if (event.key === 'Enter' && !event.shiftKey && target.tagName === 'INPUT' && !['checkbox', 'radio', 'file'].includes(target.type)) { event.preventDefault(); continueFlow(); } }}>
                     {currentStep === 0 ? <div><div className="relative"><Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.faint }} /><input autoFocus type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com" className="w-full py-4 pl-11 pr-4 text-base outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${emailError ? C.errorText : C.inputBorder}`, borderRadius: 10 }} /></div>{emailError && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{emailError}</p>}</div> : currentQuestion && <ApplicationQuestionFields questions={[currentQuestion]} answers={answers} onChange={next => { setAnswers(next); setErrors(previous => ({ ...previous, [currentQuestion.id]: '' })); }} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} focused autoFocus />}
                   </div>

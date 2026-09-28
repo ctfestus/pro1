@@ -18,8 +18,9 @@ export function applicationSubmissionsCsv(
   form: ApplicationFormRecord,
   submissions: ApplicationSubmissionRecord[],
 ): string {
+  const answerQuestions = form.config.questions.filter(question => question.type !== 'text_block');
   const fixedHeaders = ['Reference', 'Email', 'Stage', 'Submitted at', 'Assigned reviewer', 'Score'];
-  const headers = [...fixedHeaders, ...form.config.questions.map(question => question.label)];
+  const headers = [...fixedHeaders, ...answerQuestions.map(question => question.label)];
   const rows = submissions.map(submission => {
     const stage = form.config.stages.find(item => item.id === submission.stageId);
     return [
@@ -29,7 +30,7 @@ export function applicationSubmissionsCsv(
       submission.submittedAt,
       submission.assignedReviewerEmail,
       submission.score ?? '',
-      ...form.config.questions.map(question => answerValue(submission.answers[question.id])),
+      ...answerQuestions.map(question => answerValue(submission.answers[question.id])),
     ];
   });
   return `\uFEFF${[headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')}`;

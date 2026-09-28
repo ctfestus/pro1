@@ -149,7 +149,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
       submission = newDraft(form, email, hashApplicationAccessToken(token));
     }
 
-    const allowed = new Set(form.config.questions.map(item => item.id));
+    const allowed = new Set(form.config.questions.filter(item => item.type !== 'text_block').map(item => item.id));
     const answers = Object.fromEntries(Object.entries(body!.answers!).filter(([id]) => allowed.has(id)));
     const errors = validateApplicationAnswers(form.config, answers);
     for (const question of form.config.questions.filter(item => item.type === 'file')) {

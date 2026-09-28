@@ -6,6 +6,7 @@ describe('application submission export', () => {
   it('exports applicant answers and review fields without private data', () => {
     const config = newApplicationFormConfig('bootcamp');
     const question = config.questions[0];
+    config.questions.splice(1, 0, { id: 'context', label: 'Read before applying', type: 'text_block', required: false, richText: '<p>Helpful context</p>' });
     const form = {
       id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'data-bootcamp',
       status: 'published' as const, createdAt: '', updatedAt: '', config,
@@ -25,5 +26,6 @@ describe('application submission export', () => {
     expect(csv).toContain('"\'=Injected formula"');
     expect(csv).not.toContain('private-token-hash');
     expect(csv).not.toContain('Internal only');
+    expect(csv).not.toContain('Read before applying');
   });
 });
