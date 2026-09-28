@@ -11,8 +11,28 @@ export const APPLICATION_QUESTION_TYPES = [
 ] as const;
 
 export type ApplicationQuestionType = typeof APPLICATION_QUESTION_TYPES[number];
+
+// Upload formats a file question can accept. Each extension maps to the content type the
+// server stores it with, so the storage bucket can enforce the same list.
+export const APPLICATION_FILE_TYPES = {
+  pdf: { label: 'PDF', extensions: { pdf: 'application/pdf' } },
+  word: {
+    label: 'Word',
+    extensions: {
+      doc: 'application/msword',
+      docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    },
+  },
+  jpg: { label: 'JPG', extensions: { jpg: 'image/jpeg', jpeg: 'image/jpeg' } },
+  png: { label: 'PNG', extensions: { png: 'image/png' } },
+} as const satisfies Record<string, { label: string; extensions: Record<string, string> }>;
+
+export type ApplicationFileType = keyof typeof APPLICATION_FILE_TYPES;
+export const APPLICATION_FILE_TYPE_IDS = Object.keys(APPLICATION_FILE_TYPES) as ApplicationFileType[];
 export type ApplicationFormStatus = 'draft' | 'published' | 'paused' | 'closed';
 export type ApplicationSubmissionState = 'draft' | 'submitted';
+/** 'steps' shows one question at a time; 'list' shows every question on one scrolling page. */
+export type ApplicationFormLayout = 'steps' | 'list';
 
 export interface ApplicationCondition {
   questionId: string;
@@ -29,6 +49,8 @@ export interface ApplicationQuestion {
   richText?: string;
   placeholder?: string;
   options?: string[];
+  /** File questions only. Missing or empty means every type in APPLICATION_FILE_TYPES. */
+  allowedFileTypes?: ApplicationFileType[];
   condition?: ApplicationCondition;
 }
 
@@ -67,6 +89,8 @@ export interface ApplicationFormConfig {
   emailHelpText?: string;
   themeColor?: string;
   themeMode?: ApplicationThemeMode;
+  /** Missing means 'steps', the layout forms had before this setting existed. */
+  layout?: ApplicationFormLayout;
   // Legacy fields retained for forms saved before the single-color theme control.
   theme?: ApplicationThemeId;
   customTheme?: ApplicationCustomTheme;
@@ -261,6 +285,38 @@ export function isSafeHttpUrl(value: string): boolean {
   }
 }
 
+export function applicationQuestionFileTypes(question: Pick<ApplicationQuestion, 'allowedFileTypes'>): ApplicationFileType[] {
+  const selected = APPLICATION_FILE_TYPE_IDS.filter(type => question.allowedFileTypes?.includes(type));
+  return selected.length ? selected : [...APPLICATION_FILE_TYPE_IDS];
+}
+
+function fileExtension(fileName: string): string {
+  const dot = fileName.lastIndexOf('.');
+  return dot >= 0 ? fileName.slice(dot + 1).toLowerCase() : '';
+}
+
+/** Content type to store the file with, or null when the question does not accept it. */
+export function applicationFileContentType(question: Pick<ApplicationQuestion, 'allowedFileTypes'>, fileName: string): string | null {
+  const extension = fileExtension(fileName);
+  for (const type of applicationQuestionFileTypes(question)) {
+    const extensions: Record<string, string> = APPLICATION_FILE_TYPES[type].extensions;
+    if (extensions[extension]) return extensions[extension];
+  }
+  return null;
+}
+
+export function applicationFileAcceptAttribute(question: Pick<ApplicationQuestion, 'allowedFileTypes'>): string {
+  return applicationQuestionFileTypes(question)
+    .flatMap(type => Object.keys(APPLICATION_FILE_TYPES[type].extensions).map(extension => `.${extension}`))
+    .join(',');
+}
+
+/** "PDF", "PDF or Word", "PDF, Word, JPG or PNG". */
+export function applicationFileTypesLabel(question: Pick<ApplicationQuestion, 'allowedFileTypes'>): string {
+  const labels = applicationQuestionFileTypes(question).map(type => APPLICATION_FILE_TYPES[type].label);
+  return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} or ${labels[labels.length - 1]}` : labels[0];
+}
+
 export function validateApplicationForm(config: ApplicationFormConfig, status?: ApplicationFormStatus): string[] {
   const errors: string[] = [];
   if (!config.title?.trim()) errors.push('Title is required.');
@@ -278,6 +334,7 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   if ((config.emailHelpText?.length ?? 0) > 240) errors.push('Email question help text must be 240 characters or fewer.');
   if (config.themeColor && !/^#[0-9a-f]{6}$/i.test(config.themeColor)) errors.push('Theme color must use a six-digit hex value.');
   if (config.themeMode && !['light', 'dark'].includes(config.themeMode)) errors.push('Theme mode is invalid.');
+  if (config.layout && !['steps', 'list'].includes(config.layout)) errors.push('Question layout is invalid.');
   if (config.theme && !APPLICATION_THEME_IDS.includes(config.theme)) errors.push('Application theme is invalid.');
   if (config.theme === 'custom') {
     const customColors = Object.values(config.customTheme ?? {});
@@ -295,6 +352,10 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
     if ((item.richText?.length ?? 0) > 100_000) errors.push(`${item.label || 'Text block'} content is too long.`);
     if (['single_choice', 'multiple_choice', 'dropdown'].includes(item.type) && (item.options ?? []).filter(Boolean).length < 2) {
       errors.push(`${item.label || 'Choice question'} needs at least two options.`);
+    }
+    if (item.allowedFileTypes !== undefined
+      && (!Array.isArray(item.allowedFileTypes) || item.allowedFileTypes.some(type => !APPLICATION_FILE_TYPE_IDS.includes(type)))) {
+      errors.push(`${item.label || 'File question'} has an unsupported file type.`);
     }
     if (item.condition?.questionId && !conditionSources.has(item.condition.questionId)) {
       errors.push(`${item.label || 'Conditional question'} must depend on an earlier question.`);

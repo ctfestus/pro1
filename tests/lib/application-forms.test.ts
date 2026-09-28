@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applicationFileAcceptAttribute,
+  applicationFileContentType,
+  applicationFileTypesLabel,
   formAvailability,
   isQuestionVisible,
   newApplicationFormConfig,
@@ -87,6 +90,33 @@ describe('application form contract', () => {
     hiddenAnswers[trigger.id] = 'Show';
     delete hiddenAnswers.conditional;
     expect(validateApplicationAnswers(config, hiddenAnswers).conditional).toBe('This question is required.');
+  });
+
+  it('limits file questions to PDF, Word, JPG and PNG, narrowed per question', () => {
+    const anyType = { allowedFileTypes: undefined };
+    expect(applicationFileTypesLabel(anyType)).toBe('PDF, Word, JPG or PNG');
+    expect(applicationFileAcceptAttribute(anyType)).toBe('.pdf,.doc,.docx,.jpg,.jpeg,.png');
+    expect(applicationFileContentType(anyType, 'CV.PDF')).toBe('application/pdf');
+    expect(applicationFileContentType(anyType, 'data.xlsx')).toBeNull();
+    expect(applicationFileContentType(anyType, 'no-extension')).toBeNull();
+
+    const cvOnly = { allowedFileTypes: ['word', 'pdf'] as const };
+    expect(applicationFileTypesLabel({ allowedFileTypes: [...cvOnly.allowedFileTypes] })).toBe('PDF or Word');
+    expect(applicationFileContentType({ allowedFileTypes: [...cvOnly.allowedFileTypes] }, 'photo.png')).toBeNull();
+
+    const config = newApplicationFormConfig('bootcamp');
+    config.questions.push({ id: 'cv', label: 'CV', type: 'file', required: true, allowedFileTypes: ['pdf'] });
+    expect(validateApplicationForm(config)).toEqual([]);
+    config.questions[config.questions.length - 1].allowedFileTypes = ['zip' as never];
+    expect(validateApplicationForm(config)).toContain('CV has an unsupported file type.');
+  });
+
+  it('accepts the step-by-step and one-page question layouts only', () => {
+    const config = newApplicationFormConfig('bootcamp');
+    expect(config.layout).toBeUndefined();
+    expect(validateApplicationForm({ ...config, layout: 'steps' })).toEqual([]);
+    expect(validateApplicationForm({ ...config, layout: 'list' })).toEqual([]);
+    expect(validateApplicationForm({ ...config, layout: 'grid' as never })).toContain('Question layout is invalid.');
   });
 
   it('supports rich text blocks without treating them as applicant answers', () => {

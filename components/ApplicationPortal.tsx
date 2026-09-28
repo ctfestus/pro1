@@ -34,7 +34,7 @@ export function ApplicationPortal({ token }: { token: string }) {
   if (submission.state !== 'submitted') {
     return (
       <main className="min-h-screen px-4 py-10" style={{ background: C.page }}>
-        <div className="max-w-xl mx-auto rounded-2xl p-7 text-center" style={cardStyle(C)}>
+        <div className="max-w-xl mx-auto rounded-xl p-7 text-center" style={cardStyle(C)}>
           <h1 className="text-xl font-bold" style={{ color: C.text }}>Application not submitted</h1>
           <p className="text-sm mt-2" style={{ color: C.muted }}>Complete the application in one session using the registration form.</p>
           <a href={`/apply/${encodeURIComponent(form.slug)}`} className="inline-flex items-center gap-2 mt-5 rounded-xl px-5 py-3 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Open registration form</a>
@@ -49,8 +49,8 @@ export function ApplicationPortal({ token }: { token: string }) {
   return (
     <main className="min-h-screen px-4 py-10" style={{ background: C.page }}>
       <div className="max-w-2xl mx-auto space-y-4">
-        {coverImage && <div className="h-44 sm:h-56 overflow-hidden rounded-2xl" style={cardStyle(C)}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
-        <div className="rounded-2xl p-7 sm:p-9 text-center" style={cardStyle(C)}>
+        {coverImage && <div className="h-44 sm:h-56 overflow-hidden rounded-xl" style={cardStyle(C)}><img src={coverImage} alt={coverAlt} className="h-full w-full object-cover" /></div>}
+        <div className="rounded-xl p-7 sm:p-9 text-center" style={cardStyle(C)}>
           <CheckCircle2 className="w-14 h-14 mx-auto mb-4" style={{ color: C.successText }} />
           <h1 className="text-2xl font-bold" style={{ color: C.text }}>Application status</h1>
           <p className="mt-2 text-sm" style={{ color: C.muted }}>{form.config.title}</p>
@@ -59,9 +59,9 @@ export function ApplicationPortal({ token }: { token: string }) {
             <div className="rounded-xl p-4" style={{ background: C.input }}><p className="text-xs" style={{ color: C.faint }}>Current status</p><p className="font-bold mt-1" style={{ color: C.successText }}>{submission.status}</p></div>
           </div>
         </div>
-        {post.type === 'notice' && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="text-sm mt-2 whitespace-pre-line" style={{ color: C.muted }}>{post.noticeBody}</p></div>}
+        {post.type === 'notice' && <div className="rounded-xl p-5" style={cardStyle(C)}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="text-sm mt-2 whitespace-pre-line" style={{ color: C.muted }}>{post.noticeBody}</p></div>}
         {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 rounded-xl p-3 font-semibold text-sm" style={{ background: C.cta, color: C.ctaText }}>{post.buttonLabel || 'Continue'} <ExternalLink className="w-4 h-4" /></a>}
-        {post.type === 'events' && data.relatedItems?.length > 0 && <div className="rounded-2xl p-5" style={cardStyle(C)}><h2 className="mb-4 font-bold" style={{ color: C.text }}>You might also like</h2><ApplicationRelatedCards items={data.relatedItems as ApplicationRelatedItem[]} C={C} /></div>}
+        {post.type === 'events' && data.relatedItems?.length > 0 && <div className="rounded-xl p-5" style={cardStyle(C)}><h2 className="mb-4 font-bold" style={{ color: C.text }}>You might also like</h2><ApplicationRelatedCards items={data.relatedItems as ApplicationRelatedItem[]} C={C} /></div>}
       </div>
     </main>
   );

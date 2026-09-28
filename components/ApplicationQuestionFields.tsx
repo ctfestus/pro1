@@ -3,6 +3,9 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { Check, ChevronDown, FileCheck2, Loader2, Upload } from 'lucide-react';
 import {
+  applicationFileAcceptAttribute,
+  applicationFileContentType,
+  applicationFileTypesLabel,
   isQuestionVisible,
   type ApplicationAnswer,
   type ApplicationQuestion,
@@ -161,7 +164,12 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
     outline: 'none',
   };
 
-  async function upload(questionId: string, file: File) {
+  async function upload(question: ApplicationQuestion, file: File) {
+    const questionId = question.id;
+    if (!applicationFileContentType(question, file.name)) {
+      setUploadError(previous => ({ ...previous, [questionId]: `This question accepts ${applicationFileTypesLabel(question)} files only.` }));
+      return;
+    }
     if (previewUploads) {
       set(questionId, { url: '#', publicId: 'supabase/preview', name: file.name, size: file.size, type: file.type });
       return;
@@ -181,9 +189,12 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
       });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Upload failed.');
-      const uploaded = await supabase.storage.from(json.bucket).uploadToSignedUrl(json.path, json.uploadToken, file, {
-        contentType: file.type || 'application/octet-stream',
-      });
+      // For a File/Blob body the SDK sends multipart form data and ignores the contentType
+      // option, so Storage records the browser's MIME type (often empty or wrong for .doc/.docx).
+      // Re-wrap the file with the server-validated type so the bucket allowlist and the
+      // submit-time check see the same value.
+      const typedFile = new File([file], file.name, { type: json.contentType });
+      const uploaded = await supabase.storage.from(json.bucket).uploadToSignedUrl(json.path, json.uploadToken, typedFile);
       if (uploaded.error) throw new Error(uploaded.error.message || 'Upload failed.');
       set(questionId, { ...json.file, url: URL.createObjectURL(file) });
     } catch (error) {
@@ -209,7 +220,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
         const error = errors[question.id] || uploadError[question.id];
         const isTextBlock = question.type === 'text_block';
         return (
-          <section key={question.id} className={focused ? '' : 'rounded-2xl p-5 sm:p-6'} style={focused ? undefined : { background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
+          <section key={question.id} id={`application-question-${question.id}`} className={focused ? '' : 'rounded-xl p-5 sm:p-6 scroll-mt-4'} style={focused ? undefined : { background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
             {!focused && <div className="mb-4 flex items-start gap-3">
               <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: error ? C.errorBg : C.pill, color: error ? C.errorText : C.muted }}>{startAt + index}</span>
               <div className="min-w-0 flex-1">
@@ -302,8 +313,8 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                   <label className="flex cursor-pointer flex-col items-center justify-center gap-2 py-4 text-center">
                     <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}>{uploading === question.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}</span>
                     <span className="text-sm font-semibold" style={{ color: C.text }}>{uploading === question.id ? 'Uploading...' : 'Choose a file'}</span>
-                    <span className="text-[11px]" style={{ color: C.faint }}>PDF, Office files, images, text, or ZIP up to 10 MB</span>
-                    <input disabled={disabled || uploading === question.id} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.webp,.zip" onChange={event => { const file = event.target.files?.[0]; if (file) void upload(question.id, file); event.target.value = ''; }} />
+                    <span className="text-[11px]" style={{ color: C.faint }}>{applicationFileTypesLabel(question)} up to 10 MB</span>
+                    <input disabled={disabled || uploading === question.id} type="file" className="hidden" accept={applicationFileAcceptAttribute(question)} onChange={event => { const file = event.target.files?.[0]; if (file) void upload(question, file); event.target.value = ''; }} />
                   </label>
                 )}
               </div>

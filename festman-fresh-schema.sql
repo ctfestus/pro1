@@ -6588,7 +6588,7 @@ GROUP BY content_table;
 
 GRANT SELECT ON public.public_free_content_counts TO anon, authenticated;
 
--- Application forms, submissions, and review history (migrations 216-218).
+-- Application forms, submissions, and review history (migration 216).
 CREATE TABLE IF NOT EXISTS public.application_forms (
   id text PRIMARY KEY,
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -6655,9 +6655,15 @@ CREATE POLICY "Application submissions owners can update" ON public.application_
 CREATE POLICY "Application submissions owners can delete" ON public.application_submissions FOR DELETE TO authenticated
   USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
 
-INSERT INTO storage.buckets (id, name, public, file_size_limit)
-VALUES ('application-uploads', 'application-uploads', false, 10485760)
-ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 10485760;
+-- Applicant uploads: private, 10 MB, PDF, Word, JPG, PNG only (migration 216).
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('application-uploads', 'application-uploads', false, 10485760, ARRAY[
+  'application/pdf', 'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'image/jpeg', 'image/png'
+])
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 10485760,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 CREATE TABLE IF NOT EXISTS public.application_audit_log (
   id text PRIMARY KEY,

@@ -27,7 +27,7 @@ export function ApplicationRelatedCards({ items, C }: { items: ApplicationRelate
         const description = toPlainText(item.description);
         const Icon = item.type === 'event' ? CalendarDays : BookOpen;
         return (
-          <a key={`${item.type}:${item.id}`} href={`/${item.slug || item.id}`} className="group block overflow-hidden rounded-2xl" style={{ background: C.input, color: C.text }}>
+          <a key={`${item.type}:${item.id}`} href={`/${item.slug || item.id}`} className="group block overflow-hidden rounded-xl" style={{ background: C.input, color: C.text }}>
             <div className="relative h-40 overflow-hidden sm:h-52" style={{ background: C.pill }}>
               {cover
                 ? <img src={cover} alt={`${item.title} cover`} className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />

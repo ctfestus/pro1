@@ -50,4 +50,23 @@ describe('private application uploads', () => {
     expect(result.errors.cv).toContain('valid file');
     expect(mocks.info).not.toHaveBeenCalled();
   });
+
+  it('rejects a stored object whose content type does not match its extension', async () => {
+    mocks.info.mockResolvedValue({ data: { size: 100, contentType: 'text/html' }, error: null });
+    const result = await normalizeApplicationStorageAnswers(form as any, 'submission-1', {
+      cv: { url: '', publicId: `supabase/form-1/submission-1/${fileName}`, name: 'cv.pdf', size: 1, type: 'application/pdf' },
+    });
+    expect(result.errors.cv).toContain('valid file');
+  });
+
+  it('rejects a file type the question no longer allows', async () => {
+    const pdfOnly = { ...form, config: { ...form.config, questions: [{ ...form.config.questions[0], allowedFileTypes: ['pdf'] }] } };
+    const pngName = `${applicationQuestionFilePrefix('cv')}-12345678-1234-1234-1234-123456789abc.png`;
+    mocks.info.mockResolvedValue({ data: { size: 100, contentType: 'image/png' }, error: null });
+    const result = await normalizeApplicationStorageAnswers(pdfOnly as any, 'submission-1', {
+      cv: { url: '', publicId: `supabase/form-1/submission-1/${pngName}`, name: 'cv.png', size: 1, type: 'image/png' },
+    });
+    expect(result.errors.cv).toContain('valid file');
+    expect(mocks.info).not.toHaveBeenCalled();
+  });
 });

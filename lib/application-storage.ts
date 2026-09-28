@@ -1,12 +1,14 @@
 import { createHash } from 'crypto';
 import { adminClient } from '@/lib/admin-client';
-import type { ApplicationAnswer, ApplicationFileAnswer, ApplicationFormRecord } from '@/lib/application-forms';
+import {
+  applicationFileContentType,
+  type ApplicationAnswer,
+  type ApplicationFileAnswer,
+  type ApplicationFormRecord,
+} from '@/lib/application-forms';
 
 export const APPLICATION_UPLOAD_BUCKET = 'application-uploads';
 export const APPLICATION_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
-export const APPLICATION_UPLOAD_EXTENSIONS = new Set([
-  'pdf', 'doc', 'docx', 'xls', 'xlsx', 'csv', 'ppt', 'pptx', 'txt', 'jpg', 'jpeg', 'png', 'webp', 'zip',
-]);
 
 export async function deleteApplicationFormFiles(formId: string): Promise<void> {
   const bucket = adminClient().storage.from(APPLICATION_UPLOAD_BUCKET);
@@ -57,11 +59,15 @@ export async function normalizeApplicationStorageAnswers(
       errors[question.id] = 'Upload a valid file for this application.';
       return;
     }
+    const expectedType = applicationFileContentType(question, path);
+    if (!expectedType) {
+      errors[question.id] = 'Upload a valid file for this application.';
+      return;
+    }
     const { data, error } = await bucket.info(path);
     const size = Number(data?.size ?? 0);
-    const type = String(data?.contentType ?? 'application/octet-stream');
-    if (error || !data || size <= 0 || size > APPLICATION_UPLOAD_MAX_BYTES
-      || ['image/svg+xml', 'text/html', 'application/javascript', 'text/javascript'].includes(type)) {
+    const type = String(data?.contentType ?? '');
+    if (error || !data || size <= 0 || size > APPLICATION_UPLOAD_MAX_BYTES || type !== expectedType) {
       errors[question.id] = 'Upload a valid file for this application.';
       return;
     }

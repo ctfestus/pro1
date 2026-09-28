@@ -14,6 +14,11 @@ import { useC, cardStyle, type ThemeColors } from '@/lib/theme';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// One-page layout: bring the field that needs attention into view.
+function scrollToApplicationField(id: string) {
+  window.setTimeout(() => document.getElementById(`application-question-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 40);
+}
+
 function applicationRichText(value: string): string {
   if (/<\/?(?:p|br|strong|b|em|i|u|s|ul|ol|li|h[1-4]|blockquote|a|code|pre|hr|span|table|thead|tbody|tfoot|tr|th|td|caption)\b/i.test(value)) {
     return sanitizeRichText(value);
@@ -179,6 +184,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     const normalizedEmail = email.trim().toLowerCase();
     if (!EMAIL_PATTERN.test(normalizedEmail)) {
       setEmailError('Enter your email address before uploading a file.');
+      if (form?.config.layout === 'list') scrollToApplicationField('email');
       throw new Error('Enter your email address before uploading a file.');
     }
     if (sessionToken) return sessionToken;
@@ -207,6 +213,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
       setEmailError('Enter a valid email address.');
       setReviewing(false);
       setActiveStep(0);
+      if (form.config.layout === 'list') scrollToApplicationField('email');
       return;
     }
     const validationErrors = validateApplicationAnswers(form.config, answers);
@@ -215,6 +222,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
       const firstInvalid = visibleQuestions.findIndex(question => validationErrors[question.id]);
       setReviewing(false);
       setActiveStep(firstInvalid >= 0 ? firstInvalid + 1 : 0);
+      if (form.config.layout === 'list' && firstInvalid >= 0) scrollToApplicationField(visibleQuestions[firstInvalid].id);
       return;
     }
     if (preview) {
@@ -239,6 +247,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
           if (firstInvalid >= 0) {
             setReviewing(false);
             setActiveStep(firstInvalid + 1);
+            if (form.config.layout === 'list') scrollToApplicationField(visibleQuestions[firstInvalid].id);
           }
         }
         throw new Error(value.error || 'Could not submit this application.');
@@ -289,6 +298,9 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     transformOrigin: `${coverPositionX}% ${coverPositionY}%`,
   };
   const visibleQuestions = form.config.questions.filter(question => isQuestionVisible(question, answers));
+  const listLayout = form.config.layout === 'list';
+  // The one-page layout has no separate start step: the overview details stay visible above the questions.
+  const showOverviewDetails = listLayout || !started;
   const stepCount = visibleQuestions.length + 1;
   const currentStep = Math.min(activeStep, Math.max(0, stepCount - 1));
   const currentQuestion = currentStep === 0 ? null : visibleQuestions[currentStep - 1];
@@ -349,25 +361,25 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     return (
       <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-8 sm:py-12" style={themedPageStyle}>
         <div className="relative mx-auto max-w-3xl space-y-4">
-          {coverDisplayImage && <div className="h-40 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
-          <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 24 }}>
-            <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
+          {coverDisplayImage && <div className="h-40 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 12 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
+          <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 12 }}>
+            <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-xl" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.successText }}>Successfully submitted</p>
             <h1 className="mt-2 text-2xl font-bold sm:text-3xl" style={{ color: C.text }}>Application received</h1>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-6" style={{ color: C.muted }}>{form.config.confirmationMessage}</p>
             <div className="mt-7 grid gap-3 text-left sm:grid-cols-2">
-              <div className="p-4" style={{ background: C.input, borderRadius: 16 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Reference number</p><p className="mt-1 font-bold" style={{ color: C.text }}>{submission.reference}</p></div>
-              <div className="p-4" style={{ background: C.successBg, borderRadius: 16 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Current status</p><p className="mt-1 font-bold" style={{ color: C.successText }}>{submission.status}</p></div>
+              <div className="p-4" style={{ background: C.input, borderRadius: 10 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Reference number</p><p className="mt-1 font-bold" style={{ color: C.text }}>{submission.reference}</p></div>
+              <div className="p-4" style={{ background: C.successBg, borderRadius: 10 }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>Current status</p><p className="mt-1 font-bold" style={{ color: C.successText }}>{submission.status}</p></div>
             </div>
             {preview
               ? <span className="mt-6 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.cta }}>Check application status <ArrowRight className="h-4 w-4" /></span>
               : <a href={statusUrl} className="mt-6 inline-flex items-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold" style={{ background: C.pill, color: C.cta }}>Check application status <ArrowRight className="h-4 w-4" /></a>}
             {emailWarning && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>Your application was received, but the confirmation email could not be sent. Keep the reference number and status link shown here.</p>}
           </section>
-          {post.type === 'notice' && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 20 }}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{post.noticeBody}</p></section>}
-          {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 p-4 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText, borderRadius: 16 }}>{post.buttonLabel || 'Continue'} <ExternalLink className="h-4 w-4" /></a>}
-          {post.type === 'redirect' && <div className="p-4 text-center text-sm" style={{ ...cardStyle(C), color: C.muted, borderRadius: 16 }}>{preview ? 'Participants will be redirected after submission.' : <><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Redirecting in a moment...</>}</div>}
-          {post.type === 'events' && relatedItems.length > 0 && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 20 }}><h2 className="mb-4 font-bold" style={{ color: C.text }}>You might also like</h2><ApplicationRelatedCards items={relatedItems} C={C} /></section>}
+          {post.type === 'notice' && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 12 }}><h2 className="font-bold" style={{ color: C.text }}>{post.noticeTitle || 'What happens next'}</h2><p className="mt-2 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{post.noticeBody}</p></section>}
+          {post.type === 'button' && post.buttonUrl && <a href={post.buttonUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center gap-2 p-4 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText, borderRadius: 10 }}>{post.buttonLabel || 'Continue'} <ExternalLink className="h-4 w-4" /></a>}
+          {post.type === 'redirect' && <div className="p-4 text-center text-sm" style={{ ...cardStyle(C), color: C.muted, borderRadius: 10 }}>{preview ? 'Participants will be redirected after submission.' : <><Loader2 className="mr-2 inline h-4 w-4 animate-spin" />Redirecting in a moment...</>}</div>}
+          {post.type === 'events' && relatedItems.length > 0 && <section className="p-5 sm:p-6" style={{ ...cardStyle(C), borderRadius: 12 }}><h2 className="mb-4 font-bold" style={{ color: C.text }}>You might also like</h2><ApplicationRelatedCards items={relatedItems} C={C} /></section>}
         </div>
       </main>
     );
@@ -376,22 +388,42 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   return (
     <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-6 sm:py-10" style={themedPageStyle}>
       <div className="mx-auto max-w-3xl">
-        {coverDisplayImage && coverPlacement === 'header' && <div className="mb-4 h-36 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
+        {coverDisplayImage && coverPlacement === 'header' && <div className="mb-4 h-36 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 12 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
         <form onSubmit={submit} className="space-y-4">
-          <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
+          <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 12 }}>
             {coverDisplayImage && coverPlacement === 'inside' && <div className="h-36 overflow-hidden sm:h-52" style={{ background: C.skeleton }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
             <div className="p-6 sm:p-9">
               <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
               <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
-              {!started && form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
-              {!started && form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><div className="application-rich-content rich-content compact mt-2" style={{ color: C.text }} dangerouslySetInnerHTML={{ __html: applicationRichText(form.config.eligibility) }} /></div>}
-              {!started && (form.availability === 'open' ? <div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div> : <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div>)}
+              {showOverviewDetails && form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
+              {showOverviewDetails && form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><div className="application-rich-content rich-content compact mt-2" style={{ color: C.text }} dangerouslySetInnerHTML={{ __html: applicationRichText(form.config.eligibility) }} /></div>}
+              {form.availability !== 'open' ? <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div> : !listLayout && !started && (<div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div>)}
             </div>
           </section>
 
-          {started && form.availability === 'open' ? <section className="rounded-3xl" style={{ background: C.card }}>
-            <div className={`sticky ${preview ? 'top-16' : 'top-2'} z-20 rounded-t-3xl px-5 py-4 sm:px-7`} style={{ background: C.card }} aria-label={`Application progress: ${flowProgress}%`}>
+          {listLayout && form.availability === 'open' && <>
+            <section id="application-question-email" className="scroll-mt-4 rounded-xl p-5 sm:p-6" style={{ background: C.card, boxShadow: emailError ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
+              <div className="mb-4 flex items-start gap-3">
+                <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: emailError ? C.errorBg : C.pill, color: emailError ? C.errorText : C.muted }}>1</span>
+                <div className="min-w-0 flex-1">
+                  <label htmlFor="application-email" className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>{emailPrompt}<span className="ml-1" style={{ color: C.errorText }}>*</span></label>
+                  {emailHelpText && <p className="mt-1 text-xs leading-5" style={{ color: C.faint }}>{emailHelpText}</p>}
+                </div>
+              </div>
+              <div className="relative"><Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.faint }} /><input id="application-email" type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com" className="w-full py-3.5 pl-11 pr-4 text-sm outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${emailError ? C.errorText : C.inputBorder}`, borderRadius: 10 }} /></div>
+              {emailError && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{emailError}</p>}
+            </section>
+            <ApplicationQuestionFields questions={form.config.questions} answers={answers} onChange={next => { setErrors(previous => { const cleared = { ...previous }; for (const id of Object.keys(next)) if (next[id] !== answers[id]) delete cleared[id]; return cleared; }); setAnswers(next); }} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} startAt={2} />
+            {message && <p className="rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
+            <section className="flex flex-col gap-4 rounded-xl p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6" style={{ background: C.card }}>
+              <div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4 shrink-0" style={{ color: C.successText }} /> Your information is submitted securely.</div>
+              <button type="submit" disabled={submitting} className="flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 text-sm font-semibold disabled:opacity-60" style={{ background: C.cta, color: C.ctaText }}>{submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} {submitting ? 'Submitting...' : 'Submit application'}</button>
+            </section>
+          </>}
+
+          {!listLayout && started && form.availability === 'open' ? <section className="rounded-xl" style={{ background: C.card }}>
+            <div className={`sticky ${preview ? 'top-16' : 'top-2'} z-20 rounded-t-xl px-5 py-4 sm:px-7`} style={{ background: C.card }} aria-label={`Application progress: ${flowProgress}%`}>
               <div className="mb-2 flex items-center justify-between gap-3 text-[11px] font-semibold"><span style={{ color: C.muted }}>{reviewing ? 'Review your application' : `Step ${currentStep + 1} of ${stepCount}`}</span><span className="tabular-nums" style={{ color: C.faint }}>{flowProgress}%</span></div>
               <div className="h-1 overflow-hidden rounded-sm" style={{ background: C.skeleton }}><motion.div className="h-full rounded-sm" animate={{ width: `${flowProgress}%` }} transition={{ duration: 0.35, ease: 'easeOut' }} style={{ background: C.cta }} /></div>
             </div>

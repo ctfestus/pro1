@@ -32,10 +32,10 @@ const submission = {
   answers: {}, privateNotes: [], statusHistory: [], messages: [],
 };
 
-async function prepareUpload(size: number, questionId = fileQuestion.id) {
+async function prepareUpload(size: number, questionId = fileQuestion.id, name = 'resume.pdf', type = 'application/pdf') {
   return POST(new Request('http://localhost/api/public/applications/token/upload', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ questionId, name: 'resume.pdf', size, type: 'application/pdf' }),
+    body: JSON.stringify({ questionId, name, size, type }),
   }) as any, { params: Promise.resolve({ token: 'token' }) });
 }
 
@@ -58,6 +58,36 @@ describe('applicant file uploads', () => {
       file: expect.objectContaining({ name: 'resume.pdf', size: 6 * 1024 * 1024, url: '' }),
     }));
     expect(value.file.publicId).toBe(`supabase/${value.path}`);
+    expect(value.contentType).toBe('application/pdf');
+  });
+
+  it('accepts PDF, Word, JPG and PNG by default and stores the content type from the extension', async () => {
+    const response = await prepareUpload(100, fileQuestion.id, 'Resume.DOCX', '');
+    const value = await response.json();
+    expect(response.status).toBe(200);
+    expect(value.contentType).toBe('application/vnd.openxmlformats-officedocument.wordprocessingml.document');
+    expect((await prepareUpload(100, fileQuestion.id, 'photo.jpeg', 'image/jpeg')).status).toBe(200);
+    expect((await prepareUpload(100, fileQuestion.id, 'photo.png', 'image/png')).status).toBe(200);
+  });
+
+  it('rejects file types outside the default set', async () => {
+    for (const name of ['budget.xlsx', 'archive.zip', 'page.html', 'image.svg', 'notes.txt']) {
+      const response = await prepareUpload(100, fileQuestion.id, name, 'application/pdf');
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toBe('This question accepts PDF, Word, JPG or PNG files only.');
+    }
+    expect(mocks.signedUpload).not.toHaveBeenCalled();
+  });
+
+  it('only accepts the file types the question allows', async () => {
+    mocks.getForm.mockResolvedValue({
+      ...form,
+      config: { ...form.config, questions: [...config.questions, { ...fileQuestion, allowedFileTypes: ['pdf', 'word'] }] },
+    });
+    const rejected = await prepareUpload(100, fileQuestion.id, 'photo.png', 'image/png');
+    expect(rejected.status).toBe(400);
+    expect((await rejected.json()).error).toBe('This question accepts PDF or Word files only.');
+    expect((await prepareUpload(100, fileQuestion.id, 'cv.doc', 'application/msword')).status).toBe(200);
   });
 
   it('rejects files over 10 MB and non-file questions', async () => {

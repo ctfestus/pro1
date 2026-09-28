@@ -48,6 +48,9 @@ import { ApplicationStart } from '@/components/ApplicationStart';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import {
+  APPLICATION_FILE_TYPE_IDS,
+  APPLICATION_FILE_TYPES,
+  applicationQuestionFileTypes,
   type ApplicationCondition,
   type ApplicationFormConfig,
   type ApplicationFormRecord,
@@ -480,7 +483,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
           <span className="hidden text-[10px] font-semibold sm:inline">Drag to reorder</span>
         </button>
         <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold" style={{ background: C.pill, color: C.muted }}>{index + 1}</span>
-        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' ? false : question.required, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined })} />
+        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' ? false : question.required, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined, allowedFileTypes: type === 'file' ? question.allowedFileTypes : undefined })} />
       </div>
 
       <input
@@ -512,6 +515,26 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
             </div>
           ))}
           <button type="button" onClick={() => onUpdate({ options: [...(question.options ?? []), `Option ${(question.options?.length ?? 0) + 1}`] })} className="ml-6 flex items-center gap-1.5 px-1 py-2 text-xs font-semibold" style={{ color: C.cta }}><Plus className="h-3.5 w-3.5" /> Add option</button>
+        </div>
+      )}
+
+      {question.type === 'file' && (
+        <div className="mt-4">
+          <p className="mb-2 text-xs font-semibold" style={{ color: C.muted }}>Accepted file types</p>
+          <div className="flex flex-wrap gap-2">
+            {APPLICATION_FILE_TYPE_IDS.map(type => {
+              const fileTypes = applicationQuestionFileTypes(question);
+              const checked = fileTypes.includes(type);
+              const onlyOne = checked && fileTypes.length === 1;
+              return (
+                <label key={type} title={onlyOne ? 'At least one file type is required' : undefined} className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium ${onlyOne ? 'cursor-not-allowed' : 'cursor-pointer'}`} style={{ background: checked ? C.pill : C.input, color: C.text, boxShadow: checked ? `inset 0 0 0 1px ${C.cta}` : 'none' }}>
+                  <input type="checkbox" checked={checked} disabled={onlyOne} onChange={() => onUpdate({ allowedFileTypes: checked ? fileTypes.filter(item => item !== type) : APPLICATION_FILE_TYPE_IDS.filter(item => item === type || fileTypes.includes(item)) })} style={{ accentColor: C.cta }} />
+                  {APPLICATION_FILE_TYPES[type].label}
+                </label>
+              );
+            })}
+          </div>
+          <p className="mt-2 text-[11px]" style={{ color: C.faint }}>Applicants can upload one file up to 10 MB.</p>
         </div>
       )}
 
@@ -604,7 +627,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   }
   function duplicateQuestion(index: number) {
     const source = config.questions[index];
-    const duplicate: ApplicationQuestion = { ...source, id: `q-${crypto.randomUUID()}`, label: `${source.label} copy`, options: source.options ? [...source.options] : undefined, condition: source.condition ? { ...source.condition } : undefined };
+    const duplicate: ApplicationQuestion = { ...source, id: `q-${crypto.randomUUID()}`, label: `${source.label} copy`, options: source.options ? [...source.options] : undefined, allowedFileTypes: source.allowedFileTypes ? [...source.allowedFileTypes] : undefined, condition: source.condition ? { ...source.condition } : undefined };
     const questions = [...config.questions]; questions.splice(index + 1, 0, duplicate); setQuestions(questions); setActiveQuestionId(duplicate.id);
   }
   function removeQuestion(index: number) {
@@ -714,6 +737,18 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                   <span className="h-10 w-14 rounded-lg" style={{ background: applicationPreviewTheme.input, boxShadow: `inset 0 0 0 1px ${applicationPreviewTheme.inputBorder}` }} title="Input color" />
                   <span className="h-10 w-14 rounded-lg" style={{ background: applicationPreviewTheme.page }} title="Background color" />
                 </div>
+              </div>
+            </section>
+            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>
+              <SectionHeading icon={ListChecks} title="Question layout" description="Choose how applicants move through the questions." C={C} />
+              <div className="mt-5 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Question layout">
+                {([
+                  ['steps', 'One question at a time', 'A guided flow with a progress bar and a review step before submitting.'],
+                  ['list', 'All questions on one page', 'Every question is shown in a single scrolling form.'],
+                ] as const).map(([value, label, description]) => {
+                  const selected = (config.layout ?? 'steps') === value;
+                  return <button key={value} type="button" role="radio" aria-checked={selected} onClick={() => setConfig({ layout: value })} className="rounded-xl p-4 text-left transition-colors" style={{ background: selected ? C.pill : C.input, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }}><span className="block text-xs font-semibold" style={{ color: selected ? C.cta : C.text }}>{label}</span><span className="mt-1 block text-[11px] leading-4" style={{ color: C.muted }}>{description}</span></button>;
+                })}
               </div>
             </section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Link2} title="Registration link" description="Customize the public link that you share with applicants." C={C} /><div className="mt-5 flex items-center overflow-hidden rounded-xl" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}><span className="pl-3 text-sm" style={{ color: C.faint }}>/apply/</span><input value={form.slug} onChange={event => { const slug = event.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+/, '').slice(0, 64); setForm(previous => ({ ...previous, slug })); }} onBlur={() => setForm(previous => ({ ...previous, slug: previous.slug.replace(/-+$/, '') || 'application' }))} aria-label="Registration URL" className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm font-semibold outline-none" style={{ color: C.text }} /></div><p className="mt-2 text-xs" style={{ color: C.faint }}>Changing a published URL stops the old link from working.</p></section>

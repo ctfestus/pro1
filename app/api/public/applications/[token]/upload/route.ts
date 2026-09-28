@@ -1,10 +1,10 @@
 import { createHash, randomUUID } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
-import { formAvailability } from '@/lib/application-forms';
+import { applicationFileContentType, applicationFileTypesLabel, formAvailability } from '@/lib/application-forms';
 import { getApplicationForm } from '@/lib/application-form-store';
 import { getApplicationSubmissionByTokenHash } from '@/lib/application-submissions';
 import { hashApplicationAccessToken } from '@/lib/application-access';
-import { APPLICATION_UPLOAD_BUCKET, APPLICATION_UPLOAD_EXTENSIONS, APPLICATION_UPLOAD_MAX_BYTES, applicationQuestionFilePrefix } from '@/lib/application-storage';
+import { APPLICATION_UPLOAD_BUCKET, APPLICATION_UPLOAD_MAX_BYTES, applicationQuestionFilePrefix } from '@/lib/application-storage';
 import { adminClient } from '@/lib/admin-client';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
@@ -46,10 +46,13 @@ export async function POST(req: NextRequest, context: { params: Promise<{ token:
   if (body.size! <= 0 || body.size! > APPLICATION_UPLOAD_MAX_BYTES) {
     return NextResponse.json({ error: 'Files must be 10 MB or smaller.' }, { status: 413 });
   }
-  const extension = body.name.toLowerCase().split('.').pop() ?? '';
-  if (!APPLICATION_UPLOAD_EXTENSIONS.has(extension) || body.type === 'image/svg+xml') {
-    return NextResponse.json({ error: 'This file type is not supported.' }, { status: 400 });
+  // The content type comes from the extension the question allows, not from the browser, so
+  // the stored object always matches the bucket's allowed types and the submit-time check.
+  const contentType = applicationFileContentType(question, body.name);
+  if (!contentType) {
+    return NextResponse.json({ error: `This question accepts ${applicationFileTypesLabel(question)} files only.` }, { status: 400 });
   }
+  const extension = body.name.toLowerCase().split('.').pop() ?? '';
 
   const path = `${form.id}/${submission.id}/${applicationQuestionFilePrefix(question.id)}-${randomUUID()}.${extension}`;
   try {
@@ -59,9 +62,10 @@ export async function POST(req: NextRequest, context: { params: Promise<{ token:
       bucket: APPLICATION_UPLOAD_BUCKET,
       path,
       uploadToken: data.token,
+      contentType,
       file: {
         url: '', publicId: `supabase/${path}`, name: body.name,
-        size: body.size, type: body.type || 'application/octet-stream',
+        size: body.size, type: contentType,
       },
     });
   } catch (error) {
