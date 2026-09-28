@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 import {
   formAvailability,
+  isApplicationContentBlock,
   publicApplicationForm,
   validateApplicationAnswers,
   type ApplicationAnswer,
@@ -160,7 +161,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
       submission = newDraft(form, email, hashApplicationAccessToken(token));
     }
 
-    const allowed = new Set(form.config.questions.filter(item => item.type !== 'text_block').map(item => item.id));
+    const allowed = new Set(form.config.questions.filter(item => !isApplicationContentBlock(item)).map(item => item.id));
     let answers = Object.fromEntries(Object.entries(body!.answers!).filter(([id]) => allowed.has(id)));
     const errors = validateApplicationAnswers(form.config, answers);
     const checkedFiles = await normalizeApplicationStorageAnswers(form, submission.id, answers);

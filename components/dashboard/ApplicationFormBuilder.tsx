@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
+import { useEffect, useId, useRef, useState, type CSSProperties, type ReactNode, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import {
   AlignLeft,
   AtSign,
@@ -18,6 +18,7 @@ import {
   Eye,
   FileText,
   GripVertical,
+  ImageIcon,
   Hash,
   LayoutTemplate,
   Link2,
@@ -51,14 +52,24 @@ import {
   APPLICATION_FILE_TYPE_IDS,
   APPLICATION_FILE_TYPES,
   applicationQuestionFileTypes,
+  isApplicationContentBlock,
   type ApplicationCondition,
   type ApplicationFormConfig,
   type ApplicationFormRecord,
+  type ApplicationImageFrame,
   type ApplicationPostSubmission,
   type ApplicationQuestion,
   type ApplicationQuestionType,
 } from '@/lib/application-forms';
-import { APPLICATION_COVER_TARGET, applicationCoverQuality, highQualityApplicationCoverUrl } from '@/lib/application-cover';
+import {
+  APPLICATION_COVER_TARGET,
+  applicationCoverFrame,
+  applicationCoverFramePatch,
+  applicationCoverQuality,
+  applicationImageStyle,
+  highQualityApplicationCoverUrl,
+  resolveApplicationImageFrame,
+} from '@/lib/application-cover';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { applicationThemeColors } from '@/lib/application-theme-presets';
 import { modalStyle, type ThemeColors } from '@/lib/theme';
@@ -77,6 +88,7 @@ const TYPE_LABELS: Record<ApplicationQuestionType, string> = {
   file: 'File upload',
   consent: 'Consent',
   text_block: 'Text block',
+  image: 'Image',
 };
 
 const CHOICE_TYPES: ApplicationQuestionType[] = ['single_choice', 'multiple_choice', 'dropdown'];
@@ -95,13 +107,14 @@ const QUESTION_TYPE_ICONS: Record<ApplicationQuestionType, LucideIcon> = {
   file: Upload,
   consent: ShieldCheck,
   text_block: FileText,
+  image: ImageIcon,
 };
 
 const QUESTION_TYPE_GROUPS: Array<{ label: string; types: ApplicationQuestionType[] }> = [
   { label: 'Text', types: ['short_text', 'long_text'] },
   { label: 'Contact and details', types: ['email', 'phone', 'number', 'date'] },
   { label: 'Choice', types: ['single_choice', 'multiple_choice', 'dropdown', 'yes_no'] },
-  { label: 'Other', types: ['text_block', 'file', 'consent'] },
+  { label: 'Other', types: ['text_block', 'image', 'file', 'consent'] },
 ];
 
 const TABS = [
@@ -154,6 +167,7 @@ const EMAIL_INTRO_OPTIONS = [
 
 function newQuestion(type: ApplicationQuestionType = 'short_text'): ApplicationQuestion {
   if (type === 'text_block') return { id: `q-${crypto.randomUUID()}`, label: 'Information', type, required: false, richText: '<p>Add helpful context or instructions here.</p>' };
+  if (type === 'image') return { id: `q-${crypto.randomUUID()}`, label: '', type, required: false };
   return { id: `q-${crypto.randomUUID()}`, label: 'Untitled question', type, required: false };
 }
 
@@ -161,25 +175,27 @@ function withValidConditions(questions: ApplicationQuestion[]): ApplicationQuest
   const available = new Set<string>();
   return questions.map(question => {
     const valid = !question.condition || available.has(question.condition.questionId);
-    if (question.type !== 'text_block') available.add(question.id);
+    if (!isApplicationContentBlock(question)) available.add(question.id);
     return valid ? question : { ...question, condition: undefined };
   });
 }
 
-function clampCoverValue(value: number, minimum: number, maximum: number) {
-  return Math.min(maximum, Math.max(minimum, value));
-}
-
-function CoverCropEditor({ src, alt, config, C, onChange, onChooseImage, onClear }: {
+function ImageFrameEditor({ src, alt, frame, subject, C, onChange, onChooseImage, onClear, extraControl }: {
   src: string;
   alt: string;
-  config: ApplicationFormConfig;
+  frame: ApplicationImageFrame;
+  /** Wording for labels: the form cover, or an image block. */
+  subject: 'cover' | 'image';
   C: ThemeColors;
-  onChange: (patch: Partial<ApplicationFormConfig>) => void;
+  onChange: (patch: ApplicationImageFrame) => void;
   onChooseImage: () => void;
   onClear: () => void;
+  /** Optional control shown before zoom, e.g. the cover location. */
+  extraControl?: ReactNode;
 }) {
+  const zoomInputId = useId();
   const displaySrc = highQualityApplicationCoverUrl(src);
+  const noun = subject === 'cover' ? 'cover' : 'image';
   const [imageMeta, setImageMeta] = useState<{ src: string; width: number; height: number; failed?: boolean } | null>(null);
   const drag = useRef<{
     pointerId: number;
@@ -190,20 +206,16 @@ function CoverCropEditor({ src, alt, config, C, onChange, onChooseImage, onClear
     width: number;
     height: number;
   } | null>(null);
-  const fit = config.coverImageFit ?? 'cover';
-  const legacyY = config.coverImagePosition === 'top' ? 0 : config.coverImagePosition === 'bottom' ? 100 : 50;
-  const positionX = clampCoverValue(config.coverImagePositionX ?? 50, 0, 100);
-  const positionY = clampCoverValue(config.coverImagePositionY ?? legacyY, 0, 100);
   const currentImageMeta = imageMeta?.src === displaySrc ? imageMeta : null;
   const quality = currentImageMeta && !currentImageMeta.failed ? applicationCoverQuality(currentImageMeta.width, currentImageMeta.height) : null;
   const maximumSharpZoom = quality?.maximumSharpZoom ?? 1;
-  const zoom = clampCoverValue(config.coverImageZoom ?? 1, 1, maximumSharpZoom);
+  const { fit, positionX, positionY, zoom } = resolveApplicationImageFrame(frame, maximumSharpZoom);
   const cropped = fit === 'cover';
 
   function registerImage(width: number, height: number) {
     const nextQuality = applicationCoverQuality(width, height);
     setImageMeta({ src: displaySrc, width, height });
-    if ((config.coverImageZoom ?? 1) > nextQuality.maximumSharpZoom) onChange({ coverImageZoom: nextQuality.maximumSharpZoom });
+    if ((frame.zoom ?? 1) > nextQuality.maximumSharpZoom) onChange({ zoom: nextQuality.maximumSharpZoom });
   }
 
   function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
@@ -216,9 +228,9 @@ function CoverCropEditor({ src, alt, config, C, onChange, onChooseImage, onClear
   function moveCrop(event: ReactPointerEvent<HTMLDivElement>) {
     const state = drag.current;
     if (!state || state.pointerId !== event.pointerId) return;
-    const nextX = clampCoverValue(state.positionX - ((event.clientX - state.clientX) / state.width) * 100 / zoom, 0, 100);
-    const nextY = clampCoverValue(state.positionY - ((event.clientY - state.clientY) / state.height) * 100 / zoom, 0, 100);
-    onChange({ coverImagePositionX: Math.round(nextX), coverImagePositionY: Math.round(nextY) });
+    const nextX = Math.min(100, Math.max(0, state.positionX - ((event.clientX - state.clientX) / state.width) * 100 / zoom));
+    const nextY = Math.min(100, Math.max(0, state.positionY - ((event.clientY - state.clientY) / state.height) * 100 / zoom));
+    onChange({ positionX: Math.round(nextX), positionY: Math.round(nextY) });
   }
 
   function endDrag(event: ReactPointerEvent<HTMLDivElement>) {
@@ -229,18 +241,12 @@ function CoverCropEditor({ src, alt, config, C, onChange, onChooseImage, onClear
     if (!cropped || !['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
     event.preventDefault();
     const movement = event.shiftKey ? 5 : 1;
-    if (event.key === 'ArrowLeft') onChange({ coverImagePositionX: clampCoverValue(positionX - movement, 0, 100) });
-    if (event.key === 'ArrowRight') onChange({ coverImagePositionX: clampCoverValue(positionX + movement, 0, 100) });
-    if (event.key === 'ArrowUp') onChange({ coverImagePositionY: clampCoverValue(positionY - movement, 0, 100) });
-    if (event.key === 'ArrowDown') onChange({ coverImagePositionY: clampCoverValue(positionY + movement, 0, 100) });
+    const clamp = (value: number) => Math.min(100, Math.max(0, value));
+    if (event.key === 'ArrowLeft') onChange({ positionX: clamp(positionX - movement) });
+    if (event.key === 'ArrowRight') onChange({ positionX: clamp(positionX + movement) });
+    if (event.key === 'ArrowUp') onChange({ positionY: clamp(positionY - movement) });
+    if (event.key === 'ArrowDown') onChange({ positionY: clamp(positionY + movement) });
   }
-
-  const imageStyle: CSSProperties = {
-    objectFit: fit,
-    objectPosition: `${positionX}% ${positionY}%`,
-    transform: cropped ? `scale(${zoom})` : 'none',
-    transformOrigin: `${positionX}% ${positionY}%`,
-  };
 
   return (
     <div className="w-full space-y-4">
@@ -254,12 +260,12 @@ function CoverCropEditor({ src, alt, config, C, onChange, onChooseImage, onClear
         onKeyDown={nudgeCrop}
         tabIndex={cropped ? 0 : -1}
         role="group"
-        aria-label={cropped ? 'Cover crop preview. Drag the image or use the arrow keys to reposition it.' : 'Full cover image preview.'}
+        aria-label={cropped ? `${subject === 'cover' ? 'Cover' : 'Image'} crop preview. Drag the image or use the arrow keys to reposition it.` : subject === 'cover' ? 'Full cover image preview.' : 'Full image preview.'}
       >
-        <img src={displaySrc} alt={alt} draggable={false} onLoad={event => registerImage(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)} onError={() => setImageMeta({ src: displaySrc, width: 0, height: 0, failed: true })} className="pointer-events-none h-full w-full select-none" style={imageStyle} />
+        <img src={displaySrc} alt={alt} draggable={false} onLoad={event => registerImage(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)} onError={() => setImageMeta({ src: displaySrc, width: 0, height: 0, failed: true })} className="pointer-events-none h-full w-full select-none" style={applicationImageStyle({ fit, positionX, positionY, zoom })} />
         <div className="absolute right-3 top-3 z-10 flex items-center gap-2">
-          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onChooseImage(); }} className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-2 text-[11px] font-semibold text-zinc-900 shadow-sm transition hover:bg-white" aria-label="Change cover image"><Upload className="h-3.5 w-3.5" /> Change</button>
-          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onClear(); }} className="grid h-8 w-8 place-items-center rounded-lg bg-black/65 text-white shadow-sm transition hover:bg-black/80" aria-label="Remove cover image"><Trash2 className="h-3.5 w-3.5" /></button>
+          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onChooseImage(); }} className="inline-flex items-center gap-1.5 rounded-lg bg-white/95 px-3 py-2 text-[11px] font-semibold text-zinc-900 shadow-sm transition hover:bg-white" aria-label={subject === 'cover' ? 'Change cover image' : 'Change image'}><Upload className="h-3.5 w-3.5" /> Change</button>
+          <button type="button" onPointerDown={event => event.stopPropagation()} onClick={event => { event.stopPropagation(); onClear(); }} className="grid h-8 w-8 place-items-center rounded-lg bg-black/65 text-white shadow-sm transition hover:bg-black/80" aria-label={subject === 'cover' ? 'Remove cover image' : 'Remove image'}><Trash2 className="h-3.5 w-3.5" /></button>
         </div>
         {cropped && <><span className="pointer-events-none absolute inset-y-0 left-1/3 w-px bg-white/45" /><span className="pointer-events-none absolute inset-y-0 right-1/3 w-px bg-white/45" /><span className="pointer-events-none absolute inset-x-0 top-1/3 h-px bg-white/45" /><span className="pointer-events-none absolute inset-x-0 bottom-1/3 h-px bg-white/45" /><span className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white"><Move className="h-3.5 w-3.5" /> Drag to reposition</span></>}
       </div>
@@ -270,21 +276,21 @@ function CoverCropEditor({ src, alt, config, C, onChange, onChooseImage, onClear
           {currentImageMeta?.failed
             ? <p>Resolution could not be verified. The original image is still preserved.</p>
             : quality
-              ? <><p className="font-semibold">{quality.sharpAtBaseSize ? 'Original quality protected' : 'Higher-resolution image recommended'} - {currentImageMeta!.width} x {currentImageMeta!.height}px</p><p>{quality.sharpAtBaseSize ? `Zoom is limited to ${Math.round(maximumSharpZoom * 100)}% to keep the cover sharp.` : `Use an image around ${APPLICATION_COVER_TARGET.recommendedWidth} x ${APPLICATION_COVER_TARGET.recommendedHeight}px or larger for a sharp cover.`}</p></>
+              ? <><p className="font-semibold">{quality.sharpAtBaseSize ? 'Original quality protected' : 'Higher-resolution image recommended'} - {currentImageMeta!.width} x {currentImageMeta!.height}px</p><p>{quality.sharpAtBaseSize ? `Zoom is limited to ${Math.round(maximumSharpZoom * 100)}% to keep the ${noun} sharp.` : `Use an image around ${APPLICATION_COVER_TARGET.recommendedWidth} x ${APPLICATION_COVER_TARGET.recommendedHeight}px or larger for a sharp ${noun}.`}</p></>
               : <p>Checking image resolution...</p>}
           <p>The crop only changes how the original is displayed. It never creates or saves a lower-quality cropped copy.</p>
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-xl p-4 lg:grid-cols-[minmax(160px,0.65fr)_minmax(220px,1fr)_auto] lg:items-end" style={{ background: C.input }}>
-        <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Cover location</span><select value={config.coverImagePlacement ?? 'header'} onChange={event => onChange({ coverImagePlacement: event.target.value as 'header' | 'inside' })} className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold outline-none" style={{ background: C.card, color: C.text, border: `1px solid ${C.inputBorder}` }}><option value="header">Above the form</option><option value="inside">Inside the introduction</option></select></label>
+      <div className={`grid gap-4 rounded-xl p-4 lg:items-end ${extraControl ? 'lg:grid-cols-[minmax(160px,0.65fr)_minmax(220px,1fr)_auto]' : 'lg:grid-cols-[minmax(220px,1fr)_auto]'}`} style={{ background: C.input }}>
+        {extraControl}
         <div>
-          <div className="mb-2 flex items-center justify-between gap-3"><label htmlFor="application-cover-zoom" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}><ZoomIn className="h-3.5 w-3.5" /> Zoom</label><span className="text-[10px] font-semibold tabular-nums" style={{ color: C.muted }}>{Math.round(zoom * 100)}%</span></div>
-          <input id="application-cover-zoom" type="range" min="1" max={maximumSharpZoom} step="0.05" value={zoom} disabled={!cropped || !quality || maximumSharpZoom <= 1} onChange={event => onChange({ coverImageZoom: Number(event.target.value) })} className="h-1.5 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-35" style={{ accentColor: C.cta }} />
+          <div className="mb-2 flex items-center justify-between gap-3"><label htmlFor={zoomInputId} className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}><ZoomIn className="h-3.5 w-3.5" /> Zoom</label><span className="text-[10px] font-semibold tabular-nums" style={{ color: C.muted }}>{Math.round(zoom * 100)}%</span></div>
+          <input id={zoomInputId} type="range" min="1" max={maximumSharpZoom} step="0.05" value={zoom} disabled={!cropped || !quality || maximumSharpZoom <= 1} onChange={event => onChange({ zoom: Number(event.target.value) })} className="h-1.5 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-35" style={{ accentColor: C.cta }} />
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-          <label className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: C.card, color: C.text }}><input type="checkbox" checked={!cropped} onChange={event => onChange({ coverImageFit: event.target.checked ? 'contain' : 'cover' })} style={{ accentColor: C.cta }} /> Show full image</label>
-          <button type="button" onClick={() => onChange({ coverImageFit: 'cover', coverImagePosition: 'center', coverImagePositionX: 50, coverImagePositionY: 50, coverImageZoom: 1 })} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: C.card, color: C.muted }}><RotateCcw className="h-3.5 w-3.5" /> Reset</button>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: C.card, color: C.text }}><input type="checkbox" checked={!cropped} onChange={event => onChange({ fit: event.target.checked ? 'contain' : 'cover' })} style={{ accentColor: C.cta }} /> Show full image</label>
+          <button type="button" onClick={() => onChange({ fit: 'cover', positionX: 50, positionY: 50, zoom: 1 })} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: C.card, color: C.muted }}><RotateCcw className="h-3.5 w-3.5" /> Reset</button>
         </div>
       </div>
     </div>
@@ -406,13 +412,14 @@ function Toggle({ checked, onChange, label, C }: {
   );
 }
 
-function QuestionEditorCard({ question, index, questions, active, dragging, C, inputStyle, onActivate, onUpdate, onMove, onDuplicate, onRemove, onDragStart, onDragEnd, onDrop }: {
+function QuestionEditorCard({ question, index, questions, active, dragging, C, token, inputStyle, onActivate, onUpdate, onMove, onDuplicate, onRemove, onDragStart, onDragEnd, onDrop }: {
   question: ApplicationQuestion;
   index: number;
   questions: ApplicationQuestion[];
   active: boolean;
   dragging: boolean;
   C: ThemeColors;
+  token: string;
   inputStyle: CSSProperties;
   onActivate: () => void;
   onUpdate: (patch: Partial<ApplicationQuestion>) => void;
@@ -427,7 +434,9 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
   const [dragOver, setDragOver] = useState(false);
   const isChoice = CHOICE_TYPES.includes(question.type);
   const isTextBlock = question.type === 'text_block';
-  const conditionSources = questions.slice(0, index).filter(item => item.type !== 'text_block');
+  const isImage = question.type === 'image';
+  const isContentBlock = isApplicationContentBlock(question);
+  const conditionSources = questions.slice(0, index).filter(item => !isApplicationContentBlock(item));
 
   function updateOption(optionIndex: number, value: string) {
     const options = [...(question.options ?? [])];
@@ -483,7 +492,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
           <span className="hidden text-[10px] font-semibold sm:inline">Drag to reorder</span>
         </button>
         <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold" style={{ background: C.pill, color: C.muted }}>{index + 1}</span>
-        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' ? false : question.required, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined, allowedFileTypes: type === 'file' ? question.allowedFileTypes : undefined })} />
+        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' || type === 'image' ? false : question.required, image: type === 'image' ? question.image : undefined, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined, allowedFileTypes: type === 'file' ? question.allowedFileTypes : undefined })} />
       </div>
 
       <input
@@ -491,11 +500,25 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
         onChange={event => onUpdate({ label: event.target.value })}
         onFocus={onActivate}
         aria-label={`Question ${index + 1} label`}
-        placeholder={isTextBlock ? 'Section heading' : 'Question'}
+        placeholder={isTextBlock ? 'Section heading' : isImage ? 'Caption (optional)' : 'Question'}
         className="w-full text-sm font-semibold"
         style={{ ...inputStyle, background: C.input }}
       />
-      {isTextBlock
+      {isImage && (
+        <div className="mt-3 flex justify-center">
+          <PexelsImagePicker
+            value={question.image?.url || null}
+            altValue={question.image?.alt || null}
+            onChange={(url, alt) => onUpdate({ image: { url, alt, fit: 'cover', positionX: 50, positionY: 50, zoom: 1 } })}
+            onClear={() => onUpdate({ image: undefined })}
+            C={C}
+            token={token}
+            previewMaxWidth={520}
+            renderTrigger={question.image?.url ? ({ open, clear }) => <ImageFrameEditor src={question.image!.url} alt={question.image!.alt || question.label || 'Form image'} frame={question.image!} subject="image" C={C} onChange={patch => onUpdate({ image: { ...question.image!, ...patch } })} onChooseImage={open} onClear={clear} /> : undefined}
+          />
+        </div>
+      )}
+      {isImage ? null : isTextBlock
         ? <div className="mt-3"><RichTextEditor value={question.richText ?? ''} onChange={richText => onUpdate({ richText })} placeholder="Add context, instructions, links, or a formatted description." bgOverride={C.input} /></div>
         : <input
             value={question.helpText ?? ''}
@@ -568,7 +591,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, i
         <button type="button" onClick={() => onMove(1)} disabled={index === questions.length - 1} className="rounded-lg p-2 disabled:opacity-25" style={{ color: C.muted }} aria-label="Move question down"><ArrowDown className="h-4 w-4" /></button>
         <button type="button" onClick={event => { event.stopPropagation(); onDuplicate(); }} className="rounded-lg p-2" style={{ color: C.muted }} aria-label="Duplicate question"><Copy className="h-4 w-4" /></button>
         <button type="button" onClick={event => { event.stopPropagation(); onRemove(); }} className="rounded-lg p-2" style={{ color: C.deleteText }} aria-label="Delete question"><Trash2 className="h-4 w-4" /></button>
-        {!isTextBlock && <><span className="mx-2 h-6 w-px" style={{ background: C.inputBorder }} /><Toggle checked={question.required} onChange={required => onUpdate({ required })} label="Required" C={C} /></>}
+        {!isContentBlock && <><span className="mx-2 h-6 w-px" style={{ background: C.inputBorder }} /><Toggle checked={question.required} onChange={required => onUpdate({ required })} label="Required" C={C} /></>}
       </div>
     </article>
   );
@@ -593,7 +616,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   const applicationPreviewTheme = applicationThemeColors(C, config.themeColor, config.theme ?? 'platform', config.customTheme, config.themeMode ?? 'light');
   const selectedThemeColor = applicationPreviewTheme.cta;
   const textBlockCount = config.questions.filter(item => item.type === 'text_block').length;
-  const answerFieldCount = config.questions.length - textBlockCount + 1;
+  const imageCount = config.questions.filter(item => item.type === 'image').length;
+  const answerFieldCount = config.questions.length - textBlockCount - imageCount + 1;
 
   const setConfig = (patch: Partial<typeof config>) => setForm(previous => ({ ...previous, config: { ...previous.config, ...patch } }));
   const inputStyle: CSSProperties = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 12, padding: '11px 12px', outline: 'none' };
@@ -627,7 +651,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   }
   function duplicateQuestion(index: number) {
     const source = config.questions[index];
-    const duplicate: ApplicationQuestion = { ...source, id: `q-${crypto.randomUUID()}`, label: `${source.label} copy`, options: source.options ? [...source.options] : undefined, allowedFileTypes: source.allowedFileTypes ? [...source.allowedFileTypes] : undefined, condition: source.condition ? { ...source.condition } : undefined };
+    const duplicate: ApplicationQuestion = { ...source, id: `q-${crypto.randomUUID()}`, label: `${source.label} copy`, options: source.options ? [...source.options] : undefined, allowedFileTypes: source.allowedFileTypes ? [...source.allowedFileTypes] : undefined, image: source.image ? { ...source.image } : undefined, condition: source.condition ? { ...source.condition } : undefined };
     const questions = [...config.questions]; questions.splice(index + 1, 0, duplicate); setQuestions(questions); setActiveQuestionId(duplicate.id);
   }
   function removeQuestion(index: number) {
@@ -674,7 +698,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                       C={C}
                       token={token}
                       previewMaxWidth={520}
-                      renderTrigger={config.coverImage ? ({ open, clear }) => <CoverCropEditor src={config.coverImage || ''} alt={config.coverImageAlt || `${config.title} cover`} config={config} C={C} onChange={setConfig} onChooseImage={open} onClear={clear} /> : undefined}
+                      renderTrigger={config.coverImage ? ({ open, clear }) => <ImageFrameEditor src={config.coverImage || ''} alt={config.coverImageAlt || `${config.title} cover`} frame={applicationCoverFrame(config)} subject="cover" C={C} onChange={patch => setConfig(applicationCoverFramePatch(patch))} onChooseImage={open} onClear={clear} extraControl={<label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Cover location</span><select value={config.coverImagePlacement ?? 'header'} onChange={event => setConfig({ coverImagePlacement: event.target.value as 'header' | 'inside' })} className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold outline-none" style={{ background: C.card, color: C.text, border: `1px solid ${C.inputBorder}` }}><option value="header">Above the form</option><option value="inside">Inside the introduction</option></select></label>} /> : undefined}
                     />
                   </div>
                 </div>
@@ -688,7 +712,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
 
               <div className="flex items-end justify-between gap-4 px-1">
                 <div><h2 className="text-sm font-semibold" style={{ color: C.text }}>Questions and content</h2><p className="mt-1 text-[11px]" style={{ color: C.faint }}>Email plus {config.questions.length} custom form item{config.questions.length === 1 ? '' : 's'}.</p></div>
-                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{answerFieldCount} fields{textBlockCount > 0 ? `, ${textBlockCount} text block${textBlockCount === 1 ? '' : 's'}` : ''}</span>
+                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{answerFieldCount} fields{textBlockCount > 0 ? `, ${textBlockCount} text block${textBlockCount === 1 ? '' : 's'}` : ''}{imageCount > 0 ? `, ${imageCount} image${imageCount === 1 ? '' : 's'}` : ''}</span>
               </div>
 
               <section className="rounded-2xl p-4 sm:p-5" style={panelStyle}>
@@ -705,8 +729,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                 </div>
               </section>
 
-              <div className="space-y-4">{config.questions.map((question, index) => <QuestionEditorCard key={question.id} question={question} index={index} questions={config.questions} active={activeQuestionId === question.id} dragging={draggedQuestionId === question.id} C={C} inputStyle={inputStyle} onActivate={() => setActiveQuestionId(question.id)} onUpdate={patch => updateQuestion(index, patch)} onMove={direction => moveQuestion(index, direction)} onDuplicate={() => duplicateQuestion(index)} onRemove={() => removeQuestion(index)} onDragStart={() => setDraggedQuestionId(question.id)} onDragEnd={() => setDraggedQuestionId('')} onDrop={() => dropQuestion(index)} />)}</div>
-              <div className="grid gap-2 sm:grid-cols-2"><button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button><button type="button" onClick={() => addQuestion(config.questions.length - 1, 'text_block')} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.muted }}><FileText className="h-4 w-4" /> Add text block</button></div>
+              <div className="space-y-4">{config.questions.map((question, index) => <QuestionEditorCard key={question.id} question={question} index={index} questions={config.questions} active={activeQuestionId === question.id} dragging={draggedQuestionId === question.id} C={C} token={token} inputStyle={inputStyle} onActivate={() => setActiveQuestionId(question.id)} onUpdate={patch => updateQuestion(index, patch)} onMove={direction => moveQuestion(index, direction)} onDuplicate={() => duplicateQuestion(index)} onRemove={() => removeQuestion(index)} onDragStart={() => setDraggedQuestionId(question.id)} onDragEnd={() => setDraggedQuestionId('')} onDrop={() => dropQuestion(index)} />)}</div>
+              <div className="grid gap-2 sm:grid-cols-3"><button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button><button type="button" onClick={() => addQuestion(config.questions.length - 1, 'text_block')} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.muted }}><FileText className="h-4 w-4" /> Add text block</button><button type="button" onClick={() => addQuestion(config.questions.length - 1, 'image')} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.muted }}><ImageIcon className="h-4 w-4" /> Add image</button></div>
             </div>
           </div>
         )}

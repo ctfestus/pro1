@@ -5,8 +5,9 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Clock, CornerDownLeft, ExternalLin
 import { AnimatePresence, motion } from 'motion/react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
-import { applicationCoverQuality, highQualityApplicationCoverUrl } from '@/lib/application-cover';
-import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
+import { ApplicationFramedImage } from '@/components/ApplicationFramedImage';
+import { applicationCoverFrame } from '@/lib/application-cover';
+import { isApplicationContentBlock, isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { applicationThemeColors } from '@/lib/application-theme-presets';
 import { sanitizeRichText } from '@/lib/sanitize';
@@ -150,7 +151,6 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const [activeStep, setActiveStep] = useState(0);
   const [reviewing, setReviewing] = useState(false);
   const [stepDirection, setStepDirection] = useState(1);
-  const [coverImageMeta, setCoverImageMeta] = useState<{ src: string; width: number; height: number } | null>(null);
 
   useEffect(() => {
     if (previewForm) {
@@ -279,24 +279,9 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const themedPageStyle = { background: C.page, '--application-focus-color': C.cta } as CSSProperties;
   const post = form.config.postSubmission;
   const coverImage = form.config.coverImage?.trim();
-  const coverDisplayImage = coverImage ? highQualityApplicationCoverUrl(coverImage) : '';
   const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
   const coverPlacement = form.config.coverImagePlacement ?? 'header';
-  const coverFit = form.config.coverImageFit ?? 'cover';
-  const legacyCoverY = form.config.coverImagePosition === 'top' ? 0 : form.config.coverImagePosition === 'bottom' ? 100 : 50;
-  const coverPositionX = form.config.coverImagePositionX ?? 50;
-  const coverPositionY = form.config.coverImagePositionY ?? legacyCoverY;
-  const coverMaximumSharpZoom = coverImageMeta?.src === coverDisplayImage
-    ? applicationCoverQuality(coverImageMeta.width, coverImageMeta.height).maximumSharpZoom
-    : 1;
-  const coverZoom = Math.min(form.config.coverImageZoom ?? 1, coverMaximumSharpZoom);
-  const registerCoverImage = (image: HTMLImageElement) => setCoverImageMeta({ src: coverDisplayImage, width: image.naturalWidth, height: image.naturalHeight });
-  const coverImageStyle: CSSProperties = {
-    objectFit: coverFit,
-    objectPosition: `${coverPositionX}% ${coverPositionY}%`,
-    transform: coverFit === 'cover' ? `scale(${coverZoom})` : 'none',
-    transformOrigin: `${coverPositionX}% ${coverPositionY}%`,
-  };
+  const coverFrame = applicationCoverFrame(form.config);
   const visibleQuestions = form.config.questions.filter(question => isQuestionVisible(question, answers));
   const listLayout = form.config.layout === 'list';
   // The one-page layout has no separate start step: the overview details stay visible above the questions.
@@ -309,7 +294,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     ? 'For confirmation and status updates.'
     : form.config.emailHelpText.trim();
   const currentHelpText = currentQuestion
-    ? currentQuestion.type === 'text_block' ? '' : currentQuestion.helpText || 'Take your time. You can review this before submitting.'
+    ? isApplicationContentBlock(currentQuestion) ? '' : currentQuestion.helpText || 'Take your time. You can review this before submitting.'
     : emailHelpText;
   const flowProgress = reviewing ? 100 : Math.round(((currentStep + 1) / (stepCount + 1)) * 100);
   const enterAdvances = currentStep === 0 || Boolean(currentQuestion && ['short_text', 'email', 'phone', 'number', 'date'].includes(currentQuestion.type));
@@ -361,7 +346,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     return (
       <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-8 sm:py-12" style={themedPageStyle}>
         <div className="relative mx-auto max-w-3xl space-y-4">
-          {coverDisplayImage && <div className="h-40 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 12 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
+          {coverImage && <ApplicationFramedImage src={coverImage} alt={coverAlt} frame={coverFrame} className="h-40 sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 12 }} />}
           <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 12 }}>
             <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-xl" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.successText }}>Successfully submitted</p>
@@ -388,10 +373,10 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   return (
     <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-6 sm:py-10" style={themedPageStyle}>
       <div className="mx-auto max-w-3xl">
-        {coverDisplayImage && coverPlacement === 'header' && <div className="mb-4 h-36 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 12 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
+        {coverImage && coverPlacement === 'header' && <ApplicationFramedImage src={coverImage} alt={coverAlt} frame={coverFrame} className="mb-4 h-36 sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 12 }} />}
         <form onSubmit={submit} className="space-y-4">
           <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 12 }}>
-            {coverDisplayImage && coverPlacement === 'inside' && <div className="h-36 overflow-hidden sm:h-52" style={{ background: C.skeleton }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
+            {coverImage && coverPlacement === 'inside' && <ApplicationFramedImage src={coverImage} alt={coverAlt} frame={coverFrame} className="h-36 sm:h-52" style={{ background: C.skeleton }} />}
             <div className="p-6 sm:p-9">
               <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
@@ -433,7 +418,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                 {reviewing ? <motion.div key="review" initial={{ opacity: 0, x: 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -28 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
                   <div className="mb-7 flex items-center gap-3"><span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.input, color: C.cta }}><CheckCircle2 className="h-4.5 w-4.5" /></span><div><p className="text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}>Final check</p><h2 className="text-xl font-bold sm:text-2xl" style={{ color: C.text }}>Everything look right?</h2></div></div>
                   <div className="space-y-2">
-                    {[{ id: 'email', label: 'Email address', value: email, step: 0, type: 'email' as const }, ...visibleQuestions.map((question, index) => ({ id: question.id, label: question.label, value: answers[question.id], step: index + 1, type: question.type })).filter(item => item.type !== 'text_block')].map(item => <button key={item.id} type="button" onClick={() => editStep(item.step)} className="group flex w-full items-center gap-3 rounded-lg border p-3 text-left" style={{ background: C.input, borderColor: C.inputBorder }}><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>{item.label}</span><span className="mt-1 block truncate text-sm font-medium" style={{ color: C.text }}>{answerSummary(item.value)}</span></span><PencilLine className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" style={{ color: C.cta }} /></button>)}
+                    {[{ id: 'email', label: 'Email address', value: email, step: 0, type: 'email' as const }, ...visibleQuestions.map((question, index) => ({ id: question.id, label: question.label, value: answers[question.id], step: index + 1, type: question.type })).filter(item => item.type !== 'text_block' && item.type !== 'image')].map(item => <button key={item.id} type="button" onClick={() => editStep(item.step)} className="group flex w-full items-center gap-3 rounded-lg border p-3 text-left" style={{ background: C.input, borderColor: C.inputBorder }}><span className="min-w-0 flex-1"><span className="block truncate text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>{item.label}</span><span className="mt-1 block truncate text-sm font-medium" style={{ color: C.text }}>{answerSummary(item.value)}</span></span><PencilLine className="h-4 w-4 shrink-0 transition-transform group-hover:scale-110" style={{ color: C.cta }} /></button>)}
                   </div>
                   {message && <p className="mt-4 rounded-xl p-3 text-xs" style={{ background: C.errorBg, color: C.errorText }}>{message}</p>}
                   <div className="mt-7 flex items-center justify-between gap-3">
@@ -443,7 +428,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                 </motion.div> : <motion.div key={currentQuestion?.id ?? 'email'} custom={stepDirection} initial={{ opacity: 0, x: stepDirection > 0 ? 34 : -34 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: stepDirection > 0 ? -34 : 34 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
                   <div className="mb-7 flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}><motion.span className="h-2.5 w-2.5 rounded-full" style={{ background: C.cta }} animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.45, 1, 0.45] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }} /> Application assistant</div>
                   <TypewriterPrompt key={currentQuestion?.id ?? 'email-prompt'} text={currentQuestion?.label ?? emailPrompt} C={C} />
-                  {(currentHelpText || (currentQuestion && currentQuestion.type !== 'text_block' && !currentQuestion.required)) && <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}>{currentHelpText && <span>{currentHelpText}</span>}{currentQuestion && currentQuestion.type !== 'text_block' && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>}
+                  {(currentHelpText || (currentQuestion && !isApplicationContentBlock(currentQuestion) && !currentQuestion.required)) && <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}>{currentHelpText && <span>{currentHelpText}</span>}{currentQuestion && !isApplicationContentBlock(currentQuestion) && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>}
                   <div className="mt-8" onKeyDown={event => { const target = event.target as HTMLInputElement; if (event.key === 'Enter' && !event.shiftKey && target.tagName === 'INPUT' && !['checkbox', 'radio', 'file'].includes(target.type)) { event.preventDefault(); continueFlow(); } }}>
                     {currentStep === 0 ? <div><div className="relative"><Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.faint }} /><input autoFocus type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com" className="w-full py-4 pl-11 pr-4 text-base outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${emailError ? C.errorText : C.inputBorder}`, borderRadius: 10 }} /></div>{emailError && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{emailError}</p>}</div> : currentQuestion && <ApplicationQuestionFields questions={[currentQuestion]} answers={answers} onChange={next => { setAnswers(next); setErrors(previous => ({ ...previous, [currentQuestion.id]: '' })); }} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} focused autoFocus />}
                   </div>

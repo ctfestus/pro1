@@ -10,6 +10,7 @@ import {
   type ApplicationAnswer,
   type ApplicationQuestion,
 } from '@/lib/application-forms';
+import { ApplicationFramedImage } from '@/components/ApplicationFramedImage';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { supabase } from '@/lib/supabase';
 import type { ThemeColors } from '@/lib/theme';
@@ -213,16 +214,34 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
     };
   }
 
+  // Images are illustrations, not numbered items, so numbering skips them.
+  const questionNumbers = new Map<string, number>();
+  for (const question of visibleQuestions) {
+    if (question.type !== 'image') questionNumbers.set(question.id, startAt + questionNumbers.size);
+  }
+
   return (
     <div className="space-y-4">
-      {visibleQuestions.map((question, index) => {
+      {visibleQuestions.map(question => {
+        if (question.type === 'image') {
+          if (!question.image?.url) return null;
+          const caption = question.label?.trim();
+          // Full width of the form at the cover's height, so an image block matches the cover.
+          // In the step flow the caption is already shown as the step prompt.
+          return (
+            <figure key={question.id} id={`application-question-${question.id}`} className={focused ? '' : 'scroll-mt-4 overflow-hidden rounded-xl'} style={focused ? undefined : { background: C.card }}>
+              <ApplicationFramedImage src={question.image.url} alt={question.image.alt?.trim() || caption || ''} frame={question.image} className={`h-36 sm:h-56 ${focused ? 'rounded-xl' : ''}`} style={{ background: C.skeleton }} />
+              {!focused && caption && <figcaption className="px-5 py-3 text-xs leading-5 sm:px-6" style={{ color: C.muted }}>{caption}</figcaption>}
+            </figure>
+          );
+        }
         const value = answers[question.id];
         const error = errors[question.id] || uploadError[question.id];
         const isTextBlock = question.type === 'text_block';
         return (
           <section key={question.id} id={`application-question-${question.id}`} className={focused ? '' : 'rounded-xl p-5 sm:p-6 scroll-mt-4'} style={focused ? undefined : { background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
             {!focused && <div className="mb-4 flex items-start gap-3">
-              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: error ? C.errorBg : C.pill, color: error ? C.errorText : C.muted }}>{startAt + index}</span>
+              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl text-xs font-bold" style={{ background: error ? C.errorBg : C.pill, color: error ? C.errorText : C.muted }}>{questionNumbers.get(question.id)}</span>
               <div className="min-w-0 flex-1">
                 <label className="block text-sm font-semibold leading-6 sm:text-base" style={{ color: C.text }}>
                   {question.label}{question.required && <span className="ml-1" style={{ color: C.errorText }}>*</span>}

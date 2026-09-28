@@ -1,4 +1,9 @@
-import type { ApplicationAnswer, ApplicationFormRecord, ApplicationSubmissionRecord } from '@/lib/application-forms';
+import {
+  isApplicationContentBlock,
+  type ApplicationAnswer,
+  type ApplicationFormRecord,
+  type ApplicationSubmissionRecord,
+} from '@/lib/application-forms';
 
 function answerValue(value: ApplicationAnswer | undefined): string {
   if (value === null || value === undefined) return '';
@@ -18,7 +23,7 @@ export function applicationSubmissionsCsv(
   form: ApplicationFormRecord,
   submissions: ApplicationSubmissionRecord[],
 ): string {
-  const answerQuestions = form.config.questions.filter(question => question.type !== 'text_block');
+  const answerQuestions = form.config.questions.filter(question => !isApplicationContentBlock(question));
   const activeIds = new Set(answerQuestions.map(question => question.id));
   const archived = new Map<string, string>();
   for (const submission of submissions) {

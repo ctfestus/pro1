@@ -7,10 +7,31 @@ import {
 
 export const APPLICATION_QUESTION_TYPES = [
   'short_text', 'long_text', 'email', 'phone', 'number', 'date', 'single_choice',
-  'multiple_choice', 'dropdown', 'yes_no', 'file', 'consent', 'text_block',
+  'multiple_choice', 'dropdown', 'yes_no', 'file', 'consent', 'text_block', 'image',
 ] as const;
 
 export type ApplicationQuestionType = typeof APPLICATION_QUESTION_TYPES[number];
+
+/**
+ * How an image sits in its frame. The form cover and image blocks share this shape so they
+ * crop, reposition, and zoom the same way. Missing values mean cover fit, centered, 100%.
+ */
+export interface ApplicationImageFrame {
+  fit?: 'cover' | 'contain';
+  positionX?: number;
+  positionY?: number;
+  zoom?: number;
+}
+
+export interface ApplicationImageBlock extends ApplicationImageFrame {
+  url: string;
+  alt?: string;
+}
+
+/** Display-only form items: shown to applicants but never answered, exported, or used in conditions. */
+export function isApplicationContentBlock(question: Pick<ApplicationQuestion, 'type'>): boolean {
+  return question.type === 'text_block' || question.type === 'image';
+}
 
 // Upload formats a file question can accept. Each extension maps to the content type the
 // server stores it with, so the storage bucket can enforce the same list.
@@ -51,6 +72,8 @@ export interface ApplicationQuestion {
   options?: string[];
   /** File questions only. Missing or empty means every type in APPLICATION_FILE_TYPES. */
   allowedFileTypes?: ApplicationFileType[];
+  /** Image blocks only. The question label is used as an optional caption. */
+  image?: ApplicationImageBlock;
   condition?: ApplicationCondition;
 }
 
@@ -317,6 +340,19 @@ export function applicationFileTypesLabel(question: Pick<ApplicationQuestion, 'a
   return labels.length > 1 ? `${labels.slice(0, -1).join(', ')} or ${labels[labels.length - 1]}` : labels[0];
 }
 
+// Same limits as the cover image: zoom tops out at 2.5 (APPLICATION_COVER_TARGET.maximumZoom).
+function imageBlockErrors(image: ApplicationImageBlock | undefined, name: string): string[] {
+  if (!image?.url || !isSafeHttpUrl(image.url)) return [`${name} needs an image.`];
+  const errors: string[] = [];
+  if (image.fit && !['cover', 'contain'].includes(image.fit)) errors.push(`${name} image fit is invalid.`);
+  for (const [value, axis] of [[image.positionX, 'horizontal'], [image.positionY, 'vertical']] as const) {
+    if (value !== undefined && (!Number.isFinite(value) || value < 0 || value > 100)) errors.push(`${name} ${axis} position is invalid.`);
+  }
+  if (image.zoom !== undefined && (!Number.isFinite(image.zoom) || image.zoom < 1 || image.zoom > 2.5)) errors.push(`${name} zoom is invalid.`);
+  if ((image.alt?.length ?? 0) > 500) errors.push(`${name} description is too long.`);
+  return errors;
+}
+
 export function validateApplicationForm(config: ApplicationFormConfig, status?: ApplicationFormStatus): string[] {
   const errors: string[] = [];
   if (!config.title?.trim()) errors.push('Title is required.');
@@ -346,8 +382,9 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   for (const item of config.questions ?? []) {
     if (!item.id || ids.has(item.id)) errors.push('Every question must have a unique ID.');
     ids.add(item.id);
-    if (!item.label?.trim()) errors.push('Every question needs a label.');
+    if (!item.label?.trim() && item.type !== 'image') errors.push('Every question needs a label.');
     if (!APPLICATION_QUESTION_TYPES.includes(item.type)) errors.push(`Unsupported question type: ${item.type}`);
+    if (item.type === 'image') errors.push(...imageBlockErrors(item.image, item.label?.trim() || 'Image block'));
     if (item.type === 'text_block' && !item.richText?.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()) errors.push(`${item.label || 'Text block'} needs content.`);
     if ((item.richText?.length ?? 0) > 100_000) errors.push(`${item.label || 'Text block'} content is too long.`);
     if (['single_choice', 'multiple_choice', 'dropdown'].includes(item.type) && (item.options ?? []).filter(Boolean).length < 2) {
@@ -360,7 +397,7 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
     if (item.condition?.questionId && !conditionSources.has(item.condition.questionId)) {
       errors.push(`${item.label || 'Conditional question'} must depend on an earlier question.`);
     }
-    if (item.type !== 'text_block') conditionSources.add(item.id);
+    if (!isApplicationContentBlock(item)) conditionSources.add(item.id);
   }
   if (!Array.isArray(config.stages) || config.stages.length === 0) {
     errors.push('Add at least one review stage.');
@@ -417,7 +454,7 @@ export function validateApplicationAnswers(
   const errors: Record<string, string> = {};
   for (const item of config.questions) {
     if (!isQuestionVisible(item, answers)) continue;
-    if (item.type === 'text_block') continue;
+    if (isApplicationContentBlock(item)) continue;
     const value = answers[item.id];
     if (item.required && !present(value)) {
       errors[item.id] = 'This question is required.';

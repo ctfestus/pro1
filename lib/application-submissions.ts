@@ -2,13 +2,14 @@ import { createHash } from 'crypto';
 import { adminClient } from '@/lib/admin-client';
 import { getApplicationForm } from '@/lib/application-form-store';
 import { APPLICATION_UPLOAD_BUCKET } from '@/lib/application-storage';
-import type {
-  ApplicationAnswer,
-  ApplicationAuditRecord,
-  ApplicationMessage,
-  ApplicationPrivateNote,
-  ApplicationStatusEvent,
-  ApplicationSubmissionRecord,
+import {
+  isApplicationContentBlock,
+  type ApplicationAnswer,
+  type ApplicationAuditRecord,
+  type ApplicationMessage,
+  type ApplicationPrivateNote,
+  type ApplicationStatusEvent,
+  type ApplicationSubmissionRecord,
 } from '@/lib/application-forms';
 
 const TABLE = 'application_submissions';
@@ -132,7 +133,7 @@ export async function saveApplicationSubmission(item: ApplicationSubmissionRecor
   if (!form) throw new Error('Application form not found.');
   const existing = await find(item.id);
   const labels = Object.fromEntries(form.config.questions
-    .filter(question => question.type !== 'text_block')
+    .filter(question => !isApplicationContentBlock(question))
     .map(question => [question.id, question.label]));
   const row = {
     id: item.id,

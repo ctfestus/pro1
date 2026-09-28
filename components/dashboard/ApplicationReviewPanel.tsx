@@ -18,7 +18,10 @@ import {
   Users,
   X,
 } from 'lucide-react';
-import type { ApplicationFormRecord } from '@/lib/application-forms';
+import {
+  isApplicationContentBlock,
+  type ApplicationFormRecord,
+} from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
 const MESSAGE_PRESETS = {
@@ -79,7 +82,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [activeTab, setActiveTab] = useState<ReviewTab>('answers');
   const selected = submissions.find(item => item.id === selectedId);
   const reviewQuestions = useMemo(() => {
-    const active = form.config.questions.filter(question => question.type !== 'text_block');
+    const active = form.config.questions.filter(question => !isApplicationContentBlock(question));
     const activeIds = new Set(active.map(question => question.id));
     const archived = Object.keys(selected?.answers ?? {}).filter(id => !activeIds.has(id))
       .map(id => ({ id, label: selected?.questionLabels?.[id] ?? 'Removed question' }));

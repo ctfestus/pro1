@@ -7,6 +7,7 @@ describe('application submission export', () => {
     const config = newApplicationFormConfig('bootcamp');
     const question = config.questions[0];
     config.questions.splice(1, 0, { id: 'context', label: 'Read before applying', type: 'text_block', required: false, richText: '<p>Helpful context</p>' });
+    config.questions.splice(2, 0, { id: 'banner', label: 'Campus photo', type: 'image', required: false, image: { url: 'https://images.pexels.com/photos/1/banner.jpeg' } });
     const form = {
       id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'data-bootcamp',
       status: 'published' as const, createdAt: '', updatedAt: '', config,
@@ -27,6 +28,7 @@ describe('application submission export', () => {
     expect(csv).not.toContain('private-token-hash');
     expect(csv).not.toContain('Internal only');
     expect(csv).not.toContain('Read before applying');
+    expect(csv).not.toContain('Campus photo');
   });
 
   it('keeps answers to questions removed from a published form', () => {

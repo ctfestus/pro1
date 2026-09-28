@@ -3,6 +3,7 @@ import {
   applicationFileAcceptAttribute,
   applicationFileContentType,
   applicationFileTypesLabel,
+  isApplicationContentBlock,
   formAvailability,
   isQuestionVisible,
   newApplicationFormConfig,
@@ -117,6 +118,27 @@ describe('application form contract', () => {
     expect(validateApplicationForm({ ...config, layout: 'steps' })).toEqual([]);
     expect(validateApplicationForm({ ...config, layout: 'list' })).toEqual([]);
     expect(validateApplicationForm({ ...config, layout: 'grid' as never })).toContain('Question layout is invalid.');
+  });
+
+  it('supports image blocks framed like the cover, never treated as answers or condition sources', () => {
+    const config = newApplicationFormConfig('bootcamp');
+    const image = { id: 'banner', label: '', type: 'image' as const, required: false };
+    config.questions.splice(1, 0, image);
+    expect(validateApplicationForm(config)).toContain('Image block needs an image.');
+
+    config.questions[1] = { ...image, image: { url: 'https://images.pexels.com/photos/1/banner.jpeg', alt: 'Students', fit: 'cover', positionX: 30, positionY: 70, zoom: 1.5 } };
+    expect(validateApplicationForm(config)).toEqual([]);
+    expect(isApplicationContentBlock(config.questions[1])).toBe(true);
+    expect(validateApplicationAnswers(config, {})).not.toHaveProperty('banner');
+
+    config.questions[1] = { ...config.questions[1], image: { url: 'javascript:alert(1)' } };
+    expect(validateApplicationForm(config)).toContain('Image block needs an image.');
+    config.questions[1] = { ...config.questions[1], label: 'Campus', image: { url: 'https://images.pexels.com/photos/1/banner.jpeg', zoom: 4, positionX: 120 } };
+    expect(validateApplicationForm(config)).toEqual(expect.arrayContaining(['Campus zoom is invalid.', 'Campus horizontal position is invalid.']));
+
+    config.questions[1] = { ...config.questions[1], image: { url: 'https://images.pexels.com/photos/1/banner.jpeg' } };
+    config.questions[2] = { ...config.questions[2], condition: { questionId: 'banner', operator: 'equals', value: 'x' } };
+    expect(validateApplicationForm(config)).toContain(`${config.questions[2].label} must depend on an earlier question.`);
   });
 
   it('supports rich text blocks without treating them as applicant answers', () => {
