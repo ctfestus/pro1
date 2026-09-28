@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { applicationSubmissionsCsv } from '@/lib/application-export';
 import { getApplicationForm } from '@/lib/application-form-store';
-import { listApplicationSubmissions } from '@/lib/application-sheets';
+import { listApplicationSubmissions } from '@/lib/application-submissions';
 
 export const dynamic = 'force-dynamic';
 

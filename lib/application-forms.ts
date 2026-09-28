@@ -75,29 +75,12 @@ export interface ApplicationFormConfig {
   postSubmission: ApplicationPostSubmission;
 }
 
-export interface ApplicationSheetLayout {
-  version: 2;
-  schemaHash: string;
-  columnKeys?: string[];
-  columnLabels?: string[];
-  storageFolderId?: string;
-  uploadsFolderId?: string;
-  responsesSheetId: number;
-  statusHistorySheetId: number;
-  privateNotesSheetId: number;
-  emailsSheetId: number;
-  filesSheetId: number;
-}
-
 export interface ApplicationFormRecord {
   id: string;
   ownerId: string;
   ownerEmail: string;
   slug: string;
   status: ApplicationFormStatus;
-  responseSpreadsheetId?: string;
-  responseSpreadsheetUrl?: string;
-  responseSheetLayout?: ApplicationSheetLayout;
   createdAt: string;
   updatedAt: string;
   config: ApplicationFormConfig;
@@ -153,6 +136,7 @@ export interface ApplicationSubmissionRecord {
   submittedAt: string;
   tokenHash: string;
   answers: Record<string, ApplicationAnswer>;
+  questionLabels?: Record<string, string>;
   privateNotes: ApplicationPrivateNote[];
   statusHistory: ApplicationStatusEvent[];
   messages: ApplicationMessage[];
@@ -345,7 +329,7 @@ function present(value: ApplicationAnswer): boolean {
   if (value === null || value === undefined || value === '') return false;
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === 'boolean') return value;
-  if (typeof value === 'object') return Boolean(value.url);
+  if (typeof value === 'object') return Boolean(value.publicId);
   return true;
 }
 
@@ -374,7 +358,7 @@ export function validateApplicationAnswers(
     if (item.type === 'consent' && value !== true && value !== 'true') errors[item.id] = 'Consent is required.';
     if (item.type === 'file') {
       const file = value as ApplicationFileAnswer;
-      if (!file?.url || !file?.publicId || !file.publicId.startsWith('drive/')) {
+      if (!file?.publicId || !file.publicId.startsWith('supabase/')) {
         errors[item.id] = 'Upload a valid file.';
       }
     }

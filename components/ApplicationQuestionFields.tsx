@@ -8,6 +8,7 @@ import {
   type ApplicationQuestion,
 } from '@/lib/application-forms';
 import { sanitizeRichText } from '@/lib/sanitize';
+import { supabase } from '@/lib/supabase';
 import type { ThemeColors } from '@/lib/theme';
 
 function ApplicationDropdown({ questionId, value, options, onChange, C, disabled, autoFocus }: {
@@ -162,11 +163,11 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
   async function upload(questionId: string, file: File) {
     if (previewUploads) {
-      set(questionId, { url: '#', publicId: 'applications/preview', name: file.name, size: file.size, type: file.type });
+      set(questionId, { url: '#', publicId: 'supabase/preview', name: file.name, size: file.size, type: file.type });
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      setUploadError(previous => ({ ...previous, [questionId]: 'Files must be 4 MB or smaller.' }));
+    if (file.size > 10 * 1024 * 1024) {
+      setUploadError(previous => ({ ...previous, [questionId]: 'Files must be 10 MB or smaller.' }));
       return;
     }
     setUploading(questionId);
@@ -174,12 +175,17 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
     try {
       const token = uploadToken || await ensureUploadToken?.();
       if (!token) throw new Error('Enter your email address before uploading a file.');
-      const data = new FormData();
-      data.set('file', file);
-      const response = await fetch(`/api/public/applications/${encodeURIComponent(token)}/upload`, { method: 'POST', body: data });
+      const response = await fetch(`/api/public/applications/${encodeURIComponent(token)}/upload`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ questionId, name: file.name, size: file.size, type: file.type }),
+      });
       const json = await response.json();
       if (!response.ok) throw new Error(json.error || 'Upload failed.');
-      set(questionId, json.file);
+      const uploaded = await supabase.storage.from(json.bucket).uploadToSignedUrl(json.path, json.uploadToken, file, {
+        contentType: file.type || 'application/octet-stream',
+      });
+      if (uploaded.error) throw new Error(uploaded.error.message || 'Upload failed.');
+      set(questionId, { ...json.file, url: URL.createObjectURL(file) });
     } catch (error) {
       setUploadError(previous => ({ ...previous, [questionId]: (error as Error).message }));
     } finally {
@@ -289,14 +295,14 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                 {typeof value === 'object' && value && !Array.isArray(value) && 'url' in value ? (
                   <div className="flex items-center gap-3">
                     <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><FileCheck2 className="h-5 w-5" /></span>
-                    <div className="min-w-0 flex-1"><a href={value.url} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-semibold" style={{ color: C.text }}>{value.name}</a><p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>File ready</p></div>
+                    <div className="min-w-0 flex-1">{value.url && value.url !== '#' ? <a href={value.url} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-semibold" style={{ color: C.text }}>{value.name}</a> : <span className="block truncate text-sm font-semibold" style={{ color: C.text }}>{value.name}</span>}<p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>File ready</p></div>
                     {!disabled && <button type="button" onClick={() => set(question.id, null)} className="rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: C.card, color: C.deleteText }}>Remove</button>}
                   </div>
                 ) : (
                   <label className="flex cursor-pointer flex-col items-center justify-center gap-2 py-4 text-center">
                     <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}>{uploading === question.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}</span>
                     <span className="text-sm font-semibold" style={{ color: C.text }}>{uploading === question.id ? 'Uploading...' : 'Choose a file'}</span>
-                    <span className="text-[11px]" style={{ color: C.faint }}>PDF, Office files, images, text, or ZIP up to 4 MB</span>
+                    <span className="text-[11px]" style={{ color: C.faint }}>PDF, Office files, images, text, or ZIP up to 10 MB</span>
                     <input disabled={disabled || uploading === question.id} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.webp,.zip" onChange={event => { const file = event.target.files?.[0]; if (file) void upload(question.id, file); event.target.value = ''; }} />
                   </label>
                 )}

@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
-import { getApplicationSubmission, getApplicationUploadsFolderId } from '@/lib/application-sheets';
+import { getApplicationSubmission } from '@/lib/application-submissions';
 import { getApplicationForm } from '@/lib/application-form-store';
-import { getGoogleDriveClient } from '@/lib/sheets';
+import { APPLICATION_UPLOAD_BUCKET, applicationFilePath } from '@/lib/application-storage';
+import { adminClient } from '@/lib/admin-client';
 
 export const dynamic = 'force-dynamic';
 
@@ -21,36 +22,14 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (!canReview) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const file = submission.answers[questionId];
-    const prefix = `drive/${form.id}/${submission.id}/`;
-    if (!file || typeof file !== 'object' || Array.isArray(file) || !file.publicId?.startsWith(prefix)) {
-      return NextResponse.json({ error: 'File not found.' }, { status: 404 });
-    }
-    const fileId = file.publicId.slice(prefix.length);
-    if (!/^[A-Za-z0-9_-]{10,}$/.test(fileId)) return NextResponse.json({ error: 'File not found.' }, { status: 404 });
-    const drive = getGoogleDriveClient();
-    const folderId = await getApplicationUploadsFolderId(form);
-    const metadata = await drive.files.get({
-      fileId,
-      supportsAllDrives: true,
-      fields: 'id,name,size,mimeType,parents,appProperties,trashed',
-    });
-    if (metadata.data.trashed
-      || !metadata.data.parents?.includes(folderId)
-      || metadata.data.appProperties?.applicationFormId !== form.id
-      || metadata.data.appProperties?.applicationSubmissionId !== submission.id) {
-      return NextResponse.json({ error: 'File not found.' }, { status: 404 });
-    }
-    const media = await drive.files.get({ fileId, alt: 'media', supportsAllDrives: true }, { responseType: 'arraybuffer' });
-    const body = new Uint8Array(media.data as ArrayBuffer);
-    const safeName = String(file.name || metadata.data.name || 'application-file').replace(/[\r\n"\\]/g, '_');
-    return new NextResponse(body, {
-      headers: {
-        'Content-Type': metadata.data.mimeType || 'application/octet-stream',
-        'Content-Disposition': `inline; filename="${safeName}"`,
-        'Cache-Control': 'private, no-store',
-        'X-Content-Type-Options': 'nosniff',
-      },
-    });
+    const path = file && typeof file === 'object' && !Array.isArray(file)
+      ? applicationFilePath(file.publicId ?? '', form.id, submission.id, questionId)
+      : null;
+    if (!path) return NextResponse.json({ error: 'File not found.' }, { status: 404 });
+    const { data, error } = await adminClient().storage.from(APPLICATION_UPLOAD_BUCKET)
+      .createSignedUrl(path, 60);
+    if (error || !data?.signedUrl) throw error ?? new Error('No download URL returned.');
+    return NextResponse.json({ url: data.signedUrl }, { headers: { 'Cache-Control': 'private, no-store' } });
   } catch (error) {
     console.error('[application-submission/file]', error);
     return NextResponse.json({ error: 'Could not open this file.' }, { status: 503 });

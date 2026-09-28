@@ -6,7 +6,7 @@ import {
   reserveApplicationAccessToken,
   restoreApplicationAccessTokens,
   saveApplicationSubmission,
-} from '@/lib/application-sheets';
+} from '@/lib/application-submissions';
 import { getApplicationForm } from '@/lib/application-form-store';
 import {
   hashApplicationAccessToken,

@@ -28,4 +28,20 @@ describe('application submission export', () => {
     expect(csv).not.toContain('Internal only');
     expect(csv).not.toContain('Read before applying');
   });
+
+  it('keeps answers to questions removed from a published form', () => {
+    const form = {
+      id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'bootcamp',
+      status: 'published' as const, createdAt: '', updatedAt: '', config: newApplicationFormConfig(),
+    };
+    const csv = applicationSubmissionsCsv(form, [{
+      id: 'submission-1', formId: form.id, reference: 'APP-1', email: 'applicant@example.com',
+      state: 'submitted', stageId: 'submitted', assignedReviewerId: '', assignedReviewerEmail: '',
+      score: null, createdAt: '', updatedAt: '', submittedAt: '', tokenHash: 'secret',
+      answers: { removed_question: 'An earlier answer' }, questionLabels: { removed_question: 'Previous question' },
+      privateNotes: [], statusHistory: [], messages: [],
+    }]);
+    expect(csv).toContain('"Previous question"');
+    expect(csv).toContain('"An earlier answer"');
+  });
 });

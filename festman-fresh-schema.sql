@@ -6588,8 +6588,7 @@ GROUP BY content_table;
 
 GRANT SELECT ON public.public_free_content_counts TO anon, authenticated;
 
--- Application forms and secure routing metadata (migration 216).
--- Applicant answers and review details are stored in a separate Google spreadsheet per form.
+-- Application forms, submissions, and review history (migrations 216-218).
 CREATE TABLE IF NOT EXISTS public.application_forms (
   id text PRIMARY KEY,
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -6597,9 +6596,6 @@ CREATE TABLE IF NOT EXISTS public.application_forms (
   slug text NOT NULL UNIQUE,
   status text NOT NULL DEFAULT 'draft' CHECK (status IN ('draft', 'published', 'paused', 'closed')),
   config jsonb NOT NULL DEFAULT '{}'::jsonb,
-  response_spreadsheet_id text,
-  response_spreadsheet_url text,
-  response_sheet_layout jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -6618,7 +6614,7 @@ CREATE POLICY "Application form owners can update" ON public.application_forms F
 CREATE POLICY "Application form owners can delete" ON public.application_forms FOR DELETE TO authenticated
   USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
 
-CREATE TABLE IF NOT EXISTS public.application_submission_index (
+CREATE TABLE IF NOT EXISTS public.application_submissions (
   id text PRIMARY KEY,
   form_id text NOT NULL REFERENCES public.application_forms(id) ON DELETE CASCADE,
   owner_id uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -6627,35 +6623,41 @@ CREATE TABLE IF NOT EXISTS public.application_submission_index (
   state text NOT NULL DEFAULT 'draft' CHECK (state IN ('draft', 'submitted')),
   assigned_reviewer_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   reference text NOT NULL DEFAULT '',
-  sheet_row integer CHECK (sheet_row IS NULL OR sheet_row >= 3),
+  email text NOT NULL DEFAULT '',
+  answers jsonb NOT NULL DEFAULT '{}'::jsonb,
+  question_labels jsonb NOT NULL DEFAULT '{}'::jsonb,
+  status_history jsonb NOT NULL DEFAULT '[]'::jsonb,
+  private_notes jsonb NOT NULL DEFAULT '[]'::jsonb,
+  messages jsonb NOT NULL DEFAULT '[]'::jsonb,
+  submitted_at timestamptz,
   stage_id text NOT NULL DEFAULT 'submitted',
   assigned_reviewer_email text NOT NULL DEFAULT '',
   score numeric CHECK (score IS NULL OR (score >= 0 AND score <= 100)),
-  sync_state text NOT NULL DEFAULT 'synced' CHECK (sync_state IN ('pending', 'synced', 'failed')),
-  last_sync_error text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
-CREATE INDEX IF NOT EXISTS application_submission_index_form_idx ON public.application_submission_index(form_id, updated_at DESC);
-CREATE INDEX IF NOT EXISTS application_submission_index_reviewer_idx ON public.application_submission_index(assigned_reviewer_id) WHERE assigned_reviewer_id IS NOT NULL;
-CREATE INDEX IF NOT EXISTS application_submission_index_tokens_idx ON public.application_submission_index USING gin(token_hashes);
-CREATE UNIQUE INDEX IF NOT EXISTS application_submission_index_submitted_email_idx
-  ON public.application_submission_index(form_id, email_hash) WHERE state = 'submitted';
-CREATE UNIQUE INDEX IF NOT EXISTS application_submission_index_sheet_row_idx
-  ON public.application_submission_index(form_id, sheet_row) WHERE sheet_row IS NOT NULL;
-DROP TRIGGER IF EXISTS trg_application_submission_index_updated_at ON public.application_submission_index;
-CREATE TRIGGER trg_application_submission_index_updated_at BEFORE UPDATE ON public.application_submission_index
+CREATE INDEX IF NOT EXISTS application_submissions_form_idx ON public.application_submissions(form_id, updated_at DESC);
+CREATE INDEX IF NOT EXISTS application_submissions_reviewer_idx ON public.application_submissions(assigned_reviewer_id) WHERE assigned_reviewer_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS application_submissions_tokens_idx ON public.application_submissions USING gin(token_hashes);
+CREATE UNIQUE INDEX IF NOT EXISTS application_submissions_submitted_email_idx
+  ON public.application_submissions(form_id, email_hash) WHERE state = 'submitted';
+DROP TRIGGER IF EXISTS trg_application_submissions_updated_at ON public.application_submissions;
+CREATE TRIGGER trg_application_submissions_updated_at BEFORE UPDATE ON public.application_submissions
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
-ALTER TABLE public.application_submission_index ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Application index owners can read" ON public.application_submission_index FOR SELECT TO authenticated
+ALTER TABLE public.application_submissions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Application submissions owners can read" ON public.application_submissions FOR SELECT TO authenticated
   USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
-CREATE POLICY "Application index owners can insert" ON public.application_submission_index FOR INSERT TO authenticated
+CREATE POLICY "Application submissions owners can insert" ON public.application_submissions FOR INSERT TO authenticated
   WITH CHECK ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
-CREATE POLICY "Application index owners can update" ON public.application_submission_index FOR UPDATE TO authenticated
+CREATE POLICY "Application submissions owners can update" ON public.application_submissions FOR UPDATE TO authenticated
   USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()))
   WITH CHECK ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
-CREATE POLICY "Application index owners can delete" ON public.application_submission_index FOR DELETE TO authenticated
+CREATE POLICY "Application submissions owners can delete" ON public.application_submissions FOR DELETE TO authenticated
   USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
+
+INSERT INTO storage.buckets (id, name, public, file_size_limit)
+VALUES ('application-uploads', 'application-uploads', false, 10485760)
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 10485760;
 
 CREATE TABLE IF NOT EXISTS public.application_audit_log (
   id text PRIMARY KEY,

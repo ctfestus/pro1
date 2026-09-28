@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { publicApplicationForm } from '@/lib/application-forms';
-import { getApplicationSubmissionByTokenHash } from '@/lib/application-sheets';
+import { getApplicationSubmissionByTokenHash } from '@/lib/application-submissions';
 import { getApplicationForm } from '@/lib/application-form-store';
 import { hashApplicationAccessToken } from '@/lib/application-access';
 import { resolveApplicationRelatedItems } from '@/lib/application-related';

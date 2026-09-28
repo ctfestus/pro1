@@ -19,8 +19,15 @@ export function applicationSubmissionsCsv(
   submissions: ApplicationSubmissionRecord[],
 ): string {
   const answerQuestions = form.config.questions.filter(question => question.type !== 'text_block');
+  const activeIds = new Set(answerQuestions.map(question => question.id));
+  const archived = new Map<string, string>();
+  for (const submission of submissions) {
+    for (const id of Object.keys(submission.answers)) {
+      if (!activeIds.has(id)) archived.set(id, submission.questionLabels?.[id] ?? 'Removed question');
+    }
+  }
   const fixedHeaders = ['Reference', 'Email', 'Stage', 'Submitted at', 'Assigned reviewer', 'Score'];
-  const headers = [...fixedHeaders, ...answerQuestions.map(question => question.label)];
+  const headers = [...fixedHeaders, ...answerQuestions.map(question => question.label), ...archived.values()];
   const rows = submissions.map(submission => {
     const stage = form.config.stages.find(item => item.id === submission.stageId);
     return [
@@ -31,6 +38,7 @@ export function applicationSubmissionsCsv(
       submission.assignedReviewerEmail,
       submission.score ?? '',
       ...answerQuestions.map(question => answerValue(submission.answers[question.id])),
+      ...[...archived.keys()].map(id => answerValue(submission.answers[id])),
     ];
   });
   return `\uFEFF${[headers, ...rows].map(row => row.map(csvCell).join(',')).join('\r\n')}`;

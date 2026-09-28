@@ -14,9 +14,9 @@ import {
   isDuplicateApplicationError,
   pruneExpiredApplicationDrafts,
   saveApplicationSubmission,
-} from '@/lib/application-sheets';
+} from '@/lib/application-submissions';
 import { getApplicationFormBySlug } from '@/lib/application-form-store';
-import { normalizeApplicationDriveAnswers } from '@/lib/application-drive';
+import { normalizeApplicationStorageAnswers } from '@/lib/application-storage';
 import {
   hashApplicationAccessToken,
   newApplicationAccessToken,
@@ -163,7 +163,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
     const allowed = new Set(form.config.questions.filter(item => item.type !== 'text_block').map(item => item.id));
     let answers = Object.fromEntries(Object.entries(body!.answers!).filter(([id]) => allowed.has(id)));
     const errors = validateApplicationAnswers(form.config, answers);
-    const checkedFiles = await normalizeApplicationDriveAnswers(form, submission.id, answers);
+    const checkedFiles = await normalizeApplicationStorageAnswers(form, submission.id, answers);
     answers = checkedFiles.answers;
     Object.assign(errors, checkedFiles.errors);
     if (Object.keys(errors).length) {

@@ -11,7 +11,7 @@ import {
   listApplicationForms,
   saveApplicationForm,
 } from '@/lib/application-form-store';
-import { appendApplicationAudit, listApplicationFormIdsForReviewer } from '@/lib/application-sheets';
+import { appendApplicationAudit, listApplicationFormIdsForReviewer } from '@/lib/application-submissions';
 import { newApplicationId } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';

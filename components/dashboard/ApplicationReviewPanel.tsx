@@ -7,7 +7,6 @@ import {
   ChevronRight,
   ClipboardList,
   Download,
-  ExternalLink,
   Inbox,
   Loader2,
   Mail,
@@ -44,15 +43,14 @@ function displayAnswer(value: any, openFile: () => void): React.ReactNode {
   if (value === null || value === undefined || value === '') return 'Not answered';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (typeof value === 'object' && value.url) return <button type="button" onClick={openFile} className="underline">{value.name || 'View file'}</button>;
+  if (typeof value === 'object' && value.publicId) return <button type="button" onClick={openFile} className="underline">{value.name || 'View file'}</button>;
   return String(value);
 }
 
-export function ApplicationReviewPanel({ form, token, reviewers, isStaff, C, onBack }: {
+export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   form: ApplicationFormRecord;
   token: string;
   reviewers: { id: string; email: string; full_name?: string; role: string }[];
-  isStaff: boolean;
   C: ThemeColors;
   onBack: () => void;
 }) {
@@ -82,13 +80,10 @@ export function ApplicationReviewPanel({ form, token, reviewers, isStaff, C, onB
   const reviewQuestions = useMemo(() => {
     const active = form.config.questions.filter(question => question.type !== 'text_block');
     const activeIds = new Set(active.map(question => question.id));
-    const archived = (form.responseSheetLayout?.columnKeys ?? []).flatMap((key, index) => {
-      if (!key.startsWith('question:')) return [];
-      const id = key.slice('question:'.length);
-      return activeIds.has(id) ? [] : [{ id, label: form.responseSheetLayout?.columnLabels?.[index] ?? 'Removed question' }];
-    });
+    const archived = Object.keys(selected?.answers ?? {}).filter(id => !activeIds.has(id))
+      .map(id => ({ id, label: selected?.questionLabels?.[id] ?? 'Removed question' }));
     return [...active.map(question => ({ id: question.id, label: question.label })), ...archived];
-  }, [form.config.questions, form.responseSheetLayout]);
+  }, [form.config.questions, selected?.answers, selected?.questionLabels]);
   const input = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: '10px 11px', outline: 'none' };
 
   async function load() {
@@ -260,9 +255,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, isStaff, C, onB
         const value = await response.json().catch(() => ({}));
         throw new Error(value.error || 'Could not open this file.');
       }
-      const url = URL.createObjectURL(await response.blob());
-      tab.location.href = url;
-      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+      const data = await response.json();
+      tab.location.href = data.url;
     } catch (reason) {
       tab.close();
       setError((reason as Error).message);
@@ -281,7 +275,6 @@ export function ApplicationReviewPanel({ form, token, reviewers, isStaff, C, onB
           <div className="min-w-0"><h2 className="truncate text-lg font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="mt-0.5 text-xs" style={{ color: C.faint }}>{submittedCount} submitted application{submittedCount === 1 ? '' : 's'}</p></div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          {!isStaff && form.responseSpreadsheetUrl && <a href={form.responseSpreadsheetUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold" style={{ background: C.card, color: C.text }}><ExternalLink className="h-4 w-4" /> Open response sheet</a>}
           <button type="button" onClick={() => void exportCsv()} disabled={exporting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.card, color: C.text }}>{exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV</button>
         </div>
       </div>

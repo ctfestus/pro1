@@ -107,7 +107,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   }
 
   if (mode?.type === 'edit') return <ApplicationFormBuilder initial={mode.form} token={token} relatedItems={relatedItems} C={C} onBack={() => setMode(null)} onSaved={replace} />;
-  if (mode?.type === 'review') return <ApplicationReviewPanel form={mode.form} token={token} reviewers={reviewers} isStaff={isStaff} C={C} onBack={() => setMode(null)} />;
+  if (mode?.type === 'review') return <ApplicationReviewPanel form={mode.form} token={token} reviewers={reviewers} C={C} onBack={() => setMode(null)} />;
   if (loading) return <div className="py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: C.cta }} /></div>;
 
   return (

@@ -7,9 +7,6 @@ type ApplicationFormRow = {
   owner_email: string;
   slug: string;
   status: ApplicationFormRecord['status'];
-  response_spreadsheet_id: string | null;
-  response_spreadsheet_url: string | null;
-  response_sheet_layout: ApplicationFormRecord['responseSheetLayout'] | null;
   created_at: string;
   updated_at: string;
   config: ApplicationFormRecord['config'];
@@ -22,9 +19,6 @@ function fromRow(row: ApplicationFormRow): ApplicationFormRecord {
     ownerEmail: row.owner_email,
     slug: row.slug,
     status: row.status,
-    responseSpreadsheetId: row.response_spreadsheet_id ?? undefined,
-    responseSpreadsheetUrl: row.response_spreadsheet_url ?? undefined,
-    responseSheetLayout: row.response_sheet_layout ?? undefined,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
     config: row.config,
@@ -38,16 +32,13 @@ function toRow(form: ApplicationFormRecord): ApplicationFormRow {
     owner_email: form.ownerEmail,
     slug: form.slug,
     status: form.status,
-    response_spreadsheet_id: form.responseSpreadsheetId ?? null,
-    response_spreadsheet_url: form.responseSpreadsheetUrl ?? null,
-    response_sheet_layout: form.responseSheetLayout ?? null,
     created_at: form.createdAt,
     updated_at: form.updatedAt,
     config: form.config,
   };
 }
 
-const SELECT_COLUMNS = 'id,owner_id,owner_email,slug,status,response_spreadsheet_id,response_spreadsheet_url,response_sheet_layout,created_at,updated_at,config';
+const SELECT_COLUMNS = 'id,owner_id,owner_email,slug,status,created_at,updated_at,config';
 
 export async function listApplicationForms(): Promise<ApplicationFormRecord[]> {
   const { data, error } = await adminClient()

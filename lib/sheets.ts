@@ -38,12 +38,6 @@ export function getGoogleDriveClient() {
   return google.drive({ version: 'v3', auth });
 }
 
-export function getApplicationResponsesFolderId(): string {
-  const folderId = process.env.GOOGLE_APPLICATION_RESPONSES_FOLDER_ID;
-  if (!folderId) throw new Error('GOOGLE_APPLICATION_RESPONSES_FOLDER_ID is not configured.');
-  return folderId;
-}
-
 export function getGoogleSpreadsheetId(): string {
   const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
   if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not configured.');
