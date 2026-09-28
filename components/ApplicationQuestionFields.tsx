@@ -226,12 +226,12 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
         if (question.type === 'image') {
           if (!question.image?.url) return null;
           const caption = question.label?.trim();
-          // Full width of the form at the cover's height, so an image block matches the cover.
+          // Inset in a card with the same padding as question cards, at the cover's height.
           // In the step flow the caption is already shown as the step prompt.
           return (
-            <figure key={question.id} id={`application-question-${question.id}`} className={focused ? '' : 'scroll-mt-4 overflow-hidden rounded-xl'} style={focused ? undefined : { background: C.card }}>
-              <ApplicationFramedImage src={question.image.url} alt={question.image.alt?.trim() || caption || ''} frame={question.image} className={`h-36 sm:h-56 ${focused ? 'rounded-xl' : ''}`} style={{ background: C.skeleton }} />
-              {!focused && caption && <figcaption className="px-5 py-3 text-xs leading-5 sm:px-6" style={{ color: C.muted }}>{caption}</figcaption>}
+            <figure key={question.id} id={`application-question-${question.id}`} className={focused ? '' : 'scroll-mt-4 rounded-xl p-5 sm:p-6'} style={focused ? undefined : { background: C.card }}>
+              <ApplicationFramedImage src={question.image.url} alt={question.image.alt?.trim() || caption || ''} frame={question.image} className="h-36 rounded-lg sm:h-56" style={{ background: C.skeleton }} />
+              {!focused && caption && <figcaption className="mt-3 text-xs leading-5" style={{ color: C.muted }}>{caption}</figcaption>}
             </figure>
           );
         }
