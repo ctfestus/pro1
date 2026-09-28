@@ -11,10 +11,11 @@ import {
 import {
   appendApplicationAudit,
   getApplicationSubmissionByTokenHash,
-  listApplicationSubmissions,
+  isDuplicateApplicationError,
   saveApplicationSubmission,
 } from '@/lib/application-sheets';
 import { getApplicationFormBySlug } from '@/lib/application-form-store';
+import { normalizeApplicationDriveAnswers } from '@/lib/application-drive';
 import {
   hashApplicationAccessToken,
   newApplicationAccessToken,
@@ -127,12 +128,6 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
     const unavailable = availabilityError(form);
     if (unavailable) return NextResponse.json({ error: unavailable }, { status: 409 });
 
-    const allSubmissions = await listApplicationSubmissions(form.id);
-    const duplicate = allSubmissions.find(item => item.email === email && item.state === 'submitted');
-    if (duplicate) {
-      return NextResponse.json({ error: 'An application has already been submitted for this email address.' }, { status: 409 });
-    }
-
     if (action === 'session') {
       const token = newApplicationAccessToken();
       const submission = newDraft(form, email, hashApplicationAccessToken(token));
@@ -150,15 +145,11 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
     }
 
     const allowed = new Set(form.config.questions.filter(item => item.type !== 'text_block').map(item => item.id));
-    const answers = Object.fromEntries(Object.entries(body!.answers!).filter(([id]) => allowed.has(id)));
+    let answers = Object.fromEntries(Object.entries(body!.answers!).filter(([id]) => allowed.has(id)));
     const errors = validateApplicationAnswers(form.config, answers);
-    for (const question of form.config.questions.filter(item => item.type === 'file')) {
-      const value = answers[question.id];
-      if (value && typeof value === 'object' && !Array.isArray(value) && 'publicId' in value) {
-        const prefix = `applications/${form.id}/${submission.id}/`;
-        if (!String(value.publicId).startsWith(prefix)) errors[question.id] = 'Upload a valid file for this application.';
-      }
-    }
+    const checkedFiles = await normalizeApplicationDriveAnswers(form, submission.id, answers);
+    answers = checkedFiles.answers;
+    Object.assign(errors, checkedFiles.errors);
     if (Object.keys(errors).length) {
       return NextResponse.json({ error: 'Complete the required questions.', errors }, { status: 400 });
     }
@@ -217,6 +208,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
       relatedItems: await resolveApplicationRelatedItems(form.config),
     });
   } catch (error) {
+    if (isDuplicateApplicationError(error)) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error('[public/application-form/submit]', error);
     return NextResponse.json({ error: 'Could not submit this application.' }, { status: 503 });
   }

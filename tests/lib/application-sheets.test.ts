@@ -1,95 +1,201 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
-  spreadsheetGet: vi.fn(), valuesGet: vi.fn(), valuesAppend: vi.fn(), valuesUpdate: vi.fn(),
-  valuesBatchUpdate: vi.fn(), valuesClear: vi.fn(), spreadsheetBatchUpdate: vi.fn(),
-  driveCreate: vi.fn(), indexUpsert: vi.fn(), getForm: vi.fn(),
+  spreadsheetGet: vi.fn(), spreadsheetBatchUpdate: vi.fn(), valuesGet: vi.fn(), valuesBatchGet: vi.fn(),
+  valuesAppend: vi.fn(), valuesUpdate: vi.fn(), valuesBatchUpdate: vi.fn(), valuesClear: vi.fn(),
+  driveCreate: vi.fn(), driveUpdate: vi.fn(), driveList: vi.fn(), getForm: vi.fn(),
+  indexSelectResult: null as any, insertError: null as any, dbInsert: vi.fn(), dbUpdate: vi.fn(),
+  dbDelete: vi.fn(), dbUpsert: vi.fn(),
 }));
-const {
-  spreadsheetGet, valuesGet, valuesAppend, valuesUpdate, valuesBatchUpdate, valuesClear,
-  spreadsheetBatchUpdate, driveCreate, indexUpsert, getForm,
-} = mocks;
 
 vi.mock('@/lib/sheets', () => ({
-  getApplicationResponsesFolderId: () => 'folder-1',
-  getGoogleDriveClient: () => ({ files: { create: mocks.driveCreate, update: vi.fn() } }),
+  getApplicationResponsesFolderId: () => 'shared-drive-folder',
+  getGoogleDriveClient: () => ({ files: { create: mocks.driveCreate, update: mocks.driveUpdate, list: mocks.driveList } }),
   getGoogleSheetsClient: () => ({
     spreadsheets: {
       get: mocks.spreadsheetGet,
       batchUpdate: mocks.spreadsheetBatchUpdate,
-      values: { get: mocks.valuesGet, append: mocks.valuesAppend, update: mocks.valuesUpdate, batchUpdate: mocks.valuesBatchUpdate, clear: mocks.valuesClear },
+      values: {
+        get: mocks.valuesGet,
+        batchGet: mocks.valuesBatchGet,
+        append: mocks.valuesAppend,
+        update: mocks.valuesUpdate,
+        batchUpdate: mocks.valuesBatchUpdate,
+        clear: mocks.valuesClear,
+      },
     },
   }),
 }));
 vi.mock('@/lib/application-form-store', () => ({ getApplicationForm: mocks.getForm }));
 vi.mock('@/lib/admin-client', () => ({
-  adminClient: () => ({ from: () => ({ upsert: mocks.indexUpsert }) }),
+  adminClient: () => ({
+    from: () => ({
+      select: () => {
+        const query: any = {
+          eq: vi.fn(() => query),
+          contains: vi.fn(() => query),
+          maybeSingle: vi.fn(async () => ({ data: mocks.indexSelectResult, error: null })),
+        };
+        return query;
+      },
+      insert: mocks.dbInsert,
+      update: mocks.dbUpdate,
+      delete: mocks.dbDelete,
+      upsert: mocks.dbUpsert,
+    }),
+  }),
 }));
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
-import { createApplicationResponseSpreadsheet, saveApplicationSubmission } from '@/lib/application-sheets';
+import {
+  createApplicationResponseSpreadsheet,
+  DuplicateApplicationError,
+  getApplicationSubmissionByTokenHash,
+  saveApplicationSubmission,
+} from '@/lib/application-sheets';
 
+const layout = {
+  version: 2 as const,
+  schemaHash: 'schema-hash',
+  storageFolderId: 'form-folder-1',
+  uploadsFolderId: 'uploads-folder-1',
+  responsesSheetId: 1,
+  statusHistorySheetId: 2,
+  privateNotesSheetId: 3,
+  emailsSheetId: 4,
+  filesSheetId: 5,
+};
+const config = newApplicationFormConfig();
 const form = {
   id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'bootcamp', status: 'published' as const,
   responseSpreadsheetId: 'response-sheet-1', responseSpreadsheetUrl: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit',
-  createdAt: '2026-09-25T00:00:00.000Z', updatedAt: '2026-09-25T00:00:00.000Z', config: newApplicationFormConfig(),
+  responseSheetLayout: layout, createdAt: '2026-09-25T00:00:00.000Z', updatedAt: '2026-09-25T00:00:00.000Z', config,
 };
-
 const submission = {
   id: 'submission-1', formId: form.id, reference: 'APP-1', email: '=unsafe@example.com', state: 'submitted' as const,
   stageId: 'submitted', assignedReviewerId: '', assignedReviewerEmail: '', score: null,
   createdAt: '2026-09-25T01:00:00.000Z', updatedAt: '2026-09-25T01:00:00.000Z', submittedAt: '2026-09-25T01:00:00.000Z',
-  tokenHash: 'hash-1', answers: {}, privateNotes: [], statusHistory: [], messages: [],
+  tokenHash: 'hash-1', answers: {}, privateNotes: [], statusHistory: [{
+    id: 'status-1', stageId: 'submitted', stageName: 'Submitted', actorEmail: '=unsafe@example.com',
+    occurredAt: '2026-09-25T01:00:00.000Z',
+  }], messages: [],
 };
-
-const dataHeaders = [
-  'id', 'form_id', 'reference', 'email', 'state', 'stage_id', 'assigned_reviewer_id',
-  'assigned_reviewer_email', 'score', 'created_at', 'updated_at', 'submitted_at',
-  'token_hash', 'answers_json', 'private_notes_json', 'status_history_json', 'messages_json',
-];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  getForm.mockResolvedValue(form);
-  driveCreate.mockResolvedValue({ data: { id: 'response-sheet-1', webViewLink: form.responseSpreadsheetUrl } });
-  spreadsheetGet.mockResolvedValue({ data: { sheets: [
-    { properties: { sheetId: 1, title: 'Responses' } },
-    { properties: { sheetId: 2, title: '_ApplicationData', hidden: true } },
-  ] } });
-  valuesGet.mockImplementation(({ range }: { range: string }) => {
-    if (range.includes('_ApplicationData') && range.endsWith('1:1')) return Promise.resolve({ data: { values: [dataHeaders] } });
-    if (range.includes('Responses') && range.endsWith('1:2')) return Promise.resolve({ data: { values: [] } });
-    return Promise.resolve({ data: { values: [dataHeaders] } });
-  });
-  valuesAppend.mockResolvedValue({ data: {} });
-  valuesUpdate.mockResolvedValue({ data: {} });
-  valuesBatchUpdate.mockResolvedValue({ data: {} });
-  valuesClear.mockResolvedValue({ data: {} });
-  spreadsheetBatchUpdate.mockResolvedValue({ data: {} });
-  indexUpsert.mockResolvedValue({ error: null });
+  mocks.indexSelectResult = null;
+  mocks.insertError = null;
+  mocks.getForm.mockResolvedValue(form);
+  mocks.driveCreate
+    .mockResolvedValueOnce({ data: { id: 'form-folder-1' } })
+    .mockResolvedValueOnce({ data: { id: 'response-sheet-1', webViewLink: form.responseSpreadsheetUrl } })
+    .mockResolvedValueOnce({ data: { id: 'uploads-folder-1' } });
+  mocks.driveUpdate.mockResolvedValue({ data: {} });
+  mocks.driveList.mockResolvedValue({ data: { files: [] } });
+  mocks.spreadsheetGet
+    .mockResolvedValueOnce({ data: { sheets: [{ properties: { sheetId: 99, title: 'Sheet1' } }] } })
+    .mockResolvedValueOnce({ data: { sheets: [
+      { properties: { sheetId: 1, title: 'Responses' } },
+      { properties: { sheetId: 2, title: '_StatusHistory' } },
+      { properties: { sheetId: 3, title: '_PrivateNotes' } },
+      { properties: { sheetId: 4, title: '_Emails' } },
+      { properties: { sheetId: 5, title: '_Files' } },
+    ] } });
+  mocks.spreadsheetBatchUpdate.mockResolvedValue({ data: {} });
+  mocks.valuesBatchUpdate.mockResolvedValue({ data: {} });
+  mocks.valuesAppend.mockResolvedValue({ data: { updates: { updatedRange: "'Responses'!A3:N3" } } });
+  mocks.valuesUpdate.mockResolvedValue({ data: {} });
+  mocks.valuesClear.mockResolvedValue({ data: {} });
+  mocks.valuesGet.mockResolvedValue({ data: { values: [] } });
+  mocks.valuesBatchGet.mockResolvedValue({ data: { valueRanges: [] } });
+  mocks.dbInsert.mockImplementation(async () => ({ error: mocks.insertError }));
+  mocks.dbUpdate.mockImplementation(() => ({ eq: vi.fn(async () => ({ error: null })) }));
+  mocks.dbDelete.mockImplementation(() => ({ eq: vi.fn(async () => ({ error: null })) }));
+  mocks.dbUpsert.mockResolvedValue({ error: null });
 });
 
 describe('per-form Google Sheets response storage', () => {
-  it('creates a response spreadsheet in the configured Drive folder', async () => {
-    await expect(createApplicationResponseSpreadsheet({ ...form, responseSpreadsheetId: undefined, responseSpreadsheetUrl: undefined }))
-      .resolves.toEqual({ id: 'response-sheet-1', url: form.responseSpreadsheetUrl });
-    expect(driveCreate).toHaveBeenCalledWith(expect.objectContaining({
+  it('creates one Drive folder containing the response sheet and applicant uploads', async () => {
+    const draftForm = { ...form, responseSpreadsheetId: undefined, responseSpreadsheetUrl: undefined, responseSheetLayout: undefined };
+    const result = await createApplicationResponseSpreadsheet(draftForm);
+
+    expect(result).toEqual(expect.objectContaining({
+      id: 'response-sheet-1',
+      url: form.responseSpreadsheetUrl,
+      layout: expect.objectContaining({ storageFolderId: 'form-folder-1', uploadsFolderId: 'uploads-folder-1' }),
+    }));
+    expect(mocks.driveCreate.mock.calls[0][0]).toEqual(expect.objectContaining({
       supportsAllDrives: true,
-      requestBody: expect.objectContaining({ parents: ['folder-1'], mimeType: 'application/vnd.google-apps.spreadsheet' }),
+      requestBody: expect.objectContaining({ parents: ['shared-drive-folder'], mimeType: 'application/vnd.google-apps.folder' }),
+    }));
+    expect(mocks.driveCreate.mock.calls[1][0].requestBody.parents).toEqual(['form-folder-1']);
+    expect(mocks.driveCreate.mock.calls[2][0].requestBody.parents).toEqual(['form-folder-1']);
+  });
+
+  it('claims the database index before appending one canonical response row', async () => {
+    await saveApplicationSubmission(submission);
+
+    expect(mocks.dbInsert).toHaveBeenCalledWith(expect.objectContaining({
+      id: submission.id, form_id: form.id, token_hashes: ['hash-1'], state: 'submitted', sync_state: 'pending',
+    }));
+    expect(mocks.dbInsert.mock.invocationCallOrder[0]).toBeLessThan(mocks.valuesAppend.mock.invocationCallOrder[0]);
+    expect(mocks.valuesAppend).toHaveBeenCalledOnce();
+    expect(mocks.valuesAppend.mock.calls[0][0]).toEqual(expect.objectContaining({
+      valueInputOption: 'RAW',
+      range: "'Responses'!A:A",
+    }));
+    expect(mocks.valuesAppend.mock.calls[0][0].requestBody.values[0][1]).toBe('=unsafe@example.com');
+    expect(mocks.spreadsheetBatchUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      requestBody: { requests: [expect.objectContaining({ appendCells: expect.objectContaining({ sheetId: 2 }) })] },
     }));
   });
 
-  it('writes canonical and readable response rows with RAW values', async () => {
-    await saveApplicationSubmission(submission);
-    expect(valuesAppend).toHaveBeenCalledTimes(2);
-    expect(valuesAppend.mock.calls.every(call => call[0].valueInputOption === 'RAW')).toBe(true);
-    expect(valuesAppend.mock.calls[0][0].requestBody.values[0][3]).toBe('=unsafe@example.com');
-    expect(valuesAppend.mock.calls[1][0].requestBody.values[0][1]).toBe('=unsafe@example.com');
-    expect(indexUpsert).toHaveBeenCalledWith(expect.objectContaining({
-      id: submission.id,
-      form_id: form.id,
-      token_hashes: ['hash-1'],
-      state: 'submitted',
-    }), { onConflict: 'id' });
+  it('keeps drafts out of the visible response sheet', async () => {
+    await saveApplicationSubmission({ ...submission, state: 'draft', submittedAt: '', statusHistory: [] });
+    expect(mocks.dbInsert).toHaveBeenCalledOnce();
+    expect(mocks.valuesAppend).not.toHaveBeenCalled();
+  });
+
+  it('does not write to Google Sheets when the duplicate claim fails', async () => {
+    mocks.insertError = { code: '23505', message: 'duplicate' };
+    await expect(saveApplicationSubmission(submission)).rejects.toBeInstanceOf(DuplicateApplicationError);
+    expect(mocks.valuesAppend).not.toHaveBeenCalled();
+  });
+
+  it('rolls back the claimed row when normalized event storage fails', async () => {
+    mocks.spreadsheetBatchUpdate.mockRejectedValueOnce(new Error('Sheets unavailable'));
+    await expect(saveApplicationSubmission(submission)).rejects.toThrow('Sheets unavailable');
+    expect(mocks.valuesClear).toHaveBeenCalledWith(expect.objectContaining({
+      range: expect.stringContaining('A3:'),
+    }));
+    expect(mocks.dbDelete).toHaveBeenCalledOnce();
+  });
+
+  it('loads a status link by its indexed row instead of scanning all responses', async () => {
+    const questionCount = config.questions.filter(question => question.type !== 'text_block').length;
+    const row = Array(questionCount + 12).fill('');
+    row[0] = submission.reference;
+    row[1] = submission.email;
+    row[questionCount + 2] = 'submitted';
+    row[questionCount + 3] = 'Submitted';
+    row[questionCount + 4] = 'submitted';
+    row[questionCount + 8] = submission.createdAt;
+    row[questionCount + 9] = submission.submittedAt;
+    row[questionCount + 10] = submission.updatedAt;
+    row[questionCount + 11] = submission.id;
+    mocks.indexSelectResult = {
+      id: submission.id, form_id: form.id, owner_id: form.ownerId, token_hashes: ['hash-1'],
+      email_hash: 'email-hash', reference: submission.reference, state: 'submitted', sheet_row: 7,
+      stage_id: 'submitted', assigned_reviewer_id: null, assigned_reviewer_email: '', score: null,
+      sync_state: 'synced', last_sync_error: null, created_at: submission.createdAt, updated_at: submission.updatedAt,
+    };
+    mocks.valuesBatchGet.mockResolvedValue({ data: { valueRanges: [
+      { values: [row] }, { values: [] }, { values: [] }, { values: [] }, { values: [] },
+    ] } });
+
+    await expect(getApplicationSubmissionByTokenHash('hash-1')).resolves.toEqual(expect.objectContaining({ id: submission.id }));
+    expect(mocks.valuesBatchGet.mock.calls[0][0].ranges).toHaveLength(1);
+    expect(mocks.valuesBatchGet.mock.calls[0][0].ranges[0]).toMatch(/!A7:[A-Z]+7$/);
+    expect(mocks.valuesBatchGet.mock.calls[0][0].ranges[0]).not.toContain('A3:');
   });
 });

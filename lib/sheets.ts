@@ -33,7 +33,7 @@ export function getGoogleDriveClient() {
 
   const auth = new google.auth.GoogleAuth({
     credentials: { client_email: email, private_key: privateKey },
-    scopes: ['https://www.googleapis.com/auth/drive.file'],
+    scopes: ['https://www.googleapis.com/auth/drive'],
   });
   return google.drive({ version: 'v3', auth });
 }

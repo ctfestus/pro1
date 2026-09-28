@@ -3,10 +3,11 @@ import { formAvailability, publicApplicationForm, validateApplicationAnswers, ty
 import {
   appendApplicationAudit,
   getApplicationSubmissionByTokenHash,
-  listApplicationSubmissions,
+  isDuplicateApplicationError,
   saveApplicationSubmission,
 } from '@/lib/application-sheets';
 import { getApplicationForm } from '@/lib/application-form-store';
+import { normalizeApplicationDriveAnswers } from '@/lib/application-drive';
 import { hashApplicationAccessToken, newApplicationId } from '@/lib/application-access';
 import { resolveApplicationRelatedItems } from '@/lib/application-related';
 import { sendApplicationConfirmationEmail } from '@/lib/application-email';
@@ -57,19 +58,12 @@ export async function POST(req: NextRequest, context: { params: Promise<{ token:
     if (found.submission.state === 'submitted') return NextResponse.json({ error: 'This application has already been submitted.' }, { status: 409 });
     if (formAvailability(found.form) !== 'open') return NextResponse.json({ error: 'The application deadline has passed or the form is not open.' }, { status: 409 });
     const allowed = new Set(found.form.config.questions.filter(item => item.type !== 'text_block').map(item => item.id));
-    const answers = Object.fromEntries(Object.entries(body.answers).filter(([id]) => allowed.has(id)));
+    let answers = Object.fromEntries(Object.entries(body.answers).filter(([id]) => allowed.has(id)));
     const errors = validateApplicationAnswers(found.form.config, answers);
-    for (const question of found.form.config.questions.filter(item => item.type === 'file')) {
-      const value = answers[question.id];
-      if (value && typeof value === 'object' && !Array.isArray(value) && 'publicId' in value) {
-        const prefix = `applications/${found.form.id}/${found.submission.id}/`;
-        if (!String(value.publicId).startsWith(prefix)) errors[question.id] = 'Upload a valid file for this application.';
-      }
-    }
+    const checkedFiles = await normalizeApplicationDriveAnswers(found.form, found.submission.id, answers);
+    answers = checkedFiles.answers;
+    Object.assign(errors, checkedFiles.errors);
     if (Object.keys(errors).length) return NextResponse.json({ error: 'Complete the required questions.', errors }, { status: 400 });
-    const duplicate = (await listApplicationSubmissions(found.form.id)).find(item =>
-      item.id !== found.submission.id && item.email === found.submission.email && item.state === 'submitted');
-    if (duplicate) return NextResponse.json({ error: 'An application has already been submitted for this email address.' }, { status: 409 });
     const now = new Date().toISOString();
     const firstStage = found.form.config.stages[0] ?? { id: 'submitted', name: 'Submitted' };
     const updated = {
@@ -100,6 +94,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ token:
       relatedItems: await resolveApplicationRelatedItems(found.form.config),
     });
   } catch (error) {
+    if (isDuplicateApplicationError(error)) return NextResponse.json({ error: error.message }, { status: 409 });
     console.error('[public/applications/submit]', error);
     return NextResponse.json({ error: 'Could not submit this application.' }, { status: 503 });
   }

@@ -6,10 +6,11 @@ const mocks = vi.hoisted(() => ({
   getSubmissionByTokenHash: vi.fn(), listSubmissions: vi.fn(), saveForm: vi.fn(),
   deleteStoredForm: vi.fn(), saveSubmission: vi.fn(), appendAudit: vi.fn(), sendConfirmation: vi.fn(),
   sendDecision: vi.fn(), related: vi.fn(), createSpreadsheet: vi.fn(), trashSpreadsheet: vi.fn(), reviewerFormIds: vi.fn(),
+  syncSchema: vi.fn(), reserveToken: vi.fn(), restoreTokens: vi.fn(),
 }));
 const { requireRole, listForms, getForm, getFormBySlug, getSubmission, getSubmissionByTokenHash, listSubmissions,
   saveForm, deleteStoredForm, saveSubmission, appendAudit, sendConfirmation, sendDecision, related,
-  createSpreadsheet, trashSpreadsheet, reviewerFormIds } = mocks;
+  createSpreadsheet, trashSpreadsheet, reviewerFormIds, syncSchema, reserveToken, restoreTokens } = mocks;
 
 vi.mock('@/lib/api-auth', () => ({ requireRole: mocks.requireRole, isAuthError: (value: any) => Boolean(value?.error) }));
 vi.mock('@/lib/application-form-store', () => ({
@@ -28,12 +29,19 @@ vi.mock('@/lib/application-sheets', () => ({
   createApplicationResponseSpreadsheet: mocks.createSpreadsheet,
   trashApplicationResponseSpreadsheet: mocks.trashSpreadsheet,
   listApplicationFormIdsForReviewer: mocks.reviewerFormIds,
+  syncApplicationResponseSchema: mocks.syncSchema,
+  reserveApplicationAccessToken: mocks.reserveToken,
+  restoreApplicationAccessTokens: mocks.restoreTokens,
+  isDuplicateApplicationError: (error: any) => Boolean(error?.duplicateApplication),
 }));
 vi.mock('@/lib/application-email', () => ({
   sendApplicationConfirmationEmail: mocks.sendConfirmation,
   sendApplicationDecisionEmail: mocks.sendDecision,
 }));
 vi.mock('@/lib/application-related', () => ({ resolveApplicationRelatedItems: mocks.related }));
+vi.mock('@/lib/application-drive', () => ({
+  normalizeApplicationDriveAnswers: async (_form: any, _submissionId: string, answers: any) => ({ answers, errors: {} }),
+}));
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
 import { POST as createForm } from '@/app/api/application-forms/route';
@@ -60,8 +68,20 @@ beforeEach(() => {
   listForms.mockResolvedValue([]); getForm.mockResolvedValue(form); getFormBySlug.mockResolvedValue(form); getSubmission.mockResolvedValue(submission);
   getSubmissionByTokenHash.mockResolvedValue(submission); listSubmissions.mockResolvedValue([submission]);
   saveForm.mockResolvedValue(undefined); deleteStoredForm.mockResolvedValue(true); saveSubmission.mockResolvedValue(undefined); appendAudit.mockResolvedValue(undefined);
-  createSpreadsheet.mockResolvedValue({ id: 'response-sheet-1', url: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit' });
+  createSpreadsheet.mockResolvedValue({
+    id: 'response-sheet-1',
+    url: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit',
+    layout: {
+      version: 2, schemaHash: 'schema-hash', storageFolderId: 'form-folder-1', uploadsFolderId: 'uploads-folder-1',
+      responsesSheetId: 1, statusHistorySheetId: 2, privateNotesSheetId: 3, emailsSheetId: 4, filesSheetId: 5,
+    },
+  });
   trashSpreadsheet.mockResolvedValue(undefined); reviewerFormIds.mockResolvedValue([]);
+  syncSchema.mockResolvedValue({
+    version: 2, schemaHash: 'schema-hash', storageFolderId: 'form-folder-1', uploadsFolderId: 'uploads-folder-1',
+    responsesSheetId: 1, statusHistorySheetId: 2, privateNotesSheetId: 3, emailsSheetId: 4, filesSheetId: 5,
+  });
+  reserveToken.mockResolvedValue(['hash']); restoreTokens.mockResolvedValue(undefined);
   sendConfirmation.mockResolvedValue(undefined); sendDecision.mockResolvedValue(undefined); related.mockResolvedValue([]);
 });
 
@@ -101,6 +121,7 @@ describe('application end-to-end route boundaries', () => {
     expect(saveForm).toHaveBeenCalledWith(expect.objectContaining({
       responseSpreadsheetId: 'response-sheet-1',
       responseSpreadsheetUrl: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit',
+      responseSheetLayout: expect.objectContaining({ version: 2, uploadsFolderId: 'uploads-folder-1' }),
     }));
   });
 
@@ -169,6 +190,22 @@ describe('application end-to-end route boundaries', () => {
     expect(sendConfirmation).toHaveBeenCalledOnce();
   });
 
+  it('returns a conflict when the atomic duplicate claim is rejected', async () => {
+    saveSubmission.mockRejectedValueOnce({
+      duplicateApplication: true,
+      message: 'An application has already been submitted for this email address.',
+    });
+    const response = await submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit', email: 'applicant@example.com', answers: requiredAnswers }),
+    }) as any, { params: Promise.resolve({ slug: 'bootcamp' }) });
+
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toContain('already been submitted');
+    expect(sendConfirmation).not.toHaveBeenCalled();
+  });
+
   it('does not store rich text blocks as applicant answers', async () => {
     getFormBySlug.mockResolvedValue({
       ...form,
@@ -227,6 +264,31 @@ describe('application end-to-end route boundaries', () => {
     expect(saved.score).toBe(88);
   });
 
+  it('resolves reviewer email from the server instead of trusting the browser', async () => {
+    const reviewerQuery: any = {
+      eq: vi.fn(() => reviewerQuery),
+      in: vi.fn(() => reviewerQuery),
+      maybeSingle: vi.fn(async () => ({
+        data: { id: 'reviewer-1', email: 'reviewer@example.com', role: 'instructor' }, error: null,
+      })),
+    };
+    requireRole.mockResolvedValue({
+      role: 'admin', actor: { id: 'owner-1', email: 'owner@example.com' }, user: { id: 'owner-1' },
+      serviceDb: { from: vi.fn(() => ({ select: vi.fn(() => reviewerQuery) })) },
+    });
+    const response = await reviewApplication(new Request('http://localhost/api/application-submissions/submission-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ assignedReviewerId: 'reviewer-1', assignedReviewerEmail: 'spoofed@example.com' }),
+    }) as any, { params: Promise.resolve({ id: 'submission-1' }) });
+
+    expect(response.status).toBe(200);
+    expect(saveSubmission.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({
+      assignedReviewerId: 'reviewer-1',
+      assignedReviewerEmail: 'reviewer@example.com',
+    }));
+  });
+
   it('moves the application stage when a decision message is sent', async () => {
     const response = await reviewApplication(new Request('http://localhost/api/application-submissions/submission-1', {
       method: 'PATCH',
@@ -249,5 +311,21 @@ describe('application end-to-end route boundaries', () => {
     getSubmissionByTokenHash.mockResolvedValue(saved);
     const statusResponse = await applicantStatus(new Request('http://localhost') as any, { params: Promise.resolve({ token: 'token' }) });
     expect((await statusResponse.json()).submission.status).toBe('Accepted');
+  });
+
+  it('does not save a stage change when the decision email fails', async () => {
+    sendDecision.mockRejectedValueOnce(new Error('Email unavailable'));
+    const response = await reviewApplication(new Request('http://localhost/api/application-submissions/submission-1', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: { type: 'acceptance', subject: 'Application accepted', body: 'Welcome to the programme.' },
+      }),
+    }) as any, { params: Promise.resolve({ id: 'submission-1' }) });
+
+    expect(response.status).toBe(503);
+    expect(reserveToken).toHaveBeenCalledOnce();
+    expect(restoreTokens).toHaveBeenCalledWith(submission.id, ['hash']);
+    expect(saveSubmission).not.toHaveBeenCalled();
   });
 });

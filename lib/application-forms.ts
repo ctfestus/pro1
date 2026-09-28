@@ -75,6 +75,18 @@ export interface ApplicationFormConfig {
   postSubmission: ApplicationPostSubmission;
 }
 
+export interface ApplicationSheetLayout {
+  version: 2;
+  schemaHash: string;
+  storageFolderId?: string;
+  uploadsFolderId?: string;
+  responsesSheetId: number;
+  statusHistorySheetId: number;
+  privateNotesSheetId: number;
+  emailsSheetId: number;
+  filesSheetId: number;
+}
+
 export interface ApplicationFormRecord {
   id: string;
   ownerId: string;
@@ -83,6 +95,7 @@ export interface ApplicationFormRecord {
   status: ApplicationFormStatus;
   responseSpreadsheetId?: string;
   responseSpreadsheetUrl?: string;
+  responseSheetLayout?: ApplicationSheetLayout;
   createdAt: string;
   updatedAt: string;
   config: ApplicationFormConfig;
@@ -359,7 +372,9 @@ export function validateApplicationAnswers(
     if (item.type === 'consent' && value !== true && value !== 'true') errors[item.id] = 'Consent is required.';
     if (item.type === 'file') {
       const file = value as ApplicationFileAnswer;
-      if (!file?.url || !file?.publicId || !file.publicId.startsWith('applications/')) errors[item.id] = 'Upload a valid file.';
+      if (!file?.url || !file?.publicId || !file.publicId.startsWith('drive/')) {
+        errors[item.id] = 'Upload a valid file.';
+      }
     }
   }
   return errors;

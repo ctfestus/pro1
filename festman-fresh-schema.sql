@@ -6599,6 +6599,7 @@ CREATE TABLE IF NOT EXISTS public.application_forms (
   config jsonb NOT NULL DEFAULT '{}'::jsonb,
   response_spreadsheet_id text,
   response_spreadsheet_url text,
+  response_sheet_layout jsonb,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -6625,6 +6626,13 @@ CREATE TABLE IF NOT EXISTS public.application_submission_index (
   email_hash text NOT NULL,
   state text NOT NULL DEFAULT 'draft' CHECK (state IN ('draft', 'submitted')),
   assigned_reviewer_id uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+  reference text NOT NULL DEFAULT '',
+  sheet_row integer CHECK (sheet_row IS NULL OR sheet_row >= 3),
+  stage_id text NOT NULL DEFAULT 'submitted',
+  assigned_reviewer_email text NOT NULL DEFAULT '',
+  score numeric CHECK (score IS NULL OR (score >= 0 AND score <= 100)),
+  sync_state text NOT NULL DEFAULT 'synced' CHECK (sync_state IN ('pending', 'synced', 'failed')),
+  last_sync_error text,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -6633,6 +6641,8 @@ CREATE INDEX IF NOT EXISTS application_submission_index_reviewer_idx ON public.a
 CREATE INDEX IF NOT EXISTS application_submission_index_tokens_idx ON public.application_submission_index USING gin(token_hashes);
 CREATE UNIQUE INDEX IF NOT EXISTS application_submission_index_submitted_email_idx
   ON public.application_submission_index(form_id, email_hash) WHERE state = 'submitted';
+CREATE UNIQUE INDEX IF NOT EXISTS application_submission_index_sheet_row_idx
+  ON public.application_submission_index(form_id, sheet_row) WHERE sheet_row IS NOT NULL;
 DROP TRIGGER IF EXISTS trg_application_submission_index_updated_at ON public.application_submission_index;
 CREATE TRIGGER trg_application_submission_index_updated_at BEFORE UPDATE ON public.application_submission_index
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();

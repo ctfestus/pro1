@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { validateApplicationForm, type ApplicationFormConfig, type ApplicationFormStatus } from '@/lib/application-forms';
 import { deleteApplicationForm, getApplicationForm, listApplicationForms, saveApplicationForm } from '@/lib/application-form-store';
-import { appendApplicationAudit, createApplicationResponseSpreadsheet, listApplicationSubmissions, trashApplicationResponseSpreadsheet } from '@/lib/application-sheets';
+import { appendApplicationAudit, createApplicationResponseSpreadsheet, listApplicationSubmissions, syncApplicationResponseSchema, trashApplicationResponseSpreadsheet } from '@/lib/application-sheets';
 import { newApplicationId } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';
@@ -48,7 +48,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 });
     if (next.status === 'published' && !next.responseSpreadsheetId) {
       const spreadsheet = await createApplicationResponseSpreadsheet(next);
-      next = { ...next, responseSpreadsheetId: spreadsheet.id, responseSpreadsheetUrl: spreadsheet.url };
+      next = { ...next, responseSpreadsheetId: spreadsheet.id, responseSpreadsheetUrl: spreadsheet.url, responseSheetLayout: spreadsheet.layout };
+    } else if (body.config && next.responseSpreadsheetId) {
+      next = { ...next, responseSheetLayout: await syncApplicationResponseSchema(next) };
     }
     await saveApplicationForm(next);
     const details = {
@@ -87,7 +89,7 @@ export async function DELETE(req: NextRequest, context: { params: Promise<{ id: 
     let spreadsheetTrashed = true;
     if (form.responseSpreadsheetId) {
       try {
-        await trashApplicationResponseSpreadsheet(form.responseSpreadsheetId);
+        await trashApplicationResponseSpreadsheet(form.responseSpreadsheetId, form.responseSheetLayout);
       } catch (error) {
         spreadsheetTrashed = false;
         console.error('[application-forms/id/delete-spreadsheet]', error);

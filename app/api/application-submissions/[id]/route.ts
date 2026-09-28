@@ -3,6 +3,8 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import {
   appendApplicationAudit,
   getApplicationSubmission,
+  reserveApplicationAccessToken,
+  restoreApplicationAccessTokens,
   saveApplicationSubmission,
 } from '@/lib/application-sheets';
 import { getApplicationForm } from '@/lib/application-form-store';
@@ -55,8 +57,11 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const owner = form.ownerId === auth.actor.id;
     const assigned = submission.assignedReviewerId === auth.actor.id;
     if (auth.role !== 'admin' && !owner && !assigned) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    if (auth.role === 'staff' && (body.assignedReviewerId !== undefined || body.assignedReviewerEmail !== undefined)) {
+    if (auth.role === 'staff' && body.assignedReviewerId !== undefined) {
       return NextResponse.json({ error: 'Only an administrator or form owner can assign reviewers.' }, { status: 403 });
+    }
+    if (body.assignedReviewerEmail !== undefined && body.assignedReviewerId === undefined) {
+      return NextResponse.json({ error: 'Select a reviewer instead of providing an email address directly.' }, { status: 400 });
     }
     if (body.score !== undefined && body.score !== null && (!Number.isFinite(body.score) || body.score < 0 || body.score > 100)) {
       return NextResponse.json({ error: 'Score must be between 0 and 100.' }, { status: 400 });
@@ -73,8 +78,20 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     }
     const now = new Date().toISOString();
     let updated = { ...submission, updatedAt: now };
-    if (body.assignedReviewerId !== undefined) updated.assignedReviewerId = body.assignedReviewerId;
-    if (body.assignedReviewerEmail !== undefined) updated.assignedReviewerEmail = body.assignedReviewerEmail;
+    if (body.assignedReviewerId !== undefined) {
+      updated.assignedReviewerId = body.assignedReviewerId;
+      updated.assignedReviewerEmail = '';
+      if (body.assignedReviewerId) {
+        const { data: reviewer, error } = await auth.serviceDb.from('students')
+          .select('id,email,role')
+          .eq('id', body.assignedReviewerId)
+          .in('role', ['admin', 'instructor', 'staff'])
+          .maybeSingle();
+        if (error) throw new Error(`Could not validate the reviewer: ${error.message}`);
+        if (!reviewer?.email) return NextResponse.json({ error: 'Select a valid reviewer.' }, { status: 400 });
+        updated.assignedReviewerEmail = reviewer.email;
+      }
+    }
     if (body.score !== undefined) updated.score = body.score;
     if (body.note) updated.privateNotes = [...updated.privateNotes, {
       id: newApplicationId('note'), body: body.note.trim(), authorEmail: auth.actor.email ?? '', createdAt: now,
@@ -91,16 +108,21 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       const messageId = newApplicationId('message');
       const token = newApplicationAccessToken();
       const hash = hashApplicationAccessToken(token);
+      const previousTokenHashes = await reserveApplicationAccessToken(updated.id, hash);
       updated.tokenHash = [...updated.tokenHash.split(',').filter(Boolean), hash].slice(-5).join(',');
-      await saveApplicationSubmission(updated);
-      await sendApplicationDecisionEmail({
-        email: updated.email, subject: body.message.subject.trim(), body: body.message.body.trim(), token, messageId,
-        baseUrl: new URL(req.url).origin,
-      });
       updated.messages = [...updated.messages, {
         id: messageId, type: body.message.type, subject: body.message.subject.trim(), body: body.message.body.trim(),
         sentAt: now, sentBy: auth.actor.email ?? '',
       }];
+      try {
+        await sendApplicationDecisionEmail({
+          email: updated.email, subject: body.message.subject.trim(), body: body.message.body.trim(), token, messageId,
+          baseUrl: new URL(req.url).origin,
+        });
+      } catch (error) {
+        await restoreApplicationAccessTokens(updated.id, previousTokenHashes);
+        throw error;
+      }
     }
     await saveApplicationSubmission(updated);
     await appendApplicationAudit({
