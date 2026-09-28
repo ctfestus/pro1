@@ -14,7 +14,7 @@ export interface PaymentRow {
 const CACHE_KEY_SUMMARY = 'payment:summary';
 const CACHE_TTL_SUMMARY = 60 * 10;  // 10 minutes
 
-function getSheetClient() {
+export function getGoogleSheetsClient() {
   const email      = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
   const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n');
   if (!email || !privateKey) throw new Error('Google service account credentials are not configured.');
@@ -24,6 +24,24 @@ function getSheetClient() {
     scopes: ['https://www.googleapis.com/auth/spreadsheets'], // read + write
   });
   return google.sheets({ version: 'v4', auth });
+}
+
+export function getGoogleDriveClient() {
+  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL;
+  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, '\n');
+  if (!email || !privateKey) throw new Error('Google service account credentials are not configured.');
+
+  const auth = new google.auth.GoogleAuth({
+    credentials: { client_email: email, private_key: privateKey },
+    scopes: ['https://www.googleapis.com/auth/drive'],
+  });
+  return google.drive({ version: 'v3', auth });
+}
+
+export function getGoogleSpreadsheetId(): string {
+  const spreadsheetId = process.env.GOOGLE_SHEETS_SPREADSHEET_ID;
+  if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not configured.');
+  return spreadsheetId;
 }
 
 function getSheetName() {
@@ -46,7 +64,7 @@ export async function getPaymentRows(): Promise<PaymentRow[]> {
   const range         = process.env.GOOGLE_SHEETS_RANGE ?? 'Sheet1!A:F';
   if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not configured.');
 
-  const sheets  = getSheetClient();
+  const sheets  = getGoogleSheetsClient();
   const res     = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rawRows = res.data.values ?? [];
 
@@ -107,7 +125,7 @@ export async function updatePaymentRow(email: string, updates: PaymentRowUpdate)
   if (!spreadsheetId) throw new Error('GOOGLE_SHEETS_SPREADSHEET_ID is not configured.');
 
   const range   = process.env.GOOGLE_SHEETS_RANGE ?? 'Sheet1!A:F';
-  const sheets  = getSheetClient();
+  const sheets  = getGoogleSheetsClient();
   const res     = await sheets.spreadsheets.values.get({ spreadsheetId, range });
   const rawRows = res.data.values ?? [];
 

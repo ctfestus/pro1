@@ -1,0 +1,195 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { requireRole, isAuthError } from '@/lib/api-auth';
+import {
+  ApplicationConcurrentUpdateError,
+  appendApplicationAudit,
+  getApplicationSubmission,
+  saveApplicationSubmission,
+} from '@/lib/application-submissions';
+import { getApplicationForm } from '@/lib/application-form-store';
+import {
+  hashApplicationAccessToken,
+  newApplicationAccessToken,
+  newApplicationId,
+} from '@/lib/application-access';
+import { sendApplicationDecisionEmail } from '@/lib/application-email';
+
+export const dynamic = 'force-dynamic';
+
+type ReviewBody = {
+  stageId?: string;
+  assignedReviewerId?: string;
+  assignedReviewerEmail?: string;
+  score?: number | null;
+  note?: string;
+  message?: { type: 'interview' | 'acceptance' | 'waitlist' | 'decline' | 'custom'; subject: string; body: string };
+};
+
+type ApplicationMessageType = NonNullable<ReviewBody['message']>['type'];
+
+function messageStageId(form: NonNullable<Awaited<ReturnType<typeof getApplicationForm>>>, type: ApplicationMessageType): string | undefined {
+  if (!type || type === 'custom') return undefined;
+  const aliases: Record<string, string[]> = {
+    interview: ['interview'],
+    acceptance: ['accepted', 'acceptance', 'admitted'],
+    waitlist: ['waitlisted', 'waitlist'],
+    decline: ['declined', 'decline', 'rejected'],
+  };
+  const candidates = aliases[type] ?? [];
+  return form.config.stages.find(stage => {
+    const values = [stage.id, stage.name, stage.applicantLabel].map(value => value.toLowerCase());
+    return candidates.some(candidate => values.some(value => value === candidate || value.includes(candidate)));
+  })?.id;
+}
+
+export async function PATCH(req: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const auth = await requireRole(req, ['admin', 'instructor', 'staff']);
+  if (isAuthError(auth)) return auth.error;
+  const { id } = await context.params;
+  const body = await req.json().catch(() => null) as ReviewBody | null;
+  if (!body) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
+  try {
+    const submission = await getApplicationSubmission(id);
+    if (!submission) return NextResponse.json({ error: 'Application not found.' }, { status: 404 });
+    if (submission.state !== 'submitted') return NextResponse.json({ error: 'Only submitted applications can be reviewed.' }, { status: 409 });
+    const form = await getApplicationForm(submission.formId);
+    if (!form) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
+    const owner = form.ownerId === auth.actor.id;
+    const assigned = submission.assignedReviewerId === auth.actor.id;
+    if (auth.role !== 'admin' && !owner && !assigned) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    if (auth.role === 'staff' && body.assignedReviewerId !== undefined) {
+      return NextResponse.json({ error: 'Only an administrator or form owner can assign reviewers.' }, { status: 403 });
+    }
+    if (body.assignedReviewerEmail !== undefined && body.assignedReviewerId === undefined) {
+      return NextResponse.json({ error: 'Select a reviewer instead of providing an email address directly.' }, { status: 400 });
+    }
+    if (body.score !== undefined && body.score !== null && (!Number.isFinite(body.score) || body.score < 0 || body.score > 100)) {
+      return NextResponse.json({ error: 'Score must be between 0 and 100.' }, { status: 400 });
+    }
+    const nextStageId = body.stageId ?? (body.message ? messageStageId(form, body.message.type) : undefined);
+    if (body.message && body.message.type !== 'custom' && !nextStageId) {
+      return NextResponse.json({ error: 'Select the application stage for this email before sending it.' }, { status: 400 });
+    }
+    if (nextStageId && !form.config.stages.some(stage => stage.id === nextStageId)) {
+      return NextResponse.json({ error: 'Select a valid application stage.' }, { status: 400 });
+    }
+    if (body.note !== undefined && (!body.note.trim() || body.note.length > 5000)) {
+      return NextResponse.json({ error: 'Private notes must be between 1 and 5000 characters.' }, { status: 400 });
+    }
+    if (body.message && (!body.message.subject.trim() || !body.message.body.trim() || body.message.body.length > 10_000)) {
+      return NextResponse.json({ error: 'Email subject and body are required.' }, { status: 400 });
+    }
+    const now = new Date().toISOString();
+    let updated = { ...submission, updatedAt: now };
+    if (body.assignedReviewerId !== undefined) {
+      updated.assignedReviewerId = body.assignedReviewerId;
+      updated.assignedReviewerEmail = '';
+      if (body.assignedReviewerId) {
+        const { data: reviewer, error } = await auth.serviceDb.from('students')
+          .select('id,email,role')
+          .eq('id', body.assignedReviewerId)
+          .in('role', ['admin', 'instructor', 'staff'])
+          .maybeSingle();
+        if (error) throw new Error(`Could not validate the reviewer: ${error.message}`);
+        if (!reviewer?.email) return NextResponse.json({ error: 'Select a valid reviewer.' }, { status: 400 });
+        updated.assignedReviewerEmail = reviewer.email;
+      }
+    }
+    if (body.score !== undefined) updated.score = body.score;
+    if (body.note) updated.privateNotes = [...updated.privateNotes, {
+      id: newApplicationId('note'), body: body.note.trim(), authorEmail: auth.actor.email ?? '', createdAt: now,
+    }];
+    if (nextStageId && nextStageId !== submission.stageId) {
+      const stage = form.config.stages.find(item => item.id === nextStageId)!;
+      updated.stageId = stage.id;
+      updated.statusHistory = [...updated.statusHistory, {
+        id: newApplicationId('status'), stageId: stage.id, stageName: stage.name,
+        actorEmail: auth.actor.email ?? '', occurredAt: now, messageType: body.message?.type,
+      }];
+    }
+    const messageId = body.message ? newApplicationId('message') : '';
+    const token = body.message ? newApplicationAccessToken() : '';
+    if (token) {
+      const hash = hashApplicationAccessToken(token);
+      updated.tokenHash = [...updated.tokenHash.split(',').filter(Boolean), hash].join(',');
+    }
+
+    await saveApplicationSubmission(updated, submission.updatedAt);
+
+    let emailSent = true;
+    let warning = '';
+    if (body.message) {
+      try {
+        const latest = await getApplicationSubmission(id);
+        if (!latest || latest.stageId !== updated.stageId || !latest.tokenHash.split(',').includes(hashApplicationAccessToken(token))) {
+          emailSent = false;
+          warning = 'Decision saved, but the application changed again before the email was sent. Reload and review it.';
+        }
+      } catch (error) {
+        emailSent = false;
+        warning = 'Decision saved, but the status could not be verified, so the email was not sent.';
+        console.error('[application-submission/decision-check]', error);
+      }
+      if (emailSent) {
+        try {
+          await sendApplicationDecisionEmail({
+            email: updated.email, subject: body.message.subject.trim(), body: body.message.body.trim(), token, messageId,
+            baseUrl: new URL(req.url).origin,
+          });
+        } catch (error) {
+          emailSent = false;
+          warning = 'Decision saved, but the email could not be sent.';
+          console.error('[application-submission/decision-email]', error);
+        }
+      }
+      if (emailSent) {
+        let recorded = false;
+        for (let attempt = 0; attempt < 3 && !recorded; attempt += 1) {
+          try {
+            const latest = await getApplicationSubmission(id);
+            if (!latest) throw new Error('Application not found after saving the decision.');
+            if (latest.messages.some(message => message.id === messageId)) {
+              recorded = true;
+              break;
+            }
+            await saveApplicationSubmission({
+              ...latest,
+              updatedAt: new Date().toISOString(),
+              messages: [...latest.messages, {
+                id: messageId, type: body.message.type, subject: body.message.subject.trim(), body: body.message.body.trim(),
+                sentAt: new Date().toISOString(), sentBy: auth.actor.email ?? '',
+              }],
+            }, latest.updatedAt);
+            recorded = true;
+          } catch (error) {
+            if (error instanceof ApplicationConcurrentUpdateError && attempt < 2) continue;
+            warning = 'Decision saved and email sent, but the email history could not be recorded.';
+            console.error('[application-submission/message-history]', error);
+            break;
+          }
+        }
+      }
+    }
+    try {
+      await appendApplicationAudit({
+        id: newApplicationId('audit'), entityType: 'submission', entityId: updated.id,
+        action: body.message && emailSent ? `message:${body.message.type}` : nextStageId ? 'stage_changed' : body.note ? 'private_note_added' : 'review_updated',
+        actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
+        details: { formId: form.id, stageId: updated.stageId, reviewerId: updated.assignedReviewerId, score: updated.score, emailSent },
+      });
+    } catch (error) {
+      console.error('[application-submission/review-audit]', error);
+    }
+    let persisted = updated;
+    try {
+      persisted = await getApplicationSubmission(id) ?? updated;
+    } catch (error) {
+      console.error('[application-submission/review-reload]', error);
+    }
+    const { tokenHash: _tokenHash, ...safe } = persisted;
+    return NextResponse.json({ submission: safe, emailSent, ...(warning ? { warning } : {}) });
+  } catch (error) {
+    console.error('[application-submission/review]', error);
+    return NextResponse.json({ error: (error as Error).message || 'Could not update this application.' }, { status: error instanceof ApplicationConcurrentUpdateError ? 409 : 503 });
+  }
+}

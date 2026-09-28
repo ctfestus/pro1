@@ -1,4 +1,6 @@
+import type { CSSProperties } from 'react';
 import type { Metadata, Viewport } from 'next';
+/* eslint-disable @next/next/no-page-custom-font -- Google Sans Text and the admin-selected Google Font are not available through next/font. */
 import { Inter, Playfair_Display, JetBrains_Mono, Lato } from 'next/font/google';
 import { headers } from 'next/headers';
 import './globals.css';
@@ -19,6 +21,18 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-serif', preload: false });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', preload: false });
 const lato = Lato({ subsets: ['latin'], weight: ['400', '700', '900'], variable: '--font-lato', preload: false });
+
+function selectedFontFamily(fontName: string): string {
+  const safeName = fontName.replace(/[;'"\\]/g, '').trim();
+  if (!safeName || safeName === 'Inter') return 'var(--font-sans), sans-serif';
+  return `'${safeName}', var(--font-sans), sans-serif`;
+}
+
+function selectedFontUrl(fontName: string): string | null {
+  const safeName = fontName.replace(/[^a-zA-Z0-9 ]/g, '').trim();
+  if (!safeName || safeName === 'Inter' || safeName === 'Google Sans Text') return null;
+  return `https://fonts.googleapis.com/css2?family=${safeName.replace(/\s+/g, '+')}:wght@400;500;600;700;800;900&display=swap`;
+}
 
 export async function generateViewport(): Promise<Viewport> {
   const t = await getTenantSettings();
@@ -70,13 +84,26 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     ...tenantSettings,
     primaryColor: siteConfig.primaryColor || tenantSettings.primaryColor,
     accentColor:  siteConfig.accentColor  || tenantSettings.accentColor,
+    headingFont: siteConfig.headingFont,
+    bodyFont: siteConfig.bodyFont,
   };
+  const selectedFontUrls = [...new Set([
+    selectedFontUrl(branding.headingFont),
+    selectedFontUrl(branding.bodyFont),
+  ].filter((value): value is string => Boolean(value)))];
+  const platformFontStyle = {
+    '--platform-heading-font': selectedFontFamily(branding.headingFont),
+    '--platform-body-font': selectedFontFamily(branding.bodyFont),
+  } as CSSProperties;
 
   return (
     <html lang="en" nonce={nonce} className={`${inter.variable} ${playfair.variable} ${jetbrainsMono.variable} ${lato.variable}`} suppressHydrationWarning>
-      <body nonce={nonce} suppressHydrationWarning>
-        {/* Google Sans Text is a recent Google Fonts family not exposed by next/font here, so load it via a stylesheet link (React 19 hoists this to <head>). Used by the course/lesson font picker and the certificate font option. */}
+      <head>
+        {/* Google Sans Text is not exposed by next/font. The other links load only when selected in Site Settings. */}
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" />
+        {selectedFontUrls.map(url => <link key={url} rel="stylesheet" href={url} />)}
+      </head>
+      <body nonce={nonce} style={platformFontStyle} suppressHydrationWarning>
         <GoogleAnalytics measurementId={tenantSettings.googleAnalyticsId} nonce={nonce} />
         <NavigationProgress />
         <TenantProvider initialSettings={branding}>

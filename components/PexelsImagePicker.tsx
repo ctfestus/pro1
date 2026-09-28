@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Search, X, Loader2, Check, Image as ImageIcon, Upload, Images, Trash2 } from 'lucide-react';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
@@ -33,13 +33,15 @@ interface Props {
   token: string;
   /** Optional cap on the preview/dropzone width (px). Defaults to full width. */
   previewMaxWidth?: number;
+  /** Lets a feature reuse the picker modal while providing its own selected-image surface. */
+  renderTrigger?: (actions: { open: () => void; clear: () => void }) => ReactNode;
 }
 
 type Tab = 'pexels' | 'upload' | 'library';
 
 const DEFAULT_QUERY = 'data technology africa business';
 
-export function PexelsImagePicker({ value, altValue, onChange, onClear, C, previewMaxWidth }: Props) {
+export function PexelsImagePicker({ value, altValue, onChange, onClear, C, previewMaxWidth, renderTrigger }: Props) {
   const [open, setOpen]             = useState(false);
   const [tab, setTab]               = useState<Tab>('pexels');
   const [query, setQuery]           = useState('');
@@ -223,7 +225,7 @@ export function PexelsImagePicker({ value, altValue, onChange, onClear, C, previ
   return (
     <>
       {/* Trigger */}
-      {value ? (
+      {renderTrigger ? renderTrigger({ open: openModal, clear: onClear }) : value ? (
         <div style={{ position: 'relative', borderRadius: 14, overflow: 'hidden', aspectRatio: '16/9', background: C.input, maxWidth: previewMaxWidth, width: '100%' }}>
           <img src={value} alt={altValue ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
           <div

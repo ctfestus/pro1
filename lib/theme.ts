@@ -23,6 +23,7 @@ export const LIGHT_C = {
   green:         '#00bf63',
   lime:          '#dcfce7',
   cta:           '#00bf63',
+  accent:        '#f59e0b',
   ctaText:       'white',
   text:          '#111',
   muted:         '#555',
@@ -61,6 +62,7 @@ export const DARK_C: typeof LIGHT_C = {
   green:         '#3E93FF',
   lime:          'rgba(62,147,255,0.15)',
   cta:           '#3E93FF',
+  accent:        '#f59e0b',
   ctaText:       'white',
   text:          '#ACB8C5',
   muted:         '#A8B5C2',
@@ -98,11 +100,13 @@ export type ThemeColors = typeof LIGHT_C;
  */
 export function useC(): ThemeColors {
   const { theme } = useTheme();
-  const { primaryColor } = useTenant();
+  const { primaryColor, accentColor } = useTenant();
   return useMemo(() => {
-    if (theme === 'dark') return DARK_C;
-    return primaryColor && primaryColor !== LIGHT_C.cta ? { ...LIGHT_C, cta: primaryColor } : LIGHT_C;
-  }, [theme, primaryColor]);
+    const palette = theme === 'dark' ? DARK_C : LIGHT_C;
+    const cta = theme === 'dark' ? palette.cta : primaryColor || palette.cta;
+    const accent = accentColor || palette.accent;
+    return cta !== palette.cta || accent !== palette.accent ? { ...palette, cta, accent } : palette;
+  }, [theme, primaryColor, accentColor]);
 }
 
 /**

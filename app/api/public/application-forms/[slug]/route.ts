@@ -1,0 +1,243 @@
+import { createHash } from 'crypto';
+import { NextRequest, NextResponse } from 'next/server';
+import {
+  formAvailability,
+  isApplicationContentBlock,
+  publicApplicationForm,
+  validateApplicationAnswers,
+  type ApplicationAnswer,
+  type ApplicationFormRecord,
+  type ApplicationSubmissionRecord,
+} from '@/lib/application-forms';
+import {
+  appendApplicationAudit,
+  getApplicationSubmissionByTokenHash,
+  isDuplicateApplicationError,
+  pruneExpiredApplicationDrafts,
+  saveApplicationSubmission,
+} from '@/lib/application-submissions';
+import { getApplicationFormBySlug } from '@/lib/application-form-store';
+import { normalizeApplicationStorageAnswers } from '@/lib/application-storage';
+import {
+  hashApplicationAccessToken,
+  newApplicationAccessToken,
+  newApplicationId,
+  newApplicationReference,
+} from '@/lib/application-access';
+import { sendApplicationConfirmationEmail } from '@/lib/application-email';
+import { resolveApplicationRelatedItems } from '@/lib/application-related';
+import { getRedis } from '@/lib/redis';
+import { bumpRateLimit } from '@/lib/rate-limit';
+
+export const dynamic = 'force-dynamic';
+
+type PublicActionBody = {
+  action?: 'session' | 'submit';
+  email?: string;
+  answers?: Record<string, ApplicationAnswer>;
+  sessionToken?: string;
+};
+
+function clientKey(req: NextRequest, email: string): string {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  return createHash('sha256').update(`${ip}:${email}`).digest('hex').slice(0, 32);
+}
+
+function ipKey(req: NextRequest): string {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  return createHash('sha256').update(ip).digest('hex').slice(0, 32);
+}
+
+function availabilityError(form: ApplicationFormRecord): string | null {
+  const availability = formAvailability(form);
+  if (availability === 'open') return null;
+  if (availability === 'not_open') return 'Applications have not opened yet.';
+  if (availability === 'paused') return 'This application form is temporarily paused.';
+  return 'Applications are closed.';
+}
+
+function newDraft(form: ApplicationFormRecord, email: string, tokenHash: string): ApplicationSubmissionRecord {
+  const now = new Date().toISOString();
+  return {
+    id: newApplicationId('submission'),
+    formId: form.id,
+    reference: newApplicationReference(),
+    email,
+    state: 'draft',
+    stageId: form.config.stages[0]?.id ?? 'submitted',
+    assignedReviewerId: '',
+    assignedReviewerEmail: '',
+    score: null,
+    createdAt: now,
+    updatedAt: now,
+    submittedAt: '',
+    tokenHash,
+    answers: {},
+    privateNotes: [],
+    statusHistory: [],
+    messages: [],
+  };
+}
+
+function publicSubmission(form: ApplicationFormRecord, submission: ApplicationSubmissionRecord) {
+  const stage = form.config.stages.find(item => item.id === submission.stageId);
+  return {
+    id: submission.id,
+    reference: submission.reference,
+    email: submission.email,
+    state: submission.state,
+    answers: submission.answers,
+    submittedAt: submission.submittedAt,
+    status: stage?.applicantLabel || stage?.name || 'Application received',
+    updatedAt: submission.updatedAt,
+  };
+}
+
+export async function GET(_req: NextRequest, context: { params: Promise<{ slug: string }> }) {
+  const { slug } = await context.params;
+  try {
+    const form = await getApplicationFormBySlug(slug);
+    if (!form || !['published', 'paused', 'closed'].includes(form.status)) {
+      return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
+    }
+    return NextResponse.json({ form: publicApplicationForm(form) });
+  } catch (error) {
+    console.error('[public/application-form/get]', error);
+    return NextResponse.json({ error: 'This application form is temporarily unavailable.' }, { status: 503 });
+  }
+}
+
+export async function POST(req: NextRequest, context: { params: Promise<{ slug: string }> }) {
+  const { slug } = await context.params;
+  const body = await req.json().catch(() => null) as PublicActionBody | null;
+  const action = body?.action ?? 'submit';
+  const email = body?.email?.trim().toLowerCase() ?? '';
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
+  }
+  if (action === 'submit' && (!body?.answers || JSON.stringify(body.answers).length > 250_000)) {
+    return NextResponse.json({ error: 'The application answers are invalid or too large.' }, { status: 400 });
+  }
+
+  const redis = getRedis();
+  if (action === 'session' && !redis) {
+    return NextResponse.json({ error: 'File uploads are temporarily unavailable.' }, { status: 503 });
+  }
+  if (redis) {
+    try {
+      const limited = await bumpRateLimit(redis, `application-submit:${clientKey(req, email)}`, 10, 60 * 15);
+      const ipLimited = action === 'session'
+        ? await bumpRateLimit(redis, `application-session-ip:${ipKey(req)}`, 50, 24 * 60 * 60)
+        : await bumpRateLimit(redis, `application-submit-ip:${ipKey(req)}`, 100, 60 * 60);
+      if (limited || ipLimited) return NextResponse.json({ error: 'Too many attempts. Please try again later.' }, { status: 429 });
+    } catch {
+      return NextResponse.json({ error: 'Applications are temporarily unavailable.' }, { status: 503 });
+    }
+  }
+
+  try {
+    const form = await getApplicationFormBySlug(slug);
+    if (!form) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
+    const unavailable = availabilityError(form);
+    if (unavailable) return NextResponse.json({ error: unavailable }, { status: 409 });
+
+    if (action === 'session') {
+      await pruneExpiredApplicationDrafts().catch(error => console.error('[public/application-form/draft-cleanup]', error));
+      const token = newApplicationAccessToken();
+      const submission = newDraft(form, email, hashApplicationAccessToken(token));
+      await saveApplicationSubmission(submission);
+      return NextResponse.json({ ok: true, token });
+    }
+
+    let token = body?.sessionToken?.trim() ?? '';
+    let submission = token
+      ? await getApplicationSubmissionByTokenHash(hashApplicationAccessToken(token))
+      : null;
+    if (submission?.state === 'draft' && Date.now() - new Date(submission.createdAt).getTime() > 24 * 60 * 60 * 1000) {
+      return NextResponse.json({ error: 'This form session has expired. Refresh the form and upload files again.' }, { status: 409 });
+    }
+    if (!submission || submission.formId !== form.id || submission.state !== 'draft') {
+      token = newApplicationAccessToken();
+      submission = newDraft(form, email, hashApplicationAccessToken(token));
+    }
+
+    const allowed = new Set(form.config.questions.filter(item => !isApplicationContentBlock(item)).map(item => item.id));
+    let answers = Object.fromEntries(Object.entries(body!.answers!).filter(([id]) => allowed.has(id)));
+    const errors = validateApplicationAnswers(form.config, answers);
+    const checkedFiles = await normalizeApplicationStorageAnswers(form, submission.id, answers);
+    answers = checkedFiles.answers;
+    Object.assign(errors, checkedFiles.errors);
+    if (Object.keys(errors).length) {
+      return NextResponse.json({ error: 'Complete the required questions.', errors }, { status: 400 });
+    }
+
+    const now = new Date().toISOString();
+    const firstStage = form.config.stages[0] ?? { id: 'submitted', name: 'Submitted' };
+    const submitted: ApplicationSubmissionRecord = {
+      ...submission,
+      email,
+      answers,
+      state: 'submitted',
+      stageId: firstStage.id,
+      submittedAt: now,
+      updatedAt: now,
+      statusHistory: [...submission.statusHistory, {
+        id: newApplicationId('status'),
+        stageId: firstStage.id,
+        stageName: firstStage.name,
+        actorEmail: email,
+        occurredAt: now,
+      }],
+    };
+    await saveApplicationSubmission(submitted);
+    try {
+      await appendApplicationAudit({
+        id: newApplicationId('audit'),
+        entityType: 'submission',
+        entityId: submitted.id,
+        action: 'submitted',
+        actorId: '',
+        actorEmail: email,
+        occurredAt: now,
+        details: { formId: form.id, reference: submitted.reference },
+      });
+    } catch (error) {
+      console.error('[public/application-form/submission-audit]', error);
+    }
+
+    let emailSent = true;
+    try {
+      await sendApplicationConfirmationEmail({
+        email,
+        formTitle: form.config.title,
+        reference: submitted.reference,
+        token,
+        confirmationMessage: form.config.confirmationMessage,
+        baseUrl: new URL(req.url).origin,
+      });
+    } catch (error) {
+      emailSent = false;
+      console.error('[public/application-form/confirmation-email]', error);
+    }
+
+    let relatedItems: Awaited<ReturnType<typeof resolveApplicationRelatedItems>> = [];
+    try {
+      relatedItems = await resolveApplicationRelatedItems(form.config);
+    } catch (error) {
+      console.error('[public/application-form/related-items]', error);
+    }
+
+    return NextResponse.json({
+      ok: true,
+      emailSent,
+      token,
+      submission: publicSubmission(form, submitted),
+      postSubmission: form.config.postSubmission,
+      relatedItems,
+    });
+  } catch (error) {
+    if (isDuplicateApplicationError(error)) return NextResponse.json({ error: error.message }, { status: 409 });
+    console.error('[public/application-form/submit]', error);
+    return NextResponse.json({ error: 'Could not submit this application.' }, { status: 503 });
+  }
+}

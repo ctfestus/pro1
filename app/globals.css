@@ -37,6 +37,19 @@ select:focus-visible,
 [data-theme="dark"] [contenteditable="true"]:focus-visible {
   outline-color: #00bf63 !important;
 }
+
+/* Application forms can use a per-form theme. Keep the global accessible focus ring, but source
+   its color from that form instead of forcing the platform green over every selected theme. */
+.application-theme-scope input:focus-visible,
+.application-theme-scope textarea:focus-visible,
+.application-theme-scope select:focus-visible,
+.application-theme-scope [contenteditable="true"]:focus-visible {
+  outline-color: var(--application-focus-color) !important;
+}
+.application-theme-scope .application-dropdown-trigger:focus-visible {
+  outline: 2px solid var(--application-focus-color) !important;
+  outline-offset: 1px;
+}
 /* CodeMirror editors (SQL workbench, etc.) show focus via their own active-line
    tint, and their editable surface is a [contenteditable] that the rule above
    would ring in green -- a 2px outline the scroller clips into a stray green bar
@@ -88,6 +101,14 @@ body {
   background-color: var(--color-background);
   color: var(--color-foreground);
   overflow-x: hidden;
+}
+
+.platform-font-scope {
+  font-family: var(--platform-body-font, var(--font-sans), sans-serif);
+}
+
+.platform-font-scope :where(h1, h2, h3, h4, h5, h6) {
+  font-family: var(--platform-heading-font, var(--platform-body-font, var(--font-sans), sans-serif));
 }
 
 /* Balance multi-line headings so the last line isn't a lone orphan word.
@@ -482,6 +503,16 @@ html .landing-scope .text-white { color: #fff !important; }
 [data-theme="dark"] .rich-content h3      { color: #f4f4f5; }
 [data-theme="dark"] .rich-content a       { color: #3E93FF; }
 [data-theme="dark"] .rich-content blockquote { color: #a1a1aa; }
+
+/* Application forms can use their own light or dark color mode independently of the platform. */
+.application-theme-scope .application-rich-content,
+.application-theme-scope .application-rich-content h1,
+.application-theme-scope .application-rich-content h2,
+.application-theme-scope .application-rich-content h3,
+.application-theme-scope .application-rich-content h4,
+.application-theme-scope .application-rich-content blockquote { color: inherit; }
+.application-theme-scope .application-rich-content a { color: var(--application-focus-color); }
+.application-theme-scope .application-rich-content blockquote { border-left-color: var(--application-focus-color); }
 
 /* Suppress Tailwind Typography default backtick pseudo-elements on inline code */
 .ve-lesson-body code::before,
