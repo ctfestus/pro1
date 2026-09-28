@@ -1,7 +1,24 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, Download, Loader2, Mail, Search, Send } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronRight,
+  ClipboardList,
+  Download,
+  Inbox,
+  Loader2,
+  Mail,
+  MessageSquare,
+  Search,
+  Send,
+  SlidersHorizontal,
+  StickyNote,
+  UserRound,
+  Users,
+  X,
+} from 'lucide-react';
 import type { ApplicationFormRecord } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
@@ -14,6 +31,14 @@ const MESSAGE_PRESETS = {
 
 type MessagePresetType = keyof typeof MESSAGE_PRESETS;
 type ApplicationMessageType = MessagePresetType | 'custom';
+type ReviewTab = 'answers' | 'review' | 'notes' | 'messages';
+
+const REVIEW_TABS = [
+  { id: 'answers' as const, label: 'Answers', icon: ClipboardList },
+  { id: 'review' as const, label: 'Review', icon: SlidersHorizontal },
+  { id: 'notes' as const, label: 'Notes', icon: StickyNote },
+  { id: 'messages' as const, label: 'Messages', icon: MessageSquare },
+];
 
 function displayAnswer(value: any): React.ReactNode {
   if (value === null || value === undefined || value === '') return 'Not answered';
@@ -50,6 +75,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [bulkBody, setBulkBody] = useState('');
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
   const [bulkResult, setBulkResult] = useState('');
+  const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState<ReviewTab>('answers');
   const selected = submissions.find(item => item.id === selectedId);
   const input = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 10, padding: '10px 11px', outline: 'none' };
 
@@ -69,6 +96,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     setSelectedIds(new Set());
     setBulkStageId(form.config.stages[0]?.id ?? '');
     setBulkResult('');
+    setBulkPanelOpen(false);
+    setActiveTab('answers');
   }, [form.id, form.config.stages]);
 
   const filtered = useMemo(() => submissions.filter(item => {
@@ -126,6 +155,11 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     setBulkResult('');
   }
 
+  function openSubmission(id: string) {
+    setSelectedId(id);
+    setActiveTab('answers');
+  }
+
   function toggleAllVisible() {
     setSelectedIds(previous => {
       const next = new Set(previous);
@@ -181,6 +215,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     const completed = targets.length - failures.length;
     setBulkResult(`${completed} application${completed === 1 ? '' : 's'} updated${bulkSendEmail ? ' and emailed' : ''}.${failures.length ? ` ${failures.length} failed and remain selected.` : ''}`);
     if (failures.length) setError(`Could not update ${failures.map(item => item.email).slice(0, 3).join(', ')}${failures.length > 3 ? ' and others' : ''}. ${failures[0].message}`);
+    setBulkPanelOpen(failures.length > 0);
     setBulkProgress(null); setBusy(false);
   }
 
@@ -203,73 +238,90 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     finally { setExporting(false); }
   }
 
-  if (loading) return <div className="py-20 text-center"><Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: C.cta }} /></div>;
+  if (loading) return <div className="py-20 text-center"><Loader2 className="mx-auto h-6 w-6 animate-spin" style={{ color: C.cta }} /></div>;
+  const submittedCount = submissions.filter(item => item.state === 'submitted').length;
+
   return (
-    <div className="space-y-5">
-      <button onClick={onBack} className="text-sm font-semibold flex items-center gap-1" style={{ color: C.muted }}><ArrowLeft className="w-4 h-4" /> Back to forms</button>
-      <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-xl font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="text-sm mt-1" style={{ color: C.faint }}>{submissions.filter(item => item.state === 'submitted').length} submitted applications</p></div><button onClick={() => void exportCsv()} disabled={exporting} className="px-3 py-2 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{exporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Export CSV</button></div>
-      {error && <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
-      {bulkResult && <div className="rounded-xl p-3 text-sm font-semibold" style={{ background: C.successBg, color: C.successText }}>{bulkResult}</div>}
-      {selectedIds.size > 0 && (
-        <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><h3 className="text-sm font-bold" style={{ color: C.text }}>Bulk update</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>{selectedIds.size} submitted application{selectedIds.size === 1 ? '' : 's'} selected</p></div>
-            <button type="button" disabled={busy} onClick={() => setSelectedIds(new Set())} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.muted }}>Clear selection</button>
-          </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(190px,0.7fr)_minmax(240px,1fr)]">
-            <div>
-              <label className="mb-1 block text-xs font-semibold" style={{ color: C.muted }}>Move selected applications to</label>
-              <select value={bulkStageId} onChange={event => setBulkStageId(event.target.value)} disabled={busy} style={input}>
-                {form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}
-              </select>
-            </div>
-            <label className="flex cursor-pointer items-center gap-3 rounded-xl px-4 py-3" style={{ background: C.input, color: C.text }}>
-              <input type="checkbox" checked={bulkSendEmail} onChange={event => setBulkSendEmail(event.target.checked)} disabled={busy} style={{ accentColor: C.cta }} />
-              <span><span className="block text-sm font-semibold">Email every selected applicant</span><span className="mt-0.5 block text-[11px]" style={{ color: C.faint }}>Each email receives its own secure application-status link.</span></span>
-            </label>
-          </div>
-          {bulkSendEmail && (
-            <div className="mt-4 rounded-xl p-4" style={{ background: C.input }}>
-              <div className="mb-3 flex flex-wrap gap-2">
-                {(Object.keys(MESSAGE_PRESETS) as MessagePresetType[]).map(type => <button key={type} type="button" disabled={busy} onClick={() => pickBulkPreset(type)} className="rounded-full px-3 py-1.5 text-xs font-semibold capitalize disabled:opacity-50" style={{ background: bulkMessageType === type ? C.cta : C.card, color: bulkMessageType === type ? C.ctaText : C.muted }}>{type}</button>)}
-              </div>
-              <div className="grid gap-3 lg:grid-cols-[minmax(200px,0.7fr)_minmax(280px,1.3fr)]">
-                <input value={bulkSubject} onChange={event => { setBulkMessageType('custom'); setBulkSubject(event.target.value); }} disabled={busy} placeholder="Email subject" style={{ ...input, background: C.card }} />
-                <textarea rows={3} value={bulkBody} onChange={event => { setBulkMessageType('custom'); setBulkBody(event.target.value); }} disabled={busy} placeholder="Choose a template or write the email message" style={{ ...input, background: C.card, resize: 'vertical' }} />
-              </div>
-            </div>
-          )}
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-            <p className="text-[11px]" style={{ color: C.faint }}>{bulkSendEmail ? 'Status and email delivery are recorded for every application.' : 'Applicants will not be emailed for this update.'}</p>
-            <button type="button" disabled={busy || !bulkStageId || (bulkSendEmail && (!bulkSubject.trim() || !bulkBody.trim()))} onClick={() => void applyBulkUpdate()} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{bulkProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : bulkSendEmail ? <Send className="h-4 w-4" /> : null}{bulkProgress ? `Updating ${bulkProgress.current} of ${bulkProgress.total}` : `${bulkSendEmail ? 'Update and email' : 'Update'} ${selectedIds.size}`}</button>
-          </div>
-        </section>
-      )}
-      <div className="grid lg:grid-cols-[320px_1fr] gap-5 items-start">
-        <div className="rounded-2xl p-4" style={{ background: C.card }}>
-          <div className="space-y-2 mb-3"><div className="relative"><Search className="w-4 h-4 absolute left-3 top-3" style={{ color: C.faint }} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search email or reference" style={{ ...input, paddingLeft: 34 }} /></div><select value={stageFilter} onChange={event => setStageFilter(event.target.value)} style={input}><option value="">All stages</option>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div>
-          <label className="mb-3 flex cursor-pointer items-center gap-2 rounded-xl px-3 py-2.5 text-xs font-semibold" style={{ background: C.input, color: C.muted }}><input type="checkbox" checked={allVisibleSelected} disabled={selectableFiltered.length === 0 || busy} onChange={toggleAllVisible} style={{ accentColor: C.cta }} /><span>{allVisibleSelected ? 'Clear visible selection' : `Select all visible (${selectableFiltered.length})`}</span></label>
-          <div className="space-y-2 max-h-[65vh] overflow-y-auto">{filtered.length === 0 ? <p className="text-sm text-center py-8" style={{ color: C.faint }}>No applications found.</p> : filtered.map(item => <div key={item.id} className="flex items-stretch overflow-hidden rounded-xl" style={{ background: item.id === selectedId ? C.lime : C.input }}><label className="grid cursor-pointer place-items-center px-3" title={item.state === 'submitted' ? 'Select for bulk update' : 'Only submitted applications can be selected'}><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.state !== 'submitted' || busy} onChange={() => toggleSelected(item.id)} style={{ accentColor: C.cta }} /></label><button type="button" onClick={() => setSelectedId(item.id)} className="min-w-0 flex-1 p-3 pl-0 text-left"><div className="flex items-center justify-between gap-2"><p className="truncate text-sm font-semibold" style={{ color: C.text }}>{item.email}</p><span className="rounded-full px-2 py-1 text-[10px]" style={{ background: C.card, color: C.successText }}>{stageName(item)}</span></div><p className="mt-1 text-xs" style={{ color: C.faint }}>{item.reference} - Status: {stageName(item)}</p></button></div>)}</div>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div className="flex min-w-0 items-center gap-3">
+          <button type="button" onClick={onBack} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: C.card, color: C.muted }} aria-label="Back to forms"><ArrowLeft className="h-4 w-4" /></button>
+          <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><Inbox className="h-5 w-5" /></div>
+          <div className="min-w-0"><h2 className="truncate text-lg font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="mt-0.5 text-xs" style={{ color: C.faint }}>{submittedCount} submitted application{submittedCount === 1 ? '' : 's'}</p></div>
         </div>
-
-        <div className="rounded-2xl p-5 sm:p-6 min-h-80" style={{ background: C.card }}>
-          {!selected ? <div className="py-20 text-center text-sm" style={{ color: C.faint }}>Select an application to review.</div> : <div className="space-y-7">
-            <div><div className="flex flex-wrap justify-between gap-3"><div><h3 className="font-bold" style={{ color: C.text }}>{selected.email}</h3><p className="text-xs mt-1" style={{ color: C.faint }}>{selected.reference} - submitted {selected.submittedAt ? new Date(selected.submittedAt).toLocaleString() : 'Not submitted'}</p></div><span className="text-xs px-3 py-1.5 rounded-full h-fit" style={{ background: C.successBg, color: C.successText }}>{form.config.stages.find(stage => stage.id === selected.stageId)?.name ?? selected.stageId}</span></div></div>
-
-            <div className="grid sm:grid-cols-3 gap-3">
-              <div><label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Stage</label><select value={selected.stageId} onChange={event => void update({ stageId: event.target.value })} disabled={busy} style={input}>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div>
-              <div><label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Reviewer</label><select value={selected.assignedReviewerId} onChange={event => { const reviewer = reviewers.find(item => item.id === event.target.value); void update({ assignedReviewerId: event.target.value, assignedReviewerEmail: reviewer?.email ?? '' }); }} disabled={busy || reviewers.length === 0} style={input}><option value="">Unassigned</option>{reviewers.map(reviewer => <option key={reviewer.id} value={reviewer.id}>{reviewer.full_name || reviewer.email}</option>)}</select></div>
-              <div><label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Score (optional)</label><input type="number" min="0" max="100" value={selected.score ?? ''} onChange={event => setSubmissions(previous => previous.map(item => item.id === selected.id ? { ...item, score: event.target.value === '' ? null : Number(event.target.value) } : item))} onBlur={() => void update({ score: selected.score })} style={input} /></div>
-            </div>
-
-            <div><h4 className="text-sm font-bold mb-3" style={{ color: C.text }}>Answers</h4><div className="space-y-2">{form.config.questions.filter(question => question.type !== 'text_block').map(question => <div key={question.id} className="rounded-xl p-3" style={{ background: C.input }}><p className="text-xs font-semibold" style={{ color: C.faint }}>{question.label}</p><div className="text-sm mt-1 whitespace-pre-wrap break-words" style={{ color: C.text }}>{displayAnswer(selected.answers?.[question.id])}</div></div>)}</div></div>
-
-            <div><h4 className="text-sm font-bold mb-2" style={{ color: C.text }}>Private notes</h4><p className="text-xs mb-3" style={{ color: C.faint }}>Only staff with review access can see these notes.</p><div className="space-y-2 mb-3">{selected.privateNotes?.map((item: any) => <div key={item.id} className="rounded-xl p-3" style={{ background: C.input }}><p className="text-sm whitespace-pre-wrap" style={{ color: C.text }}>{item.body}</p><p className="text-[10px] mt-2" style={{ color: C.faint }}>{item.authorEmail} - {new Date(item.createdAt).toLocaleString()}</p></div>)}</div><textarea rows={3} value={note} onChange={event => setNote(event.target.value)} placeholder="Add a private note" style={{ ...input, resize: 'vertical' }} /><button disabled={busy || !note.trim()} onClick={() => void update({ note })} className="mt-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>Add note</button></div>
-
-            <div><h4 className="text-sm font-bold mb-2" style={{ color: C.text }}>Send applicant message</h4><div className="flex flex-wrap gap-2 mb-3">{(Object.keys(MESSAGE_PRESETS) as (keyof typeof MESSAGE_PRESETS)[]).map(type => <button key={type} onClick={() => pickPreset(type)} className="px-3 py-1.5 rounded-full text-xs font-semibold capitalize" style={{ background: messageType === type ? C.cta : C.pill, color: messageType === type ? C.ctaText : C.muted }}>{type}</button>)}</div><div className="space-y-2"><input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Subject" style={input} /><textarea rows={5} value={body} onChange={event => setBody(event.target.value)} placeholder="Message" style={{ ...input, resize: 'vertical' }} /><button disabled={busy || !subject.trim() || !body.trim()} onClick={() => void update({ stageId: stageForMessage(messageType), message: { type: messageType, subject, body } })} className="px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send message</button></div>{selected.messages?.length > 0 && <p className="text-xs mt-3 flex items-center gap-1" style={{ color: C.faint }}><Mail className="w-3.5 h-3.5" /> {selected.messages.length} message{selected.messages.length === 1 ? '' : 's'} sent</p>}</div>
-          </div>}
-        </div>
+        <button type="button" onClick={() => void exportCsv()} disabled={exporting} className="flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.card, color: C.text }}>{exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />} Export CSV</button>
       </div>
+
+      {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div>}
+      {bulkResult && <div className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-4 w-4" /> {bulkResult}</div>}
+
+      {selectedIds.size > 0 && (
+        <div className="sticky top-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 shadow-lg" style={{ background: C.card }}>
+          <div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold" style={{ background: C.cta, color: C.ctaText }}>{selectedIds.size}</span><div><p className="text-xs font-bold" style={{ color: C.text }}>Applications selected</p><p className="text-[10px]" style={{ color: C.faint }}>Update their stage or notify them together.</p></div></div>
+          <div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => { setSelectedIds(new Set()); setBulkPanelOpen(false); }} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Clear</button><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><Users className="h-3.5 w-3.5" /> Bulk update</button></div>
+        </div>
+      )}
+
+      <div className="grid items-start gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="overflow-hidden rounded-xl" style={{ background: C.card }}>
+          <div className="p-4">
+            <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.faint }} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder="Search applications" style={{ ...input, paddingLeft: 34 }} /></div>
+            <div className="mt-2 grid grid-cols-[1fr_auto] gap-2"><select value={stageFilter} onChange={event => setStageFilter(event.target.value)} style={input}><option value="">All stages</option>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select><label className="grid min-w-10 cursor-pointer place-items-center rounded-lg" style={{ background: C.input }} title={allVisibleSelected ? 'Clear visible selection' : 'Select all visible applications'}><input type="checkbox" checked={allVisibleSelected} disabled={selectableFiltered.length === 0 || busy} onChange={toggleAllVisible} style={{ accentColor: C.cta }} /><span className="sr-only">Select all visible applications</span></label></div>
+            <div className="mt-3 flex items-center justify-between text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}><span>{filtered.length} shown</span><span>{selectedIds.size ? `${selectedIds.size} selected` : 'Select for bulk actions'}</span></div>
+          </div>
+          <div className="max-h-[68vh] space-y-1.5 overflow-y-auto px-2 pb-2">
+            {filtered.length === 0 ? <div className="py-14 text-center"><Search className="mx-auto h-5 w-5" style={{ color: C.faint }} /><p className="mt-2 text-xs" style={{ color: C.faint }}>No applications found.</p></div> : filtered.map(item => (
+              <div key={item.id} className="flex items-stretch overflow-hidden rounded-lg" style={{ background: item.id === selectedId ? C.pill : 'transparent', boxShadow: item.id === selectedId ? `inset 3px 0 0 ${C.cta}` : 'none' }}>
+                <label className="grid cursor-pointer place-items-center px-3" title={item.state === 'submitted' ? 'Select for bulk update' : 'Only submitted applications can be selected'}><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.state !== 'submitted' || busy} onChange={() => toggleSelected(item.id)} style={{ accentColor: C.cta }} /></label>
+                <button type="button" onClick={() => openSubmission(item.id)} className="flex min-w-0 flex-1 items-center gap-2 py-3 pr-2 text-left">
+                  <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold" style={{ color: C.text }}>{item.email}</p><div className="mt-1 flex items-center gap-2"><span className="truncate text-[10px]" style={{ color: C.faint }}>{item.reference}</span><span className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={{ background: C.card, color: C.successText }}>{stageName(item)}</span></div></div>
+                  <ChevronRight className="h-4 w-4 shrink-0" style={{ color: C.faint }} />
+                </button>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        <main id="application-review-details" className="min-h-[520px] overflow-hidden rounded-xl" style={{ background: C.card }}>
+          {!selected ? (
+            <div className="grid min-h-[520px] place-items-center p-8 text-center"><div><div className="mx-auto grid h-12 w-12 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><UserRound className="h-5 w-5" /></div><h3 className="mt-4 text-sm font-bold" style={{ color: C.text }}>Choose an application</h3><p className="mx-auto mt-1 max-w-xs text-xs leading-5" style={{ color: C.faint }}>Select an applicant from the queue to review answers, record a decision, add notes, or send an update.</p></div></div>
+          ) : (
+            <>
+              <header className="sticky top-0 z-10 px-5 pt-5 sm:px-6 sm:pt-6" style={{ background: C.card }}>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div className="flex min-w-0 items-start gap-3"><div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-sm font-bold" style={{ background: C.pill, color: C.cta }}>{String(selected.email || '?').slice(0, 1).toUpperCase()}</div><div className="min-w-0"><h3 className="truncate text-base font-bold" style={{ color: C.text }}>{selected.email}</h3><p className="mt-1 text-[11px]" style={{ color: C.faint }}>{selected.reference} | {selected.submittedAt ? `Submitted ${new Date(selected.submittedAt).toLocaleString()}` : 'Not submitted'}</p></div></div>
+                  <span className="rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ background: C.card, color: C.successText }}>{stageName(selected)}</span>
+                </div>
+                <nav className="mt-5 grid grid-cols-4 gap-1 rounded-lg p-1" style={{ background: C.input }} aria-label="Application review sections">{REVIEW_TABS.map(tab => { const Icon = tab.icon; const active = activeTab === tab.id; return <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} aria-label={tab.label} aria-current={active ? 'page' : undefined} className="flex min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2.5 text-[11px] font-semibold transition" style={{ background: active ? C.card : 'transparent', color: active ? C.text : C.faint, boxShadow: active ? '0 4px 14px rgba(0,0,0,0.06)' : 'none' }}><Icon className="h-3.5 w-3.5 shrink-0" /><span className="hidden sm:inline">{tab.label}</span></button>; })}</nav>
+              </header>
+
+              <div className="p-5 sm:p-6">
+                {activeTab === 'answers' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Application answers</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Review the information submitted by this applicant.</p></div><div className="space-y-2">{form.config.questions.filter(question => question.type !== 'text_block').map((question, index) => <div key={question.id} className="grid gap-2 rounded-lg p-4 sm:grid-cols-[28px_minmax(0,1fr)]" style={{ background: C.input }}><span className="grid h-7 w-7 place-items-center rounded-md text-[10px] font-bold" style={{ background: C.card, color: C.cta }}>{index + 1}</span><div className="min-w-0"><p className="text-[11px] font-semibold" style={{ color: C.faint }}>{question.label}</p><div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6" style={{ color: C.text }}>{displayAnswer(selected.answers?.[question.id])}</div></div></div>)}</div></div>}
+
+                {activeTab === 'review' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Review decision</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Assign ownership, record a score, and move the application forward.</p></div><div className="grid gap-3 sm:grid-cols-3"><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Stage</label><select value={selected.stageId} onChange={event => void update({ stageId: event.target.value })} disabled={busy} style={input}>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Reviewer</label><select value={selected.assignedReviewerId} onChange={event => { const reviewer = reviewers.find(item => item.id === event.target.value); void update({ assignedReviewerId: event.target.value, assignedReviewerEmail: reviewer?.email ?? '' }); }} disabled={busy || reviewers.length === 0} style={input}><option value="">Unassigned</option>{reviewers.map(reviewer => <option key={reviewer.id} value={reviewer.id}>{reviewer.full_name || reviewer.email}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Score (optional)</label><input type="number" min="0" max="100" value={selected.score ?? ''} onChange={event => setSubmissions(previous => previous.map(item => item.id === selected.id ? { ...item, score: event.target.value === '' ? null : Number(event.target.value) } : item))} onBlur={() => void update({ score: selected.score })} disabled={busy} style={input} /></div></div><div className="mt-4 flex items-start gap-3 rounded-lg p-4" style={{ background: C.pill }}><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.cta }} /><div><p className="text-xs font-semibold" style={{ color: C.text }}>Current applicant-facing status</p><p className="mt-1 text-xs" style={{ color: C.faint }}>{form.config.stages.find(stage => stage.id === selected.stageId)?.applicantLabel ?? stageName(selected)}</p></div></div></div>}
+
+                {activeTab === 'notes' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Private notes</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Only staff with review access can see these notes.</p></div><div className="mb-4 space-y-2">{(selected.privateNotes ?? []).length === 0 ? <div className="rounded-lg p-5 text-center text-xs" style={{ background: C.input, color: C.faint }}>No private notes yet.</div> : selected.privateNotes.map((item: any) => <div key={item.id} className="rounded-lg p-4" style={{ background: C.input }}><p className="whitespace-pre-wrap text-sm leading-6" style={{ color: C.text }}>{item.body}</p><p className="mt-2 text-[10px]" style={{ color: C.faint }}>{item.authorEmail} | {new Date(item.createdAt).toLocaleString()}</p></div>)}</div><textarea rows={4} value={note} onChange={event => setNote(event.target.value)} placeholder="Write a private note about this application" style={{ ...input, resize: 'vertical' }} /><div className="mt-2 flex justify-end"><button type="button" disabled={busy || !note.trim()} onClick={() => void update({ note })} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? 'Saving...' : 'Add note'}</button></div></div>}
+
+                {activeTab === 'messages' && <div><div className="mb-4 flex flex-wrap items-start justify-between gap-3"><div><h4 className="text-sm font-bold" style={{ color: C.text }}>Applicant message</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>The email includes a secure link to the latest application status.</p></div>{selected.messages?.length > 0 && <span className="flex items-center gap-1.5 text-[10px] font-semibold" style={{ color: C.faint }}><Mail className="h-3.5 w-3.5" /> {selected.messages.length} sent</span>}</div><div className="mb-3 flex flex-wrap gap-2">{(Object.keys(MESSAGE_PRESETS) as MessagePresetType[]).map(type => <button key={type} type="button" onClick={() => pickPreset(type)} className="rounded-full px-3 py-1.5 text-xs font-semibold capitalize" style={{ background: messageType === type ? C.cta : C.pill, color: messageType === type ? C.ctaText : C.muted }}>{type}</button>)}</div><div className="space-y-2"><input value={subject} onChange={event => setSubject(event.target.value)} placeholder="Email subject" style={input} /><textarea rows={6} value={body} onChange={event => setBody(event.target.value)} placeholder="Write the applicant message" style={{ ...input, resize: 'vertical' }} /><div className="flex justify-end"><button type="button" disabled={busy || !subject.trim() || !body.trim()} onClick={() => void update({ stageId: stageForMessage(messageType), message: { type: messageType, subject, body } })} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Send email</button></div></div>{selected.messages?.length > 0 && <div className="mt-6"><p className="mb-2 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Message history</p><div className="space-y-2">{[...selected.messages].reverse().map((item: any) => <div key={item.id} className="rounded-lg p-3" style={{ background: C.input }}><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold" style={{ color: C.text }}>{item.subject}</p><span className="text-[9px] uppercase" style={{ color: C.faint }}>{item.type}</span></div><p className="mt-1 line-clamp-2 text-[11px] leading-5" style={{ color: C.muted }}>{item.body}</p><p className="mt-1 text-[9px]" style={{ color: C.faint }}>{new Date(item.sentAt).toLocaleString()}</p></div>)}</div></div>}</div>}
+              </div>
+            </>
+          )}
+        </main>
+      </div>
+
+      {bulkPanelOpen && selectedIds.size > 0 && (
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setBulkPanelOpen(false); }}>
+          <section className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl shadow-2xl" style={{ background: C.card }} role="dialog" aria-modal="true" aria-labelledby="bulk-update-title">
+            <div className="sticky top-0 z-10 flex items-start justify-between gap-4 p-5" style={{ background: C.card }}><div><h3 id="bulk-update-title" className="text-base font-bold" style={{ color: C.text }}>Update {selectedIds.size} application{selectedIds.size === 1 ? '' : 's'}</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>Choose a stage and decide whether applicants should be notified.</p></div><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(false)} className="grid h-8 w-8 place-items-center rounded-lg disabled:opacity-40" style={{ background: C.input, color: C.muted }} aria-label="Close bulk update"><X className="h-4 w-4" /></button></div>
+            <div className="space-y-4 px-5 pb-5">
+              <div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Move selected applications to</label><select value={bulkStageId} onChange={event => setBulkStageId(event.target.value)} disabled={busy} style={input}>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div>
+              <label className="flex cursor-pointer items-center gap-3 rounded-lg p-4" style={{ background: C.input, color: C.text }}><input type="checkbox" checked={bulkSendEmail} onChange={event => setBulkSendEmail(event.target.checked)} disabled={busy} style={{ accentColor: C.cta }} /><span><span className="block text-sm font-semibold">Email every selected applicant</span><span className="mt-0.5 block text-[11px]" style={{ color: C.faint }}>Each recipient gets an individual secure status link.</span></span></label>
+              {bulkSendEmail && <div className="rounded-lg p-4" style={{ background: C.input }}><div className="mb-3 flex flex-wrap gap-2">{(Object.keys(MESSAGE_PRESETS) as MessagePresetType[]).map(type => <button key={type} type="button" disabled={busy} onClick={() => pickBulkPreset(type)} className="rounded-full px-3 py-1.5 text-xs font-semibold capitalize disabled:opacity-50" style={{ background: bulkMessageType === type ? C.cta : C.card, color: bulkMessageType === type ? C.ctaText : C.muted }}>{type}</button>)}</div><div className="space-y-2"><input value={bulkSubject} onChange={event => { setBulkMessageType('custom'); setBulkSubject(event.target.value); }} disabled={busy} placeholder="Email subject" style={{ ...input, background: C.card }} /><textarea rows={5} value={bulkBody} onChange={event => { setBulkMessageType('custom'); setBulkBody(event.target.value); }} disabled={busy} placeholder="Choose a template or write the email message" style={{ ...input, background: C.card, resize: 'vertical' }} /></div></div>}
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-1"><p className="text-[10px] leading-5" style={{ color: C.faint }}>{bulkSendEmail ? 'Every successful email and status change is recorded.' : 'This changes the status without emailing applicants.'}</p><div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(false)} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button><button type="button" disabled={busy || !bulkStageId || (bulkSendEmail && (!bulkSubject.trim() || !bulkBody.trim()))} onClick={() => void applyBulkUpdate()} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{bulkProgress ? <Loader2 className="h-4 w-4 animate-spin" /> : bulkSendEmail ? <Send className="h-4 w-4" /> : <CheckCircle2 className="h-4 w-4" />}{bulkProgress ? `Updating ${bulkProgress.current} of ${bulkProgress.total}` : bulkSendEmail ? 'Update and email' : 'Update status'}</button></div></div>
+            </div>
+          </section>
+        </div>
+      )}
     </div>
   );
 }
