@@ -47,6 +47,18 @@ beforeEach(() => {
 });
 
 describe('applicant file uploads', () => {
+  it('rejects a file over the deployment body limit before calling Drive', async () => {
+    const data = new FormData();
+    data.set('file', new File([new Uint8Array(4 * 1024 * 1024 + 1)], 'large.pdf', { type: 'application/pdf' }));
+    const response = await POST(new Request('http://localhost/api/public/applications/token/upload', {
+      method: 'POST', body: data,
+    }) as any, { params: Promise.resolve({ token: 'token' }) });
+
+    expect(response.status).toBe(413);
+    expect(await response.json()).toEqual({ error: 'Files must be 4 MB or smaller.' });
+    expect(mocks.driveCreate).not.toHaveBeenCalled();
+  });
+
   it('stores the file in the form Drive folder and returns a sheet-safe Drive reference', async () => {
     const data = new FormData();
     data.set('file', new File(['resume'], 'resume.pdf', { type: 'application/pdf' }));

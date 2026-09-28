@@ -165,6 +165,10 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
       set(questionId, { url: '#', publicId: 'applications/preview', name: file.name, size: file.size, type: file.type });
       return;
     }
+    if (file.size > 4 * 1024 * 1024) {
+      setUploadError(previous => ({ ...previous, [questionId]: 'Files must be 4 MB or smaller.' }));
+      return;
+    }
     setUploading(questionId);
     setUploadError(previous => ({ ...previous, [questionId]: '' }));
     try {
@@ -292,7 +296,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                   <label className="flex cursor-pointer flex-col items-center justify-center gap-2 py-4 text-center">
                     <span className="grid h-10 w-10 place-items-center rounded-xl" style={{ background: C.card, color: C.cta }}>{uploading === question.id ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}</span>
                     <span className="text-sm font-semibold" style={{ color: C.text }}>{uploading === question.id ? 'Uploading...' : 'Choose a file'}</span>
-                    <span className="text-[11px]" style={{ color: C.faint }}>PDF, Office files, images, text, or ZIP up to 10 MB</span>
+                    <span className="text-[11px]" style={{ color: C.faint }}>PDF, Office files, images, text, or ZIP up to 4 MB</span>
                     <input disabled={disabled || uploading === question.id} type="file" className="hidden" accept=".pdf,.doc,.docx,.xls,.xlsx,.csv,.ppt,.pptx,.txt,.jpg,.jpeg,.png,.webp,.zip" onChange={event => { const file = event.target.files?.[0]; if (file) void upload(question.id, file); event.target.value = ''; }} />
                   </label>
                 )}

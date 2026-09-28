@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { validateApplicationForm, type ApplicationFormConfig, type ApplicationFormStatus } from '@/lib/application-forms';
 import { deleteApplicationForm, getApplicationForm, listApplicationForms, saveApplicationForm } from '@/lib/application-form-store';
-import { appendApplicationAudit, createApplicationResponseSpreadsheet, listApplicationSubmissions, syncApplicationResponseSchema, trashApplicationResponseSpreadsheet } from '@/lib/application-sheets';
+import { appendApplicationAudit, createApplicationResponseSpreadsheet, listApplicationFormIdsForReviewer, listApplicationSubmissions, syncApplicationResponseSchema, trashApplicationResponseSpreadsheet } from '@/lib/application-sheets';
 import { newApplicationId } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';
@@ -16,7 +16,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (!form) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
     if (auth.role === 'instructor' && form.ownerId !== auth.actor.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     if (auth.role === 'staff') {
-      const assigned = (await listApplicationSubmissions(form.id)).some(item => item.assignedReviewerId === auth.actor.id);
+      const assigned = (await listApplicationFormIdsForReviewer(auth.actor.id)).includes(form.id);
       if (!assigned) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
     return NextResponse.json({ form });

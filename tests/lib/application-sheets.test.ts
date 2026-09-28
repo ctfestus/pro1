@@ -52,6 +52,7 @@ import {
   DuplicateApplicationError,
   getApplicationSubmissionByTokenHash,
   saveApplicationSubmission,
+  syncApplicationResponseSchema,
 } from '@/lib/application-sheets';
 
 const layout = {
@@ -66,6 +67,12 @@ const layout = {
   filesSheetId: 5,
 };
 const config = newApplicationFormConfig();
+const responseKeys = [
+  'meta:reference', 'meta:email',
+  ...config.questions.filter(question => question.type !== 'text_block').map(question => `question:${question.id}`),
+  'meta:state', 'meta:status', 'meta:stage_id', 'meta:assigned_reviewer_email', 'meta:assigned_reviewer_id',
+  'meta:score', 'meta:created_at', 'meta:submitted_at', 'meta:updated_at', 'meta:id',
+];
 const form = {
   id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'bootcamp', status: 'published' as const,
   responseSpreadsheetId: 'response-sheet-1', responseSpreadsheetUrl: 'https://docs.google.com/spreadsheets/d/response-sheet-1/edit',
@@ -164,11 +171,65 @@ describe('per-form Google Sheets response storage', () => {
 
   it('rolls back the claimed row when normalized event storage fails', async () => {
     mocks.spreadsheetBatchUpdate.mockRejectedValueOnce(new Error('Sheets unavailable'));
+    mocks.valuesGet.mockResolvedValueOnce({ data: { values: [[submission.id]] } });
     await expect(saveApplicationSubmission(submission)).rejects.toThrow('Sheets unavailable');
     expect(mocks.valuesClear).toHaveBeenCalledWith(expect.objectContaining({
       range: expect.stringContaining('A3:'),
     }));
     expect(mocks.dbDelete).toHaveBeenCalledOnce();
+  });
+
+  it('updates only headers when questions change and keeps removed answer columns', async () => {
+    const removedKey = `question:${config.questions[0].id}`;
+    const edited = {
+      ...form,
+      config: {
+        ...config,
+        questions: [...config.questions.slice(1), { id: 'new-question', label: 'New question', type: 'short_text' as const, required: false }],
+      },
+    };
+    mocks.valuesGet.mockResolvedValueOnce({ data: { values: [responseKeys.map(key => key), responseKeys] } });
+
+    const updated = await syncApplicationResponseSchema(edited);
+
+    expect(updated.columnKeys).toEqual([...responseKeys, 'question:new-question']);
+    expect(updated.columnKeys).toContain(removedKey);
+    expect(mocks.valuesGet.mock.calls[0][0].range).toBe("'Responses'!1:2");
+    expect(mocks.valuesUpdate.mock.calls[0][0].requestBody.values).toHaveLength(2);
+    expect(mocks.valuesClear).not.toHaveBeenCalled();
+  });
+
+  it('finds the submission ID before updating a stale row and preserves removed answers', async () => {
+    const removedQuestion = config.questions[0];
+    const edited = {
+      ...form,
+      config: { ...config, questions: config.questions.filter(question => question.id !== removedQuestion.id) },
+      responseSheetLayout: { ...layout, columnKeys: responseKeys },
+    };
+    mocks.getForm.mockResolvedValueOnce(edited);
+    mocks.indexSelectResult = {
+      id: submission.id, form_id: form.id, owner_id: form.ownerId, token_hashes: ['hash-1'],
+      email_hash: 'email-hash', reference: submission.reference, state: 'submitted', sheet_row: 7,
+      stage_id: 'submitted', assigned_reviewer_id: null, assigned_reviewer_email: '', score: null,
+      sync_state: 'synced', last_sync_error: null, created_at: submission.createdAt, updated_at: submission.updatedAt,
+    };
+    const wrong = Array(responseKeys.length).fill('');
+    wrong[responseKeys.indexOf('meta:id')] = 'someone-else';
+    const correct = Array(responseKeys.length).fill('');
+    correct[responseKeys.indexOf('meta:id')] = submission.id;
+    correct[responseKeys.indexOf(`question:${removedQuestion.id}`)] = 'Preserved answer';
+    mocks.valuesBatchGet
+      .mockResolvedValueOnce({ data: { valueRanges: [{ values: [wrong] }] } })
+      .mockResolvedValueOnce({ data: { valueRanges: [{ values: [[], [], correct] }] } });
+
+    await saveApplicationSubmission(submission);
+
+    expect(mocks.valuesUpdate).toHaveBeenCalledWith(expect.objectContaining({
+      range: expect.stringMatching(/!A5:[A-Z]+5$/),
+      requestBody: { values: [expect.arrayContaining(['Preserved answer'])] },
+    }));
+    expect(mocks.valuesUpdate.mock.calls[0][0].range).not.toContain('7:');
+    expect(mocks.dbUpdate).toHaveBeenCalledWith({ sheet_row: 5 });
   });
 
   it('loads a status link by its indexed row instead of scanning all responses', async () => {

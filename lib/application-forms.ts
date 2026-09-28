@@ -78,6 +78,8 @@ export interface ApplicationFormConfig {
 export interface ApplicationSheetLayout {
   version: 2;
   schemaHash: string;
+  columnKeys?: string[];
+  columnLabels?: string[];
   storageFolderId?: string;
   uploadsFolderId?: string;
   responsesSheetId: number;

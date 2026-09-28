@@ -1,16 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { formAvailability, publicApplicationForm, validateApplicationAnswers, type ApplicationAnswer } from '@/lib/application-forms';
-import {
-  appendApplicationAudit,
-  getApplicationSubmissionByTokenHash,
-  isDuplicateApplicationError,
-  saveApplicationSubmission,
-} from '@/lib/application-sheets';
+import { publicApplicationForm } from '@/lib/application-forms';
+import { getApplicationSubmissionByTokenHash } from '@/lib/application-sheets';
 import { getApplicationForm } from '@/lib/application-form-store';
-import { normalizeApplicationDriveAnswers } from '@/lib/application-drive';
-import { hashApplicationAccessToken, newApplicationId } from '@/lib/application-access';
+import { hashApplicationAccessToken } from '@/lib/application-access';
 import { resolveApplicationRelatedItems } from '@/lib/application-related';
-import { sendApplicationConfirmationEmail } from '@/lib/application-email';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,59 +36,5 @@ export async function GET(_req: NextRequest, context: { params: Promise<{ token:
   } catch (error) {
     console.error('[public/applications/get]', error);
     return NextResponse.json({ error: 'This application is temporarily unavailable.' }, { status: 503 });
-  }
-}
-
-export async function POST(req: NextRequest, context: { params: Promise<{ token: string }> }) {
-  const { token } = await context.params;
-  const body = await req.json().catch(() => null) as null | { answers?: Record<string, ApplicationAnswer> };
-  if (!body?.answers || JSON.stringify(body.answers).length > 250_000) {
-    return NextResponse.json({ error: 'The application answers are invalid or too large.' }, { status: 400 });
-  }
-  try {
-    const found = await resolve(token);
-    if (!found) return NextResponse.json({ error: 'This application link is invalid or expired.' }, { status: 404 });
-    if (found.submission.state === 'submitted') return NextResponse.json({ error: 'This application has already been submitted.' }, { status: 409 });
-    if (formAvailability(found.form) !== 'open') return NextResponse.json({ error: 'The application deadline has passed or the form is not open.' }, { status: 409 });
-    const allowed = new Set(found.form.config.questions.filter(item => item.type !== 'text_block').map(item => item.id));
-    let answers = Object.fromEntries(Object.entries(body.answers).filter(([id]) => allowed.has(id)));
-    const errors = validateApplicationAnswers(found.form.config, answers);
-    const checkedFiles = await normalizeApplicationDriveAnswers(found.form, found.submission.id, answers);
-    answers = checkedFiles.answers;
-    Object.assign(errors, checkedFiles.errors);
-    if (Object.keys(errors).length) return NextResponse.json({ error: 'Complete the required questions.', errors }, { status: 400 });
-    const now = new Date().toISOString();
-    const firstStage = found.form.config.stages[0] ?? { id: 'submitted', name: 'Submitted' };
-    const updated = {
-      ...found.submission, answers, state: 'submitted' as const, stageId: firstStage.id,
-      submittedAt: now, updatedAt: now,
-      statusHistory: [...found.submission.statusHistory, {
-        id: newApplicationId('status'), stageId: firstStage.id, stageName: firstStage.name,
-        actorEmail: found.submission.email, occurredAt: now,
-      }],
-    };
-    await saveApplicationSubmission(updated);
-    await appendApplicationAudit({
-      id: newApplicationId('audit'), entityType: 'submission', entityId: updated.id, action: 'submitted',
-      actorId: '', actorEmail: updated.email, occurredAt: now, details: { formId: found.form.id, reference: updated.reference },
-    });
-    let emailSent = true;
-    try {
-      await sendApplicationConfirmationEmail({
-        email: updated.email, formTitle: found.form.config.title, reference: updated.reference,
-        token, confirmationMessage: found.form.config.confirmationMessage, baseUrl: new URL(req.url).origin,
-      });
-    } catch (error) {
-      emailSent = false;
-      console.error('[public/applications/confirmation-email]', error);
-    }
-    return NextResponse.json({
-      ok: true, emailSent, submission: publicSubmission(found.form, updated),
-      relatedItems: await resolveApplicationRelatedItems(found.form.config),
-    });
-  } catch (error) {
-    if (isDuplicateApplicationError(error)) return NextResponse.json({ error: error.message }, { status: 409 });
-    console.error('[public/applications/submit]', error);
-    return NextResponse.json({ error: 'Could not submit this application.' }, { status: 503 });
   }
 }

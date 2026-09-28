@@ -98,7 +98,7 @@ function schemaHash(form: ApplicationFormRecord): string {
   })).digest('hex').slice(0, 24);
 }
 
-function responseColumns(form: ApplicationFormRecord): ResponseColumn[] {
+function configuredResponseColumns(form: ApplicationFormRecord): ResponseColumn[] {
   return [
     { key: 'meta:reference', label: 'Reference' },
     { key: 'meta:email', label: 'Email' },
@@ -119,6 +119,16 @@ function responseColumns(form: ApplicationFormRecord): ResponseColumn[] {
   ];
 }
 
+function responseColumns(form: ApplicationFormRecord): ResponseColumn[] {
+  const configured = configuredResponseColumns(form);
+  const keys = form.responseSheetLayout?.columnKeys;
+  if (!keys?.length) return configured;
+  const byKey = new Map(configured.map(column => [column.key, column]));
+  return keys.map((key, position) => byKey.get(key) ?? {
+    key, label: form.responseSheetLayout?.columnLabels?.[position] ?? key,
+  });
+}
+
 function answerCell(answer: ApplicationAnswer): string | number | boolean {
   if (answer === null || answer === undefined) return '';
   if (Array.isArray(answer)) return JSON.stringify(answer);
@@ -126,10 +136,19 @@ function answerCell(answer: ApplicationAnswer): string | number | boolean {
   return answer;
 }
 
-function responseRow(form: ApplicationFormRecord, item: ApplicationSubmissionRecord): Array<string | number | boolean> {
+function responseRow(
+  form: ApplicationFormRecord,
+  item: ApplicationSubmissionRecord,
+  previousRow?: unknown[],
+): Array<string | number | boolean> {
   const stage = form.config.stages.find(value => value.id === item.stageId);
-  return responseColumns(form).map(column => {
-    if (column.key.startsWith('question:')) return answerCell(item.answers[column.key.slice('question:'.length)]);
+  return responseColumns(form).map((column, position) => {
+    if (column.key.startsWith('question:')) {
+      const questionId = column.key.slice('question:'.length);
+      return Object.prototype.hasOwnProperty.call(item.answers, questionId)
+        ? answerCell(item.answers[questionId])
+        : asText(previousRow?.[position]);
+    }
     if (column.key === 'meta:reference') return item.reference;
     if (column.key === 'meta:email') return item.email;
     if (column.key === 'meta:state') return item.state;
@@ -276,6 +295,20 @@ function parseUpdatedRow(updatedRange?: string | null): number {
   return row;
 }
 
+async function rowStillBelongsTo(form: ApplicationFormRecord, rowNumber: number, submissionId: string): Promise<boolean> {
+  const idColumn = responseColumns(form).findIndex(column => column.key === 'meta:id');
+  const letter = columnName(idColumn);
+  try {
+    const result = await withGoogleBackoff(() => getGoogleSheetsClient().spreadsheets.values.get({
+      spreadsheetId: form.responseSpreadsheetId!,
+      range: `${quoteSheet(RESPONSE_SHEET)}!${letter}${rowNumber}`,
+    }));
+    return asText(result.data.values?.[0]?.[0]) === submissionId;
+  } catch {
+    return false;
+  }
+}
+
 type WorkbookValues = {
   responses: unknown[][];
   statuses: unknown[][];
@@ -344,9 +377,18 @@ function submissionFromResponse(
   const values = new Map(columns.map((column, position) => [column.key, row[position]]));
   const submissionId = asText(values.get('meta:id'));
   const fileMap = files(workbook.files, submissionId);
+  const activeIds = new Set(form.config.questions.map(question => question.id));
   const answers = Object.fromEntries(form.config.questions
     .filter(question => question.type !== 'text_block')
     .map(question => [question.id, questionAnswer(question, values.get(`question:${question.id}`), fileMap.get(question.id))]));
+  for (const column of columns) {
+    if (!column.key.startsWith('question:')) continue;
+    const questionId = column.key.slice('question:'.length);
+    if (activeIds.has(questionId)) continue;
+    const archivedFile = fileMap.get(questionId);
+    const archivedValue = values.get(column.key);
+    answers[questionId] = archivedFile ?? (archivedValue === '' || archivedValue === undefined ? null : asText(archivedValue));
+  }
   return {
     id: submissionId,
     formId: form.id,
@@ -462,9 +504,12 @@ export async function createApplicationResponseSpreadsheet(form: ApplicationForm
       if (typeof value !== 'number') throw new Error(`Google Sheets did not create ${title}.`);
       return value;
     };
+    const columns = configuredResponseColumns(form);
     const layout: ApplicationSheetLayout = {
       version: 2,
       schemaHash: schemaHash(form),
+      columnKeys: columns.map(column => column.key),
+      columnLabels: columns.map(column => column.label),
       storageFolderId,
       uploadsFolderId,
       responsesSheetId: sheetId(RESPONSE_SHEET),
@@ -473,7 +518,6 @@ export async function createApplicationResponseSpreadsheet(form: ApplicationForm
       emailsSheetId: sheetId(EMAILS_SHEET),
       filesSheetId: sheetId(FILES_SHEET),
     };
-    const columns = responseColumns(form);
     await withGoogleBackoff(() => sheets.spreadsheets.values.batchUpdate({
       spreadsheetId: id,
       requestBody: {
@@ -546,36 +590,30 @@ export async function getApplicationUploadsFolderId(form: ApplicationFormRecord)
 export async function syncApplicationResponseSchema(form: ApplicationFormRecord): Promise<ApplicationSheetLayout> {
   const layout = requireLayout(form);
   const nextHash = schemaHash(form);
-  if (layout.schemaHash === nextHash) return layout;
+  if (layout.schemaHash === nextHash && layout.columnKeys?.length) return layout;
   const sheets = getGoogleSheetsClient();
   const current = await withGoogleBackoff(() => sheets.spreadsheets.values.get({
     spreadsheetId: form.responseSpreadsheetId!,
-    range: `${quoteSheet(RESPONSE_SHEET)}!A1:ZZZ`,
+    range: `${quoteSheet(RESPONSE_SHEET)}!1:2`,
   }));
   const values = current.data.values ?? [];
-  const oldKeys = (values[1] ?? []).map(asText);
-  const columns = responseColumns(form);
-  const nextRows = values.slice(2).filter(row => row.some(value => value !== '')).map(row => {
-    const previous = new Map(oldKeys.map((key, index) => [key, row[index]]));
-    return columns.map(column => {
-      if (column.key === 'meta:status') {
-        const stageId = asText(previous.get('meta:stage_id'));
-        return form.config.stages.find(stage => stage.id === stageId)?.name ?? stageId;
-      }
-      return previous.get(column.key) ?? '';
-    });
-  });
-  await withGoogleBackoff(() => sheets.spreadsheets.values.clear({
-    spreadsheetId: form.responseSpreadsheetId!,
-    range: `${quoteSheet(RESPONSE_SHEET)}!A:ZZZ`,
-  }));
+  const oldLabels = (values[0] ?? []).map(asText);
+  const oldKeys = (values[1] ?? []).map(asText).filter(Boolean);
+  if (!oldKeys.length || !oldKeys.includes('meta:id')) {
+    throw new Error('The response sheet is missing its column keys. No form changes were saved.');
+  }
+  const configured = configuredResponseColumns(form);
+  const configuredByKey = new Map(configured.map(column => [column.key, column]));
+  const known = new Set(oldKeys);
+  const keys = [...oldKeys, ...configured.filter(column => !known.has(column.key)).map(column => column.key)];
+  const labels = keys.map((key, position) => configuredByKey.get(key)?.label ?? oldLabels[position] ?? key);
   await withGoogleBackoff(() => sheets.spreadsheets.values.update({
     spreadsheetId: form.responseSpreadsheetId!,
     range: `${quoteSheet(RESPONSE_SHEET)}!A1`,
     valueInputOption: 'RAW',
-    requestBody: { values: [columns.map(column => column.label), columns.map(column => column.key), ...nextRows] },
+    requestBody: { values: [labels, keys] },
   }));
-  return { ...layout, schemaHash: nextHash };
+  return { ...layout, schemaHash: nextHash, columnKeys: keys, columnLabels: labels };
 }
 
 export async function trashApplicationResponseSpreadsheet(
@@ -605,11 +643,13 @@ export async function listApplicationSubmissions(formId?: string): Promise<Appli
   if (error) throw new Error(`Could not load application submission index: ${error.message}`);
   const indexes = (data ?? []) as unknown as SubmissionIndexRow[];
   if (!indexes.length) return [];
-  const width = columnName(responseColumns(form).length - 1);
+  const columns = responseColumns(form);
+  const width = columnName(columns.length - 1);
+  const idColumn = columns.findIndex(column => column.key === 'meta:id');
   const workbook = await readWorkbook(form, `A3:${width}`);
   const indexById = new Map(indexes.map(index => [index.id, index]));
   return workbook.responses.flatMap(row => {
-    const id = asText(row[responseColumns(form).length - 1]);
+    const id = asText(row[idColumn]);
     const index = indexById.get(id);
     return index ? [submissionFromResponse(form, row, index, workbook)] : [];
   });
@@ -628,12 +668,14 @@ async function indexedSubmission(
   if (index.state === 'draft' || !index.sheet_row) return draftFromIndex(index);
   const form = await getApplicationForm(index.form_id);
   if (!form) return null;
-  const width = columnName(responseColumns(form).length - 1);
+  const columns = responseColumns(form);
+  const width = columnName(columns.length - 1);
+  const idColumn = columns.findIndex(column => column.key === 'meta:id');
   let workbook = await readWorkbook(form, `A${index.sheet_row}:${width}${index.sheet_row}`, includeAuxiliary);
   let row = workbook.responses[0];
-  if (!row || asText(row[responseColumns(form).length - 1]) !== index.id) {
+  if (!row || asText(row[idColumn]) !== index.id) {
     workbook = await readWorkbook(form, `A3:${width}`, includeAuxiliary);
-    const offset = workbook.responses.findIndex(candidate => asText(candidate[responseColumns(form).length - 1]) === index.id);
+    const offset = workbook.responses.findIndex(candidate => asText(candidate[idColumn]) === index.id);
     if (offset < 0) return null;
     row = workbook.responses[offset];
     const recoveredRow = offset + 3;
@@ -656,6 +698,43 @@ export async function getApplicationSubmissionByEmail(formId: string, email: str
     .select('id').eq('form_id', formId).eq('email_hash', emailHash(email)).eq('state', 'submitted').maybeSingle();
   if (error) throw new Error(`Could not check for an existing application: ${error.message}`);
   return data?.id ? getApplicationSubmission(String(data.id)) : null;
+}
+
+export async function pruneExpiredApplicationDrafts(): Promise<void> {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+  const { data, error } = await adminClient().from('application_submission_index')
+    .select('id,form_id').eq('state', 'draft').lt('created_at', cutoff).limit(20);
+  if (error) throw new Error(`Could not find expired application drafts: ${error.message}`);
+  const drive = getGoogleDriveClient();
+  for (const row of data ?? []) {
+    const { data: deleted, error: deleteError } = await adminClient().from('application_submission_index')
+      .delete().eq('id', row.id).eq('state', 'draft').select('id').maybeSingle();
+    if (deleteError) throw new Error(`Could not remove an expired application draft: ${deleteError.message}`);
+    if (!deleted) continue;
+    const form = await getApplicationForm(String(row.form_id));
+    if (!form?.responseSheetLayout) continue;
+    const folderId = await getApplicationUploadsFolderId(form);
+    const submissionId = String(row.id).replace(/'/g, "\\'");
+    const parentId = folderId.replace(/'/g, "\\'");
+    let pageToken: string | undefined;
+    do {
+      const found = await withGoogleBackoff(() => drive.files.list({
+        supportsAllDrives: true,
+        includeItemsFromAllDrives: true,
+        q: `'${parentId}' in parents and trashed = false and appProperties has { key='applicationSubmissionId' and value='${submissionId}' }`,
+        fields: 'nextPageToken,files(id)',
+        pageSize: 100,
+        ...(pageToken ? { pageToken } : {}),
+      }));
+      for (const file of found.data.files ?? []) {
+        if (!file.id) continue;
+        await withGoogleBackoff(() => drive.files.update({
+          fileId: file.id!, supportsAllDrives: true, requestBody: { trashed: true },
+        }));
+      }
+      pageToken = found.data.nextPageToken ?? undefined;
+    } while (pageToken);
+  }
 }
 
 export async function listApplicationFormIdsForReviewer(reviewerId: string): Promise<string[]> {
@@ -686,6 +765,7 @@ export async function saveApplicationSubmission(item: ApplicationSubmissionRecor
   const existing = await getIndexById(item.id);
   await claimIndex(form, item, existing);
   let appendedRow: number | null = null;
+  let sheetRow: number | null = existing?.sheet_row ?? null;
   let previousResponseRow: unknown[] | null = null;
   try {
     if (item.state === 'draft') {
@@ -694,43 +774,55 @@ export async function saveApplicationSubmission(item: ApplicationSubmissionRecor
     }
     const sheets = getGoogleSheetsClient();
     let workbook: WorkbookValues | undefined;
-    let sheetRow = existing?.sheet_row ?? null;
     if (!sheetRow) {
       const appended = await withGoogleBackoff(() => sheets.spreadsheets.values.append({
         spreadsheetId: form.responseSpreadsheetId!,
         range: `${quoteSheet(RESPONSE_SHEET)}!A:A`,
         valueInputOption: 'RAW',
-        insertDataOption: 'INSERT_ROWS',
+        insertDataOption: 'OVERWRITE',
         requestBody: { values: [responseRow(form, item)] },
       }));
       sheetRow = parseUpdatedRow(appended.data.updates?.updatedRange);
       appendedRow = sheetRow;
     } else {
-      const width = columnName(responseColumns(form).length - 1);
+      const columns = responseColumns(form);
+      const width = columnName(columns.length - 1);
+      const idColumn = columns.findIndex(column => column.key === 'meta:id');
       workbook = await readWorkbook(form, `A${sheetRow}:${width}${sheetRow}`);
-      previousResponseRow = workbook.responses[0] ?? null;
+      let foundRow = workbook.responses[0];
+      if (asText(foundRow?.[idColumn]) !== item.id) {
+        workbook = await readWorkbook(form, `A3:${width}`);
+        const offset = workbook.responses.findIndex(row => asText(row[idColumn]) === item.id);
+        if (offset < 0) throw new Error('This application response row could not be found. No answers were changed.');
+        sheetRow = offset + 3;
+        foundRow = workbook.responses[offset];
+        const { error: routingError } = await adminClient().from('application_submission_index')
+          .update({ sheet_row: sheetRow }).eq('id', item.id);
+        if (routingError && routingError.code !== '23505') throw new Error(`Could not repair the application row: ${routingError.message}`);
+      }
+      previousResponseRow = foundRow ?? null;
       await withGoogleBackoff(() => sheets.spreadsheets.values.update({
         spreadsheetId: form.responseSpreadsheetId!,
         range: `${quoteSheet(RESPONSE_SHEET)}!A${sheetRow}:${width}${sheetRow}`,
         valueInputOption: 'RAW',
-        requestBody: { values: [responseRow(form, item)] },
+        requestBody: { values: [responseRow(form, item, previousResponseRow ?? undefined)] },
       }));
     }
     await completeIndex(form, item, sheetRow);
     await appendAuxiliaryRows(form, item, workbook);
   } catch (error) {
     const message = (error as Error).message;
-    if (appendedRow) {
+    if (appendedRow && await rowStillBelongsTo(form, appendedRow, item.id)) {
       const width = columnName(responseColumns(form).length - 1);
       await getGoogleSheetsClient().spreadsheets.values.clear({
         spreadsheetId: form.responseSpreadsheetId,
         range: `${quoteSheet(RESPONSE_SHEET)}!A${appendedRow}:${width}${appendedRow}`,
       }).catch(() => undefined);
-    } else if (existing?.sheet_row && previousResponseRow) {
+    } else if (sheetRow && previousResponseRow && await rowStillBelongsTo(form, sheetRow, item.id)) {
       const width = columnName(responseColumns(form).length - 1);
       await getGoogleSheetsClient().spreadsheets.values.update({
         spreadsheetId: form.responseSpreadsheetId,
-        range: `${quoteSheet(RESPONSE_SHEET)}!A${existing.sheet_row}:${width}${existing.sheet_row}`,
+        range: `${quoteSheet(RESPONSE_SHEET)}!A${sheetRow}:${width}${sheetRow}`,
         valueInputOption: 'RAW',
         requestBody: { values: [previousResponseRow] },
       }).catch(() => undefined);

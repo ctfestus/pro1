@@ -12,6 +12,7 @@ import {
   appendApplicationAudit,
   getApplicationSubmissionByTokenHash,
   isDuplicateApplicationError,
+  pruneExpiredApplicationDrafts,
   saveApplicationSubmission,
 } from '@/lib/application-sheets';
 import { getApplicationFormBySlug } from '@/lib/application-form-store';
@@ -39,6 +40,11 @@ type PublicActionBody = {
 function clientKey(req: NextRequest, email: string): string {
   const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
   return createHash('sha256').update(`${ip}:${email}`).digest('hex').slice(0, 32);
+}
+
+function ipKey(req: NextRequest): string {
+  const ip = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
+  return createHash('sha256').update(ip).digest('hex').slice(0, 32);
 }
 
 function availabilityError(form: ApplicationFormRecord): string | null {
@@ -113,10 +119,16 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
   }
 
   const redis = getRedis();
+  if (action === 'session' && !redis) {
+    return NextResponse.json({ error: 'File uploads are temporarily unavailable.' }, { status: 503 });
+  }
   if (redis) {
     try {
       const limited = await bumpRateLimit(redis, `application-submit:${clientKey(req, email)}`, 10, 60 * 15);
-      if (limited) return NextResponse.json({ error: 'Too many attempts. Please try again later.' }, { status: 429 });
+      const ipLimited = action === 'session'
+        ? await bumpRateLimit(redis, `application-session-ip:${ipKey(req)}`, 50, 24 * 60 * 60)
+        : await bumpRateLimit(redis, `application-submit-ip:${ipKey(req)}`, 100, 60 * 60);
+      if (limited || ipLimited) return NextResponse.json({ error: 'Too many attempts. Please try again later.' }, { status: 429 });
     } catch {
       return NextResponse.json({ error: 'Applications are temporarily unavailable.' }, { status: 503 });
     }
@@ -129,6 +141,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
     if (unavailable) return NextResponse.json({ error: unavailable }, { status: 409 });
 
     if (action === 'session') {
+      await pruneExpiredApplicationDrafts().catch(error => console.error('[public/application-form/draft-cleanup]', error));
       const token = newApplicationAccessToken();
       const submission = newDraft(form, email, hashApplicationAccessToken(token));
       await saveApplicationSubmission(submission);
@@ -139,6 +152,9 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
     let submission = token
       ? await getApplicationSubmissionByTokenHash(hashApplicationAccessToken(token))
       : null;
+    if (submission?.state === 'draft' && Date.now() - new Date(submission.createdAt).getTime() > 24 * 60 * 60 * 1000) {
+      return NextResponse.json({ error: 'This form session has expired. Refresh the form and upload files again.' }, { status: 409 });
+    }
     if (!submission || submission.formId !== form.id || submission.state !== 'draft') {
       token = newApplicationAccessToken();
       submission = newDraft(form, email, hashApplicationAccessToken(token));

@@ -45,10 +45,10 @@ vi.mock('@/lib/application-drive', () => ({
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
 import { POST as createForm } from '@/app/api/application-forms/route';
-import { DELETE as deleteForm, PATCH as updateForm } from '@/app/api/application-forms/[id]/route';
+import { DELETE as deleteForm, GET as getFormById, PATCH as updateForm } from '@/app/api/application-forms/[id]/route';
 import { GET as exportSubmissions } from '@/app/api/application-forms/[id]/submissions/route';
 import { POST as submitPublicForm } from '@/app/api/public/application-forms/[slug]/route';
-import { GET as applicantStatus, POST as submitApplication } from '@/app/api/public/applications/[token]/route';
+import { GET as applicantStatus } from '@/app/api/public/applications/[token]/route';
 import { PATCH as reviewApplication } from '@/app/api/application-submissions/[id]/route';
 
 const config = newApplicationFormConfig();
@@ -161,11 +161,17 @@ describe('application end-to-end route boundaries', () => {
     expect(deleteStoredForm).not.toHaveBeenCalled();
   });
 
-  it('validates and stores a submitted application with a reference', async () => {
-    const response = await submitApplication(new Request('http://localhost/api/public/applications/token', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ answers: requiredAnswers }) }) as any, { params: Promise.resolve({ token: 'token' }) });
+  it('checks staff assignment in the index without reading response rows', async () => {
+    requireRole.mockResolvedValue({
+      role: 'staff', actor: { id: 'reviewer-1', email: 'reviewer@example.com' }, user: { id: 'reviewer-1' }, serviceDb: {},
+    });
+    reviewerFormIds.mockResolvedValue(['form-1']);
+    const response = await getFormById(new Request('http://localhost/api/application-forms/form-1') as any, {
+      params: Promise.resolve({ id: form.id }),
+    });
     expect(response.status).toBe(200);
-    expect(saveSubmission.mock.calls.at(-1)?.[0].state).toBe('submitted');
-    expect(appendAudit).toHaveBeenCalledWith(expect.objectContaining({ action: 'submitted' }));
+    expect(reviewerFormIds).toHaveBeenCalledWith('reviewer-1');
+    expect(listSubmissions).not.toHaveBeenCalled();
   });
 
   it('submits directly from the shared registration URL without an email-link step', async () => {
