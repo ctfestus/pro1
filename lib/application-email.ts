@@ -85,5 +85,5 @@ export async function sendApplicationDecisionEmail(input: {
     { from, to: input.email, subject: input.subject, html: frame(tenant, input.subject, body, header.src), attachments: header.attachments },
     { idempotencyKey: `application-message/${input.messageId}` },
   );
-  if (error) throw new Error(error.message || 'Could not send application message.');
+  if (error) throw new Error(error.message || 'Could not send application email.');
 }

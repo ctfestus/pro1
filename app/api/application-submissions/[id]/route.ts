@@ -69,7 +69,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Private notes must be between 1 and 5000 characters.' }, { status: 400 });
     }
     if (body.message && (!body.message.subject.trim() || !body.message.body.trim() || body.message.body.length > 10_000)) {
-      return NextResponse.json({ error: 'Message subject and body are required.' }, { status: 400 });
+      return NextResponse.json({ error: 'Email subject and body are required.' }, { status: 400 });
     }
     const now = new Date().toISOString();
     let updated = { ...submission, updatedAt: now };
