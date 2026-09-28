@@ -88,15 +88,22 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   }
 
   async function remove(form: ApplicationFormRecord) {
-    const confirmed = window.confirm(`Delete "${form.config.title}"? The form will be removed and its response spreadsheet will be moved to Google Drive trash.`);
-    if (!confirmed) return;
     setDeletingFormId(form.id); setError('');
     try {
+      const impactResponse = await fetch(`/api/application-forms/${form.id}?deleteImpact=1`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const impact = await impactResponse.json();
+      if (!impactResponse.ok) throw new Error(impact.error || 'Could not check what this form contains.');
+      const submissionCount = Number(impact.deletionImpact?.submissionCount ?? 0);
+      const fileCount = Number(impact.deletionImpact?.fileCount ?? 0);
+      const confirmed = window.confirm(`Permanently delete "${form.config.title}"?\n\nThis form currently contains ${submissionCount} submitted application${submissionCount === 1 ? '' : 's'} and ${fileCount} uploaded file${fileCount === 1 ? '' : 's'}. All will be permanently deleted. This cannot be undone.\n\nChoose Cancel to close the form instead, or export the applications as CSV before deleting.`);
+      if (!confirmed) return;
       const response = await fetch(`/api/application-forms/${form.id}`, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'Could not delete application form.');
       setForms(previous => previous.filter(item => item.id !== form.id));
-      if (value.spreadsheetTrashed === false) setError('The form was deleted, but its Google response sheet could not be moved to trash.');
+      if (value.uploadsRemoved === false) setError('The form and applications were deleted, but some private uploaded files could not be removed. Contact an administrator to complete the cleanup.');
     } catch (reason) { setError((reason as Error).message); }
     finally { setDeletingFormId(''); }
   }

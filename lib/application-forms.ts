@@ -362,6 +362,22 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
     }
     if (item.type !== 'text_block') conditionSources.add(item.id);
   }
+  if (!Array.isArray(config.stages) || config.stages.length === 0) {
+    errors.push('Add at least one review stage.');
+  } else {
+    const stageIds = new Set<string>();
+    for (const stage of config.stages) {
+      if (!stage || typeof stage.id !== 'string' || !stage.id || stageIds.has(stage.id)) {
+        errors.push('Every review stage must have a unique ID.');
+        continue;
+      }
+      stageIds.add(stage.id);
+      if (typeof stage.name !== 'string' || !stage.name.trim()
+        || typeof stage.applicantLabel !== 'string' || !stage.applicantLabel.trim()) {
+        errors.push('Every review stage needs an internal name and applicant status.');
+      }
+    }
+  }
   if ((config.postSubmission?.type === 'redirect') && !isSafeHttpUrl(config.postSubmission.redirectUrl ?? '')) {
     errors.push('Enter a valid HTTP or HTTPS redirect URL.');
   }

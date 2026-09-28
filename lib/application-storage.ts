@@ -10,7 +10,7 @@ import {
 export const APPLICATION_UPLOAD_BUCKET = 'application-uploads';
 export const APPLICATION_UPLOAD_MAX_BYTES = 10 * 1024 * 1024;
 
-export async function deleteApplicationFormFiles(formId: string): Promise<void> {
+async function listApplicationFormFilePaths(formId: string): Promise<string[]> {
   const bucket = adminClient().storage.from(APPLICATION_UPLOAD_BUCKET);
   const paths: string[] = [];
   const listAll = async (folder: string) => {
@@ -26,6 +26,16 @@ export async function deleteApplicationFormFiles(formId: string): Promise<void> 
     }
   };
   await listAll(formId);
+  return paths;
+}
+
+export async function countApplicationFormFiles(formId: string): Promise<number> {
+  return (await listApplicationFormFilePaths(formId)).length;
+}
+
+export async function deleteApplicationFormFiles(formId: string): Promise<void> {
+  const bucket = adminClient().storage.from(APPLICATION_UPLOAD_BUCKET);
+  const paths = await listApplicationFormFilePaths(formId);
   for (let start = 0; start < paths.length; start += 100) {
     const { error } = await bucket.remove(paths.slice(start, start + 100));
     if (error) throw new Error(`Could not remove application files: ${error.message}`);

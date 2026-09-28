@@ -7,7 +7,7 @@ vi.mock('@/lib/admin-client', () => ({ adminClient: () => ({ from: mocks.from })
 vi.mock('@/lib/application-form-store', () => ({ getApplicationForm: mocks.getForm }));
 
 import { newApplicationFormConfig } from '@/lib/application-forms';
-import { DuplicateApplicationError, getApplicationSubmissionByTokenHash, saveApplicationSubmission } from '@/lib/application-submissions';
+import { ApplicationConcurrentUpdateError, DuplicateApplicationError, getApplicationSubmissionByTokenHash, saveApplicationSubmission } from '@/lib/application-submissions';
 
 const form = {
   id: 'form-1', ownerId: 'owner-1', config: newApplicationFormConfig(),
@@ -58,6 +58,14 @@ describe('Supabase application responses', () => {
       .mockResolvedValueOnce({ data: null, error: null });
     await expect(saveApplicationSubmission(submission)).rejects.toBeInstanceOf(DuplicateApplicationError);
     expect(mocks.update).toHaveBeenCalledOnce();
+  });
+
+  it('refuses to overwrite a review changed after it was loaded', async () => {
+    mocks.maybeSingle
+      .mockResolvedValueOnce({ data: { state: 'submitted', question_labels: {}, token_hashes: ['hash-1'] }, error: null })
+      .mockResolvedValueOnce({ data: null, error: null });
+    await expect(saveApplicationSubmission(submission, submission.updatedAt)).rejects.toBeInstanceOf(ApplicationConcurrentUpdateError);
+    expect(mocks.from.mock.results[0].value.eq).toHaveBeenCalledWith('updated_at', submission.updatedAt);
   });
 
   it('resolves status-link tokens from the database row', async () => {

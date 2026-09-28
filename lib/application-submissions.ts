@@ -49,6 +49,13 @@ export class DuplicateApplicationError extends Error {
   }
 }
 
+export class ApplicationConcurrentUpdateError extends Error {
+  constructor() {
+    super('This application was just updated by someone else. Reload and try again.');
+    this.name = 'ApplicationConcurrentUpdateError';
+  }
+}
+
 export function isDuplicateApplicationError(error: unknown): error is DuplicateApplicationError {
   return error instanceof DuplicateApplicationError;
 }
@@ -120,7 +127,7 @@ export async function getApplicationSubmissionByEmail(formId: string, email: str
   return data ? fromRow(data as unknown as SubmissionRow) : null;
 }
 
-export async function saveApplicationSubmission(item: ApplicationSubmissionRecord): Promise<void> {
+export async function saveApplicationSubmission(item: ApplicationSubmissionRecord, expectedUpdatedAt?: string): Promise<void> {
   const form = await getApplicationForm(item.formId);
   if (!form) throw new Error('Application form not found.');
   const existing = await find(item.id);
@@ -151,12 +158,14 @@ export async function saveApplicationSubmission(item: ApplicationSubmissionRecor
   };
   let update = adminClient().from(TABLE).update(row).eq('id', item.id);
   if (existing?.state === 'draft' && item.state === 'submitted') update = update.eq('state', 'draft');
+  if (expectedUpdatedAt) update = update.eq('updated_at', expectedUpdatedAt);
   const result = existing
     ? await update.select('id').maybeSingle()
     : await adminClient().from(TABLE).insert(row);
   if (result.error?.code === '23505') throw new DuplicateApplicationError();
   if (result.error) throw new Error(`Could not save this application: ${result.error.message}`);
   if (existing && !result.data) {
+    if (expectedUpdatedAt) throw new ApplicationConcurrentUpdateError();
     if (existing.state === 'draft' && item.state === 'submitted') throw new DuplicateApplicationError();
     throw new Error('This application changed while saving. Please try again.');
   }
@@ -166,21 +175,6 @@ export async function listApplicationFormIdsForReviewer(reviewerId: string): Pro
   const { data, error } = await adminClient().from(TABLE).select('form_id').eq('assigned_reviewer_id', reviewerId);
   if (error) throw new Error(`Could not load reviewer assignments: ${error.message}`);
   return [...new Set((data ?? []).map(row => String(row.form_id)))];
-}
-
-export async function reserveApplicationAccessToken(submissionId: string, tokenHash: string): Promise<string[]> {
-  const existing = await find(submissionId);
-  if (!existing) throw new Error('Application not found.');
-  const previous = [...existing.token_hashes];
-  const next = [...previous, tokenHash].slice(-5);
-  const { error } = await adminClient().from(TABLE).update({ token_hashes: next }).eq('id', submissionId);
-  if (error) throw new Error(`Could not prepare the secure status link: ${error.message}`);
-  return previous;
-}
-
-export async function restoreApplicationAccessTokens(submissionId: string, tokenHashes: string[]): Promise<void> {
-  const { error } = await adminClient().from(TABLE).update({ token_hashes: tokenHashes }).eq('id', submissionId);
-  if (error) throw new Error(`Could not restore the secure status link: ${error.message}`);
 }
 
 export async function pruneExpiredApplicationDrafts(): Promise<void> {

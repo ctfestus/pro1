@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import {
+  ApplicationConcurrentUpdateError,
   appendApplicationAudit,
   getApplicationSubmission,
-  reserveApplicationAccessToken,
-  restoreApplicationAccessTokens,
   saveApplicationSubmission,
 } from '@/lib/application-submissions';
 import { getApplicationForm } from '@/lib/application-form-store';
@@ -52,6 +51,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   try {
     const submission = await getApplicationSubmission(id);
     if (!submission) return NextResponse.json({ error: 'Application not found.' }, { status: 404 });
+    if (submission.state !== 'submitted') return NextResponse.json({ error: 'Only submitted applications can be reviewed.' }, { status: 409 });
     const form = await getApplicationForm(submission.formId);
     if (!form) return NextResponse.json({ error: 'Application form not found.' }, { status: 404 });
     const owner = form.ownerId === auth.actor.id;
@@ -67,6 +67,9 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       return NextResponse.json({ error: 'Score must be between 0 and 100.' }, { status: 400 });
     }
     const nextStageId = body.stageId ?? (body.message ? messageStageId(form, body.message.type) : undefined);
+    if (body.message && body.message.type !== 'custom' && !nextStageId) {
+      return NextResponse.json({ error: 'Select the application stage for this email before sending it.' }, { status: 400 });
+    }
     if (nextStageId && !form.config.stages.some(stage => stage.id === nextStageId)) {
       return NextResponse.json({ error: 'Select a valid application stage.' }, { status: 400 });
     }
@@ -104,37 +107,89 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
         actorEmail: auth.actor.email ?? '', occurredAt: now, messageType: body.message?.type,
       }];
     }
-    if (body.message) {
-      const messageId = newApplicationId('message');
-      const token = newApplicationAccessToken();
+    const messageId = body.message ? newApplicationId('message') : '';
+    const token = body.message ? newApplicationAccessToken() : '';
+    if (token) {
       const hash = hashApplicationAccessToken(token);
-      const previousTokenHashes = await reserveApplicationAccessToken(updated.id, hash);
-      updated.tokenHash = [...updated.tokenHash.split(',').filter(Boolean), hash].slice(-5).join(',');
-      updated.messages = [...updated.messages, {
-        id: messageId, type: body.message.type, subject: body.message.subject.trim(), body: body.message.body.trim(),
-        sentAt: now, sentBy: auth.actor.email ?? '',
-      }];
+      updated.tokenHash = [...updated.tokenHash.split(',').filter(Boolean), hash].join(',');
+    }
+
+    await saveApplicationSubmission(updated, submission.updatedAt);
+
+    let emailSent = true;
+    let warning = '';
+    if (body.message) {
       try {
-        await sendApplicationDecisionEmail({
-          email: updated.email, subject: body.message.subject.trim(), body: body.message.body.trim(), token, messageId,
-          baseUrl: new URL(req.url).origin,
-        });
+        const latest = await getApplicationSubmission(id);
+        if (!latest || latest.stageId !== updated.stageId || !latest.tokenHash.split(',').includes(hashApplicationAccessToken(token))) {
+          emailSent = false;
+          warning = 'Decision saved, but the application changed again before the email was sent. Reload and review it.';
+        }
       } catch (error) {
-        await restoreApplicationAccessTokens(updated.id, previousTokenHashes);
-        throw error;
+        emailSent = false;
+        warning = 'Decision saved, but the status could not be verified, so the email was not sent.';
+        console.error('[application-submission/decision-check]', error);
+      }
+      if (emailSent) {
+        try {
+          await sendApplicationDecisionEmail({
+            email: updated.email, subject: body.message.subject.trim(), body: body.message.body.trim(), token, messageId,
+            baseUrl: new URL(req.url).origin,
+          });
+        } catch (error) {
+          emailSent = false;
+          warning = 'Decision saved, but the email could not be sent.';
+          console.error('[application-submission/decision-email]', error);
+        }
+      }
+      if (emailSent) {
+        let recorded = false;
+        for (let attempt = 0; attempt < 3 && !recorded; attempt += 1) {
+          try {
+            const latest = await getApplicationSubmission(id);
+            if (!latest) throw new Error('Application not found after saving the decision.');
+            if (latest.messages.some(message => message.id === messageId)) {
+              recorded = true;
+              break;
+            }
+            await saveApplicationSubmission({
+              ...latest,
+              updatedAt: new Date().toISOString(),
+              messages: [...latest.messages, {
+                id: messageId, type: body.message.type, subject: body.message.subject.trim(), body: body.message.body.trim(),
+                sentAt: new Date().toISOString(), sentBy: auth.actor.email ?? '',
+              }],
+            }, latest.updatedAt);
+            recorded = true;
+          } catch (error) {
+            if (error instanceof ApplicationConcurrentUpdateError && attempt < 2) continue;
+            warning = 'Decision saved and email sent, but the email history could not be recorded.';
+            console.error('[application-submission/message-history]', error);
+            break;
+          }
+        }
       }
     }
-    await saveApplicationSubmission(updated);
-    await appendApplicationAudit({
-      id: newApplicationId('audit'), entityType: 'submission', entityId: updated.id,
-      action: body.message ? `message:${body.message.type}` : nextStageId ? 'stage_changed' : body.note ? 'private_note_added' : 'review_updated',
-      actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
-      details: { formId: form.id, stageId: updated.stageId, reviewerId: updated.assignedReviewerId, score: updated.score },
-    });
-    const { tokenHash: _tokenHash, ...safe } = updated;
-    return NextResponse.json({ submission: safe });
+    try {
+      await appendApplicationAudit({
+        id: newApplicationId('audit'), entityType: 'submission', entityId: updated.id,
+        action: body.message && emailSent ? `message:${body.message.type}` : nextStageId ? 'stage_changed' : body.note ? 'private_note_added' : 'review_updated',
+        actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
+        details: { formId: form.id, stageId: updated.stageId, reviewerId: updated.assignedReviewerId, score: updated.score, emailSent },
+      });
+    } catch (error) {
+      console.error('[application-submission/review-audit]', error);
+    }
+    let persisted = updated;
+    try {
+      persisted = await getApplicationSubmission(id) ?? updated;
+    } catch (error) {
+      console.error('[application-submission/review-reload]', error);
+    }
+    const { tokenHash: _tokenHash, ...safe } = persisted;
+    return NextResponse.json({ submission: safe, emailSent, ...(warning ? { warning } : {}) });
   } catch (error) {
     console.error('[application-submission/review]', error);
-    return NextResponse.json({ error: (error as Error).message || 'Could not update this application.' }, { status: 503 });
+    return NextResponse.json({ error: (error as Error).message || 'Could not update this application.' }, { status: error instanceof ApplicationConcurrentUpdateError ? 409 : 503 });
   }
 }

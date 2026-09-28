@@ -189,16 +189,20 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
       }],
     };
     await saveApplicationSubmission(submitted);
-    await appendApplicationAudit({
-      id: newApplicationId('audit'),
-      entityType: 'submission',
-      entityId: submitted.id,
-      action: 'submitted',
-      actorId: '',
-      actorEmail: email,
-      occurredAt: now,
-      details: { formId: form.id, reference: submitted.reference },
-    });
+    try {
+      await appendApplicationAudit({
+        id: newApplicationId('audit'),
+        entityType: 'submission',
+        entityId: submitted.id,
+        action: 'submitted',
+        actorId: '',
+        actorEmail: email,
+        occurredAt: now,
+        details: { formId: form.id, reference: submitted.reference },
+      });
+    } catch (error) {
+      console.error('[public/application-form/submission-audit]', error);
+    }
 
     let emailSent = true;
     try {
@@ -215,13 +219,20 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
       console.error('[public/application-form/confirmation-email]', error);
     }
 
+    let relatedItems: Awaited<ReturnType<typeof resolveApplicationRelatedItems>> = [];
+    try {
+      relatedItems = await resolveApplicationRelatedItems(form.config);
+    } catch (error) {
+      console.error('[public/application-form/related-items]', error);
+    }
+
     return NextResponse.json({
       ok: true,
       emailSent,
       token,
       submission: publicSubmission(form, submitted),
       postSubmission: form.config.postSubmission,
-      relatedItems: await resolveApplicationRelatedItems(form.config),
+      relatedItems,
     });
   } catch (error) {
     if (isDuplicateApplicationError(error)) return NextResponse.json({ error: error.message }, { status: 409 });

@@ -68,11 +68,15 @@ export async function POST(req: NextRequest) {
       slug: await uniqueSlug(config.title), status: 'draft' as const, createdAt: now, updatedAt: now, config,
     };
     await saveApplicationForm(form);
-    await appendApplicationAudit({
-      id: newApplicationId('audit'), entityType: 'form', entityId: form.id,
-      action: source ? 'duplicated' : 'created', actorId: auth.actor.id,
-      actorEmail: auth.actor.email ?? '', occurredAt: now, details: source ? { sourceId: source.id } : { template: body.template ?? 'custom' },
-    });
+    try {
+      await appendApplicationAudit({
+        id: newApplicationId('audit'), entityType: 'form', entityId: form.id,
+        action: source ? 'duplicated' : 'created', actorId: auth.actor.id,
+        actorEmail: auth.actor.email ?? '', occurredAt: now, details: source ? { sourceId: source.id } : { template: body.template ?? 'custom' },
+      });
+    } catch (error) {
+      console.error('[application-forms/create-audit]', error);
+    }
     return NextResponse.json({ form });
   } catch (error) {
     console.error('[application-forms/post]', error);
