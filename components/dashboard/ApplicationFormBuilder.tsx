@@ -55,6 +55,7 @@ import {
   type ApplicationQuestion,
   type ApplicationQuestionType,
 } from '@/lib/application-forms';
+import { APPLICATION_COVER_TARGET, applicationCoverQuality, highQualityApplicationCoverUrl } from '@/lib/application-cover';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { applicationThemeColors } from '@/lib/application-theme-presets';
 import { modalStyle, type ThemeColors } from '@/lib/theme';
@@ -173,6 +174,8 @@ function CoverCropEditor({ src, alt, config, C, onChange }: {
   C: ThemeColors;
   onChange: (patch: Partial<ApplicationFormConfig>) => void;
 }) {
+  const displaySrc = highQualityApplicationCoverUrl(src);
+  const [imageMeta, setImageMeta] = useState<{ src: string; width: number; height: number; failed?: boolean } | null>(null);
   const drag = useRef<{
     pointerId: number;
     clientX: number;
@@ -186,8 +189,17 @@ function CoverCropEditor({ src, alt, config, C, onChange }: {
   const legacyY = config.coverImagePosition === 'top' ? 0 : config.coverImagePosition === 'bottom' ? 100 : 50;
   const positionX = clampCoverValue(config.coverImagePositionX ?? 50, 0, 100);
   const positionY = clampCoverValue(config.coverImagePositionY ?? legacyY, 0, 100);
-  const zoom = clampCoverValue(config.coverImageZoom ?? 1, 1, 2.5);
+  const currentImageMeta = imageMeta?.src === displaySrc ? imageMeta : null;
+  const quality = currentImageMeta && !currentImageMeta.failed ? applicationCoverQuality(currentImageMeta.width, currentImageMeta.height) : null;
+  const maximumSharpZoom = quality?.maximumSharpZoom ?? 1;
+  const zoom = clampCoverValue(config.coverImageZoom ?? 1, 1, maximumSharpZoom);
   const cropped = fit === 'cover';
+
+  function registerImage(width: number, height: number) {
+    const nextQuality = applicationCoverQuality(width, height);
+    setImageMeta({ src: displaySrc, width, height });
+    if ((config.coverImageZoom ?? 1) > nextQuality.maximumSharpZoom) onChange({ coverImageZoom: nextQuality.maximumSharpZoom });
+  }
 
   function startDrag(event: ReactPointerEvent<HTMLDivElement>) {
     if (!cropped) return;
@@ -239,15 +251,27 @@ function CoverCropEditor({ src, alt, config, C, onChange }: {
         role="img"
         aria-label={cropped ? 'Cover crop preview. Drag the image or use the arrow keys to reposition it.' : 'Full cover image preview.'}
       >
-        <img src={src} alt={alt} draggable={false} className="pointer-events-none h-full w-full select-none" style={imageStyle} />
+        <img src={displaySrc} alt={alt} draggable={false} onLoad={event => registerImage(event.currentTarget.naturalWidth, event.currentTarget.naturalHeight)} onError={() => setImageMeta({ src: displaySrc, width: 0, height: 0, failed: true })} className="pointer-events-none h-full w-full select-none" style={imageStyle} />
         {cropped && <><span className="pointer-events-none absolute inset-y-0 left-1/3 w-px bg-white/45" /><span className="pointer-events-none absolute inset-y-0 right-1/3 w-px bg-white/45" /><span className="pointer-events-none absolute inset-x-0 top-1/3 h-px bg-white/45" /><span className="pointer-events-none absolute inset-x-0 bottom-1/3 h-px bg-white/45" /><span className="pointer-events-none absolute bottom-3 left-3 inline-flex items-center gap-1.5 rounded-lg bg-black/65 px-2.5 py-1.5 text-[10px] font-semibold text-white"><Move className="h-3.5 w-3.5" /> Drag to reposition</span></>}
+      </div>
+
+      <div className="flex items-start gap-2.5 rounded-xl px-3.5 py-3" style={{ background: quality?.sharpAtBaseSize === false ? C.errorBg : C.pill }}>
+        <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: quality?.sharpAtBaseSize === false ? C.errorText : C.cta }} />
+        <div className="min-w-0 text-[11px] leading-5" style={{ color: quality?.sharpAtBaseSize === false ? C.errorText : C.muted }}>
+          {currentImageMeta?.failed
+            ? <p>Resolution could not be verified. The original image is still preserved.</p>
+            : quality
+              ? <><p className="font-semibold">{quality.sharpAtBaseSize ? 'Original quality protected' : 'Higher-resolution image recommended'} - {currentImageMeta!.width} x {currentImageMeta!.height}px</p><p>{quality.sharpAtBaseSize ? `Zoom is limited to ${Math.round(maximumSharpZoom * 100)}% to keep the cover sharp.` : `Use an image around ${APPLICATION_COVER_TARGET.recommendedWidth} x ${APPLICATION_COVER_TARGET.recommendedHeight}px or larger for a sharp cover.`}</p></>
+              : <p>Checking image resolution...</p>}
+          <p>The crop only changes how the original is displayed. It never creates or saves a lower-quality cropped copy.</p>
+        </div>
       </div>
 
       <div className="grid gap-4 rounded-xl p-4 lg:grid-cols-[minmax(160px,0.65fr)_minmax(220px,1fr)_auto] lg:items-end" style={{ background: C.input }}>
         <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Cover location</span><select value={config.coverImagePlacement ?? 'header'} onChange={event => onChange({ coverImagePlacement: event.target.value as 'header' | 'inside' })} className="w-full rounded-lg px-3 py-2.5 text-xs font-semibold outline-none" style={{ background: C.card, color: C.text, border: `1px solid ${C.inputBorder}` }}><option value="header">Above the form</option><option value="inside">Inside the introduction</option></select></label>
         <div>
           <div className="mb-2 flex items-center justify-between gap-3"><label htmlFor="application-cover-zoom" className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}><ZoomIn className="h-3.5 w-3.5" /> Zoom</label><span className="text-[10px] font-semibold tabular-nums" style={{ color: C.muted }}>{Math.round(zoom * 100)}%</span></div>
-          <input id="application-cover-zoom" type="range" min="1" max="2.5" step="0.05" value={zoom} disabled={!cropped} onChange={event => onChange({ coverImageZoom: Number(event.target.value) })} className="h-1.5 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-35" style={{ accentColor: C.cta }} />
+          <input id="application-cover-zoom" type="range" min="1" max={maximumSharpZoom} step="0.05" value={zoom} disabled={!cropped || !quality || maximumSharpZoom <= 1} onChange={event => onChange({ coverImageZoom: Number(event.target.value) })} className="h-1.5 w-full cursor-pointer disabled:cursor-not-allowed disabled:opacity-35" style={{ accentColor: C.cta }} />
         </div>
         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
           <label className="flex cursor-pointer items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold" style={{ background: C.card, color: C.text }}><input type="checkbox" checked={!cropped} onChange={event => onChange({ coverImageFit: event.target.checked ? 'contain' : 'cover' })} style={{ accentColor: C.cta }} /> Show full image</label>

@@ -5,6 +5,7 @@ import { ArrowLeft, ArrowRight, CheckCircle2, Clock, CornerDownLeft, ExternalLin
 import { AnimatePresence, motion } from 'motion/react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
+import { applicationCoverQuality, highQualityApplicationCoverUrl } from '@/lib/application-cover';
 import { isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { applicationThemeColors } from '@/lib/application-theme-presets';
@@ -144,6 +145,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const [activeStep, setActiveStep] = useState(0);
   const [reviewing, setReviewing] = useState(false);
   const [stepDirection, setStepDirection] = useState(1);
+  const [coverImageMeta, setCoverImageMeta] = useState<{ src: string; width: number; height: number } | null>(null);
 
   useEffect(() => {
     if (previewForm) {
@@ -268,13 +270,18 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const themedPageStyle = { background: C.page, '--application-focus-color': C.cta } as CSSProperties;
   const post = form.config.postSubmission;
   const coverImage = form.config.coverImage?.trim();
+  const coverDisplayImage = coverImage ? highQualityApplicationCoverUrl(coverImage) : '';
   const coverAlt = form.config.coverImageAlt?.trim() || `${form.config.title} cover`;
   const coverPlacement = form.config.coverImagePlacement ?? 'header';
   const coverFit = form.config.coverImageFit ?? 'cover';
   const legacyCoverY = form.config.coverImagePosition === 'top' ? 0 : form.config.coverImagePosition === 'bottom' ? 100 : 50;
   const coverPositionX = form.config.coverImagePositionX ?? 50;
   const coverPositionY = form.config.coverImagePositionY ?? legacyCoverY;
-  const coverZoom = form.config.coverImageZoom ?? 1;
+  const coverMaximumSharpZoom = coverImageMeta?.src === coverDisplayImage
+    ? applicationCoverQuality(coverImageMeta.width, coverImageMeta.height).maximumSharpZoom
+    : 1;
+  const coverZoom = Math.min(form.config.coverImageZoom ?? 1, coverMaximumSharpZoom);
+  const registerCoverImage = (image: HTMLImageElement) => setCoverImageMeta({ src: coverDisplayImage, width: image.naturalWidth, height: image.naturalHeight });
   const coverImageStyle: CSSProperties = {
     objectFit: coverFit,
     objectPosition: `${coverPositionX}% ${coverPositionY}%`,
@@ -342,7 +349,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
     return (
       <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-8 sm:py-12" style={themedPageStyle}>
         <div className="relative mx-auto max-w-3xl space-y-4">
-          {coverImage && <div className="h-40 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full" style={coverImageStyle} /></div>}
+          {coverDisplayImage && <div className="h-40 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
           <section className="p-7 text-center sm:p-10" style={{ ...cardStyle(C), borderRadius: 24 }}>
             <span className="mx-auto mb-5 grid h-16 w-16 place-items-center rounded-2xl" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-8 w-8" /></span>
             <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.successText }}>Successfully submitted</p>
@@ -369,10 +376,10 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   return (
     <main className="application-theme-scope platform-font-scope min-h-screen px-4 py-6 sm:py-10" style={themedPageStyle}>
       <div className="mx-auto max-w-3xl">
-        {coverImage && coverPlacement === 'header' && <div className="mb-4 h-36 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverImage} alt={coverAlt} className="h-full w-full" style={coverImageStyle} /></div>}
+        {coverDisplayImage && coverPlacement === 'header' && <div className="mb-4 h-36 overflow-hidden sm:h-56" style={{ ...cardStyle(C), background: C.skeleton, borderRadius: 24 }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
         <form onSubmit={submit} className="space-y-4">
           <section className="overflow-hidden" style={{ ...cardStyle(C), borderRadius: 24 }}>
-            {coverImage && coverPlacement === 'inside' && <div className="h-36 overflow-hidden sm:h-52" style={{ background: C.skeleton }}><img src={coverImage} alt={coverAlt} className="h-full w-full" style={coverImageStyle} /></div>}
+            {coverDisplayImage && coverPlacement === 'inside' && <div className="h-36 overflow-hidden sm:h-52" style={{ background: C.skeleton }}><img src={coverDisplayImage} alt={coverAlt} onLoad={event => registerCoverImage(event.currentTarget)} className="h-full w-full" style={coverImageStyle} /></div>}
             <div className="p-6 sm:p-9">
               <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
