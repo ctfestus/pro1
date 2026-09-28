@@ -263,6 +263,13 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
   const stepCount = visibleQuestions.length + 1;
   const currentStep = Math.min(activeStep, Math.max(0, stepCount - 1));
   const currentQuestion = currentStep === 0 ? null : visibleQuestions[currentStep - 1];
+  const emailPrompt = form.config.emailPrompt?.trim() || 'What is your email address?';
+  const emailHelpText = form.config.emailHelpText === undefined
+    ? 'For confirmation and status updates.'
+    : form.config.emailHelpText.trim();
+  const currentHelpText = currentQuestion
+    ? currentQuestion.helpText || 'Take your time. You can review this before submitting.'
+    : emailHelpText;
   const flowProgress = reviewing ? 100 : Math.round(((currentStep + 1) / (stepCount + 1)) * 100);
   const enterAdvances = currentStep === 0 || Boolean(currentQuestion && ['short_text', 'email', 'phone', 'number', 'date'].includes(currentQuestion.type));
 
@@ -373,8 +380,8 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
                   </div>
                 </motion.div> : <motion.div key={currentQuestion?.id ?? 'email'} custom={stepDirection} initial={{ opacity: 0, x: stepDirection > 0 ? 34 : -34 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: stepDirection > 0 ? -34 : 34 }} transition={{ duration: 0.28, ease: 'easeOut' }}>
                   <div className="mb-7 flex items-center gap-2.5 text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: C.faint }}><motion.span className="h-2.5 w-2.5 rounded-full" style={{ background: C.cta }} animate={{ scale: [0.8, 1.25, 0.8], opacity: [0.45, 1, 0.45] }} transition={{ duration: 1.4, repeat: Infinity, ease: 'easeInOut' }} /> Application assistant</div>
-                  <TypewriterPrompt key={currentQuestion?.id ?? 'email-prompt'} text={currentQuestion?.label ?? 'Where should we send your confirmation and private status updates?'} C={C} />
-                  <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}><span>{currentQuestion?.helpText || (currentQuestion ? 'Take your time. You can review this before submitting.' : 'No account is needed. We use this email only for this application.')}</span>{currentQuestion && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>
+                  <TypewriterPrompt key={currentQuestion?.id ?? 'email-prompt'} text={currentQuestion?.label ?? emailPrompt} C={C} />
+                  {(currentHelpText || (currentQuestion && !currentQuestion.required)) && <div className="mt-3 flex items-center gap-2 text-xs" style={{ color: C.faint }}>{currentHelpText && <span>{currentHelpText}</span>}{currentQuestion && !currentQuestion.required && <span className="shrink-0 rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.input }}>Optional</span>}</div>}
                   <div className="mt-8" onKeyDown={event => { const target = event.target as HTMLInputElement; if (event.key === 'Enter' && !event.shiftKey && target.tagName === 'INPUT' && !['checkbox', 'radio', 'file'].includes(target.type)) { event.preventDefault(); continueFlow(); } }}>
                     {currentStep === 0 ? <div><div className="relative"><Mail className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2" style={{ color: C.faint }} /><input autoFocus type="email" required value={email} onChange={event => { setEmail(event.target.value); setEmailError(''); }} placeholder="you@example.com" className="w-full py-4 pl-11 pr-4 text-base outline-none" style={{ background: C.input, color: C.text, border: `1px solid ${emailError ? C.errorText : C.inputBorder}`, borderRadius: 10 }} /></div>{emailError && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{emailError}</p>}</div> : currentQuestion && <ApplicationQuestionFields questions={[currentQuestion]} answers={answers} onChange={next => { setAnswers(next); setErrors(previous => ({ ...previous, [currentQuestion.id]: '' })); }} errors={errors} C={C} uploadToken={sessionToken} ensureUploadToken={ensureUploadToken} previewUploads={preview} focused autoFocus />}
                   </div>

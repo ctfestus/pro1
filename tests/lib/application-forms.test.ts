@@ -18,6 +18,8 @@ describe('application form contract', () => {
     expect(config.coverImagePlacement).toBe('header');
     expect(config.coverImageFit).toBe('cover');
     expect(config.coverImagePosition).toBe('center');
+    expect(config.emailPrompt).toBe('What is your email address?');
+    expect(config.emailHelpText).toBe('For confirmation and status updates.');
     expect(config.themeColor).toBe('');
     expect(config.themeMode).toBe('light');
     expect(config.questions.some(question => question.label === 'Full name')).toBe(true);

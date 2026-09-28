@@ -59,6 +59,8 @@ export interface ApplicationFormConfig {
   opensAt: string;
   closesAt: string;
   confirmationMessage: string;
+  emailPrompt?: string;
+  emailHelpText?: string;
   themeColor?: string;
   themeMode?: ApplicationThemeMode;
   // Legacy fields retained for forms saved before the single-color theme control.
@@ -222,6 +224,8 @@ export function newApplicationFormConfig(template: ApplicationTemplateKey = 'boo
     opensAt: '',
     closesAt: '',
     confirmationMessage: 'Thank you. Your application has been received and our team will review it.',
+    emailPrompt: 'What is your email address?',
+    emailHelpText: 'For confirmation and status updates.',
     themeColor: '',
     themeMode: 'light',
     questions: starter.questions(),
@@ -258,6 +262,9 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   if (config.coverImageFit && !['cover', 'contain'].includes(config.coverImageFit)) errors.push('Cover image fit is invalid.');
   if (config.coverImagePosition && !['top', 'center', 'bottom'].includes(config.coverImagePosition)) errors.push('Cover image position is invalid.');
   if (!config.confirmationMessage?.trim()) errors.push('Confirmation message is required.');
+  if (config.emailPrompt !== undefined && !config.emailPrompt.trim()) errors.push('Email question prompt is required.');
+  if ((config.emailPrompt?.length ?? 0) > 160) errors.push('Email question prompt must be 160 characters or fewer.');
+  if ((config.emailHelpText?.length ?? 0) > 240) errors.push('Email question help text must be 240 characters or fewer.');
   if (config.themeColor && !/^#[0-9a-f]{6}$/i.test(config.themeColor)) errors.push('Theme color must use a six-digit hex value.');
   if (config.themeMode && !['light', 'dark'].includes(config.themeMode)) errors.push('Theme mode is invalid.');
   if (config.theme && !APPLICATION_THEME_IDS.includes(config.theme)) errors.push('Application theme is invalid.');

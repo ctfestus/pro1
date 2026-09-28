@@ -114,6 +114,33 @@ const POST_OPTIONS: Array<{
   { value: 'events', title: 'Recommend programmes', description: 'Show selected courses and events.' },
 ];
 
+const EMAIL_INTRO_OPTIONS = [
+  {
+    id: 'direct',
+    label: 'Direct',
+    prompt: 'What is your email address?',
+    helpText: 'For confirmation and status updates.',
+  },
+  {
+    id: 'friendly',
+    label: 'Friendly',
+    prompt: 'What is the best email to reach you?',
+    helpText: 'We will use it to keep you updated about your application.',
+  },
+  {
+    id: 'confirmation',
+    label: 'Confirmation',
+    prompt: 'Where should we send your application confirmation?',
+    helpText: 'You can also use this email to securely check your application status.',
+  },
+  {
+    id: 'formal',
+    label: 'Formal',
+    prompt: 'Please provide your email address.',
+    helpText: 'Application updates and decisions will be sent to this address.',
+  },
+] as const;
+
 function newQuestion(): ApplicationQuestion {
   return { id: `q-${crypto.randomUUID()}`, label: 'Untitled question', type: 'short_text', required: false };
 }
@@ -506,7 +533,19 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
                 <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{config.questions.length + 1} fields</span>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2 px-1 py-1 text-xs" style={{ color: C.muted }}><Lock className="h-3.5 w-3.5" style={{ color: C.cta }} /><span className="font-semibold" style={{ color: C.text }}>Email address</span><span style={{ color: C.faint }}>Added automatically for confirmations and status access</span><span className="ml-auto rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.pill, color: C.successText }}>Required</span></div>
+              <section className="rounded-2xl p-4 sm:p-5" style={panelStyle}>
+                <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}><Lock className="h-3.5 w-3.5" style={{ color: C.cta }} /><span className="font-semibold" style={{ color: C.text }}>Email question</span><span style={{ color: C.faint }}>Required for confirmation and secure status access</span><span className="ml-auto rounded-full px-2 py-1 text-[9px] font-bold uppercase" style={{ background: C.pill, color: C.successText }}>Required</span></div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {EMAIL_INTRO_OPTIONS.map(option => {
+                    const selected = config.emailPrompt === option.prompt && config.emailHelpText === option.helpText;
+                    return <button key={option.id} type="button" onClick={() => setConfig({ emailPrompt: option.prompt, emailHelpText: option.helpText })} className="rounded-xl p-3 text-left transition-colors" style={{ background: selected ? C.pill : C.input, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }} aria-pressed={selected}><span className="block text-[10px] font-bold uppercase tracking-wide" style={{ color: selected ? C.cta : C.faint }}>{option.label}</span><span className="mt-1.5 block text-[11px] leading-4" style={{ color: C.text }}>{option.prompt}</span></button>;
+                  })}
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Question shown to applicants</span><input value={config.emailPrompt ?? 'What is your email address?'} maxLength={160} onChange={event => setConfig({ emailPrompt: event.target.value })} placeholder="Type your own email question" style={inputStyle} /></label>
+                  <label><span className="mb-1.5 block text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Supporting text</span><input value={config.emailHelpText ?? 'For confirmation and status updates.'} maxLength={240} onChange={event => setConfig({ emailHelpText: event.target.value })} placeholder="Optional supporting text" style={inputStyle} /></label>
+                </div>
+              </section>
 
               <div className="space-y-4">{config.questions.map((question, index) => <QuestionEditorCard key={question.id} question={question} index={index} questions={config.questions} active={activeQuestionId === question.id} dragging={draggedQuestionId === question.id} C={C} inputStyle={inputStyle} onActivate={() => setActiveQuestionId(question.id)} onUpdate={patch => updateQuestion(index, patch)} onMove={direction => moveQuestion(index, direction)} onDuplicate={() => duplicateQuestion(index)} onRemove={() => removeQuestion(index)} onDragStart={() => setDraggedQuestionId(question.id)} onDragEnd={() => setDraggedQuestionId('')} onDrop={() => dropQuestion(index)} />)}</div>
               <button type="button" onClick={() => addQuestion()} className="flex w-full items-center justify-center gap-2 rounded-2xl p-3 text-xs font-semibold" style={{ background: C.card, color: C.cta }}><Plus className="h-4 w-4" /> Add question</button>
