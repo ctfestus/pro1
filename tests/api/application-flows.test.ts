@@ -45,12 +45,12 @@ vi.mock('@/lib/application-storage', () => ({
   countApplicationFormFiles: mocks.countFiles,
 }));
 
-import { newApplicationFormConfig } from '@/lib/application-forms';
+import { newApplicationFee, newApplicationFormConfig } from '@/lib/application-forms';
 import { ApplicationConcurrentUpdateError } from '@/lib/application-submissions';
 import { POST as createForm } from '@/app/api/application-forms/route';
 import { DELETE as deleteForm, GET as getFormById, PATCH as updateForm } from '@/app/api/application-forms/[id]/route';
 import { GET as exportSubmissions } from '@/app/api/application-forms/[id]/submissions/route';
-import { POST as submitPublicForm } from '@/app/api/public/application-forms/[slug]/route';
+import { GET as getPublicForm, POST as submitPublicForm } from '@/app/api/public/application-forms/[slug]/route';
 import { GET as applicantStatus } from '@/app/api/public/applications/[token]/route';
 import { PATCH as reviewApplication } from '@/app/api/application-submissions/[id]/route';
 
@@ -124,6 +124,32 @@ describe('application end-to-end route boundaries', () => {
     expect(saveForm).toHaveBeenCalledWith(expect.objectContaining({
       status: 'published',
     }));
+  });
+
+  it('saves one display-only fee and exposes its selected currency to applicants', async () => {
+    const fee = { ...newApplicationFee('application'), amount: 25, currency: 'NGN' };
+    const updatedConfig = { ...config, fee };
+    const response = await updateForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ config: updatedConfig }),
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    expect(response.status).toBe(200);
+    expect(saveForm).toHaveBeenCalledWith(expect.objectContaining({ config: expect.objectContaining({ fee }) }));
+
+    getFormBySlug.mockResolvedValue({ ...form, config: updatedConfig });
+    const publicResponse = await getPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp') as any, { params: Promise.resolve({ slug: 'bootcamp' }) });
+    expect(publicResponse.status).toBe(200);
+    expect((await publicResponse.json()).form.config.fee).toEqual(fee);
+  });
+
+  it('rejects a fee with an invalid amount before saving the form', async () => {
+    const response = await updateForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config: { ...config, fee: { ...newApplicationFee(), amount: 0 } } }),
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    expect(response.status).toBe(400);
+    expect(saveForm).not.toHaveBeenCalled();
   });
 
   it('rejects a registration URL already used by another form', async () => {

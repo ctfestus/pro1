@@ -6,6 +6,8 @@ import {
   isApplicationContentBlock,
   formAvailability,
   isQuestionVisible,
+  formatApplicationFee,
+  newApplicationFee,
   newApplicationFormConfig,
   publicApplicationForm,
   validateApplicationAnswers,
@@ -75,6 +77,32 @@ describe('application form contract', () => {
     expect(validateApplicationForm(config)).toEqual([]);
     config.coverImageZoom = 3;
     expect(validateApplicationForm(config)).toContain('Cover image zoom is invalid.');
+  });
+
+  it('validates one optional applicant fee and preserves its currency in the public form', () => {
+    const config = newApplicationFormConfig();
+    expect(config.fee).toBeUndefined();
+    const fee = { ...newApplicationFee('commitment'), amount: 150.5, currency: 'KES' };
+    config.fee = fee;
+    expect(validateApplicationForm(config, 'published')).toEqual([]);
+    expect(formatApplicationFee(fee)).toBe('KES 150.5');
+
+    const form: ApplicationFormRecord = {
+      id: 'form-fee', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'fee', status: 'published',
+      createdAt: '', updatedAt: '', config,
+    };
+    expect(publicApplicationForm(form).config.fee).toEqual(fee);
+
+    config.fee = { ...fee, amount: -1, currency: 'not-a-code', due: '' };
+    expect(validateApplicationForm(config)).toEqual(expect.arrayContaining([
+      'Enter a positive fee amount with no more than two decimal places.',
+      'Select a valid three-letter currency code.',
+      'Explain when the fee is due in 120 characters or fewer.',
+    ]));
+    config.fee = { ...fee, amount: 10.999 };
+    expect(validateApplicationForm(config)).toContain('Enter a positive fee amount with no more than two decimal places.');
+    config.fee = { ...fee, currency: 'ABC' };
+    expect(validateApplicationForm(config)).toContain('Select a valid three-letter currency code.');
   });
 
   it('validates conditional required answers only when visible', () => {

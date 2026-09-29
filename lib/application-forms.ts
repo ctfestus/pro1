@@ -93,6 +93,52 @@ export interface ApplicationPostSubmission {
   noticeBody?: string;
 }
 
+export const APPLICATION_FEE_TYPES = {
+  application: { name: 'Application fee', due: 'When you apply', description: 'A one-time fee to process your application.' },
+  commitment: { name: 'Commitment fee', due: 'After acceptance', description: 'This one-time fee secures your place if you are accepted.' },
+  certificate: { name: 'Certificate fee', due: 'After completion', description: 'A one-time fee for your completion certificate.' },
+  other: { name: 'Other fee', due: '', description: '' },
+} as const;
+
+export type ApplicationFeeType = keyof typeof APPLICATION_FEE_TYPES;
+export const APPLICATION_FEE_CURRENCIES = [
+  { code: 'GHS', name: 'Ghanaian cedi' },
+  { code: 'NGN', name: 'Nigerian naira' },
+  { code: 'KES', name: 'Kenyan shilling' },
+  { code: 'ZAR', name: 'South African rand' },
+  { code: 'XOF', name: 'West African CFA franc' },
+  { code: 'XAF', name: 'Central African CFA franc' },
+  { code: 'UGX', name: 'Ugandan shilling' },
+  { code: 'TZS', name: 'Tanzanian shilling' },
+  { code: 'RWF', name: 'Rwandan franc' },
+  { code: 'USD', name: 'US dollar' },
+  { code: 'EUR', name: 'Euro' },
+  { code: 'GBP', name: 'British pound' },
+] as const;
+
+export interface ApplicationFee {
+  type: ApplicationFeeType;
+  name: string;
+  amount: number;
+  currency: string;
+  due: string;
+  description?: string;
+}
+
+export function newApplicationFee(type: ApplicationFeeType = 'commitment'): ApplicationFee {
+  return { type, ...APPLICATION_FEE_TYPES[type], amount: 0, currency: 'GHS' };
+}
+
+export function formatApplicationFeeAmount(amount: number): string {
+  if (!Number.isFinite(amount) || amount <= 0) return 'Set amount';
+  return amount.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+
+export function formatApplicationFee(fee: Pick<ApplicationFee, 'amount' | 'currency'>): string {
+  if (!Number.isFinite(fee.amount) || fee.amount <= 0) return 'Set amount';
+  return `${fee.currency || 'Currency'} ${formatApplicationFeeAmount(fee.amount)}`;
+}
+
 export interface ApplicationFormConfig {
   title: string;
   description: string;
@@ -105,6 +151,7 @@ export interface ApplicationFormConfig {
   coverImagePositionY?: number;
   coverImageZoom?: number;
   eligibility: string;
+  fee?: ApplicationFee;
   opensAt: string;
   closesAt: string;
   confirmationMessage: string;
@@ -364,6 +411,21 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   if (config.coverImagePositionX !== undefined && (!Number.isFinite(config.coverImagePositionX) || config.coverImagePositionX < 0 || config.coverImagePositionX > 100)) errors.push('Cover image horizontal position is invalid.');
   if (config.coverImagePositionY !== undefined && (!Number.isFinite(config.coverImagePositionY) || config.coverImagePositionY < 0 || config.coverImagePositionY > 100)) errors.push('Cover image vertical position is invalid.');
   if (config.coverImageZoom !== undefined && (!Number.isFinite(config.coverImageZoom) || config.coverImageZoom < 1 || config.coverImageZoom > 2.5)) errors.push('Cover image zoom is invalid.');
+  if (config.fee !== undefined) {
+    const fee = config.fee;
+    if (!fee || typeof fee !== 'object' || Array.isArray(fee)) {
+      errors.push('Fee details are invalid.');
+    } else {
+      if (!Object.hasOwn(APPLICATION_FEE_TYPES, fee.type)) errors.push('Select a valid fee type.');
+      if (typeof fee.name !== 'string' || !fee.name.trim() || fee.name.length > 80) errors.push('Fee name must be between 1 and 80 characters.');
+      if (typeof fee.amount !== 'number' || !Number.isFinite(fee.amount) || fee.amount <= 0 || fee.amount > 1_000_000_000
+        || Math.abs(fee.amount * 100 - Math.round(fee.amount * 100)) > 0.000001) errors.push('Enter a positive fee amount with no more than two decimal places.');
+      if (typeof fee.currency !== 'string' || !/^[A-Z]{3}$/.test(fee.currency)
+        || !Intl.supportedValuesOf('currency').includes(fee.currency)) errors.push('Select a valid three-letter currency code.');
+      if (typeof fee.due !== 'string' || !fee.due.trim() || fee.due.length > 120) errors.push('Explain when the fee is due in 120 characters or fewer.');
+      if (fee.description !== undefined && (typeof fee.description !== 'string' || fee.description.length > 500)) errors.push('Fee description must be 500 characters or fewer.');
+    }
+  }
   if (!config.confirmationMessage?.trim()) errors.push('Confirmation message is required.');
   if (config.emailPrompt !== undefined && !config.emailPrompt.trim()) errors.push('Email question prompt is required.');
   if ((config.emailPrompt?.length ?? 0) > 160) errors.push('Email question prompt must be 160 characters or fewer.');

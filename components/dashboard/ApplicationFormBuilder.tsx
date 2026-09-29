@@ -37,6 +37,7 @@ import {
   Sparkles,
   Square,
   Sun,
+  Ticket,
   Trash2,
   ToggleLeft,
   Upload,
@@ -46,14 +47,19 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import { ApplicationStart } from '@/components/ApplicationStart';
+import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import {
   APPLICATION_FILE_TYPE_IDS,
   APPLICATION_FILE_TYPES,
+  APPLICATION_FEE_CURRENCIES,
+  APPLICATION_FEE_TYPES,
   applicationQuestionFileTypes,
   isApplicationContentBlock,
+  newApplicationFee,
   type ApplicationCondition,
+  type ApplicationFeeType,
   type ApplicationFormConfig,
   type ApplicationFormRecord,
   type ApplicationImageFrame,
@@ -612,6 +618,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
+  const [feeAmountInput, setFeeAmountInput] = useState(initial.config.fee?.amount ? String(initial.config.fee.amount) : '');
   const config = form.config;
   const applicationPreviewTheme = applicationThemeColors(C, config.themeColor, config.theme ?? 'platform', config.customTheme, config.themeMode ?? 'light');
   const selectedThemeColor = applicationPreviewTheme.cta;
@@ -776,6 +783,28 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
               </div>
             </section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Link2} title="Registration link" description="Customize the public link that you share with applicants." C={C} /><div className="mt-5 flex items-center overflow-hidden rounded-xl" style={{ background: C.input, border: `1px solid ${C.inputBorder}` }}><span className="pl-3 text-sm" style={{ color: C.faint }}>/apply/</span><input value={form.slug} onChange={event => { const slug = event.target.value.toLowerCase().replace(/[^a-z0-9-]+/g, '-').replace(/-+/g, '-').replace(/^-+/, '').slice(0, 64); setForm(previous => ({ ...previous, slug })); }} onBlur={() => setForm(previous => ({ ...previous, slug: previous.slug.replace(/-+$/, '') || 'application' }))} aria-label="Registration URL" className="min-w-0 flex-1 bg-transparent px-1 py-3 text-sm font-semibold outline-none" style={{ color: C.text }} /></div><p className="mt-2 text-xs" style={{ color: C.faint }}>Changing a published URL stops the old link from working.</p></section>
+            <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>
+              <SectionHeading icon={Ticket} title="Applicant fee" description="Show one fee before applicants start. This form does not collect payment." C={C} />
+              <label className="mt-5 flex cursor-pointer items-center gap-3 rounded-xl p-4" style={{ background: C.input }}>
+                <input type="checkbox" checked={Boolean(config.fee)} onChange={event => { setFeeAmountInput(''); setConfig({ fee: event.target.checked ? newApplicationFee() : undefined }); }} style={{ accentColor: C.cta }} />
+                <span className="text-xs font-semibold" style={{ color: C.text }}>Show a fee on the application</span>
+              </label>
+              {config.fee && <div className="mt-5 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Fee type</span><select value={config.fee.type} onChange={event => { const type = event.target.value as ApplicationFeeType; const defaults = APPLICATION_FEE_TYPES[type]; setConfig({ fee: { ...config.fee!, type, name: defaults.name, due: defaults.due, description: defaults.description } }); }} style={inputStyle}>{(Object.keys(APPLICATION_FEE_TYPES) as ApplicationFeeType[]).map(type => <option key={type} value={type}>{APPLICATION_FEE_TYPES[type].name}</option>)}</select></label>
+                  <label><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Fee name</span><input value={config.fee.name} maxLength={80} onChange={event => setConfig({ fee: { ...config.fee!, name: event.target.value } })} placeholder="Commitment fee" style={inputStyle} /></label>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <label><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Amount</span><input type="number" min="0.01" max="1000000000" step="0.01" value={feeAmountInput} onChange={event => { setFeeAmountInput(event.target.value); setConfig({ fee: { ...config.fee!, amount: event.target.value === '' ? 0 : Number(event.target.value) } }); }} placeholder="150" style={inputStyle} /></label>
+                  <label><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Currency</span><select value={APPLICATION_FEE_CURRENCIES.some(item => item.code === config.fee?.currency) ? config.fee.currency : 'other'} onChange={event => setConfig({ fee: { ...config.fee!, currency: event.target.value === 'other' ? '' : event.target.value } })} style={inputStyle}>{APPLICATION_FEE_CURRENCIES.map(item => <option key={item.code} value={item.code}>{item.code} - {item.name}</option>)}<option value="other">Other currency</option></select></label>
+                </div>
+                {!APPLICATION_FEE_CURRENCIES.some(item => item.code === config.fee?.currency) && <label className="block"><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Other currency code</span><input value={config.fee.currency} maxLength={3} onChange={event => setConfig({ fee: { ...config.fee!, currency: event.target.value.toUpperCase().replace(/[^A-Z]/g, '') } })} placeholder="Three-letter code" style={inputStyle} /></label>}
+                <label className="block"><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>When is it due?</span><input value={config.fee.due} maxLength={120} onChange={event => setConfig({ fee: { ...config.fee!, due: event.target.value } })} placeholder="After acceptance" style={inputStyle} /></label>
+                <label className="block"><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Short explanation (optional)</span><textarea rows={2} value={config.fee.description ?? ''} maxLength={500} onChange={event => setConfig({ fee: { ...config.fee!, description: event.target.value } })} placeholder="Explain what this fee covers." style={{ ...inputStyle, resize: 'vertical' }} /></label>
+                <p className="text-[11px] leading-5" style={{ color: C.faint }}>If payment is due when applying, explain how applicants should pay. This form only displays the fee.</p>
+                <div className="rounded-xl p-4" style={{ background: applicationPreviewTheme.card }}><p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: applicationPreviewTheme.faint }}>Applicant preview</p><ApplicationFeeTicket fee={config.fee} C={applicationPreviewTheme} /></div>
+              </div>}
+            </section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={FileText} title="Applicant guidance" description="Add eligibility details and the message shown after submission." C={C} /><div className="mt-5 space-y-4"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Eligibility information</label><RichTextEditor value={config.eligibility} onChange={eligibility => setConfig({ eligibility })} placeholder="Who should apply and what should they prepare?" bgOverride={C.input} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Confirmation message *</label><textarea rows={4} value={config.confirmationMessage} onChange={event => setConfig({ confirmationMessage: event.target.value })} placeholder="Thank applicants and explain what happens next." style={{ ...inputStyle, resize: 'vertical' }} /></div></div></section>
             <section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={CalendarClock} title="Application window" description="Leave either date empty if the form should remain open-ended." C={C} /><div className="mt-5 grid gap-4 sm:grid-cols-2"><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Opening date</label><input type="datetime-local" value={config.opensAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ opensAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div><div><label className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Closing date</label><input type="datetime-local" value={config.closesAt?.slice(0, 16) ?? ''} onChange={event => setConfig({ closesAt: event.target.value ? new Date(event.target.value).toISOString() : '' })} style={inputStyle} /></div></div></section>
           </div>
