@@ -45,13 +45,16 @@ export interface VePreviewFields {
   font: string | null;
   customAccent: string | null;
   outline: VePreviewOutlineModule[];
+  /** Whether the experience comes with a dataset. Never the dataset or its link: the overview
+   *  only needs to say one exists, so it can offer a sign-in to get it. */
+  hasDataset: boolean;
 }
 
 /** The columns a preview needs. Pinned here so both routes select exactly the same set. */
 export const VE_PREVIEW_COLUMNS =
   'modules, industry, role, company, tagline, difficulty, duration, tools, tool_logos, '
   + 'learn_outcomes, manager_name, manager_title, guide_id, guide_snapshot, '
-  + 'mode, theme, font, custom_accent';
+  + 'mode, theme, font, custom_accent, dataset';
 
 export function vePreviewFields(row: any): VePreviewFields {
   const modules = Array.isArray(row?.modules) ? row.modules : [];
@@ -73,6 +76,7 @@ export function vePreviewFields(row: any): VePreviewFields {
     theme:         row?.theme         ?? null,
     font:          row?.font          ?? null,
     customAccent:  row?.custom_accent ?? null,
+    hasDataset:    !!(row?.dataset?.url || row?.dataset?.csvContent),
     // Titles only, the same rule the locked course outline follows. Requirements are counted on
     // the overview, so they are deliberately absent rather than zeroed: no deliverable text and
     // no deliverable count leaves the server.

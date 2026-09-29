@@ -101,6 +101,23 @@ describe('public catalogue preview', () => {
     expect(h.loadPlansForContent).not.toHaveBeenCalled();
   });
 
+  it('treats content inside a free learning path as free, the way signed-in access does', async () => {
+    // Not open to everyone itself, but a published path that is contains it. A visitor who opens
+    // the free path and clicks this course must see a free overview, not a price or nothing.
+    h.row.mockImplementation((table) => table === 'courses' ? {
+      id: 'c4', title: 'Path course', slug: 'path-course', cover_image: null,
+      description: null, category: null, available_to_everyone: false, status: 'published',
+    } : table === 'public_free_content' ? { content_id: 'c4' } : null);
+
+    const res = await GET(request('?ref=path-course&type=course'));
+    const { item } = await res.json();
+
+    expect(item.locked).toBe(false);
+    expect(item.unlock).toBeUndefined();
+    expect(h.seen).toHaveBeenCalledWith('public_free_content', { content_table: 'courses', content_id: 'c4' });
+    expect(h.loadPlansForContent).not.toHaveBeenCalled();
+  });
+
   it('only ever looks at published rows', async () => {
     h.row.mockImplementation((table) => table === 'courses' ? {
       id: 'c3', title: 'Draft course', slug: 'draft-course', cover_image: null,
@@ -250,6 +267,25 @@ describe('public catalogue preview', () => {
     expect(served).not.toContain('SECRET DELIVERABLE');
     expect(served).not.toContain('SECRET CSV');
     expect(served).not.toContain('requirements');
+    expect(item.hasDataset).toBe(true);
+  });
+
+  it('says a free experience has a dataset without ever serving its link', async () => {
+    // A signed-out visitor on a free experience gets a sign-in button for the dataset. The flag is
+    // all that button needs; the link itself only reaches signed-in learners.
+    h.row.mockImplementation((table) => table === 'virtual_experiences' ? {
+      id: 'v2', title: 'Retail VE', slug: 'retail-ve', cover_image: null, description: null,
+      available_to_everyone: true, status: 'published', modules: [],
+      dataset: { url: 'https://example.com/SECRET-DATASET.xlsx', filename: 'sales.xlsx' },
+    } : null);
+
+    const res = await GET(request('?ref=retail-ve&type=virtual_experience'));
+    const { item } = await res.json();
+
+    expect(item.locked).toBe(false);
+    expect(item.hasDataset).toBe(true);
+    expect(JSON.stringify(item)).not.toContain('SECRET-DATASET');
+    expect(JSON.stringify(item)).not.toContain('sales.xlsx');
   });
 
   it('fills in the real certification overview without ever shipping the exam', async () => {
