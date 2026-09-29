@@ -132,8 +132,9 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
           {forms.map(form => {
             const count = submissionCounts?.[form.id] ?? 0;
             const working = busy === form.id || deletingFormId === form.id;
-            // Review stays visible as the main action; everything else lives in the menu.
+            // Every card action lives in the three-dot menu, Review first.
             const actions: CardAction[] = [
+              { key: 'review', label: 'Review applications', Icon: Search, onClick: () => setMode({ type: 'review', form }) },
               { key: 'insights', label: 'Insights', Icon: BarChart3, onClick: () => setMode({ type: 'insights', form }) },
               ...(form.status === 'published' ? [{ key: 'copy', label: 'Copy public link', Icon: Link2, onClick: () => void copyLink(form) }] : []),
               ...(!isStaff ? [
@@ -160,7 +161,6 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
                   {copiedFormId === form.id && <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.successText }}><Check className="w-3.5 h-3.5" /> Link copied</span>}
-                  <button onClick={() => setMode({ type: 'review', form })} className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5" style={{ background: C.pill, color: C.text }}><Search className="w-4 h-4" /> Review</button>
                   {working
                     ? <span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.pill, color: C.muted }} aria-label={deletingFormId === form.id ? 'Deleting' : 'Working'}><Loader2 className="w-4 h-4 animate-spin" /></span>
                     : <CardActionsMenu form={form} actions={actions} triggerClassName="grid h-9 w-9 place-items-center rounded-xl transition-colors" triggerStyle={{ background: C.pill, color: C.muted }} />}
