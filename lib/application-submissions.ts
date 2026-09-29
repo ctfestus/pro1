@@ -178,6 +178,27 @@ export async function listApplicationFormIdsForReviewer(reviewerId: string): Pro
   return [...new Set((data ?? []).map(row => String(row.form_id)))];
 }
 
+/**
+ * Submitted-application counts per form, for the forms list. The counting happens in the
+ * database (migration 217) in one call, whatever the volume. Callers pass only form IDs the
+ * user may see; `reviewerId` limits counts to that reviewer's assigned applications. Every
+ * requested form starts at zero, since the database returns rows only for forms that have
+ * submissions.
+ */
+export async function countSubmittedApplicationsByForm(formIds: string[], reviewerId?: string): Promise<Record<string, number>> {
+  const counts: Record<string, number> = Object.fromEntries(formIds.map(id => [id, 0]));
+  if (!formIds.length) return counts;
+  const { data, error } = await adminClient().rpc('count_submitted_applications_by_form', {
+    p_form_ids: formIds,
+    p_reviewer_id: reviewerId ?? null,
+  });
+  if (error) throw new Error(`Could not count applications: ${error.message}`);
+  for (const row of (data ?? []) as { form_id: string; total: number | string }[]) {
+    if (Object.hasOwn(counts, row.form_id)) counts[row.form_id] = Number(row.total) || 0;
+  }
+  return counts;
+}
+
 export async function pruneExpiredApplicationDrafts(): Promise<void> {
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data, error } = await adminClient().from(TABLE).select('id,form_id')

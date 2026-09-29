@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useLayoutEffect, useRef, useContext } from 'react';
+import { useState, useEffect, useLayoutEffect, useRef, useContext, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import Link from 'next/link';
@@ -174,8 +174,10 @@ export type CardAction = {
 // One "more options" (vertical-dots) menu for a content card. Renders the dropdown in a portal
 // so it is never clipped by the card's overflow-hidden thumbnail. `share` actions reuse the
 // existing ShareMenu popover (shareMenuOpen/setShareMenuOpen only needed if a share action exists).
-export function CardActionsMenu({ form, actions, shareMenuOpen, setShareMenuOpen }: {
+export function CardActionsMenu({ form, actions, shareMenuOpen, setShareMenuOpen, triggerClassName, triggerStyle }: {
   form: any; actions: CardAction[]; shareMenuOpen?: string | null; setShareMenuOpen?: (id: string | null) => void;
+  /** Override the trigger's look when the menu does not sit on a thumbnail (e.g. list cards). */
+  triggerClassName?: string; triggerStyle?: CSSProperties;
 }) {
   const C = useC();
   const btnRef = useRef<HTMLButtonElement>(null);
@@ -220,9 +222,9 @@ export function CardActionsMenu({ form, actions, shareMenuOpen, setShareMenuOpen
     <>
       <button ref={btnRef} type="button" title="More options" aria-label="More options"
         onClick={e => { e.stopPropagation(); e.preventDefault(); setOpen(o => !o); }}
-        className="p-1.5 rounded-full backdrop-blur-md transition-all hover:scale-110"
-        style={{ background: C.overlayBtn, color: C.overlayText }}>
-        <MoreVertical className="w-3.5 h-3.5"/>
+        className={triggerClassName ?? 'p-1.5 rounded-full backdrop-blur-md transition-all hover:scale-110'}
+        style={triggerStyle ?? { background: C.overlayBtn, color: C.overlayText }}>
+        <MoreVertical className={triggerClassName ? 'w-4 h-4' : 'w-3.5 h-3.5'}/>
       </button>
       {open && pos && createPortal(
         <div ref={menuRef} onClick={e => e.stopPropagation()}

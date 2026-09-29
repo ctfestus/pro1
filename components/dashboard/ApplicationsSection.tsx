@@ -1,21 +1,24 @@
 'use client';
 
 import { useContext, useEffect, useState } from 'react';
-import { Check, Copy, Edit2, FileText, Link2, Loader2, Pause, Play, Plus, Search, Trash2, XCircle } from 'lucide-react';
+import { BarChart3, Check, Copy, Edit2, FileText, Link2, Loader2, Pause, Play, Plus, Search, Trash2, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { ApplicationFormBuilder } from '@/components/dashboard/ApplicationFormBuilder';
 import { ApplicationReviewPanel } from '@/components/dashboard/ApplicationReviewPanel';
+import { ApplicationInsights } from '@/components/dashboard/ApplicationInsights';
+import { CardActionsMenu, type CardAction } from '@/components/dashboard/content-cards';
 import type { ApplicationFormRecord, ApplicationTemplateKey } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
 export function ApplicationsSection({ C }: { C: ThemeColors }) {
   const isStaff = useContext(IsStaffContext);
   const [forms, setForms] = useState<ApplicationFormRecord[]>([]);
+  const [submissionCounts, setSubmissionCounts] = useState<Record<string, number> | null>(null);
   const [reviewers, setReviewers] = useState<any[]>([]);
   const [relatedItems, setRelatedItems] = useState<any[]>([]);
   const [token, setToken] = useState('');
-  const [mode, setMode] = useState<{ type: 'edit' | 'review'; form: ApplicationFormRecord } | null>(null);
+  const [mode, setMode] = useState<{ type: 'edit' | 'review' | 'insights'; form: ApplicationFormRecord } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');
   const [copiedFormId, setCopiedFormId] = useState('');
@@ -35,6 +38,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
       const formsValue = await formsResponse.json();
       if (!formsResponse.ok) throw new Error(formsValue.error || 'Could not load application forms.');
       setForms(formsValue.forms ?? []);
+      setSubmissionCounts(formsValue.submissionCounts ?? null);
       if (reviewersResponse) {
         const reviewerValue = await reviewersResponse.json();
         if (reviewersResponse.ok) { setReviewers(reviewerValue.reviewers ?? []); setRelatedItems(reviewerValue.relatedItems ?? []); }
@@ -115,6 +119,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
 
   if (mode?.type === 'edit') return <ApplicationFormBuilder initial={mode.form} token={token} relatedItems={relatedItems} C={C} onBack={() => setMode(null)} onSaved={replace} />;
   if (mode?.type === 'review') return <ApplicationReviewPanel form={mode.form} token={token} reviewers={reviewers} C={C} onBack={() => setMode(null)} />;
+  if (mode?.type === 'insights') return <ApplicationInsights form={mode.form} token={token} C={C} onBack={() => setMode(null)} />;
   if (loading) return <div className="py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: C.cta }} /></div>;
 
   return (
@@ -122,7 +127,49 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
       {error && <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
       {!isStaff && <div className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold" style={{ color: C.text }}>Create an application form</h2><p className="text-xs mt-1" style={{ color: C.faint }}>Start with an editable template. No applicant account is required.</p></div><div className="flex flex-wrap gap-2">{(['bootcamp', 'scholarship', 'internship'] as ApplicationTemplateKey[]).map(template => <button key={template} disabled={Boolean(busy)} onClick={() => void create(template)} className="px-3 py-2 rounded-xl text-xs font-semibold capitalize flex items-center gap-1.5 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy === template ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}{template}</button>)}</div></div></div>}
 
-      {forms.length === 0 ? <div className="rounded-2xl py-20 text-center" style={{ background: C.card }}><FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.faint }} /><p className="font-semibold" style={{ color: C.text }}>{isStaff ? 'No applications are assigned to you.' : 'No application forms yet.'}</p></div> : <div className="space-y-3">{forms.map(form => <div key={form.id} className="rounded-2xl p-5 flex flex-col lg:flex-row lg:items-center gap-4" style={{ background: C.card }}><div className="flex-1 min-w-0"><div className="flex items-center gap-2 flex-wrap"><h3 className="font-bold truncate" style={{ color: C.text }}>{form.config.title}</h3><span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full" style={{ background: form.status === 'published' ? C.successBg : C.pill, color: form.status === 'published' ? C.successText : C.muted }}>{form.status}</span></div><p className="text-xs mt-1" style={{ color: C.faint }}>/apply/{form.slug}{form.config.closesAt ? ` - closes ${new Date(form.config.closesAt).toLocaleDateString()}` : ''}</p></div><div className="flex flex-wrap gap-2">{form.status === 'published' && <button onClick={() => void copyLink(form)} className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5" title={copiedFormId === form.id ? 'Registration link copied' : 'Copy public link'} style={{ background: copiedFormId === form.id ? C.successBg : C.pill, color: copiedFormId === form.id ? C.successText : C.muted }}>{copiedFormId === form.id ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />}{copiedFormId === form.id ? 'Copied' : 'Copy link'}</button>}<button onClick={() => setMode({ type: 'review', form })} className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5" style={{ background: C.pill, color: C.text }}><Search className="w-4 h-4" /> Review</button>{!isStaff && <><button onClick={() => setMode({ type: 'edit', form })} className="px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-1.5" style={{ background: C.pill, color: C.text }}><Edit2 className="w-4 h-4" /> Edit</button><button onClick={() => void duplicate(form)} disabled={busy === form.id || deletingFormId === form.id} className="p-2.5 rounded-xl disabled:opacity-50" title="Duplicate" style={{ background: C.pill, color: C.muted }}>{busy === form.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Copy className="w-4 h-4" />}</button>{form.status === 'published' ? <button onClick={() => void status(form, 'paused')} disabled={deletingFormId === form.id} className="p-2.5 rounded-xl disabled:opacity-50" title="Pause" style={{ background: C.pill, color: C.muted }}><Pause className="w-4 h-4" /></button> : form.status === 'paused' || form.status === 'draft' ? <button onClick={() => void status(form, 'published')} disabled={deletingFormId === form.id} className="p-2.5 rounded-xl disabled:opacity-50" title="Publish" style={{ background: C.successBg, color: C.successText }}><Play className="w-4 h-4" /></button> : null}<button onClick={() => void status(form, 'closed')} disabled={deletingFormId === form.id} className="p-2.5 rounded-xl disabled:opacity-50" title="Close" style={{ background: C.errorBg, color: C.errorText }}><XCircle className="w-4 h-4" /></button><button onClick={() => void remove(form)} disabled={deletingFormId === form.id || busy === form.id} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold disabled:opacity-50" title="Delete form" style={{ background: C.deleteBg, color: C.deleteText }}>{deletingFormId === form.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}{deletingFormId === form.id ? 'Deleting' : 'Delete'}</button></>}</div></div>)}</div>}
+      {forms.length === 0 ? <div className="rounded-2xl py-20 text-center" style={{ background: C.card }}><FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.faint }} /><p className="font-semibold" style={{ color: C.text }}>{isStaff ? 'No applications are assigned to you.' : 'No application forms yet.'}</p></div> : (
+        <div className="space-y-3">
+          {forms.map(form => {
+            const count = submissionCounts?.[form.id] ?? 0;
+            const working = busy === form.id || deletingFormId === form.id;
+            // Every card action lives in the three-dot menu, Review first.
+            const actions: CardAction[] = [
+              { key: 'review', label: 'Review applications', Icon: Search, onClick: () => setMode({ type: 'review', form }) },
+              { key: 'insights', label: 'Insights', Icon: BarChart3, onClick: () => setMode({ type: 'insights', form }) },
+              ...(form.status === 'published' ? [{ key: 'copy', label: 'Copy public link', Icon: Link2, onClick: () => void copyLink(form) }] : []),
+              ...(!isStaff ? [
+                { key: 'edit', label: 'Edit form', Icon: Edit2, onClick: () => setMode({ type: 'edit', form }) },
+                { key: 'duplicate', label: 'Duplicate', Icon: Copy, onClick: () => void duplicate(form) },
+                ...(form.status === 'published'
+                  ? [{ key: 'pause', label: 'Pause', Icon: Pause, onClick: () => void status(form, 'paused') }]
+                  : form.status === 'paused' || form.status === 'draft'
+                    ? [{ key: 'publish', label: 'Publish', Icon: Play, onClick: () => void status(form, 'published') }]
+                    : []),
+                ...(form.status !== 'closed' ? [{ key: 'close', label: 'Close form', Icon: XCircle, onClick: () => void status(form, 'closed') }] : []),
+                { key: 'delete', label: 'Delete', Icon: Trash2, danger: true, onClick: () => void remove(form) },
+              ] : []),
+            ];
+            return (
+              <div key={form.id} className="rounded-2xl p-4 sm:p-5 flex items-center gap-3 sm:gap-4" style={{ background: C.card }}>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-bold truncate" style={{ color: C.text }}>{form.config.title}</h3>
+                    <span className="text-[10px] uppercase tracking-wide px-2 py-1 rounded-full" style={{ background: form.status === 'published' ? C.successBg : C.pill, color: form.status === 'published' ? C.successText : C.muted }}>{form.status}</span>
+                    {submissionCounts && <span className="text-[10px] font-semibold px-2 py-1 rounded-full tabular-nums" style={{ background: C.pill, color: C.muted }}>{count} application{count === 1 ? '' : 's'}</span>}
+                  </div>
+                  <p className="text-xs mt-1 truncate" style={{ color: C.faint }}>/apply/{form.slug}{form.config.closesAt ? ` - closes ${new Date(form.config.closesAt).toLocaleDateString()}` : ''}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  {copiedFormId === form.id && <span className="hidden sm:flex items-center gap-1 text-[11px] font-semibold" style={{ color: C.successText }}><Check className="w-3.5 h-3.5" /> Link copied</span>}
+                  {working
+                    ? <span className="grid h-9 w-9 place-items-center rounded-xl" style={{ background: C.pill, color: C.muted }} aria-label={deletingFormId === form.id ? 'Deleting' : 'Working'}><Loader2 className="w-4 h-4 animate-spin" /></span>
+                    : <CardActionsMenu form={form} actions={actions} triggerClassName="grid h-9 w-9 place-items-center rounded-xl transition-colors" triggerStyle={{ background: C.pill, color: C.muted }} />}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
