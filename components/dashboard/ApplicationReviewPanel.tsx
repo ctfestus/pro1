@@ -23,7 +23,6 @@ import {
   type ApplicationFormRecord,
 } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
-import { ApplicationOverview } from '@/components/dashboard/ApplicationOverview';
 
 const MESSAGE_PRESETS = {
   interview: { subject: 'Interview invitation', body: 'We would like to invite you to an interview. Please reply to this email to confirm your availability.' },
@@ -329,8 +328,6 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
 
       {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><div className="flex shrink-0 items-center gap-3">{error.includes('Reload and try again.') && <button type="button" onClick={() => void load()} className="text-xs font-bold underline">Reload</button>}<button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div></div>}
       {bulkResult && <div className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-4 w-4" /> {bulkResult}</div>}
-
-      {!loading && <ApplicationOverview form={form} submissions={submissions} C={C} activeStageId={stageFilter} onSelectStage={setStageFilter} />}
 
       {selectedIds.size > 0 && (
         <div className="sticky top-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 shadow-lg" style={{ background: C.card }}>
