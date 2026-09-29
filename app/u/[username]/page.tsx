@@ -172,8 +172,13 @@ export default function PublicProfile({ params }: { params: Promise<{ username: 
         .single();
       if (!prof) { setNotFound(true); setLoading(false); return; }
       setProfile(prof);
+      // The courses table is closed to signed-out visitors (migration 215), so they read the
+      // free-courses view instead -- the same list RLS used to give them.
+      const { data: { session } } = await supabase.auth.getSession();
       const [{ data: courseRows }, { data: eventRows }] = await Promise.all([
-        supabase.from('courses').select('id, slug, title, description, cover_image, created_at').eq('user_id', prof.id).eq('status', 'published').order('created_at', { ascending: false }),
+        session
+          ? supabase.from('courses').select('id, slug, title, description, cover_image, created_at').eq('user_id', prof.id).eq('status', 'published').order('created_at', { ascending: false })
+          : supabase.from('public_free_courses').select('id, slug, title, description, cover_image, created_at').eq('user_id', prof.id).order('created_at', { ascending: false }),
         supabase.from('events').select('id, slug, title, description, cover_image, event_date, is_private, created_at').eq('user_id', prof.id).eq('status', 'published').order('created_at', { ascending: false }),
       ]);
       const allForms = [

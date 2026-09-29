@@ -1911,6 +1911,7 @@ CREATE POLICY "responses: staff select"
 -- ── courses (migration 046: includes learning_path membership access) ──
 CREATE POLICY "courses: participants select"
   ON public.courses FOR SELECT
+  TO authenticated  -- migration 215: open access means signed-in accounts, never anon
   USING (
     user_id = (SELECT auth.uid())
     OR (SELECT public.is_admin())
@@ -2064,6 +2065,7 @@ CREATE POLICY "Guide owners can delete"
 
 CREATE POLICY "virtual_experiences: participants select"
   ON public.virtual_experiences FOR SELECT
+  TO authenticated  -- migration 215
   USING (
     user_id = (SELECT auth.uid())
     OR (SELECT public.is_admin())
@@ -2609,6 +2611,7 @@ CREATE POLICY "instructors_manage_own_paths"
 
 CREATE POLICY "students_read_published_paths"
   ON public.learning_paths FOR SELECT
+  TO authenticated  -- migration 215
   USING (
     status = 'published'
     AND (
@@ -6578,6 +6581,20 @@ FROM public.learning_paths lp
 WHERE lp.status = 'published' AND lp.available_to_everyone;
 
 GRANT SELECT ON public.public_free_content TO anon, authenticated;
+
+-- Free courses only, with the owner and date an instructor's public profile filters and sorts by
+-- (migration 215). Separate from published_courses, which also covers cohort-only courses and must
+-- not expose their owners.
+CREATE OR REPLACE VIEW public.public_free_courses
+WITH (security_barrier = true)
+AS
+  SELECT c.id, c.slug, c.title, c.description, c.cover_image, c.user_id, c.created_at
+  FROM public.courses c
+  WHERE c.id IN (
+    SELECT f.content_id FROM public.public_free_content f WHERE f.content_table = 'courses'
+  );
+
+GRANT SELECT ON public.public_free_courses TO anon, authenticated;
 
 CREATE OR REPLACE VIEW public.public_free_content_counts
 WITH (security_barrier = true)

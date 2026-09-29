@@ -86,7 +86,20 @@ export async function GET(req: NextRequest) {
       if (!row) continue;
 
       const record = row as any;
-      const locked = record.available_to_everyone !== true;
+      // Free means what the signed-in rule means: open to everyone itself, or inside a published
+      // path that is. public_free_content already answers both, so a course reached from a free
+      // path is shown as free here too rather than as something to buy.
+      let locked = record.available_to_everyone !== true;
+      if (locked) {
+        const { data: free, error: freeError } = await db
+          .from('public_free_content')
+          .select('content_id')
+          .eq('content_table', TABLE_BY_TYPE[type])
+          .eq('content_id', record.id)
+          .maybeSingle();
+        if (freeError) throw freeError;
+        locked = !free;
+      }
 
       // "Published and not open to everyone" is not the same as "for sale". Cohort-only content
       // -- a course built for one client's private cohort, never offered to the public -- is

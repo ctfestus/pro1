@@ -1216,7 +1216,7 @@ function LandingCoursePreview({ item, typeColor, user, hFont, bFont, isDark }: {
   // certification is an exam sat once its rules allow, not something you start learning, and the
   // link goes to the overview either way -- so it says view rather than promising a start.
   const viewLabel  = item.type === 'certification' ? 'View certification'
-                   : item.type === 've' ? 'View project'
+                   : item.type === 've' ? 'View virtual experience'
                    : 'View course';
   const startLabel = item.type === 'certification' ? 'View certification' : 'Start learning';
   const desc = item.description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();

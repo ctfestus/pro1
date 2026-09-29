@@ -280,6 +280,8 @@ function vePreviewToForm(item: any) {
     // the authored row from a signed-out reader. Locked drives the CTA, nothing else.
     locked: !!item.locked,
     unlock: item.unlock,
+    // Only whether a dataset exists; the preview never carries the dataset itself.
+    hasDataset: !!item.hasDataset,
     config: {
       title: item.title,
       description: item.description,
@@ -902,10 +904,17 @@ export default function PublicFormPage() {
 
       // Query all content tables. Certifications are resolved separately via the service-role API
       // (their base table denies student SELECT because it holds exam answer keys).
+      // A signed-out visitor never asks for a course or experience row: those carry the lessons,
+      // briefs and dataset, and RLS closes them to anon (migration 215). They get the overview
+      // from /api/catalogue-preview below instead. Skipping the read here means a tenant that
+      // missed the migration still does not hand the content out. Events stay public: they are
+      // registration pages.
+      const noRow = Promise.resolve({ data: null as any });
+      const signedIn = !!authSession?.access_token;
       const [{ data: course }, { data: event }, { data: ve }] = await Promise.all([
-        supabase.from('courses').select('*').eq(lookupField, id).maybeSingle(),
+        signedIn ? supabase.from('courses').select('*').eq(lookupField, id).maybeSingle() : noRow,
         supabase.from('events').select('*').eq(lookupField, id).maybeSingle(),
-        supabase.from('virtual_experiences').select('*').eq(lookupField, id).maybeSingle(),
+        signedIn ? supabase.from('virtual_experiences').select('*').eq(lookupField, id).maybeSingle() : noRow,
       ]);
 
       // Reconstruct a form-compatible object with config shape for the viewer
@@ -1138,7 +1147,11 @@ export default function PublicFormPage() {
       const ids = ps.relatedEventIds;
       Promise.all([
         supabase.from('events').select('id, slug, title, event_date, event_time, cover_image').in('id', ids),
-        supabase.from('courses').select('id, slug, title, cover_image').in('id', ids),
+        // Signed-out registrants cannot read the courses table (migration 215); they see the free
+        // courses among these, as RLS used to give them. Signed-in visitors keep the table read.
+        signedOut
+          ? supabase.from('public_free_courses').select('id, slug, title, cover_image').in('id', ids)
+          : supabase.from('courses').select('id, slug, title, cover_image').in('id', ids),
       ]).then(([{ data: events }, { data: courses }]) => {
         const combined = [
           ...(events ?? []).map((e: any) => ({
@@ -1155,7 +1168,7 @@ export default function PublicFormPage() {
         setRelatedForms(combined);
       });
     }
-  }, [success, form]);
+  }, [success, form, signedOut]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>, customData?: any) => {
     e.preventDefault();
@@ -1703,8 +1716,16 @@ export default function PublicFormPage() {
                 </button>
                 )}
 
-                {/* Dataset download (VE only) */}
-                {!isShortCourse && (dataset?.csvContent || dataset?.url) && (
+                {/* Dataset download (VE only). Signed-out visitors are sent to sign in first:
+                    the dataset belongs to the experience, not to its public sales page. Their
+                    preview carries only hasDataset, never the dataset or its link. */}
+                {!isShortCourse && (signedOut ? (form.hasDataset && !form.locked) : (dataset?.csvContent || dataset?.url)) && (signedOut ? (
+                  <Link
+                    href={backHere}
+                    style={{ width: '100%', padding: '11px', borderRadius: 10, background: 'transparent', color: gp.body, fontSize: 13, fontWeight: 600, border: `1px solid ${gp.border}`, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
+                    <Lock style={{ width: 14, height: 14 }} /> Sign in to download dataset
+                  </Link>
+                ) : (
                   <button onClick={() => {
                     if (dataset.url) {
                       window.open(dataset.url, '_blank', 'noopener,noreferrer');
@@ -1717,7 +1738,7 @@ export default function PublicFormPage() {
                   style={{ width: '100%', padding: '11px', borderRadius: 10, background: 'transparent', color: gp.body, fontSize: 13, fontWeight: 600, border: `1px solid ${gp.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
                   <Download style={{ width: 14, height: 14 }} /> Download Dataset
                   </button>
-                )}
+                ))}
               </div>
             </div>
 
