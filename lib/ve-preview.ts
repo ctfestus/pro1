@@ -54,7 +54,10 @@ export interface VePreviewFields {
 export const VE_PREVIEW_COLUMNS =
   'modules, industry, role, company, tagline, difficulty, duration, tools, tool_logos, '
   + 'learn_outcomes, manager_name, manager_title, guide_id, guide_snapshot, '
-  + 'mode, theme, font, custom_accent, dataset';
+  + 'mode, theme, font, custom_accent, '
+  // Two short strings, never the dataset column: an inline CSV lives inside it, and a preview only
+  // needs to know one exists. Every stored dataset carries a filename, inline or linked.
+  + 'dataset_url:dataset->>url, dataset_filename:dataset->>filename';
 
 export function vePreviewFields(row: any): VePreviewFields {
   const modules = Array.isArray(row?.modules) ? row.modules : [];
@@ -76,7 +79,7 @@ export function vePreviewFields(row: any): VePreviewFields {
     theme:         row?.theme         ?? null,
     font:          row?.font          ?? null,
     customAccent:  row?.custom_accent ?? null,
-    hasDataset:    !!(row?.dataset?.url || row?.dataset?.csvContent),
+    hasDataset:    !!(row?.dataset_url || row?.dataset_filename),
     // Titles only, the same rule the locked course outline follows. Requirements are counted on
     // the overview, so they are deliberately absent rather than zeroed: no deliverable text and
     // no deliverable count leaves the server.

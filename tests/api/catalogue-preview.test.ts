@@ -45,6 +45,7 @@ vi.mock('@/lib/admin-client', () => ({
 }));
 
 import { GET } from '@/app/api/catalogue-preview/route';
+import { VE_PREVIEW_COLUMNS } from '@/lib/ve-preview';
 
 const request = (query: string) =>
   new NextRequest(`http://localhost/api/catalogue-preview${query}`);
@@ -234,7 +235,8 @@ describe('public catalogue preview', () => {
       guide_id: 'g1', guide_snapshot: { fullName: 'Ada Boateng' },
       mode: 'dark', theme: 'ocean', font: 'inter', custom_accent: '#123456',
       background: 'SECRET BRIEF',
-      dataset: { csvContent: 'SECRET CSV' },
+      // The projection returns these two strings in place of the dataset column.
+      dataset_filename: 'SECRET-INLINE.csv',
       modules: [
         { id: 'm1', title: 'Week one', lessons: [
           { id: 'l1', title: 'Meet the team', body: 'SECRET BODY', requirements: ['SECRET DELIVERABLE'] },
@@ -265,7 +267,7 @@ describe('public catalogue preview', () => {
     expect(served).not.toContain('SECRET BRIEF');
     expect(served).not.toContain('SECRET BODY');
     expect(served).not.toContain('SECRET DELIVERABLE');
-    expect(served).not.toContain('SECRET CSV');
+    expect(served).not.toContain('SECRET-INLINE');
     expect(served).not.toContain('requirements');
     expect(item.hasDataset).toBe(true);
   });
@@ -276,7 +278,7 @@ describe('public catalogue preview', () => {
     h.row.mockImplementation((table) => table === 'virtual_experiences' ? {
       id: 'v2', title: 'Retail VE', slug: 'retail-ve', cover_image: null, description: null,
       available_to_everyone: true, status: 'published', modules: [],
-      dataset: { url: 'https://example.com/SECRET-DATASET.xlsx', filename: 'sales.xlsx' },
+      dataset_url: 'https://example.com/SECRET-DATASET.xlsx', dataset_filename: 'sales.xlsx',
     } : null);
 
     const res = await GET(request('?ref=retail-ve&type=virtual_experience'));
@@ -286,6 +288,27 @@ describe('public catalogue preview', () => {
     expect(item.hasDataset).toBe(true);
     expect(JSON.stringify(item)).not.toContain('SECRET-DATASET');
     expect(JSON.stringify(item)).not.toContain('sales.xlsx');
+  });
+
+  it('never selects the whole dataset column, which can hold an inline CSV', () => {
+    // Every column entry, with its alias stripped: only the two dataset paths may touch it.
+    const columns = VE_PREVIEW_COLUMNS.split(',').map(c => c.trim().split(':').pop()!);
+    expect(columns).not.toContain('dataset');
+    expect(columns.filter(c => c.startsWith('dataset'))).toEqual(['dataset->>url', 'dataset->>filename']);
+    expect(VE_PREVIEW_COLUMNS).not.toContain('csvContent');
+  });
+
+  it('reports no dataset when the experience has none', async () => {
+    h.row.mockImplementation((table) => table === 'virtual_experiences' ? {
+      id: 'v3', title: 'No data VE', slug: 'no-data-ve', cover_image: null, description: null,
+      available_to_everyone: true, status: 'published', modules: [],
+      dataset_url: null, dataset_filename: null,
+    } : null);
+
+    const res = await GET(request('?ref=no-data-ve&type=virtual_experience'));
+    const { item } = await res.json();
+
+    expect(item.hasDataset).toBe(false);
   });
 
   it('fills in the real certification overview without ever shipping the exam', async () => {
