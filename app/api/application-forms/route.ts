@@ -11,7 +11,7 @@ import {
   listApplicationForms,
   saveApplicationForm,
 } from '@/lib/application-form-store';
-import { appendApplicationAudit, listApplicationFormIdsForReviewer } from '@/lib/application-submissions';
+import { appendApplicationAudit, countSubmittedApplicationsByForm, listApplicationFormIdsForReviewer } from '@/lib/application-submissions';
 import { newApplicationId } from '@/lib/application-access';
 
 export const dynamic = 'force-dynamic';
@@ -30,11 +30,21 @@ export async function GET(req: NextRequest) {
   const auth = await requireRole(req, ['admin', 'instructor', 'staff']);
   if (isAuthError(auth)) return auth.error;
   try {
-    const forms = await listApplicationForms();
-    if (auth.role === 'admin') return NextResponse.json({ forms });
-    if (auth.role === 'instructor') return NextResponse.json({ forms: forms.filter(form => form.ownerId === auth.actor.id) });
-    const assignedFormIds = new Set(await listApplicationFormIdsForReviewer(auth.actor.id));
-    return NextResponse.json({ forms: forms.filter(form => assignedFormIds.has(form.id)) });
+    const all = await listApplicationForms();
+    let forms = all;
+    if (auth.role === 'instructor') forms = all.filter(form => form.ownerId === auth.actor.id);
+    if (auth.role === 'staff') {
+      const assignedFormIds = new Set(await listApplicationFormIdsForReviewer(auth.actor.id));
+      forms = all.filter(form => assignedFormIds.has(form.id));
+    }
+    // Counts are a convenience for the list; a failure here must not hide the forms.
+    let submissionCounts: Record<string, number> | undefined;
+    try {
+      submissionCounts = await countSubmittedApplicationsByForm(forms.map(form => form.id), auth.role === 'staff' ? auth.actor.id : undefined);
+    } catch (error) {
+      console.error('[application-forms/get/counts]', error);
+    }
+    return NextResponse.json({ forms, ...(submissionCounts ? { submissionCounts } : {}) });
   } catch (error) {
     console.error('[application-forms/get]', error);
     return NextResponse.json({ error: (error as Error).message || 'Could not load application forms.' }, { status: 503 });
