@@ -6672,6 +6672,33 @@ CREATE POLICY "Application submissions owners can update" ON public.application_
 CREATE POLICY "Application submissions owners can delete" ON public.application_submissions FOR DELETE TO authenticated
   USING ((SELECT public.is_instructor_or_admin()) AND owner_id = (SELECT auth.uid()));
 
+-- Submitted-application counts per form for the forms list (migration 217).
+CREATE OR REPLACE FUNCTION public.count_submitted_applications_by_form(
+  p_form_ids text[],
+  p_reviewer_id uuid DEFAULT NULL
+)
+RETURNS TABLE(form_id text, total bigint)
+LANGUAGE sql
+STABLE
+SET search_path = ''
+AS $$
+  SELECT submissions.form_id, count(*)::bigint
+  FROM public.application_submissions AS submissions
+  WHERE submissions.state = 'submitted'
+    AND submissions.form_id = ANY(p_form_ids)
+    AND (
+      p_reviewer_id IS NULL
+      OR submissions.assigned_reviewer_id = p_reviewer_id
+    )
+  GROUP BY submissions.form_id;
+$$;
+
+REVOKE EXECUTE ON FUNCTION public.count_submitted_applications_by_form(text[], uuid)
+  FROM PUBLIC, anon, authenticated;
+
+GRANT EXECUTE ON FUNCTION public.count_submitted_applications_by_form(text[], uuid)
+  TO service_role;
+
 -- Applicant uploads: private, 10 MB, PDF, Word, JPG, PNG only (migration 216).
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES ('application-uploads', 'application-uploads', false, 10485760, ARRAY[

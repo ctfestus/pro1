@@ -179,22 +179,24 @@ export async function listApplicationFormIdsForReviewer(reviewerId: string): Pro
 }
 
 /**
- * Submitted-application counts per form, for the forms list. One paged query over form_id
- * only, instead of a fetch per card. `reviewerId` limits counts to that reviewer's assignments.
+ * Submitted-application counts per form, for the forms list. The counting happens in the
+ * database (migration 217) in one call, whatever the volume. Callers pass only form IDs the
+ * user may see; `reviewerId` limits counts to that reviewer's assigned applications. Every
+ * requested form starts at zero, since the database returns rows only for forms that have
+ * submissions.
  */
 export async function countSubmittedApplicationsByForm(formIds: string[], reviewerId?: string): Promise<Record<string, number>> {
   const counts: Record<string, number> = Object.fromEntries(formIds.map(id => [id, 0]));
   if (!formIds.length) return counts;
-  const pageSize = 1000;
-  for (let offset = 0; ; offset += pageSize) {
-    let query = adminClient().from(TABLE).select('form_id').eq('state', 'submitted').in('form_id', formIds)
-      .order('id').range(offset, offset + pageSize - 1);
-    if (reviewerId) query = query.eq('assigned_reviewer_id', reviewerId);
-    const { data, error } = await query;
-    if (error) throw new Error(`Could not count applications: ${error.message}`);
-    for (const row of data ?? []) counts[String(row.form_id)] = (counts[String(row.form_id)] ?? 0) + 1;
-    if ((data ?? []).length < pageSize) return counts;
+  const { data, error } = await adminClient().rpc('count_submitted_applications_by_form', {
+    p_form_ids: formIds,
+    p_reviewer_id: reviewerId ?? null,
+  });
+  if (error) throw new Error(`Could not count applications: ${error.message}`);
+  for (const row of (data ?? []) as { form_id: string; total: number | string }[]) {
+    if (Object.hasOwn(counts, row.form_id)) counts[row.form_id] = Number(row.total) || 0;
   }
+  return counts;
 }
 
 export async function pruneExpiredApplicationDrafts(): Promise<void> {
