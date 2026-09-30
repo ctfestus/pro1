@@ -764,7 +764,9 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
             <div key={item.id} className="relative flex gap-3 sm:gap-4">
               <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
                 {items.length > 0 && (
-                  <span aria-hidden="true" className="absolute left-1/2 top-10 -bottom-6 w-0.5 -translate-x-1/2 sm:top-11"
+                  // On the public overview the line stops short of each numbered step, above and
+                  // below, instead of running into the circle.
+                  <span aria-hidden="true" className={`absolute left-1/2 w-0.5 -translate-x-1/2 ${publicPreview ? 'top-12 -bottom-5 sm:top-[52px] sm:-bottom-6' : 'top-10 -bottom-6 sm:top-11'}`}
                     style={{ background: connectorColor }}/>
                 )}
                 {/* On the public overview nobody has progress, so each step shows its place in the
