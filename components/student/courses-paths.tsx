@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -649,11 +649,10 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
   const currentIndex   = path.locked || publicPreview ? -1 : items.findIndex((item: any) => !completedIds.includes(item.id));
   const learnerCount: number = path.learner_count ?? 0;
-  // The timeline traces progress in the student view, so it stays legible there. On the public
-  // overview nobody has progress yet, so it is a quiet guide rather than a status line.
-  const connectorColor = publicPreview
-    ? (C.page === LIGHT_C.page ? 'rgba(15,23,42,0.08)' : 'rgba(148,163,184,0.18)')
-    : (C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)');
+  // Legible in both views: in the student view it traces progress, on the public overview it
+  // joins the numbered steps, and a line too faint to see there left the steps floating.
+  const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
+  const isLight = C.page === LIGHT_C.page;
 
   return (
     <section
@@ -757,32 +756,43 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
           const href = `/${item.slug || item.id}`;
           const cover = item.cover_image;
           const inProgressPct = !done && typeof item.in_progress_pct === 'number' ? item.in_progress_pct : null;
+          // Explore's icon and colour per type, for the type label on the public overview.
+          const TypeIcon = isCert ? Award : isVE ? Briefcase : Film;
+          const typeAccent = isCert ? '#0891B2' : isVE ? '#00BF63' : C.cta;
 
           return (
             <div key={item.id} className="relative flex gap-3 sm:gap-4">
-              <div className="relative z-10 flex w-5 flex-shrink-0 justify-center sm:w-6">
+              <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
                 {items.length > 0 && (
                   <span aria-hidden="true" className="absolute left-1/2 top-10 -bottom-6 w-0.5 -translate-x-1/2 sm:top-11"
                     style={{ background: connectorColor }}/>
                 )}
+                {/* On the public overview nobody has progress, so each step shows its place in the
+                    order instead: identical dots said nothing about where to start. */}
+                {publicPreview && !done ? (
+                  <span className="mt-4 flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold sm:h-7 sm:w-7 sm:text-xs"
+                    style={{ background: isLight ? '#e7f8ef' : 'rgba(0,191,99,0.16)', color: isLight ? '#0f7a4a' : '#86efac' }}>
+                    {idx + 1}
+                  </span>
+                ) : (
                 <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6"
                   style={{
                     background: done ? '#16a34a' : 'transparent',
                     color: done ? '#ffffff' : C.muted,
                     boxShadow: done ? '0 5px 12px rgba(22,163,74,0.16)' : 'none',
                   }}>
-                  {done ? <Check className="w-3 h-3" strokeWidth={3}/> : <span className={isCurrent ? 'h-3 w-3 rounded-full' : 'h-2 w-2 rounded-full'} style={{ background: isCurrent || publicPreview ? '#00bf63' : C.faint }}/>}
+                  {done ? <Check className="w-3 h-3" strokeWidth={3}/> : <span className={isCurrent ? 'h-3 w-3 rounded-full' : 'h-2 w-2 rounded-full'} style={{ background: isCurrent ? '#00bf63' : C.faint }}/>}
                 </span>
+                )}
               </div>
               <a href={path.locked ? undefined : href} target={path.locked ? undefined : '_blank'} rel={path.locked ? undefined : 'noreferrer'} aria-disabled={path.locked || undefined}
                 className="group relative block min-w-0 flex-1 overflow-hidden rounded-xl p-3 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg sm:flex sm:h-[184px] sm:items-center sm:p-4"
                 style={{
-                  // On the public overview the rows sit directly on the page's own card: no fill
-                  // and no shadow, or each one reads as a card inside a card. In the student view
-                  // the fill still separates them from the row's own surface.
+                  // A soft fill with no border or shadow, in both views. Unfilled rows on the public
+                  // overview had nothing holding the cover and the text together.
                   background: isCurrent
                     ? 'rgba(34,197,94,0.055)'
-                    : publicPreview ? 'transparent' : C.page === LIGHT_C.page ? '#f8fafc' : C.pill,
+                    : isLight ? '#f8fafc' : C.pill,
                   boxShadow: 'none',
                   cursor: path.locked ? 'default' : 'pointer',
                 }}>
@@ -798,10 +808,24 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
                     ) : null}
                   </div>
                   <div className="min-w-0 flex-1 sm:flex sm:h-full sm:flex-col">
+                    {publicPreview ? (
+                      // The same tinted icon tile Explore puts on each type, so the type reads at a
+                      // glance rather than from a line of faint text.
+                      <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: C.muted }}>
+                        <span className="grid h-6 w-6 flex-shrink-0 place-items-center rounded-md"
+                          style={{ background: `color-mix(in srgb, ${typeAccent} 12%, transparent)` }}>
+                          <TypeIcon className="h-3.5 w-3.5" style={{ color: typeAccent }}/>
+                        </span>
+                        {isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}
+                      </div>
+                    ) : (
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs" style={{ color: C.faint }}>
                       <span>{isCert ? 'Certification' : isVE ? 'Virtual Experience' : 'Course'}</span>
                     </div>
-                    <h4 className="mt-1 text-lg font-bold leading-snug sm:text-xl" style={{ color: C.text }}>{item.title}</h4>
+                    )}
+                    {/* The public overview's card sets its own near-white text in dark; the theme's
+                        softer text colour made the titles read dimmer than everything above them. */}
+                    <h4 className="mt-1 text-lg font-bold leading-snug sm:text-xl" style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>{item.title}</h4>
                     <div className="mt-1.5 sm:min-h-[63px]">
                       {inProgressPct !== null ? (
                         <div className="flex h-[63px] max-w-md flex-col justify-center">
@@ -823,7 +847,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
           );
         })}
         <div className="relative flex gap-3 sm:gap-4">
-          <div className="relative z-10 flex w-5 flex-shrink-0 justify-center sm:w-6">
+          <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
             <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6" style={{ background: 'transparent' }}>
               <span className="h-2.5 w-2.5 rounded-full" style={{ background: allDone ? '#16a34a' : '#d6b46c' }}/>
             </span>
@@ -838,7 +862,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
             </div>
             <div className="min-w-0 flex-1">
               <p className="text-xs font-semibold uppercase" style={{ color: '#b08020' }}>Completion credential</p>
-              <h4 className="mt-1 text-lg font-bold" style={{ color: C.text }}>Earn Your Certificate</h4>
+              <h4 className="mt-1 text-lg font-bold" style={{ color: publicPreview && !isLight ? '#f8fafc' : C.text }}>Earn Your Certificate</h4>
               <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
                 {allDone ? 'You have completed this learning path. Your credential is ready to celebrate and share.' : 'Complete every item in this learning path to unlock your completion credential.'}
               </p>
