@@ -66,9 +66,9 @@ export function ApplicationInsights({ form, token, C, onBack }: {
 
   return (
     <div className="min-h-screen pb-16" style={{ color: C.text }}>
-      {/* Same pinned header bar and page width as the form builder. */}
-      <div className="sticky top-0 z-30 -mx-4 mb-6 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6" style={{ background: C.nav }}>
-        <div className="mx-auto flex max-w-6xl items-center gap-3">
+      {/* Same pinned header as the form builder: the width and shape of the panels below. */}
+      <div className="sticky top-0 z-30 -mx-4 mb-3 px-4 py-3 sm:-mx-6 sm:px-6" style={{ background: C.page }}>
+        <div className="mx-auto flex max-w-6xl items-center gap-3 rounded-2xl px-4 py-3 sm:px-5" style={{ background: C.card }}>
           <button type="button" onClick={onBack} className="flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Forms</button>
           <div className="min-w-0 flex-1">
             <h1 className="truncate text-sm font-bold sm:text-base" style={{ color: C.text }}>{form.config.title || 'Untitled application'}</h1>

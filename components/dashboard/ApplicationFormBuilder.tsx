@@ -670,8 +670,9 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
 
   return (
     <div className="min-h-screen pb-16" style={{ color: C.text }}>
-      <div className="sticky top-0 z-30 -mx-4 mb-6 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6" style={{ background: C.nav }}>
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3">
+      {/* Pinned header, the same width and shape as the panels below it. */}
+      <div className="sticky top-0 z-30 -mx-4 mb-3 px-4 py-3 sm:-mx-6 sm:px-6" style={{ background: C.page }}>
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-3 rounded-2xl px-4 py-3 sm:px-5" style={{ background: C.card }}>
           <button type="button" onClick={onBack} className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Forms</button>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2"><h1 className="truncate text-sm font-bold sm:text-base" style={{ color: C.text }}>{config.title || 'Untitled application'}</h1><span className="rounded-full bg-white px-2 py-1 text-[10px] font-bold uppercase tracking-wide" style={{ color: form.status === 'published' ? C.successText : C.muted }}>{form.status}</span></div>
