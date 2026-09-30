@@ -1776,9 +1776,6 @@ export default function PublicFormPage() {
     // lessonSlideCount is teaching slides; lessonCount below is how many rows the outline renders,
     // which also includes a graded question that carries lesson content. Two different questions,
     // so two different numbers.
-    // A slab of bright accent is wrong on a dark page, so dark mode gets a plain dark surface with
-    // no colour cast over it -- the light on it is white, the same light the accent panel gets.
-    const bannerBg = dark ? '#0A0B0E' : C.cta;
     const courseOutcomes = ((config.learnOutcomes ?? []) as string[]).filter(o => String(o ?? '').trim());
     const authoredCounts = courseContentCounts(questions);
     const lessonSlideCount = typeof form.lessonCount === 'number' ? form.lessonCount : authoredCounts.lessons;
@@ -1817,77 +1814,55 @@ export default function PublicFormPage() {
           </div>
         </nav>
 
-        {/* Hero banner. Contained and rounded rather than full-bleed, so it lines up with the
-            cards below it, and painted in the platform accent rather than the cover image -- the
-            cover still appears on the enrolment card, which overlaps this banner's bottom-right
-            corner. The text column is held clear of that overlap. */}
+        {/* Hero banner. The same treatment as the virtual experience page: full width, the cover
+            image dimmed under a dark fade, and white text at the bottom left. It keeps the course's
+            own tags, description and certificate ribbon, which the page shows nowhere else. */}
         {!courseStarted && (
-          <div className="px-4 pt-3 sm:px-4 sm:pt-5" style={{ maxWidth: 1140, margin: '0 auto', width: '100%' }}>
-            <div className="rounded-[18px] sm:rounded-[28px]" style={{ position: 'relative', minHeight: 'clamp(200px, 34vw, 360px)', background: bannerBg, overflow: 'hidden', display: 'flex', alignItems: 'flex-end', boxShadow: `inset 0 1px 0 ${dark ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.34)'}` }}>
-              {/* Depth is a light source rather than a second colour, so it holds up whatever
-                  primaryColor a tenant sets: a highlight raking in from the top right, weight
-                  falling away at the bottom left, and a fine grid that fades out before it reaches
-                  the text. In light mode the panel is the brand colour; in dark it is a plain dark
-                  surface. Either way the only thing on top of it is white and black. */}
-              <div aria-hidden style={{ position: 'absolute', inset: 0, background: dark
-                ? 'radial-gradient(115% 95% at 88% -12%, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.015) 36%, transparent 66%)'
-                : 'radial-gradient(115% 95% at 88% -12%, rgba(255,255,255,0.30) 0%, rgba(255,255,255,0.10) 34%, transparent 62%)' }} />
-              <div aria-hidden style={{ position: 'absolute', inset: 0, background: `radial-gradient(90% 120% at 0% 115%, rgba(0,0,0,${dark ? 0.55 : 0.34}) 0%, transparent 58%)` }} />
-              {/* Light mode only. On the dark panel the same grid reads as a visible box pattern
-                  rather than texture, so dark mode gets a plain surface. */}
-              {!dark && (
-                <div
-                  aria-hidden
-                  style={{
-                    position: 'absolute',
-                    inset: 0,
-                    backgroundImage: 'linear-gradient(rgba(255,255,255,0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.07) 1px, transparent 1px)',
-                    backgroundSize: '44px 44px',
-                    WebkitMaskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
-                    maskImage: 'radial-gradient(115% 105% at 100% 0%, #000 0%, transparent 72%)',
-                  }}
-                />
+          <div style={{ position: 'relative', width: '100%', minHeight: 340, background: '#0a0a0a', overflow: 'hidden', display: 'flex', alignItems: 'flex-end' }}>
+            {config.coverImage
+              ? <img src={resolveCoverUrl(config.coverImage)} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: 0.55 }} />
+              : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 33%, transparent) 0%, #0a0a0a 70%)` }} />
+            }
+            <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
+            <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 36px' }}>
+              {(() => {
+                const tags = [
+                  'Course',
+                  ...(config.category ? [String(config.category)] : []),
+                  ...(config.difficulty ? [String(config.difficulty)] : []),
+                ];
+                return (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
+                    {tags.map((tag, i) => (
+                      <span
+                        key={tag}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', padding: '4px 11px', borderRadius: 999,
+                          background: i === 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.12)',
+                          border: '1px solid rgba(255,255,255,0.24)',
+                          color: '#ffffff', fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em',
+                          textTransform: 'capitalize' as const,
+                        }}
+                      >
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+                );
+              })()}
+              <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em' }}>
+                {config.title || form.title}
+              </h1>
+              {config.tagline && (
+                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, maxWidth: 620, margin: 0, overflowWrap: 'anywhere' }}>{config.tagline}</p>
               )}
-              <div className="px-5 pt-6 pb-10 sm:px-8 sm:pt-[34px] sm:pb-[62px]" style={{ position: 'relative', zIndex: 2, width: '100%', maxWidth: 720 }}>
-                {(() => {
-                  const tags = [
-                    'Course',
-                    ...(config.category ? [String(config.category)] : []),
-                    ...(config.difficulty ? [String(config.difficulty)] : []),
-                  ];
-                  return (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                      {tags.map((tag, i) => (
-                        <span
-                          key={tag}
-                          style={{
-                            display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: 999,
-                            background: i === 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.12)',
-                            border: '1px solid rgba(255,255,255,0.24)',
-                            color: C.ctaText, fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em',
-                            textTransform: 'capitalize' as const,
-                          }}
-                        >
-                          {tag}
-                        </span>
-                      ))}
-                    </div>
-                  );
-                })()}
-                <h1 style={{ fontSize: 'clamp(26px,5vw,42px)', fontWeight: 800, color: C.ctaText, lineHeight: 1.1, margin: 0, letterSpacing: '-0.03em' }}>
-                  {config.title || form.title}
-                </h1>
-                {config.tagline && (
-                  <p style={{ fontSize: 15.5, color: C.ctaText, opacity: 0.74, lineHeight: 1.5, margin: '12px 0 0', maxWidth: '52ch', overflowWrap: 'anywhere' }}>{config.tagline}</p>
-                )}
-                {config.description && (
-                  <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.62, color: C.ctaText, opacity: 0.88, maxWidth: '58ch', overflowWrap: 'anywhere' }}
-                    dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
-                )}
-                {/* Always dark text: the ribbon keeps its own yellow whatever the banner is. */}
-                <div style={{ marginTop: 20 }}>
-                  <CertificateTag textColor="#111827" />
-                </div>
+              {config.description && (
+                <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', maxWidth: 620, overflowWrap: 'anywhere' }}
+                  dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
+              )}
+              {/* Always dark text: the ribbon keeps its own yellow whatever is behind it. */}
+              <div style={{ marginTop: 20 }}>
+                <CertificateTag textColor="#111827" />
               </div>
             </div>
           </div>
@@ -1986,16 +1961,11 @@ export default function PublicFormPage() {
               })()}
             </div>
 
-            {/* Right sidebar. On desktop the enrolment card is lifted far enough that its whole
-                cover thumbnail sits on the banner and its bottom edge lands exactly on the
-                banner's bottom edge, and inset from the right so its edge reads as sitting on the
-                banner rather than lining up with it. The lift is the grid's 24px top padding plus
-                the 140px thumbnail: change the thumbnail height and this number moves with it. On a phone the column stacks
-                first, where there is nothing to overlap. */}
-            <div className="order-1 lg:order-2 lg:sticky lg:-mt-[164px] lg:mr-6" style={{ top: 72, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* Borderless, with a soft drop shadow instead: this card overlaps the banner, where
-                  a hairline border traced a visible box around the thumbnail. Heavier shadow in
-                  dark mode, where a light one does not read at all. */}
+            {/* Right sidebar. It sits below the hero, as on the virtual experience page; on a phone
+                the column stacks first. */}
+            <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, zIndex: 5, display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* Borderless, with a soft drop shadow instead of a hairline border. Heavier shadow
+                  in dark mode, where a light one does not read at all. */}
               <div style={{ background: cp.card, borderRadius: 14, overflow: 'hidden', boxShadow: dark ? '0 18px 44px rgba(0,0,0,0.55)' : '0 18px 44px rgba(15,23,42,0.18)' }}>
                 {/* Cover thumbnail */}
                 {config.coverImage && (
