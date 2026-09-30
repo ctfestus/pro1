@@ -2,8 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, BarChart3, Loader2 } from 'lucide-react';
-import type { ApplicationFormRecord } from '@/lib/application-forms';
-import { applicationOverview, type ApplicationOverviewInput } from '@/lib/application-stats';
+import type { ApplicationAnswer, ApplicationFormRecord } from '@/lib/application-forms';
+import {
+  applicationFieldBreakdowns,
+  applicationOverview,
+  type ApplicationFieldBreakdown,
+  type ApplicationOverviewInput,
+} from '@/lib/application-stats';
 import type { ThemeColors } from '@/lib/theme';
 
 function dayLabel(date: string, options: Intl.DateTimeFormatOptions): string {
@@ -26,7 +31,7 @@ export function ApplicationInsights({ form, token, C, onBack }: {
   C: ThemeColors;
   onBack: () => void;
 }) {
-  const [submissions, setSubmissions] = useState<ApplicationOverviewInput[]>([]);
+  const [submissions, setSubmissions] = useState<(ApplicationOverviewInput & { answers?: Record<string, ApplicationAnswer> })[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeDay, setActiveDay] = useState<number | null>(null);
@@ -47,6 +52,7 @@ export function ApplicationInsights({ form, token, C, onBack }: {
   }, [form.id, token]);
 
   const overview = useMemo(() => applicationOverview(form.config.stages, submissions), [form.config.stages, submissions]);
+  const fields = useMemo(() => applicationFieldBreakdowns(form.config.questions, submissions), [form.config.questions, submissions]);
   const maxDaily = Math.max(1, ...overview.daily.map(day => day.count));
   const busiest = overview.daily.reduce((best, day) => day.count > best.count ? day : best, overview.daily[0]);
   const shownDay = activeDay === null ? null : overview.daily[activeDay];
@@ -146,8 +152,73 @@ export function ApplicationInsights({ form, token, C, onBack }: {
               </ul>
             </div>
           </div>
+
+          {overview.total > 0 && fields.length > 0 && (
+            <div className="space-y-3 pt-2">
+              <div>
+                <h3 className="text-sm font-bold" style={{ color: C.text }}>Answers by question</h3>
+                <p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>Choice, short answer, and number questions. Percentages are of applicants who answered.</p>
+              </div>
+              <div className="grid items-start gap-3 lg:grid-cols-2">
+                {fields.map(field => <FieldCard key={field.id} field={field} C={C} />)}
+              </div>
+            </div>
+          )}
         </section>
       )}
     </div>
+  );
+}
+
+function percent(share: number): string {
+  return `${Math.round(share * 100)}%`;
+}
+
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+/** One question's summary: a bar per option (or common answer), or number stats. */
+function FieldCard({ field, C }: { field: ApplicationFieldBreakdown; C: ThemeColors }) {
+  const answeredLine = `${field.answered} of ${field.shown} answered`;
+  return (
+    <section className="min-w-0 rounded-xl p-4" style={{ background: C.card }} aria-label={`${field.label} summary`}>
+      <h4 className="text-sm font-semibold leading-5" style={{ color: C.text }}>{field.label}</h4>
+      <p className="mt-0.5 text-[11px]" style={{ color: C.faint }}>
+        {answeredLine}
+        {field.kind === 'multi' ? ' - applicants could pick more than one, so totals can pass 100%' : ''}
+        {field.kind === 'text' ? ' - most common answers' : ''}
+      </p>
+      {field.kind === 'number' ? (
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          {[['Average', field.average], ['Lowest', field.min], ['Highest', field.max]].map(([label, value]) => (
+            <div key={label as string} className="rounded-lg p-3" style={{ background: C.input }}>
+              <p className="text-[11px] font-semibold" style={{ color: C.faint }}>{label}</p>
+              <p className="mt-0.5 text-lg font-bold tabular-nums" style={{ color: C.text }}>{formatNumber(value as number)}</p>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <ul className="mt-3 space-y-2.5">
+          {field.options.map(option => (
+            <li key={option.label}>
+              <span className="flex items-center justify-between gap-3 text-xs">
+                <span className="min-w-0 truncate font-medium" style={{ color: C.text }} title={option.label}>{option.label}</span>
+                <span className="shrink-0 tabular-nums" style={{ color: C.muted }}><span className="font-semibold" style={{ color: C.text }}>{option.count}</span> ({percent(option.share)})</span>
+              </span>
+              <span className="mt-1.5 block h-1.5 w-full overflow-hidden rounded-full" style={{ background: C.input }}>
+                <span className="block h-full rounded-full" style={{ width: `${option.share * 100}%`, background: C.cta }} />
+              </span>
+            </li>
+          ))}
+          {field.kind === 'text' && field.otherCount ? (
+            <li className="flex items-center justify-between gap-3 text-xs" style={{ color: C.muted }}>
+              <span>Other answers</span>
+              <span className="tabular-nums">{field.otherCount} ({percent(field.answered ? field.otherCount / field.answered : 0)})</span>
+            </li>
+          ) : null}
+        </ul>
+      )}
+    </section>
   );
 }

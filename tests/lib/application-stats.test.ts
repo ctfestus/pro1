@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_APPLICATION_STAGES } from '@/lib/application-forms';
-import { applicationOverview } from '@/lib/application-stats';
+import { DEFAULT_APPLICATION_STAGES, type ApplicationAnswer } from '@/lib/application-forms';
+import { applicationFieldBreakdowns, applicationOverview } from '@/lib/application-stats';
 
 // Local-time constructors so the day buckets match regardless of the test machine's zone.
 const at = (day: number, hour = 10) => new Date(2026, 8, day, hour).toISOString();
@@ -37,5 +37,71 @@ describe('application insights', () => {
     expect(overview).toMatchObject({ total: 0, today: 0, last7Days: 0 });
     expect(overview.daily.every(day => day.count === 0)).toBe(true);
     expect(overview.byStage.every(stage => stage.count === 0)).toBe(true);
+  });
+});
+
+describe('answers by question', () => {
+  const q = (id: string, type: any, extra: Record<string, unknown> = {}) => ({ id, label: id, type, required: false, ...extra });
+  const questions = [
+    q('gender', 'single_choice', { options: ['Female', 'Male', 'Prefer not to say'] }),
+    q('tools', 'multiple_choice', { options: ['Excel', 'SQL', 'Power BI'] }),
+    q('location', 'short_text'),
+    q('name', 'short_text'),
+    q('age', 'number'),
+    q('laptop', 'yes_no'),
+    q('intro', 'text_block', { richText: '<p>Hi</p>' }),
+    q('bio', 'long_text'),
+    q('employer', 'short_text', { condition: { questionId: 'laptop', operator: 'equals', value: 'Yes' } }),
+  ];
+  const people: { answers: Record<string, ApplicationAnswer> }[] = [
+    { answers: { gender: 'Female', tools: ['Excel', 'SQL'], location: 'Accra', name: 'Ama', age: 24, laptop: 'Yes', employer: 'Acme' } },
+    { answers: { gender: 'Female', tools: ['Excel'], location: ' accra ', name: 'Esi', age: 30, laptop: 'Yes', employer: 'acme' } },
+    { answers: { gender: 'Male', tools: ['SQL', 'Power BI'], location: 'Kumasi', name: 'Kofi', age: 27, laptop: 'No' } },
+    { answers: { gender: 'Other old option', tools: [], location: '', name: 'Yaw' } },
+  ];
+  const byId = Object.fromEntries(applicationFieldBreakdowns(questions as any, people).map(field => [field.id, field]));
+
+  it('counts single choices with shares of those who answered, keeping removed options', () => {
+    const gender = byId.gender as any;
+    expect(gender).toMatchObject({ kind: 'choice', answered: 4, shown: 4 });
+    expect(gender.options).toEqual([
+      { label: 'Female', count: 2, share: 0.5 },
+      { label: 'Male', count: 1, share: 0.25 },
+      { label: 'Prefer not to say', count: 0, share: 0 },
+      { label: 'Other old option', count: 1, share: 0.25 },
+    ]);
+  });
+
+  it('counts each checkbox option once per applicant, so shares can pass 100%', () => {
+    const tools = byId.tools as any;
+    expect(tools).toMatchObject({ kind: 'multi', answered: 3 });
+    expect(tools.options.map((option: any) => [option.label, option.count])).toEqual([['Excel', 2], ['SQL', 2], ['Power BI', 1]]);
+    expect(tools.options.reduce((sum: number, option: any) => sum + option.share, 0)).toBeGreaterThan(1);
+  });
+
+  it('groups short answers ignoring case and spacing, and skips questions where every answer differs', () => {
+    const location = byId.location as any;
+    expect(location).toMatchObject({ kind: 'text', answered: 3 });
+    expect(location.options[0]).toMatchObject({ label: 'Accra', count: 2 });
+    expect(byId.name).toBeUndefined();
+  });
+
+  it('summarises numbers and yes or no questions, and counts conditional questions against who saw them', () => {
+    expect(byId.age).toMatchObject({ kind: 'number', answered: 3, average: 27, min: 24, max: 30 });
+    expect((byId.laptop as any).options).toEqual([{ label: 'Yes', count: 2, share: 2 / 3 }, { label: 'No', count: 1, share: 1 / 3 }]);
+    expect(byId.employer).toMatchObject({ kind: 'text', answered: 2, shown: 2 });
+  });
+
+  it('leaves out content blocks and question types that do not summarise', () => {
+    expect(byId.intro).toBeUndefined();
+    expect(byId.bio).toBeUndefined();
+  });
+
+  it('groups text answers beyond the most common eight as other answers', () => {
+    const many = Array.from({ length: 10 }, (_, index) => ({ answers: { location: `City ${index}` } }));
+    const repeated = [...many, { answers: { location: 'City 0' } }];
+    const field = applicationFieldBreakdowns([q('location', 'short_text')] as any, repeated)[0] as any;
+    expect(field.options).toHaveLength(8);
+    expect(field.otherCount).toBe(2);
   });
 });
