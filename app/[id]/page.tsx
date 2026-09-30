@@ -576,7 +576,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   };
 
   return (
-    <main style={{ minHeight: '100vh', background: C.card, color: C.text }}>
+    <main style={{ minHeight: '100vh', background: C.page, color: C.text }}>
       <nav style={{ position: 'sticky', top: 0, zIndex: 30, backdropFilter: 'blur(14px)', background: isDark ? 'rgba(13,13,13,0.88)' : 'rgba(255,255,255,0.98)', borderBottom: `1px solid ${isDark ? C.cardBorder : 'rgba(0,0,0,0.07)'}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56 }}>
         <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
           <img src={(!isDark ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
