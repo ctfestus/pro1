@@ -65,13 +65,20 @@ export function ApplicationInsights({ form, token, C, onBack }: {
   ];
 
   return (
-    <div className="space-y-4">
-      <div className="flex min-w-0 items-center gap-3 rounded-xl p-3 sm:p-4" style={{ background: C.card }}>
-        <button type="button" onClick={onBack} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg" style={{ background: C.input, color: C.muted }} aria-label="Back to forms"><ArrowLeft className="h-4 w-4" /></button>
-        <div className="min-w-0"><h2 className="truncate text-lg font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Insights</p></div>
+    <div className="min-h-screen pb-16" style={{ color: C.text }}>
+      {/* Same pinned header bar and page width as the form builder. */}
+      <div className="sticky top-0 z-30 -mx-4 mb-6 px-4 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6" style={{ background: C.nav }}>
+        <div className="mx-auto flex max-w-6xl items-center gap-3">
+          <button type="button" onClick={onBack} className="flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.pill, color: C.muted }}><ArrowLeft className="h-4 w-4" /> Forms</button>
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate text-sm font-bold sm:text-base" style={{ color: C.text }}>{form.config.title || 'Untitled application'}</h1>
+            <p className="mt-0.5 text-xs" style={{ color: C.faint }}>Insights</p>
+          </div>
+        </div>
       </div>
 
-      {error && <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
+      <div className="mx-auto max-w-6xl space-y-4">
+      {error &&<div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
 
       {loading ? <div className="py-20"><Loader2 className="mx-auto h-6 w-6 animate-spin" style={{ color: C.cta }} /></div> : !error && (
         <section aria-label="Application insights" className="space-y-3">
@@ -165,6 +172,7 @@ export function ApplicationInsights({ form, token, C, onBack }: {
           )}
         </section>
       )}
+      </div>
     </div>
   );
 }
