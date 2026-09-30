@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, BarChart3, Loader2 } from 'lucide-react';
+import { ArrowLeft, Loader2 } from 'lucide-react';
 import type { ApplicationAnswer, ApplicationFormRecord } from '@/lib/application-forms';
 import {
   applicationFieldBreakdowns,
@@ -66,9 +66,8 @@ export function ApplicationInsights({ form, token, C, onBack }: {
 
   return (
     <div className="space-y-4">
-      <div className="flex min-w-0 items-center gap-3">
-        <button type="button" onClick={onBack} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" style={{ background: C.card, color: C.muted }} aria-label="Back to forms"><ArrowLeft className="h-4 w-4" /></button>
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl" style={{ background: C.pill, color: C.cta }}><BarChart3 className="h-5 w-5" /></div>
+      <div className="flex min-w-0 items-center gap-3 rounded-xl p-3 sm:p-4" style={{ background: C.card }}>
+        <button type="button" onClick={onBack} className="grid h-11 w-11 shrink-0 place-items-center rounded-lg" style={{ background: C.input, color: C.muted }} aria-label="Back to forms"><ArrowLeft className="h-4 w-4" /></button>
         <div className="min-w-0"><h2 className="truncate text-lg font-bold" style={{ color: C.text }}>{form.config.title}</h2><p className="mt-0.5 text-xs" style={{ color: C.faint }}>Insights</p></div>
       </div>
 
