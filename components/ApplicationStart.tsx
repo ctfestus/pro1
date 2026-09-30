@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { ArrowLeft, ArrowRight, CheckCircle2, Clock, CornerDownLeft, ExternalLink, Loader2, Mail, PencilLine, Send, ShieldCheck } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { ApplicationQuestionFields } from '@/components/ApplicationQuestionFields';
+import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
 import { ApplicationFramedImage } from '@/components/ApplicationFramedImage';
 import { applicationCoverFrame } from '@/lib/application-cover';
@@ -381,6 +382,7 @@ export function ApplicationStart({ slug = '', previewForm, previewRelatedItems =
               <span className="rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-[0.16em]" style={{ background: C.pill, color: C.muted }}>Programme application</span>
               <h1 className="mt-4 text-2xl font-bold leading-tight sm:text-4xl" style={{ color: C.text }}>{form.config.title}</h1>
               <p className="mt-3 whitespace-pre-line text-sm leading-6" style={{ color: C.muted }}>{form.config.description}</p>
+              {showOverviewDetails && form.config.fee && <ApplicationFeeTicket fee={form.config.fee} C={C} />}
               {showOverviewDetails && form.config.closesAt && <div className="mt-6"><ApplicationDeadlineTimer closesAt={form.config.closesAt} C={C} /></div>}
               {showOverviewDetails && form.config.eligibility && <div className="mt-6 p-4 sm:p-5" style={{ background: C.pill, borderRadius: 12 }}><p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: C.faint }}>Eligibility</p><div className="application-rich-content rich-content compact mt-2" style={{ color: C.text }} dangerouslySetInnerHTML={{ __html: applicationRichText(form.config.eligibility) }} /></div>}
               {form.availability !== 'open' ? <div className="mt-6 p-4 text-sm" style={{ background: C.errorBg, color: C.errorText, borderRadius: 10 }}>{form.availability === 'not_open' ? 'Applications have not opened yet.' : form.availability === 'paused' ? 'Applications are temporarily paused.' : 'Applications are closed.'}</div> : !listLayout && !started && (<div className="mt-7 flex flex-col gap-4 border-t pt-5 sm:flex-row sm:items-center sm:justify-between" style={{ borderColor: C.divider }}><div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}><ShieldCheck className="h-4 w-4" style={{ color: C.successText }} /> Your information is submitted securely.</div><button type="button" onClick={() => { setStarted(true); setReviewing(false); setActiveStep(0); window.setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 40); }} className="flex min-h-11 items-center justify-center gap-2 rounded-lg px-5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Start application <ArrowRight className="h-4 w-4" /></button></div>)}
