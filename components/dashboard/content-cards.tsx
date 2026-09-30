@@ -186,15 +186,41 @@ export function CardActionsMenu({ form, actions, shareMenuOpen, setShareMenuOpen
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
   const [shareRect, setShareRect] = useState<DOMRect | null>(null);
   const MENU_W = 188;
+  const GAP = 6;
+  const EDGE = 8;
 
   useLayoutEffect(() => {
     if (!open || !btnRef.current) return;
     const r = btnRef.current.getBoundingClientRect();
     let left = r.right - MENU_W;
-    if (left < 8) left = 8;
-    if (left + MENU_W > window.innerWidth - 8) left = window.innerWidth - MENU_W - 8;
-    setPos({ top: r.bottom + 6, left });
+    if (left < EDGE) left = EDGE;
+    if (left + MENU_W > window.innerWidth - EDGE) left = window.innerWidth - MENU_W - EDGE;
+    setPos({ top: r.bottom + GAP, left });
   }, [open]);
+
+  // The menu first renders hidden below the button. Once its height is known, place it before
+  // paint: below when it fits, above when only that side has room, otherwise on the roomier
+  // side with its own scroll, so no item falls off the bottom of the window. Written straight
+  // to the element because it is a measurement of the rendered menu, not render state.
+  useLayoutEffect(() => {
+    const menu = menuRef.current;
+    if (!open || !pos || !menu || !btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const height = menu.offsetHeight;
+    const roomBelow = window.innerHeight - r.bottom - GAP - EDGE;
+    const roomAbove = r.top - GAP - EDGE;
+    let top = r.bottom + GAP;
+    let maxHeight = 0;
+    if (height > roomBelow) {
+      if (height <= roomAbove) top = r.top - GAP - height;
+      else if (roomAbove > roomBelow) { top = EDGE; maxHeight = roomAbove; }
+      else maxHeight = roomBelow;
+    }
+    menu.style.top = `${top}px`;
+    menu.style.maxHeight = maxHeight ? `${maxHeight}px` : '';
+    menu.style.overflowY = maxHeight ? 'auto' : 'hidden';
+    menu.style.visibility = 'visible';
+  }, [open, pos]);
 
   useEffect(() => {
     if (!open) return;
@@ -228,7 +254,7 @@ export function CardActionsMenu({ form, actions, shareMenuOpen, setShareMenuOpen
       </button>
       {open && pos && createPortal(
         <div ref={menuRef} onClick={e => e.stopPropagation()}
-          style={{ position: 'fixed', top: pos.top, left: pos.left, width: MENU_W, zIndex: 9999, background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.14)', overflow: 'hidden', padding: 4 }}>
+          style={{ position: 'fixed', top: pos.top, left: pos.left, width: MENU_W, zIndex: 9999, background: C.card, border: `1px solid ${C.cardBorder}`, borderRadius: 12, boxShadow: '0 8px 32px rgba(0,0,0,0.14)', overflowX: 'hidden', overflowY: 'hidden', padding: 4, visibility: 'hidden' }}>
           {actions.map(a => {
             const inner = <><a.Icon className="w-3.5 h-3.5 flex-shrink-0"/><span>{a.label}</span></>;
             const color = a.danger ? '#ef4444' : C.text;
