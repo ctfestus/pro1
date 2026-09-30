@@ -130,12 +130,11 @@ function CategoryPill({ category }: { category: string }) {
 
 const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage) || '';
 // Every card is a real link, so middle-click, open-in-new-tab and copy-link work everywhere.
-// Courses, certifications and virtual experiences have a page of their own. A learning path does
-// not -- it opens inside the My Learning section -- so it links at the section with the path
-// selected, which is the same address that section puts in the URL when you open one from there.
+// Every type opens its detail page, the same one the landing page links to. A learning path links
+// by id, as the landing page does; starting it from there opens it in My Learning.
 const directHref = (item: CatalogueItem) =>
   item.type === 'learning_path'
-    ? `/student?path=${encodeURIComponent(item.id)}#learning_paths`
+    ? `/${encodeURIComponent(item.id)}?catalogueType=learning_path`
     : `/${item.slug || item.id}?catalogueType=${encodeURIComponent(item.type)}`;
 
 export function ExploreSection({ C }: {

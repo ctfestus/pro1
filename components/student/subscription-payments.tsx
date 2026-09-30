@@ -767,10 +767,10 @@ function PaymentHistoryTable({ timeline, C }: { timeline: any[]; C: typeof LIGHT
 function PurchaseSuccess({ planName, until, contents, C }: {
   planName: string; until?: string | null; contents: any[]; C: typeof LIGHT_C;
 }) {
-  // Learning paths have no page of their own, so a link to one would be a dead end. Send those
-  // to My Learning, where a path can actually be opened.
+  // Every type, learning paths included, has a detail page; the button opens the first item bought.
   const CATALOGUE_TYPE: Record<string, string> = {
     courses: 'course', virtual_experiences: 'virtual_experience', certifications: 'certification',
+    learning_paths: 'learning_path',
   };
   const openable = contents.find(row => CATALOGUE_TYPE[row.contentTable]);
   const startHref = openable

@@ -540,7 +540,7 @@ function ExploreMorePaths({ currentId, C }: { currentId: string; C: ReturnType<t
   );
 }
 
-function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: ReturnType<typeof useC>; authHref: string }) {
+function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
   const items = path.items ?? [];
@@ -551,8 +551,10 @@ function PublicLearningPathOverview({ path, C, authHref }: { path: any; C: Retur
   // actually being bought is access to everything.
   // Signing in from here returns to this path, rather than landing on the dashboard with no
   // trace of what was clicked.
-  const href = path.locked ? '/pricing' : authHref;
-  const cta = path.locked ? enrollLabel(path.unlock) : 'Start for free';
+  // A learner who is already signed in and has access starts the path where it runs, in My
+  // Learning, rather than being sent to a sign-in screen they have already passed.
+  const href = path.locked ? '/pricing' : signedIn ? `/student?path=${encodeURIComponent(path.id)}#learning_paths` : authHref;
+  const cta = path.locked ? enrollLabel(path.unlock) : signedIn ? 'Start path' : 'Start for free';
   const isDark = C.page !== '#F2F5FA';
   const panelBg = isDark ? 'rgba(30,31,38,0.96)' : '#ffffff';
   const panelText = isDark ? '#f8fafc' : '#202124';
@@ -1316,7 +1318,7 @@ export default function PublicFormPage() {
 
   if (!form) {
     if (pathPreview) {
-      return <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} />;
+      return <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} />;
     }
     // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
     // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
