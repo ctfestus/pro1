@@ -98,6 +98,16 @@ export function resolveImageUrl(ref?: string | null, transform: string = DEFAULT
 /** Convenience alias for content cover images. */
 export const resolveCoverUrl = (ref?: string | null, transform?: string) => resolveImageUrl(ref, transform);
 
+/**
+ * Candidate widths for an image that fills the page width, for an <img srcSet> with sizes="100vw".
+ * One fixed width is either too heavy for a phone or too soft on a wide or high-density screen,
+ * where a 1600px image is stretched to twice its size. c_limit still never scales a master up.
+ */
+export const heroSrcSet = (ref?: string | null): string =>
+  [800, 1280, 1920, 2560]
+    .map(w => `${resolveImageUrl(ref, `f_auto,q_auto,w_${w},c_limit`)} ${w}w`)
+    .join(', ');
+
 /** True when a stored value is a bare public_id (i.e. needs resolving), not a full URL. */
 export const isPublicIdRef = (ref?: string | null): boolean =>
   !!ref && !!ref.trim() && !isAbsoluteRef(ref.trim());
