@@ -5,21 +5,27 @@ import type { ThemeColors } from '@/lib/theme';
 export function ApplicationFeeTicket({ fee, C }: { fee: ApplicationFee; C: ThemeColors }) {
   return (
     <section className="mt-6" aria-label={`${fee.name} details`}>
-      <div className="grid overflow-hidden rounded-xl sm:grid-cols-[minmax(0,1fr)_210px]" style={{ background: C.input }}>
-        <div className="p-5 sm:p-6">
-          <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider" style={{ color: C.cta }}><Ticket className="h-4 w-4" /> Programme fee</p>
-          <h2 className="mt-4 text-lg font-semibold" style={{ color: C.text }}>{fee.name}</h2>
-          {fee.description && <p className="mt-1.5 max-w-md text-xs leading-5" style={{ color: C.muted }}>{fee.description}</p>}
+      <div className="overflow-hidden rounded-2xl" style={{ background: C.card }}>
+        <div className="grid sm:grid-cols-[minmax(0,1fr)_minmax(210px,0.7fr)]">
+          <div className="min-w-0 p-5 sm:p-6" style={{ background: `linear-gradient(135deg, color-mix(in srgb, ${C.cta} 7%, ${C.card}), ${C.card} 82%)` }}>
+            <div className="flex items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl" style={{ background: `color-mix(in srgb, ${C.cta} 13%, ${C.card})`, color: C.cta }}><Ticket className="h-4 w-4" /></span>
+              <span className="text-[11px] font-semibold uppercase tracking-[0.16em]" style={{ color: C.muted }}>Programme fee</span>
+            </div>
+            <h2 className="mt-4 text-xl font-semibold leading-tight tracking-tight" style={{ color: C.text }}>{fee.name}</h2>
+            {fee.description && <p className="mt-1.5 max-w-md text-sm leading-5" style={{ color: C.muted }}>{fee.description}</p>}
+          </div>
+          <div className="min-w-0 border-t border-dashed p-5 sm:border-l sm:border-t-0 sm:p-6" style={{ borderColor: C.inputBorder, background: `radial-gradient(circle at 100% 0%, color-mix(in srgb, ${C.cta} 18%, ${C.card}), color-mix(in srgb, ${C.cta} 7%, ${C.card}) 75%)` }}>
+            <p className="text-[11px] font-medium uppercase tracking-[0.12em]" style={{ color: C.muted }}>One-time fee</p>
+            <p className="mt-2 flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-1" style={{ color: C.text }}><span className="text-sm font-semibold" style={{ color: C.cta }}>{fee.currency}</span><span className="min-w-0 break-all text-4xl font-semibold leading-none tracking-tight tabular-nums">{formatApplicationFeeAmount(fee.amount)}</span></p>
+            <div className="mt-4 flex items-start gap-2.5">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: C.card, color: C.cta }}><CalendarCheck2 className="h-4 w-4" /></span>
+              <div className="min-w-0"><p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>Due</p><p className="break-words text-xs font-medium leading-5" style={{ color: C.text }}>{fee.due}</p></div>
+            </div>
+          </div>
         </div>
-        <div className="relative flex flex-col items-start justify-center border-t border-dashed p-5 sm:border-l sm:border-t-0 sm:p-6" style={{ background: C.pill, borderColor: C.inputBorder }}>
-          <span aria-hidden="true" className="absolute -top-2 left-0 h-4 w-4 -translate-x-1/2 rounded-full sm:left-0 sm:top-0 sm:-translate-y-1/2" style={{ background: C.card }} />
-          <span aria-hidden="true" className="absolute -top-2 right-0 h-4 w-4 translate-x-1/2 rounded-full sm:-bottom-2 sm:left-0 sm:right-auto sm:top-auto sm:translate-y-0 sm:-translate-x-1/2" style={{ background: C.card }} />
-          <p className="text-[11px]" style={{ color: C.faint }}>One-time fee</p>
-          <p className="mt-1 max-w-full text-2xl font-semibold tabular-nums" style={{ color: C.text }}><span className="mr-1.5 text-sm" style={{ color: C.cta }}>{fee.currency}</span><span className="break-all">{formatApplicationFeeAmount(fee.amount)}</span></p>
-          <span className="mt-3 inline-flex max-w-full items-start gap-1.5 break-words rounded-md px-2.5 py-1.5 text-[11px] font-semibold" style={{ background: C.card, color: C.cta }}><CalendarCheck2 className="mt-0.5 h-3.5 w-3.5 shrink-0" /> {fee.due}</span>
-        </div>
+        <div className="flex items-start gap-2 px-5 py-3 text-[11px] leading-5 sm:px-6" style={{ background: C.card, color: C.muted }}><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.cta }} /> No payment is collected through this application form.</div>
       </div>
-      <p className="mt-3 flex items-center gap-2 text-[11px] leading-5" style={{ color: C.muted }}><ShieldCheck className="h-4 w-4 shrink-0" style={{ color: C.cta }} /> No payment is collected through this application form.</p>
     </section>
   );
 }
