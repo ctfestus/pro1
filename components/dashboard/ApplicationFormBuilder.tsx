@@ -41,6 +41,7 @@ import {
   Trash2,
   ToggleLeft,
   Upload,
+  UserCheck,
   Workflow,
   X,
   ZoomIn,
@@ -57,6 +58,7 @@ import {
   APPLICATION_FEE_TYPES,
   applicationQuestionFileTypes,
   isApplicationContentBlock,
+  suggestedNameQuestionId,
   newApplicationFee,
   type ApplicationCondition,
   type ApplicationFeeType,
@@ -603,10 +605,12 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
   );
 }
 
-export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack, onSaved }: {
+export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts = [], C, onBack, onSaved }: {
   initial: ApplicationFormRecord;
   token: string;
   relatedItems: ApplicationRelatedItem[];
+  /** Bootcamp cohorts this form can admit into; `ready` = fee and start date are set. */
+  cohorts?: { id: string; name: string; startDate: string; ready: boolean }[];
   C: ThemeColors;
   onBack: () => void;
   onSaved: (form: ApplicationFormRecord) => void;
@@ -626,6 +630,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
   const imageCount = config.questions.filter(item => item.type === 'image').length;
   const answerFieldCount = config.questions.length - textBlockCount - imageCount + 1;
 
+  const admissionCohort = config.admission ? cohorts.find(cohort => cohort.id === config.admission!.cohortId) : undefined;
   const setConfig = (patch: Partial<typeof config>) => setForm(previous => ({ ...previous, config: { ...previous.config, ...patch } }));
   const inputStyle: CSSProperties = { width: '100%', background: C.input, color: C.text, border: `1px solid ${C.inputBorder}`, borderRadius: 12, padding: '11px 12px', outline: 'none' };
   const panelStyle: CSSProperties = { background: C.card };
@@ -812,7 +817,30 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, C, onBack
         )}
 
         {tab === 'workflow' && (
-          <div className="mx-auto max-w-6xl"><section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Workflow} title="Review stages" description="Internal names help reviewers. Applicant labels appear on secure status pages." C={C} action={<button type="button" onClick={() => setConfig({ stages: [...config.stages, { id: `stage-${crypto.randomUUID()}`, name: 'New stage', applicantLabel: 'Under review' }] })} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.cta, color: C.ctaText }}><Plus className="h-4 w-4" /> Add stage</button>} /><div className="mt-6 space-y-3"><div className="hidden grid-cols-[36px_1fr_1fr_40px] gap-3 px-2 text-[10px] font-bold uppercase tracking-wider sm:grid" style={{ color: C.faint }}><span /><span>Internal stage</span><span>Applicant sees</span><span /></div>{config.stages.map((stage, index) => <div key={stage.id} className="grid items-center gap-3 rounded-xl p-3 sm:grid-cols-[36px_1fr_1fr_40px]" style={{ background: C.input }}><span className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold" style={{ background: C.card, color: C.cta }}>{index + 1}</span><input value={stage.name} onChange={event => { const stages = [...config.stages]; stages[index] = { ...stage, name: event.target.value }; setConfig({ stages }); }} placeholder="Internal stage" style={{ ...inputStyle, background: C.card }} /><input value={stage.applicantLabel} onChange={event => { const stages = [...config.stages]; stages[index] = { ...stage, applicantLabel: event.target.value }; setConfig({ stages }); }} placeholder="Applicant status" style={{ ...inputStyle, background: C.card }} /><button type="button" disabled={config.stages.length === 1} onClick={() => setConfig({ stages: config.stages.filter(item => item.id !== stage.id) })} className="rounded-lg p-2 disabled:opacity-30" style={{ color: C.deleteText }} aria-label={`Delete ${stage.name}`}><Trash2 className="h-4 w-4" /></button></div>)}</div></section></div>
+          <div className="mx-auto max-w-6xl space-y-5"><section className="rounded-2xl p-5 sm:p-6" style={panelStyle}><SectionHeading icon={Workflow} title="Review stages" description="Internal names help reviewers. Applicant labels appear on secure status pages." C={C} action={<button type="button" onClick={() => setConfig({ stages: [...config.stages, { id: `stage-${crypto.randomUUID()}`, name: 'New stage', applicantLabel: 'Under review' }] })} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: C.cta, color: C.ctaText }}><Plus className="h-4 w-4" /> Add stage</button>} /><div className="mt-6 space-y-3"><div className="hidden grid-cols-[36px_1fr_1fr_40px] gap-3 px-2 text-[10px] font-bold uppercase tracking-wider sm:grid" style={{ color: C.faint }}><span /><span>Internal stage</span><span>Applicant sees</span><span /></div>{config.stages.map((stage, index) => <div key={stage.id} className="grid items-center gap-3 rounded-xl p-3 sm:grid-cols-[36px_1fr_1fr_40px]" style={{ background: C.input }}><span className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold" style={{ background: C.card, color: C.cta }}>{index + 1}</span><input value={stage.name} onChange={event => { const stages = [...config.stages]; stages[index] = { ...stage, name: event.target.value }; setConfig({ stages }); }} placeholder="Internal stage" style={{ ...inputStyle, background: C.card }} /><input value={stage.applicantLabel} onChange={event => { const stages = [...config.stages]; stages[index] = { ...stage, applicantLabel: event.target.value }; setConfig({ stages }); }} placeholder="Applicant status" style={{ ...inputStyle, background: C.card }} /><button type="button" disabled={config.stages.length === 1} onClick={() => setConfig({ stages: config.stages.filter(item => item.id !== stage.id) })} className="rounded-lg p-2 disabled:opacity-30" style={{ color: C.deleteText }} aria-label={`Delete ${stage.name}`}><Trash2 className="h-4 w-4" /></button></div>)}</div></section><section className="rounded-2xl p-5 sm:p-6" style={panelStyle}>
+            <SectionHeading icon={UserCheck} title="Admission" description="Admit accepted applicants into a cohort from the review screen. Each gets a student account and a setup email, with the cohort's fees." C={C} />
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <label className="block">
+                <span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Admit into cohort</span>
+                <select value={config.admission?.cohortId ?? ''} onChange={event => setConfig({ admission: event.target.value ? { cohortId: event.target.value, nameQuestionId: config.admission?.nameQuestionId ?? suggestedNameQuestionId(config.questions) } : undefined })} style={inputStyle}>
+                  <option value="">Do not admit from this form</option>
+                  {cohorts.map(cohort => <option key={cohort.id} value={cohort.id}>{cohort.name}{cohort.ready ? '' : ' (fee or start date not set)'}</option>)}
+                  {config.admission && !admissionCohort && <option value={config.admission.cohortId}>Unavailable cohort</option>}
+                </select>
+              </label>
+              {config.admission && (
+                <label className="block">
+                  <span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Student name comes from</span>
+                  <select value={config.admission.nameQuestionId ?? ''} onChange={event => setConfig({ admission: { ...config.admission!, nameQuestionId: event.target.value || undefined } })} style={inputStyle}>
+                    <option value="">No name question</option>
+                    {config.questions.filter(question => question.type === 'short_text').map(question => <option key={question.id} value={question.id}>{question.label || 'Untitled question'}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+            {config.admission && !admissionCohort && <p className="mt-3 rounded-xl px-3 py-2.5 text-xs" style={{ background: C.errorBg, color: C.errorText }}>The selected cohort is no longer available. Choose another cohort.</p>}
+            {admissionCohort && !admissionCohort.ready && <p className="mt-3 rounded-xl px-3 py-2.5 text-xs" style={{ background: C.errorBg, color: C.errorText }}>This cohort has no fee or start date yet. Set them under Cohorts before admitting applicants.</p>}
+          </section></div>
         )}
 
         {tab === 'completion' && (

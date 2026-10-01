@@ -17,6 +17,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   const [submissionCounts, setSubmissionCounts] = useState<Record<string, number> | null>(null);
   const [reviewers, setReviewers] = useState<any[]>([]);
   const [relatedItems, setRelatedItems] = useState<any[]>([]);
+  const [cohorts, setCohorts] = useState<any[]>([]);
   const [token, setToken] = useState('');
   const [mode, setMode] = useState<{ type: 'edit' | 'review' | 'insights'; form: ApplicationFormRecord } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,7 +42,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
       setSubmissionCounts(formsValue.submissionCounts ?? null);
       if (reviewersResponse) {
         const reviewerValue = await reviewersResponse.json();
-        if (reviewersResponse.ok) { setReviewers(reviewerValue.reviewers ?? []); setRelatedItems(reviewerValue.relatedItems ?? []); }
+        if (reviewersResponse.ok) { setReviewers(reviewerValue.reviewers ?? []); setRelatedItems(reviewerValue.relatedItems ?? []); setCohorts(reviewerValue.cohorts ?? []); }
       }
     } catch (reason) { setError((reason as Error).message); }
     finally { setLoading(false); }
@@ -117,7 +118,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
     setMode(current => current?.form.id === updated.id ? { ...current, form: updated } : current);
   }
 
-  if (mode?.type === 'edit') return <ApplicationFormBuilder initial={mode.form} token={token} relatedItems={relatedItems} C={C} onBack={() => setMode(null)} onSaved={replace} />;
+  if (mode?.type === 'edit') return <ApplicationFormBuilder initial={mode.form} token={token} relatedItems={relatedItems} cohorts={cohorts} C={C} onBack={() => setMode(null)} onSaved={replace} />;
   if (mode?.type === 'review') return <ApplicationReviewPanel form={mode.form} token={token} reviewers={reviewers} C={C} onBack={() => setMode(null)} />;
   if (mode?.type === 'insights') return <ApplicationInsights form={mode.form} token={token} C={C} onBack={() => setMode(null)} />;
   if (loading) return <div className="py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: C.cta }} /></div>;

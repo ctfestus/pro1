@@ -139,9 +139,28 @@ export function formatApplicationFee(fee: Pick<ApplicationFee, 'amount' | 'curre
   return `${fee.currency || 'Currency'} ${formatApplicationFeeAmount(fee.amount)}`;
 }
 
+/** Where accepted applicants are admitted. Staff-only: stripped from the public form. */
+export interface ApplicationAdmission {
+  cohortId: string;
+  /** Short answer question whose answer becomes the new student's name. */
+  nameQuestionId?: string;
+}
+
+/** The first short answer question that looks like it asks for a name, if any. */
+export function suggestedNameQuestionId(questions: ApplicationQuestion[]): string | undefined {
+  return questions.find(question => question.type === 'short_text' && /\bname\b/i.test(question.label))?.id;
+}
+
+/** Whether a stage reads as an acceptance, so admitting from elsewhere can warn first. */
+export function isAcceptedStage(stage: Pick<ApplicationStage, 'id' | 'name' | 'applicantLabel'> | undefined): boolean {
+  if (!stage) return false;
+  return [stage.id, stage.name, stage.applicantLabel].some(value => /accept|admit/i.test(value ?? ''));
+}
+
 export interface ApplicationFormConfig {
   title: string;
   description: string;
+  admission?: ApplicationAdmission;
   coverImage?: string;
   coverImageAlt?: string;
   coverImagePlacement?: 'header' | 'inside';
@@ -477,6 +496,16 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
       }
     }
   }
+  if (config.admission !== undefined) {
+    const admission = config.admission;
+    if (!admission || typeof admission !== 'object' || typeof admission.cohortId !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(admission.cohortId)) {
+      errors.push('Select a valid cohort for admission.');
+    } else if (admission.nameQuestionId !== undefined
+      && !(config.questions ?? []).some(item => item.id === admission.nameQuestionId && item.type === 'short_text')) {
+      errors.push('Choose a short answer question for the applicant name.');
+    }
+  }
   if ((config.postSubmission?.type === 'redirect') && !isSafeHttpUrl(config.postSubmission.redirectUrl ?? '')) {
     errors.push('Enter a valid HTTP or HTTPS redirect URL.');
   }
@@ -547,12 +576,14 @@ export function slugifyApplicationTitle(value: string): string {
 }
 
 export function publicApplicationForm(form: ApplicationFormRecord) {
+  // Admission settings are internal and never reach applicants.
+  const { admission: _admission, ...config } = form.config;
   return {
     id: form.id,
     slug: form.slug,
     status: form.status,
     config: {
-      ...form.config,
+      ...config,
       stages: form.config.stages.map(stage => ({ id: stage.id, name: stage.applicantLabel, applicantLabel: stage.applicantLabel })),
     },
     availability: formAvailability(form),

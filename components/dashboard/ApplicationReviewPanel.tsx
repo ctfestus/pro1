@@ -15,10 +15,12 @@ import {
   SlidersHorizontal,
   StickyNote,
   UserRound,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react';
 import {
+  isAcceptedStage,
   isApplicationContentBlock,
   type ApplicationFormRecord,
 } from '@/lib/application-forms';
@@ -78,6 +80,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [bulkBody, setBulkBody] = useState('');
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
   const [bulkResult, setBulkResult] = useState('');
+  // Admission into the form's cohort: who is already in it, and whether this person may admit.
+  const [admission, setAdmission] = useState<{ cohort: { id: string; name: string; ready: boolean; problem?: string } | null; admitted: Set<string>; canAdmit: boolean }>({ cohort: null, admitted: new Set(), canAdmit: false });
   const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReviewTab>('answers');
   const selected = submissions.find(item => item.id === selectedId);
@@ -99,8 +103,60 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     } catch (reason) { setError((reason as Error).message); }
     finally { setLoading(false); }
   }
+  async function loadAdmission() {
+    try {
+      const response = await fetch(`/api/application-forms/${form.id}/admit`, { headers: { Authorization: `Bearer ${token}` } });
+      const value = await response.json();
+      if (!response.ok) return;
+      setAdmission({ cohort: value.cohort ?? null, admitted: new Set(value.admittedSubmissionIds ?? []), canAdmit: Boolean(value.canAdmit) });
+    } catch {
+      // The badge and Admit button are a convenience; reviewing still works without them.
+    }
+  }
+
+  async function admit(ids: string[]) {
+    const cohort = admission.cohort;
+    const targets = submissions.filter(item => ids.includes(item.id) && item.state === 'submitted');
+    if (!cohort || !targets.length) return;
+    const notAccepted = targets.filter(item => !isAcceptedStage(form.config.stages.find(stage => stage.id === item.stageId))).length;
+    const already = targets.filter(item => admission.admitted.has(item.id)).length;
+    const lines = [
+      `Admit ${targets.length} applicant${targets.length === 1 ? '' : 's'} to ${cohort.name}?`,
+      '',
+      'Each gets a student account in this cohort, or keeps their existing account, and an email to set their password. The cohort fees apply.',
+    ];
+    if (notAccepted) lines.push('', `${notAccepted} of them ${notAccepted === 1 ? 'is' : 'are'} not in an accepted stage.`);
+    if (already) lines.push('', `${already} ${already === 1 ? 'is' : 'are'} already admitted and will be updated, not duplicated.`);
+    if (!window.confirm(lines.join('\n'))) return;
+    setBusy(true); setError(''); setBulkResult('');
+    try {
+      const response = await fetch(`/api/application-forms/${form.id}/admit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ submissionIds: targets.map(item => item.id) }),
+      });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error || 'Could not admit these applicants.');
+      const results: { submissionId: string; email: string; status: 'admitted' | 'failed'; message?: string }[] = value.results ?? [];
+      const admittedIds = results.filter(item => item.status === 'admitted').map(item => item.submissionId);
+      const failed = results.filter(item => item.status === 'failed');
+      const warned = results.filter(item => item.status === 'admitted' && item.message);
+      setAdmission(previous => ({ ...previous, admitted: new Set([...previous.admitted, ...admittedIds]) }));
+      if (admittedIds.length) setBulkResult(`${admittedIds.length} admitted to ${cohort.name}.${failed.length ? ` ${failed.length} could not be admitted and remain selected.` : ''}`);
+      if (failed.length || warned.length) {
+        const issue = failed[0] ?? warned[0];
+        setError(`${issue.email}: ${issue.message}`);
+      }
+      setSelectedIds(new Set(failed.map(item => item.submissionId)));
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void load(); }, [form.id]);
+  useEffect(() => { void load(); void loadAdmission(); }, [form.id]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -332,7 +388,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       {selectedIds.size > 0 && (
         <div className="sticky top-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 shadow-lg" style={{ background: C.card }}>
           <div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold" style={{ background: C.cta, color: C.ctaText }}>{selectedIds.size}</span><div><p className="text-xs font-bold" style={{ color: C.text }}>Applications selected</p><p className="text-[10px]" style={{ color: C.faint }}>Update their stage or notify them together.</p></div></div>
-          <div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => { setSelectedIds(new Set()); setBulkPanelOpen(false); }} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Clear</button><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><Users className="h-3.5 w-3.5" /> Bulk update</button></div>
+          <div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => { setSelectedIds(new Set()); setBulkPanelOpen(false); }} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Clear</button><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><Users className="h-3.5 w-3.5" /> Bulk update</button>{admission.canAdmit && admission.cohort?.ready && <button type="button" disabled={busy} onClick={() => void admit([...selectedIds])} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.successBg, color: C.successText }}><UserCheck className="h-3.5 w-3.5" /> Admit selected</button>}</div>
         </div>
       )}
 
@@ -348,7 +404,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
               <div key={item.id} className="flex items-stretch overflow-hidden rounded-lg" style={{ background: item.id === selectedId ? C.pill : 'transparent' }}>
                 <label className="grid cursor-pointer place-items-center px-3" title={item.state === 'submitted' ? 'Select for bulk update' : 'Only submitted applications can be selected'}><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.state !== 'submitted' || busy} onChange={() => toggleSelected(item.id)} style={{ accentColor: C.cta }} /></label>
                 <button type="button" onClick={() => openSubmission(item.id)} className="flex min-w-0 flex-1 items-center gap-2 py-3 pr-2 text-left">
-                  <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold" style={{ color: C.text }}>{item.email}</p><div className="mt-1 flex items-center gap-2"><span className="truncate text-[10px]" style={{ color: C.faint }}>{item.reference}</span><span className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={{ background: C.card, color: C.successText }}>{stageName(item)}</span></div></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold" style={{ color: C.text }}>{item.email}</p><div className="mt-1 flex items-center gap-2"><span className="truncate text-[10px]" style={{ color: C.faint }}>{item.reference}</span><span className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={{ background: C.card, color: C.successText }}>{stageName(item)}</span>{admission.admitted.has(item.id) && <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={{ background: C.successBg, color: C.successText }}>Admitted</span>}</div></div>
                   <ChevronRight className="h-4 w-4 shrink-0" style={{ color: C.faint }} />
                 </button>
               </div>
@@ -372,7 +428,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
               <div className="p-5 sm:p-6">
                 {activeTab === 'answers' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Application answers</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Review the information submitted by this applicant.</p></div><div className="space-y-2">{reviewQuestions.map((question, index) => <div key={question.id} className="grid gap-2 rounded-lg p-4 sm:grid-cols-[28px_minmax(0,1fr)]" style={{ background: C.input }}><span className="grid h-7 w-7 place-items-center rounded-md text-[10px] font-bold" style={{ background: C.card, color: C.cta }}>{index + 1}</span><div className="min-w-0"><p className="text-[11px] font-semibold" style={{ color: C.faint }}>{question.label}</p><div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6" style={{ color: C.text }}>{displayAnswer(selected.answers?.[question.id], () => void openReviewFile(selected.id, question.id))}</div></div></div>)}</div></div>}
 
-                {activeTab === 'review' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Review decision</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Assign ownership, record a score, and move the application forward.</p></div><div className="grid gap-3 sm:grid-cols-3"><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Stage</label><select value={selected.stageId} onChange={event => void update({ stageId: event.target.value })} disabled={busy} style={input}>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Reviewer</label><select value={selected.assignedReviewerId} onChange={event => { const reviewer = reviewers.find(item => item.id === event.target.value); void update({ assignedReviewerId: event.target.value, assignedReviewerEmail: reviewer?.email ?? '' }); }} disabled={busy || reviewers.length === 0} style={input}><option value="">Unassigned</option>{reviewers.map(reviewer => <option key={reviewer.id} value={reviewer.id}>{reviewer.full_name || reviewer.email}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Score (optional)</label><input type="number" min="0" max="100" value={selected.score ?? ''} onChange={event => setSubmissions(previous => previous.map(item => item.id === selected.id ? { ...item, score: event.target.value === '' ? null : Number(event.target.value) } : item))} onBlur={() => void update({ score: selected.score })} disabled={busy} style={input} /></div></div><div className="mt-4 flex items-start gap-3 rounded-lg p-4" style={{ background: C.pill }}><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.cta }} /><div><p className="text-xs font-semibold" style={{ color: C.text }}>Current applicant-facing status</p><p className="mt-1 text-xs" style={{ color: C.faint }}>{form.config.stages.find(stage => stage.id === selected.stageId)?.applicantLabel ?? stageName(selected)}</p></div></div></div>}
+                {activeTab === 'review' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Review decision</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Assign ownership, record a score, and move the application forward.</p></div><div className="grid gap-3 sm:grid-cols-3"><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Stage</label><select value={selected.stageId} onChange={event => void update({ stageId: event.target.value })} disabled={busy} style={input}>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Reviewer</label><select value={selected.assignedReviewerId} onChange={event => { const reviewer = reviewers.find(item => item.id === event.target.value); void update({ assignedReviewerId: event.target.value, assignedReviewerEmail: reviewer?.email ?? '' }); }} disabled={busy || reviewers.length === 0} style={input}><option value="">Unassigned</option>{reviewers.map(reviewer => <option key={reviewer.id} value={reviewer.id}>{reviewer.full_name || reviewer.email}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Score (optional)</label><input type="number" min="0" max="100" value={selected.score ?? ''} onChange={event => setSubmissions(previous => previous.map(item => item.id === selected.id ? { ...item, score: event.target.value === '' ? null : Number(event.target.value) } : item))} onBlur={() => void update({ score: selected.score })} disabled={busy} style={input} /></div></div><div className="mt-4 flex items-start gap-3 rounded-lg p-4" style={{ background: C.pill }}><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.cta }} /><div><p className="text-xs font-semibold" style={{ color: C.text }}>Current applicant-facing status</p><p className="mt-1 text-xs" style={{ color: C.faint }}>{form.config.stages.find(stage => stage.id === selected.stageId)?.applicantLabel ?? stageName(selected)}</p></div></div>{(admission.cohort || admission.canAdmit) && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg p-4" style={{ background: C.input }}><div className="flex min-w-0 items-start gap-3"><UserCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: admission.admitted.has(selected.id) ? C.successText : C.cta }} /><div className="min-w-0"><p className="text-xs font-semibold" style={{ color: C.text }}>Admission</p><p className="mt-1 text-xs" style={{ color: C.faint }}>{!admission.cohort ? 'Choose a cohort in this form\'s Review flow settings to admit applicants.' : admission.admitted.has(selected.id) ? `Admitted to ${admission.cohort.name}.` : !admission.cohort.ready ? admission.cohort.problem : `Admit this applicant to ${admission.cohort.name}. They get a student account and an email to set their password.`}</p></div></div>{admission.canAdmit && admission.cohort?.ready && !admission.admitted.has(selected.id) && selected.state === 'submitted' && <button type="button" disabled={busy} onClick={() => void admit([selected.id])} className="flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><UserCheck className="h-4 w-4" /> Admit to {admission.cohort.name}</button>}</div>}</div>}
 
                 {activeTab === 'notes' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Private notes</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Only staff with review access can see these notes.</p></div><div className="mb-4 space-y-2">{(selected.privateNotes ?? []).length === 0 ? <div className="rounded-lg p-5 text-center text-xs" style={{ background: C.input, color: C.faint }}>No private notes yet.</div> : selected.privateNotes.map((item: any) => <div key={item.id} className="rounded-lg p-4" style={{ background: C.input }}><p className="whitespace-pre-wrap text-sm leading-6" style={{ color: C.text }}>{item.body}</p><p className="mt-2 text-[10px]" style={{ color: C.faint }}>{item.authorEmail} | {new Date(item.createdAt).toLocaleString()}</p></div>)}</div><textarea rows={4} value={note} onChange={event => setNote(event.target.value)} placeholder="Write a private note about this application" style={{ ...input, resize: 'vertical' }} /><div className="mt-2 flex justify-end"><button type="button" disabled={busy || !note.trim()} onClick={() => void update({ note })} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? 'Saving...' : 'Add note'}</button></div></div>}
 
