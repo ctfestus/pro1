@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
+import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { CourseTaker } from '@/components/CourseTaker';
 import dynamic from 'next/dynamic';
@@ -1826,25 +1827,27 @@ export default function PublicFormPage() {
             <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
             <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 36px' }}>
               {(() => {
-                const tags = [
-                  'Course',
-                  ...(config.category ? [String(config.category)] : []),
-                  ...(config.difficulty ? [String(config.difficulty)] : []),
+                // Borderless. The category carries the colour Explore gives it, so a learner who
+                // clicked an Excel card sees the same Excel colour here; the rest stay neutral.
+                const category = config.category ? String(config.category) : '';
+                const tags: { label: string; bg: string; color: string }[] = [
+                  { label: 'Course', bg: 'rgba(255,255,255,0.18)', color: '#ffffff' },
+                  ...(category ? [{ label: category, bg: categoryColor(category), color: CATEGORY_TEXT }] : []),
+                  ...(config.difficulty ? [{ label: String(config.difficulty), bg: 'rgba(255,255,255,0.18)', color: '#ffffff' }] : []),
                 ];
                 return (
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 16 }}>
-                    {tags.map((tag, i) => (
+                    {tags.map(tag => (
                       <span
-                        key={tag}
+                        key={tag.label}
                         style={{
-                          display: 'inline-flex', alignItems: 'center', padding: '4px 11px', borderRadius: 999,
-                          background: i === 0 ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.12)',
-                          border: '1px solid rgba(255,255,255,0.24)',
-                          color: '#ffffff', fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em',
+                          display: 'inline-flex', alignItems: 'center', padding: '5px 12px', borderRadius: 999,
+                          background: tag.bg, color: tag.color,
+                          fontSize: 12, fontWeight: 700, letterSpacing: '-0.01em',
                           textTransform: 'capitalize' as const,
                         }}
                       >
-                        {tag}
+                        {tag.label}
                       </span>
                     ))}
                   </div>
