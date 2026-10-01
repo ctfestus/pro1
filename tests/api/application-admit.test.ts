@@ -193,6 +193,18 @@ describe('POST /api/application-forms/[id]/admit', () => {
     expect(mocks.audit).toHaveBeenCalledTimes(1);
   });
 
+  it('keeps a completed cohort move admitted when account activation fails', async () => {
+    mocks.markAdmitted.mockRejectedValue(new Error('auth service unavailable'));
+    const body = await (await post({ submissionIds: ['other'], moveFromOtherCohorts: true })).json();
+    expect(mocks.markAdmitted).toHaveBeenCalledTimes(2);
+    expect(mocks.sendEmails).toHaveBeenCalledWith(expect.anything(), { cohortId: COHORT, appUrl: 'https://academy.test', accounts: [] });
+    expect(body.results).toEqual([{
+      submissionId: 'other', email: 'other@example.com', status: 'admitted',
+      message: 'Admitted to the cohort, but account access could not be activated: auth service unavailable',
+    }]);
+    expect(mocks.audit).toHaveBeenCalledTimes(1);
+  });
+
   it('uses the pipeline result, not error wording, to tell admitted from failed', async () => {
     mocks.admitStudents.mockResolvedValue({ inserted: 1, updated: 0, provisioned: 1, setupEmailsSent: 0, admittedEmails: ['nocohort@example.com'], errors: [
       { email: 'New@example.com', error: 'Could not create student account.' },

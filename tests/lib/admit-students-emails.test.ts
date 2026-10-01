@@ -9,11 +9,13 @@ const mocks = vi.hoisted(() => ({
   generateLink: vi.fn(),
   getUserById: vi.fn(),
   createUser: vi.fn(),
+  createAdmissionRecord: vi.fn(),
   students: new Map<string, any>(),
+  studentUpdates: [] as Record<string, unknown>[],
 }));
 
 vi.mock('resend', () => ({ Resend: class { batch = { send: mocks.send }; } }));
-vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord: async () => 'enrollment-1', activateEnrollment: async () => undefined }));
+vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord: mocks.createAdmissionRecord, activateEnrollment: async () => undefined }));
 vi.mock('@/lib/get-tenant-settings', () => ({
   getTenantSettings: async () => ({ appUrl: 'https://academy.test', appName: 'Academy', senderName: 'Academy', supportEmail: 'help@academy.test', logoUrl: '', emailBannerUrl: '', teamName: 'Team' }),
 }));
@@ -27,7 +29,11 @@ function fakeDb() {
     from(table: string) {
       const state: { email?: string } = {};
       const builder: any = {};
-      for (const method of ['select', 'update', 'upsert', 'delete', 'in', 'order']) builder[method] = () => builder;
+      for (const method of ['select', 'upsert', 'delete', 'in', 'order']) builder[method] = () => builder;
+      builder.update = (value: Record<string, unknown>) => {
+        if (table === 'students') mocks.studentUpdates.push(value);
+        return builder;
+      };
       builder.eq = (column: string, value: unknown) => { if (column === 'email') state.email = String(value); return builder; };
       builder.maybeSingle = async () => {
         if (table === 'cohort_payment_settings') return { data: { total_fee: 3000, currency: 'GHS' }, error: null };
@@ -47,7 +53,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   process.env.RESEND_API_KEY = 'test-key';
   mocks.students.clear();
+  mocks.studentUpdates = [];
   mocks.createUser.mockResolvedValue({ data: { user: { id: 'new-user' } }, error: null });
+  mocks.createAdmissionRecord.mockResolvedValue('enrollment-1');
   mocks.generateLink.mockResolvedValue({ data: { properties: { hashed_token: 'token-hash' } }, error: null });
   mocks.send.mockResolvedValue({ data: {}, error: null });
 });
@@ -91,11 +99,22 @@ describe('admitStudents emails', () => {
     expect(mocks.send).not.toHaveBeenCalled();
   });
 
+  it('reports a resolved Resend error and does not stamp the setup email as sent', async () => {
+    mocks.send.mockResolvedValue({ data: null, error: { message: 'batch rejected' } });
+    const db = fakeDb();
+    const result = await admitStudents(db, 'cohort-1', [{ email: 'new@example.com', full_name: 'Ama' }]) as any;
+    expect(result.admittedEmails).toEqual(['new@example.com']);
+    expect(result.setupEmailsSent).toBe(0);
+    expect(result.errors).toEqual([{ email: 'new@example.com', error: 'batch rejected' }]);
+    expect(mocks.studentUpdates.some(update => 'setup_email_sent_at' in update)).toBe(false);
+  });
+
   it('refuses admin and instructor accounts', async () => {
     mocks.students.set('boss@example.com', { id: 'boss', role: 'admin', full_name: 'Boss', account_provisioned_at: '2025-01-01', password_set_at: '2025-02-01' });
     const result = await admitStudents(fakeDb(), 'cohort-1', [{ email: 'boss@example.com' }]) as any;
     expect(result.admittedEmails).toEqual([]);
     expect(result.errors).toEqual([{ email: 'boss@example.com', error: 'This email already belongs to an admin or instructor account.' }]);
+    expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
     expect(mocks.send).not.toHaveBeenCalled();
   });
 

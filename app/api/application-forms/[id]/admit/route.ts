@@ -136,20 +136,38 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
 async function assignExistingAccounts(cohortId: string, applicants: ClassifiedApplicant[]) {
   const db = adminClient();
   const admitted: CohortAccessAccount[] = [];
+  const admittedEmails: string[] = [];
   const errors: { email: string; error: string }[] = [];
   for (const applicant of applicants) {
     const email = applicant.submission.email.toLowerCase();
     const account = applicant.account!;
     try {
       await assignStudentToCohort(db, { studentId: account.studentId, email, cohortId });
-      await db.from('cohort_allowed_emails').delete().eq('email', email);
-      await markExistingAccountAdmitted(db, account.studentId);
-      admitted.push({ email, name: applicant.name || 'there', studentId: account.studentId, isNewAccount: false, passwordSetAt: account.passwordSetAt });
+      admittedEmails.push(email);
     } catch (error: any) {
       errors.push({ email, error: error?.message || 'This applicant could not be admitted.' });
+      continue;
+    }
+
+    const { error: cleanupError } = await db.from('cohort_allowed_emails').delete().eq('email', email);
+    if (cleanupError) {
+      errors.push({ email, error: `Admitted to the cohort, but the old allowlist entry could not be removed: ${cleanupError.message}` });
+    }
+
+    try {
+      // This transition is idempotent. Retry once so a transient auth-service failure does not
+      // strand an otherwise successful cohort assignment without account access.
+      try {
+        await markExistingAccountAdmitted(db, account.studentId);
+      } catch {
+        await markExistingAccountAdmitted(db, account.studentId);
+      }
+      admitted.push({ email, name: applicant.name || 'there', studentId: account.studentId, isNewAccount: false, passwordSetAt: account.passwordSetAt });
+    } catch (error: any) {
+      errors.push({ email, error: `Admitted to the cohort, but account access could not be activated: ${error?.message || 'unknown error'}` });
     }
   }
-  return { admitted, errors };
+  return { admitted, admittedEmails, errors };
 }
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -237,7 +255,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const assigned = await assignExistingAccounts(cohortId, toAssign);
     const emailed = await sendCohortAccessEmails(adminClient(), { cohortId, appUrl, accounts: assigned.admitted });
 
-    const admittedSet = new Set([...created.admittedEmails, ...assigned.admitted.map(item => item.email)].map(email => email.toLowerCase()));
+    const admittedSet = new Set([...created.admittedEmails, ...assigned.admittedEmails].map(email => email.toLowerCase()));
     const problems = new Map([...created.errors, ...assigned.errors, ...emailed.errors].map(item => [item.email.toLowerCase(), item.error]));
     const results = classified.map(item => {
       const email = item.submission.email;

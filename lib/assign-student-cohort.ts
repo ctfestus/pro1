@@ -23,13 +23,14 @@ export async function assignStudentToCohort(
   const email = input.email.toLowerCase();
 
   // Check if the student already has an active (post-signup) enrollment anywhere
-  const { data: anyEnrollment } = await db
+  const { data: anyEnrollment, error: enrollmentLookupError } = await db
     .from('bootcamp_enrollments')
     .select('id, cohort_id, released_at')
     .eq('student_id', studentId)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
+  if (enrollmentLookupError) throw enrollmentLookupError;
 
   if (anyEnrollment) {
     // Student already enrolled -- just move the enrollment to the new cohort.
@@ -58,13 +59,14 @@ export async function assignStudentToCohort(
     // No existing enrollment -- create one fresh.
 
     // Case 1: pre-signup row exists for this cohort -- activate it
-    const { data: presignup } = await db
+    const { data: presignup, error: presignupLookupError } = await db
       .from('bootcamp_enrollments')
       .select('id')
       .eq('email', email)
       .eq('cohort_id', cohortId)
       .is('student_id', null)
       .maybeSingle();
+    if (presignupLookupError) throw presignupLookupError;
 
     if (presignup) {
       await activateEnrollment(db, email, cohortId, studentId);

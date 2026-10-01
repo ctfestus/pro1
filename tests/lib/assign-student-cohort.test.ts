@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   calls: [] as Array<[string, string, unknown[]]>,
   rows: {} as Record<string, any>,
+  errors: {} as Record<string, any>,
 }));
 
 vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord: mocks.createAdmissionRecord, activateEnrollment: mocks.activateEnrollment }));
@@ -29,7 +30,10 @@ function fakeDb() {
           return builder;
         };
       }
-      builder.maybeSingle = async () => ({ data: (isPresignupQuery ? mocks.rows.presignup : mocks.rows[table]) ?? null, error: null });
+      builder.maybeSingle = async () => {
+        const key = isPresignupQuery ? 'presignup' : table;
+        return { data: mocks.rows[key] ?? null, error: mocks.errors[key] ?? null };
+      };
       builder.then = (resolve: (value: unknown) => void) => resolve({ data: null, error: null });
       return builder;
     },
@@ -42,6 +46,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.calls = [];
   mocks.rows = {};
+  mocks.errors = {};
   mocks.rpc.mockResolvedValue({ error: null });
 });
 
@@ -74,6 +79,24 @@ describe('assignStudentToCohort', () => {
   it('refuses a cohort without a fee and leaves the cohort pointer alone', async () => {
     await expect(assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'a@example.com', cohortId: 'new-cohort' }))
       .rejects.toThrow('Set payment settings for this cohort before assigning students.');
+    expect(updates('students')).toEqual([]);
+  });
+
+  it('stops when the existing-enrollment lookup fails instead of creating a duplicate', async () => {
+    mocks.errors.bootcamp_enrollments = { message: 'enrollment lookup failed' };
+    await expect(assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'a@example.com', cohortId: 'new-cohort' }))
+      .rejects.toMatchObject({ message: 'enrollment lookup failed' });
+    expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
+    expect(mocks.activateEnrollment).not.toHaveBeenCalled();
+    expect(updates('students')).toEqual([]);
+  });
+
+  it('stops when the pre-signup lookup fails instead of creating a duplicate', async () => {
+    mocks.errors.presignup = { message: 'pre-signup lookup failed' };
+    await expect(assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'a@example.com', cohortId: 'new-cohort' }))
+      .rejects.toMatchObject({ message: 'pre-signup lookup failed' });
+    expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
+    expect(mocks.activateEnrollment).not.toHaveBeenCalled();
     expect(updates('students')).toEqual([]);
   });
 });

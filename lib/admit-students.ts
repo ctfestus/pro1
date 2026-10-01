@@ -140,6 +140,18 @@ async function provisionStudentAccount(
   };
 }
 
+async function assertAdmissibleAccountRole(db: SupabaseClient, email: string): Promise<void> {
+  const { data: existingStudent, error } = await db
+    .from('students')
+    .select('role')
+    .eq('email', email)
+    .maybeSingle();
+  if (error) throw error;
+  if (existingStudent && existingStudent.role !== 'student' && existingStudent.role !== 'staff') {
+    throw new Error('This email already belongs to an admin or instructor account.');
+  }
+}
+
 /** Base URL for links in admission emails; empty when neither APP_URL nor the tenant sets one. */
 export async function admissionAppUrl(): Promise<string> {
   const t = await getTenantSettings();
@@ -208,7 +220,7 @@ export async function sendCohortAccessEmails(
     const FROM       = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
     const branding   = { appName: t.appName, appUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
 
-    await resend.batch.send(
+    const { error: sendError } = await resend.batch.send(
       ready.map(({ account, setupUrl }) => setupUrl
         ? {
             from: FROM,
@@ -233,6 +245,7 @@ export async function sendCohortAccessEmails(
             }),
           })
     );
+    if (sendError) throw new Error(sendError.message || 'The email provider rejected the request.');
     const setupSent = ready.filter(item => item.setupUrl).map(item => item.account.email);
     if (setupSent.length) {
       await db
@@ -288,6 +301,10 @@ export async function admitStudents(
       if (!cohort?.start_date) {
         throw new Error('Cohort start date is required before student accounts can be created.');
       }
+
+      // Reject privileged accounts before creating or updating an enrollment record. The
+      // provisioning check remains as a second guard against a role changing mid-request.
+      await assertAdmissibleAccountRole(db, email);
 
       const deposit_percent  = Number(settings?.deposit_percent ?? 50);
       const deposit_required = Math.round(total_fee * deposit_percent) / 100;
