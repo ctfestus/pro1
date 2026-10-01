@@ -29,6 +29,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { SectionId } from '@/components/student/nav';
 import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
 import type { CataloguePathItem } from '@/lib/catalogue-path-items';
+import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 
 type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification';
 
@@ -99,29 +100,12 @@ type HoverState = {
   left: number; top: number; originX: number; originY: number;
 };
 
-const CATEGORY_COLORS = [
-  '#bfdbfe',
-  '#bbf7d0',
-  '#fed7aa',
-  '#bae6fd',
-  '#fde68a',
-  '#fbcfe8',
-  '#ddd6fe',
-  '#cbd5e1',
-];
-
-function categoryColor(category: string) {
-  let hash = 0;
-  for (let i = 0; i < category.length; i++) hash = (hash * 31 + category.charCodeAt(i)) >>> 0;
-  return CATEGORY_COLORS[hash % CATEGORY_COLORS.length];
-}
-
 function CategoryPill({ category }: { category: string }) {
-  const color = categoryColor(category.toLowerCase());
+  const color = categoryColor(category);
   return (
     <span
       className="inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[11px] font-bold leading-none"
-      style={{ background: color, color: '#101828' }}
+      style={{ background: color, color: CATEGORY_TEXT }}
     >
       <span className="truncate">{category}</span>
     </span>
