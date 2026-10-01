@@ -365,18 +365,18 @@ function cataloguePathToPathRow(item: any) {
 }
 
 /**
- * The yellow ribbon both public overviews carry. Every course and every learning path issues a
- * certificate on completion, so it is unconditional -- but it is one definition rather than two,
- * because a tag that says different things on the course page and the path page is worse than no
- * tag at all.
+ * The yellow ribbon both public overviews carry: in the learning path hero, and in the course's
+ * enrolment card. Every course and every path issues a certificate on completion, so it is
+ * unconditional, and it is one definition so the two pages draw the same ribbon.
  */
-function CertificateTag({ textColor }: { textColor: string }) {
+function CertificateTag({ textColor, label = 'Certificate available', compact = false }: { textColor: string; label?: string; compact?: boolean }) {
   // A ribbon reads as a ribbon only on one line. Wrapped, the notch cut out of its right edge
   // lands beside the second line and the shape stops making sense -- so it never wraps, and it
-  // gives back padding and type size on a narrow screen instead.
+  // gives back padding and type size on a narrow screen instead. Compact keeps the narrow-screen
+  // size at every width, for a narrow container such as the course enrolment card.
   return (
     <span
-      className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 pr-7 text-[12.5px] font-bold uppercase sm:gap-2 sm:px-4 sm:py-2 sm:pr-8 sm:text-sm"
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 pr-7 font-bold uppercase ${compact ? 'text-[12px]' : 'text-[12.5px] sm:gap-2 sm:px-4 sm:py-2 sm:pr-8 sm:text-sm'}`}
       style={{
         background: '#FFC000',
         borderRadius: 6,
@@ -385,8 +385,8 @@ function CertificateTag({ textColor }: { textColor: string }) {
         letterSpacing: 0,
       }}
     >
-      <BadgeCheck className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5" strokeWidth={2.2} />
-      Certificate available
+      <BadgeCheck className={`h-4 w-4 flex-shrink-0 ${compact ? '' : 'sm:h-5 sm:w-5'}`} strokeWidth={2.2} />
+      {label}
     </span>
   );
 }
@@ -1554,14 +1554,16 @@ export default function PublicFormPage() {
                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: `${indColor}30`, color: indColor, fontWeight: 700, border: `1px solid ${indColor}40` }}>{config.role}</span>
               </div>
             )}
-            {/* Title */}
-            <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em' }}>
-              {config.title || form.title}
-            </h1>
-            {/* Tagline */}
-            {config.tagline && (
-              <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, maxWidth: 620, margin: 0 }}>{config.tagline}</p>
-            )}
+            {/* Title and tagline in one column at a reading width, as on the course hero, so a
+                long title wraps short of the far edge. The title balances its lines. */}
+            <div style={{ maxWidth: 680 }}>
+              <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em', textWrap: 'balance' }}>
+                {config.title || form.title}
+              </h1>
+              {config.tagline && (
+                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' }}>{config.tagline}</p>
+              )}
+            </div>
             {/* Manager credit -- the reason to enrol, above the fold. Fixed light-on-dark
                 palette because the hero sits on the cover image, not the page surface. */}
             {guide && (
@@ -1854,19 +1856,20 @@ export default function PublicFormPage() {
                   </div>
                 );
               })()}
-              <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em' }}>
-                {config.title || form.title}
-              </h1>
-              {config.tagline && (
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, maxWidth: 620, margin: 0, overflowWrap: 'anywhere' }}>{config.tagline}</p>
-              )}
-              {config.description && (
-                <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', maxWidth: 620, overflowWrap: 'anywhere' }}
-                  dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
-              )}
-              {/* Always dark text: the ribbon keeps its own yellow whatever is behind it. */}
-              <div style={{ marginTop: 20 }}>
-                <CertificateTag textColor="#111827" />
+              {/* One text column at a reading width, so a long title or description wraps well
+                  short of the far edge instead of running across the whole hero. The title
+                  balances its lines, so a two-line title does not leave one word on the second. */}
+              <div style={{ maxWidth: 680 }}>
+                <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em', textWrap: 'balance' }}>
+                  {config.title || form.title}
+                </h1>
+                {config.tagline && (
+                  <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, overflowWrap: 'anywhere', textWrap: 'pretty' }}>{config.tagline}</p>
+                )}
+                {config.description && (
+                  <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', overflowWrap: 'anywhere', textWrap: 'pretty' }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
+                )}
               </div>
             </div>
           </div>
@@ -2001,6 +2004,11 @@ export default function PublicFormPage() {
                       ))}
                     </div>
                   )}
+                  {/* The certificate sits with what the course gives you, beside the button that
+                      starts it, rather than in the hero. Always dark text on the yellow. */}
+                  <div>
+                    <CertificateTag textColor="#111827" label="Earn a verifiable certificate" compact />
+                  </div>
                   {/* CTA */}
                   {form.locked ? (
                     <>
