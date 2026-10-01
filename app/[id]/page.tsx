@@ -365,10 +365,9 @@ function cataloguePathToPathRow(item: any) {
 }
 
 /**
- * The yellow ribbon both public overviews carry. Every course and every learning path issues a
- * certificate on completion, so it is unconditional -- but it is one definition rather than two,
- * because a tag that says different things on the course page and the path page is worse than no
- * tag at all.
+ * The yellow ribbon on the learning path overview. Every path issues a certificate on completion,
+ * so it is unconditional. The course page says the same thing in its enrolment card instead, as a
+ * strip in this yellow with this badge: the card is too narrow for the ribbon, which never wraps.
  */
 function CertificateTag({ textColor }: { textColor: string }) {
   // A ribbon reads as a ribbon only on one line. Wrapped, the notch cut out of its right edge
@@ -1864,10 +1863,6 @@ export default function PublicFormPage() {
                 <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', maxWidth: 620, overflowWrap: 'anywhere' }}
                   dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
               )}
-              {/* Always dark text: the ribbon keeps its own yellow whatever is behind it. */}
-              <div style={{ marginTop: 20 }}>
-                <CertificateTag textColor="#111827" />
-              </div>
             </div>
           </div>
         )}
@@ -2001,6 +1996,14 @@ export default function PublicFormPage() {
                       ))}
                     </div>
                   )}
+                  {/* The certificate sits with what the course gives you, beside the button that
+                      starts it, rather than in the hero. Same yellow and badge as the ribbon, but a
+                      full-width strip: the ribbon never wraps, and this wording is too long for it
+                      in a card this narrow. Always dark text on the yellow. */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#FFC000', color: '#111827', fontSize: 13.5, fontWeight: 700, lineHeight: 1.3 }}>
+                    <BadgeCheck style={{ width: 18, height: 18, flexShrink: 0 }} strokeWidth={2.2} />
+                    Earn a verifiable certificate
+                  </div>
                   {/* CTA */}
                   {form.locked ? (
                     <>
