@@ -1854,16 +1854,21 @@ export default function PublicFormPage() {
                   </div>
                 );
               })()}
-              <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em' }}>
-                {config.title || form.title}
-              </h1>
-              {config.tagline && (
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, overflowWrap: 'anywhere' }}>{config.tagline}</p>
-              )}
-              {config.description && (
-                <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', overflowWrap: 'anywhere' }}
-                  dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
-              )}
+              {/* One text column at a reading width, so a long title or description wraps well
+                  short of the far edge instead of running across the whole hero. The title
+                  balances its lines, so a two-line title does not leave one word on the second. */}
+              <div style={{ maxWidth: 680 }}>
+                <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em', textWrap: 'balance' }}>
+                  {config.title || form.title}
+                </h1>
+                {config.tagline && (
+                  <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, overflowWrap: 'anywhere', textWrap: 'pretty' }}>{config.tagline}</p>
+                )}
+                {config.description && (
+                  <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', overflowWrap: 'anywhere', textWrap: 'pretty' }}
+                    dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
+                )}
+              </div>
             </div>
           </div>
         )}
