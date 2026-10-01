@@ -1554,14 +1554,16 @@ export default function PublicFormPage() {
                 <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: `${indColor}30`, color: indColor, fontWeight: 700, border: `1px solid ${indColor}40` }}>{config.role}</span>
               </div>
             )}
-            {/* Title */}
-            <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em' }}>
-              {config.title || form.title}
-            </h1>
-            {/* Tagline */}
-            {config.tagline && (
-              <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, maxWidth: 620, margin: 0 }}>{config.tagline}</p>
-            )}
+            {/* Title and tagline in one column at a reading width, as on the course hero, so a
+                long title wraps short of the far edge. The title balances its lines. */}
+            <div style={{ maxWidth: 680 }}>
+              <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em', textWrap: 'balance' }}>
+                {config.title || form.title}
+              </h1>
+              {config.tagline && (
+                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' }}>{config.tagline}</p>
+              )}
+            </div>
             {/* Manager credit -- the reason to enrol, above the fold. Fixed light-on-dark
                 palette because the hero sits on the cover image, not the page surface. */}
             {guide && (
