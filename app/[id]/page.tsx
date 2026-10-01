@@ -248,6 +248,7 @@ function lockedCoursePreviewToForm(item: any) {
       description: item.description,
       category: item.category,
       coverImage: item.coverImage,
+      learnOutcomes: Array.isArray(item.learnOutcomes) ? item.learnOutcomes : [],
       isCourse: true,
       // Appearance travels with the preview. Without it a locked sales page rendered in this
       // page's own fallbacks -- dark mode, platform green, the default font -- instead of the

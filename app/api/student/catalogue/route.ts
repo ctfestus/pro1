@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
         // can say nothing about the exercises the outline withholds.
         const { data: course } = await db
           .from('courses')
-          .select('questions, mode, theme, font, custom_accent, points_enabled, points_base, points_system')
+          .select('questions, mode, theme, font, custom_accent, points_enabled, points_base, points_system, learn_outcomes')
           .eq('id', item.id)
           .maybeSingle();
         const outline = ((course?.questions ?? []) as any[]).flatMap(question => {
@@ -226,6 +226,8 @@ export async function GET(req: NextRequest) {
           theme: course?.theme ?? null,
           font: course?.font ?? null,
           customAccent: course?.custom_accent ?? null,
+          // "What you'll learn" is sales copy the author wrote for this page, not course material.
+          learnOutcomes: Array.isArray(course?.learn_outcomes) ? course.learn_outcomes : [],
           lessonCount: contentCounts.lessons,
           exerciseCount: contentCounts.exercises,
           xpOnOffer: courseXpOnOffer(course?.questions ?? [], pointsSystemFromCourseRow(course)),

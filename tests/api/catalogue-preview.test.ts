@@ -191,6 +191,7 @@ describe('public catalogue preview', () => {
       mode: 'light', theme: 'ocean', font: 'inter', custom_accent: '#123456',
       points_enabled: true, points_base: 40,
       points_system: { enabled: true, basePoints: 40, hintPenalty: 99 },
+      learn_outcomes: ['Write a LEFT JOIN'],
       questions: [
         { id: 's1', isSection: true, sectionTitle: 'Foundations' },
         { id: 'l1', lessonOnly: true, lesson: { title: 'Joins explained' } },
@@ -215,6 +216,7 @@ describe('public catalogue preview', () => {
     expect(item.lessonCount).toBe(1);
     expect(item.exerciseCount).toBe(2);
     expect(item.xpOnOffer).toBe(80);
+    expect(item.learnOutcomes).toEqual(['Write a LEFT JOIN']);
     expect(JSON.stringify(item)).not.toContain('hintPenalty');
     expect(JSON.stringify(item)).not.toContain('points_system');
   });
