@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 import { createAdmissionRecord, activateEnrollment } from '@/lib/db-payments';
-import { studentAccountCreatedEmail } from '@/lib/email-templates';
+import { studentAccountCreatedEmail, studentAddedToCohortEmail } from '@/lib/email-templates';
 import { addToResendAudience } from '@/lib/resend-audience';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { markAdmissionsProvisioned, markExistingAccountAdmitted } from '@/lib/account-state-server';
@@ -34,6 +34,8 @@ export interface AdmitResult {
   updated: number;
   provisioned: number;
   setupEmailsSent: number;
+  /** Emails whose admission (account + enrollment) succeeded, even if their email then failed. */
+  admittedEmails: string[];
   errors: { email: string; error: string }[];
 }
 
@@ -54,7 +56,7 @@ async function provisionStudentAccount(
 
   const { data: existingStudent, error: existingStudentError } = await db
     .from('students')
-    .select('id, role, full_name, account_provisioned_at')
+    .select('id, role, full_name, account_provisioned_at, password_set_at')
     .eq('email', email)
     .maybeSingle();
   if (existingStudentError) throw existingStudentError;
@@ -129,6 +131,16 @@ async function provisionStudentAccount(
     throw err;
   }
 
+  // Only an account that cannot sign in yet needs a set-password link. password_set_at was
+  // not backfilled for older accounts, so an account that has ever signed in also counts as
+  // able to sign in. Those students get an added-to-cohort email instead of a reset link.
+  let owesPassword = Boolean(createdUserId);
+  if (!owesPassword && !existingStudent?.password_set_at) {
+    const { data: authUser } = await db.auth.admin.getUserById(studentId);
+    owesPassword = !authUser?.user?.last_sign_in_at;
+  }
+  if (!owesPassword) return { studentId, setupUrl: null, isNewAccount: false };
+
   const { data: link, error: linkError } = await db.auth.admin.generateLink({
     type: 'recovery',
     email,
@@ -165,7 +177,8 @@ export async function admitStudents(
   let inserted = 0;
   let updated = 0;
   const errors: { email: string; error: string }[] = [];
-  const accountEmails: { email: string; name: string; setupUrl: string; isNewAccount: boolean }[] = [];
+  // setupUrl is null for accounts that can already sign in: they get the added-to-cohort email.
+  const accountEmails: { email: string; name: string; setupUrl: string | null; isNewAccount: boolean }[] = [];
   const t = await getTenantSettings();
   const appUrl = (process.env.APP_URL || t.appUrl || '').replace(/\/$/, '');
   if (!appUrl) {
@@ -285,22 +298,37 @@ export async function admitStudents(
         const branding   = { appName: t.appName, appUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
 
         await resend.batch.send(
-          accountEmails.map(account => ({
-            from: FROM,
-            to: account.email,
-            subject: `Your ${t.appName || cohortName} account is ready`,
-            html: studentAccountCreatedEmail({
-              name: account.name,
-              cohortName,
-              setupUrl: account.setupUrl,
-              branding,
-            }),
-          }))
+          accountEmails.map(account => account.setupUrl
+            ? {
+                from: FROM,
+                to: account.email,
+                subject: `Your ${t.appName || cohortName} account is ready`,
+                html: studentAccountCreatedEmail({
+                  name: account.name,
+                  cohortName,
+                  setupUrl: account.setupUrl,
+                  branding,
+                }),
+              }
+            : {
+                from: FROM,
+                to: account.email,
+                subject: `You have been added to ${cohortName}`,
+                html: studentAddedToCohortEmail({
+                  name: account.name,
+                  cohortName,
+                  signInUrl: `${appUrl}/student`,
+                  branding,
+                }),
+              })
         );
-        await db
-          .from('students')
-          .update({ setup_email_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .in('email', accountEmails.map(account => account.email));
+        const setupSent = accountEmails.filter(account => account.setupUrl).map(account => account.email);
+        if (setupSent.length) {
+          await db
+            .from('students')
+            .update({ setup_email_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+            .in('email', setupSent);
+        }
         setupEmailsSent = accountEmails.length;
       } catch (err: any) {
         for (const account of accountEmails) {
@@ -322,5 +350,5 @@ export async function admitStudents(
       })),
   );
 
-  return { inserted, updated, provisioned: accountEmails.length, setupEmailsSent, errors };
+  return { inserted, updated, provisioned: accountEmails.length, setupEmailsSent, admittedEmails: accountEmails.map(account => account.email), errors };
 }

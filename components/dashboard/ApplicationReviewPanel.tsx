@@ -36,6 +36,73 @@ const MESSAGE_PRESETS = {
 type MessagePresetType = keyof typeof MESSAGE_PRESETS;
 type ApplicationMessageType = MessagePresetType | 'custom';
 type ReviewTab = 'answers' | 'review' | 'notes' | 'emails';
+type AdmitGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'staff';
+type AdmitPlanApplicant = { submissionId: string; email: string; name: string | null; group: AdmitGroup; currentCohortName?: string };
+
+/** Up to five people, then "and N more". */
+function admitList(people: AdmitPlanApplicant[], withCohort = false): string {
+  const shown = people.slice(0, 5).map(person => `${person.name || person.email}${withCohort && person.currentCohortName ? ` (${person.currentCohortName})` : ''}`);
+  return `${shown.join(', ')}${people.length > shown.length ? ` and ${people.length - shown.length} more` : ''}`;
+}
+
+/** Confirmation before admitting: who gets what, and the one choice for students in other cohorts. */
+function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }: {
+  cohortName: string;
+  plan: { applicants: AdmitPlanApplicant[]; notAccepted: number; move: boolean };
+  busy: boolean;
+  C: ThemeColors;
+  onMove: (move: boolean) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const inGroup = (group: AdmitGroup) => plan.applicants.filter(person => person.group === group);
+  const others = inGroup('other_cohort');
+  const toAdmit = inGroup('new').length + inGroup('no_cohort').length + (plan.move ? others.length : 0);
+  const rows: { group: AdmitGroup; title: string; note: string }[] = [
+    { group: 'new', title: 'New accounts', note: 'They get a student account and an email to set their password.' },
+    { group: 'no_cohort', title: 'Existing accounts', note: 'Added to the cohort. They get an email saying so, with no password reset.' },
+    { group: 'this_cohort', title: 'Already in this cohort', note: 'Nothing changes and no email is sent.' },
+    { group: 'staff', title: 'Cannot be admitted', note: 'These emails belong to staff or admin accounts.' },
+  ];
+  const box = { background: C.input, borderRadius: 10 };
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
+      <section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl shadow-2xl" style={{ background: C.card }} role="dialog" aria-modal="true" aria-labelledby="admit-title">
+        <div className="flex items-start justify-between gap-4 p-5">
+          <div><h3 id="admit-title" className="text-base font-bold" style={{ color: C.text }}>Admit to {cohortName}</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>Check who is affected before admitting. The cohort fees apply.</p></div>
+          <button type="button" disabled={busy} onClick={onCancel} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg disabled:opacity-40" style={{ background: C.input, color: C.muted }} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-2.5 px-5 pb-5">
+          {rows.filter(row => inGroup(row.group).length).map(row => (
+            <div key={row.group} className="p-3.5" style={box}>
+              <p className="text-xs font-bold" style={{ color: row.group === 'staff' ? C.errorText : C.text }}>{row.title} ({inGroup(row.group).length})</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>{row.note}</p>
+              <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>{admitList(inGroup(row.group))}</p>
+            </div>
+          ))}
+          {others.length > 0 && (
+            <div className="p-3.5" style={{ ...box, boxShadow: `inset 0 0 0 1px ${C.errorText}` }}>
+              <p className="text-xs font-bold" style={{ color: C.errorText }}>In another cohort ({others.length})</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Moving them changes their cohort to {cohortName}, so they lose access to their current cohort&apos;s content. They get an email saying they were added, with no password reset.</p>
+              <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>{admitList(others, true)}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Students in another cohort">
+                {[[false, 'Skip them', 'Leave them in their current cohort.'], [true, `Move them to ${cohortName}`, 'Admit them into this cohort.']].map(([value, label, hint]) => {
+                  const selected = plan.move === value;
+                  return <button key={String(value)} type="button" role="radio" aria-checked={selected} disabled={busy} onClick={() => onMove(value as boolean)} className="rounded-lg p-3 text-left disabled:opacity-50" style={{ background: selected ? C.pill : C.card, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }}><span className="block text-xs font-semibold" style={{ color: selected ? C.cta : C.text }}>{label as string}</span><span className="mt-0.5 block text-[11px]" style={{ color: C.muted }}>{hint as string}</span></button>;
+                })}
+              </div>
+            </div>
+          )}
+          {plan.notAccepted > 0 && <p className="p-3 text-[11px]" style={{ ...box, color: C.muted }}>{plan.notAccepted} of the selected applicants {plan.notAccepted === 1 ? 'is' : 'are'} not in an accepted stage.</p>}
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+            <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button>
+            <button type="button" disabled={busy || toAdmit === 0} onClick={onConfirm} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}{toAdmit === 0 ? 'Nobody to admit' : `Admit ${toAdmit}`}</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 const REVIEW_TABS = [
   { id: 'answers' as const, label: 'Answers', icon: ClipboardList },
@@ -82,6 +149,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [bulkResult, setBulkResult] = useState('');
   // Admission into the form's cohort: who is already in it, and whether this person may admit.
   const [admission, setAdmission] = useState<{ cohort: { id: string; name: string; ready: boolean; problem?: string } | null; admitted: Set<string>; canAdmit: boolean }>({ cohort: null, admitted: new Set(), canAdmit: false });
+  // The checked admission awaiting confirmation; `move` is the one choice for students in other cohorts.
+  const [admitPlan, setAdmitPlan] = useState<{ applicants: AdmitPlanApplicant[]; notAccepted: number; move: boolean } | null>(null);
   const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReviewTab>('answers');
   const selected = submissions.find(item => item.id === selectedId);
@@ -114,40 +183,61 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     }
   }
 
+  // Step 1: ask the server how each applicant would be handled, then show it for confirmation.
   async function admit(ids: string[]) {
-    const cohort = admission.cohort;
     const targets = submissions.filter(item => ids.includes(item.id) && item.state === 'submitted');
-    if (!cohort || !targets.length) return;
-    const notAccepted = targets.filter(item => !isAcceptedStage(form.config.stages.find(stage => stage.id === item.stageId))).length;
-    const already = targets.filter(item => admission.admitted.has(item.id)).length;
-    const lines = [
-      `Admit ${targets.length} applicant${targets.length === 1 ? '' : 's'} to ${cohort.name}?`,
-      '',
-      'Each gets a student account in this cohort, or keeps their existing account, and an email to set their password. The cohort fees apply.',
-    ];
-    if (notAccepted) lines.push('', `${notAccepted} of them ${notAccepted === 1 ? 'is' : 'are'} not in an accepted stage.`);
-    if (already) lines.push('', `${already} ${already === 1 ? 'is' : 'are'} already admitted and will be updated, not duplicated.`);
-    if (!window.confirm(lines.join('\n'))) return;
+    if (!admission.cohort || !targets.length) return;
     setBusy(true); setError(''); setBulkResult('');
     try {
       const response = await fetch(`/api/application-forms/${form.id}/admit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ submissionIds: targets.map(item => item.id) }),
+        body: JSON.stringify({ submissionIds: targets.map(item => item.id), check: true }),
+      });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error || 'Could not check these applicants.');
+      const notAccepted = targets.filter(item => !isAcceptedStage(form.config.stages.find(stage => stage.id === item.stageId))).length;
+      setAdmitPlan({ applicants: value.applicants ?? [], notAccepted, move: false });
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Step 2: admit, moving students out of other cohorts only when that was chosen.
+  async function confirmAdmit() {
+    const plan = admitPlan;
+    const cohort = admission.cohort;
+    if (!plan || !cohort) return;
+    setBusy(true); setError(''); setBulkResult('');
+    try {
+      const response = await fetch(`/api/application-forms/${form.id}/admit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ submissionIds: plan.applicants.map(item => item.submissionId), moveFromOtherCohorts: plan.move }),
       });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'Could not admit these applicants.');
-      const results: { submissionId: string; email: string; status: 'admitted' | 'failed'; message?: string }[] = value.results ?? [];
+      const results: { submissionId: string; email: string; status: 'admitted' | 'skipped' | 'failed'; message?: string }[] = value.results ?? [];
       const admittedIds = results.filter(item => item.status === 'admitted').map(item => item.submissionId);
+      const skipped = results.filter(item => item.status === 'skipped').length;
       const failed = results.filter(item => item.status === 'failed');
       const warned = results.filter(item => item.status === 'admitted' && item.message);
       setAdmission(previous => ({ ...previous, admitted: new Set([...previous.admitted, ...admittedIds]) }));
-      if (admittedIds.length) setBulkResult(`${admittedIds.length} admitted to ${cohort.name}.${failed.length ? ` ${failed.length} could not be admitted and remain selected.` : ''}`);
-      if (failed.length || warned.length) {
-        const issue = failed[0] ?? warned[0];
-        setError(`${issue.email}: ${issue.message}`);
+      setBulkResult([
+        `${admittedIds.length} admitted to ${cohort.name}.`,
+        skipped ? `${skipped} skipped.` : '',
+        failed.length ? `${failed.length} could not be admitted and remain selected.` : '',
+      ].filter(Boolean).join(' '));
+      // Every reason, not just the first, so each remaining applicant can be fixed.
+      const issues = [...failed, ...warned];
+      if (issues.length) {
+        const shown = issues.slice(0, 6).map(item => `${item.email}: ${item.message}`);
+        setError(`${shown.join(' | ')}${issues.length > shown.length ? ` | and ${issues.length - shown.length} more` : ''}`);
       }
       setSelectedIds(new Set(failed.map(item => item.submissionId)));
+      setAdmitPlan(null);
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -459,6 +549,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
           )}
         </main>
       </div>
+
+      {admitPlan && admission.cohort && <AdmitDialog cohortName={admission.cohort.name} plan={admitPlan} busy={busy} C={C} onMove={move => setAdmitPlan(previous => previous && { ...previous, move })} onCancel={() => setAdmitPlan(null)} onConfirm={() => void confirmAdmit()} />}
 
       {bulkPanelOpen && selectedIds.size > 0 && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setBulkPanelOpen(false); }}>

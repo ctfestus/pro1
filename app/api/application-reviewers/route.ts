@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
     auth.serviceDb.from('courses').select('id, title, slug, user_id, status, description, cover_image, category').eq('status', 'published').limit(500),
     auth.serviceDb.from('events').select('id, title, slug, user_id, status, description, cover_image, event_date, event_type, location').eq('status', 'published').limit(500),
     // Bootcamp cohorts an application form can admit into (not plan or legacy cohorts).
-    auth.serviceDb.from('cohorts').select('id, name, start_date').eq('cohort_kind', 'bootcamp').neq('status', 'archived').order('start_date', { ascending: false }).limit(500),
+    auth.serviceDb.from('cohorts').select('id, name, start_date').eq('cohort_kind', 'bootcamp').eq('status', 'active').order('start_date', { ascending: false }).limit(500),
     auth.serviceDb.from('cohort_payment_settings').select('cohort_id, total_fee, currency').limit(1000),
   ]);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

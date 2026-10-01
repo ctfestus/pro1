@@ -1312,6 +1312,31 @@ export function studentAccountCreatedEmail(data: {
   return shell(content, branding);
 }
 
+// -- Existing account added to a cohort ---
+// For students who can already sign in: no password link, just where to find the cohort.
+export function studentAddedToCohortEmail(data: {
+  name?: string | null;
+  cohortName: string;
+  signInUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, cohortName, signInUrl, branding } = data;
+  const appName = branding?.appName || 'the platform';
+
+  const content = `
+    <p><b>Hi ${esc(name || 'there')},</b></p>
+    <p>You have been added to <b>${esc(cohortName)}</b> on ${esc(appName)}.</p>
+    <p>Sign in with your existing account to see your cohort and its content. Your password has not changed.</p>
+
+    ${cta('Sign In', signInUrl)}
+
+    <p style="color:#888;font-size:13px;">If you were not expecting this, you can reply to this email and let us know.</p>
+    <br><p><b>Best regards,</b></p>
+  `;
+
+  return shell(content, branding);
+}
+
 // -- 16. Assignment Submission Confirmation ---
 export function submissionConfirmEmail(data: {
   name: string;
