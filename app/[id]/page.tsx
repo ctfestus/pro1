@@ -365,17 +365,18 @@ function cataloguePathToPathRow(item: any) {
 }
 
 /**
- * The yellow ribbon on the learning path overview. Every path issues a certificate on completion,
- * so it is unconditional. The course page says the same thing in its enrolment card instead, as a
- * strip in this yellow with this badge: the card is too narrow for the ribbon, which never wraps.
+ * The yellow ribbon both public overviews carry: in the learning path hero, and in the course's
+ * enrolment card. Every course and every path issues a certificate on completion, so it is
+ * unconditional, and it is one definition so the two pages draw the same ribbon.
  */
-function CertificateTag({ textColor }: { textColor: string }) {
+function CertificateTag({ textColor, label = 'Certificate available', compact = false }: { textColor: string; label?: string; compact?: boolean }) {
   // A ribbon reads as a ribbon only on one line. Wrapped, the notch cut out of its right edge
   // lands beside the second line and the shape stops making sense -- so it never wraps, and it
-  // gives back padding and type size on a narrow screen instead.
+  // gives back padding and type size on a narrow screen instead. Compact keeps the narrow-screen
+  // size at every width, for a narrow container such as the course enrolment card.
   return (
     <span
-      className="inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 pr-7 text-[12.5px] font-bold uppercase sm:gap-2 sm:px-4 sm:py-2 sm:pr-8 sm:text-sm"
+      className={`inline-flex items-center gap-1.5 whitespace-nowrap px-3 py-1.5 pr-7 font-bold uppercase ${compact ? 'text-[12px]' : 'text-[12.5px] sm:gap-2 sm:px-4 sm:py-2 sm:pr-8 sm:text-sm'}`}
       style={{
         background: '#FFC000',
         borderRadius: 6,
@@ -384,8 +385,8 @@ function CertificateTag({ textColor }: { textColor: string }) {
         letterSpacing: 0,
       }}
     >
-      <BadgeCheck className="h-4 w-4 flex-shrink-0 sm:h-5 sm:w-5" strokeWidth={2.2} />
-      Certificate available
+      <BadgeCheck className={`h-4 w-4 flex-shrink-0 ${compact ? '' : 'sm:h-5 sm:w-5'}`} strokeWidth={2.2} />
+      {label}
     </span>
   );
 }
@@ -1857,10 +1858,10 @@ export default function PublicFormPage() {
                 {config.title || form.title}
               </h1>
               {config.tagline && (
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, maxWidth: 620, margin: 0, overflowWrap: 'anywhere' }}>{config.tagline}</p>
+                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, overflowWrap: 'anywhere' }}>{config.tagline}</p>
               )}
               {config.description && (
-                <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', maxWidth: 620, overflowWrap: 'anywhere' }}
+                <div className="rich-preview" style={{ marginTop: 12, fontSize: 15, lineHeight: 1.6, color: 'rgba(255,255,255,0.82)', overflowWrap: 'anywhere' }}
                   dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.description) || '' }} />
               )}
             </div>
@@ -1997,12 +1998,9 @@ export default function PublicFormPage() {
                     </div>
                   )}
                   {/* The certificate sits with what the course gives you, beside the button that
-                      starts it, rather than in the hero. Same yellow and badge as the ribbon, but a
-                      full-width strip: the ribbon never wraps, and this wording is too long for it
-                      in a card this narrow. Always dark text on the yellow. */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 12px', borderRadius: 8, background: '#FFC000', color: '#111827', fontSize: 13.5, fontWeight: 700, lineHeight: 1.3 }}>
-                    <BadgeCheck style={{ width: 18, height: 18, flexShrink: 0 }} strokeWidth={2.2} />
-                    Earn a verifiable certificate
+                      starts it, rather than in the hero. Always dark text on the yellow. */}
+                  <div>
+                    <CertificateTag textColor="#111827" label="Earn a verifiable certificate" compact />
                   </div>
                   {/* CTA */}
                   {form.locked ? (
