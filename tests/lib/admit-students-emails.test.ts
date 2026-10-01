@@ -83,6 +83,22 @@ describe('admitStudents emails', () => {
     expect(mocks.getUserById).not.toHaveBeenCalled();
   });
 
+  it('keeps an account admitted when its set-password link cannot be generated', async () => {
+    mocks.generateLink.mockResolvedValue({ data: { properties: {} }, error: { message: 'rate limited' } });
+    const result = await admitStudents(fakeDb(), 'cohort-1', [{ email: 'new@example.com', full_name: 'Ama' }]) as any;
+    expect(result.admittedEmails).toEqual(['new@example.com']);
+    expect(result.errors).toEqual([{ email: 'new@example.com', error: 'Admitted, but the setup email could not be prepared: rate limited' }]);
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('refuses admin and instructor accounts', async () => {
+    mocks.students.set('boss@example.com', { id: 'boss', role: 'admin', full_name: 'Boss', account_provisioned_at: '2025-01-01', password_set_at: '2025-02-01' });
+    const result = await admitStudents(fakeDb(), 'cohort-1', [{ email: 'boss@example.com' }]) as any;
+    expect(result.admittedEmails).toEqual([]);
+    expect(result.errors).toEqual([{ email: 'boss@example.com', error: 'This email already belongs to an admin or instructor account.' }]);
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
   it('still sends the set-password email to an existing account that has never signed in', async () => {
     mocks.students.set('yaw@example.com', { id: 'yaw', role: 'student', full_name: 'Yaw', account_provisioned_at: '2025-01-01', password_set_at: null });
     mocks.getUserById.mockResolvedValue({ data: { user: { last_sign_in_at: null } }, error: null });

@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
-import { admitStudents } from '@/lib/admit-students';
+import { markExistingAccountAdmitted } from '@/lib/account-state-server';
+import { admissionAppUrl, admitStudents, sendCohortAccessEmails, type CohortAccessAccount } from '@/lib/admit-students';
+import { assignStudentToCohort } from '@/lib/assign-student-cohort';
 import { newApplicationId } from '@/lib/application-access';
 import { getApplicationForm } from '@/lib/application-form-store';
 import type { ApplicationFormRecord, ApplicationSubmissionRecord } from '@/lib/application-forms';
 import { appendApplicationAudit, listApplicationFormIdsForReviewer, listApplicationSubmissions } from '@/lib/application-submissions';
 
-// Admitting accepted applicants into the form's cohort. This goes through the same
+// Admitting accepted applicants into the form's cohort. New admissions go through the same
 // admitStudents pipeline as the admin admissions screen and the intake webhook (account,
-// cohort enrollment with the cohort's fees, setup or added-to-cohort email), so the paths
+// cohort enrollment with the cohort's fees, setup or added-to-cohort email); accounts that
+// already have an enrollment go through the Cohorts screen's assign flow, so the paths
 // cannot drift. A "check" call first sorts the applicants so nobody is moved between
 // cohorts, or given a student enrollment on a staff account, without the admitter seeing it.
 
@@ -33,6 +36,8 @@ type ClassifiedApplicant = {
   name: string | null;
   group: AdmissionGroup;
   currentCohortName?: string;
+  /** Set for existing student accounts. */
+  account?: { studentId: string; passwordSetAt: string | null; hasEnrollment: boolean };
 };
 
 async function cohortReadiness(cohortId: string): Promise<CohortReadiness | null> {
@@ -79,12 +84,27 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
   const emails = [...new Set(submissions.map(item => item.email.toLowerCase()))];
   const db = adminClient();
   const [{ data: students, error }, admitted] = await Promise.all([
-    db.from('students').select('id, email, role, cohort_id').in('email', emails),
+    db.from('students').select('id, email, role, cohort_id, password_set_at').in('email', emails),
     admittedEmails(cohortId, emails),
   ]);
   if (error) throw new Error(`Could not check applicant accounts: ${error.message}`);
   const byEmail = new Map((students ?? []).map((row: any) => [String(row.email).toLowerCase(), row]));
-  const otherCohortIds = [...new Set((students ?? []).map((row: any) => row.cohort_id as string | null).filter((value): value is string => Boolean(value) && value !== cohortId))];
+
+  // Each account's latest enrollment, the same row the Cohorts screen's assign flow moves.
+  const studentIds = (students ?? []).filter((row: any) => row.role === 'student').map((row: any) => row.id as string);
+  const { data: enrollments, error: enrollmentError } = studentIds.length
+    ? await db.from('bootcamp_enrollments').select('student_id, cohort_id, released_at, created_at').in('student_id', studentIds).order('created_at', { ascending: false })
+    : { data: [] as any[], error: null };
+  if (enrollmentError) throw new Error(`Could not check applicant enrollments: ${enrollmentError.message}`);
+  const latestEnrollment = new Map<string, { cohort_id: string; released_at: string | null }>();
+  for (const row of enrollments ?? []) if (!latestEnrollment.has(row.student_id)) latestEnrollment.set(row.student_id, row);
+
+  // Where each account is now: its cohort pointer, or else a live enrollment elsewhere.
+  const currentCohort = (student: any) => {
+    const enrollment = latestEnrollment.get(student.id);
+    return (student.cohort_id as string | null) || (enrollment && !enrollment.released_at ? enrollment.cohort_id : null);
+  };
+  const otherCohortIds = [...new Set((students ?? []).map(currentCohort).filter((value): value is string => Boolean(value) && value !== cohortId))];
   const { data: cohorts } = otherCohortIds.length
     ? await db.from('cohorts').select('id, name').in('id', otherCohortIds)
     : { data: [] as { id: string; name: string }[] };
@@ -96,10 +116,40 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
     const base = { submission, name: applicantName(form, submission) };
     if (!student) return { ...base, group: 'new' as const };
     if (student.role !== 'student') return { ...base, group: 'staff' as const };
-    if (student.cohort_id === cohortId && admitted.has(email)) return { ...base, group: 'this_cohort' as const };
-    if (!student.cohort_id || student.cohort_id === cohortId) return { ...base, group: 'no_cohort' as const };
-    return { ...base, group: 'other_cohort' as const, currentCohortName: cohortNames.get(student.cohort_id) ?? 'another cohort' };
+    const account = {
+      studentId: student.id as string,
+      passwordSetAt: (student.password_set_at as string | null) ?? null,
+      hasEnrollment: latestEnrollment.has(student.id),
+    };
+    const current = currentCohort(student);
+    if (current === cohortId && admitted.has(email)) return { ...base, account, group: 'this_cohort' as const };
+    if (!current || current === cohortId) return { ...base, account, group: 'no_cohort' as const };
+    return { ...base, account, group: 'other_cohort' as const, currentCohortName: cohortNames.get(current) ?? 'another cohort' };
   });
+}
+
+/**
+ * Put existing student accounts that already have an enrollment somewhere through the Cohorts
+ * screen's assign flow: their one enrollment row is moved here (a released row is reattached),
+ * so they never get a second full-fee schedule. Returns the emails admitted and any failures.
+ */
+async function assignExistingAccounts(cohortId: string, applicants: ClassifiedApplicant[]) {
+  const db = adminClient();
+  const admitted: CohortAccessAccount[] = [];
+  const errors: { email: string; error: string }[] = [];
+  for (const applicant of applicants) {
+    const email = applicant.submission.email.toLowerCase();
+    const account = applicant.account!;
+    try {
+      await assignStudentToCohort(db, { studentId: account.studentId, email, cohortId });
+      await db.from('cohort_allowed_emails').delete().eq('email', email);
+      await markExistingAccountAdmitted(db, account.studentId);
+      admitted.push({ email, name: applicant.name || 'there', studentId: account.studentId, isNewAccount: false, passwordSetAt: account.passwordSetAt });
+    } catch (error: any) {
+      errors.push({ email, error: error?.message || 'This applicant could not be admitted.' });
+    }
+  }
+  return { admitted, errors };
 }
 
 export async function GET(req: NextRequest, context: { params: Promise<{ id: string }> }) {
@@ -172,13 +222,23 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
 
     const move = body?.moveFromOtherCohorts === true;
     const toAdmit = classified.filter(item => item.group === 'new' || item.group === 'no_cohort' || (item.group === 'other_cohort' && move));
-    const outcome = toAdmit.length
-      ? await admitStudents(adminClient(), cohortId, toAdmit.map(item => ({ email: item.submission.email, full_name: item.name })))
-      : { admittedEmails: [] as string[], errors: [] as { email: string; error: string }[] };
-    if ('error' in outcome) return NextResponse.json({ error: outcome.error }, { status: outcome.status });
+    // Accounts with an enrollment anywhere keep that row (moved or reattached); the rest get a
+    // fresh admission from the shared pipeline.
+    const toAssign = toAdmit.filter(item => item.account?.hasEnrollment);
+    const toCreate = toAdmit.filter(item => !item.account?.hasEnrollment);
 
-    const admittedSet = new Set(outcome.admittedEmails.map(email => email.toLowerCase()));
-    const problems = new Map(outcome.errors.map(item => [item.email.toLowerCase(), item.error]));
+    const appUrl = await admissionAppUrl();
+    if (!appUrl) return NextResponse.json({ error: 'APP_URL or platform App URL must be configured before creating student accounts.' }, { status: 500 });
+
+    const created = toCreate.length
+      ? await admitStudents(adminClient(), cohortId, toCreate.map(item => ({ email: item.submission.email, full_name: item.name })))
+      : { admittedEmails: [] as string[], errors: [] as { email: string; error: string }[] };
+    if ('error' in created) return NextResponse.json({ error: created.error }, { status: created.status });
+    const assigned = await assignExistingAccounts(cohortId, toAssign);
+    const emailed = await sendCohortAccessEmails(adminClient(), { cohortId, appUrl, accounts: assigned.admitted });
+
+    const admittedSet = new Set([...created.admittedEmails, ...assigned.admitted.map(item => item.email)].map(email => email.toLowerCase()));
+    const problems = new Map([...created.errors, ...assigned.errors, ...emailed.errors].map(item => [item.email.toLowerCase(), item.error]));
     const results = classified.map(item => {
       const email = item.submission.email;
       const base = { submissionId: item.submission.id, email };

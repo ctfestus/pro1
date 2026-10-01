@@ -60,7 +60,7 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }:
   const toAdmit = inGroup('new').length + inGroup('no_cohort').length + (plan.move ? others.length : 0);
   const rows: { group: AdmitGroup; title: string; note: string }[] = [
     { group: 'new', title: 'New accounts', note: 'They get a student account and an email to set their password.' },
-    { group: 'no_cohort', title: 'Existing accounts', note: 'Added to the cohort. They get an email saying so, with no password reset.' },
+    { group: 'no_cohort', title: 'Existing accounts', note: 'Added to the cohort. Those who can already sign in get an email saying so, and their password does not change. Anyone who has never signed in gets an email to set a password.' },
     { group: 'this_cohort', title: 'Already in this cohort', note: 'Nothing changes and no email is sent.' },
     { group: 'staff', title: 'Cannot be admitted', note: 'These emails belong to staff or admin accounts.' },
   ];
@@ -83,7 +83,7 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }:
           {others.length > 0 && (
             <div className="p-3.5" style={{ ...box, boxShadow: `inset 0 0 0 1px ${C.errorText}` }}>
               <p className="text-xs font-bold" style={{ color: C.errorText }}>In another cohort ({others.length})</p>
-              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Moving them changes their cohort to {cohortName}, so they lose access to their current cohort&apos;s content. They get an email saying they were added, with no password reset.</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Moving them changes their cohort to {cohortName}, so they lose access to their current cohort&apos;s content. Their existing payment record moves with them. Those who can already sign in get an email saying they were added; anyone who has never signed in gets an email to set a password.</p>
               <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>{admitList(others, true)}</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Students in another cohort">
                 {[[false, 'Skip them', 'Leave them in their current cohort.'], [true, `Move them to ${cohortName}`, 'Admit them into this cohort.']].map(([value, label, hint]) => {
@@ -147,6 +147,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [bulkBody, setBulkBody] = useState('');
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
   const [bulkResult, setBulkResult] = useState('');
+  // Every admission failure or email warning from the last Admit, each with its reason.
+  const [admitIssues, setAdmitIssues] = useState<{ email: string; message: string; admitted: boolean }[]>([]);
   // Admission into the form's cohort: who is already in it, and whether this person may admit.
   const [admission, setAdmission] = useState<{ cohort: { id: string; name: string; ready: boolean; problem?: string } | null; admitted: Set<string>; canAdmit: boolean }>({ cohort: null, admitted: new Set(), canAdmit: false });
   // The checked admission awaiting confirmation; `move` is the one choice for students in other cohorts.
@@ -187,7 +189,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   async function admit(ids: string[]) {
     const targets = submissions.filter(item => ids.includes(item.id) && item.state === 'submitted');
     if (!admission.cohort || !targets.length) return;
-    setBusy(true); setError(''); setBulkResult('');
+    setBusy(true); setError(''); setBulkResult(''); setAdmitIssues([]);
     try {
       const response = await fetch(`/api/application-forms/${form.id}/admit`, {
         method: 'POST',
@@ -210,7 +212,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     const plan = admitPlan;
     const cohort = admission.cohort;
     if (!plan || !cohort) return;
-    setBusy(true); setError(''); setBulkResult('');
+    setBusy(true); setError(''); setBulkResult(''); setAdmitIssues([]);
     try {
       const response = await fetch(`/api/application-forms/${form.id}/admit`, {
         method: 'POST',
@@ -230,12 +232,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
         skipped ? `${skipped} skipped.` : '',
         failed.length ? `${failed.length} could not be admitted and remain selected.` : '',
       ].filter(Boolean).join(' '));
-      // Every reason, not just the first, so each remaining applicant can be fixed.
-      const issues = [...failed, ...warned];
-      if (issues.length) {
-        const shown = issues.slice(0, 6).map(item => `${item.email}: ${item.message}`);
-        setError(`${shown.join(' | ')}${issues.length > shown.length ? ` | and ${issues.length - shown.length} more` : ''}`);
-      }
+      // Every reason, not just the first few, so each remaining applicant can be fixed.
+      setAdmitIssues([...failed, ...warned].map(item => ({ email: item.email, message: item.message || 'This applicant could not be admitted.', admitted: item.status === 'admitted' })));
       setSelectedIds(new Set(failed.map(item => item.submissionId)));
       setAdmitPlan(null);
     } catch (reason) {
@@ -251,7 +249,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   useEffect(() => {
     setSelectedIds(new Set());
     setBulkStageId('');
-    setBulkResult('');
+    setBulkResult(''); setAdmitIssues([]);
     setBulkPanelOpen(false);
     setActiveTab('answers');
   }, [form.id, form.config.stages]);
@@ -329,7 +327,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-    setBulkResult('');
+    setBulkResult(''); setAdmitIssues([]);
   }
 
   function openSubmission(id: string) {
@@ -347,7 +345,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       }
       return next;
     });
-    setBulkResult('');
+    setBulkResult(''); setAdmitIssues([]);
   }
 
   function pickBulkPreset(type: MessagePresetType) {
@@ -385,7 +383,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       : `Move ${targets.length} application${targets.length === 1 ? '' : 's'} to ${stage?.name ?? 'the selected stage'}?`;
     if (!window.confirm(confirmation)) return;
 
-    setBusy(true); setError(''); setBulkResult('');
+    setBusy(true); setError(''); setBulkResult(''); setAdmitIssues([]);
     setBulkProgress({ current: 0, total: targets.length });
     const updatedById = new Map<string, any>();
     const failures: Array<{ id: string; email: string; message: string }> = [];
@@ -474,6 +472,17 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
 
       {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><div className="flex shrink-0 items-center gap-3">{error.includes('Reload and try again.') && <button type="button" onClick={() => void load()} className="text-xs font-bold underline">Reload</button>}<button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div></div>}
       {bulkResult && <div className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-4 w-4" /> {bulkResult}</div>}
+      {admitIssues.length > 0 && (
+        <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }} role="status">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold">{admitIssues.length} {admitIssues.length === 1 ? 'applicant needs' : 'applicants need'} attention</p>
+            <button type="button" onClick={() => setAdmitIssues([])} aria-label="Dismiss admission issues"><X className="h-4 w-4" /></button>
+          </div>
+          <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs">
+            {admitIssues.map(item => <li key={item.email} className="break-words"><span className="font-semibold">{item.email}</span>{item.admitted ? ' (admitted)' : ''}: {item.message}</li>)}
+          </ul>
+        </div>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="sticky top-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 shadow-lg" style={{ background: C.card }}>

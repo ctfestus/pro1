@@ -6,7 +6,7 @@ const OTHER = '22222222-2222-4222-8222-222222222222';
 
 const mocks = vi.hoisted(() => ({
   requireRole: vi.fn(), getForm: vi.fn(), listSubmissions: vi.fn(), audit: vi.fn(), reviewerFormIds: vi.fn(),
-  admitStudents: vi.fn(),
+  admitStudents: vi.fn(), assign: vi.fn(), sendEmails: vi.fn(), markAdmitted: vi.fn(),
   single: {} as Record<string, any>,
   lists: {} as Record<string, any[]>,
   filters: [] as Array<[string, string, unknown[]]>,
@@ -19,19 +19,31 @@ vi.mock('@/lib/application-submissions', () => ({
   appendApplicationAudit: mocks.audit,
   listApplicationFormIdsForReviewer: mocks.reviewerFormIds,
 }));
-vi.mock('@/lib/admit-students', () => ({ admitStudents: mocks.admitStudents }));
+vi.mock('@/lib/admit-students', () => ({
+  admitStudents: mocks.admitStudents,
+  sendCohortAccessEmails: mocks.sendEmails,
+  admissionAppUrl: async () => 'https://academy.test',
+}));
+vi.mock('@/lib/assign-student-cohort', () => ({ assignStudentToCohort: mocks.assign }));
+vi.mock('@/lib/account-state-server', () => ({ markExistingAccountAdmitted: mocks.markAdmitted }));
 // A tiny query builder: filters are recorded and return the builder; maybeSingle resolves the
-// table's single row, while range or awaiting the query resolves its list.
+// table's single row, while range or awaiting the query resolves its list. Enrollments read by
+// student_id (each account's latest enrollment) resolve the 'enrollments_by_student' list.
 vi.mock('@/lib/admin-client', () => ({
   adminClient: () => ({
     from: (table: string) => {
       const builder: any = {};
-      for (const method of ['select', 'eq', 'neq', 'order', 'in', 'not', 'is']) {
-        builder[method] = (...args: unknown[]) => { mocks.filters.push([table, method, args]); return builder; };
+      let list = table;
+      for (const method of ['select', 'eq', 'neq', 'order', 'in', 'not', 'is', 'delete']) {
+        builder[method] = (...args: unknown[]) => {
+          mocks.filters.push([table, method, args]);
+          if (table === 'bootcamp_enrollments' && method === 'in' && args[0] === 'student_id') list = 'enrollments_by_student';
+          return builder;
+        };
       }
       builder.maybeSingle = async () => ({ data: mocks.single[table] ?? null, error: null });
-      builder.range = async () => ({ data: mocks.lists[table] ?? [], error: null });
-      builder.then = (resolve: (value: unknown) => void) => resolve({ data: mocks.lists[table] ?? [], error: null });
+      builder.range = async () => ({ data: mocks.lists[list] ?? [], error: null });
+      builder.then = (resolve: (value: unknown) => void) => resolve({ data: mocks.lists[list] ?? [], error: null });
       return builder;
     },
   }),
@@ -75,6 +87,12 @@ beforeEach(() => {
     ],
     cohorts: [{ id: OTHER, name: 'March Cohort' }],
     bootcamp_enrollments: [{ email: 'here@example.com' }],
+    // Latest enrollment per account: the account in another cohort and the one admitted here
+    // each have one; the cohort-less account has none.
+    enrollments_by_student: [
+      { student_id: 'u-other', cohort_id: OTHER, released_at: null },
+      { student_id: 'u-here', cohort_id: COHORT, released_at: null },
+    ],
   };
   mocks.listSubmissions.mockResolvedValue([
     submission('new', 'new@example.com'),
@@ -89,6 +107,9 @@ beforeEach(() => {
     admittedEmails: rows.map(row => row.email), errors: [],
   }));
   mocks.audit.mockResolvedValue(undefined);
+  mocks.assign.mockResolvedValue(undefined);
+  mocks.markAdmitted.mockResolvedValue(undefined);
+  mocks.sendEmails.mockResolvedValue({ sent: 0, errors: [] });
 });
 
 describe('POST /api/application-forms/[id]/admit: check', () => {
@@ -124,9 +145,52 @@ describe('POST /api/application-forms/[id]/admit', () => {
     expect(mocks.audit.mock.calls[0][0]).toMatchObject({ action: 'admitted', entityId: 'new', details: { cohortId: COHORT } });
   });
 
-  it('moves students from other cohorts only when asked', async () => {
-    await post({ submissionIds: ['other'], moveFromOtherCohorts: true });
-    expect(mocks.admitStudents).toHaveBeenCalledWith(expect.anything(), COHORT, [{ email: 'other@example.com', full_name: 'Name other' }]);
+  it('moves students from other cohorts only when asked, keeping their one enrollment', async () => {
+    const body = await (await post({ submissionIds: ['other'], moveFromOtherCohorts: true })).json();
+    // The Cohorts screen's assign flow moves the existing row; no second admission is created.
+    expect(mocks.admitStudents).not.toHaveBeenCalled();
+    expect(mocks.assign).toHaveBeenCalledWith(expect.anything(), { studentId: 'u-other', email: 'other@example.com', cohortId: COHORT });
+    expect(mocks.markAdmitted).toHaveBeenCalledWith(expect.anything(), 'u-other');
+    expect(mocks.sendEmails).toHaveBeenCalledWith(expect.anything(), {
+      cohortId: COHORT, appUrl: 'https://academy.test',
+      accounts: [{ email: 'other@example.com', name: 'Name other', studentId: 'u-other', isNewAccount: false, passwordSetAt: null }],
+    });
+    expect(body.results).toEqual([{ submissionId: 'other', email: 'other@example.com', status: 'admitted' }]);
+  });
+
+  it('treats an account with no cohort pointer but a live enrollment elsewhere as in another cohort', async () => {
+    mocks.lists.students = [{ id: 'u-nocohort', email: 'nocohort@example.com', role: 'student', cohort_id: null }];
+    mocks.lists.enrollments_by_student = [{ student_id: 'u-nocohort', cohort_id: OTHER, released_at: null }];
+    const body = await (await post({ submissionIds: ['nocohort'], check: true })).json();
+    expect(body.applicants[0]).toMatchObject({ group: 'other_cohort', currentCohortName: 'March Cohort' });
+  });
+
+  it('reattaches a released enrollment instead of creating a second one', async () => {
+    // Released from this cohort earlier: no live admission, but the old row still exists.
+    mocks.lists.bootcamp_enrollments = [];
+    mocks.lists.enrollments_by_student = [{ student_id: 'u-here', cohort_id: COHORT, released_at: '2026-05-01T00:00:00Z' }];
+    const body = await (await post({ submissionIds: ['here'] })).json();
+    expect(mocks.admitStudents).not.toHaveBeenCalled();
+    expect(mocks.assign).toHaveBeenCalledWith(expect.anything(), { studentId: 'u-here', email: 'here@example.com', cohortId: COHORT });
+    expect(body.results[0]).toMatchObject({ submissionId: 'here', status: 'admitted' });
+  });
+
+  it('reports an assign failure as failed and an email failure as admitted with a warning', async () => {
+    mocks.lists.enrollments_by_student = [
+      { student_id: 'u-other', cohort_id: OTHER, released_at: null },
+      { student_id: 'u-nocohort', cohort_id: OTHER, released_at: '2026-05-01T00:00:00Z' },
+    ];
+    mocks.assign.mockImplementation(async (_db: unknown, input: { email: string }) => {
+      if (input.email === 'other@example.com') throw new Error('Set payment settings for this cohort before assigning students.');
+    });
+    mocks.sendEmails.mockResolvedValue({ sent: 0, errors: [{ email: 'nocohort@example.com', error: 'Admitted, but the setup email could not be prepared: rate limited' }] });
+    const body = await (await post({ submissionIds: ['nocohort', 'other'], moveFromOtherCohorts: true })).json();
+    expect(body.results).toEqual([
+      { submissionId: 'nocohort', email: 'nocohort@example.com', status: 'admitted', message: 'Admitted, but the setup email could not be prepared: rate limited' },
+      { submissionId: 'other', email: 'other@example.com', status: 'failed', message: 'Set payment settings for this cohort before assigning students.' },
+    ]);
+    expect(mocks.markAdmitted).toHaveBeenCalledTimes(1);
+    expect(mocks.audit).toHaveBeenCalledTimes(1);
   });
 
   it('uses the pipeline result, not error wording, to tell admitted from failed', async () => {
