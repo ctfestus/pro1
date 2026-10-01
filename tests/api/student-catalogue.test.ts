@@ -210,6 +210,7 @@ describe('GET /api/student/catalogue', () => {
       mode: 'light', theme: 'ocean', font: 'inter', custom_accent: '#123456',
       points_enabled: true, points_base: 50,
       points_system: { enabled: true, basePoints: 50 },
+      learn_outcomes: ['Read a query plan'],
       questions: [
         { id: 'section-1', isSection: true, sectionTitle: 'Foundations' },
         { id: 'lesson-1', lessonOnly: true, lesson: { title: 'Introduction', body: 'Hidden lesson body' } },
@@ -232,6 +233,7 @@ describe('GET /api/student/catalogue', () => {
       coverImage: 'cover.jpg', description: 'Overview', category: 'Data', locked: true,
       unlock: { plans: [] },
       mode: 'light', theme: 'ocean', font: 'inter', customAccent: '#123456',
+      learnOutcomes: ['Read a query plan'],
       lessonCount: 1, exerciseCount: 1, xpOnOffer: 50,
       outline: [
         { id: 'section-1', type: 'section', title: 'Foundations' },

@@ -164,7 +164,7 @@ export async function GET(req: NextRequest) {
         // can say nothing about the exercises the outline withholds.
         const { data: course, error: outlineError } = await db
           .from('courses')
-          .select('questions, mode, theme, font, custom_accent, points_enabled, points_base, points_system')
+          .select('questions, mode, theme, font, custom_accent, points_enabled, points_base, points_system, learn_outcomes')
           .eq('id', record.id)
           .maybeSingle();
         if (outlineError) throw outlineError;
@@ -185,6 +185,8 @@ export async function GET(req: NextRequest) {
           theme: (course as any)?.theme ?? null,
           font: (course as any)?.font ?? null,
           customAccent: (course as any)?.custom_accent ?? null,
+          // "What you'll learn" is sales copy the author wrote for this page, not course material.
+          learnOutcomes: Array.isArray((course as any)?.learn_outcomes) ? (course as any).learn_outcomes : [],
           lessonCount: contentCounts.lessons,
           exerciseCount: contentCounts.exercises,
           xpOnOffer: courseXpOnOffer((course as any)?.questions ?? [], pointsSystemFromCourseRow(course)),
