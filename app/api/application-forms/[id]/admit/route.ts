@@ -71,6 +71,8 @@ type ClassifiedApplicant = {
    * a retry keeps that payment rather than recording a new one.
    */
   hasRecordedPayment?: boolean;
+  /** Total of that kept payment, so the admission history still notes it. */
+  recordedPaymentAmount?: number;
 };
 
 async function cohortReadiness(cohortId: string): Promise<CohortReadiness | null> {
@@ -164,10 +166,14 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
   if (presignupError) throw new Error(`Could not check earlier admission records: ${presignupError.message}`);
   const presignupEmail = new Map((presignups ?? []).map((row: any) => [row.id as string, String(row.email).toLowerCase()]));
   const { data: presignupPayments, error: presignupPaymentError } = presignupEmail.size
-    ? await db.from('payments').select('enrollment_id').in('enrollment_id', [...presignupEmail.keys()])
-    : { data: [] as { enrollment_id: string }[], error: null };
+    ? await db.from('payments').select('enrollment_id, amount').in('enrollment_id', [...presignupEmail.keys()])
+    : { data: [] as { enrollment_id: string; amount: number }[], error: null };
   if (presignupPaymentError) throw new Error(`Could not check earlier admission payments: ${presignupPaymentError.message}`);
-  const paidEmails = new Set((presignupPayments ?? []).map((row: any) => presignupEmail.get(row.enrollment_id)).filter(Boolean));
+  const paidAmounts = new Map<string, number>();
+  for (const row of (presignupPayments ?? []) as { enrollment_id: string; amount: number | string }[]) {
+    const paidEmail = presignupEmail.get(row.enrollment_id);
+    if (paidEmail) paidAmounts.set(paidEmail, (paidAmounts.get(paidEmail) ?? 0) + Number(row.amount));
+  }
 
   // Only selected applicants whose live enrollment is here but whose database confirmation is
   // incomplete need an auth lookup. One failed lookup becomes one unconfirmed applicant; it does
@@ -194,7 +200,7 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
   return submissions.map(submission => {
     const email = submission.email.toLowerCase();
     const student = byEmail.get(email);
-    const base = { submission, name: applicantName(form, submission), ...(paidEmails.has(email) ? { hasRecordedPayment: true } : {}) };
+    const base = { submission, name: applicantName(form, submission), ...(paidAmounts.has(email) ? { hasRecordedPayment: true, recordedPaymentAmount: paidAmounts.get(email) } : {}) };
     if (!student) return { ...base, group: 'new' as const };
     if (student.role !== 'student') return { ...base, group: 'staff' as const };
     const account = {
@@ -377,11 +383,16 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     });
 
     const now = new Date().toISOString();
-    await Promise.all(results.filter(item => item.status === 'admitted').map(item => appendApplicationAudit({
-      id: newApplicationId('audit'), entityType: 'submission', entityId: item.submissionId, action: 'admitted',
-      actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
-      details: { formId: form.id, cohortId, cohortName: cohort.name, ...(payment ? { amountPaid: payment.amount, currency: cohort.currency } : {}) },
-    }).catch(error => console.error('[application-forms/id/admit/audit]', error))));
+    const keptPayment = new Map(classified.map(item => [item.submission.id, item.recordedPaymentAmount]));
+    await Promise.all(results.filter(item => item.status === 'admitted').map(item => {
+      // The amount entered now, or the one kept from a failed earlier attempt.
+      const amountPaid = payment?.amount ?? keptPayment.get(item.submissionId);
+      return appendApplicationAudit({
+        id: newApplicationId('audit'), entityType: 'submission', entityId: item.submissionId, action: 'admitted',
+        actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
+        details: { formId: form.id, cohortId, cohortName: cohort.name, ...(amountPaid ? { amountPaid, currency: cohort.currency } : {}) },
+      }).catch(error => console.error('[application-forms/id/admit/audit]', error));
+    }));
 
     return NextResponse.json({ cohort: { id: cohort.id, name: cohort.name }, results });
   } catch (error) {

@@ -359,7 +359,7 @@ describe('POST /api/application-forms/[id]/admit: payment received', () => {
   it('keeps a payment left by a failed earlier attempt instead of claiming a new one', async () => {
     // The first attempt wrote the admission record and payment, then the account step failed.
     mocks.lists.presignups = [{ id: 'enr-new', email: 'new@example.com' }];
-    mocks.lists.payments = [{ enrollment_id: 'enr-new' }];
+    mocks.lists.payments = [{ enrollment_id: 'enr-new', amount: '800.00' }];
     const check = await (await post({ submissionIds: ['new'], check: true })).json();
     expect(check.applicants[0]).toMatchObject({ group: 'new', paymentRecorded: true });
     expect(check.applicants[0].paymentAllowed).toBeUndefined();
@@ -370,10 +370,10 @@ describe('POST /api/application-forms/[id]/admit: payment received', () => {
     expect(mocks.admitStudents).not.toHaveBeenCalled();
     expect(mocks.audit).not.toHaveBeenCalled();
 
-    // Retrying without a payment admits them and audits no new amount.
+    // Retrying without a payment admits them, and the history notes the payment that was kept.
     await post({ submissionIds: ['new'] });
     expect(mocks.admitStudents).toHaveBeenCalledWith(expect.anything(), COHORT, [{ email: 'new@example.com', full_name: 'Name new' }]);
-    expect(mocks.audit.mock.calls[0][0].details.amountPaid).toBeUndefined();
+    expect(mocks.audit.mock.calls[0][0].details).toMatchObject({ amountPaid: 800, currency: 'GHS' });
   });
 
   it('still offers a payment when an earlier attempt recorded none', async () => {
