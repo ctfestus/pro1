@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
+import { accessStateOf } from '@/lib/account-state';
 import { markExistingAccountAdmitted } from '@/lib/account-state-server';
 import { admissionAppUrl, admitStudents, sendCohortAccessEmails, type CohortAccessAccount } from '@/lib/admit-students';
 import { assignStudentToCohort } from '@/lib/assign-student-cohort';
@@ -61,16 +62,44 @@ async function cohortReadiness(cohortId: string): Promise<CohortReadiness | null
  * step, which can still fail. Read from the cohort side so the list stays small.
  */
 async function admittedEmails(cohortId: string, emails?: string[]): Promise<Set<string>> {
-  const found = new Set<string>();
-  for (let offset = 0; ; offset += 1000) {
-    let query = adminClient().from('bootcamp_enrollments').select('email')
-      .eq('cohort_id', cohortId).not('student_id', 'is', null).is('released_at', null);
-    if (emails) query = query.in('email', emails);
-    const { data, error } = await query.order('id').range(offset, offset + 999);
-    if (error) throw new Error(`Could not check admissions: ${error.message}`);
-    for (const row of data ?? []) found.add(String(row.email).toLowerCase());
-    if ((data ?? []).length < 1000) return found;
+  const rows: { email: string; student_id: string }[] = [];
+  const emailGroups = emails ? Array.from({ length: Math.ceil(emails.length / 100) }, (_, index) => emails.slice(index * 100, index * 100 + 100)) : [null];
+  for (const emailGroup of emailGroups) {
+    for (let offset = 0; ; offset += 1000) {
+      let query = adminClient().from('bootcamp_enrollments').select('email, student_id')
+        .eq('cohort_id', cohortId).not('student_id', 'is', null).is('released_at', null);
+      if (emailGroup) query = query.in('email', emailGroup);
+      const { data, error } = await query.order('id').range(offset, offset + 999);
+      if (error) throw new Error(`Could not check admissions: ${error.message}`);
+      rows.push(...((data ?? []) as { email: string; student_id: string }[]));
+      if ((data ?? []).length < 1000) break;
+    }
   }
+
+  const activeStudentIds = new Set<string>();
+  const studentIds = [...new Set(rows.map(row => row.student_id))];
+  for (let offset = 0; offset < studentIds.length; offset += 500) {
+    const { data, error } = await adminClient().from('students').select('id, access_state').in('id', studentIds.slice(offset, offset + 500));
+    if (error) throw new Error(`Could not check admitted account access: ${error.message}`);
+    for (const row of data ?? []) {
+      if (row.access_state !== 'pending' && row.access_state !== 'denied') activeStudentIds.add(row.id);
+    }
+  }
+  const claimReadyStudentIds = new Set<string>();
+  const candidates = [...activeStudentIds];
+  for (let offset = 0; offset < candidates.length; offset += 20) {
+    const checked = await Promise.all(candidates.slice(offset, offset + 20).map(async studentId => {
+      try {
+        const { data, error } = await adminClient().auth.admin.getUserById(studentId);
+        if (error || !data.user) throw error ?? new Error('Auth user was not found.');
+        return accessStateOf(data.user) === 'active' ? studentId : null;
+      } catch (error) {
+        throw new Error(`Could not check admitted account claim: ${(error as Error).message || 'unknown error'}`);
+      }
+    }));
+    for (const studentId of checked) if (studentId) claimReadyStudentIds.add(studentId);
+  }
+  return new Set(rows.filter(row => claimReadyStudentIds.has(row.student_id)).map(row => String(row.email).toLowerCase()));
 }
 
 function applicantName(form: ApplicationFormRecord, submission: ApplicationSubmissionRecord): string | null {
@@ -84,7 +113,7 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
   const emails = [...new Set(submissions.map(item => item.email.toLowerCase()))];
   const db = adminClient();
   const [{ data: students, error }, admitted] = await Promise.all([
-    db.from('students').select('id, email, role, cohort_id, password_set_at').in('email', emails),
+    db.from('students').select('id, email, role, cohort_id, password_set_at, access_state').in('email', emails),
     admittedEmails(cohortId, emails),
   ]);
   if (error) throw new Error(`Could not check applicant accounts: ${error.message}`);
@@ -122,7 +151,8 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
       hasEnrollment: latestEnrollment.has(student.id),
     };
     const current = currentCohort(student);
-    if (current === cohortId && admitted.has(email)) return { ...base, account, group: 'this_cohort' as const };
+    const hasActiveAccess = student.access_state !== 'pending' && student.access_state !== 'denied';
+    if (current === cohortId && admitted.has(email) && hasActiveAccess) return { ...base, account, group: 'this_cohort' as const };
     if (!current || current === cohortId) return { ...base, account, group: 'no_cohort' as const };
     return { ...base, account, group: 'other_cohort' as const, currentCohortName: cohortNames.get(current) ?? 'another cohort' };
   });
@@ -143,15 +173,16 @@ async function assignExistingAccounts(cohortId: string, applicants: ClassifiedAp
     const account = applicant.account!;
     try {
       await assignStudentToCohort(db, { studentId: account.studentId, email, cohortId });
-      admittedEmails.push(email);
     } catch (error: any) {
       errors.push({ email, error: error?.message || 'This applicant could not be admitted.' });
       continue;
     }
 
-    const { error: cleanupError } = await db.from('cohort_allowed_emails').delete().eq('email', email);
-    if (cleanupError) {
-      errors.push({ email, error: `Admitted to the cohort, but the old allowlist entry could not be removed: ${cleanupError.message}` });
+    try {
+      const { error: cleanupError } = await db.from('cohort_allowed_emails').delete().eq('email', email);
+      if (cleanupError) throw cleanupError;
+    } catch (error: any) {
+      errors.push({ email, error: `Admitted to the cohort, but the old allowlist entry could not be removed: ${error?.message || 'unknown error'}` });
     }
 
     try {
@@ -162,9 +193,10 @@ async function assignExistingAccounts(cohortId: string, applicants: ClassifiedAp
       } catch {
         await markExistingAccountAdmitted(db, account.studentId);
       }
+      admittedEmails.push(email);
       admitted.push({ email, name: applicant.name || 'there', studentId: account.studentId, isNewAccount: false, passwordSetAt: account.passwordSetAt });
     } catch (error: any) {
-      errors.push({ email, error: `Admitted to the cohort, but account access could not be activated: ${error?.message || 'unknown error'}` });
+      errors.push({ email, error: `Cohort assignment succeeded, but account access could not be activated. Retry this applicant: ${error?.message || 'unknown error'}` });
     }
   }
   return { admitted, admittedEmails, errors };
@@ -183,11 +215,11 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     }
     const cohortId = form.config.admission?.cohortId;
     if (!cohortId) return NextResponse.json({ cohort: null, admittedSubmissionIds: [], canAdmit: false });
-    const [cohort, submissions, admitted] = await Promise.all([
+    const [cohort, submissions] = await Promise.all([
       cohortReadiness(cohortId),
       listApplicationSubmissions(form.id),
-      admittedEmails(cohortId),
     ]);
+    const admitted = await admittedEmails(cohortId, submissions.map(item => item.email.toLowerCase()));
     return NextResponse.json({
       cohort,
       admittedSubmissionIds: submissions.filter(item => admitted.has(item.email.toLowerCase())).map(item => item.id),

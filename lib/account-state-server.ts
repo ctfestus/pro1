@@ -66,7 +66,13 @@ async function applyTransition(db: SupabaseClient, userId: string, change: Trans
 
   const writeClaims = async () => {
     if (Object.keys(appMetadata).length === 0) return;
-    const { error } = await db.auth.admin.updateUserById(userId, { app_metadata: appMetadata });
+    let result: { error: { message: string } | null };
+    try {
+      result = await db.auth.admin.updateUserById(userId, { app_metadata: appMetadata });
+    } catch (error) {
+      throw new Error(`account-state: claim update failed -- ${(error as Error).message || 'unknown error'}`);
+    }
+    const { error } = result;
     if (error) throw new Error(`account-state: claim update failed -- ${error.message}`);
   };
 

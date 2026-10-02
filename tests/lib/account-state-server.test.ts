@@ -19,16 +19,18 @@ function client(over: {
   rowRows?: { id: string }[];
   rowError?: { message: string } | null;
   claimError?: { message: string } | null;
+  claimReject?: Error;
 } = {}) {
   const select = vi.fn(async () => {
     order.push('row');
     return { data: over.rowRows ?? [{ id: 'user-1' }], error: over.rowError ?? null };
   });
   const eq     = vi.fn(() => ({ select }));
-  const update = vi.fn(() => ({ eq }));
+  const update = vi.fn((_patch: Record<string, unknown>) => ({ eq }));
   const from   = vi.fn(() => ({ update }));
   const updateUserById = vi.fn(async () => {
     order.push('claim');
+    if (over.claimReject) throw over.claimReject;
     return { error: over.claimError ?? null };
   });
 
@@ -135,6 +137,14 @@ describe('partial failures are never silent', () => {
     const c = client({ claimError: { message: 'gotrue unavailable' } });
 
     await expect(markSelfSignupApproved(c.db, 'user-1')).rejects.toThrow(/gotrue unavailable/);
+  });
+
+  it('normalizes a rejected auth request as a claim update failure', async () => {
+    const c = client({ claimReject: new Error('network unavailable') });
+
+    await expect(markExistingAccountAdmitted(c.db, 'user-1')).rejects.toThrow(/claim update failed.*network unavailable/);
+    expect(c.update).toHaveBeenCalledWith({ access_state: 'active' });
+    expect(order).toEqual(['row', 'claim']);
   });
 
   // A restricting transition writes the claim first, so a failed row write still leaves
