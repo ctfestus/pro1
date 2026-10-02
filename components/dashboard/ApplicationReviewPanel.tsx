@@ -37,7 +37,7 @@ type MessagePresetType = keyof typeof MESSAGE_PRESETS;
 type ApplicationMessageType = MessagePresetType | 'custom';
 type ReviewTab = 'answers' | 'review' | 'notes' | 'emails';
 type AdmitGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'unconfirmed' | 'staff';
-type AdmitPlanApplicant = { submissionId: string; email: string; name: string | null; group: AdmitGroup; currentCohortName?: string; paymentAllowed?: boolean };
+type AdmitPlanApplicant = { submissionId: string; email: string; name: string | null; group: AdmitGroup; currentCohortName?: string; paymentAllowed?: boolean; paymentRecorded?: boolean };
 /** A payment already received, typed in when admitting one new student. Empty amount means none. */
 type AdmitPayment = { amount: string; paidAt: string; method: string; reference: string };
 type AdmitPlan = { applicants: AdmitPlanApplicant[]; notAccepted: number; move: boolean; fee: number; currency: string; payment: AdmitPayment | null };
@@ -114,6 +114,7 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onPayment, onCancel, o
               {paymentProblem && <p className="mt-2 text-[11px] font-semibold" style={{ color: C.errorText }}>{paymentProblem}</p>}
             </div>
           )}
+          {plan.applicants.length === 1 && plan.applicants[0].paymentRecorded && <p className="p-3 text-[11px]" style={{ ...box, color: C.muted }}>A payment from an earlier attempt to admit this applicant is already recorded and will be kept. Check it on the Payments screen.</p>}
           {plan.notAccepted > 0 && <p className="p-3 text-[11px]" style={{ ...box, color: C.muted }}>{plan.notAccepted} of the selected applicants {plan.notAccepted === 1 ? 'is' : 'are'} not in an accepted stage.</p>}
           <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
             <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button>

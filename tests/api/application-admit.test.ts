@@ -43,6 +43,8 @@ vi.mock('@/lib/admin-client', () => ({
           mocks.filters.push([table, method, args]);
           if (method === 'delete') deleting = true;
           if (table === 'bootcamp_enrollments' && method === 'in' && args[0] === 'student_id') list = 'enrollments_by_student';
+          // Unlinked admission records left by an earlier attempt.
+          if (table === 'bootcamp_enrollments' && method === 'is' && args[0] === 'student_id') list = 'presignups';
           return builder;
         };
       }
@@ -354,8 +356,36 @@ describe('POST /api/application-forms/[id]/admit: payment received', () => {
     expect(mocks.assign).not.toHaveBeenCalled();
   });
 
+  it('keeps a payment left by a failed earlier attempt instead of claiming a new one', async () => {
+    // The first attempt wrote the admission record and payment, then the account step failed.
+    mocks.lists.presignups = [{ id: 'enr-new', email: 'new@example.com' }];
+    mocks.lists.payments = [{ enrollment_id: 'enr-new' }];
+    const check = await (await post({ submissionIds: ['new'], check: true })).json();
+    expect(check.applicants[0]).toMatchObject({ group: 'new', paymentRecorded: true });
+    expect(check.applicants[0].paymentAllowed).toBeUndefined();
+
+    const refused = await post({ submissionIds: ['new'], payment });
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toContain('already recorded');
+    expect(mocks.admitStudents).not.toHaveBeenCalled();
+    expect(mocks.audit).not.toHaveBeenCalled();
+
+    // Retrying without a payment admits them and audits no new amount.
+    await post({ submissionIds: ['new'] });
+    expect(mocks.admitStudents).toHaveBeenCalledWith(expect.anything(), COHORT, [{ email: 'new@example.com', full_name: 'Name new' }]);
+    expect(mocks.audit.mock.calls[0][0].details.amountPaid).toBeUndefined();
+  });
+
+  it('still offers a payment when an earlier attempt recorded none', async () => {
+    mocks.lists.presignups = [{ id: 'enr-new', email: 'new@example.com' }];
+    mocks.lists.payments = [];
+    expect((await (await post({ submissionIds: ['new'], check: true })).json()).applicants[0].paymentAllowed).toBe(true);
+  });
+
   it('refuses an unusable amount or date', async () => {
     const error = async (value: unknown) => (await (await post({ submissionIds: ['new'], payment: value })).json()).error;
+    expect(await error({ amount: 100, paidAt: '2026-02-31' })).toBe('The payment date is not valid.');
+    expect(await error({ amount: 100, paidAt: '2026-13-01' })).toBe('The payment date is not valid.');
     expect(await error({ amount: 0 })).toContain('Enter the amount paid');
     expect(await error({ amount: 3000.5 })).toBe('The amount paid cannot be more than the cohort fee.');
     expect(await error({ amount: 10.123 })).toContain('two decimal places');

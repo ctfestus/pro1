@@ -40,7 +40,9 @@ function parsePayment(value: unknown, fee: number): AdmissionPayment | null | st
   if (Math.round(amount * 100) / 100 !== amount) return 'The amount paid can have at most two decimal places.';
   if (amount > fee) return 'The amount paid cannot be more than the cohort fee.';
   const paidAt = typeof input.paidAt === 'string' && input.paidAt ? input.paidAt : today();
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt) || Number.isNaN(Date.parse(`${paidAt}T00:00:00Z`))) return 'The payment date is not valid.';
+  // Round-trip the parts: Date rolls an impossible day such as 2026-02-31 into March.
+  const [year, month, day] = paidAt.split('-').map(Number);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt) || new Date(Date.UTC(year, month - 1, day)).toISOString().slice(0, 10) !== paidAt) return 'The payment date is not valid.';
   if (paidAt > today()) return 'The payment date cannot be in the future.';
   const text = (field: unknown, max: number) => (typeof field === 'string' && field.trim() ? field.trim().slice(0, max) : null);
   return { amount, paidAt, method: text(input.method, 60), reference: text(input.reference, 120) };
@@ -63,6 +65,12 @@ type ClassifiedApplicant = {
   currentCohortName?: string;
   /** Set for existing student accounts. */
   account?: { studentId: string; passwordSetAt: string | null; hasEnrollment: boolean };
+  /**
+   * An earlier attempt left an unlinked admission record here with a payment on it. Admission
+   * writes the record and payment before the account step, so a failed attempt keeps them, and
+   * a retry keeps that payment rather than recording a new one.
+   */
+  hasRecordedPayment?: boolean;
 };
 
 async function cohortReadiness(cohortId: string): Promise<CohortReadiness | null> {
@@ -150,6 +158,17 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
     : { data: [] as { id: string; name: string }[] };
   const cohortNames = new Map((cohorts ?? []).map((row: any) => [row.id as string, row.name as string]));
 
+  // Unlinked admission records in this cohort that already carry a payment (see hasRecordedPayment).
+  const { data: presignups, error: presignupError } = await db.from('bootcamp_enrollments').select('id, email')
+    .eq('cohort_id', cohortId).is('student_id', null).in('email', emails);
+  if (presignupError) throw new Error(`Could not check earlier admission records: ${presignupError.message}`);
+  const presignupEmail = new Map((presignups ?? []).map((row: any) => [row.id as string, String(row.email).toLowerCase()]));
+  const { data: presignupPayments, error: presignupPaymentError } = presignupEmail.size
+    ? await db.from('payments').select('enrollment_id').in('enrollment_id', [...presignupEmail.keys()])
+    : { data: [] as { enrollment_id: string }[], error: null };
+  if (presignupPaymentError) throw new Error(`Could not check earlier admission payments: ${presignupPaymentError.message}`);
+  const paidEmails = new Set((presignupPayments ?? []).map((row: any) => presignupEmail.get(row.enrollment_id)).filter(Boolean));
+
   // Only selected applicants whose live enrollment is here but whose database confirmation is
   // incomplete need an auth lookup. One failed lookup becomes one unconfirmed applicant; it does
   // not stop the rest of the batch or affect the page-load status path.
@@ -175,7 +194,7 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
   return submissions.map(submission => {
     const email = submission.email.toLowerCase();
     const student = byEmail.get(email);
-    const base = { submission, name: applicantName(form, submission) };
+    const base = { submission, name: applicantName(form, submission), ...(paidEmails.has(email) ? { hasRecordedPayment: true } : {}) };
     if (!student) return { ...base, group: 'new' as const };
     if (student.role !== 'student') return { ...base, group: 'staff' as const };
     const account = {
@@ -296,7 +315,8 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const classified = await classify(form, cohortId, targets);
     // A payment can be recorded only with one new admission: an existing enrollment already has
     // its own payment history, which the Payments screen manages.
-    const takesPayment = (item: ClassifiedApplicant) => item.group === 'new' || (item.group === 'no_cohort' && !item.account?.hasEnrollment);
+    const takesPayment = (item: ClassifiedApplicant) => !item.hasRecordedPayment
+      && (item.group === 'new' || (item.group === 'no_cohort' && !item.account?.hasEnrollment));
 
     if (body?.check === true) {
       return NextResponse.json({
@@ -305,12 +325,16 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
           submissionId: item.submission.id, email: item.submission.email, name: item.name, group: item.group,
           ...(item.currentCohortName ? { currentCohortName: item.currentCohortName } : {}),
           ...(classified.length === 1 && takesPayment(item) ? { paymentAllowed: true } : {}),
+          ...(item.hasRecordedPayment ? { paymentRecorded: true } : {}),
         })),
       });
     }
 
     const payment = parsePayment(body?.payment, cohort.fee);
     if (typeof payment === 'string') return NextResponse.json({ error: payment }, { status: 400 });
+    if (payment && classified.length === 1 && classified[0].hasRecordedPayment) {
+      return NextResponse.json({ error: 'A payment is already recorded from an earlier attempt to admit this applicant. Admit them without a payment, then check it on the Payments screen.' }, { status: 400 });
+    }
     if (payment && (classified.length !== 1 || !takesPayment(classified[0]))) {
       return NextResponse.json({ error: 'A payment can be recorded here only when admitting one new student. Record it on the Payments screen instead.' }, { status: 400 });
     }
