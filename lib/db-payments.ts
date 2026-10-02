@@ -417,6 +417,7 @@ export async function activateEnrollment(
       Number(enrollment.amount_paid_initial),
       settings?.installment_count ?? 3,
       enrollment.bootcamp_starts_at ? new Date(enrollment.bootcamp_starts_at) : null,
+      Number(enrollment.deposit_required),
     );
     if (installments.length > 0) {
       const { data: inserted, error: instErr } = await db
@@ -556,23 +557,30 @@ export function generateInstallments(
   amountPaidInitial: number,
   installmentCount: number,
   bootcampStartsAt: Date | null,
+  depositRequired = 0,
 ): { enrollment_id: string; due_date: string; amount_due: number; amount_paid: number; status: string }[] {
   const rows = [];
   if (!bootcampStartsAt) throw new Error('Cohort start date must be set before installments can be generated. Update the cohort start date in Payment Settings.');
 
   const today = new Date().toISOString().slice(0, 10);
 
-  rows.push({
-    enrollment_id: enrollmentId,
-    due_date:      today,
-    amount_due:    amountPaidInitial,
-    amount_paid:   0,
-    status:        'unpaid',
-  });
+  // The first installment, due today, is what was paid at admission. When nothing has been
+  // paid yet it is the deposit instead: installments must be above zero, so a zero first row
+  // made every unpaid admission fail. No row at all when neither applies.
+  const firstAmount = Math.min(amountPaidInitial > 0 ? amountPaidInitial : depositRequired, totalFee);
+  if (firstAmount > 0) {
+    rows.push({
+      enrollment_id: enrollmentId,
+      due_date:      today,
+      amount_due:    firstAmount,
+      amount_paid:   0,
+      status:        'unpaid',
+    });
+  }
 
-  if (installmentCount <= 1 || amountPaidInitial >= totalFee) return rows;
+  if (installmentCount <= 1 || firstAmount >= totalFee) return rows;
 
-  const remainder = totalFee - amountPaidInitial;
+  const remainder = totalFee - firstAmount;
   const count = installmentCount - 1;
   const perInstallment = Math.round((remainder / count) * 100) / 100;
   const base = bootcampStartsAt;

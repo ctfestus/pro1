@@ -21,7 +21,30 @@ export const dynamic = 'force-dynamic';
 
 const MAX_PER_REQUEST = 100;
 
-type CohortReadiness = { id: string; name: string; ready: boolean; problem?: string };
+type CohortReadiness = { id: string; name: string; ready: boolean; problem?: string; fee: number; currency: string };
+
+/** A payment already received, recorded with a single new admission. */
+type AdmissionPayment = { amount: number; paidAt: string; method: string | null; reference: string | null };
+
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+/** Validates the optional payment in a POST body; returns an error message when it is unusable. */
+function parsePayment(value: unknown, fee: number): AdmissionPayment | null | string {
+  if (value === undefined || value === null) return null;
+  if (typeof value !== 'object') return 'The payment details are not valid.';
+  const input = value as Record<string, unknown>;
+  const amount = Number(input.amount);
+  if (!Number.isFinite(amount) || amount <= 0) return 'Enter the amount paid, or leave the payment empty.';
+  if (Math.round(amount * 100) / 100 !== amount) return 'The amount paid can have at most two decimal places.';
+  if (amount > fee) return 'The amount paid cannot be more than the cohort fee.';
+  const paidAt = typeof input.paidAt === 'string' && input.paidAt ? input.paidAt : today();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(paidAt) || Number.isNaN(Date.parse(`${paidAt}T00:00:00Z`))) return 'The payment date is not valid.';
+  if (paidAt > today()) return 'The payment date cannot be in the future.';
+  const text = (field: unknown, max: number) => (typeof field === 'string' && field.trim() ? field.trim().slice(0, max) : null);
+  return { amount, paidAt, method: text(input.method, 60), reference: text(input.reference, 120) };
+}
 
 /**
  * new          no account yet: one is created and emailed a set-password link
@@ -46,7 +69,7 @@ async function cohortReadiness(cohortId: string): Promise<CohortReadiness | null
   const db = adminClient();
   const [{ data: cohort }, { data: settings }] = await Promise.all([
     db.from('cohorts').select('id, name, start_date, status, cohort_kind').eq('id', cohortId).maybeSingle(),
-    db.from('cohort_payment_settings').select('total_fee').eq('cohort_id', cohortId).maybeSingle(),
+    db.from('cohort_payment_settings').select('total_fee, currency').eq('cohort_id', cohortId).maybeSingle(),
   ]);
   if (!cohort || cohort.cohort_kind !== 'bootcamp') return null;
   // admitStudents refuses rows without a fee and cohorts without a start date; say so up front.
@@ -54,7 +77,10 @@ async function cohortReadiness(cohortId: string): Promise<CohortReadiness | null
     : !cohort.start_date ? 'Set a start date for this cohort before admitting applicants.'
       : !(Number(settings?.total_fee) > 0) ? 'Set the fee for this cohort before admitting applicants.'
         : undefined;
-  return { id: cohort.id, name: cohort.name, ready: !problem, ...(problem ? { problem } : {}) };
+  return {
+    id: cohort.id, name: cohort.name, ready: !problem, ...(problem ? { problem } : {}),
+    fee: Number(settings?.total_fee) || 0, currency: settings?.currency ?? 'GHS',
+  };
 }
 
 /**
@@ -228,7 +254,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     ]);
     const admitted = await admittedEmails(cohortId);
     return NextResponse.json({
-      cohort,
+      cohort: cohort && { id: cohort.id, name: cohort.name, ready: cohort.ready, ...(cohort.problem ? { problem: cohort.problem } : {}) },
       admittedSubmissionIds: submissions.filter(item => admitted.has(item.email.toLowerCase())).map(item => item.id),
       canAdmit: auth.role === 'admin' || form.ownerId === auth.actor.id,
     });
@@ -240,14 +266,16 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
 
 /**
  * Body { submissionIds, check: true }: how each applicant would be handled, changing nothing.
- * Body { submissionIds, moveFromOtherCohorts? }: admits them. Students in another cohort are
- * moved only when moveFromOtherCohorts is true, and skipped otherwise.
+ * Body { submissionIds, moveFromOtherCohorts?, payment? }: admits them. Students in another
+ * cohort are moved only when moveFromOtherCohorts is true, and skipped otherwise. payment
+ * ({ amount, paidAt?, method?, reference? }) records money already received, and is accepted
+ * only with one new admission.
  */
 export async function POST(req: NextRequest, context: { params: Promise<{ id: string }> }) {
   const auth = await requireRole(req, ['admin', 'instructor']);
   if (isAuthError(auth)) return auth.error;
   const { id } = await context.params;
-  const body = await req.json().catch(() => null) as null | { submissionIds?: unknown; check?: unknown; moveFromOtherCohorts?: unknown };
+  const body = await req.json().catch(() => null) as null | { submissionIds?: unknown; check?: unknown; moveFromOtherCohorts?: unknown; payment?: unknown };
   const submissionIds = Array.isArray(body?.submissionIds) ? [...new Set(body!.submissionIds.filter((value): value is string => typeof value === 'string'))] : [];
   if (!submissionIds.length) return NextResponse.json({ error: 'Select at least one application to admit.' }, { status: 400 });
   if (submissionIds.length > MAX_PER_REQUEST) return NextResponse.json({ error: `Admit at most ${MAX_PER_REQUEST} applications at a time.` }, { status: 400 });
@@ -266,15 +294,25 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     const targets = (await listApplicationSubmissions(form.id)).filter(item => wanted.has(item.id) && item.state === 'submitted');
     if (!targets.length) return NextResponse.json({ error: 'None of the selected applications can be admitted.' }, { status: 400 });
     const classified = await classify(form, cohortId, targets);
+    // A payment can be recorded only with one new admission: an existing enrollment already has
+    // its own payment history, which the Payments screen manages.
+    const takesPayment = (item: ClassifiedApplicant) => item.group === 'new' || (item.group === 'no_cohort' && !item.account?.hasEnrollment);
 
     if (body?.check === true) {
       return NextResponse.json({
-        cohort: { id: cohort.id, name: cohort.name },
+        cohort: { id: cohort.id, name: cohort.name, fee: cohort.fee, currency: cohort.currency },
         applicants: classified.map(item => ({
           submissionId: item.submission.id, email: item.submission.email, name: item.name, group: item.group,
           ...(item.currentCohortName ? { currentCohortName: item.currentCohortName } : {}),
+          ...(classified.length === 1 && takesPayment(item) ? { paymentAllowed: true } : {}),
         })),
       });
+    }
+
+    const payment = parsePayment(body?.payment, cohort.fee);
+    if (typeof payment === 'string') return NextResponse.json({ error: payment }, { status: 400 });
+    if (payment && (classified.length !== 1 || !takesPayment(classified[0]))) {
+      return NextResponse.json({ error: 'A payment can be recorded here only when admitting one new student. Record it on the Payments screen instead.' }, { status: 400 });
     }
 
     const move = body?.moveFromOtherCohorts === true;
@@ -288,7 +326,11 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     if (!appUrl) return NextResponse.json({ error: 'APP_URL or platform App URL must be configured before creating student accounts.' }, { status: 500 });
 
     const created = toCreate.length
-      ? await admitStudents(adminClient(), cohortId, toCreate.map(item => ({ email: item.submission.email, full_name: item.name })))
+      ? await admitStudents(adminClient(), cohortId, toCreate.map(item => ({
+        email: item.submission.email,
+        full_name: item.name,
+        ...(payment ? { amount_paid: payment.amount, paid_at: payment.paidAt, payment_method: payment.method, payment_reference: payment.reference } : {}),
+      })))
       : { admittedEmails: [] as string[], errors: [] as { email: string; error: string }[] };
     if ('error' in created) return NextResponse.json({ error: created.error }, { status: created.status });
     const assigned = await assignExistingAccounts(cohortId, toAssign);
@@ -314,7 +356,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
     await Promise.all(results.filter(item => item.status === 'admitted').map(item => appendApplicationAudit({
       id: newApplicationId('audit'), entityType: 'submission', entityId: item.submissionId, action: 'admitted',
       actorId: auth.actor.id, actorEmail: auth.actor.email ?? '', occurredAt: now,
-      details: { formId: form.id, cohortId, cohortName: cohort.name },
+      details: { formId: form.id, cohortId, cohortName: cohort.name, ...(payment ? { amountPaid: payment.amount, currency: cohort.currency } : {}) },
     }).catch(error => console.error('[application-forms/id/admit/audit]', error))));
 
     return NextResponse.json({ cohort: { id: cohort.id, name: cohort.name }, results });

@@ -37,7 +37,10 @@ type MessagePresetType = keyof typeof MESSAGE_PRESETS;
 type ApplicationMessageType = MessagePresetType | 'custom';
 type ReviewTab = 'answers' | 'review' | 'notes' | 'emails';
 type AdmitGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'unconfirmed' | 'staff';
-type AdmitPlanApplicant = { submissionId: string; email: string; name: string | null; group: AdmitGroup; currentCohortName?: string };
+type AdmitPlanApplicant = { submissionId: string; email: string; name: string | null; group: AdmitGroup; currentCohortName?: string; paymentAllowed?: boolean };
+/** A payment already received, typed in when admitting one new student. Empty amount means none. */
+type AdmitPayment = { amount: string; paidAt: string; method: string; reference: string };
+type AdmitPlan = { applicants: AdmitPlanApplicant[]; notAccepted: number; move: boolean; fee: number; currency: string; payment: AdmitPayment | null };
 
 /** Up to five people, then "and N more". */
 function admitList(people: AdmitPlanApplicant[], withCohort = false): string {
@@ -46,15 +49,19 @@ function admitList(people: AdmitPlanApplicant[], withCohort = false): string {
 }
 
 /** Confirmation before admitting: who gets what, and the one choice for students in other cohorts. */
-function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }: {
+function AdmitDialog({ cohortName, plan, busy, C, onMove, onPayment, onCancel, onConfirm }: {
   cohortName: string;
-  plan: { applicants: AdmitPlanApplicant[]; notAccepted: number; move: boolean };
+  plan: AdmitPlan;
   busy: boolean;
   C: ThemeColors;
   onMove: (move: boolean) => void;
+  onPayment: (change: Partial<AdmitPayment>) => void;
   onCancel: () => void;
   onConfirm: () => void;
 }) {
+  const field = { width: '100%', background: C.card, color: C.text, borderRadius: 8, padding: '8px 10px', outline: 'none', fontSize: 12 };
+  const amount = plan.payment?.amount.trim() ? Number(plan.payment.amount) : null;
+  const paymentProblem = amount === null ? '' : !(amount > 0) ? 'Enter an amount above zero, or leave it empty.' : amount > plan.fee ? `The amount cannot be more than the cohort fee (${plan.currency} ${plan.fee.toLocaleString()}).` : '';
   const inGroup = (group: AdmitGroup) => plan.applicants.filter(person => person.group === group);
   const others = inGroup('other_cohort');
   const toAdmit = inGroup('new').length + inGroup('no_cohort').length + (plan.move ? others.length : 0);
@@ -70,7 +77,7 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }:
     <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
       <section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl shadow-2xl" style={{ background: C.card }} role="dialog" aria-modal="true" aria-labelledby="admit-title">
         <div className="flex items-start justify-between gap-4 p-5">
-          <div><h3 id="admit-title" className="text-base font-bold" style={{ color: C.text }}>Admit to {cohortName}</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>Check who is affected before admitting. The cohort fees apply.</p></div>
+          <div><h3 id="admit-title" className="text-base font-bold" style={{ color: C.text }}>Admit to {cohortName}</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>Check who is affected before admitting. New enrollments use this cohort&apos;s fee.</p></div>
           <button type="button" disabled={busy} onClick={onCancel} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg disabled:opacity-40" style={{ background: C.input, color: C.muted }} aria-label="Close"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-2.5 px-5 pb-5">
@@ -84,7 +91,7 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }:
           {others.length > 0 && (
             <div className="p-3.5" style={{ ...box, boxShadow: `inset 0 0 0 1px ${C.errorText}` }}>
               <p className="text-xs font-bold" style={{ color: C.errorText }}>In another cohort ({others.length})</p>
-              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Moving them changes their cohort to {cohortName}, so they lose access to their current cohort&apos;s content. Their existing payment record moves with them. Those who can already sign in get an email saying they were added; anyone who has never signed in gets an email to set a password.</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Moving them changes their cohort to {cohortName}, so they lose access to their current cohort&apos;s content. Their existing fee and payment schedule stay as they are. Those who can already sign in get an email saying they were added; anyone who has never signed in gets an email to set a password.</p>
               <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>{admitList(others, true)}</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Students in another cohort">
                 {[[false, 'Skip them', 'Leave them in their current cohort.'], [true, `Move them to ${cohortName}`, 'Admit them into this cohort.']].map(([value, label, hint]) => {
@@ -94,10 +101,23 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }:
               </div>
             </div>
           )}
+          {plan.payment && (
+            <div className="p-3.5" style={box}>
+              <p className="text-xs font-bold" style={{ color: C.text }}>Payment received (optional)</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Record money this applicant has already paid. Leave the amount empty if nothing has been paid yet; the deposit is then due today.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Amount paid ({plan.currency})<input type="number" inputMode="decimal" min="0" step="0.01" value={plan.payment.amount} disabled={busy} onChange={event => onPayment({ amount: event.target.value })} placeholder="0.00" className="mt-1" style={field} /></label>
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Date paid<input type="date" value={plan.payment.paidAt} max={new Date().toISOString().slice(0, 10)} disabled={busy} onChange={event => onPayment({ paidAt: event.target.value })} className="mt-1" style={field} /></label>
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Method<input type="text" value={plan.payment.method} maxLength={60} disabled={busy} onChange={event => onPayment({ method: event.target.value })} placeholder="Cash, Mobile Money" className="mt-1" style={field} /></label>
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Reference<input type="text" value={plan.payment.reference} maxLength={120} disabled={busy} onChange={event => onPayment({ reference: event.target.value })} placeholder="Receipt or transaction ID" className="mt-1" style={field} /></label>
+              </div>
+              {paymentProblem && <p className="mt-2 text-[11px] font-semibold" style={{ color: C.errorText }}>{paymentProblem}</p>}
+            </div>
+          )}
           {plan.notAccepted > 0 && <p className="p-3 text-[11px]" style={{ ...box, color: C.muted }}>{plan.notAccepted} of the selected applicants {plan.notAccepted === 1 ? 'is' : 'are'} not in an accepted stage.</p>}
           <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
             <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button>
-            <button type="button" disabled={busy || toAdmit === 0} onClick={onConfirm} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}{toAdmit === 0 ? 'Nobody to admit' : `Admit ${toAdmit}`}</button>
+            <button type="button" disabled={busy || toAdmit === 0 || Boolean(paymentProblem)} onClick={onConfirm} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}{toAdmit === 0 ? 'Nobody to admit' : `Admit ${toAdmit}`}</button>
           </div>
         </div>
       </section>
@@ -153,7 +173,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   // Admission into the form's cohort: who is already in it, and whether this person may admit.
   const [admission, setAdmission] = useState<{ cohort: { id: string; name: string; ready: boolean; problem?: string } | null; admitted: Set<string>; canAdmit: boolean }>({ cohort: null, admitted: new Set(), canAdmit: false });
   // The checked admission awaiting confirmation; `move` is the one choice for students in other cohorts.
-  const [admitPlan, setAdmitPlan] = useState<{ applicants: AdmitPlanApplicant[]; notAccepted: number; move: boolean } | null>(null);
+  const [admitPlan, setAdmitPlan] = useState<AdmitPlan | null>(null);
   const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReviewTab>('answers');
   const selected = submissions.find(item => item.id === selectedId);
@@ -200,7 +220,13 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'Could not check these applicants.');
       const notAccepted = targets.filter(item => !isAcceptedStage(form.config.stages.find(stage => stage.id === item.stageId))).length;
-      setAdmitPlan({ applicants: value.applicants ?? [], notAccepted, move: false });
+      const applicants: AdmitPlanApplicant[] = value.applicants ?? [];
+      setAdmitPlan({
+        applicants, notAccepted, move: false,
+        fee: Number(value.cohort?.fee) || 0, currency: value.cohort?.currency || '',
+        // The server offers a payment only when admitting one new student.
+        payment: applicants.length === 1 && applicants[0].paymentAllowed ? { amount: '', paidAt: new Date().toISOString().slice(0, 10), method: '', reference: '' } : null,
+      });
     } catch (reason) {
       setError((reason as Error).message);
     } finally {
@@ -218,7 +244,11 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       const response = await fetch(`/api/application-forms/${form.id}/admit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ submissionIds: plan.applicants.map(item => item.submissionId), moveFromOtherCohorts: plan.move }),
+        body: JSON.stringify({
+          submissionIds: plan.applicants.map(item => item.submissionId),
+          moveFromOtherCohorts: plan.move,
+          ...(plan.payment?.amount.trim() ? { payment: { amount: Number(plan.payment.amount), paidAt: plan.payment.paidAt, method: plan.payment.method, reference: plan.payment.reference } } : {}),
+        }),
       });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'Could not admit these applicants.');
@@ -560,7 +590,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
         </main>
       </div>
 
-      {admitPlan && admission.cohort && <AdmitDialog cohortName={admission.cohort.name} plan={admitPlan} busy={busy} C={C} onMove={move => setAdmitPlan(previous => previous && { ...previous, move })} onCancel={() => setAdmitPlan(null)} onConfirm={() => void confirmAdmit()} />}
+      {admitPlan && admission.cohort && <AdmitDialog cohortName={admission.cohort.name} plan={admitPlan} busy={busy} C={C} onMove={move => setAdmitPlan(previous => previous && { ...previous, move })} onPayment={change => setAdmitPlan(previous => previous && previous.payment ? { ...previous, payment: { ...previous.payment, ...change } } : previous)} onCancel={() => setAdmitPlan(null)} onConfirm={() => void confirmAdmit()} />}
 
       {bulkPanelOpen && selectedIds.size > 0 && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setBulkPanelOpen(false); }}>

@@ -322,6 +322,49 @@ describe('POST /api/application-forms/[id]/admit', () => {
   });
 });
 
+describe('POST /api/application-forms/[id]/admit: payment received', () => {
+  const payment = { amount: 1200, paidAt: '2026-09-30', method: ' Mobile Money ', reference: 'MM-123' };
+
+  it('offers a payment only when checking one new admission', async () => {
+    const one = await (await post({ submissionIds: ['new'], check: true })).json();
+    expect(one.cohort).toMatchObject({ fee: 3000 });
+    expect(one.applicants[0].paymentAllowed).toBe(true);
+    // A cohort-less account with no enrollment gets a new admission, so it can take a payment too.
+    expect((await (await post({ submissionIds: ['nocohort'], check: true })).json()).applicants[0].paymentAllowed).toBe(true);
+    // An existing enrollment keeps its own payment history.
+    expect((await (await post({ submissionIds: ['other'], check: true })).json()).applicants[0].paymentAllowed).toBeUndefined();
+    const many = await (await post({ submissionIds: ['new', 'nocohort'], check: true })).json();
+    expect(many.applicants.some((item: any) => item.paymentAllowed)).toBe(false);
+  });
+
+  it('records the payment with the new admission', async () => {
+    const body = await (await post({ submissionIds: ['new'], payment })).json();
+    expect(mocks.admitStudents).toHaveBeenCalledWith(expect.anything(), COHORT, [{
+      email: 'new@example.com', full_name: 'Name new',
+      amount_paid: 1200, paid_at: '2026-09-30', payment_method: 'Mobile Money', payment_reference: 'MM-123',
+    }]);
+    expect(body.results[0]).toMatchObject({ status: 'admitted' });
+    expect(mocks.audit.mock.calls[0][0].details).toMatchObject({ amountPaid: 1200 });
+  });
+
+  it('refuses a payment for several applicants or for an existing enrollment, changing nothing', async () => {
+    expect((await post({ submissionIds: ['new', 'nocohort'], payment })).status).toBe(400);
+    expect((await post({ submissionIds: ['other'], moveFromOtherCohorts: true, payment })).status).toBe(400);
+    expect(mocks.admitStudents).not.toHaveBeenCalled();
+    expect(mocks.assign).not.toHaveBeenCalled();
+  });
+
+  it('refuses an unusable amount or date', async () => {
+    const error = async (value: unknown) => (await (await post({ submissionIds: ['new'], payment: value })).json()).error;
+    expect(await error({ amount: 0 })).toContain('Enter the amount paid');
+    expect(await error({ amount: 3000.5 })).toBe('The amount paid cannot be more than the cohort fee.');
+    expect(await error({ amount: 10.123 })).toContain('two decimal places');
+    expect(await error({ amount: 100, paidAt: '2999-01-01' })).toBe('The payment date cannot be in the future.');
+    expect(await error({ amount: 100, paidAt: '30/09/2026' })).toBe('The payment date is not valid.');
+    expect(mocks.admitStudents).not.toHaveBeenCalled();
+  });
+});
+
 describe('GET /api/application-forms/[id]/admit', () => {
   it('counts only live admissions linked to an account, ignoring case', async () => {
     mocks.lists.bootcamp_enrollments = [{ email: 'HERE@example.com', student_id: 'u-here', student: access() }];
