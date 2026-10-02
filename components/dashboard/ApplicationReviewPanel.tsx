@@ -15,10 +15,12 @@ import {
   SlidersHorizontal,
   StickyNote,
   UserRound,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react';
 import {
+  isAcceptedStage,
   isApplicationContentBlock,
   type ApplicationFormRecord,
 } from '@/lib/application-forms';
@@ -34,6 +36,95 @@ const MESSAGE_PRESETS = {
 type MessagePresetType = keyof typeof MESSAGE_PRESETS;
 type ApplicationMessageType = MessagePresetType | 'custom';
 type ReviewTab = 'answers' | 'review' | 'notes' | 'emails';
+type AdmitGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'unconfirmed' | 'staff';
+type AdmitPlanApplicant = { submissionId: string; email: string; name: string | null; group: AdmitGroup; currentCohortName?: string; paymentAllowed?: boolean; paymentRecorded?: boolean };
+/** A payment already received, typed in when admitting one new student. Empty amount means none. */
+type AdmitPayment = { amount: string; paidAt: string; method: string; reference: string };
+type AdmitPlan = { applicants: AdmitPlanApplicant[]; notAccepted: number; move: boolean; fee: number; currency: string; payment: AdmitPayment | null };
+
+/** Up to five people, then "and N more". */
+function admitList(people: AdmitPlanApplicant[], withCohort = false): string {
+  const shown = people.slice(0, 5).map(person => `${person.name || person.email}${withCohort && person.currentCohortName ? ` (${person.currentCohortName})` : ''}`);
+  return `${shown.join(', ')}${people.length > shown.length ? ` and ${people.length - shown.length} more` : ''}`;
+}
+
+/** Confirmation before admitting: who gets what, and the one choice for students in other cohorts. */
+function AdmitDialog({ cohortName, plan, busy, C, onMove, onPayment, onCancel, onConfirm }: {
+  cohortName: string;
+  plan: AdmitPlan;
+  busy: boolean;
+  C: ThemeColors;
+  onMove: (move: boolean) => void;
+  onPayment: (change: Partial<AdmitPayment>) => void;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const field = { width: '100%', background: C.card, color: C.text, borderRadius: 8, padding: '8px 10px', outline: 'none', fontSize: 12 };
+  const amount = plan.payment?.amount.trim() ? Number(plan.payment.amount) : null;
+  const paymentProblem = amount === null ? '' : !(amount > 0) ? 'Enter an amount above zero, or leave it empty.' : amount > plan.fee ? `The amount cannot be more than the cohort fee (${plan.currency} ${plan.fee.toLocaleString()}).` : '';
+  const inGroup = (group: AdmitGroup) => plan.applicants.filter(person => person.group === group);
+  const others = inGroup('other_cohort');
+  const toAdmit = inGroup('new').length + inGroup('no_cohort').length + (plan.move ? others.length : 0);
+  const rows: { group: AdmitGroup; title: string; note: string }[] = [
+    { group: 'new', title: 'New accounts', note: 'They get a student account and an email to set their password.' },
+    { group: 'no_cohort', title: 'Existing accounts', note: 'Added to the cohort. Those who can already sign in get an email saying so, and their password does not change. Anyone who has never signed in gets an email to set a password.' },
+    { group: 'this_cohort', title: 'Already in this cohort', note: 'Nothing changes and no email is sent.' },
+    { group: 'unconfirmed', title: 'Account status not confirmed', note: 'Nothing changes for these applicants. Try them again when account status can be checked.' },
+    { group: 'staff', title: 'Cannot be admitted', note: 'These emails belong to staff or admin accounts.' },
+  ];
+  const box = { background: C.input, borderRadius: 10 };
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) onCancel(); }}>
+      <section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-xl shadow-2xl" style={{ background: C.card }} role="dialog" aria-modal="true" aria-labelledby="admit-title">
+        <div className="flex items-start justify-between gap-4 p-5">
+          <div><h3 id="admit-title" className="text-base font-bold" style={{ color: C.text }}>Admit to {cohortName}</h3><p className="mt-1 text-xs" style={{ color: C.faint }}>Check who is affected before admitting. New enrollments use this cohort&apos;s fee.</p></div>
+          <button type="button" disabled={busy} onClick={onCancel} className="grid h-8 w-8 shrink-0 place-items-center rounded-lg disabled:opacity-40" style={{ background: C.input, color: C.muted }} aria-label="Close"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-2.5 px-5 pb-5">
+          {rows.filter(row => inGroup(row.group).length).map(row => (
+            <div key={row.group} className="p-3.5" style={box}>
+              <p className="text-xs font-bold" style={{ color: row.group === 'staff' ? C.errorText : C.text }}>{row.title} ({inGroup(row.group).length})</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>{row.note}</p>
+              <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>{admitList(inGroup(row.group))}</p>
+            </div>
+          ))}
+          {others.length > 0 && (
+            <div className="p-3.5" style={{ ...box, boxShadow: `inset 0 0 0 1px ${C.errorText}` }}>
+              <p className="text-xs font-bold" style={{ color: C.errorText }}>In another cohort ({others.length})</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Moving them changes their cohort to {cohortName}, so they lose access to their current cohort&apos;s content. Their existing fee and payment schedule stay as they are. Those who can already sign in get an email saying they were added; anyone who has never signed in gets an email to set a password.</p>
+              <p className="mt-1.5 text-[11px]" style={{ color: C.faint }}>{admitList(others, true)}</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2" role="radiogroup" aria-label="Students in another cohort">
+                {[[false, 'Skip them', 'Leave them in their current cohort.'], [true, `Move them to ${cohortName}`, 'Admit them into this cohort.']].map(([value, label, hint]) => {
+                  const selected = plan.move === value;
+                  return <button key={String(value)} type="button" role="radio" aria-checked={selected} disabled={busy} onClick={() => onMove(value as boolean)} className="rounded-lg p-3 text-left disabled:opacity-50" style={{ background: selected ? C.pill : C.card, boxShadow: selected ? `inset 0 0 0 1px ${C.cta}` : 'none' }}><span className="block text-xs font-semibold" style={{ color: selected ? C.cta : C.text }}>{label as string}</span><span className="mt-0.5 block text-[11px]" style={{ color: C.muted }}>{hint as string}</span></button>;
+                })}
+              </div>
+            </div>
+          )}
+          {plan.payment && (
+            <div className="p-3.5" style={box}>
+              <p className="text-xs font-bold" style={{ color: C.text }}>Payment received (optional)</p>
+              <p className="mt-0.5 text-[11px]" style={{ color: C.muted }}>Record money this applicant has already paid. Leave the amount empty if nothing has been paid yet; the deposit is then due today.</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Amount paid ({plan.currency})<input type="number" inputMode="decimal" min="0" step="0.01" value={plan.payment.amount} disabled={busy} onChange={event => onPayment({ amount: event.target.value })} placeholder="0.00" className="mt-1" style={field} /></label>
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Date paid<input type="date" value={plan.payment.paidAt} max={new Date().toISOString().slice(0, 10)} disabled={busy} onChange={event => onPayment({ paidAt: event.target.value })} className="mt-1" style={field} /></label>
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Method<input type="text" value={plan.payment.method} maxLength={60} disabled={busy} onChange={event => onPayment({ method: event.target.value })} placeholder="Cash, Mobile Money" className="mt-1" style={field} /></label>
+                <label className="text-[11px] font-semibold" style={{ color: C.muted }}>Reference<input type="text" value={plan.payment.reference} maxLength={120} disabled={busy} onChange={event => onPayment({ reference: event.target.value })} placeholder="Receipt or transaction ID" className="mt-1" style={field} /></label>
+              </div>
+              {paymentProblem && <p className="mt-2 text-[11px] font-semibold" style={{ color: C.errorText }}>{paymentProblem}</p>}
+            </div>
+          )}
+          {plan.applicants.length === 1 && plan.applicants[0].paymentRecorded && <p className="p-3 text-[11px]" style={{ ...box, color: C.muted }}>A payment from an earlier attempt to admit this applicant is already recorded and will be kept. Check it on the Payments screen.</p>}
+          {plan.notAccepted > 0 && <p className="p-3 text-[11px]" style={{ ...box, color: C.muted }}>{plan.notAccepted} of the selected applicants {plan.notAccepted === 1 ? 'is' : 'are'} not in an accepted stage.</p>}
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+            <button type="button" disabled={busy} onClick={onCancel} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Cancel</button>
+            <button type="button" disabled={busy || toAdmit === 0 || Boolean(paymentProblem)} onClick={onConfirm} className="flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <UserCheck className="h-4 w-4" />}{toAdmit === 0 ? 'Nobody to admit' : `Admit ${toAdmit}`}</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+}
 
 const REVIEW_TABS = [
   { id: 'answers' as const, label: 'Answers', icon: ClipboardList },
@@ -78,6 +169,12 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
   const [bulkBody, setBulkBody] = useState('');
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number } | null>(null);
   const [bulkResult, setBulkResult] = useState('');
+  // Every admission failure or email warning from the last Admit, each with its reason.
+  const [admitIssues, setAdmitIssues] = useState<{ email: string; message: string; admitted: boolean }[]>([]);
+  // Admission into the form's cohort: who is already in it, and whether this person may admit.
+  const [admission, setAdmission] = useState<{ cohort: { id: string; name: string; ready: boolean; problem?: string } | null; admitted: Set<string>; canAdmit: boolean }>({ cohort: null, admitted: new Set(), canAdmit: false });
+  // The checked admission awaiting confirmation; `move` is the one choice for students in other cohorts.
+  const [admitPlan, setAdmitPlan] = useState<AdmitPlan | null>(null);
   const [bulkPanelOpen, setBulkPanelOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ReviewTab>('answers');
   const selected = submissions.find(item => item.id === selectedId);
@@ -99,13 +196,92 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     } catch (reason) { setError((reason as Error).message); }
     finally { setLoading(false); }
   }
+  async function loadAdmission() {
+    try {
+      const response = await fetch(`/api/application-forms/${form.id}/admit`, { headers: { Authorization: `Bearer ${token}` } });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error || 'Could not load admission status.');
+      setAdmission({ cohort: value.cohort ?? null, admitted: new Set(value.admittedSubmissionIds ?? []), canAdmit: Boolean(value.canAdmit) });
+    } catch (reason) {
+      setError(`${(reason as Error).message || 'Could not load admission status.'} Reload and try again.`);
+    }
+  }
+
+  // Step 1: ask the server how each applicant would be handled, then show it for confirmation.
+  async function admit(ids: string[]) {
+    const targets = submissions.filter(item => ids.includes(item.id) && item.state === 'submitted');
+    if (!admission.cohort || !targets.length) return;
+    setBusy(true); setError(''); setBulkResult(''); setAdmitIssues([]);
+    try {
+      const response = await fetch(`/api/application-forms/${form.id}/admit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ submissionIds: targets.map(item => item.id), check: true }),
+      });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error || 'Could not check these applicants.');
+      const notAccepted = targets.filter(item => !isAcceptedStage(form.config.stages.find(stage => stage.id === item.stageId))).length;
+      const applicants: AdmitPlanApplicant[] = value.applicants ?? [];
+      setAdmitPlan({
+        applicants, notAccepted, move: false,
+        fee: Number(value.cohort?.fee) || 0, currency: value.cohort?.currency || '',
+        // The server offers a payment only when admitting one new student.
+        payment: applicants.length === 1 && applicants[0].paymentAllowed ? { amount: '', paidAt: new Date().toISOString().slice(0, 10), method: '', reference: '' } : null,
+      });
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Step 2: admit, moving students out of other cohorts only when that was chosen.
+  async function confirmAdmit() {
+    const plan = admitPlan;
+    const cohort = admission.cohort;
+    if (!plan || !cohort) return;
+    setBusy(true); setError(''); setBulkResult(''); setAdmitIssues([]);
+    try {
+      const response = await fetch(`/api/application-forms/${form.id}/admit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          submissionIds: plan.applicants.map(item => item.submissionId),
+          moveFromOtherCohorts: plan.move,
+          ...(plan.payment?.amount.trim() ? { payment: { amount: Number(plan.payment.amount), paidAt: plan.payment.paidAt, method: plan.payment.method, reference: plan.payment.reference } } : {}),
+        }),
+      });
+      const value = await response.json();
+      if (!response.ok) throw new Error(value.error || 'Could not admit these applicants.');
+      const results: { submissionId: string; email: string; status: 'admitted' | 'skipped' | 'failed'; message?: string }[] = value.results ?? [];
+      const admittedIds = results.filter(item => item.status === 'admitted').map(item => item.submissionId);
+      const skipped = results.filter(item => item.status === 'skipped').length;
+      const failed = results.filter(item => item.status === 'failed');
+      const warned = results.filter(item => item.status === 'admitted' && item.message);
+      setAdmission(previous => ({ ...previous, admitted: new Set([...previous.admitted, ...admittedIds]) }));
+      setBulkResult([
+        `${admittedIds.length} admitted to ${cohort.name}.`,
+        skipped ? `${skipped} skipped.` : '',
+        failed.length ? `${failed.length} could not be admitted and remain selected.` : '',
+      ].filter(Boolean).join(' '));
+      // Every reason, not just the first few, so each remaining applicant can be fixed.
+      setAdmitIssues([...failed, ...warned].map(item => ({ email: item.email, message: item.message || 'This applicant could not be admitted.', admitted: item.status === 'admitted' })));
+      setSelectedIds(new Set(failed.map(item => item.submissionId)));
+      setAdmitPlan(null);
+    } catch (reason) {
+      setError((reason as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { void load(); }, [form.id]);
+  useEffect(() => { void load(); void loadAdmission(); }, [form.id]);
 
   useEffect(() => {
     setSelectedIds(new Set());
     setBulkStageId('');
-    setBulkResult('');
+    setBulkResult(''); setAdmitIssues([]);
     setBulkPanelOpen(false);
     setActiveTab('answers');
   }, [form.id, form.config.stages]);
@@ -183,7 +359,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
-    setBulkResult('');
+    setBulkResult(''); setAdmitIssues([]);
   }
 
   function openSubmission(id: string) {
@@ -201,7 +377,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       }
       return next;
     });
-    setBulkResult('');
+    setBulkResult(''); setAdmitIssues([]);
   }
 
   function pickBulkPreset(type: MessagePresetType) {
@@ -239,7 +415,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
       : `Move ${targets.length} application${targets.length === 1 ? '' : 's'} to ${stage?.name ?? 'the selected stage'}?`;
     if (!window.confirm(confirmation)) return;
 
-    setBusy(true); setError(''); setBulkResult('');
+    setBusy(true); setError(''); setBulkResult(''); setAdmitIssues([]);
     setBulkProgress({ current: 0, total: targets.length });
     const updatedById = new Map<string, any>();
     const failures: Array<{ id: string; email: string; message: string }> = [];
@@ -326,13 +502,24 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
         </div>
       </div>
 
-      {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><div className="flex shrink-0 items-center gap-3">{error.includes('Reload and try again.') && <button type="button" onClick={() => void load()} className="text-xs font-bold underline">Reload</button>}<button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div></div>}
+      {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><div className="flex shrink-0 items-center gap-3">{error.includes('Reload and try again.') && <button type="button" onClick={() => { void load(); void loadAdmission(); }} className="text-xs font-bold underline">Reload</button>}<button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div></div>}
       {bulkResult && <div className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-4 w-4" /> {bulkResult}</div>}
+      {admitIssues.length > 0 && (
+        <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }} role="status">
+          <div className="flex items-center justify-between gap-3">
+            <p className="font-semibold">{admitIssues.length} {admitIssues.length === 1 ? 'applicant needs' : 'applicants need'} attention</p>
+            <button type="button" onClick={() => setAdmitIssues([])} aria-label="Dismiss admission issues"><X className="h-4 w-4" /></button>
+          </div>
+          <ul className="mt-2 max-h-48 space-y-1 overflow-y-auto text-xs">
+            {admitIssues.map(item => <li key={item.email} className="break-words"><span className="font-semibold">{item.email}</span>{item.admitted ? ' (admitted)' : ''}: {item.message}</li>)}
+          </ul>
+        </div>
+      )}
 
       {selectedIds.size > 0 && (
         <div className="sticky top-3 z-20 flex flex-wrap items-center justify-between gap-3 rounded-xl px-4 py-3 shadow-lg" style={{ background: C.card }}>
           <div className="flex items-center gap-3"><span className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold" style={{ background: C.cta, color: C.ctaText }}>{selectedIds.size}</span><div><p className="text-xs font-bold" style={{ color: C.text }}>Applications selected</p><p className="text-[10px]" style={{ color: C.faint }}>Update their stage or notify them together.</p></div></div>
-          <div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => { setSelectedIds(new Set()); setBulkPanelOpen(false); }} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Clear</button><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><Users className="h-3.5 w-3.5" /> Bulk update</button></div>
+          <div className="flex items-center gap-2"><button type="button" disabled={busy} onClick={() => { setSelectedIds(new Set()); setBulkPanelOpen(false); }} className="rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>Clear</button><button type="button" disabled={busy} onClick={() => setBulkPanelOpen(true)} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><Users className="h-3.5 w-3.5" /> Bulk update</button>{admission.canAdmit && admission.cohort?.ready && <button type="button" disabled={busy} onClick={() => void admit([...selectedIds])} className="flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.successBg, color: C.successText }}><UserCheck className="h-3.5 w-3.5" /> Admit selected</button>}</div>
         </div>
       )}
 
@@ -348,7 +535,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
               <div key={item.id} className="flex items-stretch overflow-hidden rounded-lg" style={{ background: item.id === selectedId ? C.pill : 'transparent' }}>
                 <label className="grid cursor-pointer place-items-center px-3" title={item.state === 'submitted' ? 'Select for bulk update' : 'Only submitted applications can be selected'}><input type="checkbox" checked={selectedIds.has(item.id)} disabled={item.state !== 'submitted' || busy} onChange={() => toggleSelected(item.id)} style={{ accentColor: C.cta }} /></label>
                 <button type="button" onClick={() => openSubmission(item.id)} className="flex min-w-0 flex-1 items-center gap-2 py-3 pr-2 text-left">
-                  <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold" style={{ color: C.text }}>{item.email}</p><div className="mt-1 flex items-center gap-2"><span className="truncate text-[10px]" style={{ color: C.faint }}>{item.reference}</span><span className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={{ background: C.card, color: C.successText }}>{stageName(item)}</span></div></div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-xs font-semibold" style={{ color: C.text }}>{item.email}</p><div className="mt-1 flex items-center gap-2"><span className="truncate text-[10px]" style={{ color: C.faint }}>{item.reference}</span><span className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={{ background: C.card, color: C.successText }}>{stageName(item)}</span>{admission.admitted.has(item.id) && <span className="rounded-full px-2 py-0.5 text-[9px] font-semibold" style={{ background: C.successBg, color: C.successText }}>Admitted</span>}</div></div>
                   <ChevronRight className="h-4 w-4 shrink-0" style={{ color: C.faint }} />
                 </button>
               </div>
@@ -372,7 +559,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
               <div className="p-5 sm:p-6">
                 {activeTab === 'answers' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Application answers</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Review the information submitted by this applicant.</p></div><div className="space-y-2">{reviewQuestions.map((question, index) => <div key={question.id} className="grid gap-2 rounded-lg p-4 sm:grid-cols-[28px_minmax(0,1fr)]" style={{ background: C.input }}><span className="grid h-7 w-7 place-items-center rounded-md text-[10px] font-bold" style={{ background: C.card, color: C.cta }}>{index + 1}</span><div className="min-w-0"><p className="text-[11px] font-semibold" style={{ color: C.faint }}>{question.label}</p><div className="mt-1 whitespace-pre-wrap break-words text-sm leading-6" style={{ color: C.text }}>{displayAnswer(selected.answers?.[question.id], () => void openReviewFile(selected.id, question.id))}</div></div></div>)}</div></div>}
 
-                {activeTab === 'review' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Review decision</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Assign ownership, record a score, and move the application forward.</p></div><div className="grid gap-3 sm:grid-cols-3"><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Stage</label><select value={selected.stageId} onChange={event => void update({ stageId: event.target.value })} disabled={busy} style={input}>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Reviewer</label><select value={selected.assignedReviewerId} onChange={event => { const reviewer = reviewers.find(item => item.id === event.target.value); void update({ assignedReviewerId: event.target.value, assignedReviewerEmail: reviewer?.email ?? '' }); }} disabled={busy || reviewers.length === 0} style={input}><option value="">Unassigned</option>{reviewers.map(reviewer => <option key={reviewer.id} value={reviewer.id}>{reviewer.full_name || reviewer.email}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Score (optional)</label><input type="number" min="0" max="100" value={selected.score ?? ''} onChange={event => setSubmissions(previous => previous.map(item => item.id === selected.id ? { ...item, score: event.target.value === '' ? null : Number(event.target.value) } : item))} onBlur={() => void update({ score: selected.score })} disabled={busy} style={input} /></div></div><div className="mt-4 flex items-start gap-3 rounded-lg p-4" style={{ background: C.pill }}><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.cta }} /><div><p className="text-xs font-semibold" style={{ color: C.text }}>Current applicant-facing status</p><p className="mt-1 text-xs" style={{ color: C.faint }}>{form.config.stages.find(stage => stage.id === selected.stageId)?.applicantLabel ?? stageName(selected)}</p></div></div></div>}
+                {activeTab === 'review' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Review decision</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Assign ownership, record a score, and move the application forward.</p></div><div className="grid gap-3 sm:grid-cols-3"><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Stage</label><select value={selected.stageId} onChange={event => void update({ stageId: event.target.value })} disabled={busy} style={input}>{form.config.stages.map(stage => <option key={stage.id} value={stage.id}>{stage.name}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Reviewer</label><select value={selected.assignedReviewerId} onChange={event => { const reviewer = reviewers.find(item => item.id === event.target.value); void update({ assignedReviewerId: event.target.value, assignedReviewerEmail: reviewer?.email ?? '' }); }} disabled={busy || reviewers.length === 0} style={input}><option value="">Unassigned</option>{reviewers.map(reviewer => <option key={reviewer.id} value={reviewer.id}>{reviewer.full_name || reviewer.email}</option>)}</select></div><div><label className="mb-1.5 block text-[11px] font-semibold" style={{ color: C.muted }}>Score (optional)</label><input type="number" min="0" max="100" value={selected.score ?? ''} onChange={event => setSubmissions(previous => previous.map(item => item.id === selected.id ? { ...item, score: event.target.value === '' ? null : Number(event.target.value) } : item))} onBlur={() => void update({ score: selected.score })} disabled={busy} style={input} /></div></div><div className="mt-4 flex items-start gap-3 rounded-lg p-4" style={{ background: C.pill }}><CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: C.cta }} /><div><p className="text-xs font-semibold" style={{ color: C.text }}>Current applicant-facing status</p><p className="mt-1 text-xs" style={{ color: C.faint }}>{form.config.stages.find(stage => stage.id === selected.stageId)?.applicantLabel ?? stageName(selected)}</p></div></div>{(admission.cohort || admission.canAdmit) && <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg p-4" style={{ background: C.input }}><div className="flex min-w-0 items-start gap-3"><UserCheck className="mt-0.5 h-4 w-4 shrink-0" style={{ color: admission.admitted.has(selected.id) ? C.successText : C.cta }} /><div className="min-w-0"><p className="text-xs font-semibold" style={{ color: C.text }}>Admission</p><p className="mt-1 text-xs" style={{ color: C.faint }}>{!admission.cohort ? 'Choose a cohort in this form\'s Review flow settings to admit applicants.' : admission.admitted.has(selected.id) ? `Admitted to ${admission.cohort.name}.` : !admission.cohort.ready ? admission.cohort.problem : `Admit this applicant to ${admission.cohort.name}. They get a student account and an email to set their password.`}</p></div></div>{admission.canAdmit && admission.cohort?.ready && !admission.admitted.has(selected.id) && selected.state === 'submitted' && <button type="button" disabled={busy} onClick={() => void admit([selected.id])} className="flex shrink-0 items-center gap-1.5 rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}><UserCheck className="h-4 w-4" /> Admit to {admission.cohort.name}</button>}</div>}</div>}
 
                 {activeTab === 'notes' && <div><div className="mb-4"><h4 className="text-sm font-bold" style={{ color: C.text }}>Private notes</h4><p className="mt-1 text-xs" style={{ color: C.faint }}>Only staff with review access can see these notes.</p></div><div className="mb-4 space-y-2">{(selected.privateNotes ?? []).length === 0 ? <div className="rounded-lg p-5 text-center text-xs" style={{ background: C.input, color: C.faint }}>No private notes yet.</div> : selected.privateNotes.map((item: any) => <div key={item.id} className="rounded-lg p-4" style={{ background: C.input }}><p className="whitespace-pre-wrap text-sm leading-6" style={{ color: C.text }}>{item.body}</p><p className="mt-2 text-[10px]" style={{ color: C.faint }}>{item.authorEmail} | {new Date(item.createdAt).toLocaleString()}</p></div>)}</div><textarea rows={4} value={note} onChange={event => setNote(event.target.value)} placeholder="Write a private note about this application" style={{ ...input, resize: 'vertical' }} /><div className="mt-2 flex justify-end"><button type="button" disabled={busy || !note.trim()} onClick={() => void update({ note })} className="rounded-lg px-4 py-2.5 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy ? 'Saving...' : 'Add note'}</button></div></div>}
 
@@ -403,6 +590,8 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
           )}
         </main>
       </div>
+
+      {admitPlan && admission.cohort && <AdmitDialog cohortName={admission.cohort.name} plan={admitPlan} busy={busy} C={C} onMove={move => setAdmitPlan(previous => previous && { ...previous, move })} onPayment={change => setAdmitPlan(previous => previous && previous.payment ? { ...previous, payment: { ...previous.payment, ...change } } : previous)} onCancel={() => setAdmitPlan(null)} onConfirm={() => void confirmAdmit()} />}
 
       {bulkPanelOpen && selectedIds.size > 0 && (
         <div className="fixed inset-0 z-[100] grid place-items-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={event => { if (event.target === event.currentTarget && !busy) setBulkPanelOpen(false); }}>

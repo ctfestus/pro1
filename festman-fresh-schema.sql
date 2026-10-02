@@ -125,6 +125,9 @@ CREATE TABLE public.students (
                                    CHECK (account_origin IN ('self_signup','admissions','unknown')),
   access_state       text        NOT NULL DEFAULT 'pending'
                                    CHECK (access_state IN ('pending','active','denied')),
+  -- Last access state successfully written to both this row and the cached auth claim.
+  access_state_confirmed text    NOT NULL DEFAULT 'pending'
+                                   CHECK (access_state_confirmed IN ('pending','active','denied')),
   last_login_at      timestamptz,
   created_at         timestamptz NOT NULL DEFAULT now(),
   updated_at         timestamptz NOT NULL DEFAULT now()

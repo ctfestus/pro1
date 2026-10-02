@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { randomBytes } from 'crypto';
 import { Resend } from 'resend';
 import { createAdmissionRecord, activateEnrollment } from '@/lib/db-payments';
-import { studentAccountCreatedEmail } from '@/lib/email-templates';
+import { studentAccountCreatedEmail, studentAddedToCohortEmail } from '@/lib/email-templates';
 import { addToResendAudience } from '@/lib/resend-audience';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { markAdmissionsProvisioned, markExistingAccountAdmitted } from '@/lib/account-state-server';
@@ -34,6 +34,8 @@ export interface AdmitResult {
   updated: number;
   provisioned: number;
   setupEmailsSent: number;
+  /** Emails whose admission (account + enrollment) succeeded, even if their email then failed. */
+  admittedEmails: string[];
   errors: { email: string; error: string }[];
 }
 
@@ -47,19 +49,21 @@ function passwordSetupUrl(appUrl: string, tokenHash: string) {
 
 async function provisionStudentAccount(
   db: SupabaseClient,
-  input: { email: string; fullName?: string | null; cohortId: string; enrollmentId: string; appUrl: string },
+  input: { email: string; fullName?: string | null; cohortId: string; enrollmentId: string },
 ) {
-  const { email, cohortId, enrollmentId, appUrl } = input;
+  const { email, cohortId, enrollmentId } = input;
   const fullName = input.fullName?.trim() || null;
 
   const { data: existingStudent, error: existingStudentError } = await db
     .from('students')
-    .select('id, role, full_name, account_provisioned_at')
+    .select('id, role, full_name, account_provisioned_at, password_set_at')
     .eq('email', email)
     .maybeSingle();
   if (existingStudentError) throw existingStudentError;
+  // Staff accounts are learners with grading access (they sign in to /student), so they can be
+  // admitted here; admin and instructor accounts cannot.
   if (existingStudent && existingStudent.role !== 'student' && existingStudent.role !== 'staff') {
-    throw new Error('This email already belongs to a staff or admin account.');
+    throw new Error('This email already belongs to an admin or instructor account.');
   }
 
   let studentId = existingStudent?.id as string | undefined;
@@ -129,19 +133,133 @@ async function provisionStudentAccount(
     throw err;
   }
 
-  const { data: link, error: linkError } = await db.auth.admin.generateLink({
-    type: 'recovery',
-    email,
-  });
-  if (linkError || !link.properties?.hashed_token) {
-    throw linkError ?? new Error('Could not generate first-access link.');
-  }
-
   return {
     studentId,
-    setupUrl: passwordSetupUrl(appUrl, link.properties.hashed_token),
     isNewAccount: Boolean(createdUserId),
+    passwordSetAt: (existingStudent?.password_set_at as string | null | undefined) ?? null,
   };
+}
+
+async function assertAdmissibleAccountRole(db: SupabaseClient, email: string): Promise<void> {
+  const { data: existingStudent, error } = await db
+    .from('students')
+    .select('role')
+    .eq('email', email)
+    .maybeSingle();
+  if (error) throw error;
+  if (existingStudent && existingStudent.role !== 'student' && existingStudent.role !== 'staff') {
+    throw new Error('This email already belongs to an admin or instructor account.');
+  }
+}
+
+/** Base URL for links in admission emails; empty when neither APP_URL nor the tenant sets one. */
+export async function admissionAppUrl(): Promise<string> {
+  const t = await getTenantSettings();
+  return (process.env.APP_URL || t.appUrl || '').replace(/\/$/, '');
+}
+
+export interface CohortAccessAccount {
+  email: string;
+  /** Greeting name; 'there' when unknown. */
+  name: string;
+  studentId: string;
+  isNewAccount: boolean;
+  /** students.password_set_at, when already loaded. */
+  passwordSetAt?: string | null;
+}
+
+/**
+ * Email accounts that were just put into a cohort. Runs after admission has succeeded, so a
+ * failure here is reported per account and never undoes the admission.
+ *
+ * Only an account that cannot sign in yet gets a set-password link. password_set_at was not
+ * backfilled for older accounts, so an account that has ever signed in also counts as able to
+ * sign in; those students get an added-to-cohort email instead of a reset link.
+ */
+export async function sendCohortAccessEmails(
+  db: SupabaseClient,
+  input: { cohortId: string; appUrl: string; accounts: CohortAccessAccount[] },
+): Promise<{ sent: number; errors: { email: string; error: string }[] }> {
+  const { cohortId, appUrl, accounts } = input;
+  const errors: { email: string; error: string }[] = [];
+  if (!accounts.length) return { sent: 0, errors };
+  if (!process.env.RESEND_API_KEY) {
+    return {
+      sent: 0,
+      errors: accounts.map(account => ({ email: account.email, error: 'Account created, but RESEND_API_KEY is not configured so the setup email was not sent.' })),
+    };
+  }
+
+  const ready: { account: CohortAccessAccount; setupUrl: string | null }[] = [];
+  for (const account of accounts) {
+    try {
+      let owesPassword = account.isNewAccount;
+      if (!owesPassword && !account.passwordSetAt) {
+        const { data: authUser } = await db.auth.admin.getUserById(account.studentId);
+        owesPassword = !authUser?.user?.last_sign_in_at;
+      }
+      if (!owesPassword) {
+        ready.push({ account, setupUrl: null });
+        continue;
+      }
+      const { data: link, error: linkError } = await db.auth.admin.generateLink({ type: 'recovery', email: account.email });
+      if (linkError || !link.properties?.hashed_token) {
+        throw linkError ?? new Error('Could not generate first-access link.');
+      }
+      ready.push({ account, setupUrl: passwordSetupUrl(appUrl, link.properties.hashed_token) });
+    } catch (err: any) {
+      errors.push({ email: account.email, error: `Admitted, but the setup email could not be prepared: ${err?.message || 'unknown error'}` });
+    }
+  }
+  if (!ready.length) return { sent: 0, errors };
+
+  try {
+    const t = await getTenantSettings();
+    const { data: cohortRow } = await db.from('cohorts').select('name').eq('id', cohortId).maybeSingle();
+    const cohortName = cohortRow?.name ?? 'your cohort';
+    const FROM       = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
+    const branding   = { appName: t.appName, appUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
+
+    const { error: sendError } = await resend.batch.send(
+      ready.map(({ account, setupUrl }) => setupUrl
+        ? {
+            from: FROM,
+            to: account.email,
+            subject: `Your ${t.appName || cohortName} account is ready`,
+            html: studentAccountCreatedEmail({
+              name: account.name,
+              cohortName,
+              setupUrl,
+              branding,
+            }),
+          }
+        : {
+            from: FROM,
+            to: account.email,
+            subject: `You have been added to ${cohortName}`,
+            html: studentAddedToCohortEmail({
+              name: account.name,
+              cohortName,
+              signInUrl: `${appUrl}/student`,
+              branding,
+            }),
+          })
+    );
+    if (sendError) throw new Error(sendError.message || 'The email provider rejected the request.');
+    const setupSent = ready.filter(item => item.setupUrl).map(item => item.account.email);
+    if (setupSent.length) {
+      await db
+        .from('students')
+        .update({ setup_email_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+        .in('email', setupSent);
+    }
+    return { sent: ready.length, errors };
+  } catch (err: any) {
+    for (const { account } of ready) {
+      errors.push({ email: account.email, error: err?.message || 'Account created, but the setup email could not be sent.' });
+    }
+    return { sent: 0, errors };
+  }
 }
 
 /**
@@ -165,9 +283,8 @@ export async function admitStudents(
   let inserted = 0;
   let updated = 0;
   const errors: { email: string; error: string }[] = [];
-  const accountEmails: { email: string; name: string; setupUrl: string; isNewAccount: boolean }[] = [];
-  const t = await getTenantSettings();
-  const appUrl = (process.env.APP_URL || t.appUrl || '').replace(/\/$/, '');
+  const accountEmails: CohortAccessAccount[] = [];
+  const appUrl = await admissionAppUrl();
   if (!appUrl) {
     return { error: 'APP_URL or platform App URL must be configured before creating student accounts.', status: 500 };
   }
@@ -184,6 +301,10 @@ export async function admitStudents(
       if (!cohort?.start_date) {
         throw new Error('Cohort start date is required before student accounts can be created.');
       }
+
+      // Reject privileged accounts before creating or updating an enrollment record. The
+      // provisioning check remains as a second guard against a role changing mid-request.
+      await assertAdmissibleAccountRole(db, email);
 
       const deposit_percent  = Number(settings?.deposit_percent ?? 50);
       const deposit_required = Math.round(total_fee * deposit_percent) / 100;
@@ -258,57 +379,22 @@ export async function admitStudents(
         fullName: row.full_name ?? null,
         cohortId,
         enrollmentId,
-        appUrl,
       });
       accountEmails.push({
         email,
         name: row.full_name || 'there',
-        setupUrl: provisioned.setupUrl,
+        studentId: provisioned.studentId,
         isNewAccount: provisioned.isNewAccount,
+        passwordSetAt: provisioned.passwordSetAt,
       });
     } catch (err: any) {
       errors.push({ email, error: err.message ?? 'Unknown error' });
     }
   }
 
-  let setupEmailsSent = 0;
-  if (accountEmails.length > 0) {
-    if (!process.env.RESEND_API_KEY) {
-      for (const account of accountEmails) {
-        errors.push({ email: account.email, error: 'Account created, but RESEND_API_KEY is not configured so the setup email was not sent.' });
-      }
-    } else {
-      try {
-        const { data: cohortRow } = await db.from('cohorts').select('name').eq('id', cohortId).maybeSingle();
-        const cohortName = cohortRow?.name ?? 'your cohort';
-        const FROM       = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-        const branding   = { appName: t.appName, appUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
-
-        await resend.batch.send(
-          accountEmails.map(account => ({
-            from: FROM,
-            to: account.email,
-            subject: `Your ${t.appName || cohortName} account is ready`,
-            html: studentAccountCreatedEmail({
-              name: account.name,
-              cohortName,
-              setupUrl: account.setupUrl,
-              branding,
-            }),
-          }))
-        );
-        await db
-          .from('students')
-          .update({ setup_email_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
-          .in('email', accountEmails.map(account => account.email));
-        setupEmailsSent = accountEmails.length;
-      } catch (err: any) {
-        for (const account of accountEmails) {
-          errors.push({ email: account.email, error: err?.message || 'Account created, but the setup email could not be sent.' });
-        }
-      }
-    }
-  }
+  const emailed = await sendCohortAccessEmails(db, { cohortId, appUrl, accounts: accountEmails });
+  errors.push(...emailed.errors);
+  const setupEmailsSent = emailed.sent;
 
   // Add newly provisioned students to the Resend audience. Each call is
   // self-contained and never throws, so a contact failure cannot affect the
@@ -322,5 +408,5 @@ export async function admitStudents(
       })),
   );
 
-  return { inserted, updated, provisioned: accountEmails.length, setupEmailsSent, errors };
+  return { inserted, updated, provisioned: accountEmails.length, setupEmailsSent, admittedEmails: accountEmails.map(account => account.email), errors };
 }

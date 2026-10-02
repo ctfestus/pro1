@@ -192,93 +192,11 @@ export async function POST(req: NextRequest) {
 
       const email = student.email.toLowerCase();
 
-      // Do all enrollment work BEFORE touching students.cohort_id
       if (cohortId) {
-        const { createAdmissionRecord, activateEnrollment } = await import('@/lib/db-payments');
-
-        // Check if the student already has an active (post-signup) enrollment anywhere
-        const { data: anyEnrollment } = await db
-          .from('bootcamp_enrollments')
-          .select('id, cohort_id, released_at')
-          .eq('student_id', studentId)
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (anyEnrollment) {
-          // Student already enrolled -- just move the enrollment to the new cohort.
-          // Payment history, installments, and paid amounts stay on the same row.
-          // A previously released enrollment is reattached here rather than replaced,
-          // which is what keeps a re-added student off a second full-fee schedule.
-          const { error: claimError } = await db.rpc('claim_student_enrollment_model', {
-            p_student_id: studentId,
-            p_requested_model: 'bootcamp',
-          });
-          if (claimError) throw claimError;
-          if (anyEnrollment.cohort_id !== cohortId) {
-            const { error: moveError } = await db
-              .from('bootcamp_enrollments')
-              .update({ cohort_id: cohortId, updated_at: new Date().toISOString() })
-              .eq('id', anyEnrollment.id);
-            if (moveError) throw moveError;
-          }
-          if (anyEnrollment.released_at) {
-            const { error: reattachError } = await db.rpc('reattach_released_enrollment', {
-              p_enrollment_id: anyEnrollment.id,
-            });
-            if (reattachError) throw reattachError;
-          }
-        } else {
-          // No existing enrollment -- create one fresh.
-
-          // Case 1: pre-signup row exists for this cohort -- activate it
-          const { data: presignup } = await db
-            .from('bootcamp_enrollments')
-            .select('id')
-            .eq('email', email)
-            .eq('cohort_id', cohortId)
-            .is('student_id', null)
-            .maybeSingle();
-
-          if (presignup) {
-            await activateEnrollment(db, email, cohortId, studentId);
-          } else {
-            // Case 2: no row at all -- create from cohort defaults then activate
-            const [{ data: settings }, { data: cohortRow }] = await Promise.all([
-              db.from('cohort_payment_settings').select('*').eq('cohort_id', cohortId).maybeSingle(),
-              db.from('cohorts').select('start_date, end_date').eq('id', cohortId).maybeSingle(),
-            ]);
-            if (!settings?.total_fee || Number(settings.total_fee) <= 0) {
-              throw new Error('Set payment settings for this cohort before assigning students.');
-            }
-            const depositRequired = Math.round(Number(settings.total_fee) * Number(settings.deposit_percent ?? 50)) / 100;
-            const { error: claimError } = await db.rpc('claim_student_enrollment_model', {
-              p_student_id: studentId,
-              p_requested_model: 'bootcamp',
-            });
-            if (claimError) throw claimError;
-            await createAdmissionRecord(db, {
-              email,
-              cohortId,
-              totalFee:         Number(settings.total_fee),
-              currency:         settings.currency ?? 'GHS',
-              paymentPlan:      settings.payment_plan ?? 'flexible',
-              depositRequired,
-              bootcampStartsAt: cohortRow?.start_date ?? null,
-              bootcampEndsAt:   cohortRow?.end_date ?? null,
-            });
-            await activateEnrollment(db, email, cohortId, studentId);
-          }
-        }
-      }
-
-      if (cohortId) {
-        // Enrollment confirmed -- now safe to update the real cohort pointer.
-        const { error: assignErr } = await db
-          .from('students')
-          .update({ cohort_id: cohortId })
-          .eq('id', studentId);
-        if (assignErr) throw assignErr;
+        // Moves or reattaches an existing enrollment instead of creating a second one, then
+        // updates students.cohort_id. Shared with admitting application form applicants.
+        const { assignStudentToCohort } = await import('@/lib/assign-student-cohort');
+        await assignStudentToCohort(db, { studentId, email, cohortId });
       } else {
         // Explicit removal releases the bootcamp model and detaches the current
         // enrollment link while preserving all financial rows as history.

@@ -3,6 +3,7 @@ import {
   applicationFileAcceptAttribute,
   applicationFileContentType,
   applicationFileTypesLabel,
+  isAcceptedStage,
   isApplicationContentBlock,
   formAvailability,
   isQuestionVisible,
@@ -10,6 +11,7 @@ import {
   newApplicationFee,
   newApplicationFormConfig,
   publicApplicationForm,
+  suggestedNameQuestionId,
   validateApplicationAnswers,
   validateApplicationForm,
   type ApplicationFormRecord,
@@ -212,5 +214,32 @@ describe('application form contract', () => {
     expect(publicApplicationForm(form).config.coverImagePositionX).toBe(42);
     expect(publicApplicationForm(form).config.coverImagePositionY).toBe(76);
     expect(publicApplicationForm(form).config.coverImageZoom).toBe(1.25);
+  });
+
+  it('validates the admission cohort and name question, and keeps admission out of the public form', () => {
+    const config = newApplicationFormConfig('bootcamp');
+    const cohortId = '11111111-1111-4111-8111-111111111111';
+    config.questions.unshift({ id: 'full-name', label: 'Full name', type: 'short_text', required: true });
+    expect(validateApplicationForm({ ...config, admission: { cohortId, nameQuestionId: 'full-name' } })).toEqual([]);
+    expect(validateApplicationForm({ ...config, admission: { cohortId: 'not-a-cohort' } })).toContain('Select a valid cohort for admission.');
+    expect(validateApplicationForm({ ...config, admission: { cohortId, nameQuestionId: 'missing' } })).toContain('Choose a short answer question for the applicant name.');
+
+    const form = {
+      id: 'form-1', ownerId: 'owner', ownerEmail: '', slug: 'bootcamp', status: 'published', createdAt: '', updatedAt: '',
+      config: { ...config, admission: { cohortId } },
+    } as ApplicationFormRecord;
+    expect(publicApplicationForm(form).config).not.toHaveProperty('admission');
+  });
+
+  it('suggests the name question and recognises accepted stages', () => {
+    expect(suggestedNameQuestionId([
+      { id: 'q1', label: 'Email of a referee', type: 'short_text', required: false },
+      { id: 'q2', label: 'Your full name', type: 'short_text', required: true },
+    ])).toBe('q2');
+    expect(suggestedNameQuestionId([{ id: 'q1', label: 'Username', type: 'short_text', required: false }])).toBeUndefined();
+    expect(isAcceptedStage({ id: 'accepted', name: 'Accepted', applicantLabel: 'Accepted' })).toBe(true);
+    expect(isAcceptedStage({ id: 'stage-1', name: 'Offer', applicantLabel: 'Admitted' })).toBe(true);
+    expect(isAcceptedStage({ id: 'screening', name: 'Screening', applicantLabel: 'Under review' })).toBe(false);
+    expect(isAcceptedStage(undefined)).toBe(false);
   });
 });
