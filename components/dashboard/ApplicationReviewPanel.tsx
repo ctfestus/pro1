@@ -36,7 +36,7 @@ const MESSAGE_PRESETS = {
 type MessagePresetType = keyof typeof MESSAGE_PRESETS;
 type ApplicationMessageType = MessagePresetType | 'custom';
 type ReviewTab = 'answers' | 'review' | 'notes' | 'emails';
-type AdmitGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'staff';
+type AdmitGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'unconfirmed' | 'staff';
 type AdmitPlanApplicant = { submissionId: string; email: string; name: string | null; group: AdmitGroup; currentCohortName?: string };
 
 /** Up to five people, then "and N more". */
@@ -62,6 +62,7 @@ function AdmitDialog({ cohortName, plan, busy, C, onMove, onCancel, onConfirm }:
     { group: 'new', title: 'New accounts', note: 'They get a student account and an email to set their password.' },
     { group: 'no_cohort', title: 'Existing accounts', note: 'Added to the cohort. Those who can already sign in get an email saying so, and their password does not change. Anyone who has never signed in gets an email to set a password.' },
     { group: 'this_cohort', title: 'Already in this cohort', note: 'Nothing changes and no email is sent.' },
+    { group: 'unconfirmed', title: 'Account status not confirmed', note: 'Nothing changes for these applicants. Try them again when account status can be checked.' },
     { group: 'staff', title: 'Cannot be admitted', note: 'These emails belong to staff or admin accounts.' },
   ];
   const box = { background: C.input, borderRadius: 10 };
@@ -178,10 +179,10 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
     try {
       const response = await fetch(`/api/application-forms/${form.id}/admit`, { headers: { Authorization: `Bearer ${token}` } });
       const value = await response.json();
-      if (!response.ok) return;
+      if (!response.ok) throw new Error(value.error || 'Could not load admission status.');
       setAdmission({ cohort: value.cohort ?? null, admitted: new Set(value.admittedSubmissionIds ?? []), canAdmit: Boolean(value.canAdmit) });
-    } catch {
-      // The badge and Admit button are a convenience; reviewing still works without them.
+    } catch (reason) {
+      setError(`${(reason as Error).message || 'Could not load admission status.'} Reload and try again.`);
     }
   }
 
@@ -470,7 +471,7 @@ export function ApplicationReviewPanel({ form, token, reviewers, C, onBack }: {
         </div>
       </div>
 
-      {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><div className="flex shrink-0 items-center gap-3">{error.includes('Reload and try again.') && <button type="button" onClick={() => void load()} className="text-xs font-bold underline">Reload</button>}<button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div></div>}
+      {error && <div className="flex items-start justify-between gap-3 rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}><span>{error}</span><div className="flex shrink-0 items-center gap-3">{error.includes('Reload and try again.') && <button type="button" onClick={() => { void load(); void loadAdmission(); }} className="text-xs font-bold underline">Reload</button>}<button type="button" onClick={() => setError('')} aria-label="Dismiss error"><X className="h-4 w-4" /></button></div></div>}
       {bulkResult && <div className="flex items-center gap-2 rounded-xl p-3 text-sm font-semibold" style={{ background: C.successBg, color: C.successText }}><CheckCircle2 className="h-4 w-4" /> {bulkResult}</div>}
       {admitIssues.length > 0 && (
         <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }} role="status">

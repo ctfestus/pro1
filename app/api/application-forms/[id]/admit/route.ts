@@ -28,9 +28,10 @@ type CohortReadiness = { id: string; name: string; ready: boolean; problem?: str
  * no_cohort    an account without a cohort (or not yet enrolled here): added to this cohort
  * other_cohort an account in another cohort: moved only when the admitter chooses to
  * this_cohort  already admitted here: nothing changes
+ * unconfirmed  live enrollment here, but auth status could not be checked: change nothing
  * staff        a staff, instructor, or admin account: never admitted as a student
  */
-type AdmissionGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'staff';
+type AdmissionGroup = 'new' | 'no_cohort' | 'other_cohort' | 'this_cohort' | 'unconfirmed' | 'staff';
 
 type ClassifiedApplicant = {
   submission: ApplicationSubmissionRecord;
@@ -57,49 +58,33 @@ async function cohortReadiness(cohortId: string): Promise<CohortReadiness | null
 }
 
 /**
- * Emails with a live admission in the cohort: linked to a student account and not released.
- * An admission record alone is not enough, because admitStudents writes it before the account
- * step, which can still fail. Read from the cohort side so the list stays small.
+ * Emails with a completed live admission in the cohort. access_state_confirmed records the
+ * last state successfully written to both Postgres and the cached auth claim, so this page-load
+ * path needs only database reads and never makes one auth request per admitted applicant.
  */
 async function admittedEmails(cohortId: string, emails?: string[]): Promise<Set<string>> {
-  const rows: { email: string; student_id: string }[] = [];
+  type AdmissionRow = {
+    email: string;
+    student_id: string;
+    student: { access_state: string; access_state_confirmed: string } | { access_state: string; access_state_confirmed: string }[];
+  };
+  const rows: AdmissionRow[] = [];
   const emailGroups = emails ? Array.from({ length: Math.ceil(emails.length / 100) }, (_, index) => emails.slice(index * 100, index * 100 + 100)) : [null];
   for (const emailGroup of emailGroups) {
     for (let offset = 0; ; offset += 1000) {
-      let query = adminClient().from('bootcamp_enrollments').select('email, student_id')
+      let query = adminClient().from('bootcamp_enrollments').select('email, student_id, student:students!inner(access_state, access_state_confirmed)')
         .eq('cohort_id', cohortId).not('student_id', 'is', null).is('released_at', null);
       if (emailGroup) query = query.in('email', emailGroup);
       const { data, error } = await query.order('id').range(offset, offset + 999);
       if (error) throw new Error(`Could not check admissions: ${error.message}`);
-      rows.push(...((data ?? []) as { email: string; student_id: string }[]));
+      rows.push(...((data ?? []) as unknown as AdmissionRow[]));
       if ((data ?? []).length < 1000) break;
     }
   }
-
-  const activeStudentIds = new Set<string>();
-  const studentIds = [...new Set(rows.map(row => row.student_id))];
-  for (let offset = 0; offset < studentIds.length; offset += 500) {
-    const { data, error } = await adminClient().from('students').select('id, access_state').in('id', studentIds.slice(offset, offset + 500));
-    if (error) throw new Error(`Could not check admitted account access: ${error.message}`);
-    for (const row of data ?? []) {
-      if (row.access_state !== 'pending' && row.access_state !== 'denied') activeStudentIds.add(row.id);
-    }
-  }
-  const claimReadyStudentIds = new Set<string>();
-  const candidates = [...activeStudentIds];
-  for (let offset = 0; offset < candidates.length; offset += 20) {
-    const checked = await Promise.all(candidates.slice(offset, offset + 20).map(async studentId => {
-      try {
-        const { data, error } = await adminClient().auth.admin.getUserById(studentId);
-        if (error || !data.user) throw error ?? new Error('Auth user was not found.');
-        return accessStateOf(data.user) === 'active' ? studentId : null;
-      } catch (error) {
-        throw new Error(`Could not check admitted account claim: ${(error as Error).message || 'unknown error'}`);
-      }
-    }));
-    for (const studentId of checked) if (studentId) claimReadyStudentIds.add(studentId);
-  }
-  return new Set(rows.filter(row => claimReadyStudentIds.has(row.student_id)).map(row => String(row.email).toLowerCase()));
+  return new Set(rows.filter(row => {
+    const student = Array.isArray(row.student) ? row.student[0] : row.student;
+    return student?.access_state === 'active' && student.access_state_confirmed === 'active';
+  }).map(row => String(row.email).toLowerCase()));
 }
 
 function applicantName(form: ApplicationFormRecord, submission: ApplicationSubmissionRecord): string | null {
@@ -139,6 +124,28 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
     : { data: [] as { id: string; name: string }[] };
   const cohortNames = new Map((cohorts ?? []).map((row: any) => [row.id as string, row.name as string]));
 
+  // Only selected applicants whose live enrollment is here but whose database confirmation is
+  // incomplete need an auth lookup. One failed lookup becomes one unconfirmed applicant; it does
+  // not stop the rest of the batch or affect the page-load status path.
+  const claimChecks = new Map<string, 'active' | 'restricted' | 'unknown'>();
+  const needsClaimCheck = (students ?? []).filter((student: any) => {
+    if (student.role !== 'student' || admitted.has(String(student.email).toLowerCase())) return false;
+    const enrollment = latestEnrollment.get(student.id);
+    return currentCohort(student) === cohortId && enrollment?.cohort_id === cohortId && !enrollment.released_at;
+  });
+  await Promise.all(needsClaimCheck.map(async (student: any) => {
+    try {
+      const { data, error: claimError } = await db.auth.admin.getUserById(student.id);
+      if (claimError || !data.user) {
+        claimChecks.set(student.id, 'unknown');
+        return;
+      }
+      claimChecks.set(student.id, accessStateOf(data.user) === 'active' ? 'active' : 'restricted');
+    } catch {
+      claimChecks.set(student.id, 'unknown');
+    }
+  }));
+
   return submissions.map(submission => {
     const email = submission.email.toLowerCase();
     const student = byEmail.get(email);
@@ -151,8 +158,8 @@ async function classify(form: ApplicationFormRecord, cohortId: string, submissio
       hasEnrollment: latestEnrollment.has(student.id),
     };
     const current = currentCohort(student);
-    const hasActiveAccess = student.access_state !== 'pending' && student.access_state !== 'denied';
-    if (current === cohortId && admitted.has(email) && hasActiveAccess) return { ...base, account, group: 'this_cohort' as const };
+    if (current === cohortId && admitted.has(email)) return { ...base, account, group: 'this_cohort' as const };
+    if (current === cohortId && claimChecks.get(student.id) === 'unknown') return { ...base, account, group: 'unconfirmed' as const };
     if (!current || current === cohortId) return { ...base, account, group: 'no_cohort' as const };
     return { ...base, account, group: 'other_cohort' as const, currentCohortName: cohortNames.get(current) ?? 'another cohort' };
   });
@@ -219,7 +226,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
       cohortReadiness(cohortId),
       listApplicationSubmissions(form.id),
     ]);
-    const admitted = await admittedEmails(cohortId, submissions.map(item => item.email.toLowerCase()));
+    const admitted = await admittedEmails(cohortId);
     return NextResponse.json({
       cohort,
       admittedSubmissionIds: submissions.filter(item => admitted.has(item.email.toLowerCase())).map(item => item.id),
@@ -293,6 +300,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ id: st
       const email = item.submission.email;
       const base = { submissionId: item.submission.id, email };
       if (item.group === 'staff') return { ...base, status: 'failed' as const, message: 'This email belongs to a staff or admin account, so it cannot be admitted as a student.' };
+      if (item.group === 'unconfirmed') return { ...base, status: 'failed' as const, message: 'Account access could not be confirmed. Try this applicant again.' };
       if (item.group === 'this_cohort') return { ...base, status: 'skipped' as const, message: 'Already in this cohort.' };
       if (item.group === 'other_cohort' && !move) return { ...base, status: 'skipped' as const, message: `Kept in ${item.currentCohortName}.` };
       const problem = problems.get(email.toLowerCase());

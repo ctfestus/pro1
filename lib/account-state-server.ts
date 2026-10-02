@@ -1,7 +1,7 @@
-// The ONLY writers of account_origin, access_state, and their cached app_metadata
-// claims. Nothing else may set them: drift between independently-written copies of the
-// same fact is exactly the bug this module exists to prevent -- see the header of
-// lib/account-state.ts.
+// The ONLY writers of account_origin, access_state, access_state_confirmed, and the
+// cached app_metadata claims. Nothing else may set them: drift between independently-
+// written copies of the same fact is exactly the bug this module exists to prevent --
+// see the header of lib/account-state.ts.
 //
 // HONEST LIMITS OF THE GUARANTEE. The students row lives in Postgres and the claim
 // lives in GoTrue, so the two writes cannot be atomic and this module does not pretend
@@ -16,6 +16,8 @@
 //     let the claim move while the authoritative record did not.
 //   * Any failure throws. A caller that swallows it is claiming a transition happened
 //     when it did not.
+//   * access_state_confirmed advances only after both authoritative row and cached claim
+//     writes finish, giving database-only readers a durable completion marker.
 //
 // Server only: these need the service-role client. lib/account-state.ts holds the pure
 // predicates that edge middleware reads.
@@ -76,6 +78,18 @@ async function applyTransition(db: SupabaseClient, userId: string, change: Trans
     if (error) throw new Error(`account-state: claim update failed -- ${error.message}`);
   };
 
+  const confirmAccessState = async () => {
+    if (!change.accessState) return;
+    const { data, error } = await db.from('students')
+      .update({ access_state_confirmed: change.accessState })
+      .eq('id', userId)
+      .select('id');
+    if (error) throw new Error(`account-state: confirmation update failed -- ${error.message}`);
+    if (!data || data.length === 0) {
+      throw new Error(`account-state: no students row for ${userId}; confirmation not recorded`);
+    }
+  };
+
   // Order so that whichever write lands alone is the restrictive one.
   const restricts = change.accessState === 'pending'
     || change.accessState === 'denied'
@@ -88,6 +102,7 @@ async function applyTransition(db: SupabaseClient, userId: string, change: Trans
     await writeRow();
     await writeClaims();
   }
+  await confirmAccessState();
 }
 
 /**

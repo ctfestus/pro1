@@ -69,6 +69,7 @@ const baseForm = {
 const submission = (id: string, email: string, extra: Record<string, unknown> = {}) => ({
   id, formId: 'form-1', email, state: 'submitted', stageId: 'accepted', answers: { 'full-name': `  Name ${id}  ` }, ...extra,
 });
+const access = (accessState = 'active', confirmed = 'active') => ({ access_state: accessState, access_state_confirmed: confirmed });
 
 const as = (role: string, id = 'owner-1') => mocks.requireRole.mockResolvedValue({ role, actor: { id, email: `${id}@example.com` } });
 const post = (body: unknown) => POST(new NextRequest('http://localhost/api/application-forms/form-1/admit', { method: 'POST', body: JSON.stringify(body) }), { params: Promise.resolve({ id: 'form-1' }) });
@@ -96,7 +97,7 @@ beforeEach(() => {
       { id: 'u-staff', email: 'staff@example.com', role: 'staff', cohort_id: null },
     ],
     cohorts: [{ id: OTHER, name: 'March Cohort' }],
-    bootcamp_enrollments: [{ email: 'here@example.com', student_id: 'u-here' }],
+    bootcamp_enrollments: [{ email: 'here@example.com', student_id: 'u-here', student: access() }],
     // Latest enrollment per account: the account in another cohort and the one admitted here
     // each have one; the cohort-less account has none.
     enrollments_by_student: [
@@ -134,6 +135,19 @@ describe('POST /api/application-forms/[id]/admit: check', () => {
     ]);
     expect(mocks.admitStudents).not.toHaveBeenCalled();
     expect(mocks.audit).not.toHaveBeenCalled();
+  });
+
+  it('isolates an unavailable auth lookup to that selected applicant', async () => {
+    mocks.lists.bootcamp_enrollments = [{ email: 'here@example.com', student_id: 'u-here', student: access('active', 'pending') }];
+    mocks.getAuthUser.mockResolvedValue({ data: { user: null }, error: { message: 'auth service unavailable' } });
+    const response = await post({ submissionIds: ['new', 'here'], check: true });
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.applicants.map((item: any) => [item.submissionId, item.group])).toEqual([
+      ['new', 'new'],
+      ['here', 'unconfirmed'],
+    ]);
+    expect(mocks.getAuthUser).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -214,10 +228,10 @@ describe('POST /api/application-forms/[id]/admit', () => {
     }]);
     expect(mocks.audit).not.toHaveBeenCalled();
 
-    // The profile write can succeed before its cached claim fails. The combined row-and-claim
-    // check keeps that partial state retryable instead of treating the enrollment as complete.
+    // The profile write can succeed before its cached claim fails. The durable confirmation
+    // remains pending, so only this selected applicant's auth claim is checked on retry.
     mocks.lists.students = [{ id: 'u-other', email: 'other@example.com', role: 'student', cohort_id: COHORT, access_state: 'active' }];
-    mocks.lists.bootcamp_enrollments = [{ email: 'other@example.com', student_id: 'u-other' }];
+    mocks.lists.bootcamp_enrollments = [{ email: 'other@example.com', student_id: 'u-other', student: access('active', 'pending') }];
     mocks.lists.enrollments_by_student = [{ student_id: 'u-other', cohort_id: COHORT, released_at: null }];
     mocks.getAuthUser.mockResolvedValue({ data: { user: { app_metadata: { access_state: 'pending' } } }, error: null });
     mocks.markAdmitted.mockResolvedValue(undefined);
@@ -255,15 +269,20 @@ describe('POST /api/application-forms/[id]/admit', () => {
     expect(mocks.audit).toHaveBeenCalledTimes(1);
   });
 
-  it('does not retry a completed admission when its auth claim cannot be checked', async () => {
+  it('marks only the selected applicant unconfirmed when its auth claim cannot be checked', async () => {
+    mocks.lists.bootcamp_enrollments = [{ email: 'here@example.com', student_id: 'u-here', student: access('active', 'pending') }];
     mocks.getAuthUser.mockResolvedValue({ data: { user: null }, error: { message: 'auth service unavailable' } });
     const response = await post({ submissionIds: ['here'] });
-    expect(response.status).toBe(503);
-    expect((await response.json()).error).toContain('Could not check admitted account claim');
+    expect(response.status).toBe(200);
+    expect((await response.json()).results).toEqual([{
+      submissionId: 'here', email: 'here@example.com', status: 'failed',
+      message: 'Account access could not be confirmed. Try this applicant again.',
+    }]);
     expect(mocks.assign).not.toHaveBeenCalled();
     expect(mocks.admitStudents).not.toHaveBeenCalled();
-    expect(mocks.sendEmails).not.toHaveBeenCalled();
+    expect(mocks.sendEmails).toHaveBeenCalledWith(expect.anything(), { cohortId: COHORT, appUrl: 'https://academy.test', accounts: [] });
     expect(mocks.audit).not.toHaveBeenCalled();
+    expect(mocks.getAuthUser).toHaveBeenCalledTimes(1);
   });
 
   it('respects "No name question" instead of guessing one', async () => {
@@ -305,7 +324,7 @@ describe('POST /api/application-forms/[id]/admit', () => {
 
 describe('GET /api/application-forms/[id]/admit', () => {
   it('counts only live admissions linked to an account, ignoring case', async () => {
-    mocks.lists.bootcamp_enrollments = [{ email: 'HERE@example.com', student_id: 'u-here' }];
+    mocks.lists.bootcamp_enrollments = [{ email: 'HERE@example.com', student_id: 'u-here', student: access() }];
     const body = await (await get()).json();
     expect(body).toMatchObject({ cohort: { id: COHORT, name: 'October Cohort', ready: true }, admittedSubmissionIds: ['here'], canAdmit: true });
     const enrollmentFilters = mocks.filters.filter(([table]) => table === 'bootcamp_enrollments').map(([, method, args]) => [method, ...args]);
@@ -314,17 +333,30 @@ describe('GET /api/application-forms/[id]/admit', () => {
 
   it('does not badge an enrollment whose account access is still restricted', async () => {
     mocks.lists.students = [{ id: 'u-here', email: 'here@example.com', role: 'student', cohort_id: COHORT, access_state: 'pending' }];
-    mocks.lists.bootcamp_enrollments = [{ email: 'here@example.com', student_id: 'u-here' }];
+    mocks.lists.bootcamp_enrollments = [{ email: 'here@example.com', student_id: 'u-here', student: access('pending', 'pending') }];
     const body = await (await get()).json();
     expect(body.admittedSubmissionIds).toEqual([]);
   });
 
-  it('does not badge an active row while its cached access claim is still restricted', async () => {
+  it('uses the database confirmation on page load without reading auth users', async () => {
     mocks.lists.students = [{ id: 'u-here', email: 'here@example.com', role: 'student', cohort_id: COHORT, access_state: 'active' }];
-    mocks.lists.bootcamp_enrollments = [{ email: 'here@example.com', student_id: 'u-here' }];
+    mocks.lists.bootcamp_enrollments = [{ email: 'here@example.com', student_id: 'u-here', student: access('active', 'pending') }];
     mocks.getAuthUser.mockResolvedValue({ data: { user: { app_metadata: { access_state: 'pending' } } }, error: null });
     const body = await (await get()).json();
     expect(body.admittedSubmissionIds).toEqual([]);
+    expect(mocks.getAuthUser).not.toHaveBeenCalled();
+  });
+
+  it('loads hundreds of admitted applicants without per-person auth calls', async () => {
+    const admissions = Array.from({ length: 500 }, (_, index) => ({
+      email: `student${index}@example.com`, student_id: `u-${index}`, student: access(),
+    }));
+    mocks.lists.bootcamp_enrollments = admissions;
+    mocks.listSubmissions.mockResolvedValue(admissions.map((item, index) => submission(`s-${index}`, item.email)));
+    const body = await (await get()).json();
+    expect(body.admittedSubmissionIds).toHaveLength(500);
+    expect(mocks.getAuthUser).not.toHaveBeenCalled();
+    expect(mocks.filters.filter(([table, method]) => table === 'bootcamp_enrollments' && method === 'select')).toHaveLength(1);
   });
 
   it('lets assigned reviewers see admission status without the Admit action', async () => {
