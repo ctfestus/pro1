@@ -7155,8 +7155,10 @@ AS $$
       WHERE closed.id = p.id
         AND (
           p.reshow_after_days IS NULL
-          OR closed.closed_at IS NULL
-          OR closed.closed_at > now() - make_interval(days => p.reshow_after_days)
+          -- A closure with no known time (saved before closings were timed) counts as expired
+          -- for a promo that reshows, so it shows once and the next close starts a real clock.
+          OR (closed.closed_at IS NOT NULL
+              AND closed.closed_at > now() - make_interval(days => p.reshow_after_days))
         )
     )
   ORDER BY p.starts_at DESC, p.id

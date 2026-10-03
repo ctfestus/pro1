@@ -59,8 +59,9 @@ export const PROMO_RESHOW_OPTIONS: { days: number | null; label: string }[] = [
 
 /**
  * The closed promos a client sent as "id:closedAtEpochSeconds,..." -- parallel arrays for
- * get_active_promotion(). A bare id (no time) counts as closed with no known time, which the
- * database treats as still closed. Malformed entries are dropped; the list is capped, first wins.
+ * get_active_promotion(). A bare id (no time) is a closure with no known time: still closed for a
+ * Never promo, already expired for one that reshows. Malformed entries are dropped; the list is
+ * capped, first wins.
  */
 export function parseClosedPromos(raw: string | null): { ids: string[]; closedAt: (string | null)[] } {
   const ids: string[] = [];

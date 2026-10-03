@@ -17,7 +17,7 @@ const DISMISSED_KEY = 'promo-dismissed';
 const SHOW_DELAY_MS = 1200;
 
 // Newest first. `at` is epoch seconds; null for an entry saved before closings were timed, which
-// the server keeps treating as closed.
+// the server treats as closed for a Never promo and as expired for one that reshows.
 type Closed = { id: string; at: number | null };
 
 function readDismissed(): Closed[] {
