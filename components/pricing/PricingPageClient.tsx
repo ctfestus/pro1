@@ -13,6 +13,7 @@ import { ArrowRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
+import { PromoCard } from '@/components/PromoCard';
 import type { SiteConfig } from '@/lib/site-templates';
 import { PricingSection } from '@/components/pricing/PricingSection';
 import { PricingFaq } from '@/components/pricing/PricingFaq';
@@ -192,6 +193,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
         footerLink3Label={siteConfig.footerLink3Label} footerLink3Url={siteConfig.footerLink3Url}
         footerLink4Label={siteConfig.footerLink4Label} footerLink4Url={siteConfig.footerLink4Url}
       />
+      <PromoCard placement="landing" light />
     </main>
   );
 }

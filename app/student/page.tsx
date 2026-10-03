@@ -31,6 +31,7 @@ import {
   ProfileMenu,
 } from '@/components/student/header';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
+import { PromoCard } from '@/components/PromoCard';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import { rememberPurchaseIntent, takePurchaseIntent, purchaseIntentHref } from '@/lib/pending-purchase';
 import {
@@ -472,6 +473,7 @@ export default function StudentDashboard() {
   return (
     <div className="min-h-screen" style={{ background: C.page }}>
       {viewingAs && <StudentModeBanner context={viewingAs} />}
+      <PromoCard placement="student" />
       {/* -- Top nav -- */}
       <header className="sticky top-0 z-40 flex items-center justify-between px-4 py-3 border-b backdrop-blur-md"
         style={{ background: C.nav, borderColor: C.navBorder }}>

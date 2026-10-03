@@ -28,6 +28,7 @@ import { enrollLabel } from '@/lib/unlock-pricing';
 import { signInHref } from '@/lib/auth-redirect';
 import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
 import { useToolIcons } from '@/lib/use-tool-icons';
+import { PromoCard } from '@/components/PromoCard';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -2064,6 +2065,8 @@ export default function PublicFormPage() {
             logoDarkUrl={logoDarkUrl}
           />
         )}
+
+        <PromoCard placement="course" />
 
       </div>
     );

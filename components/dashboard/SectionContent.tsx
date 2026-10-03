@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useContext } from 'react';
 import Link from 'next/link';
-import { BookOpen, CalendarDays, Plus, Users, Megaphone } from 'lucide-react';
+import { BookOpen, CalendarDays, Plus, Users, Megaphone, BadgePercent } from 'lucide-react';
+import { PROMO_PLACEMENTS, promoStatus } from '@/lib/promotions';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { GenericListSection } from '@/components/dashboard/primitives';
 import { IsStaffContext } from '@/components/dashboard/context';
@@ -77,6 +78,21 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
       <p className="text-xs mt-0.5" style={{ color: C.faint }}>{new Date(item.published_at).toLocaleDateString()}{item.is_pinned ? ' · Pinned' : ''}</p>
     </div>
   )}/>;
+
+  if (section === 'promotions') return <GenericListSection table="promotions" label="Promotions" createHref="/create/promotion" createLabel="New Promotion" Icon={BadgePercent} C={C} renderRow={item => {
+    const status = promoStatus(item);
+    return (
+      <div className="min-w-0">
+        <p className="font-semibold text-sm truncate" style={{ color: C.text }}>{item.title}</p>
+        <p className="text-xs mt-0.5" style={{ color: C.faint }}>
+          {(item.placements ?? []).map((p: string) => PROMO_PLACEMENTS.find(x => x.id === p)?.label ?? p).join(', ')}
+          {item.cohort_ids?.length ? ` - ${item.cohort_ids.length} audience${item.cohort_ids.length === 1 ? '' : 's'}` : ' - Everyone'}
+        </p>
+        <span className="inline-flex text-xs px-2 py-1 rounded-lg mt-2"
+          style={status === 'Live' ? { background: C.green, color: '#fff' } : { background: C.pill, color: C.muted }}>{status}</span>
+      </div>
+    );
+  }}/>;
 
   if (section === 'schedule')    return <SchedulesManageSection C={C}/>;
   if (section === 'recordings') return <RecordingsManageSection C={C}/>;
