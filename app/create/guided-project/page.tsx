@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
-import { DEFAULT_VE_ACCENT, DELIVERABLE_ACCENT_PRESETS, deliverableAccentForType, isVeAccent, resolveDeliverableAccent } from '@/lib/ve-accent';
+import { DEFAULT_VE_ACCENT, DELIVERABLE_ACCENT_PRESETS, deliverableAccentForType, isVeAccent } from '@/lib/ve-accent';
 import { uploadToGithub } from '@/lib/uploadToGithub';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -2678,7 +2678,7 @@ function VirtualExperienceCreatePageInner() {
                                                           })}
                                                           placeholder="Explain the work clearly. Add interactive prompts, steps, tables, images, code, or examples..."
                                                           isDark={C === DARK_C}
-                                                          accentColor={resolveDeliverableAccent(req.accentColor, DEFAULT_VE_ACCENT, C === DARK_C)}
+                                                          accentColor={DEFAULT_VE_ACCENT}
                                                         />
                                                       </div>
                                                       <div className="space-y-2">

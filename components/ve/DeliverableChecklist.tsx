@@ -23,6 +23,10 @@ interface DeliverableChecklistProps {
   readOnly: boolean;
   isDark: boolean;
   accentColor: string;
+  // Accent for the interactive instructions. The deliverable's own color styles only the card,
+  // so embedded blocks keep the experience accent. Required so a new call site cannot leak the
+  // card color into the content by omission.
+  contentAccentColor: string;
   textColor: string;
   mutedColor: string;
   onToggle: () => void;
@@ -38,6 +42,7 @@ export function DeliverableChecklist({
   readOnly,
   isDark,
   accentColor,
+  contentAccentColor,
   textColor,
   mutedColor,
   onToggle,
@@ -73,7 +78,7 @@ export function DeliverableChecklist({
       </div>
 
       {instructionsDoc ? (
-        <LessonRenderer doc={instructionsDoc} isDark={isDark} accentColor={accentColor} />
+        <LessonRenderer doc={instructionsDoc} isDark={isDark} accentColor={contentAccentColor} />
       ) : instructions && (instructionsFormat === 'rich' ? (
         <div
           className="rich-content text-[13px] leading-relaxed"
