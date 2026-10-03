@@ -7158,14 +7158,17 @@ ALTER TABLE public.promotions
   ADD COLUMN IF NOT EXISTS event_items jsonb NOT NULL DEFAULT '[]'::jsonb
   CHECK (jsonb_typeof(event_items) = 'array' AND jsonb_array_length(event_items) <= 6);
 
--- The return shape changes, which CREATE OR REPLACE cannot do.
+-- The return shape and arguments change, which CREATE OR REPLACE cannot do.
 DROP FUNCTION IF EXISTS public.get_active_promotion(text, uuid, uuid[], timestamptz[]);
 
+-- p_today is the viewer's local date, sent by the browser, so "has this event passed" is decided
+-- on the same calendar day the card uses (NULL falls back to the database's date).
 CREATE OR REPLACE FUNCTION public.get_active_promotion(
   p_placement  text,
   p_cohort_id  uuid DEFAULT NULL,
   p_closed_ids uuid[] DEFAULT '{}',
-  p_closed_at  timestamptz[] DEFAULT '{}'
+  p_closed_at  timestamptz[] DEFAULT '{}',
+  p_today      date DEFAULT NULL
 )
 RETURNS TABLE(
   id uuid, kind text, title text, body text, image_url text, cta_label text, cta_url text,
@@ -7182,13 +7185,20 @@ AS $$
     AND p.starts_at <= now()
     AND (p.ends_at IS NULL OR p.ends_at > now())
     AND (p.cohort_ids = '{}' OR p_cohort_id = ANY(p.cohort_ids))
-    -- An events promo needs at least one row dated today or later. Compared as ISO text so a
-    -- malformed date in the JSON can never make the whole lookup error.
+    -- An events promo needs at least one row the card will actually show: the same rules as
+    -- upcomingEventItems() in lib/promotions.ts (a YYYY-MM-DD date, a non-blank title, dated
+    -- today or later). If the two disagreed, this could pick a promo the card then refuses to
+    -- show, hiding every other live promo. Compared as ISO text so a malformed date in the JSON
+    -- can never make the whole lookup error.
     AND (
       p.kind <> 'events'
       OR EXISTS (
         SELECT 1 FROM jsonb_array_elements(p.event_items) AS item
-        WHERE item->>'date' >= to_char(current_date, 'YYYY-MM-DD')
+        WHERE jsonb_typeof(item->'date') = 'string'
+          AND jsonb_typeof(item->'title') = 'string'
+          AND item->>'date' ~ '^\d{4}-\d{2}-\d{2}$'
+          AND item->>'title' ~ '\S'
+          AND item->>'date' >= to_char(COALESCE(p_today, current_date), 'YYYY-MM-DD')
       )
     )
     AND NOT EXISTS (
@@ -7207,5 +7217,5 @@ AS $$
   LIMIT 1;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[], timestamptz[]) FROM PUBLIC, anon, authenticated;
-GRANT  EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[], timestamptz[]) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[], timestamptz[], date) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[], timestamptz[], date) TO service_role;

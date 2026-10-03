@@ -12,7 +12,7 @@ import { supabase } from '@/lib/supabase';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { useTenant } from '@/components/TenantProvider';
 import {
-  safePromoUrl, isExternalUrl, upcomingEventItems, eventDateParts, eventFormatLabel,
+  safePromoUrl, isExternalUrl, upcomingEventItems, eventDateParts, eventFormatLabel, localIsoDate,
   MAX_PROMO_EXCLUDES, type ActivePromotion, type PromoPlacement,
 } from '@/lib/promotions';
 
@@ -166,15 +166,16 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
       // signed out, the route returns everyone-audience promos.
       const { data: { session } } = await supabase.auth.getSession();
       const closed = readDismissed().map(c => (c.at === null ? c.id : `${c.id}:${c.at}`)).join(',');
-      const params = new URLSearchParams({ placement, closed });
+      // The viewer's own date, so the server judges past events on the same day the card does.
+      const params = new URLSearchParams({ placement, closed, today: localIsoDate() });
       const res = await fetch(`/api/promotions?${params}`, {
         headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
       });
       if (!res.ok) return;
       const { promotion } = await res.json() as { promotion: ActivePromotion | null };
       if (cancelled || !promotion) return;
-      // The server only checks dates in UTC; in the viewer's own time zone every row may already
-      // be past, and an events card with no rows has nothing to say.
+      // Defensive only: the server applies the same row rules with the same date, so this should
+      // never drop a promo it returned.
       if (promotion.kind === 'events' && upcomingEventItems(promotion.event_items).length === 0) return;
       setPromo(promotion);
       timer = setTimeout(() => { if (!cancelled) setVisible(true); }, SHOW_DELAY_MS);
@@ -200,7 +201,13 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
           exit={{ opacity: 0, y: 24 }}
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
           className="fixed left-4 right-4 sm:left-auto sm:right-5 sm:w-[380px]"
-          style={{ bottom: 16 + bottomOffset, zIndex: 45 }}
+          style={{
+            bottom: 16 + bottomOffset, zIndex: 45,
+            // Six event rows can outgrow a short phone screen; scroll inside the card instead. The
+            // cap leaves room for a page's top bar (about 64px), so the heading and close button
+            // never slide underneath it.
+            maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`, overflowY: 'auto', borderRadius: 16,
+          }}
         >
           <PromoContent promo={promo} C={C} onClose={close} onAction={() => rememberDismissed(promo.id)} />
         </motion.aside>

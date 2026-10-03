@@ -58,7 +58,19 @@ describe('GET /api/promotions', () => {
     expect(calls).toEqual([{
       p_placement: 'landing', p_cohort_id: null,
       p_closed_ids: [ID_B], p_closed_at: [new Date(1790000000 * 1000).toISOString()],
+      p_today: null,
     }]);
+  });
+
+  it('passes the viewer date through when it is plausible', async () => {
+    const { db, calls } = dbWith(null);
+    adminClient.mockReturnValue(db);
+    const today = new Date().toISOString().slice(0, 10);
+
+    await GET(request(`placement=landing&today=${today}`));
+    await GET(request('placement=landing&today=1999-01-01'));
+
+    expect(calls.map(c => c.p_today)).toEqual([today, null]);
   });
 
   it('targets the resolved user, which is the Student Mode student when one is active', async () => {

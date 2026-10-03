@@ -30,8 +30,6 @@ export interface PromoEventItem {
 }
 
 export const MAX_EVENT_ITEMS = 6;
-/** Rows shown on the card at once; later ones appear as earlier ones pass. */
-export const MAX_EVENT_ROWS_SHOWN = 4;
 
 /** A live promotion as returned by /api/promotions (get_active_promotion()). */
 export interface ActivePromotion {
@@ -49,24 +47,40 @@ export interface ActivePromotion {
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
-function localIsoDate(d: Date): string {
+/** The viewer's calendar date as "YYYY-MM-DD", in their own time zone. */
+export function localIsoDate(d: Date = new Date()): string {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
 /**
- * The rows to show, from the stored JSON: well-formed ones only, dated today or later in the
- * viewer's time zone, soonest first, capped for the card. Never throws on bad data.
+ * The viewer date a client sent, or null to let the database use its own. Accepted only as a
+ * real calendar date within two days of the server's, since time zones span about a day either
+ * way; anything else is ignored rather than trusted.
  */
-export function upcomingEventItems(raw: unknown, limit = MAX_EVENT_ROWS_SHOWN): PromoEventItem[] {
+export function parseViewerDate(raw: string | null, now: Date = new Date()): string | null {
+  if (!raw || !ISO_DATE_RE.test(raw)) return null;
+  const at = Date.parse(`${raw}T00:00:00Z`);
+  if (Number.isNaN(at) || new Date(at).toISOString().slice(0, 10) !== raw) return null;
+  return Math.abs(at - now.getTime()) <= 2 * 86_400_000 ? raw : null;
+}
+
+/**
+ * The rows to show, from the stored JSON: well-formed ones only, dated today or later in the
+ * viewer's time zone, soonest first. Never throws on bad data.
+ *
+ * Keep the row rules in step with get_active_promotion() (migration 220), which only returns an
+ * events promo when at least one row passes them; a mismatch lets the server pick a promo that
+ * the card then refuses to show.
+ */
+export function upcomingEventItems(raw: unknown, limit = MAX_EVENT_ITEMS, today = localIsoDate()): PromoEventItem[] {
   if (!Array.isArray(raw)) return [];
-  const today = localIsoDate(new Date());
   return raw
     .flatMap((x): PromoEventItem[] => {
-      if (!x || typeof x !== 'object') return [];
+      if (!x || typeof x !== 'object' || Array.isArray(x)) return [];
       const item = x as Record<string, unknown>;
       const date = typeof item.date === 'string' ? item.date : '';
-      const title = typeof item.title === 'string' ? item.title.trim() : '';
+      const title = typeof item.title === 'string' && /\S/.test(item.title) ? item.title.trim() : '';
       if (!ISO_DATE_RE.test(date) || !title || date < today) return [];
       const format = EVENT_FORMATS.some(f => f.id === item.format) ? item.format as EventFormat : 'virtual';
       return [{
