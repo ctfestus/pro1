@@ -1872,6 +1872,7 @@ export default function AssignmentExperiencePlayer({
                               readOnly={readOnly}
                               isDark={isDark}
                               accentColor={resolveDeliverableAccent(req.accentColor, accent, isDark)}
+                              contentAccentColor={accent}
                               textColor={text}
                               mutedColor={muted}
                               onToggle={() => updateProgress(req.id, { completed: !isDone })}

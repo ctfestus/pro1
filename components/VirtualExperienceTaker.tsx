@@ -2813,6 +2813,7 @@ export default function VirtualExperienceTaker({
                               readOnly={reviewMode}
                               isDark={isDark}
                               accentColor={resolveDeliverableAccent(req.accentColor, accentColor, !!isDark)}
+                              contentAccentColor={accentColor}
                               textColor={isDark ? '#f0f0f0' : '#111'}
                               mutedColor={isDark ? '#888' : '#666'}
                               onToggle={() => toggleReq(req.id)}
