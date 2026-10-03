@@ -7,6 +7,7 @@ export const SESSION_LOOKUP_FREE_API_PATHS = [
   '/api/account/complete-setup',
   '/api/activity/feed',
   '/api/platform-settings',
+  '/api/promotions',
 ] as const;
 
 export const SESSION_LOOKUP_FREE_API_PATH_SET = new Set<string>(

@@ -2,9 +2,10 @@
 -- on the public landing pages, the student dashboard, and inside courses.
 --
 -- The table itself is owner-scoped like announcements. Pages never read it directly: they call
--- get_active_promotions(), which returns only live rows for one placement and applies the audience
--- rule server-side, so a cohort-targeted promo is never visible to anyone outside that cohort,
--- including signed-out visitors and staff browsing the site.
+-- /api/promotions, which resolves the viewer (including a Student Mode target) and then calls
+-- get_active_promotion() with the service role. Only live rows for one placement and audience come
+-- back, so a cohort-targeted promo is never visible to anyone outside that cohort, including
+-- signed-out visitors and staff browsing the site.
 
 CREATE TABLE IF NOT EXISTS public.promotions (
   id          uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -73,13 +74,18 @@ CREATE POLICY "promotions: instructor delete"
     AND (author_id = (SELECT auth.uid()) OR (SELECT public.is_admin()))
   );
 
--- Live promotions for one placement, newest first. Callable signed out (landing pages): auth.uid()
--- is then NULL, no cohort matches, and only everyone-audience promos come back.
-CREATE OR REPLACE FUNCTION public.get_active_promotions(p_placement text)
+-- The newest live promotion for one placement and viewer, skipping the ones this browser has
+-- already closed. The exclusion happens here, before the LIMIT, so closing promos can never hide
+-- an older live one. p_cohort_id is the viewer's students.cohort_id as resolved by the route
+-- (NULL for a signed-out visitor, who then only sees everyone-audience promos).
+CREATE OR REPLACE FUNCTION public.get_active_promotion(
+  p_placement text,
+  p_cohort_id uuid DEFAULT NULL,
+  p_exclude   uuid[] DEFAULT '{}'
+)
 RETURNS TABLE(id uuid, title text, body text, image_url text, cta_label text, cta_url text, updated_at timestamptz)
 LANGUAGE sql
 STABLE
-SECURITY DEFINER
 SET search_path = ''
 AS $$
   SELECT p.id, p.title, p.body, p.image_url, p.cta_label, p.cta_url, p.updated_at
@@ -88,16 +94,11 @@ AS $$
     AND p_placement = ANY(p.placements)
     AND p.starts_at <= now()
     AND (p.ends_at IS NULL OR p.ends_at > now())
-    AND (
-      p.cohort_ids = '{}'
-      OR EXISTS (
-        SELECT 1 FROM public.students s
-        WHERE s.id = (SELECT auth.uid()) AND s.cohort_id = ANY(p.cohort_ids)
-      )
-    )
-  ORDER BY p.starts_at DESC
-  LIMIT 5;
+    AND (p.cohort_ids = '{}' OR p_cohort_id = ANY(p.cohort_ids))
+    AND NOT (p.id = ANY(COALESCE(p_exclude, '{}')))
+  ORDER BY p.starts_at DESC, p.id
+  LIMIT 1;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.get_active_promotions(text) FROM PUBLIC;
-GRANT  EXECUTE ON FUNCTION public.get_active_promotions(text) TO anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[]) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[]) TO service_role;

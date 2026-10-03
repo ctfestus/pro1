@@ -10,7 +10,7 @@ import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { useTenant } from '@/components/TenantProvider';
-import { safePromoUrl, isExternalUrl, type ActivePromotion, type PromoPlacement } from '@/lib/promotions';
+import { safePromoUrl, isExternalUrl, MAX_PROMO_EXCLUDES, type ActivePromotion, type PromoPlacement } from '@/lib/promotions';
 
 const DISMISSED_KEY = 'promo-dismissed';
 const SHOW_DELAY_MS = 1200;
@@ -27,7 +27,7 @@ function readDismissed(): string[] {
 function rememberDismissed(id: string) {
   try {
     // Capped so a long-lived browser does not grow this forever; old ids are for expired promos.
-    const next = [id, ...readDismissed().filter(x => x !== id)].slice(0, 50);
+    const next = [id, ...readDismissed().filter(x => x !== id)].slice(0, MAX_PROMO_EXCLUDES);
     localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
   } catch {}
 }
@@ -48,15 +48,20 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
   useEffect(() => {
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    supabase.rpc('get_active_promotions', { p_placement: placement }).then(({ data, error }) => {
-      // A tenant that has not run migration 219 yet simply shows nothing.
-      if (cancelled || error || !Array.isArray(data)) return;
-      const dismissed = readDismissed();
-      const next = (data as ActivePromotion[]).find(p => !dismissed.includes(p.id));
-      if (!next) return;
-      setPromo(next);
+    (async () => {
+      // The token only sharpens targeting (cohort, Student Mode via the page's fetch bridge);
+      // signed out, the route returns everyone-audience promos.
+      const { data: { session } } = await supabase.auth.getSession();
+      const params = new URLSearchParams({ placement, exclude: readDismissed().join(',') });
+      const res = await fetch(`/api/promotions?${params}`, {
+        headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+      });
+      if (!res.ok) return;
+      const { promotion } = await res.json() as { promotion: ActivePromotion | null };
+      if (cancelled || !promotion) return;
+      setPromo(promotion);
       timer = setTimeout(() => { if (!cancelled) setVisible(true); }, SHOW_DELAY_MS);
-    });
+    })().catch(() => { /* a promo is optional; never surface a failure */ });
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
   }, [placement]);
 

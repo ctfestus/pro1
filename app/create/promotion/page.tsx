@@ -107,11 +107,12 @@ export default function CreatePromotionPage() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
+    if (uploading) return;
 
     const trimmedTitle = title.trim();
     if (!trimmedTitle) { setError('Title is required.'); return; }
     if (placements.length === 0) { setError('Pick at least one place to show this promotion.'); return; }
-    if (imageUrl.trim() && !safePromoUrl(imageUrl)) { setError('Image must be an https link.'); return; }
+    if (imageUrl.trim() && !safePromoUrl(imageUrl)) { setError('Image must be an https:// link or an image on this site.'); return; }
     if (ctaUrl.trim() && !safePromoUrl(ctaUrl)) { setError('Button link must start with https:// or with / for a page on this site.'); return; }
     if (ctaLabel.trim() && !ctaUrl.trim()) { setError('Add a button link, or clear the button text.'); return; }
 
@@ -163,13 +164,13 @@ export default function CreatePromotionPage() {
           <h1 style={{ fontSize: 16, fontWeight: 700, color: C.text, margin: 0 }}>{editId ? 'Edit Promotion' : 'New Promotion'}</h1>
           <motion.button
             type="submit" form="promotion-form"
-            disabled={loading}
+            disabled={loading || uploading}
             whileTap={{ scale: 0.96 }}
             style={{
               display: 'flex', alignItems: 'center', gap: 6,
-              padding: '8px 18px', borderRadius: 10, border: 'none', cursor: loading ? 'not-allowed' : 'pointer',
+              padding: '8px 18px', borderRadius: 10, border: 'none', cursor: loading || uploading ? 'not-allowed' : 'pointer',
               background: C.cta, color: C.ctaText, fontSize: 14, fontWeight: 600,
-              opacity: loading ? 0.7 : 1, transition: 'opacity 0.15s',
+              opacity: loading || uploading ? 0.7 : 1, transition: 'opacity 0.15s',
             }}
           >
             {loading ? <Loader2 style={{ width: 15, height: 15 }} className="animate-spin"/> : <Save style={{ width: 15, height: 15 }}/>}
