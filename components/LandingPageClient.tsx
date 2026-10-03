@@ -18,6 +18,7 @@ import { landingHref } from '@/lib/landing-href';
 import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import { hasMidAds, midAdCardsFrom, type AdCard } from '@/lib/mid-ads';
 import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
+import { PromoCard } from '@/components/PromoCard';
 import { buildNavGroups, groupByField } from '@/lib/landing-nav';
 import { toPlainText } from '@/lib/plain-text';
 
@@ -1907,10 +1908,13 @@ export default function LandingPageClient({
 
   if (loading) return <LandingPageSkeleton />;
 
+  // Never inside the dashboard's site-editor preview. Raised above the landing sticky CTA bar.
+  const promo = isPreview ? null : <PromoCard placement="landing" bottomOffset={72} light />;
+
   if (templateId === 'elevate') {
-    return <ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />;
+    return <><ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />{promo}</>;
   }
 
-  return <ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />;
+  return <><ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} />{promo}</>;
 
 }

@@ -3,7 +3,7 @@
 import {
   CalendarDays, Settings, BookOpen, GraduationCap, ClipboardList, Award, Users,
   Megaphone, Trophy, CheckCircle2, Briefcase, Activity, CreditCard, Palette, Video,
-  PlayCircle, Database, ShieldCheck, Handshake, BadgeDollarSign, FileText,
+  PlayCircle, Database, ShieldCheck, Handshake, BadgeDollarSign, FileText, BadgePercent,
 } from 'lucide-react';
 import { LIGHT_C } from '@/lib/theme';
 
@@ -14,6 +14,7 @@ export const NAV_ITEMS = [
   { id: 'events',        label: 'Events',         Icon: CalendarDays,  adminOnly: false },
   { id: 'community',     label: 'Community',      Icon: Users,         adminOnly: false },
   { id: 'announcements', label: 'Announcements',  Icon: Megaphone,     adminOnly: false },
+  { id: 'promotions',    label: 'Promotions',     Icon: BadgePercent,  adminOnly: false },
   { id: 'virtual_experiences',  label: 'Virtual Experiences',  Icon: Briefcase,   adminOnly: false },
   { id: 'certifications', label: 'Certifications',  Icon: ShieldCheck,   adminOnly: false },
   { id: 'schedule',         label: 'Schedule',         Icon: CalendarDays, adminOnly: false },
@@ -41,7 +42,7 @@ export const COMING_SOON: SectionId[] = [];
 
 export const NAV_GROUPS: { label: string; items: SectionId[] }[] = [
   { label: 'Content',    items: ['courses', 'assignments', 'virtual_experiences', 'certifications', 'learning_paths', 'data_center'] },
-  { label: 'Engagement', items: ['events', 'community', 'announcements', 'schedule', 'recordings'] },
+  { label: 'Engagement', items: ['events', 'community', 'announcements', 'promotions', 'schedule', 'recordings'] },
   { label: 'Insights',   items: ['tracking', 'attendance', 'leaderboard', 'badges', 'certificates'] },
   { label: 'Admin',      items: ['students', 'subscriptions', 'cohorts', 'payments', 'partners', 'applications', 'branding', 'site'] },
 ];
