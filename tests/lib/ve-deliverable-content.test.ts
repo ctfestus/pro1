@@ -123,6 +123,51 @@ describe('deliverable content conversion', () => {
     });
   });
 
+  type ColoredRequirement = {
+    type: string;
+    description: string;
+    descriptionFormat?: 'rich';
+    descriptionDoc?: LessonDoc;
+    accentColor?: string;
+  };
+
+  it('keeps the deliverable color through global AI Improve', () => {
+    const prior = {
+      type: 'task',
+      description: '<p>Use the prompt</p>',
+      descriptionFormat: 'rich' as const,
+      descriptionDoc: promptDoc,
+      accentColor: '#3E93FF',
+    };
+    const improved = reconcileImprovedDeliverableDescription<ColoredRequirement>(
+      { type: 'task', description: '<p>Rewritten</p>', descriptionFormat: 'rich' },
+      prior,
+      () => promptDoc,
+    );
+    expect(improved.accentColor).toBe('#3E93FF');
+  });
+
+  it('keeps the deliverable color when AI Improve rebuilds the instructions document', () => {
+    const prior = { type: 'task', description: 'Plain brief', accentColor: '#f43f5e' };
+    const improved = reconcileImprovedDeliverableDescription<ColoredRequirement>(
+      { type: 'task', description: '<p>Rewritten</p>', descriptionFormat: 'rich' },
+      prior,
+      () => promptDoc,
+    );
+    expect(improved.accentColor).toBe('#f43f5e');
+    expect(improved.descriptionDoc).toBe(promptDoc);
+  });
+
+  it('drops the deliverable color when AI Improve changes it to another type', () => {
+    const prior = { type: 'task', description: 'Plain brief', accentColor: '#f43f5e' };
+    const improved = reconcileImprovedDeliverableDescription(
+      { type: 'text', description: 'Explain your answer', accentColor: '#f43f5e' },
+      prior,
+      () => promptDoc,
+    );
+    expect(improved.accentColor).toBeUndefined();
+  });
+
   it('does not revive a stale document when replacement document conversion fails', () => {
     const stalePrior = {
       type: 'text',

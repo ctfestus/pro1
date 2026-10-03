@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
+import { DEFAULT_VE_ACCENT, DELIVERABLE_ACCENT_PRESETS, deliverableAccentForType, isVeAccent, resolveDeliverableAccent } from '@/lib/ve-accent';
 import { uploadToGithub } from '@/lib/uploadToGithub';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -216,6 +217,7 @@ interface Requirement {
   emailFrame?: boolean;
   emailBody?: string;
   attachments?: ReqAttachment[];
+  accentColor?: string;   // task/deliverable: own color; unset follows the experience accent
   sharePrompt?: string;   // linkedin_share: suggested post text the student can copy
   // linkedin_share: only an explicit `true` gates the lesson. Absent/false = optional, never blocks.
   shareRequired?: boolean;
@@ -2497,6 +2499,7 @@ function VirtualExperienceCreatePageInner() {
                                                         : req.description,
                                                       descriptionFormat: isDeliverable && wasDeliverable ? req.descriptionFormat : undefined,
                                                       descriptionDoc: isDeliverable && wasDeliverable ? req.descriptionDoc : undefined,
+                                                      accentColor: deliverableAccentForType(req.accentColor, type),
                                                       options: type === 'mcq'
                                                         ? ['', '', '', '']
                                                         : type === 'decision'
@@ -2675,8 +2678,47 @@ function VirtualExperienceCreatePageInner() {
                                                           })}
                                                           placeholder="Explain the work clearly. Add interactive prompts, steps, tables, images, code, or examples..."
                                                           isDark={C === DARK_C}
-                                                          accentColor={C.cta}
+                                                          accentColor={resolveDeliverableAccent(req.accentColor, DEFAULT_VE_ACCENT, C === DARK_C)}
                                                         />
+                                                      </div>
+                                                      <div className="space-y-2">
+                                                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
+                                                          Deliverable color
+                                                        </p>
+                                                        <div className="flex flex-wrap items-center gap-2">
+                                                          {(() => {
+                                                            const own = isVeAccent(req.accentColor) ? req.accentColor : null;
+                                                            const experienceAccent = DEFAULT_VE_ACCENT;
+                                                            return (
+                                                              <>
+                                                                <button type="button" aria-pressed={!own}
+                                                                  onClick={() => updateReq(mod.id, les.id, req.id, { accentColor: undefined })}
+                                                                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
+                                                                  style={{ background: !own ? `${experienceAccent}1a` : C.input, color: !own ? C.text : C.muted, boxShadow: !own ? `0 0 0 1.5px ${experienceAccent}` : 'none' }}>
+                                                                  <span className="h-3 w-3 rounded-full" style={{ background: experienceAccent }} />
+                                                                  Default
+                                                                </button>
+                                                                {DELIVERABLE_ACCENT_PRESETS.filter(color => color.toLowerCase() !== experienceAccent.toLowerCase()).map(color => {
+                                                                  const selected = own?.toLowerCase() === color.toLowerCase();
+                                                                  return (
+                                                                    <button key={color} type="button" title={color} aria-label={`Use deliverable color ${color}`} aria-pressed={selected}
+                                                                      onClick={() => updateReq(mod.id, les.id, req.id, { accentColor: color })}
+                                                                      className="grid h-6 w-6 place-items-center rounded-full transition-transform hover:scale-110"
+                                                                      style={{ background: color, boxShadow: selected ? `0 0 0 2px ${C.card}, 0 0 0 3.5px ${color}` : 'none' }}>
+                                                                      {selected && <Check className="h-3 w-3" style={{ color: '#fff' }} />}
+                                                                    </button>
+                                                                  );
+                                                                })}
+                                                                <label className="flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: C.input, color: C.muted }}>
+                                                                  <input type="color" value={own ?? experienceAccent}
+                                                                    onChange={e => updateReq(mod.id, les.id, req.id, { accentColor: e.target.value })}
+                                                                    className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0" />
+                                                                  Custom
+                                                                </label>
+                                                              </>
+                                                            );
+                                                          })()}
+                                                        </div>
                                                       </div>
                                                       <div className="space-y-2">
                                                         <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>

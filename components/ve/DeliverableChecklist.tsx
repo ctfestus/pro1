@@ -5,6 +5,7 @@ import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { MailStatusChip } from '@/components/ve/MailCard';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import type { LessonDoc } from '@/lib/lesson-doc';
+import { onAccent } from '@/lib/ve-accent';
 
 interface DeliverableAttachment {
   name: string;
@@ -45,7 +46,7 @@ export function DeliverableChecklist({
     <div
       className="relative space-y-4 overflow-hidden rounded-2xl p-4 transition-[background-color,box-shadow] duration-300 motion-reduce:transition-none"
       style={{
-        background: completed ? 'rgba(16,185,129,0.07)' : `${accentColor}05`,
+        background: completed ? `${accentColor}12` : `${accentColor}05`,
         boxShadow: completed ? `0 0 0 1px ${accentColor}18` : 'none',
       }}>
       <div aria-hidden="true" className="absolute inset-x-0 top-0 h-1 overflow-hidden" style={{ background: `${accentColor}1f` }}>
@@ -110,7 +111,7 @@ export function DeliverableChecklist({
       <label
         className="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors duration-300 motion-reduce:transition-none"
         style={{
-          background: completed ? 'rgba(16,185,129,0.10)' : `${accentColor}10`,
+          background: completed ? `${accentColor}1a` : `${accentColor}10`,
           cursor: readOnly ? 'default' : 'pointer',
         }}>
         <input
@@ -127,7 +128,7 @@ export function DeliverableChecklist({
           style={{
             background: completed ? accentColor : 'transparent',
             borderColor: completed ? accentColor : `${accentColor}70`,
-            color: '#fff',
+            color: onAccent(accentColor),
             outlineColor: accentColor,
             transform: completed ? 'scale(1)' : 'scale(0.92)',
           }}>

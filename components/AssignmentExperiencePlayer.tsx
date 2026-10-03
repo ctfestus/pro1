@@ -39,6 +39,7 @@ import {
 } from '@/components/ve/ChatCard';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
 import { DeliverableChecklist } from '@/components/ve/DeliverableChecklist';
+import { resolveDeliverableAccent } from '@/lib/ve-accent';
 import { shouldShowGroupReadyScreen } from '@/lib/ve-assignment-player-state';
 
 // -- Types ---
@@ -72,6 +73,7 @@ interface Requirement {
   emailFrame?: boolean;
   emailBody?: string;
   attachments?: Array<{ name: string; url: string; mimeType?: string }>;
+  accentColor?: string;   // task/deliverable: own color; unset follows the experience accent
 }
 interface Lesson {
   id: string;
@@ -1869,7 +1871,7 @@ export default function AssignmentExperiencePlayer({
                               completed={isDone}
                               readOnly={readOnly}
                               isDark={isDark}
-                              accentColor={accent}
+                              accentColor={resolveDeliverableAccent(req.accentColor, accent, isDark)}
                               textColor={text}
                               mutedColor={muted}
                               onToggle={() => updateProgress(req.id, { completed: !isDone })}
