@@ -7043,11 +7043,18 @@ CREATE TABLE IF NOT EXISTS public.promotions (
   is_active   boolean     NOT NULL DEFAULT true,
   starts_at   timestamptz NOT NULL DEFAULT now(),
   ends_at     timestamptz,
+  -- Days after someone closes it before it shows to them again; NULL = never.
+  reshow_after_days integer CHECK (reshow_after_days IS NULL OR reshow_after_days BETWEEN 1 AND 365),
   author_id   uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at  timestamptz NOT NULL DEFAULT now(),
   updated_at  timestamptz NOT NULL DEFAULT now(),
   CONSTRAINT promotions_window_valid CHECK (ends_at IS NULL OR ends_at > starts_at)
 );
+
+-- For a database that ran an earlier draft of this migration, where the table had no such column.
+ALTER TABLE public.promotions
+  ADD COLUMN IF NOT EXISTS reshow_after_days integer
+  CHECK (reshow_after_days IS NULL OR reshow_after_days BETWEEN 1 AND 365);
 
 CREATE INDEX IF NOT EXISTS idx_promotions_author ON public.promotions(author_id);
 CREATE INDEX IF NOT EXISTS idx_promotions_live   ON public.promotions(starts_at, ends_at) WHERE is_active;
@@ -7094,43 +7101,17 @@ CREATE POLICY "promotions: instructor delete"
     AND (author_id = (SELECT auth.uid()) OR (SELECT public.is_admin()))
   );
 
--- The newest live promotion for one placement and viewer, skipping the ones this browser has
--- already closed. The exclusion happens here, before the LIMIT, so closing promos can never hide
--- an older live one. p_cohort_id is the viewer's students.cohort_id as resolved by the route
--- (NULL for a signed-out visitor, who then only sees everyone-audience promos).
-CREATE OR REPLACE FUNCTION public.get_active_promotion(
-  p_placement text,
-  p_cohort_id uuid DEFAULT NULL,
-  p_exclude   uuid[] DEFAULT '{}'
-)
-RETURNS TABLE(id uuid, title text, body text, image_url text, cta_label text, cta_url text, updated_at timestamptz)
-LANGUAGE sql
-STABLE
-SET search_path = ''
-AS $$
-  SELECT p.id, p.title, p.body, p.image_url, p.cta_label, p.cta_url, p.updated_at
-  FROM public.promotions AS p
-  WHERE p.is_active
-    AND p_placement = ANY(p.placements)
-    AND p.starts_at <= now()
-    AND (p.ends_at IS NULL OR p.ends_at > now())
-    AND (p.cohort_ids = '{}' OR p_cohort_id = ANY(p.cohort_ids))
-    AND NOT (p.id = ANY(COALESCE(p_exclude, '{}')))
-  ORDER BY p.starts_at DESC, p.id
-  LIMIT 1;
-$$;
-
-REVOKE EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[]) FROM PUBLIC, anon, authenticated;
-GRANT  EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[]) TO service_role;
-
--- Promotions: per-promo "show again after N days" (migration 220).
-
-ALTER TABLE public.promotions
-  ADD COLUMN IF NOT EXISTS reshow_after_days integer
-  CHECK (reshow_after_days IS NULL OR reshow_after_days BETWEEN 1 AND 365);
-
+-- Earlier drafts of this migration created these signatures; a fresh database has neither.
+DROP FUNCTION IF EXISTS public.get_active_promotions(text);
 DROP FUNCTION IF EXISTS public.get_active_promotion(text, uuid, uuid[]);
 
+-- The newest live promotion for one placement and viewer, skipping the ones this browser has
+-- closed. The browser sends each closed promo with the time it was closed; whether that closure
+-- has expired is decided here against the promo's current reshow_after_days, so changing the
+-- setting later also applies to people who already closed it. The exclusion happens before the
+-- LIMIT, so closed promos can never hide an older live one. p_cohort_id is the viewer's
+-- students.cohort_id as resolved by the route (NULL for a signed-out visitor, who then only sees
+-- everyone-audience promos).
 CREATE OR REPLACE FUNCTION public.get_active_promotion(
   p_placement  text,
   p_cohort_id  uuid DEFAULT NULL,

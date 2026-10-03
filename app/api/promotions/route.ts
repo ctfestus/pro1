@@ -5,7 +5,7 @@ import { isPromoPlacement, parseClosedPromos } from '@/lib/promotions';
 
 // GET /api/promotions?placement=landing|student|course&closed=<id>:<closedAtEpochSeconds>,...
 // The one live promo this viewer should see next, or { promotion: null }. A closed promo stays
-// hidden unless its reshow_after_days has passed since it was closed (migration 220).
+// hidden unless its reshow_after_days has passed since it was closed.
 //
 // Public: the landing pages call it signed out. With a Bearer token the viewer's cohort is used for
 // audience targeting, and requireStudentUser resolves a Student Mode target, so an admin viewing as
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     p_closed_at: closed.closedAt,
   });
   if (error) {
-    // Includes a tenant that has not run migrations 219/220 yet: no promo, not a broken page.
+    // Includes a tenant that has not run migration 219 yet: no promo, not a broken page.
     console.error('[promotions] lookup failed:', error.message);
     return NextResponse.json({ promotion: null });
   }
