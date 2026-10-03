@@ -7,6 +7,7 @@ interface DeliverableDescription {
   description?: string;
   descriptionFormat?: DeliverableDescriptionFormat;
   descriptionDoc?: LessonDoc;
+  accentColor?: string;
 }
 
 function isDeliverable(requirement: DeliverableDescription): boolean {
@@ -38,17 +39,20 @@ export function reconcileImprovedDeliverableDescription<T extends DeliverableDes
   htmlToDoc: (html: string) => LessonDoc,
 ): T {
   if (!isDeliverable(incoming)) {
-    return { ...incoming, descriptionFormat: undefined, descriptionDoc: undefined };
+    return { ...incoming, descriptionFormat: undefined, descriptionDoc: undefined, accentColor: undefined };
   }
+  // The AI never sees or returns the deliverable's color, so carry the author's choice over.
+  const accentColor = incoming.accentColor ?? (prior && isDeliverable(prior) ? prior.accentColor : undefined);
   if (prior && isDeliverable(prior) && prior.descriptionDoc) {
     return {
       ...incoming,
+      accentColor,
       description: prior.description,
       descriptionFormat: prior.descriptionFormat,
       descriptionDoc: prior.descriptionDoc,
     };
   }
-  return attachDeliverableDescriptionDoc(incoming, htmlToDoc);
+  return attachDeliverableDescriptionDoc({ ...incoming, accentColor }, htmlToDoc);
 }
 
 export function htmlToPlainText(html: string): string {

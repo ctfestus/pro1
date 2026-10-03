@@ -43,6 +43,7 @@ import {
 } from '@/components/ve/ChatCard';
 import { BriefAskThread } from '@/components/ve/BriefAskThread';
 import { DeliverableChecklist } from '@/components/ve/DeliverableChecklist';
+import { resolveDeliverableAccent } from '@/lib/ve-accent';
 
 // Hamburger -- matches the course player (tighter line spacing than lucide's Menu).
 function MenuIcon({ className }: { className?: string }) {
@@ -85,6 +86,7 @@ interface Requirement {
   emailFrame?: boolean;
   emailBody?: string;
   attachments?: Array<{ name: string; url: string; mimeType?: string }>;
+  accentColor?: string;   // task/deliverable: own color; unset uses the player's accent
 }
 interface Lesson {
   id: string;
@@ -2810,7 +2812,7 @@ export default function VirtualExperienceTaker({
                               completed={done}
                               readOnly={reviewMode}
                               isDark={isDark}
-                              accentColor={accentColor}
+                              accentColor={resolveDeliverableAccent(req.accentColor, accentColor, !!isDark)}
                               textColor={isDark ? '#f0f0f0' : '#111'}
                               mutedColor={isDark ? '#888' : '#666'}
                               onToggle={() => toggleReq(req.id)}
