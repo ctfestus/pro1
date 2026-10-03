@@ -1,8 +1,9 @@
 'use client';
 
 // Closable promo card pinned to the bottom corner of a page (full width at the bottom on phones).
-// Shows the newest live promotion for its placement that this browser has not closed. Closing is
-// remembered per browser, so it also works for signed-out visitors on the landing pages.
+// Shows the newest live promotion for its placement that this browser has not closed (or closed
+// long enough ago, when the promo is set to show again). Closing is remembered per browser, so it
+// also works for signed-out visitors on the landing pages.
 
 import { useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -15,10 +16,19 @@ import { safePromoUrl, isExternalUrl, MAX_PROMO_EXCLUDES, type ActivePromotion, 
 const DISMISSED_KEY = 'promo-dismissed';
 const SHOW_DELAY_MS = 1200;
 
-function readDismissed(): string[] {
+// Newest first. `at` is epoch seconds; null for an entry saved before closings were timed, which
+// the server keeps treating as closed.
+type Closed = { id: string; at: number | null };
+
+function readDismissed(): Closed[] {
   try {
     const parsed = JSON.parse(localStorage.getItem(DISMISSED_KEY) ?? '[]');
-    return Array.isArray(parsed) ? parsed.filter(x => typeof x === 'string') : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((x): Closed[] => {
+      if (typeof x === 'string') return [{ id: x, at: null }];
+      if (x && typeof x.id === 'string') return [{ id: x.id, at: typeof x.at === 'number' ? x.at : null }];
+      return [];
+    });
   } catch {
     return [];
   }
@@ -26,8 +36,10 @@ function readDismissed(): string[] {
 
 function rememberDismissed(id: string) {
   try {
-    // Capped so a long-lived browser does not grow this forever; old ids are for expired promos.
-    const next = [id, ...readDismissed().filter(x => x !== id)].slice(0, MAX_PROMO_EXCLUDES);
+    // Re-closing a promo that came back restarts its clock. Capped so a long-lived browser does
+    // not grow this forever.
+    const next = [{ id, at: Math.floor(Date.now() / 1000) }, ...readDismissed().filter(x => x.id !== id)]
+      .slice(0, MAX_PROMO_EXCLUDES);
     localStorage.setItem(DISMISSED_KEY, JSON.stringify(next));
   } catch {}
 }
@@ -52,7 +64,8 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
       // The token only sharpens targeting (cohort, Student Mode via the page's fetch bridge);
       // signed out, the route returns everyone-audience promos.
       const { data: { session } } = await supabase.auth.getSession();
-      const params = new URLSearchParams({ placement, exclude: readDismissed().join(',') });
+      const closed = readDismissed().map(c => (c.at === null ? c.id : `${c.id}:${c.at}`)).join(',');
+      const params = new URLSearchParams({ placement, closed });
       const res = await fetch(`/api/promotions?${params}`, {
         headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
       });

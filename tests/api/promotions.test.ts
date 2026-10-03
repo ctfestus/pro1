@@ -12,7 +12,7 @@ vi.mock('@/lib/api-auth', () => ({
 vi.mock('@/lib/admin-client', () => ({ adminClient }));
 
 import { GET } from '@/app/api/promotions/route';
-import { safePromoUrl, parsePromoExcludes } from '@/lib/promotions';
+import { safePromoUrl, parseClosedPromos } from '@/lib/promotions';
 
 const PROMO = { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', title: 'Bootcamp', body: null, image_url: null, cta_label: null, cta_url: null, updated_at: '2026-10-01T00:00:00Z' };
 const ID_B = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
@@ -46,16 +46,19 @@ describe('GET /api/promotions', () => {
     expect(res.status).toBe(400);
   });
 
-  it('serves a signed-out visitor the everyone audience, with the closed ids excluded', async () => {
+  it('serves a signed-out visitor the everyone audience, passing closed promos with their times', async () => {
     const { db, calls } = dbWith(null);
     adminClient.mockReturnValue(db);
 
-    const res = await GET(request(`placement=landing&exclude=${ID_B},not-a-uuid`));
+    const res = await GET(request(`placement=landing&closed=${ID_B}:1790000000,not-a-uuid:5`));
 
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ promotion: PROMO });
     expect(requireStudentUser).not.toHaveBeenCalled();
-    expect(calls).toEqual([{ p_placement: 'landing', p_cohort_id: null, p_exclude: [ID_B] }]);
+    expect(calls).toEqual([{
+      p_placement: 'landing', p_cohort_id: null,
+      p_closed_ids: [ID_B], p_closed_at: [new Date(1790000000 * 1000).toISOString()],
+    }]);
   });
 
   it('targets the resolved user, which is the Student Mode student when one is active', async () => {
@@ -115,10 +118,18 @@ describe('safePromoUrl', () => {
   });
 });
 
-describe('parsePromoExcludes', () => {
+describe('parseClosedPromos', () => {
   it('keeps unique well-formed ids and caps the list', () => {
-    const many = Array.from({ length: 60 }, (_, i) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}`);
-    expect(parsePromoExcludes([...many, many[0], 'x'].join(','))).toHaveLength(50);
-    expect(parsePromoExcludes(null)).toEqual([]);
+    const many = Array.from({ length: 60 }, (_, i) => `aaaaaaaa-aaaa-4aaa-8aaa-${String(i).padStart(12, '0')}:100`);
+    expect(parseClosedPromos([...many, many[0], 'x'].join(',')).ids).toHaveLength(50);
+    expect(parseClosedPromos(null)).toEqual({ ids: [], closedAt: [] });
+  });
+
+  it('keeps an id whose time is missing or unusable, with no time', () => {
+    const huge = '9'.repeat(15);
+    expect(parseClosedPromos(`${ID_B},${PROMO.id}:${huge}`)).toEqual({
+      ids: [ID_B, PROMO.id],
+      closedAt: [null, null],
+    });
   });
 });

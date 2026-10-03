@@ -47,10 +47,34 @@ export function safePromoUrl(raw: string | null | undefined): string | null {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export const MAX_PROMO_EXCLUDES = 50;
 
-/** The closed-promo ids a client sent, keeping only well-formed UUIDs, capped. */
-export function parsePromoExcludes(raw: string | null): string[] {
-  if (!raw) return [];
-  return [...new Set(raw.split(',').map(s => s.trim()).filter(s => UUID_RE.test(s)))].slice(0, MAX_PROMO_EXCLUDES);
+/** "Show again after closing" choices in the editor; null = never. */
+export const PROMO_RESHOW_OPTIONS: { days: number | null; label: string }[] = [
+  { days: null, label: 'Never' },
+  { days: 1,    label: 'After 1 day' },
+  { days: 3,    label: 'After 3 days' },
+  { days: 7,    label: 'After 7 days' },
+  { days: 14,   label: 'After 14 days' },
+  { days: 30,   label: 'After 30 days' },
+];
+
+/**
+ * The closed promos a client sent as "id:closedAtEpochSeconds,..." -- parallel arrays for
+ * get_active_promotion(). A bare id (no time) counts as closed with no known time, which the
+ * database treats as still closed. Malformed entries are dropped; the list is capped, first wins.
+ */
+export function parseClosedPromos(raw: string | null): { ids: string[]; closedAt: (string | null)[] } {
+  const ids: string[] = [];
+  const closedAt: (string | null)[] = [];
+  for (const entry of (raw ?? '').split(',')) {
+    if (ids.length >= MAX_PROMO_EXCLUDES) break;
+    const [id, secs] = entry.trim().split(':');
+    if (!id || !UUID_RE.test(id) || ids.includes(id)) continue;
+    const n = secs === undefined ? NaN : Number(secs);
+    ids.push(id);
+    // 8.64e12 s is the largest time a Date can hold; beyond it toISOString throws.
+    closedAt.push(Number.isSafeInteger(n) && n > 0 && n <= 8.64e12 ? new Date(n * 1000).toISOString() : null);
+  }
+  return { ids, closedAt };
 }
 
 export function isPromoPlacement(value: string | null): value is PromoPlacement {

@@ -10,7 +10,7 @@ import { ArrowLeft, Loader2, Save, Upload, X, Images } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sanitizePlainText } from '@/lib/sanitize';
-import { PROMO_PLACEMENTS, safePromoUrl, type PromoPlacement } from '@/lib/promotions';
+import { PROMO_PLACEMENTS, PROMO_RESHOW_OPTIONS, safePromoUrl, type PromoPlacement } from '@/lib/promotions';
 
 // --- Design tokens: standard palette from lib/theme.ts ---
 
@@ -51,6 +51,7 @@ export default function CreatePromotionPage() {
   const [ctaUrl, setCtaUrl]         = useState('');
   const [placements, setPlacements] = useState<PromoPlacement[]>(['landing', 'student', 'course']);
   const [isActive, setIsActive]     = useState(true);
+  const [reshowAfterDays, setReshowAfterDays] = useState<number | null>(null);
   const [startsAt, setStartsAt]     = useState(() => toDatetimeLocalValue(new Date()));
   const [endsAt, setEndsAt]         = useState('');
   const [audience, setAudience]     = useState<AudienceOption[]>([]);
@@ -95,6 +96,7 @@ export default function CreatePromotionPage() {
           setCtaUrl(data.cta_url ?? '');
           setPlacements(data.placements ?? []);
           setIsActive(data.is_active ?? true);
+          setReshowAfterDays(data.reshow_after_days ?? null);
           if (data.starts_at) setStartsAt(toDatetimeLocalValue(new Date(data.starts_at)));
           if (data.ends_at) setEndsAt(toDatetimeLocalValue(new Date(data.ends_at)));
           setSelectedCohortIds(data.cohort_ids ?? []);
@@ -127,7 +129,7 @@ export default function CreatePromotionPage() {
         title: trimmedTitle, body: body.trim() || null,
         image_url: imageUrl.trim() || null,
         cta_label: ctaLabel.trim() || null, cta_url: ctaUrl.trim() || null,
-        placements, cohort_ids: selectedCohortIds, is_active: isActive,
+        placements, cohort_ids: selectedCohortIds, is_active: isActive, reshow_after_days: reshowAfterDays,
         starts_at: startDate.toISOString(), ends_at: endDate ? endDate.toISOString() : null,
       };
 
@@ -300,6 +302,15 @@ export default function CreatePromotionPage() {
                   <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: C.text }}>Live</p>
                   <p style={{ margin: 0, fontSize: 12, color: C.faint }}>Turn off to pause it without deleting</p>
                 </div>
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={labelStyle(C)}>Show again after closing</label>
+                <select value={reshowAfterDays ?? ''} onChange={e => setReshowAfterDays(e.target.value ? Number(e.target.value) : null)}
+                  style={inputStyle(C)}>
+                  {PROMO_RESHOW_OPTIONS.map(o => <option key={o.label} value={o.days ?? ''}>{o.label}</option>)}
+                </select>
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: C.faint }}>When someone closes this promo, how long until they see it again. Never means it stays closed for them.</p>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>

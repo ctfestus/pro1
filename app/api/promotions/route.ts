@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
-import { isPromoPlacement, parsePromoExcludes } from '@/lib/promotions';
+import { isPromoPlacement, parseClosedPromos } from '@/lib/promotions';
 
-// GET /api/promotions?placement=landing|student|course&exclude=<id>,<id>
-// The one live promo this viewer should see next, or { promotion: null }.
+// GET /api/promotions?placement=landing|student|course&closed=<id>:<closedAtEpochSeconds>,...
+// The one live promo this viewer should see next, or { promotion: null }. A closed promo stays
+// hidden unless its reshow_after_days has passed since it was closed (migration 220).
 //
 // Public: the landing pages call it signed out. With a Bearer token the viewer's cohort is used for
 // audience targeting, and requireStudentUser resolves a Student Mode target, so an admin viewing as
@@ -15,7 +16,7 @@ export async function GET(req: NextRequest) {
   if (!isPromoPlacement(placement)) {
     return NextResponse.json({ error: 'Invalid placement' }, { status: 400 });
   }
-  const exclude = parsePromoExcludes(req.nextUrl.searchParams.get('exclude'));
+  const closed = parseClosedPromos(req.nextUrl.searchParams.get('closed'));
 
   let db = adminClient();
   let cohortId: string | null = null;
@@ -31,10 +32,11 @@ export async function GET(req: NextRequest) {
   const { data, error } = await db.rpc('get_active_promotion', {
     p_placement: placement,
     p_cohort_id: cohortId,
-    p_exclude: exclude,
+    p_closed_ids: closed.ids,
+    p_closed_at: closed.closedAt,
   });
   if (error) {
-    // Includes a tenant that has not run migration 219 yet: no promo, not a broken page.
+    // Includes a tenant that has not run migrations 219/220 yet: no promo, not a broken page.
     console.error('[promotions] lookup failed:', error.message);
     return NextResponse.json({ promotion: null });
   }
