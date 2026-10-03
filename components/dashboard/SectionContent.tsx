@@ -85,6 +85,7 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
       <div className="min-w-0">
         <p className="font-semibold text-sm truncate" style={{ color: C.text }}>{item.title}</p>
         <p className="text-xs mt-0.5" style={{ color: C.faint }}>
+          {item.kind === 'events' ? 'Events - ' : ''}
           {(item.placements ?? []).map((p: string) => PROMO_PLACEMENTS.find(x => x.id === p)?.label ?? p).join(', ')}
           {item.cohort_ids?.length ? ` - ${item.cohort_ids.length} audience${item.cohort_ids.length === 1 ? '' : 's'}` : ' - Everyone'}
         </p>
