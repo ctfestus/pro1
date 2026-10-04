@@ -28,7 +28,7 @@ import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
 import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRecord';
-import { safeVeUploadName, validateVeSubmissionFile, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
+import { repairVeSubmissionUrl, safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import {
   Person, AttachmentCard, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, firstNameOf,
@@ -457,7 +457,7 @@ export default function VirtualExperienceTaker({
     setUploadErrors(prev => ({ ...prev, [reqId]: '' }));
     setUploadingReq(reqId);
     try {
-      const path = `submissions/${formId}/${encodeURIComponent(studentEmail)}/${reqId}-${Date.now()}-${safeVeUploadName(file.name)}`;
+      const path = `${veSubmissionFolder(formId, userId)}/${reqId}-${Date.now()}-${safeVeUploadName(file.name)}`;
       const { error } = await supabase.storage.from('form-assets').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from('form-assets').getPublicUrl(path);
@@ -1811,7 +1811,7 @@ export default function VirtualExperienceTaker({
                                   : (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                       {fileUrl && (
-                                        <AttachmentCard isDark={isDark} href={fileUrl}
+                                        <AttachmentCard isDark={isDark} href={repairVeSubmissionUrl(fileUrl)}
                                           name={(() => { try { return decodeURIComponent(fileUrl.split('/').pop()?.split('?')[0] || ''); } catch { return ''; } })() || (isDeliverable ? 'Deliverable' : 'Attachment')} />
                                       )}
                                       {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', border: `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'}`, fontSize: 12.5, color: isDark ? '#ddd' : '#334155', textDecoration: 'none' }}><LinkIcon className="w-3 h-3" /> {linkUrl.slice(0, 40)}{linkUrl.length > 40 ? '...' : ''}</a>}
@@ -2342,7 +2342,7 @@ export default function VirtualExperienceTaker({
                                   {fileUrl ? 'File uploaded. Click to replace.' : 'Click to upload your file'}
                                 </p>
                                 {fileUrl && (
-                                  <a href={fileUrl} target="_blank" rel="noreferrer"
+                                  <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer"
                                     onClick={e => e.stopPropagation()}
                                     className="text-[11px] underline" style={{ color: accentColor }}>
                                     View uploaded file

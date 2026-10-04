@@ -23,6 +23,7 @@ import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { ReviewReportView, LegacyReviewSummary, REVIEW_TYPES, REVIEW_LABELS } from '@/components/ReviewReportView';
 import { parseReviewNotes } from '@/lib/reviewRecord';
 import VeFileReportEditor from '@/components/dashboard/VeFileReportEditor';
+import { repairVeSubmissionUrl } from '@/lib/ve-upload';
 import { sameReportContent, type InstructorReportDraft } from '@/lib/ve-instructor-report';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 
@@ -2508,7 +2509,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                             )}
                             {fileUrl
                               ? <>
-                                  <a href={fileUrl} target="_blank" rel="noreferrer"
+                                  <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer"
                                     className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
                                     style={{ background: '#10b98115', color: '#10b981' }}>
                                     View uploaded file

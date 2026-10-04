@@ -18,6 +18,7 @@ import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/e
 import { ArchiveTooLargeError, assertZipWithinLimit, extractDocxText, extractPptxText } from '@/lib/office-text';
 import { hasReportContent, normalizeInstructorReport, reportableRequirementIds } from '@/lib/ve-instructor-report';
 import { normalizeReviewSheetNames } from '@/lib/excel-review-config';
+import { repairVeSubmissionUrl } from '@/lib/ve-upload';
 
 export const dynamic = 'force-dynamic';
 
@@ -240,7 +241,8 @@ export async function POST(req: NextRequest) {
   let sheetPrompt = '';
   const notices: string[] = [];
   try {
-    const res = await fetch(parsed.toString(), { redirect: 'error' });
+    // Older standalone uploads saved a double-escaped link that storage rejects; open the repaired one.
+    const res = await fetch(repairVeSubmissionUrl(parsed.toString()), { redirect: 'error' });
     if (!res.ok || !res.body) return refunded(NextResponse.json({ error: 'Could not open the uploaded file.' }, { status: 502 }));
     if (Number(res.headers.get('content-length') || 0) > MAX_FILE_BYTES) {
       await res.body.cancel().catch(() => {});

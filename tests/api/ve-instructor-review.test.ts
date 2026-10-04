@@ -168,6 +168,22 @@ describe('AI draft route', () => {
     expect((await draft()).status).toBe(200);
   });
 
+  it('opens an older double-escaped link by its repaired form, and records the saved link', async () => {
+    setupDraft();
+    // What the standalone player saved before uploads moved to the account-id folder.
+    panelFileUrl = `${SUPABASE}/storage/v1/object/public/form-assets/submissions/ve1/s%2540x.com/u1-1-deck.txt`;
+    vi.mocked(adminClient).mockReturnValue(readStub({
+      guided_project_attempts: { ve_id: 've1', progress: { u1: { fileUrl: panelFileUrl, completed: true } } },
+      virtual_experiences: { user_id: 'inst1', title: 'Market Entry', modules: MODULES, company: 'Acme', role: 'Analyst' },
+    }) as any);
+    const fetchMock = respondWith('text');
+    mockGenerateJSON.mockResolvedValue(AI_REPORT);
+    const res = await draft();
+    expect(res.status).toBe(200);
+    expect(String((fetchMock.mock.calls[0] as unknown[])[0])).toBe(`${SUPABASE}/storage/v1/object/public/form-assets/submissions/ve1/s%40x.com/u1-1-deck.txt`);
+    expect((await res.json()).report.fileUrl).toBe(panelFileUrl);
+  });
+
   it('will not fetch an assignment upload filed under another VE', async () => {
     setupAssignmentUpload('other-ve');
     const fetchMock = respondWith('text');
