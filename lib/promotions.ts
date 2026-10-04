@@ -1,4 +1,4 @@
-// Promotions (migrations 219, 220): closable promo cards shown on the landing pages, the student
+// Promotions (migrations 219, 221): closable promo cards shown on the landing pages, the student
 // dashboard, and inside courses. Authored at /create/promotion, rendered by components/PromoCard.
 
 export type PromoPlacement = 'landing' | 'student' | 'course';
@@ -9,7 +9,7 @@ export const PROMO_PLACEMENTS: { id: PromoPlacement; label: string; hint: string
   { id: 'course',  label: 'Inside courses',    hint: 'Course overview and the course player' },
 ];
 
-/** 'standard' = image + text card; 'events' = heading with dated event rows, no image (migration 220). */
+/** 'standard' = image + text card; 'events' = heading with dated event rows, no image (migration 221). */
 export type PromoKind = 'standard' | 'events';
 
 export type EventFormat = 'virtual' | 'in_person' | 'hybrid';
@@ -44,7 +44,7 @@ export interface ActivePromotion {
   updated_at: string;
 }
 
-// Spelled-out character classes, matched exactly by get_live_promotion() (migration 220): \d and
+// Spelled-out character classes, matched exactly by get_live_promotion() (migration 221): \d and
 // \s follow the database locale there, so they could disagree with JavaScript's.
 const ISO_DATE_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
 const ASCII_SPACE_EDGES = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g;
@@ -72,7 +72,7 @@ export function parseViewerDate(raw: string | null, now: Date = new Date()): str
  * The rows to show, from the stored JSON: well-formed ones only, dated today or later in the
  * viewer's time zone, soonest first. Never throws on bad data.
  *
- * Keep the row rules in step with get_live_promotion() (migration 220), which only returns an
+ * Keep the row rules in step with get_live_promotion() (migration 221), which only returns an
  * events promo when at least one row passes them; a mismatch lets the server pick a promo that
  * the card then refuses to show.
  */

@@ -26,7 +26,7 @@ describe('upcomingEventItems', () => {
     ]);
   });
 
-  // These mirror get_live_promotion() in migration 220, which only strips ASCII whitespace and
+  // These mirror get_live_promotion() in migration 221, which only strips ASCII whitespace and
   // only accepts ASCII digits. Any difference lets the server pick a promo the card then drops.
   it('uses the same character rules as the database', () => {
     const items = upcomingEventItems([

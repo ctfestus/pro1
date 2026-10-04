@@ -14,11 +14,11 @@ import { isPromoPlacement, parseClosedPromos, parseViewerDate } from '@/lib/prom
 // audience rather than erroring, since everyone-audience promos are public anyway.
 //
 // A temporary database failure answers 503 so PromoCard retries it; answering "no promo" would
-// clear the slot for the rest of the day. A tenant that has not run migrations 219/220 yet gets
+// clear the slot for the rest of the day. A tenant that has not run migrations 219/221 yet gets
 // "no promo" instead, since retrying cannot fix a missing table or function.
 
 // PostgREST: function / table not in the schema cache. Postgres: undefined function / table /
-// column (get_live_promotion or the 220 columns not created yet).
+// column (get_live_promotion or the 221 columns not created yet).
 const NOT_MIGRATED_CODES = new Set(['PGRST202', 'PGRST205', '42883', '42P01', '42703']);
 
 function retryLater(what: string, message: string) {

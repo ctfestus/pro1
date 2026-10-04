@@ -7149,7 +7149,7 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[], timestamptz[]) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.get_active_promotion(text, uuid, uuid[], timestamptz[]) TO service_role;
 
--- Event promotions: kind + event_items rows (migration 220).
+-- Event promotions: kind + event_items rows (migration 221).
 ALTER TABLE public.promotions
   ADD COLUMN IF NOT EXISTS kind text NOT NULL DEFAULT 'standard'
   CHECK (kind IN ('standard', 'events'));
