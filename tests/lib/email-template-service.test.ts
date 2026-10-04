@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderEmailTemplatePreview, validateEmailTemplateDraft } from '@/lib/email-template-service';
+import { formatEmailDate, renderEmailTemplatePreview, validateEmailTemplateDraft } from '@/lib/email-template-service';
 import { EMAIL_TEMPLATE_DEFINITIONS } from '@/lib/email-template-registry';
 
 describe('email template validation', () => {
@@ -57,5 +57,19 @@ describe('email template validation', () => {
     expect(rendered.subject).toBe('Hello');
     expect(rendered.html).not.toContain('<img src=x');
     expect(rendered.html).toContain('&lt;img');
+  });
+
+  it('renders protected details safely and formats system dates for learners', () => {
+    const rendered = renderEmailTemplatePreview({
+      key: 'payment_receipt', subject: 'Receipt', body: '<p>Payment received.</p>',
+      variables: {}, branding: { appName: 'Academy', appUrl: 'https://academy.test' },
+      fixedDetails: [{ label: 'Reference', value: '<script>alert(1)</script>' }],
+    });
+    expect('html' in rendered).toBe(true);
+    if (!('html' in rendered)) return;
+    expect(rendered.html).toContain('Details');
+    expect(rendered.html).toContain('&lt;script&gt;');
+    expect(rendered.html).not.toContain('<script>alert');
+    expect(formatEmailDate('2026-11-04T00:00:00+00:00')).toBe('4 November 2026');
   });
 });

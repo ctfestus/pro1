@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { individualLearnerWelcomeEmail } from '@/lib/email-templates';
-import { applyEmailTemplate } from '@/lib/email-template-service';
+import { applyEmailTemplate, formatEmailDate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -153,7 +153,26 @@ export async function sendIndividualLearnerWelcome(
         access,
         branding,
       });
-    const rendered = await applyEmailTemplate({ key: 'individual_learner_welcome', fallbackSubject, fallbackHtml, variables: { student_name: fullName || 'there', app_name: tenant.appName, plan_name: planName, period_end: access.kind === 'active' ? access.periodEnd : access.dueDate }, branding, actionUrl: setupUrl });
+    const rendered = await applyEmailTemplate({
+      key: 'individual_learner_welcome', fallbackSubject, fallbackHtml,
+      variables: {
+        student_name: fullName || 'there', app_name: tenant.appName, plan_name: planName,
+        period_end: access.kind === 'active' ? formatEmailDate(access.periodEnd) : '',
+        amount: access.kind === 'awaiting_payment' ? Number(access.amount).toFixed(2) : '',
+        currency: access.kind === 'awaiting_payment' ? access.currency : '',
+        due_date: access.kind === 'awaiting_payment' ? formatEmailDate(access.dueDate) : '',
+      },
+      fixedDetails: access.kind === 'active'
+        ? [
+            { label: 'Plan', value: planName }, { label: 'Duration', value: `${durationMonths} months` },
+            { label: 'Access starts', value: formatEmailDate(access.periodStart) }, { label: 'Access ends', value: formatEmailDate(access.periodEnd) },
+          ]
+        : [
+            { label: 'Plan', value: planName }, { label: 'Duration', value: `${durationMonths} months` },
+            { label: 'Amount due', value: `${access.currency} ${Number(access.amount).toFixed(2)}` }, { label: 'Pay by', value: formatEmailDate(access.dueDate) },
+          ],
+      branding, actionUrl: setupUrl,
+    });
     const { error: sendError } = await resend.emails.send({
       from,
       to: email,

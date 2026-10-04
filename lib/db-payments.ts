@@ -3,7 +3,7 @@ import { computeAccess, EnrollmentState } from './enrollment-access';
 import { Resend } from 'resend';
 import { getTenantSettings } from './get-tenant-settings';
 import { paymentReceiptEmail } from './email-templates';
-import { applyEmailTemplate } from './email-template-service';
+import { applyEmailTemplate, formatEmailDate } from './email-template-service';
 import { sendOverdueNotice, loadOverdueNoticeSettings } from './overdue-notice';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -523,7 +523,7 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
         }
         const t = await getTenantSettings();
         const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-        const dashboardUrl = t.appUrl || process.env.APP_URL || '';
+        const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student?section=payments`;
         const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
 
         // Resend reports API failures by resolving with { error }, not by throwing.
@@ -538,7 +538,19 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
             dashboardUrl,
             branding,
           });
-        const rendered = await applyEmailTemplate({ key: 'payment_receipt', fallbackSubject, fallbackHtml, variables: { student_name: studentName, amount: input.amount.toFixed(2), currency: enroll.currency ?? 'GHS', reference: input.reference ?? '' }, branding, actionUrl: dashboardUrl });
+        const paymentDate = formatEmailDate(input.paidAt ?? new Date().toISOString());
+        const rendered = await applyEmailTemplate({
+          key: 'payment_receipt', fallbackSubject, fallbackHtml,
+          variables: {
+            student_name: studentName, amount: input.amount.toFixed(2), currency: enroll.currency ?? 'GHS',
+            reference: input.reference ?? '', payment_date: paymentDate, payment_method: input.method ?? '',
+          },
+          fixedDetails: [
+            { label: 'Amount', value: `${enroll.currency ?? 'GHS'} ${input.amount.toFixed(2)}` },
+            { label: 'Date', value: paymentDate }, { label: 'Method', value: input.method ?? null }, { label: 'Reference', value: input.reference ?? null },
+          ],
+          branding, actionUrl: dashboardUrl,
+        });
         const { error: sendErr } = await resend.emails.send({ from: FROM, to: input.payerEmail, subject: rendered.subject, html: rendered.html });
         if (sendErr) console.error('[db-payments] payment receipt email failed', sendErr);
       } catch { /* non-blocking */ }

@@ -122,7 +122,9 @@ describe('activation email delivery is durable', () => {
   it('keys each send to its payment so a crash before stamping cannot duplicate', async () => {
     const { db } = makeDb({ 'pay-1': payment('pay-1') });
     await notifySubscriptionActivated(db, { paymentId: 'pay-1' });
-    expect(send).toHaveBeenCalledWith(expect.anything(), { idempotencyKey: 'subscription-activated/pay-1' });
+    expect(send).toHaveBeenCalledWith(expect.anything(), {
+      idempotencyKey: expect.stringMatching(/^subscription-activated\/pay-1\/[a-f0-9]{16}$/),
+    });
   });
 
   it('stops retrying a deleted learner instead of failing forever', async () => {

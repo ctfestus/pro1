@@ -12,6 +12,9 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 type NudgeStatus = 'not_started' | 'stalled' | 'in_progress' | 'failed';
 const NUDGE_STATUSES: NudgeStatus[] = ['not_started', 'stalled', 'in_progress', 'failed'];
+const NUDGE_STATUS_LABELS: Record<NudgeStatus, string> = {
+  not_started: 'Not started', stalled: 'Needs attention', in_progress: 'In progress', failed: 'Attempt not passed',
+};
 
 export async function POST(req: NextRequest) {
   if (!process.env.RESEND_API_KEY) {
@@ -164,7 +167,13 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const rendered = await applyEmailTemplate({ key: 'inactivity_nudge', fallbackSubject: subject, fallbackHtml: html, variables: { student_name: studentName || 'there', content_title: content.title, content_type: contentType }, branding, actionUrl: formUrl });
+    const statusText = NUDGE_STATUS_LABELS[nudgeStatus];
+    const rendered = await applyEmailTemplate({
+      key: 'inactivity_nudge', fallbackSubject: subject, fallbackHtml: html,
+      variables: { student_name: studentName || 'there', content_title: content.title, content_type: contentType, status_text: statusText },
+      fixedDetails: [{ label: 'Learning item', value: content.title }, { label: 'Status', value: statusText }],
+      branding, actionUrl: formUrl,
+    });
     const { error: sendError } = await resend.emails.send({ from: FROM, to: recipientEmail, subject: rendered.subject, html: rendered.html });
     if (sendError) {
       console.error('[nudge-student] Resend error:', sendError);

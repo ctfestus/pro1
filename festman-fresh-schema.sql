@@ -3227,7 +3227,9 @@ CREATE TABLE IF NOT EXISTS public.email_template_history (
 CREATE INDEX IF NOT EXISTS email_template_history_key_changed_idx ON public.email_template_history(template_key, changed_at DESC);
 ALTER TABLE public.email_template_overrides ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.email_template_history ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "email template overrides: staff read" ON public.email_template_overrides;
 CREATE POLICY "email template overrides: staff read" ON public.email_template_overrides FOR SELECT TO authenticated USING (public.is_instructor_or_admin());
+DROP POLICY IF EXISTS "email template history: staff read" ON public.email_template_history;
 CREATE POLICY "email template history: staff read" ON public.email_template_history FOR SELECT TO authenticated USING (public.is_instructor_or_admin());
 REVOKE INSERT, UPDATE, DELETE ON public.email_template_overrides FROM anon, authenticated;
 REVOKE INSERT, UPDATE, DELETE ON public.email_template_history FROM anon, authenticated;

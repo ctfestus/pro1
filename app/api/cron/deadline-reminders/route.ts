@@ -11,7 +11,7 @@ import { verifyQStashRequest } from '@/lib/qstash';
 import { deadlineReminderEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { fetchAllRows, fetchAllRowsByIds, fetchAllRowsByIdPairs } from '@/lib/fetch-all-rows';
-import { applyEmailTemplate } from '@/lib/email-template-service';
+import { applyEmailTemplate, formatEmailDate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -151,6 +151,7 @@ export async function POST(req: NextRequest) {
           const rendered = await applyEmailTemplate({
             key: 'deadline_reminder', fallbackSubject: subject, fallbackHtml,
             variables: { student_name: student.full_name || 'there', content_title: content.title, content_type: content.content_type, due_text: dueText },
+            fixedDetails: [{ label: 'Learning item', value: content.title }, { label: 'Due', value: dueText }],
             branding, actionUrl: formUrl,
           });
           emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
@@ -222,8 +223,9 @@ export async function POST(req: NextRequest) {
           const fallbackHtml = deadlineReminderEmail({ name: student.full_name || 'there', contentTitle: asm.title, contentType: 'assignment', formUrl: assignmentUrl, daysLeft, branding });
           const rendered = await applyEmailTemplate({
             key: 'assignment_due', fallbackSubject: subject, fallbackHtml,
-            variables: { student_name: student.full_name || 'there', assignment_title: asm.title, due_date: asm.deadline_date, due_text: daysLeft <= 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days` },
-            branding, actionUrl: assignmentUrl,
+            variables: { student_name: student.full_name || 'there', assignment_title: asm.title, due_date: formatEmailDate(asm.deadline_date), due_text: daysLeft <= 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days` },
+            fixedDetails: [{ label: 'Assignment', value: asm.title }, { label: 'Due', value: formatEmailDate(asm.deadline_date) }],
+            branding, actionUrl: `${t.appUrl}/student?section=assignments`,
           });
           emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
           nudgeRecords.push({ student_id: student.id, form_id: asm.id, nudge_type: 'deadline_reminder' });

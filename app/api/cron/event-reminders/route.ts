@@ -218,7 +218,11 @@ export async function POST(req: NextRequest) {
             event_time_display: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' '),
             event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
           },
-          branding, actionUrl: formUrl,
+          fixedDetails: [
+            { label: 'When', value: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' ') },
+            { label: 'Where', value: event.location || (event.meeting_link ? 'Online' : 'To be announced') },
+          ],
+          branding, actionUrl: event.meeting_link || formUrl, ctaLabel: event.meeting_link ? 'Join Meeting' : 'View Event',
         });
         emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
         nudgeRecords.push({ student_id: student.id, form_id: event.id, nudge_type: 'event_reminder' });
@@ -256,7 +260,11 @@ export async function POST(req: NextRequest) {
           event_time_display: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' '),
           event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
         },
-        branding, actionUrl: joinUrl || formUrl,
+        fixedDetails: [
+          { label: 'When', value: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' ') },
+          { label: 'Where', value: event.location || (joinUrl || event.meeting_link ? 'Online' : 'To be announced') },
+        ],
+        branding, actionUrl: joinUrl || event.meeting_link || formUrl, ctaLabel: joinUrl || event.meeting_link ? 'Join Meeting' : 'View Event',
       });
       emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
       nudgeRecords.push({ student_id: reg.student_id, form_id: event.id, nudge_type: 'event_reminder' });

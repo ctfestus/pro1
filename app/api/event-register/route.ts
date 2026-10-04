@@ -122,6 +122,10 @@ export async function POST(req: NextRequest) {
         event_time_display: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' '),
         event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
       },
+      fixedDetails: [
+        { label: 'When', value: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' ') },
+        { label: 'Where', value: event.location || (event.meeting_link ? 'Online' : 'To be announced') },
+      ],
       branding, actionUrl,
     });
     resend.emails

@@ -1,9 +1,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { subscriptionPaymentAssignedEmail } from '@/lib/email-templates';
 import { LEARNER_SETUP_FIELDS, learnerNeedsSetup, sendIndividualLearnerWelcome, type LearnerSetupState } from '@/lib/notify-individual-learner-welcome';
-import { applyEmailTemplate } from '@/lib/email-template-service';
+import { applyEmailTemplate, formatEmailDate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -63,8 +64,9 @@ export async function notifySubscriptionPaymentRequest(
   }
 
   const tenant = await getTenantSettings();
-  const dashboardUrl = tenant.appUrl || process.env.APP_URL || '';
-  if (!dashboardUrl) throw new Error('Platform App URL is not configured.');
+  const appUrl = (tenant.appUrl || process.env.APP_URL || '').replace(/\/$/, '');
+  if (!appUrl) throw new Error('Platform App URL is not configured.');
+  const dashboardUrl = `${appUrl}/student?section=payments`;
   const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`.trim();
   if (from === '<>') throw new Error('RESEND_FROM_EMAIL or the platform sender name and support email must be configured.');
 
@@ -79,8 +81,20 @@ export async function notifySubscriptionPaymentRequest(
       dashboardUrl,
       branding,
     });
-  const rendered = await applyEmailTemplate({ key: 'payment_request', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', plan_name: request.plan_name, amount: Number(request.amount).toFixed(2), currency: request.currency, due_date: request.due_date }, branding, actionUrl: dashboardUrl });
-  const { error: sendError } = await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html }, { idempotencyKey: `subscription-request/${request.id}` });
+  const rendered = await applyEmailTemplate({
+    key: 'payment_request', fallbackSubject, fallbackHtml,
+    variables: { student_name: student.full_name || 'there', plan_name: request.plan_name, amount: Number(request.amount).toFixed(2), currency: request.currency, due_date: formatEmailDate(request.due_date) },
+    fixedDetails: [
+      { label: 'Plan', value: request.plan_name }, { label: 'Amount', value: `${request.currency} ${Number(request.amount).toFixed(2)}` },
+      { label: 'Due', value: formatEmailDate(request.due_date) },
+    ],
+    branding, actionUrl: dashboardUrl,
+  });
+  const payloadVersion = createHash('sha256').update(`${rendered.subject}\n${rendered.html}`).digest('hex').slice(0, 16);
+  const { error: sendError } = await resend.emails.send(
+    { from, to: student.email, subject: rendered.subject, html: rendered.html },
+    { idempotencyKey: `subscription-request/${request.id}/${payloadVersion}` },
+  );
   if (sendError) throw new Error(sendError.message);
 
   await stamp();

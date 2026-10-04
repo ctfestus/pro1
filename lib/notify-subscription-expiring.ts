@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { createHash } from 'crypto';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { subscriptionExpiringEmail } from '@/lib/email-templates';
-import { applyEmailTemplate } from '@/lib/email-template-service';
+import { applyEmailTemplate, formatEmailDate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -51,8 +52,9 @@ export async function notifySubscriptionExpiring(
   }
 
   const tenant = await getTenantSettings();
-  const dashboardUrl = tenant.appUrl || process.env.APP_URL || '';
-  if (!dashboardUrl) throw new Error('Platform App URL is not configured.');
+  const appUrl = (tenant.appUrl || process.env.APP_URL || '').replace(/\/$/, '');
+  if (!appUrl) throw new Error('Platform App URL is not configured.');
+  const dashboardUrl = `${appUrl}/student`;
   const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`.trim();
   if (from === '<>') throw new Error('RESEND_FROM_EMAIL or the platform sender name and support email must be configured.');
 
@@ -71,8 +73,20 @@ export async function notifySubscriptionExpiring(
       dashboardUrl,
       branding,
     });
-  const rendered = await applyEmailTemplate({ key: 'subscription_expiring', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', plan_name: plan?.name ?? 'your plan', period_end: subscription.current_period_end, days_left: daysLeft }, branding, actionUrl: dashboardUrl });
-  const { error: sendError } = await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html }, { idempotencyKey: `subscription-expiring/${subscription.id}/${subscription.current_period_end}` });
+  const rendered = await applyEmailTemplate({
+    key: 'subscription_expiring', fallbackSubject, fallbackHtml,
+    variables: { student_name: student.full_name || 'there', plan_name: plan?.name ?? 'your plan', period_end: formatEmailDate(subscription.current_period_end), days_left: daysLeft },
+    fixedDetails: [
+      { label: 'Plan', value: plan?.name ?? 'Your plan' }, { label: 'Access ends', value: formatEmailDate(subscription.current_period_end) },
+      { label: 'Time remaining', value: daysLeft === 1 ? '1 day' : `${daysLeft} days` },
+    ],
+    branding, actionUrl: dashboardUrl,
+  });
+  const payloadVersion = createHash('sha256').update(`${rendered.subject}\n${rendered.html}`).digest('hex').slice(0, 16);
+  const { error: sendError } = await resend.emails.send(
+    { from, to: student.email, subject: rendered.subject, html: rendered.html },
+    { idempotencyKey: `subscription-expiring/${subscription.id}/${subscription.current_period_end}/${payloadVersion}` },
+  );
   if (sendError) throw new Error(sendError.message);
 
   await markWarned(db, subscription.id, subscription.current_period_end);

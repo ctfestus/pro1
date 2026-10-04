@@ -81,7 +81,20 @@ export async function POST(req: NextRequest) {
         branding,
       });
       const fallbackSubject = `Your assignment has been graded: ${assignmentTitle}`;
-      const rendered = await applyEmailTemplate({ key: 'assignment_graded', fallbackSubject, fallbackHtml: html, variables: { student_name: student.full_name || 'there', assignment_title: assignmentTitle, score: sub.score ?? 0, feedback: sub.feedback || '' }, branding, actionUrl: `${t.appUrl}/student` });
+      const resultStatus = sub.score == null ? 'Feedback available' : passed ? 'Passed' : 'Not passed';
+      const rendered = await applyEmailTemplate({
+        key: 'assignment_graded', fallbackSubject, fallbackHtml: html,
+        variables: {
+          student_name: student.full_name || 'there', assignment_title: assignmentTitle,
+          score: sub.score ?? '', score_display: sub.score == null ? 'Not scored' : `${sub.score}/100`,
+          result_status: resultStatus, feedback: sub.feedback || '',
+        },
+        fixedDetails: [
+          { label: 'Assignment', value: assignmentTitle }, { label: 'Result', value: resultStatus },
+          { label: 'Score', value: sub.score == null ? null : `${sub.score}/100` }, { label: 'Feedback', value: sub.feedback || null },
+        ],
+        branding, actionUrl: `${t.appUrl}/student?section=assignments`,
+      });
       return resend.emails.send({ from: FROM, to: student.email.trim(), subject: rendered.subject, html: rendered.html });
     }));
   } catch (err) {

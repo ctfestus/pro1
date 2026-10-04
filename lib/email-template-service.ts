@@ -12,6 +12,7 @@ export type EmailTemplateOverride = {
 };
 
 export type EmailTemplateVariables = Record<string, string | number | null | undefined>;
+export type EmailTemplateDetail = { label: string; value: string | number | null | undefined };
 
 export type EmailBrandingInput = {
   logoUrl?: string;
@@ -46,6 +47,49 @@ function safeHttpUrl(value: string | undefined) {
   } catch {
     return '';
   }
+}
+
+export function formatEmailDate(value: string | null | undefined) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return sanitizePlainText(value);
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC',
+  }).format(date);
+}
+
+function fixedDetailsHtml(details: EmailTemplateDetail[] | undefined) {
+  const rows = (details ?? []).filter(detail => String(detail.value ?? '').trim());
+  if (!rows.length) return '';
+  return `<div style="margin:20px 0;padding:16px;background:#f3f4f6;"><p style="margin:0 0 10px;font-weight:bold;">Details</p><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows.map(detail => `<tr><td style="padding:5px 12px 5px 0;color:#4b5563;vertical-align:top;">${escapeHtml(detail.label)}</td><td style="padding:5px 0;font-weight:bold;vertical-align:top;">${escapeHtml(detail.value)}</td></tr>`).join('')}</table></div>`;
+}
+
+function systemFixedDetails(key: EmailTemplateKey, variables: EmailTemplateVariables): EmailTemplateDetail[] {
+  const v = variables;
+  const amount = v.amount == null || v.amount === '' ? null : `${v.currency ?? ''} ${v.amount}`.trim();
+  const maps: Partial<Record<EmailTemplateKey, EmailTemplateDetail[]>> = {
+    weekly_digest: [
+      { label: 'Completed', value: v.completed_count }, { label: 'In progress', value: v.in_progress_count },
+      { label: 'Not started', value: v.not_started_count }, { label: 'Overdue', value: v.overdue_count },
+    ],
+    deadline_reminder: [{ label: 'Learning item', value: v.content_title }, { label: 'Due', value: v.due_text }],
+    ve_reviewed: [{ label: 'Score', value: v.score == null || v.score === '' ? null : `${v.score}/100` }, { label: 'Feedback', value: v.feedback }],
+    assignment_due: [{ label: 'Assignment', value: v.assignment_title }, { label: 'Due', value: v.due_date || v.due_text }],
+    assignment_graded: [{ label: 'Assignment', value: v.assignment_title }, { label: 'Result', value: v.result_status }, { label: 'Score', value: v.score_display }, { label: 'Feedback', value: v.feedback }],
+    event_confirmation: [{ label: 'When', value: v.event_time_display }, { label: 'Where', value: v.event_location }],
+    event_reminder: [{ label: 'When', value: v.event_time_display }, { label: 'Where', value: v.event_location }],
+    course_result: [{ label: 'Result', value: v.score == null || v.score === '' ? null : `${v.score}%` }],
+    payment_receipt: [{ label: 'Amount', value: amount }, { label: 'Date', value: v.payment_date }, { label: 'Method', value: v.payment_method }, { label: 'Reference', value: v.reference }],
+    payment_confirmation_received: [{ label: 'Amount', value: amount }],
+    payment_confirmation_approved: [{ label: 'Amount', value: amount }, { label: 'Note', value: v.admin_notes }],
+    payment_confirmation_rejected: [{ label: 'Amount', value: amount }, { label: 'Next step', value: v.admin_notes }],
+    payment_request: [{ label: 'Plan', value: v.plan_name }, { label: 'Amount', value: amount }, { label: 'Due', value: v.due_date }],
+    subscription_activated: [{ label: 'Plan', value: v.plan_name }, { label: 'Access starts', value: v.period_start }, { label: 'Access ends', value: v.period_end }],
+    subscription_expiring: [{ label: 'Plan', value: v.plan_name }, { label: 'Access ends', value: v.period_end }, { label: 'Days remaining', value: v.days_left }],
+    grace_period: [{ label: 'Grace period ends', value: v.grace_end_date }, { label: 'Days remaining', value: v.days_left }],
+    individual_learner_welcome: [{ label: 'Plan', value: v.plan_name }, { label: 'Amount due', value: amount }, { label: 'Pay by', value: v.due_date }, { label: 'Access ends', value: v.period_end }],
+  };
+  return maps[key] ?? [];
 }
 
 export function templateTags(value: string) {
@@ -118,6 +162,7 @@ export async function applyEmailTemplate(input: {
   branding: EmailBrandingInput;
   actionUrl?: string;
   ctaLabel?: string;
+  fixedDetails?: EmailTemplateDetail[];
 }) {
   const definition = getEmailTemplateDefinition(input.key);
   if (!definition) return { subject: input.fallbackSubject, html: input.fallbackHtml, customized: false };
@@ -130,9 +175,10 @@ export async function applyEmailTemplate(input: {
   }
   const subject = mergeSubject(checked.subject, input.variables).replace(/[\r\n]+/g, ' ').trim().slice(0, 200);
   const body = merge(checked.body, input.variables);
+  const fixedDetails = input.fixedDetails ?? systemFixedDetails(input.key, input.variables);
   return {
     subject: subject || input.fallbackSubject,
-    html: emailShell(body, input.branding, input.actionUrl, input.ctaLabel || definition.ctaLabel),
+    html: emailShell(`${body}${fixedDetailsHtml(fixedDetails)}`, input.branding, input.actionUrl, input.ctaLabel || definition.ctaLabel),
     customized: true,
   };
 }
@@ -143,11 +189,15 @@ export function renderEmailTemplatePreview(input: {
   body: string;
   variables: EmailTemplateVariables;
   branding: EmailBrandingInput;
+  fixedDetails?: EmailTemplateDetail[];
 }) {
   const checked = validateEmailTemplateDraft(input.key, input.subject, input.body);
   if ('error' in checked) return checked;
+  const fixedDetails = input.fixedDetails?.length
+    ? input.fixedDetails
+    : systemFixedDetails(checked.definition.key as EmailTemplateKey, input.variables);
   return {
     subject: mergeSubject(checked.subject, input.variables).replace(/[\r\n]+/g, ' ').trim().slice(0, 200),
-    html: emailShell(merge(checked.body, input.variables), input.branding, input.branding.appUrl, checked.definition.ctaLabel),
+    html: emailShell(`${merge(checked.body, input.variables)}${fixedDetailsHtml(fixedDetails)}`, input.branding, input.branding.appUrl, checked.definition.ctaLabel),
   };
 }

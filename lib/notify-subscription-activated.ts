@@ -5,7 +5,7 @@ import type { LearnerSetupState } from '@/lib/notify-individual-learner-welcome'
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { subscriptionActivatedEmail } from '@/lib/email-templates';
 import { LEARNER_SETUP_FIELDS, learnerNeedsSetup, sendIndividualLearnerWelcome } from '@/lib/notify-individual-learner-welcome';
-import { applyEmailTemplate } from '@/lib/email-template-service';
+import { applyEmailTemplate, formatEmailDate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -49,8 +49,9 @@ function isRateLimitError(error: any) {
 // message if delivery failed -- silent and unrecoverable. Sending first can duplicate on a
 // crash instead, which the per-payment Resend key absorbs, and that is the better failure
 // because it is visible rather than silent.
-function activationKey(paymentId: string) {
-  return `subscription-activated/${paymentId}`;
+function activationKey(paymentId: string, message: { subject: string; html: string }) {
+  const version = createHash('sha256').update(`${message.subject}\n${message.html}`).digest('hex').slice(0, 16);
+  return `subscription-activated/${paymentId}/${version}`;
 }
 
 async function renderMessage(payment: PaymentRow, ctx: {
@@ -69,7 +70,11 @@ async function renderMessage(payment: PaymentRow, ctx: {
   });
   const rendered = await applyEmailTemplate({
     key: 'subscription_activated', fallbackSubject, fallbackHtml,
-    variables: { student_name: payment.students?.full_name || 'there', plan_name: payment.plan_name, duration_months: payment.duration_months, period_start: payment.period_start, period_end: payment.period_end },
+    variables: { student_name: payment.students?.full_name || 'there', plan_name: payment.plan_name, duration_months: payment.duration_months, period_start: formatEmailDate(payment.period_start), period_end: formatEmailDate(payment.period_end) },
+    fixedDetails: [
+      { label: 'Plan', value: payment.plan_name }, { label: 'Duration', value: `${payment.duration_months} months` },
+      { label: 'Access starts', value: formatEmailDate(payment.period_start) }, { label: 'Access ends', value: formatEmailDate(payment.period_end) },
+    ],
     branding: ctx.branding, actionUrl: ctx.dashboardUrl,
   });
   return {
@@ -82,8 +87,9 @@ async function renderMessage(payment: PaymentRow, ctx: {
 
 async function mailContext() {
   const tenant = await getTenantSettings();
-  const dashboardUrl = tenant.appUrl || process.env.APP_URL || '';
-  if (!dashboardUrl) throw new Error('Platform App URL is not configured.');
+  const appUrl = (tenant.appUrl || process.env.APP_URL || '').replace(/\/$/, '');
+  if (!appUrl) throw new Error('Platform App URL is not configured.');
+  const dashboardUrl = `${appUrl}/student`;
   return {
     from: process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`,
     dashboardUrl,
@@ -163,10 +169,8 @@ export async function notifySubscriptionActivated(
   }
 
   const ctx = await mailContext();
-  const { error: sendError } = await resend.emails.send(
-    await renderMessage(payment, ctx),
-    { idempotencyKey: activationKey(payment.id) },
-  );
+  const message = await renderMessage(payment, ctx);
+  const { error: sendError } = await resend.emails.send(message, { idempotencyKey: activationKey(payment.id, message) });
   if (sendError) throw new Error(sendError.message);
 
   await stampSent(db, [payment.id]);
@@ -244,11 +248,10 @@ export async function notifySubscriptionActivatedBatch(
     const slice = deliverable.slice(i, i + BATCH_SIZE);
     const messages = await Promise.all(slice.map(p => renderMessage(p, ctx)));
     let chunkFailed = false;
-    // Derived from the exact payments in this chunk, so a retry carrying a different set of
-    // still-unsent learners cannot collide with an earlier key and be discarded as a
-    // duplicate. resend.batch.send takes one key per call, not per message.
+    // Include the rendered payload so a template edit after a failed attempt gets a new key.
+    // Identical retries still deduplicate, while changed copy cannot be silently rejected.
     const chunkKey = `subscription-activated/batch/${createHash('sha256')
-      .update(slice.map(p => p.id).sort().join(','))
+      .update(JSON.stringify(messages.map((message, index) => ({ id: slice[index].id, subject: message.subject, html: message.html }))))
       .digest('hex')
       .slice(0, 32)}`;
 

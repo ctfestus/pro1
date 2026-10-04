@@ -27,6 +27,22 @@ const SAMPLE_OVERRIDES: Record<string, Record<string, string | number>> = {
   payment_confirmation_rejected: { admin_notes: 'Please upload a clearer receipt that shows the reference and amount.' },
 };
 
+function sampleFixedDetails(key: string) {
+  const details: Record<string, Array<{ label: string; value: string }>> = {
+    assignment_due: [{ label: 'Assignment', value: 'Customer Churn Analysis' }, { label: 'Due', value: '5 October 2026' }],
+    assignment_graded: [{ label: 'Assignment', value: 'Customer Churn Analysis' }, { label: 'Result', value: 'Passed' }, { label: 'Score', value: '86/100' }],
+    inactivity_nudge: [{ label: 'Learning item', value: 'Data Analytics Foundations' }, { label: 'Status', value: 'In progress' }],
+    event_confirmation: [{ label: 'When', value: '8 October 2026 at 10:00 AM UTC' }, { label: 'Where', value: 'Online' }],
+    event_reminder: [{ label: 'When', value: '8 October 2026 at 10:00 AM UTC' }, { label: 'Where', value: 'Online' }],
+    payment_receipt: [{ label: 'Amount', value: 'GHS 450.00' }, { label: 'Reference', value: 'PAY-1024' }],
+    payment_request: [{ label: 'Plan', value: 'Professional Plan' }, { label: 'Amount', value: 'GHS 450.00' }, { label: 'Due', value: '5 October 2026' }],
+    subscription_activated: [{ label: 'Plan', value: 'Professional Plan' }, { label: 'Access ends', value: '4 November 2026' }],
+    subscription_expiring: [{ label: 'Plan', value: 'Professional Plan' }, { label: 'Access ends', value: '4 November 2026' }],
+    individual_learner_welcome: [{ label: 'Plan', value: 'Professional Plan' }, { label: 'Payment due', value: 'GHS 450.00 by 5 October 2026' }],
+  };
+  return details[key] ?? [];
+}
+
 async function staff(req: NextRequest) {
   return requireRole(req, ['admin', 'instructor']);
 }
@@ -54,17 +70,7 @@ export async function PUT(req: NextRequest) {
   const checked = validateEmailTemplateDraft(key, body.subject, body.body);
   if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
 
-  const { data: existing, error: readError } = await auth.serviceDb.from('email_template_overrides')
-    .select('subject_template, body_template, updated_at').eq('template_key', key).maybeSingle();
-  if (readError) return NextResponse.json({ error: 'Could not load the current template.' }, { status: 500 });
   const expected = typeof body.expectedUpdatedAt === 'string' ? body.expectedUpdatedAt : null;
-  if (existing && expected !== existing.updated_at) {
-    return NextResponse.json({ error: 'This template was changed by someone else. Reload it before saving.' }, { status: 409 });
-  }
-  if (!existing && expected) {
-    return NextResponse.json({ error: 'This template was reset by someone else. Reload it before saving.' }, { status: 409 });
-  }
-
   const { data: result, error: saveError } = await auth.serviceDb.rpc('save_email_template_override', {
     p_template_key: key, p_subject_template: checked.subject, p_body_template: checked.body,
     p_actor_id: auth.actor.id, p_expected_updated_at: expected, p_reset: false,
@@ -86,14 +92,9 @@ export async function DELETE(req: NextRequest) {
   const key = String(body.key || '');
   const definition = getEmailTemplateDefinition(key);
   if (!definition) return NextResponse.json({ error: 'Unknown email template.' }, { status: 400 });
-  const { data: existing, error: readError } = await auth.serviceDb.from('email_template_overrides')
-    .select('subject_template, body_template, updated_at').eq('template_key', key).maybeSingle();
-  if (readError) return NextResponse.json({ error: 'Could not load the current template.' }, { status: 500 });
-  if (!existing) return NextResponse.json({ ok: true });
   const expected = typeof body.expectedUpdatedAt === 'string' ? body.expectedUpdatedAt : null;
-  if (expected !== existing.updated_at) return NextResponse.json({ error: 'This template was changed by someone else. Reload it before resetting.' }, { status: 409 });
   const { data: result, error } = await auth.serviceDb.rpc('save_email_template_override', {
-    p_template_key: key, p_subject_template: existing.subject_template, p_body_template: existing.body_template,
+    p_template_key: key, p_subject_template: '', p_body_template: '',
     p_actor_id: auth.actor.id, p_expected_updated_at: expected, p_reset: true,
   });
   if (error) return NextResponse.json({ error: 'Could not reset the email template.' }, { status: 500 });
@@ -112,6 +113,7 @@ export async function POST(req: NextRequest) {
     key: String(body.key || ''), subject: body.subject, body: body.body,
     variables: { ...SAMPLE_VALUES, ...(SAMPLE_OVERRIDES[String(body.key || '')] ?? {}), app_name: settings.appName || SAMPLE_VALUES.app_name },
     branding: settings,
+    fixedDetails: sampleFixedDetails(String(body.key || '')),
   });
   if (!('html' in rendered)) return NextResponse.json({ error: rendered.error }, { status: 400 });
   if (body.action === 'preview') return NextResponse.json(rendered);
