@@ -11,6 +11,7 @@ import { verifyQStashRequest } from '@/lib/qstash';
 import { reminderEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { studentsStillInCohorts } from '@/lib/cohort-roster';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -198,11 +199,8 @@ export async function POST(req: NextRequest) {
         if (nudgedSet.has(`${student.id}|${event.id}`)) { skipped++; continue; }
 
         const formUrl = `${t.appUrl}/${event.slug ?? event.id}`;
-        emailBatch.push({
-          from: FROM,
-          to:   email,
-          subject: `Reminder: "${event.title}" is tomorrow`,
-          html: reminderEmail({
+        const fallbackSubject = `Reminder: "${event.title}" is tomorrow`;
+        const fallbackHtml = reminderEmail({
             name:          student.full_name || 'there',
             eventTitle:    event.title       || '',
             eventDate:     tomorrow,
@@ -212,8 +210,17 @@ export async function POST(req: NextRequest) {
             meetingLink:   event.meeting_link || '',
             formUrl,
             branding,
-          }),
+          });
+        const rendered = await applyEmailTemplate({
+          key: 'event_reminder', fallbackSubject, fallbackHtml,
+          variables: {
+            student_name: student.full_name || 'there', event_title: event.title || '', reminder_timing: 'tomorrow',
+            event_time_display: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' '),
+            event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
+          },
+          branding, actionUrl: formUrl,
         });
+        emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
         nudgeRecords.push({ student_id: student.id, form_id: event.id, nudge_type: 'event_reminder' });
       }
       continue;
@@ -229,11 +236,8 @@ export async function POST(req: NextRequest) {
       const joinUrl  = joinToken ? `${t.appUrl}/api/join?token=${joinToken}` : undefined;
       const formUrl  = `${t.appUrl}/${event.slug ?? event.id}`;
 
-      emailBatch.push({
-        from: FROM,
-        to:   email,
-        subject: `Reminder: "${event.title}" is tomorrow`,
-        html: reminderEmail({
+      const fallbackSubject = `Reminder: "${event.title}" is tomorrow`;
+      const fallbackHtml = reminderEmail({
           name:          studentData?.full_name || 'there',
           eventTitle:    event.title            || '',
           eventDate:     tomorrow,
@@ -244,8 +248,17 @@ export async function POST(req: NextRequest) {
           joinUrl,
           formUrl,
           branding,
-        }),
+        });
+      const rendered = await applyEmailTemplate({
+        key: 'event_reminder', fallbackSubject, fallbackHtml,
+        variables: {
+          student_name: studentData?.full_name || 'there', event_title: event.title || '', reminder_timing: 'tomorrow',
+          event_time_display: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' '),
+          event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
+        },
+        branding, actionUrl: joinUrl || formUrl,
       });
+      emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
       nudgeRecords.push({ student_id: reg.student_id, form_id: event.id, nudge_type: 'event_reminder' });
     }
   }

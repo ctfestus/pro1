@@ -11,6 +11,7 @@ import { verifyQStashRequest } from '@/lib/qstash';
 import { deadlineReminderEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { fetchAllRows, fetchAllRowsByIds, fetchAllRowsByIdPairs } from '@/lib/fetch-all-rows';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -144,10 +145,15 @@ export async function POST(req: NextRequest) {
               ? `Last chance! Your deadline is tomorrow: ${content.title}`
               : `Reminder: ${daysLeft} days left to complete "${content.title}"`;
 
-          emailBatch.push({
-            from: FROM, to: email, subject,
-            html: deadlineReminderEmail({ name: student.full_name || 'there', contentTitle: content.title, contentType: content.content_type, formUrl: `${t.appUrl}/${slug}`, daysLeft, branding }),
+          const formUrl = `${t.appUrl}/${slug}`;
+          const fallbackHtml = deadlineReminderEmail({ name: student.full_name || 'there', contentTitle: content.title, contentType: content.content_type, formUrl, daysLeft, branding });
+          const dueText = daysLeft <= 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
+          const rendered = await applyEmailTemplate({
+            key: 'deadline_reminder', fallbackSubject: subject, fallbackHtml,
+            variables: { student_name: student.full_name || 'there', content_title: content.title, content_type: content.content_type, due_text: dueText },
+            branding, actionUrl: formUrl,
           });
+          emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
           nudgeRecords.push({ student_id: student.id, form_id: contentId, nudge_type: 'deadline_reminder' });
         }
       }
@@ -212,10 +218,14 @@ export async function POST(req: NextRequest) {
               ? `Last chance! Assignment due tomorrow: ${asm.title}`
               : `Reminder: ${daysLeft} days left to submit "${asm.title}"`;
 
-          emailBatch.push({
-            from: FROM, to: email, subject,
-            html: deadlineReminderEmail({ name: student.full_name || 'there', contentTitle: asm.title, contentType: 'assignment', formUrl: `${t.appUrl}/student#assignments`, daysLeft, branding }),
+          const assignmentUrl = `${t.appUrl}/student#assignments`;
+          const fallbackHtml = deadlineReminderEmail({ name: student.full_name || 'there', contentTitle: asm.title, contentType: 'assignment', formUrl: assignmentUrl, daysLeft, branding });
+          const rendered = await applyEmailTemplate({
+            key: 'assignment_due', fallbackSubject: subject, fallbackHtml,
+            variables: { student_name: student.full_name || 'there', assignment_title: asm.title, due_date: asm.deadline_date, due_text: daysLeft <= 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days` },
+            branding, actionUrl: assignmentUrl,
           });
+          emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
           nudgeRecords.push({ student_id: student.id, form_id: asm.id, nudge_type: 'deadline_reminder' });
         }
       }

@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { groupAssignedEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { loadCohortMembership, isStillInGroupCohort } from '@/lib/cohort-roster';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -90,11 +91,8 @@ export async function POST(req: NextRequest) {
         { onConflict: 'dedupe_key,type', ignoreDuplicates: false }
       );
 
-      emails.push({
-        from: fromEmail,
-        to: student.email,
-        subject: `You have been added to ${group.name}`,
-        html: groupAssignedEmail({
+      const fallbackSubject = `You have been added to ${group.name}`;
+      const fallbackHtml = groupAssignedEmail({
           recipientName: student.full_name ?? 'there',
           groupName: group.name,
           cohortName,
@@ -102,8 +100,9 @@ export async function POST(req: NextRequest) {
           members: memberList,
           dashboardUrl,
           branding,
-        }),
-      });
+        });
+      const rendered = await applyEmailTemplate({ key: 'group_assigned', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name ?? 'there', group_name: group.name, cohort_name: cohortName }, branding, actionUrl: dashboardUrl });
+      emails.push({ from: fromEmail, to: student.email, subject: rendered.subject, html: rendered.html });
     }
 
     if (emails.length === 0) continue;

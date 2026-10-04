@@ -12,6 +12,7 @@ import { Resend } from 'resend';
 import { createAdmissionRecord, activateEnrollment } from '@/lib/db-payments';
 import { studentAccountCreatedEmail, studentAddedToCohortEmail } from '@/lib/email-templates';
 import { addToResendAudience } from '@/lib/resend-audience';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { markAdmissionsProvisioned, markExistingAccountAdmitted } from '@/lib/account-state-server';
 
@@ -220,31 +221,30 @@ export async function sendCohortAccessEmails(
     const FROM       = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
     const branding   = { appName: t.appName, appUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
 
-    const { error: sendError } = await resend.batch.send(
-      ready.map(({ account, setupUrl }) => setupUrl
-        ? {
-            from: FROM,
-            to: account.email,
-            subject: `Your ${t.appName || cohortName} account is ready`,
-            html: studentAccountCreatedEmail({
+    const messages = await Promise.all(ready.map(async ({ account, setupUrl }) => {
+      if (setupUrl) {
+        const fallbackSubject = `Your ${t.appName || cohortName} account is ready`;
+        const fallbackHtml = studentAccountCreatedEmail({
               name: account.name,
               cohortName,
               setupUrl,
               branding,
-            }),
-          }
-        : {
-            from: FROM,
-            to: account.email,
-            subject: `You have been added to ${cohortName}`,
-            html: studentAddedToCohortEmail({
+            });
+        const rendered = await applyEmailTemplate({ key: 'account_setup', fallbackSubject, fallbackHtml, variables: { student_name: account.name, app_name: t.appName }, branding, actionUrl: setupUrl });
+        return { from: FROM, to: account.email, subject: rendered.subject, html: rendered.html };
+      }
+      const fallbackSubject = `You have been added to ${cohortName}`;
+      const signInUrl = `${appUrl}/student`;
+      const fallbackHtml = studentAddedToCohortEmail({
               name: account.name,
               cohortName,
-              signInUrl: `${appUrl}/student`,
+              signInUrl,
               branding,
-            }),
-          })
-    );
+            });
+      const rendered = await applyEmailTemplate({ key: 'cohort_added', fallbackSubject, fallbackHtml, variables: { student_name: account.name, cohort_name: cohortName, app_name: t.appName }, branding, actionUrl: signInUrl });
+      return { from: FROM, to: account.email, subject: rendered.subject, html: rendered.html };
+    }));
+    const { error: sendError } = await resend.batch.send(messages);
     if (sendError) throw new Error(sendError.message || 'The email provider rejected the request.');
     const setupSent = ready.filter(item => item.setupUrl).map(item => item.account.email);
     if (setupSent.length) {

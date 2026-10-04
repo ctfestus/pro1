@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { Resend } from 'resend';
 import { confirmationEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { requireBootcampCohortAccess } from '@/lib/bootcamp-cohort-access';
 
@@ -113,8 +114,18 @@ export async function POST(req: NextRequest) {
       branding,
     });
 
+    const actionUrl = joinToken ? `${t.appUrl}/api/join?token=${joinToken}` : `${t.appUrl}/${event.slug ?? formId}`;
+    const rendered = await applyEmailTemplate({
+      key: 'event_confirmation', fallbackSubject: subject, fallbackHtml: html,
+      variables: {
+        student_name: displayName, event_title: event.title || 'Event',
+        event_time_display: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' '),
+        event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
+      },
+      branding, actionUrl,
+    });
     resend.emails
-      .send({ from: FROM, to: student.email, subject, html })
+      .send({ from: FROM, to: student.email, subject: rendered.subject, html: rendered.html })
       .catch((err: unknown) => console.error('[event-register] confirmation email failed:', err));
   }
 

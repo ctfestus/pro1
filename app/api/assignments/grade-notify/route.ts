@@ -9,6 +9,7 @@ import { adminClient } from '@/lib/admin-client';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { assignmentGradedEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { passMarkOf } from '@/lib/assignment-scenarios';
 
 export const dynamic = 'force-dynamic';
@@ -69,7 +70,7 @@ export async function POST(req: NextRequest) {
     const passed   = sub.score != null && sub.score >= passMarkOf(assignmentRow?.config);
 
     const resend = new Resend(process.env.RESEND_API_KEY);
-    await Promise.all(recipients.map((student: any) => {
+    await Promise.all(recipients.map(async (student: any) => {
       const html = assignmentGradedEmail({
         name:            student.full_name || 'there',
         assignmentTitle,
@@ -79,12 +80,9 @@ export async function POST(req: NextRequest) {
         studentUrl:      `${t.appUrl}/student`,
         branding,
       });
-      return resend.emails.send({
-        from:    FROM,
-        to:      student.email.trim(),
-        subject: `Your assignment has been graded: ${assignmentTitle}`,
-        html,
-      });
+      const fallbackSubject = `Your assignment has been graded: ${assignmentTitle}`;
+      const rendered = await applyEmailTemplate({ key: 'assignment_graded', fallbackSubject, fallbackHtml: html, variables: { student_name: student.full_name || 'there', assignment_title: assignmentTitle, score: sub.score ?? 0, feedback: sub.feedback || '' }, branding, actionUrl: `${t.appUrl}/student` });
+      return resend.emails.send({ from: FROM, to: student.email.trim(), subject: rendered.subject, html: rendered.html });
     }));
   } catch (err) {
     console.error('[grade-notify]', err);

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { settleUnfinishedCheckout } from '@/lib/paystack-subscriptions';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -79,21 +80,21 @@ export async function sendPaystackCartReminders(
         ? '1 year'
         : `${claim.durationMonths} month${Number(claim.durationMonths) > 1 ? 's' : ''}`;
       const price = `${claim.currency} ${Number(claim.amount).toFixed(2)}`;
-      const { error: sendError } = await resend.emails.send({
-        from,
-        to: student.email,
-        subject: `Still interested in ${String(claim.planName).replace(/[\r\n]/g, '')}?`,
-        html: [
+      const actionUrl = `${tenant.appUrl}/student?section=payments`;
+      const fallbackSubject = `Still interested in ${String(claim.planName).replace(/[\r\n]/g, '')}?`;
+      const fallbackHtml = [
           `<p>Hi ${escapeHtml((student.full_name || '').split(' ')[0] || 'there')},</p>`,
           `<p>You started subscribing to <strong>${escapeHtml(claim.planName)}</strong> (${escapeHtml(months)}, ${escapeHtml(price)}) and did not finish. Your place is still here whenever you want it.</p>`,
           // Deliberately the payments page rather than the stored Paystack link. A checkout
           // session can time out, and mailing somebody a dead link days later is worse than not
           // mailing at all. Coming back through the app runs the same recovery the Continue button
           // does, which reuses a live link or replaces one Paystack has finished with.
-          `<p><a href="${escapeHtml(`${tenant.appUrl}/student?section=payments`)}">Finish your payment</a></p>`,
+          `<p><a href="${escapeHtml(actionUrl)}">Finish your payment</a></p>`,
           '<p>Nothing has been charged, and you owe nothing. If you have changed your mind you can ignore this.</p>',
-        ].join(''),
-      }, { idempotencyKey: `paystack-cart/${cart.reference}/${claim.reminderNumber}` });
+        ].join('');
+      const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+      const rendered = await applyEmailTemplate({ key: 'abandoned_checkout', fallbackSubject, fallbackHtml, variables: { student_name: (student.full_name || '').split(' ')[0] || 'there', plan_name: claim.planName, currency: claim.currency, amount: Number(claim.amount).toFixed(2), duration: months }, branding, actionUrl });
+      const { error: sendError } = await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html }, { idempotencyKey: `paystack-cart/${cart.reference}/${claim.reminderNumber}` });
       if (sendError) throw new Error(sendError.message);
       sent++;
     } catch (err) {

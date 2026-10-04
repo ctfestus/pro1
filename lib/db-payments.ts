@@ -3,6 +3,7 @@ import { computeAccess, EnrollmentState } from './enrollment-access';
 import { Resend } from 'resend';
 import { getTenantSettings } from './get-tenant-settings';
 import { paymentReceiptEmail } from './email-templates';
+import { applyEmailTemplate } from './email-template-service';
 import { sendOverdueNotice, loadOverdueNoticeSettings } from './overdue-notice';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
@@ -526,11 +527,8 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
         const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
 
         // Resend reports API failures by resolving with { error }, not by throwing.
-        const { error: sendErr } = await resend.emails.send({
-          from:    FROM,
-          to:      input.payerEmail,
-          subject: 'Payment received on your account',
-          html:    paymentReceiptEmail({
+        const fallbackSubject = 'Payment received on your account';
+        const fallbackHtml = paymentReceiptEmail({
             name:      studentName,
             amount:    input.amount,
             currency:  enroll.currency ?? 'GHS',
@@ -539,8 +537,9 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
             reference: input.reference ?? null,
             dashboardUrl,
             branding,
-          }),
-        });
+          });
+        const rendered = await applyEmailTemplate({ key: 'payment_receipt', fallbackSubject, fallbackHtml, variables: { student_name: studentName, amount: input.amount.toFixed(2), currency: enroll.currency ?? 'GHS', reference: input.reference ?? '' }, branding, actionUrl: dashboardUrl });
+        const { error: sendErr } = await resend.emails.send({ from: FROM, to: input.payerEmail, subject: rendered.subject, html: rendered.html });
         if (sendErr) console.error('[db-payments] payment receipt email failed', sendErr);
       } catch { /* non-blocking */ }
     })();

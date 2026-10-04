@@ -8,6 +8,7 @@ import { sendGroupSubmissionNotifications } from '@/lib/group-submission-notific
 import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
 import { loadClaimedShareItemIds } from '@/lib/linkedin-share';
 import { mergeVeProgress, reversibleDeliverableRequirementIds } from '@/lib/ve-progress';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -246,17 +247,16 @@ export async function POST(req: NextRequest) {
         const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
         const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
 
-        await resend.emails.send({
-          from:    FROM,
-          to:      studentRow.email,
-          subject: `Submission received: ${assignment.title}`,
-          html:    submissionConfirmEmail({
+        const dashboardUrl = `${t.appUrl}/student?section=assignments`;
+        const fallbackSubject = `Submission received: ${assignment.title}`;
+        const fallbackHtml = submissionConfirmEmail({
             name:            studentRow.full_name || 'there',
             assignmentTitle: assignment.title,
-            dashboardUrl:    `${t.appUrl}/student?section=assignments`,
+            dashboardUrl,
             branding,
-          }),
-        });
+          });
+        const rendered = await applyEmailTemplate({ key: 'submission_received', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name || 'there', assignment_title: assignment.title }, branding, actionUrl: dashboardUrl });
+        await resend.emails.send({ from: FROM, to: studentRow.email, subject: rendered.subject, html: rendered.html });
 
         // Mark as sent so future callers know the email was delivered.
         await supabase.from('email_dedup')

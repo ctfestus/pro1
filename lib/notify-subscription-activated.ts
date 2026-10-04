@@ -5,6 +5,7 @@ import type { LearnerSetupState } from '@/lib/notify-individual-learner-welcome'
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { subscriptionActivatedEmail } from '@/lib/email-templates';
 import { LEARNER_SETUP_FIELDS, learnerNeedsSetup, sendIndividualLearnerWelcome } from '@/lib/notify-individual-learner-welcome';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -52,27 +53,30 @@ function activationKey(paymentId: string) {
   return `subscription-activated/${paymentId}`;
 }
 
-function renderMessage(payment: PaymentRow, ctx: {
+async function renderMessage(payment: PaymentRow, ctx: {
   from: string;
   dashboardUrl: string;
   branding: any;
 }) {
+  const fallbackSubject = payment.is_activating
+    ? `Your ${payment.plan_name} subscription is active`
+    : `Your ${payment.plan_name} subscription has been extended`;
+  const fallbackHtml = subscriptionActivatedEmail({
+    name: payment.students?.full_name || 'there', planName: payment.plan_name,
+    durationMonths: payment.duration_months, periodStart: payment.period_start,
+    periodEnd: payment.period_end, isActivation: payment.is_activating === true,
+    dashboardUrl: ctx.dashboardUrl, branding: ctx.branding,
+  });
+  const rendered = await applyEmailTemplate({
+    key: 'subscription_activated', fallbackSubject, fallbackHtml,
+    variables: { student_name: payment.students?.full_name || 'there', plan_name: payment.plan_name, duration_months: payment.duration_months, period_start: payment.period_start, period_end: payment.period_end },
+    branding: ctx.branding, actionUrl: ctx.dashboardUrl,
+  });
   return {
     from: ctx.from,
     to: payment.students?.email as string,
-    subject: payment.is_activating
-      ? `Your ${payment.plan_name} subscription is active`
-      : `Your ${payment.plan_name} subscription has been extended`,
-    html: subscriptionActivatedEmail({
-      name: payment.students?.full_name || 'there',
-      planName: payment.plan_name,
-      durationMonths: payment.duration_months,
-      periodStart: payment.period_start,
-      periodEnd: payment.period_end,
-      isActivation: payment.is_activating === true,
-      dashboardUrl: ctx.dashboardUrl,
-      branding: ctx.branding,
-    }),
+    subject: rendered.subject,
+    html: rendered.html,
   };
 }
 
@@ -160,7 +164,7 @@ export async function notifySubscriptionActivated(
 
   const ctx = await mailContext();
   const { error: sendError } = await resend.emails.send(
-    renderMessage(payment, ctx),
+    await renderMessage(payment, ctx),
     { idempotencyKey: activationKey(payment.id) },
   );
   if (sendError) throw new Error(sendError.message);
@@ -238,7 +242,7 @@ export async function notifySubscriptionActivatedBatch(
 
   for (let i = 0; i < deliverable.length; i += BATCH_SIZE) {
     const slice = deliverable.slice(i, i + BATCH_SIZE);
-    const messages = slice.map(p => renderMessage(p, ctx));
+    const messages = await Promise.all(slice.map(p => renderMessage(p, ctx)));
     let chunkFailed = false;
     // Derived from the exact payments in this chunk, so a retry carrying a different set of
     // still-unsent learners cannot collide with an earlier key and be discarded as a

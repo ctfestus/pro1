@@ -6,6 +6,7 @@ import { confirmationEmail, reminderEmail, courseResultEmail, blastEmail } from 
 import { getVectorIndex, buildCourseEmbedText } from '@/lib/vector';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { studentsStillInCohorts } from '@/lib/cohort-roster';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend     = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100; // Resend batch limit
@@ -113,6 +114,14 @@ function resolveName(data: Record<string, any>) {
   return [firstName, lastName].filter(Boolean).join(' ').trim();
 }
 
+function eventTimeDisplay(data: Record<string, any>) {
+  return [data.eventDate, data.eventTime, data.eventTimezone].filter(Boolean).join(' ');
+}
+
+function eventLocationDisplay(data: Record<string, any>) {
+  return data.eventLocation || data.location || (data.meetingLink || data.joinUrl ? 'Online' : 'To be announced');
+}
+
 function applyMergeTags(template: string, values: Record<string, string>) {
   return template.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_match, key) => {
     const normalizedKey = String(key).toLowerCase();
@@ -178,7 +187,16 @@ export async function POST(req: NextRequest) {
         if (typeof to === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) {
           // Test mode: single address, no personal token needed
           const html = reminderEmail({ ...data, branding });
-          await resend.emails.send({ from: FROM, to: to.trim(), subject: reminderSubject, html });
+          const rendered = await applyEmailTemplate({
+            key: 'event_reminder', fallbackSubject: reminderSubject, fallbackHtml: html,
+            variables: {
+              student_name: 'there', event_title: data.eventTitle || 'Event',
+              reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
+              event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay(data),
+            },
+            branding, actionUrl: data.formUrl,
+          });
+          await resend.emails.send({ from: FROM, to: to.trim(), subject: rendered.subject, html: rendered.html });
           return NextResponse.json({ success: true, test: true });
         }
 
@@ -186,14 +204,23 @@ export async function POST(req: NextRequest) {
         const registrations = await eventRegistrantsStillEnrolled(
           supabase, data.formId, 'student_id, join_token, student:students(email, full_name)');
 
-        const messages = registrations.flatMap((reg: any) => {
+        const messages = (await Promise.all(registrations.map(async (reg: any) => {
           const s     = Array.isArray(reg.student) ? reg.student[0] : reg.student;
           const email = normalizeEmail(s?.email);
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return [];
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
           const joinUrl = reg.join_token ? `${t.appUrl}/api/join?token=${reg.join_token}` : undefined;
           const html    = reminderEmail({ ...data, joinUrl, branding });
-          return [{ from: FROM, to: email, subject: reminderSubject, html }];
-        });
+          const rendered = await applyEmailTemplate({
+            key: 'event_reminder', fallbackSubject: reminderSubject, fallbackHtml: html,
+            variables: {
+              student_name: s?.full_name || 'there', event_title: data.eventTitle || 'Event',
+              reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
+              event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay({ ...data, joinUrl }),
+            },
+            branding, actionUrl: joinUrl || data.formUrl,
+          });
+          return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
+        }))).filter((message): message is NonNullable<typeof message> => message !== null);
 
         if (!messages.length) return NextResponse.json({ error: 'No valid recipients found' }, { status: 400 });
         for (let i = 0; i < messages.length; i += 100) {
@@ -209,13 +236,23 @@ export async function POST(req: NextRequest) {
           : `Tomorrow: ${data.eventTitle}`;
         const regs = await eventRegistrantsStillEnrolled(
           supabase, data.formId, 'student_id, join_token, student:students(email, full_name)');
-        const msgs = regs.flatMap((reg: any) => {
+        const msgs = (await Promise.all(regs.map(async (reg: any) => {
           const s     = Array.isArray(reg.student) ? reg.student[0] : reg.student;
           const email = normalizeEmail(s?.email);
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return [];
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return null;
           const joinUrl = reg.join_token ? `${t.appUrl}/api/join?token=${reg.join_token}` : undefined;
-          return [{ from: FROM, to: email, subject: cronSubject, html: reminderEmail({ ...data, joinUrl, branding }) }];
-        });
+          const fallbackHtml = reminderEmail({ ...data, joinUrl, branding });
+          const rendered = await applyEmailTemplate({
+            key: 'event_reminder', fallbackSubject: cronSubject, fallbackHtml,
+            variables: {
+              student_name: s?.full_name || 'there', event_title: data.eventTitle || 'Event',
+              reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
+              event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay({ ...data, joinUrl }),
+            },
+            branding, actionUrl: joinUrl || data.formUrl,
+          });
+          return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
+        }))).filter((message): message is NonNullable<typeof message> => message !== null);
         if (!msgs.length) return NextResponse.json({ error: 'No valid recipients found' }, { status: 400 });
         for (let i = 0; i < msgs.length; i += 100) await resend.batch.send(msgs.slice(i, i + 100));
         return NextResponse.json({ success: true, count: msgs.length });
@@ -238,8 +275,14 @@ export async function POST(req: NextRequest) {
       if (typeof to === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim()) && !data?.responseId) {
         if (!await requireEmailTester(req)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
         const html = courseResultEmail({ ...data, branding });
-        const testSubject = data?.passed ? `🎉 Congratulations! Your certificate for ${data?.courseTitle || 'Course'} is ready.` : `Your result: ${data?.courseTitle || 'Course'}`;
-        await resend.emails.send({ from: FROM, to: to.trim(), subject: testSubject, html });
+        const testSubject = data?.passed ? `Congratulations! Your certificate for ${data?.courseTitle || 'Course'} is ready.` : `Your result: ${data?.courseTitle || 'Course'}`;
+        const rendered = await applyEmailTemplate({
+          key: data?.passed ? 'course_certificate' : 'course_result',
+          fallbackSubject: testSubject, fallbackHtml: html,
+          variables: { student_name: data?.name || 'there', content_title: data?.courseTitle || 'Course', score: data?.percentage ?? data?.score ?? 0 },
+          branding, actionUrl: data?.certUrl || data?.formUrl,
+        });
+        await resend.emails.send({ from: FROM, to: to.trim(), subject: rendered.subject, html: rendered.html });
         return NextResponse.json({ success: true, test: true });
       }
 
@@ -381,12 +424,33 @@ export async function POST(req: NextRequest) {
           ? `Starting in 1 hour: ${data.eventTitle}`
           : `Tomorrow: ${data.eventTitle}`;
         html = reminderEmail({ ...data, branding });
+        {
+          const rendered = await applyEmailTemplate({
+            key: 'event_reminder', fallbackSubject: subject, fallbackHtml: html,
+            variables: {
+              student_name: data.name || 'there', event_title: data.eventTitle || 'Event',
+              reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
+              event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay(data),
+            },
+            branding, actionUrl: data.joinUrl || data.formUrl,
+          });
+          subject = rendered.subject;
+          html = rendered.html;
+        }
         break;
 
       case 'course-result': {
         const d = courseResultData!;
-        subject = d.passed ? `🎉 Congratulations! Your certificate for ${d.courseTitle} is ready.` : `Your result: ${d.courseTitle}`;
+        subject = d.passed ? `Congratulations! Your certificate for ${d.courseTitle} is ready.` : `Your result: ${d.courseTitle}`;
         html = courseResultEmail({ ...(d as Parameters<typeof courseResultEmail>[0]), branding });
+        const rendered = await applyEmailTemplate({
+          key: d.passed ? 'course_certificate' : 'course_result',
+          fallbackSubject: subject, fallbackHtml: html,
+          variables: { student_name: d.name || 'there', content_title: d.courseTitle, score: d.percentage ?? 0 },
+          branding, actionUrl: d.certUrl || d.formUrl,
+        });
+        subject = rendered.subject;
+        html = rendered.html;
         break;
       }
 

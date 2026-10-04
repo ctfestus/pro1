@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { subscriptionExpiringEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -60,25 +61,18 @@ export async function notifySubscriptionExpiring(
     Math.ceil((new Date(subscription.current_period_end).getTime() - Date.now()) / 86_400_000),
   );
 
-  const { error: sendError } = await resend.emails.send({
-    from,
-    to: student.email,
-    subject: `Your ${plan?.name ?? 'subscription'} access ends soon`,
-    html: subscriptionExpiringEmail({
+  const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+  const fallbackSubject = `Your ${plan?.name ?? 'subscription'} access ends soon`;
+  const fallbackHtml = subscriptionExpiringEmail({
       name: student.full_name || 'there',
       planName: plan?.name ?? 'your plan',
       periodEnd: subscription.current_period_end,
       daysLeft,
       dashboardUrl,
-      branding: {
-        appName: tenant.appName,
-        appUrl: tenant.appUrl,
-        logoUrl: tenant.logoUrl,
-        emailBannerUrl: tenant.emailBannerUrl,
-        teamName: tenant.teamName,
-      },
-    }),
-  }, { idempotencyKey: `subscription-expiring/${subscription.id}/${subscription.current_period_end}` });
+      branding,
+    });
+  const rendered = await applyEmailTemplate({ key: 'subscription_expiring', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', plan_name: plan?.name ?? 'your plan', period_end: subscription.current_period_end, days_left: daysLeft }, branding, actionUrl: dashboardUrl });
+  const { error: sendError } = await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html }, { idempotencyKey: `subscription-expiring/${subscription.id}/${subscription.current_period_end}` });
   if (sendError) throw new Error(sendError.message);
 
   await markWarned(db, subscription.id, subscription.current_period_end);

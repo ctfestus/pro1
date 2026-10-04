@@ -8,6 +8,7 @@ import { publishActivity } from '@/lib/activity';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { updateLearningPathProgress } from '@/lib/learning-path-progress';
 import { courseResultEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { pointsSystemFromCourseRow, linkedInSharePointsFor, type PointsSystem } from '@/lib/course-schema';
 import { computeAttemptPoints, isScorableQuestion } from '@/lib/attempt-points';
 import { claimLinkedInShare, loadClaimedShareItemIds } from '@/lib/linkedin-share';
@@ -421,26 +422,21 @@ function runCourseCertificateSideEffects(
         const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
         const certUrl  = `${t.appUrl}/certificate/${cert_id}`;
         const formUrl  = courseRow.slug ? `${t.appUrl}/${courseRow.slug}` : `${t.appUrl}/${course_id}`;
+        const fallbackSubject = `Congratulations! Your certificate for ${courseRow.title} is ready`;
+        const fallbackHtml = courseResultEmail({
+            name: studentRow.full_name ?? 'there', courseTitle: courseRow.title,
+            score: bestAttempt?.score ?? 100, total: 100, percentage: bestAttempt?.score ?? 100,
+            passed: true, points: bestAttempt?.points ?? undefined, formUrl, certUrl,
+            badgeName, badgeImageUrl, branding,
+          });
+        const rendered = await applyEmailTemplate({ key: 'course_certificate', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', content_title: courseRow.title, score: bestAttempt?.score ?? 100 }, branding, actionUrl: certUrl });
         await sendCertificateEmailOnce(supabase, {
           certId:     cert_id,
           dedupeType: 'course-certificate',
           from:       FROM,
           to:         studentRow.email,
-          subject:    `Congratulations! Your certificate for ${courseRow.title} is ready`,
-          html:       courseResultEmail({
-            name:         studentRow.full_name ?? 'there',
-            courseTitle:  courseRow.title,
-            score:        bestAttempt?.score ?? 100,
-            total:        100,
-            percentage:   bestAttempt?.score ?? 100,
-            passed:       true,
-            points:       bestAttempt?.points ?? undefined,
-            formUrl,
-            certUrl,
-            badgeName,
-            badgeImageUrl,
-            branding,
-          }),
+          subject:    rendered.subject,
+          html:       rendered.html,
         });
       }
     } catch (err) {

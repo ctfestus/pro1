@@ -4,6 +4,7 @@ import { Resend } from 'resend';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { adminPaymentConfirmationEmail, paymentConfirmationAcknowledgedEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import {
   createPaystackDirectCheckout,
   createPaystackSubscriptionCheckout,
@@ -582,8 +583,11 @@ export async function POST(req: NextRequest) {
           const branding = { logoUrl: settings.logoUrl, emailBannerUrl: settings.emailBannerUrl, teamName: settings.teamName, appName: settings.appName, appUrl: settings.appUrl };
           const name = student?.full_name || 'there';
           const currency = request?.currency || 'GHS';
+          const fallbackSubject = 'We received your subscription payment confirmation';
+          const fallbackHtml = paymentConfirmationAcknowledgedEmail({ name, amount, currency, dashboardUrl: settings.appUrl, branding });
+          const learnerEmail = await applyEmailTemplate({ key: 'payment_confirmation_received', fallbackSubject, fallbackHtml, variables: { student_name: name, amount: Number(amount).toFixed(2), currency }, branding, actionUrl: settings.appUrl });
           await resend.batch.send([
-            { from, to: session.email, subject: 'We received your subscription payment confirmation', html: paymentConfirmationAcknowledgedEmail({ name, amount, currency, dashboardUrl: settings.appUrl, branding }) },
+            { from, to: session.email, subject: learnerEmail.subject, html: learnerEmail.html },
             { from, to: settings.supportEmail || process.env.RESEND_FROM_EMAIL || from, subject: `New subscription payment confirmation from ${name}`, html: adminPaymentConfirmationEmail({ studentName: name, studentEmail: session.email, amount, currency, adminUrl: `${settings.appUrl}/dashboard#subscriptions`, branding }) },
           ]);
         } catch { /* Notification failures do not roll back the submitted confirmation. */ }

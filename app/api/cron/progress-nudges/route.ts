@@ -10,6 +10,7 @@ import { nudgeEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 import { loadPathGrantedPairs } from '@/lib/tracking-report';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,11 +169,8 @@ export async function POST(req: NextRequest) {
     if (nudgedSet.has(`${c.studentId}|${c.contentId}`)) { skipped++; continue; }
 
     const relatedAssignmentTitle = assignmentMap.get(c.contentId);
-    emailBatch.push({
-      from: FROM,
-      to:   c.email,
-      subject: `We miss you, ${c.name}! Come back and keep learning 👋`,
-      html: nudgeEmail({
+    const fallbackSubject = `We miss you, ${c.name}! Come back and keep learning`;
+    const fallbackHtml = nudgeEmail({
         name:                  c.name,
         contentTitle:          c.title,
         contentType:           c.contentType,
@@ -181,8 +179,13 @@ export async function POST(req: NextRequest) {
         coverImage:            c.coverImage,
         relatedAssignmentTitle,
         branding,
-      }),
+      });
+    const rendered = await applyEmailTemplate({
+      key: 'inactivity_nudge', fallbackSubject, fallbackHtml,
+      variables: { student_name: c.name, content_title: c.title, content_type: c.contentType },
+      branding, actionUrl: `${t.appUrl}/${c.slug}`,
     });
+    emailBatch.push({ from: FROM, to: c.email, subject: rendered.subject, html: rendered.html });
     nudgeRecords.push({ student_id: c.studentId, form_id: c.contentId });
   }
 

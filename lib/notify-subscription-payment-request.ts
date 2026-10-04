@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { subscriptionPaymentAssignedEmail } from '@/lib/email-templates';
 import { LEARNER_SETUP_FIELDS, learnerNeedsSetup, sendIndividualLearnerWelcome, type LearnerSetupState } from '@/lib/notify-individual-learner-welcome';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -67,20 +68,19 @@ export async function notifySubscriptionPaymentRequest(
   const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`.trim();
   if (from === '<>') throw new Error('RESEND_FROM_EMAIL or the platform sender name and support email must be configured.');
 
-  const { error: sendError } = await resend.emails.send({
-    from,
-    to: student.email,
-    subject: `Payment request for ${request.plan_name}`,
-    html: subscriptionPaymentAssignedEmail({
+  const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+  const fallbackSubject = `Payment request for ${request.plan_name}`;
+  const fallbackHtml = subscriptionPaymentAssignedEmail({
       name: student.full_name || 'there',
       planName: request.plan_name,
       amount: Number(request.amount),
       currency: request.currency,
       dueDate: request.due_date,
       dashboardUrl,
-      branding: { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName },
-    }),
-  }, { idempotencyKey: `subscription-request/${request.id}` });
+      branding,
+    });
+  const rendered = await applyEmailTemplate({ key: 'payment_request', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', plan_name: request.plan_name, amount: Number(request.amount).toFixed(2), currency: request.currency, due_date: request.due_date }, branding, actionUrl: dashboardUrl });
+  const { error: sendError } = await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html }, { idempotencyKey: `subscription-request/${request.id}` });
   if (sendError) throw new Error(sendError.message);
 
   await stamp();

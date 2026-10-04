@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { individualLearnerWelcomeEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -135,25 +136,29 @@ export async function sendIndividualLearnerWelcome(
     if (linkError || !link.properties?.hashed_token) throw linkError ?? new Error('Could not generate setup link.');
     const setupUrl = `${appUrl}/auth/confirm?token_hash=${encodeURIComponent(link.properties.hashed_token)}&type=recovery`;
 
-    const { error: sendError } = await resend.emails.send({
-      from,
-      to: email,
-      subject: `Your ${tenant.appName || 'learning'} account is ready`,
-      html: individualLearnerWelcomeEmail({
+    const branding = {
+      appName: tenant.appName,
+      appUrl,
+      logoUrl: tenant.logoUrl,
+      emailBannerUrl: tenant.emailBannerUrl,
+      teamName: tenant.teamName,
+    };
+    const fallbackSubject = `Your ${tenant.appName || 'learning'} account is ready`;
+    const fallbackHtml = individualLearnerWelcomeEmail({
         name: fullName || 'there',
         planName,
         durationMonths,
         setupUrl,
         isRenewal,
         access,
-        branding: {
-          appName: tenant.appName,
-          appUrl,
-          logoUrl: tenant.logoUrl,
-          emailBannerUrl: tenant.emailBannerUrl,
-          teamName: tenant.teamName,
-        },
-      }),
+        branding,
+      });
+    const rendered = await applyEmailTemplate({ key: 'individual_learner_welcome', fallbackSubject, fallbackHtml, variables: { student_name: fullName || 'there', app_name: tenant.appName, plan_name: planName, period_end: access.kind === 'active' ? access.periodEnd : access.dueDate }, branding, actionUrl: setupUrl });
+    const { error: sendError } = await resend.emails.send({
+      from,
+      to: email,
+      subject: rendered.subject,
+      html: rendered.html,
       // Deliberately no Resend idempotency key. Each attempt regenerates the setup link, so
       // the payload differs every time, and Resend rejects a reused key with a different
       // payload (409 invalid_idempotent_request) -- which would block the retry for 24 hours,

@@ -4,6 +4,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { nudgeEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { buildStatusRows } from '@/lib/tracking-report';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -163,7 +164,8 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const { error: sendError } = await resend.emails.send({ from: FROM, to: recipientEmail, subject, html });
+    const rendered = await applyEmailTemplate({ key: 'inactivity_nudge', fallbackSubject: subject, fallbackHtml: html, variables: { student_name: studentName || 'there', content_title: content.title, content_type: contentType }, branding, actionUrl: formUrl });
+    const { error: sendError } = await resend.emails.send({ from: FROM, to: recipientEmail, subject: rendered.subject, html: rendered.html });
     if (sendError) {
       console.error('[nudge-student] Resend error:', sendError);
       return NextResponse.json({ error: 'Failed to send nudge. Please try again.' }, { status: 500 });

@@ -4,6 +4,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { paymentConfirmationAcknowledgedEmail, adminPaymentConfirmationEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -201,13 +202,11 @@ export async function POST(req: NextRequest) {
           const currency    = enroll?.currency ?? 'GHS';
           const adminUrl    = `${t.appUrl || process.env.APP_URL || ''}/dashboard#payments`;
 
+          const fallbackSubject = 'We received your payment confirmation';
+          const fallbackHtml = paymentConfirmationAcknowledgedEmail({ name: studentName, amount: Number(amount), currency, dashboardUrl, branding });
+          const learnerEmail = await applyEmailTemplate({ key: 'payment_confirmation_received', fallbackSubject, fallbackHtml, variables: { student_name: studentName, amount: Number(amount).toFixed(2), currency }, branding, actionUrl: dashboardUrl });
           await resend.batch.send([
-            {
-              from:    FROM,
-              to:      student.email,
-              subject: 'We received your payment confirmation',
-              html:    paymentConfirmationAcknowledgedEmail({ name: studentName, amount: Number(amount), currency, dashboardUrl, branding }),
-            },
+            { from: FROM, to: student.email, subject: learnerEmail.subject, html: learnerEmail.html },
             {
               from:    FROM,
               to:      t.supportEmail || process.env.RESEND_FROM_EMAIL || FROM,

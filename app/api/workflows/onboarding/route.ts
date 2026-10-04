@@ -17,6 +17,7 @@ import {
   day7EncouragementEmail,
 } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -37,12 +38,11 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
       // admission time; this covers self-serve signups that skip provisioning).
       await addToResendAudience({ email, name });
 
-      await resend.emails.send({
-        from:    FROM,
-        to:      email,
-        subject: `Welcome to ${t.appName}, ${name}! 🎉`,
-        html:    welcomeEmail({ name, studentUrl: `${t.appUrl}/student`, branding }),
-      });
+      const studentUrl = `${t.appUrl}/student`;
+      const fallbackSubject = `Welcome to ${t.appName}, ${name}!`;
+      const fallbackHtml = welcomeEmail({ name, studentUrl, branding });
+      const rendered = await applyEmailTemplate({ key: 'onboarding_welcome', fallbackSubject, fallbackHtml, variables: { student_name: name, app_name: t.appName }, branding, actionUrl: studentUrl });
+      await resend.emails.send({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     });
 
     // -- Wait 3 days ---
@@ -79,12 +79,11 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
         }
       }
 
-      await resend.emails.send({
-        from:    FROM,
-        to:      email,
-        subject: `${name}, your courses are waiting for you 👋`,
-        html:    day3CheckInEmail({ name, studentUrl: `${t.appUrl}/student`, courseTitle, courseUrl, branding }),
-      });
+      const studentUrl = `${t.appUrl}/student`;
+      const fallbackSubject = `${name}, your courses are waiting for you`;
+      const fallbackHtml = day3CheckInEmail({ name, studentUrl, courseTitle, courseUrl, branding });
+      const rendered = await applyEmailTemplate({ key: 'onboarding_day3', fallbackSubject, fallbackHtml, variables: { student_name: name, content_title: courseTitle || 'your courses', app_name: t.appName }, branding, actionUrl: courseUrl || studentUrl });
+      await resend.emails.send({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     });
 
     // -- Wait 4 more days (7 days total) ---
@@ -107,16 +106,15 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
       const coursesCompleted = completedCourseIds.length;
       const hasStarted       = (attempts ?? []).length > 0 || coursesCompleted > 0;
 
-      await resend.emails.send({
-        from:    FROM,
-        to:      email,
-        subject: coursesCompleted > 0
+      const fallbackSubject = coursesCompleted > 0
           ? `${name}, look how far you have come! 🏆`
           : hasStarted
             ? `Keep going, ${name} -- you are almost there! 💪`
-            : `${name}, your learning journey is still waiting for you`,
-        html: day7EncouragementEmail({ name, studentUrl: `${t.appUrl}/student`, hasStarted, coursesCompleted, branding }),
-      });
+            : `${name}, your learning journey is still waiting for you`;
+      const studentUrl = `${t.appUrl}/student`;
+      const fallbackHtml = day7EncouragementEmail({ name, studentUrl, hasStarted, coursesCompleted, branding });
+      const rendered = await applyEmailTemplate({ key: 'onboarding_day7', fallbackSubject, fallbackHtml, variables: { student_name: name, completed_count: coursesCompleted, app_name: t.appName }, branding, actionUrl: studentUrl });
+      await resend.emails.send({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     });
   },
 );

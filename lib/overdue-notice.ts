@@ -24,6 +24,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { overdueNotificationEmail } from './email-templates';
 import { getTenantSettings } from './get-tenant-settings';
+import { applyEmailTemplate } from './email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -153,12 +154,10 @@ export async function sendOverdueNotice(
 
   try {
     // Resend reports API failures by resolving with { error }, not by throwing.
-    const { error: sendErr } = await resend.emails.send({
-      from:    settings.from,
-      to:      email,
-      subject: 'Your account has an overdue payment',
-      html:    overdueNotificationEmail({ name: studentName, dashboardUrl: settings.dashboardUrl, branding: settings.branding }),
-    }, {
+    const fallbackSubject = 'Your account has an overdue payment';
+    const fallbackHtml = overdueNotificationEmail({ name: studentName, dashboardUrl: settings.dashboardUrl, branding: settings.branding });
+    const rendered = await applyEmailTemplate({ key: 'overdue_payment', fallbackSubject, fallbackHtml, variables: { student_name: studentName }, branding: settings.branding, actionUrl: settings.dashboardUrl });
+    const { error: sendErr } = await resend.emails.send({ from: settings.from, to: email, subject: rendered.subject, html: rendered.html }, {
       // Stable for the episode, so a retry inside Resend's window cannot deliver a second copy.
       idempotencyKey: `overdue-notice:${enrollmentId}:${dueDate}`,
     });

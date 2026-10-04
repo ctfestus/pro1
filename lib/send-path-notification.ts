@@ -2,6 +2,7 @@ import { createHash } from 'crypto';
 import { Resend } from 'resend';
 import { learningPathAssignedEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100;
@@ -102,13 +103,11 @@ export async function sendPathNotification(
 
   for (let i = 0; i < recipients.length; i += BATCH_SIZE) {
     const recipientBatch = recipients.slice(i, i + BATCH_SIZE);
-    const emails = recipientBatch.map((student: any) => ({
-      from: FROM,
-      to: student.email,
-      subject: reason === 'plan'
+    const emails = await Promise.all(recipientBatch.map(async (student: any) => {
+      const fallbackSubject = reason === 'plan'
         ? `New learning path: ${lp.title}`
-        : `You've been enrolled in a new learning path: ${lp.title}`,
-      html: learningPathAssignedEmail({
+        : `You've been enrolled in a new learning path: ${lp.title}`;
+      const fallbackHtml = learningPathAssignedEmail({
         name:            student.full_name ?? 'there',
         pathTitle:       lp.title,
         pathDescription: lp.description ?? undefined,
@@ -117,7 +116,13 @@ export async function sendPathNotification(
         branding,
         reason,
         appName: t.appName,
-      }),
+      });
+      const rendered = await applyEmailTemplate({
+        key: 'learning_path_assigned', fallbackSubject, fallbackHtml,
+        variables: { student_name: student.full_name ?? 'there', path_title: lp.title, app_name: t.appName },
+        branding, actionUrl: dashboardUrl,
+      });
+      return { from: FROM, to: student.email, subject: rendered.subject, html: rendered.html };
     }));
     const payloadHash = createHash('sha256').update(JSON.stringify(emails)).digest('hex');
 

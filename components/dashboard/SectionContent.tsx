@@ -29,6 +29,7 @@ import { CohortsSection } from '@/components/dashboard/CohortsSection';
 import { PartnersSection } from '@/components/dashboard/PartnersSection';
 import { DataCenterAdminSection } from '@/components/dashboard/DataCenterAdminSection';
 import { ApplicationsSection } from '@/components/dashboard/ApplicationsSection';
+import { EmailTemplatesSection } from '@/components/dashboard/EmailTemplatesSection';
 
 export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen, setFormToDelete, onDuplicated, C }: {
   section: SectionId; forms: any[]; shareMenuOpen: string | null;
@@ -48,6 +49,7 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
   if (section === 'data_center')    return <DataCenterAdminSection C={C} />;
   if (section === 'partners')       return <PartnersSection C={C} />;
   if (section === 'applications')   return <ApplicationsSection C={C} />;
+  if (section === 'email_templates') return <EmailTemplatesSection C={C} />;
   if (section === 'certificates') return <CertificatesSection C={C} />;
   if (section === 'students')     return <StudentsSection C={C} />;
   if (section === 'subscriptions') return <SubscriptionsSection C={C} />;

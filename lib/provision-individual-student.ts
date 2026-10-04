@@ -5,6 +5,7 @@ import { studentAccountCreatedEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { addToResendAudience } from '@/lib/resend-audience';
 import { markAdmissionsProvisioned, markExistingAccountAdmitted } from '@/lib/account-state-server';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -32,17 +33,16 @@ export async function sendIndividualStudentSetupEmail(
 
   if (!process.env.RESEND_API_KEY) throw new Error('Account created, but RESEND_API_KEY is not configured.');
   const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`;
-  const { error: emailError } = await resend.emails.send({
-    from,
-    to: email,
-    subject: `Your ${tenant.appName} account is ready`,
-    html: studentAccountCreatedEmail({
+  const branding = { appName: tenant.appName, appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
+  const fallbackSubject = `Your ${tenant.appName} account is ready`;
+  const fallbackHtml = studentAccountCreatedEmail({
       name: fullName || 'there',
       cohortName: 'individual subscription',
       setupUrl,
-      branding: { appName: tenant.appName, appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName },
-    }),
-  });
+      branding,
+    });
+  const rendered = await applyEmailTemplate({ key: 'account_setup', fallbackSubject, fallbackHtml, variables: { student_name: fullName || 'there', app_name: tenant.appName }, branding, actionUrl: setupUrl });
+  const { error: emailError } = await resend.emails.send({ from, to: email, subject: rendered.subject, html: rendered.html });
   if (emailError) throw new Error(emailError.message);
 
   const { error: stampError } = await db.from('students')

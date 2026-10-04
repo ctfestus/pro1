@@ -5,6 +5,7 @@ import { Resend } from 'resend';
 import { missedSessionEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { studentsStillInCohorts } from '@/lib/cohort-roster';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 function adminClient() {
   return createClient(
@@ -107,23 +108,21 @@ export async function POST(req: NextRequest) {
     if (!student?.email) continue;
 
     const joinUrl = reg.join_token ? `${t.appUrl}/api/join?token=${reg.join_token}` : undefined;
+    const dashboardUrl = `${t.appUrl}/student`;
     const html = missedSessionEmail({
       name:         student.full_name ?? 'there',
       eventTitle:   event.title ?? 'Live Session',
       sessionDate:  targetDate,
       joinUrl,
       meetingLink:  event.meeting_link ?? undefined,
-      dashboardUrl: `${t.appUrl}/student`,
+      dashboardUrl,
       branding,
     });
 
     try {
-      await resend.emails.send({
-        from: FROM,
-        to:   student.email,
-        subject: `We missed you at ${event.title ?? 'the session'}`,
-        html,
-      });
+      const fallbackSubject = `We missed you at ${event.title ?? 'the session'}`;
+      const rendered = await applyEmailTemplate({ key: 'missed_event', fallbackSubject, fallbackHtml: html, variables: { student_name: student.full_name ?? 'there', event_title: event.title ?? 'the session', event_date: targetDate }, branding, actionUrl: joinUrl || dashboardUrl });
+      await resend.emails.send({ from: FROM, to: student.email, subject: rendered.subject, html: rendered.html });
       sent++;
     } catch (err) {
       console.error('[nudge-absent] send error for student', reg.student_id, err);
