@@ -16,7 +16,7 @@ export function hasInstructorReview(review: any): boolean {
   return !!review && (review.score !== undefined || !!review.feedback || Object.keys(review.reports ?? {}).length > 0);
 }
 
-export default function VeInstructorReview({ review, modules, progress, accentColor, isDark, colors, focus = false }: {
+export default function VeInstructorReview({ review, modules, progress, accentColor, isDark, colors, focus = false, scrollOnFocus = true }: {
   review: any;
   modules: any[];
   progress: Record<string, any> | null | undefined;
@@ -25,6 +25,8 @@ export default function VeInstructorReview({ review, modules, progress, accentCo
   colors: Colors;
   // Arrived from the review email: scroll here and open the first file report.
   focus?: boolean;
+  // Off inside a pop-up, which already opens at the review; scrolling would push its close button away.
+  scrollOnFocus?: boolean;
 }) {
   // Instructor reports on uploaded files, in course order, labelled by the step they belong to.
   const fileReports: { reqId: string; label: string; report: any; stale: boolean }[] = [];
@@ -41,11 +43,11 @@ export default function VeInstructorReview({ review, modules, progress, accentCo
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!focus) return;
+    if (!focus || !scrollOnFocus) return;
     // After the details drawer has slid in, so the scroll lands on its final position.
     const t = setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 350);
     return () => clearTimeout(t);
-  }, [focus]);
+  }, [focus, scrollOnFocus]);
 
   if (!hasInstructorReview(review)) return null;
   const tint = `${accentColor}0e`;

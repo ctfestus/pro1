@@ -6,7 +6,7 @@ import {
   CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown,
   X, Loader2, Trophy, BookOpen, Lock, Download, Award, Star, Clock,
   Link as LinkIcon, Upload as UploadIcon, Paperclip, Send, Reply, AlertTriangle, Eye, Check,
-  SkipForward,
+  SkipForward, MessageSquare,
 } from 'lucide-react';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
@@ -278,6 +278,9 @@ export default function VirtualExperienceTaker({
   const [completed,    setCompleted]    = useState(false);
   const [reviewMode,   setReviewMode]   = useState(false);
   const [review,       setReview]       = useState<any>(null);
+  // The instructor's review pop-up. A review usually lands after the student has left, often before
+  // they have finished, so it is reachable from every mission, not only the completion screen.
+  const [reviewOpen,   setReviewOpen]   = useState(false);
   const [certId,            setCertId]            = useState<string | null>(null);
   const [certInstitutionName, setCertInstitutionName] = useState('');
   const [certIssuedAt, setCertIssuedAt] = useState<string | null>(null);
@@ -395,6 +398,18 @@ export default function VirtualExperienceTaker({
       })
       .catch(() => {});
   }, [formId, authHeader, userId, canPersistProgress]);
+
+  // Show a new review once, unprompted. Keyed by when it was submitted, so an updated review shows
+  // again. On the completion screen it is already shown in full, so that counts as seen.
+  useEffect(() => {
+    if (previewMode || !hasInstructorReview(review)) return;
+    const key = `ve-review-seen:${formId}:${review.reviewed_at ?? ''}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, '1');
+    } catch { /* storage unavailable: the banner still shows */ }
+    if (!completed || reviewMode) setReviewOpen(true);
+  }, [review, completed, reviewMode, previewMode, formId]);
 
   // Save progress (debounced 800ms): skipped in review mode and preview mode
   const saveProgress = useCallback((prog: Progress, modId: string, lesId: string, completedAt?: string) => {
@@ -1055,6 +1070,38 @@ export default function VirtualExperienceTaker({
             style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
             <Eye className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.</span>
+          </div>
+        )}
+
+        {/* The instructor's review, reachable from any mission whether or not the VE is finished. */}
+        {!previewMode && hasInstructorReview(review) && (
+          <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
+            style={{ background: `${accentColor}12`, borderBottom: `1px solid ${accentColor}25` }}>
+            <MessageSquare className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+            <span className="flex-1 min-w-0 text-[13px] font-medium truncate" style={{ color: text }}>
+              Your instructor reviewed your work{review.score !== undefined ? ` - ${review.score}/100` : ''}
+            </span>
+            <button onClick={() => setReviewOpen(true)}
+              className="flex-shrink-0 text-[13px] font-semibold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-85"
+              style={{ background: accentColor }}>
+              View review
+            </button>
+          </div>
+        )}
+        {reviewOpen && hasInstructorReview(review) && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+            onClick={() => setReviewOpen(false)} role="dialog" aria-modal="true" aria-label="Your instructor's review">
+            <div className="w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl px-5 pb-5"
+              style={{ background: isDark ? '#1c1c1c' : '#fff' }} onClick={e => e.stopPropagation()}>
+              {/* Pinned, so the way out is always visible however far the review is scrolled. */}
+              <div className="sticky top-0 z-10 flex justify-end pt-3 pb-1 -mr-2" style={{ background: isDark ? '#1c1c1c' : '#fff' }}>
+                <button onClick={() => setReviewOpen(false)} aria-label="Close" className="p-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <VeInstructorReview review={review} modules={modules} progress={progress}
+                accentColor={accentColor} isDark={isDark} colors={{ text, muted, faint: muted }} focus scrollOnFocus={false} />
+            </div>
           </div>
         )}
 
