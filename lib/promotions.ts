@@ -44,7 +44,10 @@ export interface ActivePromotion {
   updated_at: string;
 }
 
-const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Spelled-out character classes, matched exactly by get_live_promotion() (migration 220): \d and
+// \s follow the database locale there, so they could disagree with JavaScript's.
+const ISO_DATE_RE = /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/;
+const ASCII_SPACE_EDGES = /^[ \t\n\v\f\r]+|[ \t\n\v\f\r]+$/g;
 const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
 
 /** The viewer's calendar date as "YYYY-MM-DD", in their own time zone. */
@@ -69,7 +72,7 @@ export function parseViewerDate(raw: string | null, now: Date = new Date()): str
  * The rows to show, from the stored JSON: well-formed ones only, dated today or later in the
  * viewer's time zone, soonest first. Never throws on bad data.
  *
- * Keep the row rules in step with get_active_promotion() (migration 220), which only returns an
+ * Keep the row rules in step with get_live_promotion() (migration 220), which only returns an
  * events promo when at least one row passes them; a mismatch lets the server pick a promo that
  * the card then refuses to show.
  */
@@ -80,7 +83,7 @@ export function upcomingEventItems(raw: unknown, limit = MAX_EVENT_ITEMS, today 
       if (!x || typeof x !== 'object' || Array.isArray(x)) return [];
       const item = x as Record<string, unknown>;
       const date = typeof item.date === 'string' ? item.date : '';
-      const title = typeof item.title === 'string' && /\S/.test(item.title) ? item.title.trim() : '';
+      const title = typeof item.title === 'string' ? item.title.replace(ASCII_SPACE_EDGES, '') : '';
       if (!ISO_DATE_RE.test(date) || !title || date < today) return [];
       const format = EVENT_FORMATS.some(f => f.id === item.format) ? item.format as EventFormat : 'virtual';
       return [{
@@ -166,11 +169,15 @@ export function isPromoPlacement(value: string | null): value is PromoPlacement 
 }
 
 /** Dashboard list label for a promotions row. */
-export function promoStatus(row: { is_active: boolean; starts_at: string; ends_at: string | null }): 'Paused' | 'Scheduled' | 'Ended' | 'Live' {
+export function promoStatus(row: {
+  is_active: boolean; starts_at: string; ends_at: string | null; kind?: string | null; event_items?: unknown;
+}): 'Paused' | 'Scheduled' | 'Ended' | 'Live' {
   const now = Date.now();
   if (!row.is_active) return 'Paused';
   if (new Date(row.starts_at).getTime() > now) return 'Scheduled';
   if (row.ends_at && new Date(row.ends_at).getTime() <= now) return 'Ended';
+  // An events promo with every date passed is never shown again, whatever its end date says.
+  if (row.kind === 'events' && upcomingEventItems(row.event_items).length === 0) return 'Ended';
   return 'Live';
 }
 

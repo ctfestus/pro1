@@ -28,7 +28,7 @@ function dbWith(cohortId: string | null) {
   const db = makeSupabaseStub(
     { students: { data: cohortId ? { cohort_id: cohortId } : null, error: null } },
     (fn, args) => {
-      expect(fn).toBe('get_active_promotion');
+      expect(fn).toBe('get_live_promotion');
       calls.push(args);
       return { data: [PROMO], error: null };
     },
@@ -51,26 +51,30 @@ describe('GET /api/promotions', () => {
     adminClient.mockReturnValue(db);
 
     const res = await GET(request(`placement=landing&closed=${ID_B}:1790000000,not-a-uuid:5`));
+    const serverToday = new Date().toISOString().slice(0, 10);
 
     expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ promotion: PROMO });
+    await expect(res.json()).resolves.toEqual({ promotion: PROMO, today: serverToday });
     expect(requireStudentUser).not.toHaveBeenCalled();
     expect(calls).toEqual([{
       p_placement: 'landing', p_cohort_id: null,
       p_closed_ids: [ID_B], p_closed_at: [new Date(1790000000 * 1000).toISOString()],
-      p_today: null,
+      p_today: serverToday,
     }]);
   });
 
-  it('passes the viewer date through when it is plausible', async () => {
+  it('judges rows by the viewer date when plausible, else by its own, and says which it used', async () => {
     const { db, calls } = dbWith(null);
     adminClient.mockReturnValue(db);
-    const today = new Date().toISOString().slice(0, 10);
+    const serverToday = new Date().toISOString().slice(0, 10);
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
 
-    await GET(request(`placement=landing&today=${today}`));
-    await GET(request('placement=landing&today=1999-01-01'));
+    const plausible = await GET(request(`placement=landing&today=${tomorrow}`));
+    const skewed = await GET(request('placement=landing&today=1999-01-01'));
 
-    expect(calls.map(c => c.p_today)).toEqual([today, null]);
+    expect(calls.map(c => c.p_today)).toEqual([tomorrow, serverToday]);
+    expect((await plausible.json()).today).toBe(tomorrow);
+    expect((await skewed.json()).today).toBe(serverToday);
   });
 
   it('targets the resolved user, which is the Student Mode student when one is active', async () => {
@@ -95,14 +99,42 @@ describe('GET /api/promotions', () => {
     expect(calls[0]).toMatchObject({ p_cohort_id: null });
   });
 
-  it('returns no promotion, not an error, when the lookup fails', async () => {
-    adminClient.mockReturnValue(makeSupabaseStub({}, () => ({ data: null, error: { message: 'function does not exist' } })));
+  it.each(['PGRST202', 'PGRST205', '42883', '42P01', '42703'])(
+    'answers "no promotion" for a tenant that is not migrated yet (%s)',
+    async (code) => {
+      adminClient.mockReturnValue(makeSupabaseStub({}, () => ({ data: null, error: { code, message: 'missing' } })));
+      const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const res = await GET(request('placement=landing'));
+
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toMatchObject({ promotion: null });
+      spy.mockRestore();
+    },
+  );
+
+  it('answers 503 for a temporary lookup failure, so the card retries', async () => {
+    adminClient.mockReturnValue(makeSupabaseStub({}, () => ({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } })));
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const res = await GET(request('placement=landing'));
 
-    expect(res.status).toBe(200);
-    await expect(res.json()).resolves.toEqual({ promotion: null });
+    expect(res.status).toBe(503);
+    expect(res.headers.get('Retry-After')).toBe('30');
+    spy.mockRestore();
+  });
+
+  it('answers 503 when the viewer cohort cannot be read, rather than guessing no cohort', async () => {
+    const rpc = vi.fn();
+    const db = makeSupabaseStub({ students: { data: null, error: { message: 'connection reset' } } }, rpc);
+    adminClient.mockReturnValue(makeSupabaseStub({}));
+    requireStudentUser.mockResolvedValue({ user: { id: 'student-1' }, serviceDb: db });
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const res = await GET(request('placement=student', true));
+
+    expect(res.status).toBe(503);
+    expect(rpc).not.toHaveBeenCalled();
     spy.mockRestore();
   });
 });

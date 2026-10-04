@@ -56,15 +56,31 @@ function linkProps(url: string) {
   return isExternalUrl(url) ? { target: '_blank', rel: 'noopener noreferrer' } : {};
 }
 
+/** A link in the card; in the editor preview, the same element without an href, so a click there
+ * cannot navigate away from unsaved work. */
+function PromoLink({ url, preview, onAction, className, style, children }: {
+  url: string;
+  preview?: boolean;
+  onAction?: () => void;
+  className: string;
+  style?: React.CSSProperties;
+  children: React.ReactNode;
+}) {
+  if (preview) return <span className={className} style={style}>{children}</span>;
+  return <a href={url} {...linkProps(url)} onClick={onAction} className={className} style={style}>{children}</a>;
+}
+
 /**
  * The card itself, without positioning. Shared by the live card and the editor preview, so the
  * preview is always exactly what visitors see. onClose omitted = no close button (preview).
  */
-export function PromoContent({ promo, C, today, onClose, onAction }: {
+export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
   promo: ActivePromotion;
   C: typeof LIGHT_C;
-  /** The viewer date ("YYYY-MM-DD") to judge past events by; defaults to now. */
+  /** The date ("YYYY-MM-DD") to judge past events by; defaults to the viewer's today. */
   today?: string;
+  /** Editor preview: links look the same but do not navigate. */
+  preview?: boolean;
   onClose?: () => void;
   /** Called when a link in the card is followed. */
   onAction?: () => void;
@@ -109,15 +125,15 @@ export function PromoContent({ promo, C, today, onClose, onAction }: {
               </div>
             );
             return url
-              ? <a key={i} href={url} {...linkProps(url)} onClick={onAction} className="block transition-opacity hover:opacity-85">{row}</a>
+              ? <PromoLink key={i} url={url} preview={preview} onAction={onAction} className="block transition-opacity hover:opacity-85">{row}</PromoLink>
               : <div key={i}>{row}</div>;
           })}
         </div>
         {ctaUrl && (
-          <a href={ctaUrl} {...linkProps(ctaUrl)} onClick={onAction}
+          <PromoLink url={ctaUrl} preview={preview} onAction={onAction}
             className="inline-block mt-3 text-[13px] font-semibold hover:underline" style={{ color: C.cta }}>
             {ctaLabel}
-          </a>
+          </PromoLink>
         )}
         {closeButton}
       </div>
@@ -139,11 +155,11 @@ export function PromoContent({ promo, C, today, onClose, onAction }: {
             <p className="text-[13px] leading-snug mt-1 line-clamp-3" style={{ color: C.muted }}>{promo.body}</p>
           )}
           {ctaUrl && (
-            <a href={ctaUrl} {...linkProps(ctaUrl)} onClick={onAction}
+            <PromoLink url={ctaUrl} preview={preview} onAction={onAction}
               className="inline-block mt-2 text-[13px] font-semibold hover:underline"
               style={{ color: C.cta }}>
               {ctaLabel}
-            </a>
+            </PromoLink>
           )}
         </div>
       </div>
@@ -173,6 +189,11 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
     const tick = setInterval(() => setToday(localIsoDate()), 60_000);
     return () => clearInterval(tick);
   }, []);
+  // Set when the server judged event rows by a different date than ours -- it ignores a device
+  // clock that is days off and uses its own. The card then judges by that same date, or it would
+  // drop a promo the server picked and leave nothing on screen.
+  const [serverDate, setServerDate] = useState<string | null>(null);
+  const judgeDate = serverDate ?? today;
   // The promo currently on screen, so a refresh that returns the same one updates it in place
   // instead of hiding it and sliding it in again.
   const shownId = useRef<string | null>(null);
@@ -184,6 +205,7 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
 
     const load = async (attempt: number) => {
       let promotion: ActivePromotion | null;
+      let judgedOn: string | undefined;
       try {
         // The token only sharpens targeting (cohort, Student Mode via the page's fetch bridge);
         // signed out, the route returns everyone-audience promos.
@@ -198,7 +220,7 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
           if (res.status >= 500 || res.status === 429) throw new Error(`HTTP ${res.status}`);
           return;
         }
-        ({ promotion } = await res.json() as { promotion: ActivePromotion | null });
+        ({ promotion, today: judgedOn } = await res.json() as { promotion: ActivePromotion | null; today?: string });
       } catch {
         if (!cancelled && attempt + 1 < MAX_FETCH_ATTEMPTS) {
           retryTimer = setTimeout(() => { void load(attempt + 1); }, Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS));
@@ -206,10 +228,12 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
         return;
       }
       if (cancelled) return;
+      const date = judgedOn ?? today;
+      setServerDate(date !== today ? date : null);
       // The emptiness check is defensive: the server applies the same row rules with this same
       // date, so it should never drop a promo the server returned.
       const next = promotion && !(promotion.kind === 'events'
-        && upcomingEventItems(promotion.event_items, MAX_EVENT_ITEMS, today).length === 0) ? promotion : null;
+        && upcomingEventItems(promotion.event_items, MAX_EVENT_ITEMS, date).length === 0) ? promotion : null;
       if (!next) {
         shownId.current = null;
         setVisible(false);
@@ -235,7 +259,7 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
   // An events promo whose rows have all passed under the current date is hidden at once, without
   // waiting for the refresh -- which may be slow, or fail -- so a heading with no events never
   // sits on screen.
-  const expired = promo.kind === 'events' && upcomingEventItems(promo.event_items, MAX_EVENT_ITEMS, today).length === 0;
+  const expired = promo.kind === 'events' && upcomingEventItems(promo.event_items, MAX_EVENT_ITEMS, judgeDate).length === 0;
 
   const close = () => {
     rememberDismissed(promo.id);
@@ -262,7 +286,7 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
             maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`, overflowY: 'auto', borderRadius: 16,
           }}
         >
-          <PromoContent promo={promo} C={C} today={today} onClose={close} onAction={() => rememberDismissed(promo.id)} />
+          <PromoContent promo={promo} C={C} today={judgeDate} onClose={close} onAction={() => rememberDismissed(promo.id)} />
         </motion.aside>
       )}
     </AnimatePresence>

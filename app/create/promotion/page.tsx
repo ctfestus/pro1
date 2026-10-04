@@ -216,7 +216,7 @@ export default function CreatePromotionPage() {
           <div style={{ marginBottom: 20 }}>
             <p style={labelStyle(C)}>Preview</p>
             <div style={{ maxWidth: 380 }}>
-              <PromoContent C={C} promo={{
+              <PromoContent C={C} preview promo={{
                 id: 'preview', kind, updated_at: '',
                 title: title.trim() || (kind === 'events' ? 'Your heading' : 'Your promotion title'),
                 body: body.trim() || null, image_url: kind === 'standard' ? imageUrl : null,

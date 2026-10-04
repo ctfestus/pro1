@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { upcomingEventItems, eventDateParts, parseViewerDate } from '@/lib/promotions';
+import { upcomingEventItems, eventDateParts, parseViewerDate, promoStatus } from '@/lib/promotions';
 
 describe('upcomingEventItems', () => {
   beforeEach(() => {
@@ -26,11 +26,30 @@ describe('upcomingEventItems', () => {
     ]);
   });
 
+  // These mirror get_live_promotion() in migration 220, which only strips ASCII whitespace and
+  // only accepts ASCII digits. Any difference lets the server pick a promo the card then drops.
+  it('uses the same character rules as the database', () => {
+    const items = upcomingEventItems([
+      { date: '2026-10-11', title: '﻿' },        // not ASCII whitespace: counts, as in SQL
+      { date: '2026-10-12', title: ' \t\n\v\f\r ' },  // only ASCII whitespace: blank, as in SQL
+      { date: '2026-10-14', title: ' ' },        // no-break space is not ASCII: counts, as in SQL
+      { date: '٢٠٢٦-10-13', title: 'Arabic-Indic digits' }, // not [0-9]
+    ]);
+    expect(items.map(i => i.date)).toEqual(['2026-10-11', '2026-10-14']);
+  });
+
   it('caps the rows and tolerates a non-array', () => {
     const many = Array.from({ length: 7 }, (_, i) => ({ date: `2026-11-0${i + 1}`, title: `E${i}` }));
     expect(upcomingEventItems(many)).toHaveLength(6);
     expect(upcomingEventItems(many, 2)).toHaveLength(2);
     expect(upcomingEventItems({ date: '2026-11-01' })).toEqual([]);
+  });
+
+  it('reports an events promo with every date passed as Ended, not Live', () => {
+    const base = { is_active: true, starts_at: '2026-10-01T00:00:00Z', ends_at: null, kind: 'events' };
+    expect(promoStatus({ ...base, event_items: [{ date: '2026-10-09', title: 'Past' }] })).toBe('Ended');
+    expect(promoStatus({ ...base, event_items: [{ date: '2026-10-10', title: 'Today' }] })).toBe('Live');
+    expect(promoStatus({ ...base, kind: 'standard', event_items: [] })).toBe('Live');
   });
 });
 
