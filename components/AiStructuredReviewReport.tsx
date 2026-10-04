@@ -47,6 +47,9 @@ interface Props {
   // List each dimension's strengths and gaps under its summary. Off by default: the AI reviewers'
   // reports show only their counts, in the metric row.
   showCategoryDetails?: boolean;
+  // Give every section the same white card with an outline. Off by default: the AI reviewers' reports
+  // set the summary and next-steps panels on a tinted surface.
+  uniformSurface?: boolean;
 }
 
 const SEVERITY_COLORS: Record<ReviewFindingSeverity, string> = {
@@ -79,6 +82,7 @@ export default function AiStructuredReviewReport({
   severityLabels = {},
   metricLabels = {},
   showCategoryDetails = false,
+  uniformSurface = false,
 }: Props) {
   const [filter, setFilter] = useState<'all' | ReviewFindingSeverity>('all');
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set([0]));
@@ -88,6 +92,9 @@ export default function AiStructuredReviewReport({
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(16,24,40,0.07)';
   const surface = isDark ? '#12151b' : '#f8fafc';
   const inner = isDark ? '#22272f' : '#f7f8fa';
+  const panel = uniformSurface ? { background: card, border: `1px solid ${border}` } : { background: surface };
+  // Boxes set on a panel: white on the tinted surface, the inner shade on a white panel.
+  const raised = uniformSurface ? inner : card;
   const safeScore = Math.max(0, Math.min(100, score));
   const verdict = safeScore >= 80 ? 'Excellent outcome' : safeScore >= 60 ? 'Solid foundation' : 'Needs another pass';
   const verdictColor = scoreColor(safeScore);
@@ -110,7 +117,7 @@ export default function AiStructuredReviewReport({
 
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
-      <section className="overflow-hidden rounded-[24px]" style={{ background: surface }}>
+      <section className="overflow-hidden rounded-[24px]" style={panel}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6" style={{ borderBottom: `1px solid ${border}` }}>
           <div className="flex items-center gap-2.5">
             <span className="relative flex h-3 w-3 shrink-0 items-center justify-center" aria-hidden="true">
@@ -134,7 +141,7 @@ export default function AiStructuredReviewReport({
             <h2 className="mt-4 text-xl font-bold tracking-[-0.02em] sm:text-2xl" style={{ color: text }}>{title}</h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-relaxed" style={{ color: muted }}>{summary}</p>
           </div>
-          <div className="rounded-2xl p-4" style={{ background: card }}>
+          <div className="rounded-2xl p-4" style={{ background: raised }}>
             <div className="flex items-end justify-between gap-3">
               <div><span className="text-4xl font-extrabold leading-none tabular-nums" style={{ color: text }}>{safeScore.toFixed(1)}</span><span className="ml-1 text-xs font-semibold" style={{ color: muted }}>/100</span></div>
               <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: verdictColor }}>Overall</span>
@@ -216,9 +223,9 @@ export default function AiStructuredReviewReport({
       </div>
 
       {recommendations.length > 0 && (
-        <section className="rounded-[22px] p-4 sm:p-5" style={{ background: surface }}>
+        <section className="rounded-[22px] p-4 sm:p-5" style={panel}>
           <div className="flex items-center justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Next best actions</p><h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Your improvement path</h3></div><Zap className="h-5 w-5" style={{ color: accentColor }} /></div>
-          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{recommendations.map((recommendation, index) => <div key={index} className="rounded-2xl p-4" style={{ background: card }}><span className="grid h-7 w-7 place-items-center rounded-lg text-[11px] font-bold" style={{ background: accentColor, color: '#fff' }}>{index + 1}</span><p className="mt-3 text-[12.5px] leading-relaxed" style={{ color: text }}>{recommendation}</p></div>)}</div>
+          <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{recommendations.map((recommendation, index) => <div key={index} className="rounded-2xl p-4" style={{ background: raised }}><span className="grid h-7 w-7 place-items-center rounded-lg text-[11px] font-bold" style={{ background: accentColor, color: '#fff' }}>{index + 1}</span><p className="mt-3 text-[12.5px] leading-relaxed" style={{ color: text }}>{recommendation}</p></div>)}</div>
         </section>
       )}
     </div>

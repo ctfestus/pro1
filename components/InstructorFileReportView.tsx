@@ -27,6 +27,7 @@ export default function InstructorFileReportView({ report, title, accentColor, i
       severityLabels={INSTRUCTOR_SEVERITY_LABELS}
       metricLabels={{ risks: 'Needs attention' }}
       showCategoryDetails
+      uniformSurface
       categories={report.categories.filter(c => c.name.trim()).map(c => ({ ...c, strengths: filled(c.strengths), gaps: filled(c.gaps) }))}
       recommendations={filled(report.recommendations)}
       accentColor={accentColor}
