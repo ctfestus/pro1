@@ -1,6 +1,15 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
+import {
+  gracePeriodWarningEmail,
+  overdueNotificationEmail,
+  paymentConfirmationAcknowledgedEmail,
+  paymentConfirmationApprovedEmail,
+  paymentConfirmationRejectedEmail,
+  paymentReceiptEmail,
+  subscriptionPaymentAssignedEmail,
+} from '@/lib/email-templates';
 
 const root = process.cwd();
 
@@ -64,5 +73,23 @@ describe('student dashboard email links', () => {
     expect(read('app/api/recording-notify/route.ts')).toContain('/student#recordings');
     expect(read('lib/email-templates.ts')).toContain('/student#badges');
     expect(read('lib/notify-subscription-activated.ts')).toContain('/student#learning_paths');
+  });
+
+  it('renders standard payment CTAs with exactly one payments fragment', () => {
+    const dashboardUrl = 'https://test.example/student#payments';
+    const rendered = [
+      gracePeriodWarningEmail({ name: 'Ada', graceEndDate: '10 October 2026', daysLeft: 2, dashboardUrl }),
+      overdueNotificationEmail({ name: 'Ada', dashboardUrl }),
+      paymentReceiptEmail({ name: 'Ada', amount: 300, currency: 'GHS', paidAt: '4 October 2026', dashboardUrl }),
+      subscriptionPaymentAssignedEmail({ name: 'Ada', planName: 'Pro', amount: 300, currency: 'GHS', dueDate: '10 October 2026', dashboardUrl }),
+      paymentConfirmationAcknowledgedEmail({ name: 'Ada', amount: 300, currency: 'GHS', dashboardUrl }),
+      paymentConfirmationApprovedEmail({ name: 'Ada', amount: 300, currency: 'GHS', dashboardUrl }),
+      paymentConfirmationRejectedEmail({ name: 'Ada', amount: 300, currency: 'GHS', dashboardUrl }),
+    ];
+
+    for (const html of rendered) {
+      expect(html).toContain('href="https://test.example/student#payments"');
+      expect(html).not.toContain('#payments#payments');
+    }
   });
 });
