@@ -1,0 +1,97 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { upcomingEventItems, eventDateParts, parseViewerDate, promoStatus, eventsPromoCanShow } from '@/lib/promotions';
+
+describe('upcomingEventItems', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 10, 12, 0, 0)); // 10 Oct 2026, local time
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it('keeps today and later, soonest first, and drops past or malformed rows', () => {
+    const items = upcomingEventItems([
+      { date: '2026-10-20', format: 'in_person', title: 'Later', note: 'Register by Oct 19', url: '/a' },
+      { date: '2026-10-09', format: 'virtual', title: 'Yesterday' },
+      { date: '2026-10-10', format: 'unknown', title: '  Today  ' },
+      { date: '10/12/2026', title: 'Bad date' },
+      { date: '2026-10-15', title: '   ' },
+      { date: '2026-10-16', title: 42 },
+      [{ date: '2026-10-17', title: 'Nested' }],
+      null,
+      'not an object',
+    ]);
+    expect(items).toEqual([
+      { date: '2026-10-10', format: 'virtual', title: 'Today', note: '', url: '' },
+      { date: '2026-10-20', format: 'in_person', title: 'Later', note: 'Register by Oct 19', url: '/a' },
+    ]);
+  });
+
+  // These mirror get_live_promotion() in migration 221, which only strips ASCII whitespace and
+  // only accepts ASCII digits. Any difference lets the server pick a promo the card then drops.
+  it('uses the same character rules as the database', () => {
+    const items = upcomingEventItems([
+      { date: '2026-10-11', title: '﻿' },        // not ASCII whitespace: counts, as in SQL
+      { date: '2026-10-12', title: ' \t\n\v\f\r ' },  // only ASCII whitespace: blank, as in SQL
+      { date: '2026-10-14', title: ' ' },        // no-break space is not ASCII: counts, as in SQL
+      { date: '٢٠٢٦-10-13', title: 'Arabic-Indic digits' }, // not [0-9]
+    ]);
+    expect(items.map(i => i.date)).toEqual(['2026-10-11', '2026-10-14']);
+  });
+
+  it('caps the rows and tolerates a non-array', () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({ date: `2026-11-0${i + 1}`, title: `E${i}` }));
+    expect(upcomingEventItems(many)).toHaveLength(6);
+    expect(upcomingEventItems(many, 2)).toHaveLength(2);
+    expect(upcomingEventItems({ date: '2026-11-01' })).toEqual([]);
+  });
+
+  it('reports an events promo with every date passed as Ended, not Live', () => {
+    const base = { is_active: true, starts_at: '2026-10-01T00:00:00Z', ends_at: null, kind: 'events' };
+    expect(promoStatus({ ...base, event_items: [{ date: '2026-10-09', title: 'Past' }] })).toBe('Ended');
+    expect(promoStatus({ ...base, event_items: [{ date: '2026-10-10', title: 'Today' }] })).toBe('Live');
+    expect(promoStatus({ ...base, kind: 'standard', event_items: [] })).toBe('Live');
+  });
+
+  // Today is 10 Oct (fake clock). A promo starting 20 Oct.
+  const scheduled = { is_active: true, starts_at: new Date(2026, 9, 20, 9, 0).toISOString(), ends_at: null, kind: 'events' };
+
+  it('reports a scheduled events promo whose events all fall before its start as Ended, not Scheduled', () => {
+    expect(promoStatus({ ...scheduled, event_items: [{ date: '2026-10-15', title: 'Before start' }] })).toBe('Ended');
+    expect(promoStatus({ ...scheduled, event_items: [{ date: '2026-10-20', title: 'On start day' }] })).toBe('Scheduled');
+    expect(promoStatus({ ...scheduled, is_active: false, event_items: [{ date: '2026-10-15', title: 'x' }] })).toBe('Paused');
+  });
+
+  it('eventsPromoCanShow needs an event on or after both today and the start date', () => {
+    expect(eventsPromoCanShow([{ date: '2026-10-15', title: 'x' }], scheduled.starts_at)).toBe(false);
+    expect(eventsPromoCanShow([{ date: '2026-10-15', title: 'x' }, { date: '2026-10-21', title: 'y' }], scheduled.starts_at)).toBe(true);
+    // Start date already passed: today is the bar.
+    expect(eventsPromoCanShow([{ date: '2026-10-09', title: 'x' }], new Date(2026, 9, 1))).toBe(false);
+    expect(eventsPromoCanShow([{ date: '2026-10-10', title: 'x' }], new Date(2026, 9, 1))).toBe(true);
+    // Unreadable start date: today is the bar.
+    expect(eventsPromoCanShow([{ date: '2026-10-10', title: 'x' }], 'not a date')).toBe(true);
+  });
+});
+
+it('judges past rows against the date it is given', () => {
+  const rows = [{ date: '2026-10-10', title: 'Today there' }];
+  expect(upcomingEventItems(rows, 6, '2026-10-11')).toEqual([]);
+  expect(upcomingEventItems(rows, 6, '2026-10-10')).toHaveLength(1);
+});
+
+describe('parseViewerDate', () => {
+  const now = new Date('2026-10-10T23:30:00Z');
+  it('accepts a real date within two days of the server', () => {
+    expect(parseViewerDate('2026-10-11', now)).toBe('2026-10-11');
+    expect(parseViewerDate('2026-10-09', now)).toBe('2026-10-09');
+  });
+  it.each(['2026-10-01', '2026-02-30', '10/10/2026', '', null])('ignores %j', (raw) => {
+    expect(parseViewerDate(raw as string | null, now)).toBeNull();
+  });
+});
+
+describe('eventDateParts', () => {
+  it('reads the month and day from the text, not a Date', () => {
+    expect(eventDateParts('2026-10-06')).toEqual({ month: 'OCT', day: '06' });
+    expect(eventDateParts('2026-01-31')).toEqual({ month: 'JAN', day: '31' });
+  });
+});

@@ -6,11 +6,15 @@ import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { LIGHT_C, DARK_C, useC } from '@/lib/theme';
 import { motion } from 'motion/react';
-import { ArrowLeft, Loader2, Save, Upload, X, Images } from 'lucide-react';
+import { ArrowLeft, Loader2, Save, Upload, X, Images, Plus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sanitizePlainText } from '@/lib/sanitize';
-import { PROMO_PLACEMENTS, PROMO_RESHOW_OPTIONS, safePromoUrl, type PromoPlacement } from '@/lib/promotions';
+import {
+  PROMO_PLACEMENTS, PROMO_RESHOW_OPTIONS, EVENT_FORMATS, MAX_EVENT_ITEMS, safePromoUrl, upcomingEventItems, eventsPromoCanShow,
+  type PromoPlacement, type PromoKind, type PromoEventItem,
+} from '@/lib/promotions';
+import { PromoContent } from '@/components/PromoCard';
 
 // --- Design tokens: standard palette from lib/theme.ts ---
 
@@ -32,6 +36,8 @@ function toDatetimeLocalValue(d: Date): string {
 
 type AudienceOption = { id: string; name: string; kind: 'bootcamp' | 'plan' };
 
+const emptyEventItem = (): PromoEventItem => ({ date: '', format: 'virtual', title: '', note: '', url: '' });
+
 export default function CreatePromotionPage() {
   const C = useC();
   const isDark = C === DARK_C;
@@ -41,6 +47,8 @@ export default function CreatePromotionPage() {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState('');
 
+  const [kind, setKind]             = useState<PromoKind>('standard');
+  const [eventItems, setEventItems] = useState<PromoEventItem[]>([emptyEventItem()]);
   const [title, setTitle]           = useState('');
   const [body, setBody]             = useState('');
   const [imageUrl, setImageUrl]     = useState('');
@@ -59,6 +67,8 @@ export default function CreatePromotionPage() {
 
   const togglePlacement = (id: PromoPlacement) =>
     setPlacements(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+  const updateEventItem = (index: number, patch: Partial<PromoEventItem>) =>
+    setEventItems(prev => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   const toggleCohort = (id: string) =>
     setSelectedCohortIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
 
@@ -89,6 +99,10 @@ export default function CreatePromotionPage() {
       if (id) {
         const { data } = await supabase.from('promotions').select('*').eq('id', id).single();
         if (data) {
+          setKind(data.kind === 'events' ? 'events' : 'standard');
+          if (Array.isArray(data.event_items) && data.event_items.length) {
+            setEventItems(data.event_items.map((x: any) => ({ ...emptyEventItem(), ...x })));
+          }
           setTitle(data.title ?? '');
           setBody(data.body ?? '');
           setImageUrl(data.image_url ?? '');
@@ -112,23 +126,42 @@ export default function CreatePromotionPage() {
     if (uploading) return;
 
     const trimmedTitle = title.trim();
-    if (!trimmedTitle) { setError('Title is required.'); return; }
+    if (!trimmedTitle) { setError(kind === 'events' ? 'Name is required.' : 'Title is required.'); return; }
+    const cleanItems = eventItems
+      .map(item => ({ ...item, title: item.title.trim(), note: item.note.trim(), url: item.url.trim() }))
+      .filter(item => item.date || item.title || item.note || item.url);
+    if (kind === 'events') {
+      if (cleanItems.length === 0) { setError('Add at least one event.'); return; }
+      if (cleanItems.some(item => !item.date || !item.title)) { setError('Every event needs a date and a title.'); return; }
+      if (cleanItems.some(item => item.url && !safePromoUrl(item.url))) { setError('Event links must start with https:// or with / for a page on this site.'); return; }
+    }
     if (placements.length === 0) { setError('Pick at least one place to show this promotion.'); return; }
-    if (imageUrl.trim() && !safePromoUrl(imageUrl)) { setError('Image must be an https:// link or an image on this site.'); return; }
-    if (ctaUrl.trim() && !safePromoUrl(ctaUrl)) { setError('Button link must start with https:// or with / for a page on this site.'); return; }
-    if (ctaLabel.trim() && !ctaUrl.trim()) { setError('Add a button link, or clear the button text.'); return; }
+    if (kind === 'standard' && imageUrl.trim() && !safePromoUrl(imageUrl)) { setError('Image must be an https:// link or an image on this site.'); return; }
+    if (kind === 'standard' && ctaUrl.trim() && !safePromoUrl(ctaUrl)) { setError('Button link must start with https:// or with / for a page on this site.'); return; }
+    if (kind === 'standard' && ctaLabel.trim() && !ctaUrl.trim()) { setError('Add a button link, or clear the button text.'); return; }
 
     const startDate = new Date(startsAt);
     const endDate   = endsAt ? new Date(endsAt) : null;
     if (Number.isNaN(startDate.getTime())) { setError('Pick a valid start date.'); return; }
     if (endDate && endDate <= startDate) { setError('End date must be after the start date.'); return; }
+    // A live events promo must be able to appear: at least one event on or after today and the
+    // start date. A paused one may be saved regardless, so an old promo can still be edited or
+    // switched off.
+    if (kind === 'events' && isActive && !eventsPromoCanShow(cleanItems, startDate)) {
+      setError('Every event is before the start date or has already passed, so this promo would never show. Change a date, or turn Live off to save it paused.');
+      return;
+    }
 
     setLoading(true);
     try {
       const payload = {
-        title: trimmedTitle, body: body.trim() || null,
-        image_url: imageUrl.trim() || null,
-        cta_label: ctaLabel.trim() || null, cta_url: ctaUrl.trim() || null,
+        kind, event_items: kind === 'events' ? cleanItems : [],
+        // An events promo shows only its event cards; the standard-only fields are not saved.
+        title: trimmedTitle,
+        body: kind === 'standard' ? body.trim() || null : null,
+        image_url: kind === 'standard' ? imageUrl.trim() || null : null,
+        cta_label: kind === 'standard' ? ctaLabel.trim() || null : null,
+        cta_url: kind === 'standard' ? ctaUrl.trim() || null : null,
         placements, cohort_ids: selectedCohortIds, is_active: isActive, reshow_after_days: reshowAfterDays,
         starts_at: startDate.toISOString(), ends_at: endDate ? endDate.toISOString() : null,
       };
@@ -148,8 +181,6 @@ export default function CreatePromotionPage() {
       setLoading(false);
     }
   }
-
-  const previewImage = safePromoUrl(imageUrl);
 
   return (
     <div style={{ minHeight: '100vh', background: C.page }}>
@@ -190,20 +221,22 @@ export default function CreatePromotionPage() {
             </div>
           )}
 
-          {/* Preview: the same layout the card uses on the page */}
+          {/* Preview: drawn by the same component visitors see */}
           <div style={{ marginBottom: 20 }}>
             <p style={labelStyle(C)}>Preview</p>
-            <div style={{ maxWidth: 380, background: C.card, borderRadius: 16, padding: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.12)', display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-              {previewImage && (
-                <img src={previewImage} alt="" style={{ width: 96, height: 96, borderRadius: 10, objectFit: 'cover', flexShrink: 0 }}
-                  onError={e => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}/>
-              )}
-              <div style={{ minWidth: 0, flex: 1 }}>
-                <p style={{ margin: 0, fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.35 }}>{title.trim() || 'Your promotion title'}</p>
-                {body.trim() && <p style={{ margin: '4px 0 0', fontSize: 13, color: C.muted, lineHeight: 1.35 }}>{body}</p>}
-                {ctaUrl.trim() && <p style={{ margin: '8px 0 0', fontSize: 13, fontWeight: 600, color: C.cta }}>{ctaLabel.trim() || 'Learn more'}</p>}
-              </div>
+            <div style={{ maxWidth: 380 }}>
+              <PromoContent C={C} preview promo={{
+                id: 'preview', kind, updated_at: '',
+                title: title.trim() || 'Your promotion title',
+                body: body.trim() || null, image_url: kind === 'standard' ? imageUrl : null,
+                cta_label: ctaLabel, cta_url: ctaUrl, event_items: eventItems,
+              }}/>
             </div>
+            {kind === 'events' && (upcomingEventItems(eventItems, MAX_EVENT_ITEMS).length === 0 ? (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: C.faint }}>Events appear here once they have a date (today or later) and a title.</p>
+            ) : !eventsPromoCanShow(eventItems, startsAt) && (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: C.errorText }}>Every event is before the start date, so visitors would never see this promo.</p>
+            ))}
           </div>
 
           <section style={{ background: C.card, borderRadius: 18, border: isDark ? 'none' : `1px solid ${C.cardBorder}`, boxShadow: C.cardShadow, overflow: 'hidden' }}>
@@ -212,19 +245,43 @@ export default function CreatePromotionPage() {
             <div style={{ padding: '26px 20px' }}>
               <h2 style={{ fontSize: 15, fontWeight: 700, color: C.text, marginTop: 0, marginBottom: 18 }}>Content</h2>
 
+              <div style={{ marginBottom: 18 }}>
+                <label style={labelStyle(C)}>Type</label>
+                <div role="radiogroup" aria-label="Promotion type" style={{ display: 'inline-flex', gap: 4, padding: 4, borderRadius: 10, background: C.pill }}>
+                  {([['standard', 'Standard'], ['events', 'Events']] as const).map(([id, label]) => (
+                    <button key={id} type="button" role="radio" aria-checked={kind === id} onClick={() => setKind(id)}
+                      style={{ padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+                        background: kind === id ? C.card : 'transparent', color: kind === id ? C.text : C.muted }}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                <p style={{ margin: '6px 0 0', fontSize: 12, color: C.faint }}>
+                  {kind === 'events'
+                    ? 'One card per event, with its date, for webinars and events.'
+                    : 'An image with a title, a short text, and a button.'}
+                </p>
+              </div>
+
               <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle(C)}>Title <span style={{ color: C.errorText }}>*</span></label>
+                <label style={labelStyle(C)}>
+                  {kind === 'events' ? 'Name' : 'Title'} <span style={{ color: C.errorText }}>*</span>
+                  {kind === 'events' && <span style={{ color: C.faint, fontWeight: 400 }}> (only shown in your dashboard list)</span>}
+                </label>
                 <input type="text" value={title} onChange={e => setTitle(sanitizePlainText(e.target.value))}
-                  placeholder="e.g. Power BI bootcamp starts next month" style={inputStyle(C)} maxLength={80}/>
+                  placeholder={kind === 'events' ? 'e.g. October webinars' : 'e.g. Power BI bootcamp starts next month'} style={inputStyle(C)} maxLength={80}/>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle(C)}>Short text <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
-                <textarea value={body} onChange={e => setBody(sanitizePlainText(e.target.value))}
-                  placeholder="One or two sentences. Long text is cut off after three lines."
-                  style={{ ...inputStyle(C), minHeight: 80, resize: 'vertical', lineHeight: 1.5 }} maxLength={200}/>
-              </div>
+              {kind === 'standard' && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle(C)}>Short text <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
+                  <textarea value={body} onChange={e => setBody(sanitizePlainText(e.target.value))}
+                    placeholder="One or two sentences. Long text is cut off after three lines."
+                    style={{ ...inputStyle(C), minHeight: 80, resize: 'vertical', lineHeight: 1.5 }} maxLength={200}/>
+                </div>
+              )}
 
+              {kind === 'standard' && (
               <div style={{ marginBottom: 16 }}>
                 <label style={labelStyle(C)}>Image <span style={{ color: C.faint, fontWeight: 400 }}>(optional, square works best)</span></label>
                 <input ref={imageRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={async e => {
@@ -258,19 +315,59 @@ export default function CreatePromotionPage() {
                     onSelect={url => setImageUrl(url)} onClose={() => setShowLibrary(false)}/>
                 )}
               </div>
+              )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-                <div>
-                  <label style={labelStyle(C)}>Button text</label>
-                  <input type="text" value={ctaLabel} onChange={e => setCtaLabel(sanitizePlainText(e.target.value))}
-                    placeholder="e.g. Enrol now" style={inputStyle(C)} maxLength={30}/>
+              {kind === 'events' && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle(C)}>Events <span style={{ color: C.errorText }}>*</span> <span style={{ color: C.faint, fontWeight: 400 }}>(up to {MAX_EVENT_ITEMS}; past dates hide on their own)</span></label>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {eventItems.map((item, i) => (
+                      <div key={i} style={{ padding: 12, borderRadius: 12, background: C.input, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                          <input type="date" value={item.date} onChange={e => updateEventItem(i, { date: e.target.value })}
+                            aria-label={`Event ${i + 1} date`} style={{ ...inputStyle(C), flex: '1 1 160px', minWidth: 0 }}/>
+                          <select value={item.format} onChange={e => updateEventItem(i, { format: e.target.value as PromoEventItem['format'] })}
+                            aria-label={`Event ${i + 1} format`} style={{ ...inputStyle(C), flex: '1 1 110px', minWidth: 0 }}>
+                            {EVENT_FORMATS.map(f => <option key={f.id} value={f.id}>{f.label}</option>)}
+                          </select>
+                          <button type="button" onClick={() => setEventItems(prev => prev.length > 1 ? prev.filter((_, j) => j !== i) : [emptyEventItem()])}
+                            aria-label={`Remove event ${i + 1}`} title="Remove event"
+                            style={{ display: 'flex', alignItems: 'center', padding: '10px 12px', borderRadius: 10, border: 'none', background: C.deleteBg, color: C.deleteText, cursor: 'pointer', flexShrink: 0 }}>
+                            <Trash2 style={{ width: 14, height: 14 }}/>
+                          </button>
+                        </div>
+                        <input type="text" value={item.title} onChange={e => updateEventItem(i, { title: sanitizePlainText(e.target.value) })}
+                          placeholder="Event title, e.g. Women in Leadership" style={inputStyle(C)} maxLength={60}/>
+                        <input type="text" value={item.note} onChange={e => updateEventItem(i, { note: sanitizePlainText(e.target.value) })}
+                          placeholder="Note, e.g. Register by October 19" style={inputStyle(C)} maxLength={60}/>
+                        <input type="text" value={item.url} onChange={e => updateEventItem(i, { url: e.target.value })}
+                          placeholder="Registration link (optional): /page or https://..." style={inputStyle(C)}/>
+                      </div>
+                    ))}
+                  </div>
+                  {eventItems.length < MAX_EVENT_ITEMS && (
+                    <button type="button" onClick={() => setEventItems(prev => [...prev, emptyEventItem()])}
+                      style={{ display: 'inline-flex', alignItems: 'center', gap: 6, marginTop: 10, padding: '8px 14px', borderRadius: 10, border: 'none', background: C.pill, color: C.text, fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+                      <Plus style={{ width: 14, height: 14 }}/> Add event
+                    </button>
+                  )}
                 </div>
-                <div>
-                  <label style={labelStyle(C)}>Button link</label>
-                  <input type="text" value={ctaUrl} onChange={e => setCtaUrl(e.target.value)}
-                    placeholder="/pricing or https://..." style={inputStyle(C)}/>
+              )}
+
+              {kind === 'standard' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <div>
+                    <label style={labelStyle(C)}>Button text</label>
+                    <input type="text" value={ctaLabel} onChange={e => setCtaLabel(sanitizePlainText(e.target.value))}
+                      placeholder="e.g. Enrol now" style={inputStyle(C)} maxLength={30}/>
+                  </div>
+                  <div>
+                    <label style={labelStyle(C)}>Button link</label>
+                    <input type="text" value={ctaUrl} onChange={e => setCtaUrl(e.target.value)}
+                      placeholder="/pricing or https://..." style={inputStyle(C)}/>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             <div style={{ height: 1, background: C.divider }} />
