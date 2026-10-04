@@ -17,6 +17,8 @@ import {
 } from '@/lib/promotions';
 
 const DISMISSED_KEY = 'promo-dismissed';
+// A soft wide shadow plus a tight one, so a white card still has a clear edge on a white page.
+const PROMO_CARD_SHADOW = '0 12px 40px rgba(0,0,0,0.18), 0 2px 8px rgba(0,0,0,0.10)';
 const SHOW_DELAY_MS = 1200;
 // A failed lookup (offline, server error) is retried with backoff -- 30s, 1m, 2m, 4m, 5m -- then
 // left until the date changes or the page reloads, so a dead connection is not polled forever.
@@ -98,51 +100,44 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
 
   if (promo.kind === 'events') {
     const items = upcomingEventItems(promo.event_items, MAX_EVENT_ITEMS, today);
+    // One card per event, each built exactly like the standard promo card -- same frame, padding
+    // and shadow -- with the date tile where the standard card has its image. The close button
+    // sits on the first card. The promo title is only a dashboard name and screen reader label.
     return (
-      <div className="relative" style={{ background: C.card, color: C.text, borderRadius: 16, padding: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
-        <div className="pr-8" style={{ padding: '2px 2px 0' }}>
-          <p className="text-[15px] font-bold leading-snug" style={{ color: C.text }}>{promo.title}</p>
-          {promo.body && <p className="text-[13px] leading-snug mt-0.5" style={{ color: C.muted }}>{promo.body}</p>}
-        </div>
-        <div className="flex flex-col gap-2 mt-3">
-          {items.map((item, i) => {
-            const { month, day } = eventDateParts(item.date);
-            const url = safePromoUrl(item.url);
-            const row = (
-              // Date tile as on a printed event card: small spaced month over a large, regular-weight
-              // day, solid brand color; details on a light panel beside it.
-              <div className="flex items-stretch overflow-hidden" style={{ borderRadius: 6, background: C.input, minHeight: 72 }}>
-                <div className="flex flex-col items-center justify-center flex-shrink-0"
-                  style={{ width: 76, padding: '10px 0', background: C.cta, color: C.ctaText }}>
-                  <span className="text-[12px] font-medium" style={{ letterSpacing: '0.18em', paddingLeft: '0.18em' }}>{month}</span>
-                  <span className="text-[34px] font-normal leading-none mt-1" style={{ letterSpacing: '0.02em' }}>{day}</span>
-                </div>
-                <div className="min-w-0 flex-1 flex flex-col justify-center" style={{ padding: '8px 14px' }}>
-                  <p className="text-[10.5px] font-medium uppercase" style={{ color: C.muted, letterSpacing: '0.14em' }}>{eventFormatLabel(item.format)}</p>
-                  <p className="text-[15px] font-semibold leading-snug truncate mt-0.5" style={{ color: C.text, letterSpacing: '0.02em' }}>{item.title}</p>
-                  {item.note && <p className="text-[13px] leading-snug truncate" style={{ color: C.muted, letterSpacing: '0.01em' }}>{item.note}</p>}
-                </div>
+      <div className="flex flex-col gap-2.5">
+        {items.map((item, i) => {
+          const { month, day } = eventDateParts(item.date);
+          const url = safePromoUrl(item.url);
+          const body = (
+            <div className="flex gap-3 items-center">
+              <div className="flex flex-col items-center justify-center flex-shrink-0"
+                style={{ width: 96, height: 96, borderRadius: 10, background: C.cta, color: C.ctaText }}>
+                <span className="text-[12px] font-medium" style={{ letterSpacing: '0.18em', paddingLeft: '0.18em' }}>{month}</span>
+                <span className="text-[38px] font-normal leading-none mt-1">{day}</span>
               </div>
-            );
-            return url
-              ? <PromoLink key={i} url={url} preview={preview} onAction={onAction} className="block transition-opacity hover:opacity-85">{row}</PromoLink>
-              : <div key={i}>{row}</div>;
-          })}
-        </div>
-        {ctaUrl && (
-          <PromoLink url={ctaUrl} preview={preview} onAction={onAction}
-            className="inline-block mt-3 text-[13px] font-semibold hover:underline" style={{ color: C.cta }}>
-            {ctaLabel}
-          </PromoLink>
-        )}
-        {closeButton}
+              <div className={`min-w-0 flex-1 ${i === 0 && onClose ? 'pr-6' : ''}`}>
+                <p className="text-[11px] font-semibold uppercase" style={{ color: C.muted, letterSpacing: '0.12em' }}>{eventFormatLabel(item.format)}</p>
+                <p className="text-[15px] font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
+                {item.note && <p className="text-[13px] leading-snug mt-1" style={{ color: C.muted }}>{item.note}</p>}
+              </div>
+            </div>
+          );
+          return (
+            <div key={i} className="relative" style={{ background: C.card, color: C.text, borderRadius: 16, padding: 12, boxShadow: PROMO_CARD_SHADOW }}>
+              {url
+                ? <PromoLink url={url} preview={preview} onAction={onAction} className="block transition-opacity hover:opacity-85">{body}</PromoLink>
+                : body}
+              {i === 0 && closeButton}
+            </div>
+          );
+        })}
       </div>
     );
   }
 
   const imageUrl = safePromoUrl(promo.image_url);
   return (
-    <div className="relative" style={{ background: C.card, color: C.text, borderRadius: 16, padding: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
+    <div className="relative" style={{ background: C.card, color: C.text, borderRadius: 16, padding: 12, boxShadow: PROMO_CARD_SHADOW }}>
       <div className="flex gap-3 items-start">
         {imageUrl && (
           <img src={imageUrl} alt="" className="flex-shrink-0 object-cover"
@@ -277,13 +272,15 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 24 }}
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-          className="fixed left-4 right-4 sm:left-auto sm:right-5 sm:w-[380px]"
+          className="fixed left-4 right-4 sm:left-auto sm:right-5 sm:w-[404px]"
           style={{
             bottom: 16 + bottomOffset, zIndex: 45,
-            // Six event rows can outgrow a short phone screen; scroll inside the card instead. The
-            // cap leaves room for a page's top bar (about 64px), so the heading and close button
-            // never slide underneath it.
-            maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`, overflowY: 'auto', borderRadius: 16,
+            // Six event cards can outgrow a short phone screen; scroll inside instead. The cap leaves
+            // room for a page's top bar (about 64px), so the close button never slides under it.
+            maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`, overflowY: 'auto',
+            // Room for the card shadows inside the scroll area (which would otherwise clip them),
+            // cancelled by the negative margin so the cards sit where they did.
+            padding: 12, margin: -12,
           }}
         >
           <PromoContent promo={promo} C={C} today={judgeDate} onClose={close} onAction={() => rememberDismissed(promo.id)} />

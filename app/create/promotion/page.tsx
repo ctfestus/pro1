@@ -126,7 +126,7 @@ export default function CreatePromotionPage() {
     if (uploading) return;
 
     const trimmedTitle = title.trim();
-    if (!trimmedTitle) { setError(kind === 'events' ? 'Heading is required.' : 'Title is required.'); return; }
+    if (!trimmedTitle) { setError(kind === 'events' ? 'Name is required.' : 'Title is required.'); return; }
     const cleanItems = eventItems
       .map(item => ({ ...item, title: item.title.trim(), note: item.note.trim(), url: item.url.trim() }))
       .filter(item => item.date || item.title || item.note || item.url);
@@ -137,8 +137,8 @@ export default function CreatePromotionPage() {
     }
     if (placements.length === 0) { setError('Pick at least one place to show this promotion.'); return; }
     if (kind === 'standard' && imageUrl.trim() && !safePromoUrl(imageUrl)) { setError('Image must be an https:// link or an image on this site.'); return; }
-    if (ctaUrl.trim() && !safePromoUrl(ctaUrl)) { setError('Button link must start with https:// or with / for a page on this site.'); return; }
-    if (ctaLabel.trim() && !ctaUrl.trim()) { setError('Add a button link, or clear the button text.'); return; }
+    if (kind === 'standard' && ctaUrl.trim() && !safePromoUrl(ctaUrl)) { setError('Button link must start with https:// or with / for a page on this site.'); return; }
+    if (kind === 'standard' && ctaLabel.trim() && !ctaUrl.trim()) { setError('Add a button link, or clear the button text.'); return; }
 
     const startDate = new Date(startsAt);
     const endDate   = endsAt ? new Date(endsAt) : null;
@@ -156,9 +156,12 @@ export default function CreatePromotionPage() {
     try {
       const payload = {
         kind, event_items: kind === 'events' ? cleanItems : [],
-        title: trimmedTitle, body: body.trim() || null,
+        // An events promo shows only its event cards; the standard-only fields are not saved.
+        title: trimmedTitle,
+        body: kind === 'standard' ? body.trim() || null : null,
         image_url: kind === 'standard' ? imageUrl.trim() || null : null,
-        cta_label: ctaLabel.trim() || null, cta_url: ctaUrl.trim() || null,
+        cta_label: kind === 'standard' ? ctaLabel.trim() || null : null,
+        cta_url: kind === 'standard' ? ctaUrl.trim() || null : null,
         placements, cohort_ids: selectedCohortIds, is_active: isActive, reshow_after_days: reshowAfterDays,
         starts_at: startDate.toISOString(), ends_at: endDate ? endDate.toISOString() : null,
       };
@@ -224,7 +227,7 @@ export default function CreatePromotionPage() {
             <div style={{ maxWidth: 380 }}>
               <PromoContent C={C} preview promo={{
                 id: 'preview', kind, updated_at: '',
-                title: title.trim() || (kind === 'events' ? 'Your heading' : 'Your promotion title'),
+                title: title.trim() || 'Your promotion title',
                 body: body.trim() || null, image_url: kind === 'standard' ? imageUrl : null,
                 cta_label: ctaLabel, cta_url: ctaUrl, event_items: eventItems,
               }}/>
@@ -255,28 +258,28 @@ export default function CreatePromotionPage() {
                 </div>
                 <p style={{ margin: '6px 0 0', fontSize: 12, color: C.faint }}>
                   {kind === 'events'
-                    ? 'A heading with a list of dated events, for webinars and events.'
+                    ? 'One card per event, with its date, for webinars and events.'
                     : 'An image with a title, a short text, and a button.'}
                 </p>
               </div>
 
               <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle(C)}>{kind === 'events' ? 'Heading' : 'Title'} <span style={{ color: C.errorText }}>*</span></label>
+                <label style={labelStyle(C)}>
+                  {kind === 'events' ? 'Name' : 'Title'} <span style={{ color: C.errorText }}>*</span>
+                  {kind === 'events' && <span style={{ color: C.faint, fontWeight: 400 }}> (only shown in your dashboard list)</span>}
+                </label>
                 <input type="text" value={title} onChange={e => setTitle(sanitizePlainText(e.target.value))}
-                  placeholder={kind === 'events' ? 'e.g. Upcoming webinars' : 'e.g. Power BI bootcamp starts next month'} style={inputStyle(C)} maxLength={80}/>
+                  placeholder={kind === 'events' ? 'e.g. October webinars' : 'e.g. Power BI bootcamp starts next month'} style={inputStyle(C)} maxLength={80}/>
               </div>
 
-              <div style={{ marginBottom: 16 }}>
-                <label style={labelStyle(C)}>{kind === 'events' ? 'Subheading' : 'Short text'} <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
-                {kind === 'events' ? (
-                  <input type="text" value={body} onChange={e => setBody(sanitizePlainText(e.target.value))}
-                    placeholder="e.g. Virtual events" style={inputStyle(C)} maxLength={60}/>
-                ) : (
+              {kind === 'standard' && (
+                <div style={{ marginBottom: 16 }}>
+                  <label style={labelStyle(C)}>Short text <span style={{ color: C.faint, fontWeight: 400 }}>(optional)</span></label>
                   <textarea value={body} onChange={e => setBody(sanitizePlainText(e.target.value))}
                     placeholder="One or two sentences. Long text is cut off after three lines."
                     style={{ ...inputStyle(C), minHeight: 80, resize: 'vertical', lineHeight: 1.5 }} maxLength={200}/>
-                )}
-              </div>
+                </div>
+              )}
 
               {kind === 'standard' && (
               <div style={{ marginBottom: 16 }}>
@@ -351,18 +354,20 @@ export default function CreatePromotionPage() {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
-                <div>
-                  <label style={labelStyle(C)}>{kind === 'events' ? 'Button text (optional)' : 'Button text'}</label>
-                  <input type="text" value={ctaLabel} onChange={e => setCtaLabel(sanitizePlainText(e.target.value))}
-                    placeholder={kind === 'events' ? 'e.g. See all events' : 'e.g. Enrol now'} style={inputStyle(C)} maxLength={30}/>
+              {kind === 'standard' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16 }}>
+                  <div>
+                    <label style={labelStyle(C)}>Button text</label>
+                    <input type="text" value={ctaLabel} onChange={e => setCtaLabel(sanitizePlainText(e.target.value))}
+                      placeholder="e.g. Enrol now" style={inputStyle(C)} maxLength={30}/>
+                  </div>
+                  <div>
+                    <label style={labelStyle(C)}>Button link</label>
+                    <input type="text" value={ctaUrl} onChange={e => setCtaUrl(e.target.value)}
+                      placeholder="/pricing or https://..." style={inputStyle(C)}/>
+                  </div>
                 </div>
-                <div>
-                  <label style={labelStyle(C)}>Button link</label>
-                  <input type="text" value={ctaUrl} onChange={e => setCtaUrl(e.target.value)}
-                    placeholder="/pricing or https://..." style={inputStyle(C)}/>
-                </div>
-              </div>
+              )}
             </div>
 
             <div style={{ height: 1, background: C.divider }} />
