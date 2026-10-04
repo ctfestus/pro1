@@ -981,6 +981,48 @@ export function assignmentGradedEmail(data: {
   return shell(content, branding);
 }
 
+// -- Virtual Experience Reviewed ---
+export function veReviewedEmail(data: {
+  name: string;
+  veTitle: string;
+  score: number;
+  feedback?: string | null;
+  reportCount?: number;
+  studentUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, veTitle, score, feedback, reportCount = 0, studentUrl, branding } = data;
+
+  // Feedback is instructor free text: escape it, then keep their line breaks.
+  const feedbackHtml = feedback
+    ? `<div style="margin-top:20px;padding:16px;border-radius:0;background:#f9fafb;border:1px solid #e5e7eb;">
+        <p style="margin:0 0 6px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;color:#6b7280;">Instructor Feedback</p>
+        <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">${esc(feedback).replace(/\n/g, '<br>')}</p>
+       </div>`
+    : '';
+
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p style="color:#555;">Your instructor has reviewed your work on <b>${esc(veTitle)}</b>.</p>
+
+    <div style="margin:20px 0;padding:20px;border-radius:0;background:#f9fafb;border:1px solid #e5e7eb;text-align:center;">
+      <p style="font-size:32px;font-weight:900;margin:8px 0;color:#111827;">${score}<span style="font-size:16px;font-weight:600;color:#6b7280;">/100</span></p>
+    </div>
+
+    ${feedbackHtml}
+
+    ${reportCount > 0
+      ? `<p style="color:#555;margin-top:20px;">Your instructor also wrote ${reportCount === 1 ? 'a detailed report on your uploaded file' : `detailed reports on ${reportCount} of your uploaded files`}. Open the virtual experience on your dashboard to read ${reportCount === 1 ? 'it' : 'them'}.</p>`
+      : `<p style="color:#555;margin-top:20px;">Open the virtual experience on your dashboard to see the review at any time.</p>`}
+
+    ${cta('View Dashboard', studentUrl)}
+
+    <br><p><b>Best regards,</b></p>
+  `;
+
+  return shell(content, branding);
+}
+
 // -- Grace Period Warning ---
 export function gracePeriodWarningEmail(data: {
   name: string;

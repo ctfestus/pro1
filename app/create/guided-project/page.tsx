@@ -2928,8 +2928,24 @@ function VirtualExperienceCreatePageInner() {
                                                 </div>
                                               )}
                                               {req.type === 'upload' && (
-                                                <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: `${C.cta}0a`, color: C.muted }}>
-                                                  <LinkIcon className="w-3 h-3 flex-shrink-0" />Students will upload a file or paste a link
+                                                <div className="space-y-1.5">
+                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: `${C.cta}0a`, color: C.muted }}>
+                                                    <LinkIcon className="w-3 h-3 flex-shrink-0" />Students will upload a file or paste a link
+                                                  </div>
+                                                  {/* Read by the AI draft of the instructor report when the student uploads an Excel workbook. */}
+                                                  <div>
+                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Worksheets to review (optional, Excel uploads)</p>
+                                                    <textarea
+                                                      value={(req.reviewSheetNames ?? []).join('\n')}
+                                                      onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
+                                                      rows={3}
+                                                      spellCheck={false}
+                                                      placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
+                                                      className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
+                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}`, lineHeight: 1.6 }}
+                                                    />
+                                                    <p className="text-[11px] mt-1" style={{ color: C.muted }}>When you draft a report with AI, only these worksheets are read. Leave blank to read the first 5.</p>
+                                                  </div>
                                                 </div>
                                               )}
                                               {req.type === 'text' && (

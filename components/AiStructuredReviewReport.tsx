@@ -44,6 +44,9 @@ interface Props {
   locationLabel?: string;
   severityLabels?: Partial<Record<ReviewFindingSeverity, string>>;
   metricLabels?: Partial<Record<'strengths' | 'risks' | 'opportunities' | 'rubric', string>>;
+  // List each dimension's strengths and gaps under its summary. Off by default: the AI reviewers'
+  // reports show only their counts, in the metric row.
+  showCategoryDetails?: boolean;
 }
 
 const SEVERITY_COLORS: Record<ReviewFindingSeverity, string> = {
@@ -75,6 +78,7 @@ export default function AiStructuredReviewReport({
   locationLabel,
   severityLabels = {},
   metricLabels = {},
+  showCategoryDetails = false,
 }: Props) {
   const [filter, setFilter] = useState<'all' | ReviewFindingSeverity>('all');
   const [expanded, setExpanded] = useState<Set<number>>(() => new Set([0]));
@@ -206,7 +210,7 @@ export default function AiStructuredReviewReport({
         {categories.length > 0 && (
           <section className="rounded-[22px] p-4 sm:p-5" style={{ background: card, border: `1px solid ${border}` }}>
             <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Performance matrix</p><h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Quality by dimension</h3>
-            <div className="mt-4 space-y-4">{categories.map(category => <div key={category.name}><div className="flex items-center justify-between gap-3"><p className="truncate text-[12px] font-semibold" style={{ color: text }}>{category.name}</p><span className="text-[12px] font-bold tabular-nums" style={{ color: scoreColor(category.score) }}>{category.score}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full" style={{ background: inner }}><div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, category.score))}%`, background: scoreColor(category.score) }} /></div><p className="mt-2 text-[11px] leading-relaxed" style={{ color: muted }}>{category.summary}</p></div>)}</div>
+            <div className="mt-4 space-y-4">{categories.map(category => <div key={category.name}><div className="flex items-center justify-between gap-3"><p className="truncate text-[12px] font-semibold" style={{ color: text }}>{category.name}</p><span className="text-[12px] font-bold tabular-nums" style={{ color: scoreColor(category.score) }}>{category.score}</span></div><div className="mt-2 h-1.5 overflow-hidden rounded-full" style={{ background: inner }}><div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, category.score))}%`, background: scoreColor(category.score) }} /></div><p className="mt-2 text-[11px] leading-relaxed" style={{ color: muted }}>{category.summary}</p>{showCategoryDetails && (category.strengths.length > 0 || category.gaps.length > 0) && <div className="mt-2 grid gap-2 sm:grid-cols-2">{([['Strengths', category.strengths, '#22c55e'], ['Gaps', category.gaps, '#f59e0b']] as const).filter(([, items]) => items.length > 0).map(([heading, items, color]) => <div key={heading} className="rounded-xl p-3" style={{ background: inner }}><p className="text-[9px] font-bold uppercase tracking-[0.12em]" style={{ color }}>{heading}</p><ul className="mt-1.5 space-y-1">{items.map((item, i) => <li key={i} className="flex gap-1.5 text-[11px] leading-relaxed" style={{ color: text }}><span className="mt-[7px] h-1 w-1 shrink-0 rounded-full" style={{ background: color }} />{item}</li>)}</ul></div>)}</div>}</div>)}</div>
           </section>
         )}
       </div>
