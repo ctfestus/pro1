@@ -18,6 +18,11 @@ import {
 
 const DISMISSED_KEY = 'promo-dismissed';
 const SHOW_DELAY_MS = 1200;
+// A failed lookup (offline, server error) is retried with backoff -- 30s, 1m, 2m, 4m, 5m -- then
+// left until the date changes or the page reloads, so a dead connection is not polled forever.
+const RETRY_BASE_MS = 30_000;
+const RETRY_MAX_MS = 300_000;
+const MAX_FETCH_ATTEMPTS = 6;
 
 // Newest first. `at` is epoch seconds; null for an entry saved before closings were timed, which
 // the server treats as closed for a Never promo and as expired for one that reshows.
@@ -174,18 +179,32 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
 
   useEffect(() => {
     let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    (async () => {
-      // The token only sharpens targeting (cohort, Student Mode via the page's fetch bridge);
-      // signed out, the route returns everyone-audience promos.
-      const { data: { session } } = await supabase.auth.getSession();
-      const closed = readDismissed().map(c => (c.at === null ? c.id : `${c.id}:${c.at}`)).join(',');
-      const params = new URLSearchParams({ placement, closed, today });
-      const res = await fetch(`/api/promotions?${params}`, {
-        headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
-      });
-      if (!res.ok) return;
-      const { promotion } = await res.json() as { promotion: ActivePromotion | null };
+    let showTimer: ReturnType<typeof setTimeout> | undefined;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const load = async (attempt: number) => {
+      let promotion: ActivePromotion | null;
+      try {
+        // The token only sharpens targeting (cohort, Student Mode via the page's fetch bridge);
+        // signed out, the route returns everyone-audience promos.
+        const { data: { session } } = await supabase.auth.getSession();
+        const closed = readDismissed().map(c => (c.at === null ? c.id : `${c.id}:${c.at}`)).join(',');
+        const params = new URLSearchParams({ placement, closed, today });
+        const res = await fetch(`/api/promotions?${params}`, {
+          headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
+        });
+        if (!res.ok) {
+          // A 4xx will not fix itself; only a server error or rate limit is worth retrying.
+          if (res.status >= 500 || res.status === 429) throw new Error(`HTTP ${res.status}`);
+          return;
+        }
+        ({ promotion } = await res.json() as { promotion: ActivePromotion | null });
+      } catch {
+        if (!cancelled && attempt + 1 < MAX_FETCH_ATTEMPTS) {
+          retryTimer = setTimeout(() => { void load(attempt + 1); }, Math.min(RETRY_BASE_MS * 2 ** attempt, RETRY_MAX_MS));
+        }
+        return;
+      }
       if (cancelled) return;
       // The emptiness check is defensive: the server applies the same row rules with this same
       // date, so it should never drop a promo the server returned.
@@ -200,16 +219,23 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
       if (shownId.current === next.id) { setPromo(next); return; }
       setVisible(false);
       setPromo(next);
-      timer = setTimeout(() => {
+      showTimer = setTimeout(() => {
         if (cancelled) return;
         shownId.current = next.id;
         setVisible(true);
       }, SHOW_DELAY_MS);
-    })().catch(() => { /* a promo is optional; never surface a failure */ });
-    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+    };
+
+    void load(0);
+    return () => { cancelled = true; clearTimeout(showTimer); clearTimeout(retryTimer); };
   }, [placement, today]);
 
   if (!promo) return null;
+
+  // An events promo whose rows have all passed under the current date is hidden at once, without
+  // waiting for the refresh -- which may be slow, or fail -- so a heading with no events never
+  // sits on screen.
+  const expired = promo.kind === 'events' && upcomingEventItems(promo.event_items, MAX_EVENT_ITEMS, today).length === 0;
 
   const close = () => {
     rememberDismissed(promo.id);
@@ -219,7 +245,7 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
 
   return (
     <AnimatePresence>
-      {visible && (
+      {visible && !expired && (
         <motion.aside
           role="complementary"
           aria-label={promo.title}
