@@ -5,7 +5,7 @@
 // long enough ago, when the promo is set to show again). Closing is remembered per browser, so it
 // also works for signed-out visitors on the landing pages.
 
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -200,6 +200,22 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
   // instead of hiding it and sliding it in again.
   const shownId = useRef<string | null>(null);
 
+  // A scroll container clips everything outside its box, which cuts the card shadow into a hard
+  // rectangle. So the card only becomes scrollable when its cards really do not fit (many events
+  // on a short phone screen); otherwise the shadow renders in full, as on the standard card.
+  const [scrollable, setScrollable] = useState(false);
+  const resizeObserver = useRef<ResizeObserver | null>(null);
+  const asideRef = useCallback((el: HTMLElement | null) => {
+    resizeObserver.current?.disconnect();
+    resizeObserver.current = null;
+    if (!el) return;
+    const check = () => setScrollable(el.scrollHeight > el.clientHeight + 1);
+    const observer = new ResizeObserver(check);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    resizeObserver.current = observer;
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     let showTimer: ReturnType<typeof setTimeout> | undefined;
@@ -273,21 +289,25 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
     <AnimatePresence>
       {visible && !expired && (
         <motion.aside
+          ref={asideRef}
           role="complementary"
           aria-label={promo.title}
           initial={{ opacity: 0, y: 24 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: 24 }}
           transition={{ type: 'spring', stiffness: 320, damping: 30 }}
-          className="fixed left-4 right-4 sm:left-auto sm:right-5 sm:w-[404px]"
+          className="fixed left-4 right-4 sm:left-auto sm:right-5 sm:w-[380px]"
           style={{
             bottom: 16 + bottomOffset, zIndex: 45,
-            // Six event cards can outgrow a short phone screen; scroll inside instead. The cap leaves
-            // room for a page's top bar (about 64px), so the close button never slides under it.
-            maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`, overflowY: 'auto',
-            // Room for the card shadows inside the scroll area (which would otherwise clip them),
-            // cancelled by the negative margin so the cards sit where they did.
-            padding: 12, margin: -12,
+            // Six event cards can outgrow a short phone screen; they then scroll inside. The cap
+            // leaves room for a page's top bar (about 64px), so the close button never slides
+            // under it.
+            maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`,
+            overflowY: scrollable ? 'auto' : 'visible',
+            // While scrolling, side room for the shadows, cancelled by the negative margin so the
+            // cards keep their width and position (only the sides: padding above or below would
+            // change the height being measured).
+            ...(scrollable ? { paddingLeft: 16, paddingRight: 16, marginLeft: -16, marginRight: -16 } : {}),
           }}
         >
           <PromoContent promo={promo} C={C} today={judgeDate} onClose={close} onAction={() => rememberDismissed(promo.id)} />
