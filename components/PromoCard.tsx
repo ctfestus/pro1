@@ -11,6 +11,7 @@ import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { useTenant } from '@/components/TenantProvider';
+import { contrastRatio } from '@/lib/ve-accent';
 import {
   safePromoUrl, isExternalUrl, upcomingEventItems, eventDateParts, eventFormatLabel, localIsoDate,
   MAX_PROMO_EXCLUDES, MAX_EVENT_ITEMS, type ActivePromotion, type PromoPlacement,
@@ -89,6 +90,12 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
 }) {
   const ctaUrl = safePromoUrl(promo.cta_url);
   const ctaLabel = promo.cta_label?.trim() || 'Learn more';
+  // The date tile is the tenant's brand color in both modes (not the fixed dark-mode blue the
+  // theme uses for buttons). Its text is white unless the brand color is too pale for that.
+  const { primaryColor } = useTenant();
+  const tileColor = primaryColor || C.cta;
+  const tileText = /^#[0-9a-f]{6}$/i.test(tileColor) && contrastRatio('#ffffff', tileColor) < contrastRatio('#111827', tileColor)
+    ? '#111827' : '#ffffff';
 
   const closeButton = onClose && (
     <button type="button" onClick={onClose} aria-label="Close"
@@ -111,7 +118,7 @@ export function PromoContent({ promo, C, today, preview, onClose, onAction }: {
           const body = (
             <div className="flex gap-3 items-center">
               <div className="flex flex-col items-center justify-center flex-shrink-0"
-                style={{ width: 96, height: 96, borderRadius: 10, background: C.cta, color: C.ctaText }}>
+                style={{ width: 96, height: 96, borderRadius: 10, background: tileColor, color: tileText }}>
                 <span className="text-[12px] font-medium" style={{ letterSpacing: '0.18em', paddingLeft: '0.18em' }}>{month}</span>
                 <span className="text-[38px] font-normal leading-none mt-1">{day}</span>
               </div>
