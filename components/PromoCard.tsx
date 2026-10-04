@@ -5,7 +5,7 @@
 // long enough ago, when the promo is set to show again). Closing is remembered per browser, so it
 // also works for signed-out visitors on the landing pages.
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -13,7 +13,7 @@ import { LIGHT_C, useC } from '@/lib/theme';
 import { useTenant } from '@/components/TenantProvider';
 import {
   safePromoUrl, isExternalUrl, upcomingEventItems, eventDateParts, eventFormatLabel, localIsoDate,
-  MAX_PROMO_EXCLUDES, type ActivePromotion, type PromoPlacement,
+  MAX_PROMO_EXCLUDES, MAX_EVENT_ITEMS, type ActivePromotion, type PromoPlacement,
 } from '@/lib/promotions';
 
 const DISMISSED_KEY = 'promo-dismissed';
@@ -55,9 +55,11 @@ function linkProps(url: string) {
  * The card itself, without positioning. Shared by the live card and the editor preview, so the
  * preview is always exactly what visitors see. onClose omitted = no close button (preview).
  */
-export function PromoContent({ promo, C, onClose, onAction }: {
+export function PromoContent({ promo, C, today, onClose, onAction }: {
   promo: ActivePromotion;
   C: typeof LIGHT_C;
+  /** The viewer date ("YYYY-MM-DD") to judge past events by; defaults to now. */
+  today?: string;
   onClose?: () => void;
   /** Called when a link in the card is followed. */
   onAction?: () => void;
@@ -74,7 +76,7 @@ export function PromoContent({ promo, C, onClose, onAction }: {
   );
 
   if (promo.kind === 'events') {
-    const items = upcomingEventItems(promo.event_items);
+    const items = upcomingEventItems(promo.event_items, MAX_EVENT_ITEMS, today);
     return (
       <div className="relative" style={{ background: C.card, color: C.text, borderRadius: 16, padding: 12, boxShadow: '0 12px 40px rgba(0,0,0,0.18)' }}>
         <div className="pr-8" style={{ padding: '2px 2px 0' }}>
@@ -157,6 +159,18 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
   const C = light ? { ...LIGHT_C, cta: primaryColor || LIGHT_C.cta } : themed;
   const [promo, setPromo] = useState<ActivePromotion | null>(null);
   const [visible, setVisible] = useState(false);
+  // The viewer's date, captured once and used for both the request and the row check, so the two
+  // can never straddle midnight. Re-read every minute: when it changes (a page left open
+  // overnight, or a device waking from sleep) the promo is fetched again, so yesterday's events
+  // drop off and an expired events promo stops blocking the next one.
+  const [today, setToday] = useState(() => localIsoDate());
+  useEffect(() => {
+    const tick = setInterval(() => setToday(localIsoDate()), 60_000);
+    return () => clearInterval(tick);
+  }, []);
+  // The promo currently on screen, so a refresh that returns the same one updates it in place
+  // instead of hiding it and sliding it in again.
+  const shownId = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -166,27 +180,40 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
       // signed out, the route returns everyone-audience promos.
       const { data: { session } } = await supabase.auth.getSession();
       const closed = readDismissed().map(c => (c.at === null ? c.id : `${c.id}:${c.at}`)).join(',');
-      // The viewer's own date, so the server judges past events on the same day the card does.
-      const params = new URLSearchParams({ placement, closed, today: localIsoDate() });
+      const params = new URLSearchParams({ placement, closed, today });
       const res = await fetch(`/api/promotions?${params}`, {
         headers: session ? { Authorization: `Bearer ${session.access_token}` } : undefined,
       });
       if (!res.ok) return;
       const { promotion } = await res.json() as { promotion: ActivePromotion | null };
-      if (cancelled || !promotion) return;
-      // Defensive only: the server applies the same row rules with the same date, so this should
-      // never drop a promo it returned.
-      if (promotion.kind === 'events' && upcomingEventItems(promotion.event_items).length === 0) return;
-      setPromo(promotion);
-      timer = setTimeout(() => { if (!cancelled) setVisible(true); }, SHOW_DELAY_MS);
+      if (cancelled) return;
+      // The emptiness check is defensive: the server applies the same row rules with this same
+      // date, so it should never drop a promo the server returned.
+      const next = promotion && !(promotion.kind === 'events'
+        && upcomingEventItems(promotion.event_items, MAX_EVENT_ITEMS, today).length === 0) ? promotion : null;
+      if (!next) {
+        shownId.current = null;
+        setVisible(false);
+        setPromo(null);
+        return;
+      }
+      if (shownId.current === next.id) { setPromo(next); return; }
+      setVisible(false);
+      setPromo(next);
+      timer = setTimeout(() => {
+        if (cancelled) return;
+        shownId.current = next.id;
+        setVisible(true);
+      }, SHOW_DELAY_MS);
     })().catch(() => { /* a promo is optional; never surface a failure */ });
     return () => { cancelled = true; if (timer) clearTimeout(timer); };
-  }, [placement]);
+  }, [placement, today]);
 
   if (!promo) return null;
 
   const close = () => {
     rememberDismissed(promo.id);
+    shownId.current = null;
     setVisible(false);
   };
 
@@ -209,7 +236,7 @@ export function PromoCard({ placement, bottomOffset = 0, light = false }: {
             maxHeight: `calc(100dvh - ${96 + bottomOffset}px)`, overflowY: 'auto', borderRadius: 16,
           }}
         >
-          <PromoContent promo={promo} C={C} onClose={close} onAction={() => rememberDismissed(promo.id)} />
+          <PromoContent promo={promo} C={C} today={today} onClose={close} onAction={() => rememberDismissed(promo.id)} />
         </motion.aside>
       )}
     </AnimatePresence>
