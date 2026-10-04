@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { upcomingEventItems, eventDateParts, parseViewerDate, promoStatus } from '@/lib/promotions';
+import { upcomingEventItems, eventDateParts, parseViewerDate, promoStatus, eventsPromoCanShow } from '@/lib/promotions';
 
 describe('upcomingEventItems', () => {
   beforeEach(() => {
@@ -50,6 +50,25 @@ describe('upcomingEventItems', () => {
     expect(promoStatus({ ...base, event_items: [{ date: '2026-10-09', title: 'Past' }] })).toBe('Ended');
     expect(promoStatus({ ...base, event_items: [{ date: '2026-10-10', title: 'Today' }] })).toBe('Live');
     expect(promoStatus({ ...base, kind: 'standard', event_items: [] })).toBe('Live');
+  });
+
+  // Today is 10 Oct (fake clock). A promo starting 20 Oct.
+  const scheduled = { is_active: true, starts_at: new Date(2026, 9, 20, 9, 0).toISOString(), ends_at: null, kind: 'events' };
+
+  it('reports a scheduled events promo whose events all fall before its start as Ended, not Scheduled', () => {
+    expect(promoStatus({ ...scheduled, event_items: [{ date: '2026-10-15', title: 'Before start' }] })).toBe('Ended');
+    expect(promoStatus({ ...scheduled, event_items: [{ date: '2026-10-20', title: 'On start day' }] })).toBe('Scheduled');
+    expect(promoStatus({ ...scheduled, is_active: false, event_items: [{ date: '2026-10-15', title: 'x' }] })).toBe('Paused');
+  });
+
+  it('eventsPromoCanShow needs an event on or after both today and the start date', () => {
+    expect(eventsPromoCanShow([{ date: '2026-10-15', title: 'x' }], scheduled.starts_at)).toBe(false);
+    expect(eventsPromoCanShow([{ date: '2026-10-15', title: 'x' }, { date: '2026-10-21', title: 'y' }], scheduled.starts_at)).toBe(true);
+    // Start date already passed: today is the bar.
+    expect(eventsPromoCanShow([{ date: '2026-10-09', title: 'x' }], new Date(2026, 9, 1))).toBe(false);
+    expect(eventsPromoCanShow([{ date: '2026-10-10', title: 'x' }], new Date(2026, 9, 1))).toBe(true);
+    // Unreadable start date: today is the bar.
+    expect(eventsPromoCanShow([{ date: '2026-10-10', title: 'x' }], 'not a date')).toBe(true);
   });
 });
 

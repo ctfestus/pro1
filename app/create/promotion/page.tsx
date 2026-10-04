@@ -11,7 +11,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { sanitizePlainText } from '@/lib/sanitize';
 import {
-  PROMO_PLACEMENTS, PROMO_RESHOW_OPTIONS, EVENT_FORMATS, MAX_EVENT_ITEMS, safePromoUrl, upcomingEventItems,
+  PROMO_PLACEMENTS, PROMO_RESHOW_OPTIONS, EVENT_FORMATS, MAX_EVENT_ITEMS, safePromoUrl, upcomingEventItems, eventsPromoCanShow,
   type PromoPlacement, type PromoKind, type PromoEventItem,
 } from '@/lib/promotions';
 import { PromoContent } from '@/components/PromoCard';
@@ -134,7 +134,6 @@ export default function CreatePromotionPage() {
       if (cleanItems.length === 0) { setError('Add at least one event.'); return; }
       if (cleanItems.some(item => !item.date || !item.title)) { setError('Every event needs a date and a title.'); return; }
       if (cleanItems.some(item => item.url && !safePromoUrl(item.url))) { setError('Event links must start with https:// or with / for a page on this site.'); return; }
-      if (upcomingEventItems(cleanItems, MAX_EVENT_ITEMS).length === 0) { setError('All of these event dates have passed, so the promo would never show.'); return; }
     }
     if (placements.length === 0) { setError('Pick at least one place to show this promotion.'); return; }
     if (kind === 'standard' && imageUrl.trim() && !safePromoUrl(imageUrl)) { setError('Image must be an https:// link or an image on this site.'); return; }
@@ -145,6 +144,13 @@ export default function CreatePromotionPage() {
     const endDate   = endsAt ? new Date(endsAt) : null;
     if (Number.isNaN(startDate.getTime())) { setError('Pick a valid start date.'); return; }
     if (endDate && endDate <= startDate) { setError('End date must be after the start date.'); return; }
+    // A live events promo must be able to appear: at least one event on or after today and the
+    // start date. A paused one may be saved regardless, so an old promo can still be edited or
+    // switched off.
+    if (kind === 'events' && isActive && !eventsPromoCanShow(cleanItems, startDate)) {
+      setError('Every event is before the start date or has already passed, so this promo would never show. Change a date, or turn Live off to save it paused.');
+      return;
+    }
 
     setLoading(true);
     try {
@@ -223,9 +229,11 @@ export default function CreatePromotionPage() {
                 cta_label: ctaLabel, cta_url: ctaUrl, event_items: eventItems,
               }}/>
             </div>
-            {kind === 'events' && upcomingEventItems(eventItems, MAX_EVENT_ITEMS).length === 0 && (
+            {kind === 'events' && (upcomingEventItems(eventItems, MAX_EVENT_ITEMS).length === 0 ? (
               <p style={{ margin: '8px 0 0', fontSize: 12, color: C.faint }}>Events appear here once they have a date (today or later) and a title.</p>
-            )}
+            ) : !eventsPromoCanShow(eventItems, startsAt) && (
+              <p style={{ margin: '8px 0 0', fontSize: 12, color: C.errorText }}>Every event is before the start date, so visitors would never see this promo.</p>
+            ))}
           </div>
 
           <section style={{ background: C.card, borderRadius: 18, border: isDark ? 'none' : `1px solid ${C.cardBorder}`, boxShadow: C.cardShadow, overflow: 'hidden' }}>

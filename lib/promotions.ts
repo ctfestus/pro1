@@ -168,16 +168,30 @@ export function isPromoPlacement(value: string | null): value is PromoPlacement 
   return value === 'landing' || value === 'student' || value === 'course';
 }
 
+/**
+ * Whether an events promo can ever appear: it needs a row dated on or after the first day it is
+ * eligible -- today, or its start date if that is later. A promo starting Oct 10 whose only event
+ * is Oct 5 can never show, even though Oct 5 has not passed yet. A start date that cannot be
+ * read counts as today.
+ */
+export function eventsPromoCanShow(items: unknown, startsAt: string | Date): boolean {
+  const today = localIsoDate();
+  const start = new Date(startsAt);
+  const startDay = Number.isNaN(start.getTime()) ? today : localIsoDate(start);
+  return upcomingEventItems(items, MAX_EVENT_ITEMS, startDay > today ? startDay : today).length > 0;
+}
+
 /** Dashboard list label for a promotions row. */
 export function promoStatus(row: {
   is_active: boolean; starts_at: string; ends_at: string | null; kind?: string | null; event_items?: unknown;
 }): 'Paused' | 'Scheduled' | 'Ended' | 'Live' {
   const now = Date.now();
   if (!row.is_active) return 'Paused';
+  // Checked before Scheduled: an events promo whose dates all fall before it can start, or have
+  // all passed, will never be shown, whatever its start and end dates say.
+  if (row.kind === 'events' && !eventsPromoCanShow(row.event_items, row.starts_at)) return 'Ended';
   if (new Date(row.starts_at).getTime() > now) return 'Scheduled';
   if (row.ends_at && new Date(row.ends_at).getTime() <= now) return 'Ended';
-  // An events promo with every date passed is never shown again, whatever its end date says.
-  if (row.kind === 'events' && upcomingEventItems(row.event_items).length === 0) return 'Ended';
   return 'Live';
 }
 
