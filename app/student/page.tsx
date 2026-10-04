@@ -34,6 +34,7 @@ import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PromoCard } from '@/components/PromoCard';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import { rememberPurchaseIntent, takePurchaseIntent, purchaseIntentHref } from '@/lib/pending-purchase';
+import { hasPendingVeReview, rememberVeReviewTarget } from '@/lib/pending-ve-review';
 import {
   clearStudentMode,
   getStudentMode,
@@ -147,9 +148,12 @@ export default function StudentDashboard() {
         // on Learning Paths so students see their guided journey before the catalog.
         const saved = sessionStorage.getItem('student-section') as SectionId | null;
         const validSaved = saved && NAV_ITEMS.some(n => n.id === saved) ? saved : null;
-        const target: SectionId = validSaved && MY_LEARNING_SECTIONS.includes(validSaved)
-          ? 'learning_paths'
-          : validSaved ?? 'overview';
+        // A review link that survived signing in opens Virtual Experiences, where the review shows.
+        const target: SectionId = hasPendingVeReview(window.location.search)
+          ? 'virtual_experiences'
+          : validSaved && MY_LEARNING_SECTIONS.includes(validSaved)
+            ? 'learning_paths'
+            : validSaved ?? 'overview';
         setActiveSection(target);
         window.location.hash = target;
       }
@@ -243,7 +247,7 @@ export default function StudentDashboard() {
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { rememberPurchaseIntent(window.location.search); router.replace('/auth'); return; }
+      if (!session?.user) { rememberPurchaseIntent(window.location.search); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
 
       const [{ data: { user: authUser } }, { data: studentData }] = await Promise.all([
         supabase.auth.getUser(),
@@ -254,8 +258,8 @@ export default function StudentDashboard() {
           .single(),
       ]);
 
-      if (!authUser) { rememberPurchaseIntent(window.location.search); router.replace('/auth'); return; }
-      if (!studentData?.onboarding_done) { rememberPurchaseIntent(window.location.search); router.replace('/onboarding'); return; }
+      if (!authUser) { rememberPurchaseIntent(window.location.search); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
+      if (!studentData?.onboarding_done) { rememberPurchaseIntent(window.location.search); rememberVeReviewTarget(window.location.search); router.replace('/onboarding'); return; }
 
       // They asked to buy something before signing in. Put them back where they were going.
       // Single use, and an explicit target in the URL always wins over a remembered one.

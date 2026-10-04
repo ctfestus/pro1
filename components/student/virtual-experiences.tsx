@@ -15,6 +15,8 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard } from '@/components/student/shared';
 import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
+import VeInstructorReview from '@/components/VeInstructorReview';
+import { takeVeReviewTarget } from '@/lib/pending-ve-review';
 import {
   Briefcase, Check, CheckCircle, ChevronLeft, ChevronRight, FileText, Play, RefreshCw, Star, X, Zap,
 } from 'lucide-react';
@@ -155,8 +157,10 @@ function VirtualExperienceCard({ form, attempt, deadline, C, onDetails }: {
 }
 
 // --- Virtual Experience Detail Pane ---
-function VirtualExperienceDetailPane({ form, attempt, C, onClose }: {
+function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = false }: {
   form: any; attempt: any; C: typeof LIGHT_C; onClose: () => void;
+  // Opened from the review email: scroll to the instructor's review.
+  focusReview?: boolean;
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -263,11 +267,12 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose }: {
                 style={{ background: `${color}12`, color }}>
                 <CheckCircle className="w-4 h-4 flex-shrink-0"/>
                 <span className="text-sm font-semibold">Project completed</span>
-                {attempt?.review?.score !== undefined && (
-                  <span className="ml-auto text-sm font-bold">{attempt.review.score}/100</span>
-                )}
               </div>
             )}
+
+            {/* The instructor's review, near the top: it is what a reviewed student came here for. */}
+            <VeInstructorReview review={attempt?.review} modules={modules} progress={attempt?.progress}
+              accentColor={color} isDark={isDark} colors={{ text: C.text, muted: C.muted, faint: C.faint }} focus={focusReview} />
 
             {/* Tools row */}
             {(cfg.tools || []).length > 0 && (
@@ -334,15 +339,6 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose }: {
               </div>
             )}
 
-            {/* Instructor feedback */}
-            {attempt?.review?.feedback && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Instructor Feedback</p>
-                <div className="text-sm leading-relaxed px-4 py-3 rounded-xl" style={{ background: `${color}0e`, color: C.text, border: `1px solid ${color}22` }}>
-                  {attempt.review.feedback}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -490,6 +486,7 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
   const [deadlines,   setDeadlines]   = useState<Record<string, Date | null>>({});
   const [loading,     setLoading]     = useState(true);
   const [detail,      setDetail]      = useState<any | null>(null);
+  const [focusReview, setFocusReview] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -558,6 +555,11 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
       const forms = [...cohortForms, ...extraForms];
       setItems(forms);
 
+      // Arrived from a review email: open that VE's details at the review. Single use.
+      const reviewTarget = takeVeReviewTarget();
+      const reviewForm = reviewTarget ? forms.find((f: any) => f.id === reviewTarget) : null;
+      if (reviewForm) { setDetail(reviewForm); setFocusReview(true); }
+
       if (forms.length) {
         const ids = forms.map((f: any) => f.id);
         const { data: assignments } = cohortId
@@ -616,7 +618,8 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
             form={detail}
             attempt={attempts[detail.id]}
             C={C}
-            onClose={() => setDetail(null)}
+            onClose={() => { setDetail(null); setFocusReview(false); }}
+            focusReview={focusReview}
           />
         )}
       </AnimatePresence>

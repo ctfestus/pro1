@@ -6,7 +6,7 @@ import {
   CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown,
   X, Loader2, Trophy, BookOpen, Lock, Download, Award, Star, Clock,
   Link as LinkIcon, Upload as UploadIcon, Paperclip, Send, Reply, AlertTriangle, Eye, Check,
-  SkipForward,
+  SkipForward, MessageSquare,
 } from 'lucide-react';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
@@ -28,7 +28,8 @@ import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
 import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRecord';
-import { safeVeUploadName, validateVeSubmissionFile, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
+import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
+import { repairVeSubmissionUrl, safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import {
   Person, AttachmentCard, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, firstNameOf,
@@ -277,6 +278,13 @@ export default function VirtualExperienceTaker({
   const [completed,    setCompleted]    = useState(false);
   const [reviewMode,   setReviewMode]   = useState(false);
   const [review,       setReview]       = useState<any>(null);
+  // The instructor's review pop-up. A review usually lands after the student has left, often before
+  // they have finished, so it is reachable from every mission, not only the completion screen.
+  const [reviewOpen,   setReviewOpen]   = useState(false);
+  // The review banner can be closed. Remembered per review (keyed by when it was submitted), so a
+  // new or updated review brings the banner back. Starts hidden until storage has been read.
+  const [bannerHidden, setBannerHidden] = useState(true);
+  const bannerKey = `ve-review-banner-closed:${formId}:${review?.reviewed_at ?? ''}`;
   const [certId,            setCertId]            = useState<string | null>(null);
   const [certInstitutionName, setCertInstitutionName] = useState('');
   const [certIssuedAt, setCertIssuedAt] = useState<string | null>(null);
@@ -395,6 +403,30 @@ export default function VirtualExperienceTaker({
       .catch(() => {});
   }, [formId, authHeader, userId, canPersistProgress]);
 
+  useEffect(() => {
+    if (!hasInstructorReview(review)) return;
+    let closed = false;
+    try { closed = !!localStorage.getItem(bannerKey); } catch { /* storage unavailable: show it */ }
+    setBannerHidden(closed);
+  }, [review, bannerKey]);
+
+  const closeBanner = () => {
+    setBannerHidden(true);
+    try { localStorage.setItem(bannerKey, '1'); } catch { /* hidden for this visit only */ }
+  };
+
+  // Show a new review once, unprompted. Keyed by when it was submitted, so an updated review shows
+  // again. On the completion screen it is already shown in full, so that counts as seen.
+  useEffect(() => {
+    if (previewMode || !hasInstructorReview(review)) return;
+    const key = `ve-review-seen:${formId}:${review.reviewed_at ?? ''}`;
+    try {
+      if (localStorage.getItem(key)) return;
+      localStorage.setItem(key, '1');
+    } catch { /* storage unavailable: the banner still shows */ }
+    if (!completed || reviewMode) setReviewOpen(true);
+  }, [review, completed, reviewMode, previewMode, formId]);
+
   // Save progress (debounced 800ms): skipped in review mode and preview mode
   const saveProgress = useCallback((prog: Progress, modId: string, lesId: string, completedAt?: string) => {
     if (!canPersistProgress) return;
@@ -457,7 +489,7 @@ export default function VirtualExperienceTaker({
     setUploadErrors(prev => ({ ...prev, [reqId]: '' }));
     setUploadingReq(reqId);
     try {
-      const path = `submissions/${formId}/${encodeURIComponent(studentEmail)}/${reqId}-${Date.now()}-${safeVeUploadName(file.name)}`;
+      const path = `${veSubmissionFolder(formId, userId)}/${reqId}-${Date.now()}-${safeVeUploadName(file.name)}`;
       const { error } = await supabase.storage.from('form-assets').upload(path, file, { upsert: true });
       if (error) throw error;
       const { data: { publicUrl } } = supabase.storage.from('form-assets').getPublicUrl(path);
@@ -729,6 +761,15 @@ export default function VirtualExperienceTaker({
             ))}
           </div>
 
+          {/* The instructor's review: score, feedback and a report on each uploaded file. */}
+          {hasInstructorReview(review) && (
+            <div className="rounded-2xl px-5 py-5"
+              style={{ background: isDark ? '#1c1c1c' : '#fff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.06)' : '0 10px 28px rgba(15,23,42,0.06)' }}>
+              <VeInstructorReview review={review} modules={modules} progress={progress}
+                accentColor={accentColor} isDark={isDark} colors={{ text, muted, faint: muted }} />
+            </div>
+          )}
+
           {/* Skills demonstrated */}
           {(config.learnOutcomes || []).length > 0 && (
             <div className="rounded-2xl overflow-hidden"
@@ -749,29 +790,6 @@ export default function VirtualExperienceTaker({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Instructor feedback */}
-          {review && (
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: isDark ? '#1c1c1c' : '#fff', border: `1px solid ${accentColor}30` }}>
-              <div className="px-5 py-4 border-b flex items-center justify-between"
-                style={{ borderColor: `${accentColor}20`, background: `${accentColor}08` }}>
-                <div className="flex items-center gap-2">
-                  <Award className="w-4 h-4" style={{ color: accentColor }} />
-                  <p className="text-[13px] font-bold" style={{ color: accentColor }}>Instructor Feedback</p>
-                </div>
-                {review.score !== undefined && (
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-black" style={{ color: accentColor }}>{review.score}</span>
-                    <span className="text-[12px]" style={{ color: muted }}>/100</span>
-                  </div>
-                )}
-              </div>
-              {review.feedback && (
-                <p className="px-5 py-4 text-[14px] leading-relaxed" style={{ color: isDark ? '#ccc' : '#444' }}>{review.feedback}</p>
-              )}
             </div>
           )}
 
@@ -1068,6 +1086,42 @@ export default function VirtualExperienceTaker({
             style={{ background: `${accentColor}18`, color: accentColor, borderBottom: `1px solid ${accentColor}30` }}>
             <Eye className="w-3.5 h-3.5 flex-shrink-0" />
             <span>Preview. This is the student view. Nothing is saved, every mission is open, and you can skip any step.</span>
+          </div>
+        )}
+
+        {/* The instructor's review, reachable from any mission whether or not the VE is finished. */}
+        {!previewMode && hasInstructorReview(review) && !bannerHidden && (
+          <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
+            style={{ background: `${accentColor}12`, borderBottom: `1px solid ${accentColor}25` }}>
+            <MessageSquare className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
+            <span className="flex-1 min-w-0 text-[13px] font-medium truncate" style={{ color: text }}>
+              Your instructor reviewed your work{review.score !== undefined ? ` - ${review.score}/100` : ''}
+            </span>
+            <button onClick={() => setReviewOpen(true)}
+              className="flex-shrink-0 text-[13px] font-semibold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-85"
+              style={{ background: accentColor }}>
+              View review
+            </button>
+            <button onClick={closeBanner} aria-label="Close review banner" title="Close"
+              className="flex-shrink-0 p-1.5 -mr-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+        {reviewOpen && hasInstructorReview(review) && (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/50 p-0 sm:p-4"
+            onClick={() => setReviewOpen(false)} role="dialog" aria-modal="true" aria-label="Your instructor's review">
+            <div className="w-full sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-t-2xl sm:rounded-2xl px-5 pb-5"
+              style={{ background: isDark ? '#1c1c1c' : '#fff' }} onClick={e => e.stopPropagation()}>
+              {/* Pinned, so the way out is always visible however far the review is scrolled. */}
+              <div className="sticky top-0 z-10 flex justify-end pt-3 pb-1 -mr-2" style={{ background: isDark ? '#1c1c1c' : '#fff' }}>
+                <button onClick={() => setReviewOpen(false)} aria-label="Close" className="p-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <VeInstructorReview review={review} modules={modules} progress={progress}
+                accentColor={accentColor} isDark={isDark} colors={{ text, muted, faint: muted }} focus scrollOnFocus={false} />
+            </div>
           </div>
         )}
 
@@ -1811,7 +1865,7 @@ export default function VirtualExperienceTaker({
                                   : (
                                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                       {fileUrl && (
-                                        <AttachmentCard isDark={isDark} href={fileUrl}
+                                        <AttachmentCard isDark={isDark} href={repairVeSubmissionUrl(fileUrl)}
                                           name={(() => { try { return decodeURIComponent(fileUrl.split('/').pop()?.split('?')[0] || ''); } catch { return ''; } })() || (isDeliverable ? 'Deliverable' : 'Attachment')} />
                                       )}
                                       {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: isDark ? 'rgba(255,255,255,0.06)' : '#f1f5f9', border: `1px solid ${isDark ? 'rgba(255,255,255,0.09)' : 'rgba(0,0,0,0.08)'}`, fontSize: 12.5, color: isDark ? '#ddd' : '#334155', textDecoration: 'none' }}><LinkIcon className="w-3 h-3" /> {linkUrl.slice(0, 40)}{linkUrl.length > 40 ? '...' : ''}</a>}
@@ -2342,7 +2396,7 @@ export default function VirtualExperienceTaker({
                                   {fileUrl ? 'File uploaded. Click to replace.' : 'Click to upload your file'}
                                 </p>
                                 {fileUrl && (
-                                  <a href={fileUrl} target="_blank" rel="noreferrer"
+                                  <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer"
                                     onClick={e => e.stopPropagation()}
                                     className="text-[11px] underline" style={{ color: accentColor }}>
                                     View uploaded file

@@ -107,7 +107,10 @@ export function normalizeCourseReviewSheetNames(questions: any): { questions: an
   return error ? { questions, error } : { questions: next };
 }
 
-/** The same treatment for a virtual experience's requirements. */
+/**
+ * The same treatment for a virtual experience's requirements. Upload steps carry the setting too:
+ * it picks the worksheets an AI draft of the instructor's file report reads.
+ */
 export function normalizeExperienceReviewSheetNames(modules: any): { modules: any; error?: string } {
   if (!Array.isArray(modules)) return { modules };
 
@@ -121,7 +124,7 @@ export function normalizeExperienceReviewSheetNames(modules: any): { modules: an
         return {
           ...lesson,
           requirements: lesson.requirements.map((requirement: any) => {
-            if (requirement?.type !== 'excel_review' || requirement.reviewSheetNames === undefined) return requirement;
+            if ((requirement?.type !== 'excel_review' && requirement?.type !== 'upload') || requirement.reviewSheetNames === undefined) return requirement;
             const normalized = normalizeReviewSheetNames(requirement.reviewSheetNames);
             if (normalized.error) { error ??= normalized.error; return requirement; }
             return { ...requirement, reviewSheetNames: normalized.names };

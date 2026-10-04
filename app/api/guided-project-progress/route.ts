@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { requireUser, requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { Resend } from 'resend';
-import { milestoneEmail, courseResultEmail, badgeEarnedEmail } from '@/lib/email-templates';
+import { milestoneEmail, courseResultEmail, badgeEarnedEmail, veReviewedEmail } from '@/lib/email-templates';
 import { hasNudgeBeenSent, recordNudge } from '@/lib/nudge-helpers';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { updateLearningPathProgress } from '@/lib/learning-path-progress';
@@ -11,6 +11,8 @@ import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
 import { mergeVeProgress, reversibleDeliverableRequirementIds, shouldCompleteVeAttempt } from '@/lib/ve-progress';
 import { hasPublishedStudentContentAccess } from '@/lib/student-content-access';
+import { veReviewHref } from '@/lib/pending-ve-review';
+import { clampScore, normalizeInstructorReports, reportableRequirementIds, sameReportContent, type InstructorFileReport } from '@/lib/ve-instructor-report';
 
 export const dynamic = 'force-dynamic';
 
@@ -265,14 +267,14 @@ export async function POST(req: NextRequest) {
 
     const { data: attempt } = await supabase
       .from('guided_project_attempts')
-      .select('ve_id')
+      .select('ve_id, student_id, review, progress')
       .eq('id', attemptId)
       .single();
 
     if (!attempt) return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
 
     const [{ data: ve }, { data: reviewProfile }] = await Promise.all([
-      supabase.from('virtual_experiences').select('user_id').eq('id', attempt.ve_id).single(),
+      supabase.from('virtual_experiences').select('user_id, title, modules').eq('id', attempt.ve_id).single(),
       supabase.from('students').select('role').eq('id', user.id).single(),
     ]);
     const isAdmin = reviewProfile?.role === 'admin';
@@ -280,20 +282,86 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
+    // Each report records the file it reviewed. A report for a file the student has since replaced
+    // is refused, unless it is the report already saved for that file: re-saving the review (to change
+    // the overall score, say) keeps an older report as it was, and both screens mark it as outdated.
+    const savedReports = ((attempt.review as any)?.reports ?? {}) as Record<string, { fileUrl?: string }>;
+    const reports = body.reports === undefined
+      ? savedReports
+      : normalizeInstructorReports(body.reports, reportableRequirementIds(ve.modules));
+    if (body.reports !== undefined) {
+      for (const [reqId, report] of Object.entries(reports) as [string, InstructorFileReport][]) {
+        const currentFileUrl = String((attempt.progress as any)?.[reqId]?.fileUrl || '');
+        if (!report.fileUrl) {
+          // Older clients do not send it; the report was written against what is uploaded now.
+          if (currentFileUrl) report.fileUrl = currentFileUrl;
+        } else if (report.fileUrl !== currentFileUrl && report.fileUrl !== savedReports[reqId]?.fileUrl) {
+          return NextResponse.json({
+            error: 'The student uploaded a new version of a file after you started its report. The review now shows the new file: redraft or update that report (or remove it), then submit again. Nothing else you entered was lost.',
+          }, { status: 409 });
+        }
+      }
+    }
+
+    const review = {
+      score:       clampScore(score),
+      feedback:    String(feedback || '').slice(0, 2000),
+      reviewed_at: new Date().toISOString(),
+      reviewed_by: user.id,
+      // Per-file reports. A request without the field (an older client) keeps the saved ones.
+      reports,
+    };
     const { error } = await supabase
       .from('guided_project_attempts')
-      .update({
-        review: {
-          score:       Number(score) || 0,
-          feedback:    String(feedback || '').slice(0, 2000),
-          reviewed_at: new Date().toISOString(),
-          reviewed_by: user.id,
-        },
-      })
+      .update({ review })
       .eq('id', attemptId);
 
     if (error) { console.error('[guided-project-progress]', error); return NextResponse.json({ error: 'Failed to save. Please try again.' }, { status: 500 }); }
-    return NextResponse.json({ success: true });
+
+    // Tell the student, the first time and then only when something they would want to know changed:
+    // the score, or a file report added or rewritten. Correcting the feedback wording stays quiet, so
+    // one review does not become a stream of identical emails. The review is already saved, so an
+    // email failure is logged, not returned.
+    const previous = attempt.review as { score?: number; reports?: Record<string, unknown> } | null;
+    const changedReportCount = Object.entries(review.reports)
+      .filter(([reqId, report]) => !sameReportContent(report, previous?.reports?.[reqId]))
+      .length;
+    const worthEmailing = !previous || previous.score !== review.score || changedReportCount > 0;
+    if (process.env.RESEND_API_KEY && attempt.student_id && worthEmailing) {
+      try {
+        const { data: student } = await supabase
+          .from('students').select('email, full_name').eq('id', attempt.student_id).single();
+        const email = student?.email?.trim();
+        if (email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          const t        = await getTenantSettings();
+          const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
+          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+          // Resend reports most failures in the result rather than by throwing.
+          const { error: sendError } = await resend.emails.send({
+            from:    FROM,
+            to:      email,
+            subject: `Your instructor reviewed your work: ${ve.title}`,
+            html:    veReviewedEmail({
+              name:       student?.full_name || 'there',
+              veTitle:    ve.title,
+              score:      review.score,
+              feedback:   review.feedback,
+              // Every report the student can read, not only the ones that changed: the email says how many exist.
+              reportCount: Object.keys(review.reports).length,
+              // Opens the student dashboard on this VE's details, scrolled to the review.
+              studentUrl: veReviewHref(t.appUrl, attempt.ve_id),
+              branding,
+            }),
+          });
+          if (sendError) console.error('[guided-project-progress] review email error:', sendError);
+        }
+      } catch (err) {
+        console.error('[guided-project-progress] review email error:', err);
+      }
+    }
+
+    // The stored review, after trimming and limits, so the dashboard shows what the student will see.
+    return NextResponse.json({ success: true, review });
   }
 
   // -- Issue certificate --

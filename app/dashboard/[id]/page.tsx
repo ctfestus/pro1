@@ -22,6 +22,9 @@ import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { ReviewReportView, LegacyReviewSummary, REVIEW_TYPES, REVIEW_LABELS } from '@/components/ReviewReportView';
 import { parseReviewNotes } from '@/lib/reviewRecord';
+import VeFileReportEditor from '@/components/dashboard/VeFileReportEditor';
+import { repairVeSubmissionUrl } from '@/lib/ve-upload';
+import { sameReportContent, type InstructorReportDraft } from '@/lib/ve-instructor-report';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 
 // -- Lazy charts ---
@@ -2121,7 +2124,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
   // whether a share counts depends on whether THAT student claimed it.
   const needsReview = modules.some((m: any) =>
     (m.lessons || []).some((l: any) =>
-      (l.requirements || []).some((r: any) => r.type === 'text' || r.type === 'upload')));
+      (l.requirements || []).some((r: any) => r.type === 'text' || r.type === 'upload' || (r.type === 'deliverable' && r.emailFrame))));
 
   const [attempts,    setAttempts]    = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -2129,37 +2132,159 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
   const [revScore,    setRevScore]    = useState('');
   const [revFeedback, setRevFeedback] = useState('');
   const [revSaving,   setRevSaving]   = useState(false);
+  const [revReports,  setRevReports]  = useState<Record<string, InstructorReportDraft>>({});
+  const [revError,    setRevError]    = useState('');
+  // Each opening of the panel is a session. An AI draft can finish after the panel was closed,
+  // switched to another student, or reopened for the same one; its result and its busy signal are
+  // dropped unless they belong to the session still open, so a stale draft never lands on newer work.
+  const revSessionRef = useRef(0);
+  const [revSession,  setRevSession]  = useState(0);
+  const [draftingReqs, setDraftingReqs] = useState<Set<string>>(() => new Set());
+  const endReviewSession = () => { revSessionRef.current += 1; };
+
+  const [revRefreshing, setRevRefreshing] = useState(false);
+
+  const fetchAttempts = useCallback(async (): Promise<any[] | null> => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch(`/api/guided-project-progress?formId=${form.id}`, {
+      headers: { Authorization: `Bearer ${session?.access_token}` },
+    });
+    if (!res.ok) return null;
+    const json = await res.json().catch(() => ({}));
+    return json.attempts || [];
+  }, [form.id]);
+
+  // The list is loaded once, but a student can upload a new file at any time. Reload this student's
+  // attempt so the panel shows the files they have now. keepEdits leaves the scores, feedback and
+  // reports being written alone: used after a "file replaced" refusal, so nothing typed is lost.
+  const refreshReviewing = async (attemptId: string, session: number, keepEdits: boolean) => {
+    // A failed reload keeps what the panel already shows rather than leaving it stuck loading.
+    const list = await fetchAttempts().catch(() => null);
+    if (revSessionRef.current !== session) return;
+    const fresh = list?.find(x => x.id === attemptId);
+    if (list) setAttempts(list);
+    if (fresh) {
+      setReviewing(fresh);
+      if (!keepEdits) {
+        setRevScore(fresh.review?.score ?? '');
+        setRevFeedback(fresh.review?.feedback ?? '');
+        setRevReports(fresh.review?.reports ?? {});
+      }
+    }
+    setRevRefreshing(false);
+  };
+
+  const openReview = (a: any) => {
+    revSessionRef.current += 1;
+    setRevSession(revSessionRef.current);
+    setRevSaving(false);
+    setDraftingReqs(new Set());
+    setReviewing(a);
+    setRevScore(a.review?.score ?? '');
+    setRevFeedback(a.review?.feedback ?? '');
+    setRevReports(a.review?.reports ?? {});
+    setRevError('');
+    setRevRefreshing(true);
+    void refreshReviewing(a.id, revSessionRef.current, false);
+  };
+
+  // After the server says a file was replaced: show the new file, keep what was typed.
+  const showLatestFiles = (session: number) => {
+    if (!reviewing || revSessionRef.current !== session) return;
+    setRevRefreshing(true);
+    void refreshReviewing(reviewing.id, session, true);
+  };
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`/api/guided-project-progress?formId=${form.id}`, {
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.ok) {
-        const json = await res.json();
-        setAttempts(json.attempts || []);
-      }
+      const list = await fetchAttempts();
+      if (list) setAttempts(list);
       setLoading(false);
     };
     load();
-  }, [form.id]);
+  }, [fetchAttempts]);
+
+  // Reports can take a while to write, so do not drop them on a stray click without asking.
+  const closeReview = () => {
+    // The save response owns this panel until it finishes. Closing it would let that response land
+    // on a later review session, or hide a failure and make the instructor think their work saved.
+    if (revSaving) return;
+    // The server finishes a running draft (and counts it) whether or not anyone is waiting for it.
+    if (draftingReqs.size > 0) {
+      if (!window.confirm('An AI draft is still being written. If you close now it will be lost, and it still counts toward your hourly draft limit. Close anyway?')) return;
+    } else {
+      // Key-order-insensitive: a reloaded review comes back from jsonb with its keys reordered.
+      const saved = reviewing?.review;
+      const dirty = String(revScore) !== String(saved?.score ?? '')
+        || revFeedback !== (saved?.feedback ?? '')
+        || !sameReportContent(revReports, saved?.reports ?? {});
+      if (dirty && !window.confirm('Discard your unsaved review changes?')) return;
+    }
+    endReviewSession();
+    setReviewing(null);
+  };
 
   const submitReview = async () => {
-    if (!reviewing) return;
+    if (!reviewing || revSaving) return;
+    // Submitting now would save the report as it was before the draft and then discard the draft.
+    if (draftingReqs.size > 0 || revRefreshing) return;
+    // Number('') is 0, so a blank box would be saved and emailed as 0/100.
+    if (String(revScore).trim() === '') {
+      setRevError('Enter an overall score (0 to 100).');
+      return;
+    }
+    const overall = Number(revScore);
+    if (!Number.isFinite(overall) || overall < 0 || overall > 100) {
+      setRevError('The overall score must be between 0 and 100.');
+      return;
+    }
+    // The server drops a report without a score; refuse here so nothing vanishes silently.
+    if (Object.values(revReports).some(r => r.score === null)) {
+      setRevError('Give every file report a score (0 to 100), or remove it.');
+      return;
+    }
+    const saveSession = revSessionRef.current;
+    const attemptId = reviewing.id;
     setRevSaving(true);
-    const { data: { session } } = await supabase.auth.getSession();
-    await fetch('/api/guided-project-progress', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ action: 'review', attemptId: reviewing.id, score: Number(revScore), feedback: revFeedback }),
-    });
-    setAttempts(prev => prev.map(a => a.id === reviewing.id ? { ...a, review: { score: Number(revScore), feedback: revFeedback } } : a));
-    setReviewing(null);
-    setRevScore('');
-    setRevFeedback('');
-    setRevSaving(false);
+    setRevError('');
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (revSessionRef.current !== saveSession) return;
+      const res = await fetch('/api/guided-project-progress', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ action: 'review', attemptId, score: Number(revScore), feedback: revFeedback, reports: revReports }),
+      });
+      // A route change or another review session may have replaced this panel while the request was
+      // in flight. The save still reached the server, but its result must not touch the newer panel.
+      if (revSessionRef.current !== saveSession) return;
+      // Keep the panel open on failure so the reports being written are not lost.
+      if (!res.ok) {
+        const json = await res.json().catch(() => ({}));
+        if (revSessionRef.current !== saveSession) return;
+        setRevError(json.error || 'Failed to save. Please try again.');
+        if (res.status === 409) showLatestFiles(saveSession);
+        return;
+      }
+      // Keep what the server stored (scores clamped, text trimmed to its limits), not the local copy,
+      // so reopening shows exactly what the student sees.
+      const json = await res.json().catch(() => ({}));
+      if (revSessionRef.current !== saveSession) return;
+      setAttempts(prev => prev.map(a => a.id === attemptId ? { ...a, review: json.review ?? { score: Number(revScore), feedback: revFeedback, reports: revReports } } : a));
+      setRevSaving(false);
+      endReviewSession();
+      setReviewing(null);
+      setRevScore('');
+      setRevFeedback('');
+      setRevReports({});
+    } catch {
+      if (revSessionRef.current === saveSession) {
+        setRevError('Network error. Please check your connection and try again.');
+      }
+    } finally {
+      if (revSessionRef.current === saveSession) setRevSaving(false);
+    }
   };
 
   if (loading) return <div className="flex justify-center py-20"><Loader2 className="w-6 h-6 animate-spin text-zinc-500" /></div>;
@@ -2280,7 +2405,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                     {needsReview && (
                       <td className="px-3 sm:px-6 py-3">
                         {isStarted ? (
-                          <button onClick={() => { setReviewing(a); setRevScore(a.review?.score ?? ''); setRevFeedback(a.review?.feedback ?? ''); }}
+                          <button onClick={() => openReview(a)}
                             className={`text-xs font-medium px-3 py-1.5 rounded-xl transition-all hover:opacity-80 ${isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
                             {a.review ? 'Edit Review' : 'Review'}
                           </button>
@@ -2307,7 +2432,8 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
         modules.forEach((m: any) => {
           (m.lessons || []).forEach((l: any) => {
             (l.requirements || []).forEach((r: any) => {
-              if (r.type === 'text' || r.type === 'upload' || r.type === 'linkedin_share') {
+              // Deliverables are listed too: the older email-style ones let students attach a file.
+              if (r.type === 'text' || r.type === 'upload' || r.type === 'deliverable' || r.type === 'linkedin_share') {
                 reviewableReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || 'Requirement', type: r.type, reqId: r.id });
               } else if (REVIEW_TYPES.includes(r.type)) {
                 aiReviewReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || REVIEW_LABELS[r.type] || 'AI Review', type: r.type, reqId: r.id });
@@ -2315,6 +2441,10 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
             });
           });
         });
+        // A deliverable only counts as a submission for this student if they attached something, or
+        // already has a report that may need removing.
+        const visibleReqs = reviewableReqs.filter(r => r.type !== 'deliverable'
+          || !!reviewing.progress?.[r.reqId]?.fileUrl || !!reviewing.progress?.[r.reqId]?.linkUrl || !!revReports[r.reqId]);
         return (
           <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
             <div className={`rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-[rgba(0,0,0,0.08)]'}`}>
@@ -2324,17 +2454,24 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                   <h3 className={`text-base font-semibold ${textPrim}`}>{reviewing.student_name || reviewing.student_email || 'Student'}</h3>
                   {reviewing.student_name && <p className={`text-xs mt-0.5 ${textMut}`}>{reviewing.student_email}</p>}
                 </div>
-                <button onClick={() => setReviewing(null)} className={textMut}><X className="w-4 h-4" /></button>
+                <button onClick={closeReview} disabled={revSaving}
+                  className={`${textMut} disabled:opacity-40 disabled:cursor-not-allowed`} aria-label="Close"><X className="w-4 h-4" /></button>
               </div>
 
               {/* Scrollable body */}
               <div className="flex-1 overflow-y-auto px-6 py-4 space-y-5">
+                {revRefreshing && (
+                  <p className={`flex items-center gap-2 text-xs ${textMut}`}><Loader2 className="w-3.5 h-3.5 animate-spin" /> Loading the latest submission</p>
+                )}
 
+                {/* Locked while the latest submission loads: the reload replaces the score, feedback and
+                    reports, so anything entered (or drafted) before it lands would be silently lost. */}
+                <fieldset disabled={revRefreshing || revSaving} className="min-w-0 space-y-5 disabled:opacity-60">
                 {/* Student submissions */}
-                {reviewableReqs.length > 0 && (
+                {visibleReqs.length > 0 && (
                   <div className="space-y-3">
                     <p className={`text-[11px] font-bold uppercase tracking-widest ${textMut}`}>Student Submissions</p>
-                    {reviewableReqs.map(req => {
+                    {visibleReqs.map(req => {
                       const entry = reviewing.progress?.[req.reqId];
                       const fileUrl = entry?.fileUrl;
                       const textResponse = entry?.notes;
@@ -2350,15 +2487,49 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                                   Open LinkedIn post
                                 </a>
                               : <p className={`text-xs italic ${textMut}`}>No post submitted</p>
-                          ) : req.type === 'upload' ? (
-                            fileUrl
-                              ? <a href={fileUrl} target="_blank" rel="noreferrer"
-                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                          ) : req.type === 'upload' || req.type === 'deliverable' ? (<>
+                            {entry?.linkUrl && (
+                              <div className="mb-2 space-y-1">
+                                <a href={entry.linkUrl} target="_blank" rel="noreferrer"
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg break-all"
                                   style={{ background: '#10b98115', color: '#10b981' }}>
-                                  View uploaded file
+                                  Open submitted link
                                 </a>
-                              : <p className={`text-xs italic ${textMut}`}>No file submitted</p>
-                          ) : (
+                                {!fileUrl && <p className={`text-xs ${textMut}`}>The student pasted a link instead of uploading a file. File reports need an uploaded file, so give your feedback in the overall review below.</p>}
+                              </div>
+                            )}
+                            {!fileUrl && revReports[req.reqId] && (
+                              <div className={`rounded-lg px-3 py-2 text-xs space-y-2 ${isDark ? 'bg-amber-500/10 text-amber-200' : 'bg-amber-50 text-amber-800'}`}>
+                                <p>A report was saved for a file this student has since removed. The student can still see it.</p>
+                                <button onClick={() => { if (window.confirm('Remove this report?')) setRevReports(prev => { const next = { ...prev }; delete next[req.reqId]; return next; }); }}
+                                  className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-current">
+                                  Remove report
+                                </button>
+                              </div>
+                            )}
+                            {fileUrl
+                              ? <>
+                                  <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer"
+                                    className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg"
+                                    style={{ background: '#10b98115', color: '#10b981' }}>
+                                    View uploaded file
+                                  </a>
+                                  <VeFileReportEditor key={`${revSession}:${req.reqId}`} attemptId={reviewing.id} reqId={req.reqId} fileUrl={fileUrl} title={req.label} isDark={isDark}
+                                    report={revReports[req.reqId] ?? null}
+                                    onChange={report => revSessionRef.current === revSession && setRevReports(prev => {
+                                      const next = { ...prev };
+                                      if (report) next[req.reqId] = report; else delete next[req.reqId];
+                                      return next;
+                                    })}
+                                    onDraftingChange={busy => revSessionRef.current === revSession && setDraftingReqs(prev => {
+                                      const next = new Set(prev);
+                                      if (busy) next.add(req.reqId); else next.delete(req.reqId);
+                                      return next;
+                                    })}
+                                    onFileReplaced={() => showLatestFiles(revSession)} />
+                                </>
+                              : !entry?.linkUrl && !revReports[req.reqId] && <p className={`text-xs italic ${textMut}`}>No file submitted</p>}
+                          </>) : (
                             textResponse
                               ? <p className={`text-sm leading-relaxed ${textPrim}`}>{textResponse}</p>
                               : <p className={`text-xs italic ${textMut}`}>No response submitted</p>
@@ -2403,15 +2574,18 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                     placeholder="Write your feedback for the student…"
                     className={`w-full px-3 py-2 rounded-xl border text-sm outline-none resize-none ${isDark ? 'bg-zinc-800 border-zinc-700 text-white' : 'bg-[#f8f8f5] border-[rgba(0,0,0,0.1)] text-[#111]'}`} />
                 </div>
+                </fieldset>
               </div>
 
               {/* Footer */}
+              {revError && <p role="alert" className="px-6 pt-3 text-xs text-red-500">{revError}</p>}
               <div className={`flex gap-2 px-6 py-4 border-t ${isDark ? 'border-zinc-800' : 'border-[rgba(0,0,0,0.07)]'}`}>
-                <button onClick={() => setReviewing(null)} className={`flex-1 py-2.5 rounded-xl text-sm border ${isDark ? 'border-zinc-700 text-zinc-400' : 'border-[rgba(0,0,0,0.1)] text-[#888]'}`}>Cancel</button>
-                <button onClick={submitReview} disabled={revSaving}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-80"
+                <button onClick={closeReview} disabled={revSaving}
+                  className={`flex-1 py-2.5 rounded-xl text-sm border disabled:opacity-40 disabled:cursor-not-allowed ${isDark ? 'border-zinc-700 text-zinc-400' : 'border-[rgba(0,0,0,0.1)] text-[#888]'}`}>Cancel</button>
+                <button onClick={submitReview} disabled={revSaving || draftingReqs.size > 0 || revRefreshing}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-80 disabled:opacity-60"
                   style={{ background: '#00b95c' }}>
-                  {revSaving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : 'Submit Review'}
+                  {revSaving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : draftingReqs.size > 0 ? 'Waiting for AI draft' : 'Submit Review'}
                 </button>
               </div>
             </div>

@@ -25,7 +25,7 @@ import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
 import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRecord';
-import { safeVeUploadName, validateVeSubmissionFile, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
+import { repairVeSubmissionUrl, safeVeUploadName, validateVeSubmissionFile, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import {
   Person, AttachmentCard, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, firstNameOf,
   workStamp, startTypingSound, anchorZone, quoteSnippet, colleaguesFor, hashStr,
@@ -1334,7 +1334,7 @@ export default function AssignmentExperiencePlayer({
                                         : (
                                           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
                                             {fileUrl && (
-                                              <AttachmentCard isDark={isDark} href={fileUrl}
+                                              <AttachmentCard isDark={isDark} href={repairVeSubmissionUrl(fileUrl)}
                                                 name={(() => { try { return decodeURIComponent(fileUrl.split('/').pop()?.split('?')[0] || ''); } catch { return ''; } })() || (isDeliverable ? 'Deliverable' : 'Attachment')} />
                                             )}
                                             {linkUrl && <a href={linkUrl} target="_blank" rel="noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '6px 14px', borderRadius: 20, background: subtle, border: `1px solid ${border}`, fontSize: 12.5, color: text, textDecoration: 'none' }}><LinkIcon className="w-3 h-3" /> {linkUrl.slice(0, 40)}{linkUrl.length > 40 ? '...' : ''}</a>}
@@ -1842,7 +1842,7 @@ export default function AssignmentExperiencePlayer({
                                 <p className="text-xs font-medium text-center" style={{ color: fileUrl ? accent : muted }}>
                                   {uploading ? 'Uploading...' : fileUrl ? (readOnly ? 'Uploaded' : 'Uploaded. Click to replace.') : readOnly ? 'No file uploaded' : 'Click to upload your file'}
                                 </p>
-                                {fileUrl && <a href={fileUrl} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[11px] underline" style={{ color: accent }}>View file</a>}
+                                {fileUrl && <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer" onClick={e => e.stopPropagation()} className="text-[11px] underline" style={{ color: accent }}>View file</a>}
                                 <input type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={readOnly} onChange={async e => { const f = e.target.files?.[0]; if (f) await handleFileUpload(req.id, f); e.target.value = ''; }}/>
                               </label>
                               {uploadErrors[req.id] && <p role="alert" className="text-[12px] flex items-center gap-1.5" style={{ color: '#ef4444' }}><AlertTriangle className="w-3.5 h-3.5" />{uploadErrors[req.id]}</p>}
