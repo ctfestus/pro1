@@ -11,6 +11,7 @@ import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
 import { mergeVeProgress, reversibleDeliverableRequirementIds, shouldCompleteVeAttempt } from '@/lib/ve-progress';
 import { hasPublishedStudentContentAccess } from '@/lib/student-content-access';
+import { veReviewHref } from '@/lib/pending-ve-review';
 import { clampScore, normalizeInstructorReports, reportableRequirementIds, sameReportContent, type InstructorFileReport } from '@/lib/ve-instructor-report';
 
 export const dynamic = 'force-dynamic';
@@ -347,7 +348,8 @@ export async function POST(req: NextRequest) {
               feedback:   review.feedback,
               // Every report the student can read, not only the ones that changed: the email says how many exist.
               reportCount: Object.keys(review.reports).length,
-              studentUrl: `${t.appUrl}/student`,
+              // Opens the student dashboard on this VE's details, scrolled to the review.
+              studentUrl: veReviewHref(t.appUrl, attempt.ve_id),
               branding,
             }),
           });

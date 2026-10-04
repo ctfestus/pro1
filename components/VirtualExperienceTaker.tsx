@@ -28,6 +28,7 @@ import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
 import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRecord';
+import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
 import { repairVeSubmissionUrl, safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import {
@@ -729,6 +730,15 @@ export default function VirtualExperienceTaker({
             ))}
           </div>
 
+          {/* The instructor's review: score, feedback and a report on each uploaded file. */}
+          {hasInstructorReview(review) && (
+            <div className="rounded-2xl px-5 py-5"
+              style={{ background: isDark ? '#1c1c1c' : '#fff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.06)' : '0 10px 28px rgba(15,23,42,0.06)' }}>
+              <VeInstructorReview review={review} modules={modules} progress={progress}
+                accentColor={accentColor} isDark={isDark} colors={{ text, muted, faint: muted }} />
+            </div>
+          )}
+
           {/* Skills demonstrated */}
           {(config.learnOutcomes || []).length > 0 && (
             <div className="rounded-2xl overflow-hidden"
@@ -749,29 +759,6 @@ export default function VirtualExperienceTaker({
                   </div>
                 ))}
               </div>
-            </div>
-          )}
-
-          {/* Instructor feedback */}
-          {review && (
-            <div className="rounded-2xl overflow-hidden"
-              style={{ background: isDark ? '#1c1c1c' : '#fff', border: `1px solid ${accentColor}30` }}>
-              <div className="px-5 py-4 border-b flex items-center justify-between"
-                style={{ borderColor: `${accentColor}20`, background: `${accentColor}08` }}>
-                <div className="flex items-center gap-2">
-                  <Award className="w-4 h-4" style={{ color: accentColor }} />
-                  <p className="text-[13px] font-bold" style={{ color: accentColor }}>Instructor Feedback</p>
-                </div>
-                {review.score !== undefined && (
-                  <div className="flex items-baseline gap-1">
-                    <span className="text-2xl font-black" style={{ color: accentColor }}>{review.score}</span>
-                    <span className="text-[12px]" style={{ color: muted }}>/100</span>
-                  </div>
-                )}
-              </div>
-              {review.feedback && (
-                <p className="px-5 py-4 text-[14px] leading-relaxed" style={{ color: isDark ? '#ccc' : '#444' }}>{review.feedback}</p>
-              )}
             </div>
           )}
 

@@ -458,8 +458,9 @@ describe('saving reports with a review', () => {
       }
     }
 
-    it('on the first review', async () => {
+    it('on the first review, linking straight to the review', async () => {
       expect(await emailsFor(null, { score: 70, reports: {} })).toBe(1);
+      expect(String(mockSend.mock.calls[0][0].html)).toContain('/student?review=ve1#virtual_experiences');
     });
 
     it('not when only the feedback wording changes, even with reports read back in another key order', async () => {

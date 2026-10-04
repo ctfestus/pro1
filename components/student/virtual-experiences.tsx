@@ -15,8 +15,8 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard } from '@/components/student/shared';
 import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
-import InstructorFileReportView from '@/components/InstructorFileReportView';
-import { isReportStale } from '@/lib/ve-instructor-report';
+import VeInstructorReview from '@/components/VeInstructorReview';
+import { takeVeReviewTarget } from '@/lib/pending-ve-review';
 import {
   Briefcase, Check, CheckCircle, ChevronLeft, ChevronRight, FileText, Play, RefreshCw, Star, X, Zap,
 } from 'lucide-react';
@@ -157,8 +157,10 @@ function VirtualExperienceCard({ form, attempt, deadline, C, onDetails }: {
 }
 
 // --- Virtual Experience Detail Pane ---
-function VirtualExperienceDetailPane({ form, attempt, C, onClose }: {
+function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = false }: {
   form: any; attempt: any; C: typeof LIGHT_C; onClose: () => void;
+  // Opened from the review email: scroll to the instructor's review.
+  focusReview?: boolean;
 }) {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -179,18 +181,6 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose }: {
   const isStarted   = !!attempt && !isCompleted;
   const actionLabel = isCompleted ? 'Review Project' : isStarted ? 'Continue Project' : 'Start Project';
   const guide = publicGuide(cfg);
-  const [openReport, setOpenReport] = useState<string | null>(null);
-
-  // Instructor reports on uploaded files, in course order, labelled by the step they belong to.
-  const fileReports: { reqId: string; label: string; report: any; stale: boolean }[] = [];
-  const savedReports = attempt?.review?.reports ?? {};
-  for (const m of modules) for (const l of m.lessons ?? []) for (const r of l.requirements ?? []) {
-    if (savedReports[r.id]) fileReports.push({
-      reqId: r.id, label: r.label || l.title || 'Uploaded file', report: savedReports[r.id],
-      // Written about a file the student has since replaced.
-      stale: isReportStale(savedReports[r.id], attempt?.progress?.[r.id]?.fileUrl),
-    });
-  }
 
   return (
     <>
@@ -277,11 +267,12 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose }: {
                 style={{ background: `${color}12`, color }}>
                 <CheckCircle className="w-4 h-4 flex-shrink-0"/>
                 <span className="text-sm font-semibold">Project completed</span>
-                {attempt?.review?.score !== undefined && (
-                  <span className="ml-auto text-sm font-bold">{attempt.review.score}/100</span>
-                )}
               </div>
             )}
+
+            {/* The instructor's review, near the top: it is what a reviewed student came here for. */}
+            <VeInstructorReview review={attempt?.review} modules={modules} progress={attempt?.progress}
+              accentColor={color} isDark={isDark} colors={{ text: C.text, muted: C.muted, faint: C.faint }} focus={focusReview} />
 
             {/* Tools row */}
             {(cfg.tools || []).length > 0 && (
@@ -348,51 +339,6 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose }: {
               </div>
             )}
 
-            {/* Instructor feedback */}
-            {attempt?.review?.feedback && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Instructor Feedback</p>
-                <div className="text-sm leading-relaxed px-4 py-3 rounded-xl" style={{ background: `${color}0e`, color: C.text, border: `1px solid ${color}22` }}>
-                  {attempt.review.feedback}
-                </div>
-              </div>
-            )}
-
-            {/* Instructor reports on uploaded files */}
-            {fileReports.length > 0 && (
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Instructor Reports</p>
-                <div className="space-y-2">
-                  {fileReports.map(({ reqId, label, report, stale }) => {
-                    const open = openReport === reqId;
-                    return (
-                      <div key={reqId} className="rounded-xl" style={{ background: `${color}0e` }}>
-                        <button onClick={() => setOpenReport(open ? null : reqId)} aria-expanded={open}
-                          className="w-full flex items-center gap-3 px-4 py-3 text-left">
-                          <FileText className="w-4 h-4 flex-shrink-0" style={{ color }}/>
-                          <span className="flex-1 min-w-0">
-                            <span className="block text-sm font-medium truncate" style={{ color: C.text }}>{label}</span>
-                            {stale && <span className="block text-xs" style={{ color: C.muted }}>About your earlier file</span>}
-                          </span>
-                          <span className="text-sm font-bold tabular-nums" style={{ color: C.text }}>{report.score}/100</span>
-                          <ChevronRight className={`w-4 h-4 flex-shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} style={{ color: C.muted }}/>
-                        </button>
-                        {open && (
-                          <div className="px-2 pb-2 sm:px-3 sm:pb-3">
-                            {stale && (
-                              <p className="text-xs px-2 pb-2" style={{ color: C.muted }}>
-                                This review is about a file you uploaded before. You have replaced it since, so the review may not match your current file.
-                              </p>
-                            )}
-                            <InstructorFileReportView report={report} title={label} accentColor={color} isDark={isDark}/>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -540,6 +486,7 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
   const [deadlines,   setDeadlines]   = useState<Record<string, Date | null>>({});
   const [loading,     setLoading]     = useState(true);
   const [detail,      setDetail]      = useState<any | null>(null);
+  const [focusReview, setFocusReview] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -608,6 +555,11 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
       const forms = [...cohortForms, ...extraForms];
       setItems(forms);
 
+      // Arrived from a review email: open that VE's details at the review. Single use.
+      const reviewTarget = takeVeReviewTarget();
+      const reviewForm = reviewTarget ? forms.find((f: any) => f.id === reviewTarget) : null;
+      if (reviewForm) { setDetail(reviewForm); setFocusReview(true); }
+
       if (forms.length) {
         const ids = forms.map((f: any) => f.id);
         const { data: assignments } = cohortId
@@ -666,7 +618,8 @@ export function VirtualExperiencesSection({ userId, userEmail, C }: { userId: st
             form={detail}
             attempt={attempts[detail.id]}
             C={C}
-            onClose={() => setDetail(null)}
+            onClose={() => { setDetail(null); setFocusReview(false); }}
+            focusReview={focusReview}
           />
         )}
       </AnimatePresence>
