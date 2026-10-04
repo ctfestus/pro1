@@ -87,7 +87,7 @@ export async function sendAssignmentReminders(
       key: 'assignment_due', fallbackSubject, fallbackHtml,
       variables: { student_name: r.name, assignment_title: assignment.title, due_date: formatEmailDate(due), due_text: dueText },
       fixedDetails: [{ label: 'Assignment', value: assignment.title }, { label: 'Due', value: formatEmailDate(due) || dueText }],
-      branding, actionUrl: `${dashboardUrl}/student?section=assignments`,
+      branding, actionUrl: `${dashboardUrl}/student#assignments`,
     });
     return { from: FROM, to: r.email, subject: rendered.subject, html: rendered.html };
   }));

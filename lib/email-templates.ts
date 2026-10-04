@@ -281,7 +281,7 @@ export function courseResultEmail(data: {
       ${cta('Retake Course', formUrl)}
     `}
 
-    ${passed && badgeName && badgeImageUrl ? badgeBlock(badgeName, badgeImageUrl, `${appUrl}/student?section=badges`) : ''}
+    ${passed && badgeName && badgeImageUrl ? badgeBlock(badgeName, badgeImageUrl, `${appUrl}/student#badges`) : ''}
 
     ${recsHtml}
 
@@ -866,7 +866,7 @@ export function learningPathCertificateEmail(data: {
       </p>
     </div>
 
-    ${badgeName && badgeImageUrl ? badgeBlock(badgeName, badgeImageUrl, `${appUrl}/student?section=badges`) : ''}
+    ${badgeName && badgeImageUrl ? badgeBlock(badgeName, badgeImageUrl, `${appUrl}/student#badges`) : ''}
 
     ${cta('View & Download Certificate', certUrl)}
 

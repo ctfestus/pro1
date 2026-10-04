@@ -80,7 +80,7 @@ export async function sendPaystackCartReminders(
         ? '1 year'
         : `${claim.durationMonths} month${Number(claim.durationMonths) > 1 ? 's' : ''}`;
       const price = `${claim.currency} ${Number(claim.amount).toFixed(2)}`;
-      const actionUrl = `${tenant.appUrl}/student?section=payments`;
+      const actionUrl = `${tenant.appUrl}/student#payments`;
       const fallbackSubject = `Still interested in ${String(claim.planName).replace(/[\r\n]/g, '')}?`;
       const fallbackHtml = [
           `<p>Hi ${escapeHtml((student.full_name || '').split(' ')[0] || 'there')},</p>`,

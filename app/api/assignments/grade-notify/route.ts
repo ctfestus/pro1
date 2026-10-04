@@ -93,7 +93,7 @@ export async function POST(req: NextRequest) {
           { label: 'Assignment', value: assignmentTitle }, { label: 'Result', value: resultStatus },
           { label: 'Score', value: sub.score == null ? null : `${sub.score}/100` }, { label: 'Feedback', value: sub.feedback || null },
         ],
-        branding, actionUrl: `${t.appUrl}/student?section=assignments`,
+        branding, actionUrl: `${t.appUrl}/student#assignments`,
       });
       return resend.emails.send({ from: FROM, to: student.email.trim(), subject: rendered.subject, html: rendered.html });
     }));

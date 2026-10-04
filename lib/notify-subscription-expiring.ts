@@ -54,7 +54,7 @@ export async function notifySubscriptionExpiring(
   const tenant = await getTenantSettings();
   const appUrl = (tenant.appUrl || process.env.APP_URL || '').replace(/\/$/, '');
   if (!appUrl) throw new Error('Platform App URL is not configured.');
-  const dashboardUrl = `${appUrl}/student`;
+  const dashboardUrl = `${appUrl}/student#payments`;
   const from = process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`.trim();
   if (from === '<>') throw new Error('RESEND_FROM_EMAIL or the platform sender name and support email must be configured.');
 

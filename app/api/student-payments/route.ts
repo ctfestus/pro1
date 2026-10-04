@@ -196,7 +196,7 @@ export async function POST(req: NextRequest) {
             getTenantSettings(),
           ]);
           const FROM        = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-          const dashboardUrl = t.appUrl || process.env.APP_URL || '';
+          const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
           const branding    = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
           const studentName = studentRow?.full_name || 'there';
           const currency    = enroll?.currency ?? 'GHS';

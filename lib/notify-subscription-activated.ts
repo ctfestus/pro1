@@ -89,7 +89,7 @@ async function mailContext() {
   const tenant = await getTenantSettings();
   const appUrl = (tenant.appUrl || process.env.APP_URL || '').replace(/\/$/, '');
   if (!appUrl) throw new Error('Platform App URL is not configured.');
-  const dashboardUrl = `${appUrl}/student`;
+  const dashboardUrl = `${appUrl}/student#learning_paths`;
   return {
     from: process.env.RESEND_FROM_EMAIL || `${tenant.senderName} <${tenant.supportEmail}>`,
     dashboardUrl,

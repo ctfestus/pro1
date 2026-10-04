@@ -54,7 +54,7 @@ export async function sendGroupSubmissionNotifications({
 
   const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-  const dashboardUrl = `${t.appUrl}/student?section=assignments`;
+  const dashboardUrl = `${t.appUrl}/student#assignments`;
   const groupName = group?.name ?? 'your group';
   const emailType = 'group_submission_received';
 

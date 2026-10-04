@@ -58,7 +58,7 @@ export function paystackIsConfigured() {
 export function paystackCallbackUrl(reference: string) {
   const base = publicBaseUrl();
   if (!base) throw new PaymentError('configuration_error', 'Online payment return URL is not configured.', 503);
-  return `${base}/student?section=payments&paystack_reference=${encodeURIComponent(reference)}`;
+  return `${base}/student?paystack_reference=${encodeURIComponent(reference)}#payments`;
 }
 
 export function makePaystackReference(prefix = 'sub') {

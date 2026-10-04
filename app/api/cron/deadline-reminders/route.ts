@@ -225,7 +225,7 @@ export async function POST(req: NextRequest) {
             key: 'assignment_due', fallbackSubject: subject, fallbackHtml,
             variables: { student_name: student.full_name || 'there', assignment_title: asm.title, due_date: formatEmailDate(asm.deadline_date), due_text: daysLeft <= 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days` },
             fixedDetails: [{ label: 'Assignment', value: asm.title }, { label: 'Due', value: formatEmailDate(asm.deadline_date) }],
-            branding, actionUrl: `${t.appUrl}/student?section=assignments`,
+            branding, actionUrl: `${t.appUrl}/student#assignments`,
           });
           emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
           nudgeRecords.push({ student_id: student.id, form_id: asm.id, nudge_type: 'deadline_reminder' });

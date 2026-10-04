@@ -144,9 +144,10 @@ export async function POST(req: NextRequest) {
   const t        = await getTenantSettings();
   const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const appUrl   = (t.appUrl || process.env.APP_URL || '').replace(/\/$/, '');
   const formUrl  = contentType === 'assignment'
-    ? `${t.appUrl}/assignments/${formId}`
-    : `${t.appUrl}/${content.slug || formId}`;
+    ? `${appUrl}/student/assignments/${formId}`
+    : `${appUrl}/${content.slug || formId}`;
 
   const subject = nudgeStatus === 'not_started'
     ? `Your learning journey is waiting, ${studentName || 'there'}!`

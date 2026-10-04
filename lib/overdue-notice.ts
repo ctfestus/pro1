@@ -58,7 +58,7 @@ export async function loadOverdueNoticeSettings(): Promise<OverdueNoticeSettings
   const t = await getTenantSettings();
   return {
     from:         process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`,
-    dashboardUrl: t.appUrl || process.env.APP_URL || '',
+    dashboardUrl: `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`,
     branding:     { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl },
   };
 }

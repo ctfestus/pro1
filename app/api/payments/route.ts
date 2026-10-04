@@ -1104,11 +1104,12 @@ export async function POST(req: NextRequest) {
             const branding = { logoUrl: settings.logoUrl, emailBannerUrl: settings.emailBannerUrl, teamName: settings.teamName, appName: settings.appName, appUrl: settings.appUrl };
             const currency = (confirmation.subscription_payment_requests as any)?.currency || 'GHS';
             const approved = body.action === 'approve-subscription-confirmation';
+            const dashboardUrl = `${(settings.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
             const fallbackSubject = approved ? 'Your subscription payment has been approved' : 'Your subscription payment could not be verified';
             const fallbackHtml = approved
-              ? paymentConfirmationApprovedEmail({ name: student.full_name || 'there', amount: Number(confirmation.amount), currency, dashboardUrl: settings.appUrl, adminNotes: body.adminNotes, branding })
-              : paymentConfirmationRejectedEmail({ name: student.full_name || 'there', amount: Number(confirmation.amount), currency, dashboardUrl: settings.appUrl, adminNotes: body.adminNotes, branding });
-            const rendered = await applyEmailTemplate({ key: approved ? 'payment_confirmation_approved' : 'payment_confirmation_rejected', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', amount: Number(confirmation.amount).toFixed(2), currency, admin_notes: body.adminNotes || '' }, branding, actionUrl: settings.appUrl });
+              ? paymentConfirmationApprovedEmail({ name: student.full_name || 'there', amount: Number(confirmation.amount), currency, dashboardUrl, adminNotes: body.adminNotes, branding })
+              : paymentConfirmationRejectedEmail({ name: student.full_name || 'there', amount: Number(confirmation.amount), currency, dashboardUrl, adminNotes: body.adminNotes, branding });
+            const rendered = await applyEmailTemplate({ key: approved ? 'payment_confirmation_approved' : 'payment_confirmation_rejected', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', amount: Number(confirmation.amount).toFixed(2), currency, admin_notes: body.adminNotes || '' }, branding, actionUrl: dashboardUrl });
             await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html });
           } catch { /* Payment state is authoritative; email is best effort. */ }
         });
@@ -1519,7 +1520,7 @@ export async function POST(req: NextRequest) {
             const studentName  = studentRow?.full_name || 'there';
             const studentEmail = enroll?.email || '';
             const currency     = enroll?.currency ?? 'GHS';
-            const dashboardUrl = t.appUrl || process.env.APP_URL || '';
+            const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
             if (studentEmail) {
               const fallbackSubject = 'Your payment confirmation has been approved';
               const fallbackHtml = paymentConfirmationApprovedEmail({ name: studentName, amount: Number(conf.amount), currency, dashboardUrl, adminNotes: adminNotes ?? null, branding });
@@ -1580,7 +1581,7 @@ export async function POST(req: NextRequest) {
             const studentName  = studentRow?.full_name || 'there';
             const studentEmail = enroll?.email || '';
             const currency     = enroll?.currency ?? 'GHS';
-            const dashboardUrl = t.appUrl || process.env.APP_URL || '';
+            const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
             if (studentEmail) {
               const fallbackSubject = 'Your payment confirmation could not be verified';
               const fallbackHtml = paymentConfirmationRejectedEmail({ name: studentName, amount: Number(updConf.amount), currency, dashboardUrl, adminNotes: adminNotes ?? null, branding });
@@ -1730,7 +1731,7 @@ export async function POST(req: NextRequest) {
       }
       const FROM         = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
       const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-      const dashboardUrl = t.appUrl || process.env.APP_URL || '';
+      const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
       const fallbackSubject = 'Payment reminder - outstanding balance on your account';
       const fallbackHtml = overdueNotificationEmail({ name: studentName, dashboardUrl, branding });
       const rendered = await applyEmailTemplate({ key: 'overdue_payment', fallbackSubject, fallbackHtml, variables: { student_name: studentName }, branding, actionUrl: dashboardUrl });

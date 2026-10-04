@@ -523,7 +523,7 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
         }
         const t = await getTenantSettings();
         const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
-        const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student?section=payments`;
+        const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
         const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
 
         // Resend reports API failures by resolving with { error }, not by throwing.

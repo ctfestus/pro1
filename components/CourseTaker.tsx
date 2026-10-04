@@ -1816,13 +1816,13 @@ export function CourseTaker({
               </div>
             </div>
             <div className={`px-5 pb-4`}>
-              <a
-                href={`/student?section=assignments`}
+              <Link
+                href="/student#assignments"
                 className="flex items-center justify-center gap-2 w-full py-3 rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
                 style={{ background: accent, color: '#fff' }}
               >
                 Start Assignment <ArrowRight className="w-4 h-4" />
-              </a>
+              </Link>
             </div>
           </motion.div>
         )}
