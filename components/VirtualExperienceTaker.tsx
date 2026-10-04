@@ -281,6 +281,10 @@ export default function VirtualExperienceTaker({
   // The instructor's review pop-up. A review usually lands after the student has left, often before
   // they have finished, so it is reachable from every mission, not only the completion screen.
   const [reviewOpen,   setReviewOpen]   = useState(false);
+  // The review banner can be closed. Remembered per review (keyed by when it was submitted), so a
+  // new or updated review brings the banner back. Starts hidden until storage has been read.
+  const [bannerHidden, setBannerHidden] = useState(true);
+  const bannerKey = `ve-review-banner-closed:${formId}:${review?.reviewed_at ?? ''}`;
   const [certId,            setCertId]            = useState<string | null>(null);
   const [certInstitutionName, setCertInstitutionName] = useState('');
   const [certIssuedAt, setCertIssuedAt] = useState<string | null>(null);
@@ -398,6 +402,18 @@ export default function VirtualExperienceTaker({
       })
       .catch(() => {});
   }, [formId, authHeader, userId, canPersistProgress]);
+
+  useEffect(() => {
+    if (!hasInstructorReview(review)) return;
+    let closed = false;
+    try { closed = !!localStorage.getItem(bannerKey); } catch { /* storage unavailable: show it */ }
+    setBannerHidden(closed);
+  }, [review, bannerKey]);
+
+  const closeBanner = () => {
+    setBannerHidden(true);
+    try { localStorage.setItem(bannerKey, '1'); } catch { /* hidden for this visit only */ }
+  };
 
   // Show a new review once, unprompted. Keyed by when it was submitted, so an updated review shows
   // again. On the completion screen it is already shown in full, so that counts as seen.
@@ -1074,7 +1090,7 @@ export default function VirtualExperienceTaker({
         )}
 
         {/* The instructor's review, reachable from any mission whether or not the VE is finished. */}
-        {!previewMode && hasInstructorReview(review) && (
+        {!previewMode && hasInstructorReview(review) && !bannerHidden && (
           <div className="flex items-center gap-3 px-4 py-2.5 flex-shrink-0"
             style={{ background: `${accentColor}12`, borderBottom: `1px solid ${accentColor}25` }}>
             <MessageSquare className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
@@ -1085,6 +1101,10 @@ export default function VirtualExperienceTaker({
               className="flex-shrink-0 text-[13px] font-semibold px-3 py-1.5 rounded-lg text-white transition-opacity hover:opacity-85"
               style={{ background: accentColor }}>
               View review
+            </button>
+            <button onClick={closeBanner} aria-label="Close review banner" title="Close"
+              className="flex-shrink-0 p-1.5 -mr-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
+              <X className="w-4 h-4" />
             </button>
           </div>
         )}
