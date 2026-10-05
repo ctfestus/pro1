@@ -32,6 +32,13 @@ describe('Paystack configuration', () => {
     expect(() => paystackCallbackUrl('sub-ref')).toThrow(PaymentError);
   });
 
+  it('returns learners to the payments section without hiding the reference in the hash', () => {
+    process.env.APP_URL = 'https://app.test';
+    delete process.env.NEXT_PUBLIC_APP_URL;
+
+    expect(paystackCallbackUrl('sub ref')).toBe('https://app.test/student?paystack_reference=sub%20ref#payments');
+  });
+
   it('fails cleanly when webhook verification has no secret', () => {
     delete process.env.PAYSTACK_SECRET_KEY;
     expect(() => verifyPaystackSignature('{}', 'signature')).toThrow(PaymentError);

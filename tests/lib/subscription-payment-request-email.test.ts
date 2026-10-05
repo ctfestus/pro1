@@ -67,7 +67,7 @@ describe('payment request email', () => {
 
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ subject: 'Payment request for Pro' }),
-      { idempotencyKey: 'subscription-request/req-1' },
+      { idempotencyKey: expect.stringMatching(/^subscription-request\/req-1\/[a-f0-9]{16}$/) },
     );
     expect(stamped(rpcCalls)).toBe(true);
   });

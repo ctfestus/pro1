@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { adminClient } from '@/lib/admin-client';
 import { Resend } from 'resend';
 import { submissionConfirmEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { sendGroupSubmissionNotifications } from '@/lib/group-submission-notifications';
 
@@ -67,17 +68,16 @@ export async function POST(req: NextRequest) {
     const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
     const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
 
-    await resend.emails.send({
-      from: FROM,
-      to: student.email,
-      subject: `Submission received: ${assignment.title}`,
-      html: submissionConfirmEmail({
+    const dashboardUrl = `${t.appUrl}/student#assignments`;
+    const fallbackSubject = `Submission received: ${assignment.title}`;
+    const fallbackHtml = submissionConfirmEmail({
         name: student.full_name || 'there',
         assignmentTitle: assignment.title,
-        dashboardUrl: `${t.appUrl}/student?section=assignments`,
+        dashboardUrl,
         branding,
-      }),
-    });
+      });
+    const rendered = await applyEmailTemplate({ key: 'submission_received', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', assignment_title: assignment.title }, branding, actionUrl: dashboardUrl });
+    await resend.emails.send({ from: FROM, to: student.email, subject: rendered.subject, html: rendered.html });
   } catch (err) {
     console.error('[submit-confirm]', err);
   }

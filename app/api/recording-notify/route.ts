@@ -4,6 +4,7 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { Resend } from 'resend';
 import { recordingPublishedEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100;
@@ -49,21 +50,20 @@ export async function POST(req: NextRequest) {
   const t = await getTenantSettings();
   const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-  const dashboardUrl = `${t.appUrl || process.env.APP_URL || ''}/student`;
+  const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#recordings`;
 
   const subject = `New recordings available: ${recording.title}`;
 
-  const batch = recipients.map((s: any) => ({
-    from: FROM,
-    to: s.email,
-    subject,
-    html: recordingPublishedEmail({
+  const batch = await Promise.all(recipients.map(async (s: any) => {
+    const fallbackHtml = recordingPublishedEmail({
       name: s.full_name || 'there',
       recordingTitle: recording.title,
       newWeeks: weeks,
       dashboardUrl,
       branding,
-    }),
+    });
+    const rendered = await applyEmailTemplate({ key: 'recording_published', fallbackSubject: subject, fallbackHtml, variables: { student_name: s.full_name || 'there', recording_title: recording.title, weeks: weeks.join(', ') }, branding, actionUrl: dashboardUrl });
+    return { from: FROM, to: s.email, subject: rendered.subject, html: rendered.html };
   }));
 
   for (let i = 0; i < batch.length; i += BATCH_SIZE) {

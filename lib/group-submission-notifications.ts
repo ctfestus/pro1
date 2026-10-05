@@ -2,6 +2,7 @@ import { Resend } from 'resend';
 import { adminClient } from '@/lib/admin-client';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { groupSubmissionReceivedEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -53,7 +54,7 @@ export async function sendGroupSubmissionNotifications({
 
   const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-  const dashboardUrl = `${t.appUrl}/student?section=assignments`;
+  const dashboardUrl = `${t.appUrl}/student#assignments`;
   const groupName = group?.name ?? 'your group';
   const emailType = 'group_submission_received';
 
@@ -77,11 +78,8 @@ export async function sendGroupSubmissionNotifications({
       }
 
       lockedKeys.push(dedupeKey);
-      emails.push({
-        from: FROM,
-        to: recipient.email.trim(),
-        subject: `Group submission received: ${assignmentTitle}`,
-        html: groupSubmissionReceivedEmail({
+      const fallbackSubject = `Group submission received: ${assignmentTitle}`;
+      const fallbackHtml = groupSubmissionReceivedEmail({
           name: recipient.name,
           assignmentTitle,
           groupName,
@@ -89,8 +87,9 @@ export async function sendGroupSubmissionNotifications({
           isParticipant: recipient.isParticipant,
           dashboardUrl,
           branding,
-        }),
-      });
+        });
+      const rendered = await applyEmailTemplate({ key: 'group_submission_received', fallbackSubject, fallbackHtml, variables: { student_name: recipient.name, submitted_by: submitter?.full_name ?? 'A group member', assignment_title: assignmentTitle, group_name: groupName }, branding, actionUrl: dashboardUrl });
+      emails.push({ from: FROM, to: recipient.email.trim(), subject: rendered.subject, html: rendered.html });
     }
 
     if (!emails.length) continue;

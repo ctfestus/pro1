@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { confirmationEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { adminClient } from '@/lib/admin-client';
 
@@ -80,7 +81,21 @@ export async function autoRegisterEventCohorts(
       branding,
     });
 
-    batch.push({ from: FROM, to: email, subject: `Upcoming event: ${event.title || 'Event'}`, html });
+    const fallbackSubject = `Upcoming event: ${event.title || 'Event'}`;
+    const rendered = await applyEmailTemplate({
+      key: 'event_confirmation', fallbackSubject, fallbackHtml: html,
+      variables: {
+        student_name: student.full_name || student.email, event_title: event.title || 'Event',
+        event_time_display: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' '),
+        event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
+      },
+      fixedDetails: [
+        { label: 'When', value: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' ') },
+        { label: 'Where', value: event.location || (event.meeting_link ? 'Online' : 'To be announced') },
+      ],
+      branding, actionUrl: joinUrl || formUrl,
+    });
+    batch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
 
     if (batch.length >= BATCH_SIZE) {
       await resend.batch.send(batch.splice(0, BATCH_SIZE)).catch(err =>

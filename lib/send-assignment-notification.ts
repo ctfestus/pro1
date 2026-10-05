@@ -4,6 +4,7 @@ import { blastEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { loadCohortMembership, isStillInGroupCohort } from '@/lib/cohort-roster';
 import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -156,14 +157,19 @@ export async function sendAssignmentNotifications({
 
     // Send in batches of 100 (Resend limit)
     for (let i = 0; i < recipients.length; i += 100) {
-      const batch = recipients.slice(i, i + 100).map(({ email, name }) => {
+      const batch = await Promise.all(recipients.slice(i, i + 100).map(async ({ email, name }) => {
         // No deadline and no instruction to begin: it is theirs to open when they feel like it.
         const body = forPlan
           ? `Hi ${name},\n\nWe have added a new ${typeLabel} to ${t.appName}:\n\n<b>${title}</b>\n\nLog in now to explore and start learning.`
           : `Hi ${name},\n\n${typeMessage}\n\n<b>${title}</b>\n\nClick the button below to open your ${typeLabel}.`;
         const html = blastEmail({ subject, body, formTitle: title, formUrl, ctaLabel, senderName: t.senderName || t.teamName || t.appName, branding });
-        return { from: FROM, to: email, subject, html };
-      });
+        const rendered = await applyEmailTemplate({
+          key: 'content_assigned', fallbackSubject: subject, fallbackHtml: html,
+          variables: { student_name: name, content_title: title, content_type: typeLabel, app_name: t.appName },
+          branding, actionUrl: formUrl, ctaLabel,
+        });
+        return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
+      }));
       await resend.batch.send(batch);
     }
   } catch (err) {

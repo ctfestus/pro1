@@ -4,6 +4,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { nudgeEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { buildStatusRows } from '@/lib/tracking-report';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,6 +12,9 @@ const resend = new Resend(process.env.RESEND_API_KEY);
 
 type NudgeStatus = 'not_started' | 'stalled' | 'in_progress' | 'failed';
 const NUDGE_STATUSES: NudgeStatus[] = ['not_started', 'stalled', 'in_progress', 'failed'];
+const NUDGE_STATUS_LABELS: Record<NudgeStatus, string> = {
+  not_started: 'Not started', stalled: 'Needs attention', in_progress: 'In progress', failed: 'Attempt not passed',
+};
 
 export async function POST(req: NextRequest) {
   if (!process.env.RESEND_API_KEY) {
@@ -140,9 +144,10 @@ export async function POST(req: NextRequest) {
   const t        = await getTenantSettings();
   const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
+  const appUrl   = (t.appUrl || process.env.APP_URL || '').replace(/\/$/, '');
   const formUrl  = contentType === 'assignment'
-    ? `${t.appUrl}/assignments/${formId}`
-    : `${t.appUrl}/${content.slug || formId}`;
+    ? `${appUrl}/student/assignments/${formId}`
+    : `${appUrl}/${content.slug || formId}`;
 
   const subject = nudgeStatus === 'not_started'
     ? `Your learning journey is waiting, ${studentName || 'there'}!`
@@ -163,7 +168,14 @@ export async function POST(req: NextRequest) {
   });
 
   try {
-    const { error: sendError } = await resend.emails.send({ from: FROM, to: recipientEmail, subject, html });
+    const statusText = NUDGE_STATUS_LABELS[nudgeStatus];
+    const rendered = await applyEmailTemplate({
+      key: 'inactivity_nudge', fallbackSubject: subject, fallbackHtml: html,
+      variables: { student_name: studentName || 'there', content_title: content.title, content_type: contentType, status_text: statusText },
+      fixedDetails: [{ label: 'Learning item', value: content.title }, { label: 'Status', value: statusText }],
+      branding, actionUrl: formUrl,
+    });
+    const { error: sendError } = await resend.emails.send({ from: FROM, to: recipientEmail, subject: rendered.subject, html: rendered.html });
     if (sendError) {
       console.error('[nudge-student] Resend error:', sendError);
       return NextResponse.json({ error: 'Failed to send nudge. Please try again.' }, { status: 500 });

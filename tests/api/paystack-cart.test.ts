@@ -272,7 +272,7 @@ describe('abandoned checkout cart', () => {
     expect(component).toContain('resumeCart(data.cart.reference)');
     expect(component).not.toContain('href={data.cart.authorization_url}');
     const sender = read('lib/notify-paystack-cart.ts');
-    expect(sender).toContain('/student?section=payments');
+    expect(sender).toContain('/student#payments');
     expect(sender).not.toContain('href="${escapeHtml(claim.authorizationUrl)}"');
   });
 

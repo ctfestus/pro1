@@ -16,6 +16,7 @@ import { Resend } from 'resend';
 import { adminClient } from '@/lib/admin-client';
 import { verifyQStashRequest } from '@/lib/qstash';
 import { gracePeriodWarningEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 
 export const dynamic = 'force-dynamic';
@@ -45,7 +46,7 @@ export async function POST(req: NextRequest) {
   const t   = await getTenantSettings();
   const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-  const dashboardUrl = t.appUrl || process.env.APP_URL || '';
+  const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#payments`;
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -171,26 +172,22 @@ export async function POST(req: NextRequest) {
 
     if (!nudgedSet.has(startKey)) {
       // First notification: grace period has started
-      emailBatch.push({
-        from:    FROM,
-        to:      c.email,
-        subject: `Your payment is overdue: access protected until ${graceEndStr}`,
-        html:    gracePeriodWarningEmail({
+      const fallbackSubject = `Your payment is overdue: access protected until ${graceEndStr}`;
+      const fallbackHtml = gracePeriodWarningEmail({
           name: c.studentName, graceEndDate: graceEndStr, daysLeft: c.daysLeft, dashboardUrl, branding,
-        }),
-      });
+        });
+      const rendered = await applyEmailTemplate({ key: 'grace_period', fallbackSubject, fallbackHtml, variables: { student_name: c.studentName, grace_end_date: graceEndStr, days_left: c.daysLeft }, branding, actionUrl: dashboardUrl });
+      emailBatch.push({ from: FROM, to: c.email, subject: rendered.subject, html: rendered.html });
       nudgeRecords.push({ student_id: c.studentId, form_id: c.installmentId, nudge_type: 'grace_period_start' });
       nudgedSet.add(startKey);
     } else if (c.daysLeft <= 1 && !nudgedSet.has(expiringKey)) {
       // Second notification: 1 day before grace expires
-      emailBatch.push({
-        from:    FROM,
-        to:      c.email,
-        subject: `Urgent: your grace period ends tomorrow (${graceEndStr})`,
-        html:    gracePeriodWarningEmail({
+      const fallbackSubject = `Urgent: your grace period ends tomorrow (${graceEndStr})`;
+      const fallbackHtml = gracePeriodWarningEmail({
           name: c.studentName, graceEndDate: graceEndStr, daysLeft: 1, dashboardUrl, branding,
-        }),
-      });
+        });
+      const rendered = await applyEmailTemplate({ key: 'grace_period', fallbackSubject, fallbackHtml, variables: { student_name: c.studentName, grace_end_date: graceEndStr, days_left: 1 }, branding, actionUrl: dashboardUrl });
+      emailBatch.push({ from: FROM, to: c.email, subject: rendered.subject, html: rendered.html });
       nudgeRecords.push({ student_id: c.studentId, form_id: c.installmentId, nudge_type: 'grace_period_expiring' });
       nudgedSet.add(expiringKey);
     } else {

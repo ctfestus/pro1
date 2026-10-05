@@ -1,6 +1,7 @@
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { ensureCertificate, sendCertificateEmailOnce } from '@/lib/issue-certificate';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import {
   learningPathCertificateEmail,
   courseCompletedNextUpEmail,
@@ -87,11 +88,8 @@ export async function updateLearningPathProgress(
                   ? `${t.appUrl}/${nextItem.slug || nextItemId}`
                   : `${t.appUrl}/${nextItem.slug || nextItemId}?go=1`;
                 // Resend reports API failures by resolving with { error }, not by throwing.
-                const { error: nextUpErr } = await resend.emails.send({
-                  from: FROM,
-                  to:   studentRow.email,
-                  subject: `You completed "${completedItem.title}": next up in ${path.title}`,
-                  html: courseCompletedNextUpEmail({
+                const fallbackSubject = `You completed "${completedItem.title}": next up in ${path.title}`;
+                const fallbackHtml = courseCompletedNextUpEmail({
                     name:            studentRow.full_name ?? 'there',
                     pathTitle:       path.title,
                     completedTitle:  completedItem.title,
@@ -104,8 +102,9 @@ export async function updateLearningPathProgress(
                     nextIsCert:      nextItem.isCert === true,
                     nextDescription: nextItem.description ?? null,
                     branding,
-                  }),
-                });
+                  });
+                const rendered = await applyEmailTemplate({ key: 'next_learning_item', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: path.title, content_title: nextItem.title }, branding, actionUrl: nextUrl });
+                const { error: nextUpErr } = await resend.emails.send({ from: FROM, to: studentRow.email, subject: rendered.subject, html: rendered.html });
                 if (nextUpErr) console.error('[updateLearningPathProgress] next-up email failed', nextUpErr);
               }
             }
@@ -231,20 +230,20 @@ async function runPathCompletionEffects(
               isCert:      itemMap[id]?.isCert      ?? false,
               description: itemMap[id]?.description ?? undefined,
             }));
+            const dashboardUrl = `${t.appUrl}/student#learning_paths`;
+            const fallbackSubject = `You've been enrolled in a new learning path: ${nextPath.title}`;
+            const fallbackHtml = learningPathAssignedEmail({
+                name: studentRow.full_name ?? 'there', pathTitle: nextPath.title,
+                pathDescription: nextPath.description ?? undefined, dashboardUrl, items, branding,
+              });
+            const rendered = await applyEmailTemplate({ key: 'learning_path_assigned', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: nextPath.title, app_name: t.appName }, branding, actionUrl: dashboardUrl });
             const settled = await sendCertificateEmailOnce(supabase, {
               certId:     `${nextPath.id}:${studentId}`,
               dedupeType: 'learning-path-next-enroll',
               from:       FROM,
               to:         studentRow.email,
-              subject:    `You've been enrolled in a new learning path: ${nextPath.title}`,
-              html: learningPathAssignedEmail({
-                name:            studentRow.full_name ?? 'there',
-                pathTitle:       nextPath.title,
-                pathDescription: nextPath.description ?? undefined,
-                dashboardUrl:    `${t.appUrl}/student#learning_paths`,
-                items,
-                branding,
-              }),
+              subject:    rendered.subject,
+              html:       rendered.html,
             });
             if (!settled) emailsSettled = false;
           } catch (emailErr) {
@@ -337,21 +336,19 @@ async function runPathCompletionEffects(
         const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
         const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
         const certUrl  = `${t.appUrl}/certificate/${certResult.certId}`;
+        const fallbackSubject = `Your Learning Path Certificate is ready: ${fullPath?.title ?? path.title}`;
+        const fallbackHtml = learningPathCertificateEmail({
+            name: studentName, pathTitle: fullPath?.title ?? path.title, certUrl, items, branding,
+            badgeName: lpBadgeName, badgeImageUrl: pathMeta?.badge_image_url ?? undefined,
+          });
+        const rendered = await applyEmailTemplate({ key: 'learning_path_certificate', fallbackSubject, fallbackHtml, variables: { student_name: studentName, path_title: fullPath?.title ?? path.title }, branding, actionUrl: certUrl });
         const settled = await sendCertificateEmailOnce(supabase, {
           certId:     certResult.certId,
           dedupeType: 'learning-path-certificate',
           from:       FROM,
           to:         studentRow.email,
-          subject:    `Your Learning Path Certificate is ready: ${fullPath?.title ?? path.title}`,
-          html: learningPathCertificateEmail({
-            name:          studentName,
-            pathTitle:     fullPath?.title ?? path.title,
-            certUrl,
-            items,
-            branding,
-            badgeName:     lpBadgeName,
-            badgeImageUrl: pathMeta?.badge_image_url ?? undefined,
-          }),
+          subject:    rendered.subject,
+          html:       rendered.html,
         });
         if (!settled) emailsSettled = false;
       } catch (emailErr) {

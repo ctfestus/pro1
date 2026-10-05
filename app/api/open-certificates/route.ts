@@ -3,6 +3,7 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { Resend } from 'resend';
 import { adminClient } from '@/lib/admin-client';
 import { openCertificateEmail } from '@/lib/email-templates';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { absolutePath, normalizeAbsoluteBaseUrl } from '@/lib/public-url';
 
@@ -172,18 +173,21 @@ export async function POST(req: NextRequest) {
 
     try {
       for (const batch of batches) {
-        await resend.batch.send(batch.map(r => ({
-          from:    FROM,
-          to:      r.recipient_email!,
-          subject: `Your ${r.program_name} Certificate`,
-          html:    openCertificateEmail({
+        const messages = await Promise.all(batch.map(async r => {
+          const certUrl = absolutePath(appUrl, `/credential/${r.id}`);
+          const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl };
+          const fallbackSubject = `Your ${r.program_name} Certificate`;
+          const fallbackHtml = openCertificateEmail({
             recipientName: r.recipient_name,
             programName:   r.program_name,
             issuedDate:    r.issued_date,
-            certUrl:       absolutePath(appUrl, `/credential/${r.id}`),
-            branding:      { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl },
-          }),
-        })));
+            certUrl,
+            branding,
+          });
+          const rendered = await applyEmailTemplate({ key: 'open_certificate', fallbackSubject, fallbackHtml, variables: { student_name: r.recipient_name, program_name: r.program_name }, branding, actionUrl: certUrl });
+          return { from: FROM, to: r.recipient_email!, subject: rendered.subject, html: rendered.html };
+        }));
+        await resend.batch.send(messages);
         emailResult.sent += batch.length;
       }
     } catch (e: any) {

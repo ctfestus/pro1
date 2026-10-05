@@ -2,6 +2,7 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { assignmentDueReminderEmail } from './email-templates';
 import { getTenantSettings } from './get-tenant-settings';
+import { applyEmailTemplate, formatEmailDate } from './email-template-service';
 
 // Shared logic for reminding students who have not submitted an assignment.
 // Used by the on-demand endpoint (/api/assignments/remind-unsubmitted) and the
@@ -76,13 +77,19 @@ export async function sendAssignmentReminders(
   const due          = assignment.deadline_date;
   const daysLeft     = due ? Math.ceil((new Date(due).getTime() - Date.now()) / 86400000) : 0;
   const dueWord      = daysLeft <= 0 ? 'is due' : daysLeft === 1 ? 'is due tomorrow' : `is due in ${daysLeft} days`;
+  const dueText      = daysLeft <= 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days`;
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  const batch = toSend.map(r => ({
-    from:    FROM,
-    to:      r.email,
-    subject: `Reminder: "${assignment.title}" ${dueWord}`,
-    html:    assignmentDueReminderEmail({ name: r.name, assignmentTitle: assignment.title, dueDate: due ?? '', daysLeft, dashboardUrl, branding }),
+  const batch = await Promise.all(toSend.map(async r => {
+    const fallbackSubject = `Reminder: "${assignment.title}" ${dueWord}`;
+    const fallbackHtml = assignmentDueReminderEmail({ name: r.name, assignmentTitle: assignment.title, dueDate: due ?? '', daysLeft, dashboardUrl, branding });
+    const rendered = await applyEmailTemplate({
+      key: 'assignment_due', fallbackSubject, fallbackHtml,
+      variables: { student_name: r.name, assignment_title: assignment.title, due_date: formatEmailDate(due), due_text: dueText },
+      fixedDetails: [{ label: 'Assignment', value: assignment.title }, { label: 'Due', value: formatEmailDate(due) || dueText }],
+      branding, actionUrl: `${dashboardUrl}/student#assignments`,
+    });
+    return { from: FROM, to: r.email, subject: rendered.subject, html: rendered.html };
   }));
 
   let sent = 0;

@@ -10,6 +10,7 @@ import { weeklyDigestEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { fetchAllRows, fetchAllRowsByIds, fetchAllRowsByIdPairs } from '@/lib/fetch-all-rows';
 import { loadPathGrantedPairs } from '@/lib/tracking-report';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
 
@@ -194,9 +195,7 @@ export async function POST(req: NextRequest) {
         ? `You completed ${completed.length} item${completed.length > 1 ? 's' : ''} this week 🎓`
         : `Your weekly learning update: keep going!`;
 
-    emailBatch.push({
-      from: FROM, to: email, subject,
-      html: weeklyDigestEmail({
+    const fallbackHtml = weeklyDigestEmail({
         name: student.full_name || 'there',
         completed,
         inProgress,
@@ -204,8 +203,17 @@ export async function POST(req: NextRequest) {
         missedDeadlines,
         dashboardUrl: `${t.appUrl}/student`,
         branding,
-      }),
+      });
+    const rendered = await applyEmailTemplate({
+      key: 'weekly_digest', fallbackSubject: subject, fallbackHtml,
+      variables: {
+        student_name: student.full_name || 'there', completed_count: completed.length,
+        in_progress_count: inProgress.length, not_started_count: notStarted.length,
+        overdue_count: missedDeadlines.length,
+      },
+      branding, actionUrl: `${t.appUrl}/student`,
     });
+    emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     nudgeRecords.push({ student_id: student.id });
   }
 

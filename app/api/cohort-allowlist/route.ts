@@ -10,6 +10,7 @@ import { adminClient } from '@/lib/admin-client';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { cohortInviteEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
+import { applyEmailTemplate } from '@/lib/email-template-service';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -128,14 +129,13 @@ export async function POST(req: NextRequest) {
         const FROM       = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
         const branding   = { appName: t.appName, appUrl: signupUrl, logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName };
 
-        await resend.batch.send(
-          inserted.map(({ email }) => ({
-            from: FROM,
-            to: email,
-            subject: `You've been invited to join ${t.appName || cohortName}`,
-            html: cohortInviteEmail({ cohortName, signupUrl, branding }),
-          }))
-        );
+        const messages = await Promise.all(inserted.map(async ({ email }) => {
+          const fallbackSubject = `You've been invited to join ${t.appName || cohortName}`;
+          const fallbackHtml = cohortInviteEmail({ cohortName, signupUrl, branding });
+          const rendered = await applyEmailTemplate({ key: 'cohort_invite', fallbackSubject, fallbackHtml, variables: { student_name: 'there', cohort_name: cohortName, app_name: t.appName }, branding, actionUrl: signupUrl });
+          return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
+        }));
+        await resend.batch.send(messages);
       } catch {
         // non-blocking -- ignore email errors
       }
