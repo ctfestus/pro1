@@ -62,6 +62,7 @@ import { executeQuery, initSQLRuntime } from '@/lib/sql-engine';
 import { initPythonRuntime, loadPythonDatasets, runPython } from '@/lib/python-engine';
 import { formatSQLPreflightIssue, preflightSQLExercises } from '@/lib/sql-exercise-preflight';
 import { formatPythonPreflightIssue, preflightPythonExercises } from '@/lib/python-exercise-preflight';
+import { contentPath } from '@/lib/content-link';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
@@ -629,7 +630,7 @@ const [isSaving, setIsSaving] = useState(false);
           }
         }
       }
-      const url = `${window.location.origin}/${slugValue}`;
+      const url = `${window.location.origin}${contentPath({ slug: slugValue, config: configToSave })}`;
       try {
         if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(url);
         else throw new Error('');

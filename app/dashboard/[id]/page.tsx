@@ -26,6 +26,7 @@ import VeFileReportEditor from '@/components/dashboard/VeFileReportEditor';
 import { repairVeSubmissionUrl } from '@/lib/ve-upload';
 import { sameReportContent, type InstructorReportDraft } from '@/lib/ve-instructor-report';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
+import { contentPath } from '@/lib/content-link';
 
 // -- Lazy charts ---
 const ResponsesOverTimeChart = dynamic(
@@ -2841,9 +2842,10 @@ export default function FormDetailPage() {
   const { theme, toggle: toggleTheme } = useTheme();
   const isLight = theme === 'light';
 
+  const formPath = contentPath({ ...form, slug: form?.slug || (id as string) });
   const formUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/${form?.slug || id}`
-    : `/${form?.slug || id}`;
+    ? `${window.location.origin}${formPath}`
+    : formPath;
 
   const bg       = isLight ? '#F2F5FA' : '#17181E';
   const navBg    = bg;

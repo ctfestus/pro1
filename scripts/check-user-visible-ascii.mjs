@@ -149,9 +149,13 @@ function changedFiles({ all, cached }) {
     return new Map([...enumerateAllSourcePaths(tracked, untracked)].map(file => [file, null]));
   }
 
+  // --find-copies: code moved out of a file that still exists (a page split into a thin wrapper
+  // plus the moved component) is reported as a copy, so only its genuinely changed lines are
+  // checked rather than the whole inherited file. Not --find-copies-harder, which would also
+  // match copies of unchanged files and could exempt arbitrary new files.
   const diffArgs = cached
-    ? ['diff', '--cached', '--unified=0', '--no-color', '--diff-filter=ACMR', '--']
-    : ['diff', 'HEAD', '--unified=0', '--no-color', '--diff-filter=ACMR', '--'];
+    ? ['diff', '--cached', '--find-copies', '--unified=0', '--no-color', '--diff-filter=ACMR', '--']
+    : ['diff', 'HEAD', '--find-copies', '--unified=0', '--no-color', '--diff-filter=ACMR', '--'];
   const files = parseAddedLines(git(diffArgs));
   if (!cached) {
     const untracked = git(['ls-files', '--others', '--exclude-standard', '--', 'app', 'components', 'lib']);

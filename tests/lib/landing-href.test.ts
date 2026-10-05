@@ -51,7 +51,7 @@ describe('landingHref', () => {
 
   it('keeps the type value the detail page actually accepts', () => {
     // app/[id] reads catalogueType and forwards it as the preview lookup's type.
-    const detail = readFileSync(join(process.cwd(), 'app/[id]/page.tsx'), 'utf8');
+    const detail = readFileSync(join(process.cwd(), 'app/[id]/PublicFormPage.tsx'), 'utf8');
     expect(detail).toContain("get('catalogueType')");
     for (const value of ['course', 'virtual_experience']) {
       expect(landingHref({ type: value === 'course' ? 'course' : 've', slug: 's' }, null))

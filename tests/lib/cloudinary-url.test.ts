@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   resolveImageUrl, resolveCoverUrl, isPublicIdRef,
-  IMG_HERO, IMG_EMAIL_THUMB,
+  IMG_HERO, IMG_EMAIL_THUMB, IMG_SOCIAL, socialImageUrl,
 } from '@/lib/cloudinary-url';
 
 const CLOUD = 'https://res.cloudinary.com/test-cloud/image/upload';
@@ -107,5 +107,39 @@ describe('isPublicIdRef', () => {
     expect(isPublicIdRef('/local.png')).toBe(false);
     expect(isPublicIdRef('')).toBe(false);
     expect(isPublicIdRef(null)).toBe(false);
+  });
+});
+
+describe('socialImageUrl: link-preview crop', () => {
+  it('builds a forced-JPEG crop for a bare public_id', () => {
+    expect(socialImageUrl('users/abc/covers/hash')).toBe(`${CLOUD}/${IMG_SOCIAL}/users/abc/covers/hash`);
+  });
+
+  it('replaces a baked-in f_auto on a versioned legacy URL instead of chaining after it', () => {
+    expect(socialImageUrl(`${CLOUD}/f_auto,q_auto/v1780003386/users/abc/covers/x.jpg`))
+      .toBe(`${CLOUD}/${IMG_SOCIAL}/v1780003386/users/abc/covers/x.jpg`);
+  });
+
+  it('replaces chained transforms on an unversioned legacy URL', () => {
+    expect(socialImageUrl(`${CLOUD}/f_auto,q_auto/w_1600,c_limit/users/abc/covers/x.jpg`))
+      .toBe(`${CLOUD}/${IMG_SOCIAL}/users/abc/covers/x.jpg`);
+  });
+
+  it('never treats a folder name as a transform', () => {
+    expect(socialImageUrl(`${CLOUD}/my_folder/cover.jpg`)).toBe(`${CLOUD}/${IMG_SOCIAL}/my_folder/cover.jpg`);
+    expect(socialImageUrl(`${CLOUD}/f_auto/w_500`)).toBe(`${CLOUD}/${IMG_SOCIAL}/w_500`);
+  });
+
+  it('leaves signed Cloudinary and non-Cloudinary URLs unchanged', () => {
+    const signed = `${CLOUD}/s--abc123--/f_auto/v1/x.jpg`;
+    expect(socialImageUrl(signed)).toBe(signed);
+    const supa = 'https://proj.supabase.co/storage/v1/object/public/form-assets/covers/a.jpg';
+    expect(socialImageUrl(supa)).toBe(supa);
+  });
+
+  it('returns empty when there is no usable URL', () => {
+    expect(socialImageUrl(null)).toBe('');
+    expect(socialImageUrl('  ')).toBe('');
+    expect(socialImageUrl('data:image/png;base64,AAAA')).toBe('');
   });
 });

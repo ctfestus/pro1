@@ -12,7 +12,7 @@ const read = (path: string) => readFileSync(join(process.cwd(), path), 'utf8').r
 
 const migration = read('migrations/215_available_to_everyone_means_signed_in.sql');
 const schema = read('festman-fresh-schema.sql');
-const page = read('app/[id]/page.tsx');
+const page = read('app/[id]/PublicFormPage.tsx');
 
 const POLICIES: Array<[string, string]> = [
   ['courses: participants select', 'courses'],

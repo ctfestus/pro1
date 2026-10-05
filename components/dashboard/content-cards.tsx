@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { LIGHT_C, useC, cardStyle } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { contentPath } from '@/lib/content-link';
 import { exportContent } from '@/lib/dashboard-export';
 import { SYNC_ENABLED } from '@/lib/sync';
 import { getLastScheduledSessionDate, getNextScheduledSessionDate } from '@/lib/event-sessions';
@@ -35,7 +36,7 @@ function ShareMenu({ form, triggerRect, onClose }: { form: any; triggerRect: DOM
   const menuRef = useRef<HTMLDivElement>(null);
   const [copied, setCopied] = useState(false);
   const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
-  const url   = `${window.location.origin}/${form.slug || form.id}`;
+  const url   = `${window.location.origin}${contentPath(form)}`;
   const title = form.title as string;
   const desc  = (form.description || '').replace(/<[^>]*>/g, '') as string;
 

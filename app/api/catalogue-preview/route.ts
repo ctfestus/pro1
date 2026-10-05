@@ -21,10 +21,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
-import {
-  loadPlansForContent,
-  type PurchasableContentTable,
-} from '@/lib/subscription-plan-access';
+import { findPublicCatalogueItem } from '@/lib/public-catalogue-item';
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
@@ -34,89 +31,17 @@ import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib
 
 export const dynamic = 'force-dynamic';
 
-type PreviewType = 'course' | 'learning_path' | 'virtual_experience' | 'certification';
-
-const TABLE_BY_TYPE: Record<PreviewType, PurchasableContentTable> = {
-  course: 'courses',
-  learning_path: 'learning_paths',
-  virtual_experience: 'virtual_experiences',
-  certification: 'certifications',
-};
-
-// Learning paths carry no slug column, so they are addressable by id only.
-const HAS_SLUG: Record<PreviewType, boolean> = {
-  course: true,
-  learning_path: false,
-  virtual_experience: true,
-  certification: true,
-};
-
-// Pinned. Widening this is what would turn a sales page into a content leak.
-const COLUMNS: Record<PreviewType, string> = {
-  course: 'id, title, slug, cover_image, description, category, available_to_everyone',
-  learning_path: 'id, title, cover_image, description, item_ids, badge_image_url, available_to_everyone, overview, skills, who_should_take, tools',
-  virtual_experience: 'id, title, slug, cover_image, description, available_to_everyone',
-  certification: 'id, title, slug, cover_image, description, available_to_everyone',
-};
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 export async function GET(req: NextRequest) {
   const ref = req.nextUrl.searchParams.get('ref')?.trim();
   if (!ref) return NextResponse.json({ error: 'ref is required' }, { status: 400 });
 
-  const requestedType = req.nextUrl.searchParams.get('type') as PreviewType | null;
-  const types: PreviewType[] = requestedType && requestedType in TABLE_BY_TYPE
-    ? [requestedType]
-    : ['course', 'virtual_experience', 'certification', 'learning_path'];
-
   const db = adminClient();
-  const byId = UUID.test(ref);
 
   try {
-    for (const type of types) {
-      if (!byId && !HAS_SLUG[type]) continue;
-      const { data: row, error } = await db
-        .from(TABLE_BY_TYPE[type])
-        .select(COLUMNS[type])
-        .eq('status', 'published')
-        .eq(byId ? 'id' : 'slug', ref)
-        .maybeSingle();
-      if (error) throw error;
-      if (!row) continue;
-
-      const record = row as any;
-      // Free means what the signed-in rule means: open to everyone itself, or inside a published
-      // path that is. public_free_content already answers both, so a course reached from a free
-      // path is shown as free here too rather than as something to buy.
-      let locked = record.available_to_everyone !== true;
-      if (locked) {
-        const { data: free, error: freeError } = await db
-          .from('public_free_content')
-          .select('content_id')
-          .eq('content_table', TABLE_BY_TYPE[type])
-          .eq('content_id', record.id)
-          .maybeSingle();
-        if (freeError) throw freeError;
-        locked = !free;
-      }
-
-      // "Published and not open to everyone" is not the same as "for sale". Cohort-only content
-      // -- a course built for one client's private cohort, never offered to the public -- is
-      // published too, and RLS previously kept it invisible to anonymous visitors. Revealing its
-      // title, blurb and cover to anyone who guessed a slug would be a leak, not a shop window.
-      //
-      // So the gate is whether anything actually sells it: a plan the pricing page would list
-      // covering this item. Content nobody can buy stays as invisible as before. Sellable rather
-      // than merely active, so this window never advertises a plan checkout would then refuse.
-      const plans = locked
-        ? await loadPlansForContent(
-            db,
-            { contentTable: TABLE_BY_TYPE[type], contentId: record.id },
-            { sellableOnly: true },
-          )
-        : [];
-      if (locked && plans.length === 0) return NextResponse.json({ item: null });
+    // Published, and free or covered by a sellable plan -- see lib/public-catalogue-item.
+    const found = await findPublicCatalogueItem(db, ref, req.nextUrl.searchParams.get('type'));
+    if (found) {
+      const { type, record, locked, plans } = found;
 
       const item = {
         id: record.id as string,
