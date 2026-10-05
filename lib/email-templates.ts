@@ -49,6 +49,7 @@ function shell(content: string, opts?: { bannerUrl?: string } & EmailBranding) {
 
         <!-- Content -->
         <tr><td style="padding:20px;">
+          <!-- PLATFORM_SYSTEM_EMAIL_CONTENT -->
           ${content}
           ${teamName ? `<p style="color:#374151;font-size:14px;">${teamName}</p>` : ''}
 

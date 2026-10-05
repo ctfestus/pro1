@@ -122,7 +122,7 @@ export async function POST(req: NextRequest) {
   if (!process.env.RESEND_API_KEY) return NextResponse.json({ error: 'Email service is not configured.' }, { status: 503 });
   const from = process.env.RESEND_FROM_EMAIL || `${settings.senderName} <${settings.supportEmail}>`;
   const { error } = await new Resend(process.env.RESEND_API_KEY).emails.send({
-    from, to: auth.actor.email, subject: `[Test] ${rendered.subject}`, html: rendered.html,
+    from, to: auth.actor.email, subject: `[Custom message sample] ${rendered.subject}`, html: rendered.html,
   });
   if (error) return NextResponse.json({ error: 'The test email could not be sent.' }, { status: 502 });
   return NextResponse.json({ ok: true, sentTo: auth.actor.email });

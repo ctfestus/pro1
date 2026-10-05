@@ -3208,8 +3208,9 @@ CREATE POLICY "platform_settings: instructor or admin write"
 -- checks, optimistic concurrency and audit history cannot be bypassed by a browser client.
 CREATE TABLE IF NOT EXISTS public.email_template_overrides (
   template_key text PRIMARY KEY,
-  subject_template text NOT NULL CHECK (char_length(subject_template) BETWEEN 1 AND 200),
-  body_template text NOT NULL CHECK (char_length(body_template) BETWEEN 1 AND 20000),
+  subject_template text NOT NULL CHECK (char_length(subject_template) <= 200),
+  body_template text NOT NULL CHECK (char_length(body_template) <= 20000),
+  composition_mode text NOT NULL DEFAULT 'additive' CHECK (composition_mode IN ('legacy_replace', 'additive')),
   updated_by uuid REFERENCES public.students(id) ON DELETE SET NULL,
   updated_at timestamptz NOT NULL DEFAULT now()
 );
@@ -3256,12 +3257,12 @@ BEGIN
     DELETE FROM public.email_template_overrides WHERE template_key=p_template_key;
     RETURN jsonb_build_object('status','ok','reset',true);
   END IF;
-  IF char_length(COALESCE(p_subject_template,'')) NOT BETWEEN 1 AND 200 OR char_length(COALESCE(p_body_template,'')) NOT BETWEEN 1 AND 20000 THEN RAISE EXCEPTION 'invalid_template_length'; END IF;
+  IF char_length(COALESCE(p_subject_template,'')) > 200 OR char_length(COALESCE(p_body_template,'')) > 20000 OR (char_length(btrim(COALESCE(p_subject_template,''))) = 0 AND char_length(btrim(COALESCE(p_body_template,''))) = 0) THEN RAISE EXCEPTION 'invalid_template_length'; END IF;
   IF FOUND THEN
     IF p_expected_updated_at IS NULL OR current_row.updated_at IS DISTINCT FROM p_expected_updated_at THEN RETURN jsonb_build_object('status','conflict'); END IF;
   ELSIF p_expected_updated_at IS NOT NULL THEN RETURN jsonb_build_object('status','conflict'); END IF;
-  INSERT INTO public.email_template_overrides(template_key,subject_template,body_template,updated_by,updated_at)
-  VALUES(p_template_key,p_subject_template,p_body_template,p_actor_id,now()) ON CONFLICT(template_key) DO UPDATE SET subject_template=EXCLUDED.subject_template,body_template=EXCLUDED.body_template,updated_by=EXCLUDED.updated_by,updated_at=EXCLUDED.updated_at RETURNING * INTO saved_row;
+  INSERT INTO public.email_template_overrides(template_key,subject_template,body_template,composition_mode,updated_by,updated_at)
+  VALUES(p_template_key,p_subject_template,p_body_template,'additive',p_actor_id,now()) ON CONFLICT(template_key) DO UPDATE SET subject_template=EXCLUDED.subject_template,body_template=EXCLUDED.body_template,composition_mode=EXCLUDED.composition_mode,updated_by=EXCLUDED.updated_by,updated_at=EXCLUDED.updated_at RETURNING * INTO saved_row;
   INSERT INTO public.email_template_history(template_key,subject_template,body_template,action,changed_by) VALUES(saved_row.template_key,saved_row.subject_template,saved_row.body_template,CASE WHEN current_row.template_key IS NULL THEN 'created' ELSE 'updated' END,p_actor_id);
   RETURN jsonb_build_object('status','ok','template',to_jsonb(saved_row));
 END; $$;

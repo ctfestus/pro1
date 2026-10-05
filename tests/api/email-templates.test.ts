@@ -92,7 +92,7 @@ describe('email template API security', () => {
     expect(payload.sentTo).toBe('verified-instructor@academy.test');
     expect(mocks.send).toHaveBeenCalledWith(expect.objectContaining({
       to: 'verified-instructor@academy.test',
-      subject: '[Test] Preview subject',
+      subject: '[Custom message sample] Preview subject',
     }));
   });
 
