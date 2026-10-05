@@ -58,6 +58,7 @@ import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
 import WrittenResponsePlayer from '@/components/WrittenResponsePlayer';
 import PdfCarousel from '@/components/PdfCarousel';
 import { pdfDownloadUrl } from '@/lib/cloudinary-pdf';
+import { contentPath } from '@/lib/content-link';
 import dynamic from 'next/dynamic';
 import { initSQLRuntime, SQLRuntime } from '@/lib/sql-engine';
 
@@ -3511,7 +3512,7 @@ export function CourseTaker({
                     // same share-offsite pattern the certificate and badge pages use. app/[id]
                     // resolves either a slug or an id, so formId is enough.
                     const composeUrl = `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(
-                      typeof window !== 'undefined' ? `${window.location.origin}/${formId}` : '',
+                      typeof window !== 'undefined' ? `${window.location.origin}${contentPath({ id: formId, content_type: 'course' })}` : '',
                     )}`;
 
                     return (

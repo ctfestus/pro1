@@ -60,8 +60,9 @@ describe('public catalogue preview', () => {
   it('never pulls course content into the row projection', () => {
     // item_ids is allowed: it names what a path contains, not what is inside any of it. The
     // outline is built from a separate, deliberately narrowed read -- never from this select.
-    const source = readFileSync(join(process.cwd(), 'app/api/catalogue-preview/route.ts'), 'utf8');
-    const columns = source.slice(source.indexOf('const COLUMNS'), source.indexOf('const UUID'));
+    const source = readFileSync(join(process.cwd(), 'lib/public-catalogue-item.ts'), 'utf8');
+    const columns = source.slice(source.indexOf('const COLUMNS'), source.indexOf('const ORDER'));
+    expect(columns).toContain('cover_image'); // the slice really is the projection, not ''
     for (const leak of ['questions', 'config', 'correctAnswer', 'lesson']) {
       expect(columns).not.toContain(leak);
     }

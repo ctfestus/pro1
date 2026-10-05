@@ -95,6 +95,46 @@ export function resolveImageUrl(ref?: string | null, transform: string = DEFAULT
   return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${t}${value}`;
 }
 
+/**
+ * Link-preview crop (og:image). Forced JPEG, never f_auto: Cloudinary picks the f_auto format
+ * from the requester's Accept/User-Agent and hands WebP to the Facebook/WhatsApp/LinkedIn
+ * crawlers, which then drop the thumbnail and show title + description only.
+ */
+export const IMG_SOCIAL = 'f_jpg,q_auto,w_1200,h_630,c_fill,g_auto';
+
+/**
+ * Turn a stored cover reference into a link-preview image URL.
+ *
+ * Unlike resolveImageUrl, this REPLACES any transformation already baked into a legacy
+ * Cloudinary URL rather than prepending to it: chained components apply in order, so a stored
+ * trailing f_auto would override the f_jpg and the crawler would still get WebP. Cloudinary
+ * places transformations before the version segment (v123...), so when one is present
+ * everything between /image/upload/ and it is transformation and can be dropped. Without a
+ * version, leading segments made only of known transformation parameters are dropped instead,
+ * which leaves a folder such as "my_folder" alone. Signed URLs are returned unchanged
+ * (rewriting breaks the signature); non-Cloudinary hosts likewise.
+ */
+const TRANSFORM_PARAM = /^(a|ac|af|ar|b|bo|br|c|co|cs|d|dl|dn|dpr|du|e|eo|f|fl|fn|fps|g|h|if|ki|l|o|p|pg|q|r|so|sp|t|u|vc|vs|w|x|y|z)_[^,]+$/;
+const isTransformSegment = (segment: string) =>
+  segment !== '' && segment.split(',').every(part => TRANSFORM_PARAM.test(part));
+
+export function socialImageUrl(ref?: string | null): string {
+  const url = resolveImageUrl(ref, '');
+  if (!url.startsWith('https://') && !url.startsWith('http://')) return '';
+  const at = url.indexOf(UPLOAD_SEGMENT);
+  if (!url.includes('res.cloudinary.com') || at === -1) return url;
+  if (/\/s--[^/]+--\//.test(url)) return url;
+  const head = url.slice(0, at + UPLOAD_SEGMENT.length);
+  const segments = url.slice(head.length).split('/');
+  const version = segments.findIndex(s => /^v\d+$/.test(s));
+  let start = version;
+  if (start === -1) {
+    start = 0;
+    while (start < segments.length - 1 && isTransformSegment(segments[start])) start++;
+  }
+  return `${head}${IMG_SOCIAL}/${segments.slice(start).join('/')}`;
+}
+
 /** Convenience alias for content cover images. */
 export const resolveCoverUrl = (ref?: string | null, transform?: string) => resolveImageUrl(ref, transform);
 
