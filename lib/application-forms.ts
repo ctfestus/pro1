@@ -14,6 +14,10 @@ export type ApplicationQuestionType = typeof APPLICATION_QUESTION_TYPES[number];
 
 export const APPLICATION_OTHER_OPTION = 'Other (please specify)';
 
+export function isPlainApplicationOtherOption(option: unknown): boolean {
+  return typeof option === 'string' && option.trim().toLocaleLowerCase() === 'other';
+}
+
 /**
  * How an image sits in its frame. The form cover and image blocks share this shape so they
  * crop, reposition, and zoom the same way. Missing values mean cover fit, centered, 100%.
@@ -61,6 +65,14 @@ export interface ApplicationCondition {
   questionId: string;
   operator: 'equals' | 'not_equals' | 'contains';
   value: string;
+}
+
+export function applicationConditionUsesOther(condition: ApplicationCondition | undefined, regularOptions: string[] = []): boolean {
+  if (!condition || typeof condition.value !== 'string') return false;
+  const value = condition.value.trim().toLocaleLowerCase();
+  const other = APPLICATION_OTHER_OPTION.toLocaleLowerCase();
+  return value === other || (condition.operator === 'contains' && Boolean(value) && other.includes(value)
+    && !regularOptions.some(option => typeof option === 'string' && option.toLocaleLowerCase().includes(value)));
 }
 
 export interface ApplicationQuestionValidation {
@@ -248,6 +260,12 @@ export function applicationChoiceAnswerText(value: ApplicationAnswer | undefined
   const selections = applicationChoiceSelections(value);
   if (isApplicationOtherAnswer(value)) return selections.map(option => option === APPLICATION_OTHER_OPTION ? `${APPLICATION_OTHER_OPTION}: ${value.otherText}` : option).join(separator);
   return selections.join(separator);
+}
+
+export function normalizeApplicationOtherAnswers(answers: Record<string, ApplicationAnswer>): Record<string, ApplicationAnswer> {
+  return Object.fromEntries(Object.entries(answers).map(([id, value]) => [id, isApplicationOtherAnswer(value)
+    ? { kind: 'other_choice', selections: [...applicationChoiceSelections(value)], otherText: typeof value.otherText === 'string' ? value.otherText.trim() : '' }
+    : value]));
 }
 
 export interface ApplicationStatusEvent {
@@ -580,7 +598,7 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
   }
   if (!Array.isArray(config.questions) || config.questions.length === 0) errors.push('Add at least one question.');
   const ids = new Set<string>();
-  const conditionSources = new Set<string>();
+  const conditionSources = new Map<string, ApplicationQuestion>();
   for (const item of config.questions ?? []) {
     if (!item.id || ids.has(item.id)) errors.push('Every question must have a unique ID.');
     ids.add(item.id);
@@ -598,15 +616,30 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
     if (item.allowOther && (item.options ?? []).some(option => typeof option === 'string' && option.trim().toLocaleLowerCase() === APPLICATION_OTHER_OPTION.toLocaleLowerCase())) {
       errors.push(`${item.label || 'Choice question'} already has an option named ${APPLICATION_OTHER_OPTION}.`);
     }
+    if (item.allowOther && (item.options ?? []).some(isPlainApplicationOtherOption)) {
+      errors.push(`${item.label || 'Choice question'} has both Other and ${APPLICATION_OTHER_OPTION}. Remove the plain Other option or turn off the specify field.`);
+    }
     if (item.allowedFileTypes !== undefined
       && (!Array.isArray(item.allowedFileTypes) || item.allowedFileTypes.some(type => !APPLICATION_FILE_TYPE_IDS.includes(type)))) {
       errors.push(`${item.label || 'File question'} has an unsupported file type.`);
     }
     errors.push(...questionValidationErrors(item));
-    if (item.condition?.questionId && !conditionSources.has(item.condition.questionId)) {
-      errors.push(`${item.label || 'Conditional question'} must depend on an earlier question.`);
+    if (item.condition?.questionId) {
+      const source = conditionSources.get(item.condition.questionId);
+      if (!source) {
+        errors.push(`${item.label || 'Conditional question'} must depend on an earlier question.`);
+      } else if (['single_choice', 'multiple_choice', 'dropdown', 'yes_no'].includes(source.type)) {
+        const options = (source.type === 'yes_no' ? ['Yes', 'No'] : [...(source.options ?? []), ...(source.allowOther ? [APPLICATION_OTHER_OPTION] : [])]).filter((option): option is string => typeof option === 'string');
+        const conditionValue = typeof item.condition.value === 'string' ? item.condition.value : '';
+        const matches = item.condition.operator === 'contains'
+          ? options.some(option => option.toLocaleLowerCase().includes(conditionValue.toLocaleLowerCase()))
+          : options.includes(conditionValue);
+        if (!matches) {
+          errors.push(`${item.label || 'Conditional question'} refers to an option no longer available in ${source.label || 'an earlier question'}. Update its condition.`);
+        }
+      }
     }
-    if (!isApplicationContentBlock(item)) conditionSources.add(item.id);
+    if (!isApplicationContentBlock(item)) conditionSources.set(item.id, item);
   }
   if (!Array.isArray(config.stages) || config.stages.length === 0) {
     errors.push('Add at least one review stage.');

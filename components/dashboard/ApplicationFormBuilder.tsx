@@ -61,7 +61,9 @@ import {
   APPLICATION_FILE_TYPES,
   APPLICATION_FEE_CURRENCIES,
   APPLICATION_FEE_TYPES,
+  applicationConditionUsesOther,
   applicationQuestionFileTypes,
+  isPlainApplicationOtherOption,
   isApplicationContentBlock,
   suggestedNameQuestionId,
   newApplicationFee,
@@ -447,6 +449,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
   const [dragOver, setDragOver] = useState(false);
   const [pasteOpen, setPasteOpen] = useState(false);
   const [pasteDraft, setPasteDraft] = useState('');
+  const [otherToggleAttempted, setOtherToggleAttempted] = useState(false);
   const isChoice = CHOICE_TYPES.includes(question.type);
   const isTextBlock = question.type === 'text_block';
   const isImage = question.type === 'image';
@@ -454,6 +457,24 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
   const conditionSources = questions.slice(0, index).filter(item => !isApplicationContentBlock(item));
   const conditionSource = conditionSources.find(item => item.id === question.condition?.questionId);
   const conditionOptions = conditionSource?.type === 'yes_no' ? ['Yes', 'No'] : conditionSource && CHOICE_TYPES.includes(conditionSource.type) ? [...(conditionSource.options ?? []), ...(conditionSource.allowOther ? [APPLICATION_OTHER_OPTION] : [])] : [];
+  const hasPlainOther = (question.options ?? []).some(isPlainApplicationOtherOption);
+  const otherDependent = questions.find(item => item.condition?.questionId === question.id && applicationConditionUsesOther(item.condition, question.options));
+  const otherToggleWarning = question.allowOther && hasPlainOther
+    ? 'This question already has an Other option. Remove the plain Other option or turn off the specify field.'
+    : otherToggleAttempted && !question.allowOther && hasPlainOther
+      ? 'Remove the existing Other option before adding Other (please specify). Check any follow-up conditions first.'
+      : otherToggleAttempted && question.allowOther && otherDependent
+        ? `${otherDependent.label || 'A follow-up question'} depends on Other (please specify). Update its condition before turning this option off.`
+        : '';
+
+  function toggleOther(checked: boolean) {
+    if ((checked && hasPlainOther) || (!checked && otherDependent)) {
+      setOtherToggleAttempted(true);
+      return;
+    }
+    setOtherToggleAttempted(false);
+    onUpdate({ allowOther: checked || undefined });
+  }
 
   function updateOption(optionIndex: number, value: string) {
     const options = [...(question.options ?? [])];
@@ -571,7 +592,8 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
             <textarea id={`paste-options-${question.id}`} value={pasteDraft} onChange={event => setPasteDraft(event.target.value)} rows={5} placeholder={'One option per line\nOr paste a spreadsheet column'} className="mt-2 w-full resize-y text-xs" style={{ ...inputStyle, background: C.card }} />
             <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[11px]" style={{ color: C.faint }}>Existing options are kept. Repeated options are skipped.</span><button type="button" disabled={!parseApplicationOptionList(pasteDraft).length} onClick={() => addPastedOptions(pasteDraft)} className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>Add options</button></div>
           </div>}
-          <label className="ml-6 flex cursor-pointer items-center gap-2 py-2 text-xs font-medium" style={{ color: C.muted }}><input type="checkbox" checked={Boolean(question.allowOther)} onChange={event => onUpdate({ allowOther: event.target.checked || undefined })} style={{ accentColor: C.cta }} /> Add Other (please specify)</label>
+          <label className="ml-6 flex cursor-pointer items-center gap-2 py-2 text-xs font-medium" style={{ color: C.muted }}><input type="checkbox" checked={Boolean(question.allowOther)} onChange={event => toggleOther(event.target.checked)} aria-describedby={otherToggleWarning ? `other-warning-${question.id}` : undefined} style={{ accentColor: C.cta }} /> Add Other (please specify)</label>
+          {otherToggleWarning && <p id={`other-warning-${question.id}`} className="ml-6 rounded-lg px-3 py-2 text-xs leading-5" role="alert" style={{ background: C.errorBg, color: C.errorText }}>{otherToggleWarning}</p>}
         </div>
       )}
 

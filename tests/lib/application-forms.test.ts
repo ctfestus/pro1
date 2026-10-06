@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   APPLICATION_OTHER_OPTION,
+  applicationConditionUsesOther,
   applicationChoiceAnswerText,
   applicationFileAcceptAttribute,
   applicationFileContentType,
@@ -13,6 +14,7 @@ import {
   formatApplicationFee,
   newApplicationFee,
   newApplicationFormConfig,
+  normalizeApplicationOtherAnswers,
   publicApplicationForm,
   suggestedNameQuestionId,
   validateApplicationAnswers,
@@ -49,6 +51,36 @@ describe('application form contract', () => {
     expect(validateApplicationForm(config)).toContain('Question can only use Other on a choice question.');
     config.questions = [{ id: 'q', label: 'Question', type: 'dropdown', required: false, allowOther: true, options: ['Yes', APPLICATION_OTHER_OPTION] }];
     expect(validateApplicationForm(config)).toContain('Question already has an option named Other (please specify).');
+    config.questions = [{ id: 'q', label: 'Question', type: 'dropdown', required: false, allowOther: true, options: ['Yes', ' other '] }];
+    expect(validateApplicationForm(config)).toContain('Question has both Other and Other (please specify). Remove the plain Other option or turn off the specify field.');
+  });
+
+  it('rejects a follow-up condition when its choice is removed', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [
+      { id: 'source', label: 'Source', type: 'single_choice', required: true, options: ['Friend', 'Search'], allowOther: true },
+      { id: 'detail', label: 'Detail', type: 'short_text', required: false, condition: { questionId: 'source', operator: 'equals', value: APPLICATION_OTHER_OPTION } },
+    ];
+    expect(validateApplicationForm(config)).toEqual([]);
+    config.questions[0].allowOther = undefined;
+    expect(validateApplicationForm(config)).toContain('Detail refers to an option no longer available in Source. Update its condition.');
+    config.questions[1].condition = { questionId: 'source', operator: 'contains', value: 'Other' };
+    expect(applicationConditionUsesOther(config.questions[1].condition)).toBe(true);
+    expect(applicationConditionUsesOther(config.questions[1].condition, ['Other programmes'])).toBe(false);
+    expect(validateApplicationForm(config)).toContain('Detail refers to an option no longer available in Source. Update its condition.');
+    config.questions[0].options = ['Friend', 'Other'];
+    config.questions[1].condition!.value = 'Other';
+    expect(validateApplicationForm(config)).toEqual([]);
+    config.questions[0].options = ['Friend', 'Search'];
+    expect(validateApplicationForm(config)).toContain('Detail refers to an option no longer available in Source. Update its condition.');
+  });
+
+  it('keeps only canonical Other fields and trims the detail', () => {
+    const answers = { track: { kind: 'other_choice' as const, selections: [APPLICATION_OTHER_OPTION], otherText: '  Research  ', hidden: { data: 'discard me' } }, ordinary: 'Data' };
+    const normalized = normalizeApplicationOtherAnswers(answers);
+    expect(normalized.track).toEqual({ kind: 'other_choice', selections: [APPLICATION_OTHER_OPTION], otherText: 'Research' });
+    expect(normalized.ordinary).toBe('Data');
+    expect(answers.track.otherText).toBe('  Research  ');
   });
   it('creates editable starter forms without fixed system questions', () => {
     const config = newApplicationFormConfig('internship');

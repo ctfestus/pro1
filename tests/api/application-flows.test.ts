@@ -274,17 +274,29 @@ describe('application end-to-end route boundaries', () => {
   it('requires an Other detail at the public submission boundary', async () => {
     const choice = { id: 'track', label: 'Track', type: 'dropdown', required: true, options: ['Data', 'Design'], allowOther: true };
     getFormBySlug.mockResolvedValue({ ...form, config: { ...config, questions: [...config.questions, choice] } });
-    const post = (otherText: string) => submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
+    const post = (otherText: string, hidden?: unknown) => submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'submit', email: 'applicant@example.com', answers: { ...requiredAnswers, track: { kind: 'other_choice', selections: ['Other (please specify)'], otherText } } }),
+      body: JSON.stringify({ action: 'submit', email: 'applicant@example.com', answers: { ...requiredAnswers, track: { kind: 'other_choice', selections: ['Other (please specify)'], otherText, hidden } } }),
     }) as any, { params: Promise.resolve({ slug: 'bootcamp' }) });
     const invalid = await post('  ');
     expect(invalid.status).toBe(400);
     expect((await invalid.json()).errors.track).toBe('Please specify your other answer.');
     expect(saveSubmission).not.toHaveBeenCalled();
-    const valid = await post('Research');
+    const valid = await post('  Research  ', { private: 'discard me' });
     expect(valid.status).toBe(200);
-    expect(saveSubmission.mock.calls.at(-1)?.[0].answers.track.otherText).toBe('Research');
+    expect(saveSubmission.mock.calls.at(-1)?.[0].answers.track).toEqual({ kind: 'other_choice', selections: ['Other (please specify)'], otherText: 'Research' });
+  });
+
+  it('refuses to save a form whose follow-up depends on a disabled Other choice', async () => {
+    const source = { id: 'source', label: 'Source', type: 'single_choice', required: true, options: ['Friend', 'Search'], allowOther: false };
+    const followUp = { id: 'detail', label: 'Detail', type: 'short_text', required: false, condition: { questionId: 'source', operator: 'equals', value: 'Other (please specify)' } };
+    const response = await updateForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ config: { ...config, questions: [...config.questions, source, followUp] } }),
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('option no longer available');
+    expect(saveForm).not.toHaveBeenCalled();
   });
 
   it('returns the reference and link when audit logging fails after submission', async () => {

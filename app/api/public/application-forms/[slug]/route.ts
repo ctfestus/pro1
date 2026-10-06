@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   formAvailability,
   isApplicationContentBlock,
+  normalizeApplicationOtherAnswers,
   publicApplicationForm,
   validateApplicationAnswers,
   type ApplicationAnswer,
@@ -170,6 +171,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
     if (Object.keys(errors).length) {
       return NextResponse.json({ error: 'Review the highlighted answers.', errors }, { status: 400 });
     }
+    answers = normalizeApplicationOtherAnswers(answers);
 
     const now = new Date().toISOString();
     const firstStage = form.config.stages[0] ?? { id: 'submitted', name: 'Submitted' };
