@@ -168,7 +168,7 @@ export async function POST(req: NextRequest, context: { params: Promise<{ slug: 
     answers = checkedFiles.answers;
     Object.assign(errors, checkedFiles.errors);
     if (Object.keys(errors).length) {
-      return NextResponse.json({ error: 'Complete the required questions.', errors }, { status: 400 });
+      return NextResponse.json({ error: 'Review the highlighted answers.', errors }, { status: 400 });
     }
 
     const now = new Date().toISOString();

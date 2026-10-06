@@ -254,6 +254,23 @@ describe('application end-to-end route boundaries', () => {
     expect(sendConfirmation).toHaveBeenCalledOnce();
   });
 
+  it('rejects answers that fail instructor response validation before saving', async () => {
+    const shortQuestion = config.questions.find(question => question.required && question.type === 'short_text')!;
+    getFormBySlug.mockResolvedValue({ ...form, config: {
+      ...config,
+      questions: config.questions.map(question => question.id === shortQuestion.id
+        ? { ...question, validation: { requireUrl: true } }
+        : question),
+    } });
+    const response = await submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit', email: 'applicant@example.com', answers: requiredAnswers }),
+    }) as any, { params: Promise.resolve({ slug: 'bootcamp' }) });
+    expect(response.status).toBe(400);
+    expect((await response.json()).errors[shortQuestion.id]).toBe('Enter a valid HTTP or HTTPS URL.');
+    expect(saveSubmission).not.toHaveBeenCalled();
+  });
+
   it('returns the reference and link when audit logging fails after submission', async () => {
     appendAudit.mockRejectedValueOnce(new Error('Audit unavailable'));
     const response = await submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
