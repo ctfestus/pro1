@@ -204,7 +204,7 @@ export async function POST(req: NextRequest) {
 
           const fallbackSubject = 'We received your payment confirmation';
           const fallbackHtml = paymentConfirmationAcknowledgedEmail({ name: studentName, amount: Number(amount), currency, dashboardUrl, branding });
-          const learnerEmail = await applyEmailTemplate({ key: 'payment_confirmation_received', fallbackSubject, fallbackHtml, variables: { student_name: studentName, amount: Number(amount).toFixed(2), currency }, branding, actionUrl: dashboardUrl });
+          const learnerEmail = await applyEmailTemplate({ key: 'payment_confirmation_received', fallbackSubject, fallbackHtml, variables: { student_name: studentName, amount: Number(amount).toFixed(2), currency }, branding });
           await resend.batch.send([
             { from: FROM, to: student.email, subject: learnerEmail.subject, html: learnerEmail.html },
             {

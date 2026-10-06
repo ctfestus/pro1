@@ -73,7 +73,7 @@ export async function sendAssignmentReminders(
   const t = await getTenantSettings();
   const FROM         = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding     = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-  const dashboardUrl = t.appUrl || process.env.APP_URL || '';
+  const dashboardUrl = `${(t.appUrl || process.env.APP_URL || '').replace(/\/$/, '')}/student#assignments`;
   const due          = assignment.deadline_date;
   const daysLeft     = due ? Math.ceil((new Date(due).getTime() - Date.now()) / 86400000) : 0;
   const dueWord      = daysLeft <= 0 ? 'is due' : daysLeft === 1 ? 'is due tomorrow' : `is due in ${daysLeft} days`;
@@ -86,8 +86,7 @@ export async function sendAssignmentReminders(
     const rendered = await applyEmailTemplate({
       key: 'assignment_due', fallbackSubject, fallbackHtml,
       variables: { student_name: r.name, assignment_title: assignment.title, due_date: formatEmailDate(due), due_text: dueText },
-      fixedDetails: [{ label: 'Assignment', value: assignment.title }, { label: 'Due', value: formatEmailDate(due) || dueText }],
-      branding, actionUrl: `${dashboardUrl}/student#assignments`,
+      branding,
     });
     return { from: FROM, to: r.email, subject: rendered.subject, html: rendered.html };
   }));

@@ -131,7 +131,7 @@ function runCertificateSideEffects(
             passed: true, passmark, correctQuestions, totalQuestions, skills, formUrl, certUrl,
             badgeName, badgeImageUrl, branding,
           });
-        const rendered = await applyEmailTemplate({ key: 'course_certificate', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', content_title: certRow.title, score: bestAttempt?.score ?? 100 }, branding, actionUrl: certUrl });
+        const rendered = await applyEmailTemplate({ key: 'course_certificate', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', content_title: certRow.title, score: bestAttempt?.score ?? 100 }, branding });
         await sendCertificateEmailOnce(supabase, {
           certId:     cert_id,
           dedupeType: 'certification-certificate',

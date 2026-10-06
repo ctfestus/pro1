@@ -41,7 +41,7 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
       const studentUrl = `${t.appUrl}/student`;
       const fallbackSubject = `Welcome to ${t.appName}, ${name}!`;
       const fallbackHtml = welcomeEmail({ name, studentUrl, branding });
-      const rendered = await applyEmailTemplate({ key: 'onboarding_welcome', fallbackSubject, fallbackHtml, variables: { student_name: name, app_name: t.appName }, branding, actionUrl: studentUrl });
+      const rendered = await applyEmailTemplate({ key: 'onboarding_welcome', fallbackSubject, fallbackHtml, variables: { student_name: name, app_name: t.appName }, branding });
       await resend.emails.send({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     });
 
@@ -82,7 +82,7 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
       const studentUrl = `${t.appUrl}/student`;
       const fallbackSubject = `${name}, your courses are waiting for you`;
       const fallbackHtml = day3CheckInEmail({ name, studentUrl, courseTitle, courseUrl, branding });
-      const rendered = await applyEmailTemplate({ key: 'onboarding_day3', fallbackSubject, fallbackHtml, variables: { student_name: name, content_title: courseTitle || 'your courses', app_name: t.appName }, branding, actionUrl: courseUrl || studentUrl });
+      const rendered = await applyEmailTemplate({ key: 'onboarding_day3', fallbackSubject, fallbackHtml, variables: { student_name: name, content_title: courseTitle || 'your courses', app_name: t.appName }, branding });
       await resend.emails.send({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     });
 
@@ -113,7 +113,7 @@ export const { POST } = serve<{ email: string; name: string; userId: string }>(
             : `${name}, your learning journey is still waiting for you`;
       const studentUrl = `${t.appUrl}/student`;
       const fallbackHtml = day7EncouragementEmail({ name, studentUrl, hasStarted, coursesCompleted, branding });
-      const rendered = await applyEmailTemplate({ key: 'onboarding_day7', fallbackSubject, fallbackHtml, variables: { student_name: name, completed_count: coursesCompleted, app_name: t.appName }, branding, actionUrl: studentUrl });
+      const rendered = await applyEmailTemplate({ key: 'onboarding_day7', fallbackSubject, fallbackHtml, variables: { student_name: name, completed_count: coursesCompleted, app_name: t.appName }, branding });
       await resend.emails.send({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     });
   },

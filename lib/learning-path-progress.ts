@@ -103,7 +103,7 @@ export async function updateLearningPathProgress(
                     nextDescription: nextItem.description ?? null,
                     branding,
                   });
-                const rendered = await applyEmailTemplate({ key: 'next_learning_item', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: path.title, content_title: nextItem.title }, branding, actionUrl: nextUrl });
+                const rendered = await applyEmailTemplate({ key: 'next_learning_item', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: path.title, content_title: nextItem.title }, branding });
                 const { error: nextUpErr } = await resend.emails.send({ from: FROM, to: studentRow.email, subject: rendered.subject, html: rendered.html });
                 if (nextUpErr) console.error('[updateLearningPathProgress] next-up email failed', nextUpErr);
               }
@@ -236,7 +236,7 @@ async function runPathCompletionEffects(
                 name: studentRow.full_name ?? 'there', pathTitle: nextPath.title,
                 pathDescription: nextPath.description ?? undefined, dashboardUrl, items, branding,
               });
-            const rendered = await applyEmailTemplate({ key: 'learning_path_assigned', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: nextPath.title, app_name: t.appName }, branding, actionUrl: dashboardUrl });
+            const rendered = await applyEmailTemplate({ key: 'learning_path_assigned', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: nextPath.title, app_name: t.appName }, branding });
             const settled = await sendCertificateEmailOnce(supabase, {
               certId:     `${nextPath.id}:${studentId}`,
               dedupeType: 'learning-path-next-enroll',
@@ -341,7 +341,7 @@ async function runPathCompletionEffects(
             name: studentName, pathTitle: fullPath?.title ?? path.title, certUrl, items, branding,
             badgeName: lpBadgeName, badgeImageUrl: pathMeta?.badge_image_url ?? undefined,
           });
-        const rendered = await applyEmailTemplate({ key: 'learning_path_certificate', fallbackSubject, fallbackHtml, variables: { student_name: studentName, path_title: fullPath?.title ?? path.title }, branding, actionUrl: certUrl });
+        const rendered = await applyEmailTemplate({ key: 'learning_path_certificate', fallbackSubject, fallbackHtml, variables: { student_name: studentName, path_title: fullPath?.title ?? path.title }, branding });
         const settled = await sendCertificateEmailOnce(supabase, {
           certId:     certResult.certId,
           dedupeType: 'learning-path-certificate',

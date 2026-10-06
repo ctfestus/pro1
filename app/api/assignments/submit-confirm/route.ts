@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
         dashboardUrl,
         branding,
       });
-    const rendered = await applyEmailTemplate({ key: 'submission_received', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', assignment_title: assignment.title }, branding, actionUrl: dashboardUrl });
+    const rendered = await applyEmailTemplate({ key: 'submission_received', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name || 'there', assignment_title: assignment.title }, branding });
     await resend.emails.send({ from: FROM, to: student.email, subject: rendered.subject, html: rendered.html });
   } catch (err) {
     console.error('[submit-confirm]', err);

@@ -255,7 +255,7 @@ export async function POST(req: NextRequest) {
             dashboardUrl,
             branding,
           });
-        const rendered = await applyEmailTemplate({ key: 'submission_received', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name || 'there', assignment_title: assignment.title }, branding, actionUrl: dashboardUrl });
+        const rendered = await applyEmailTemplate({ key: 'submission_received', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name || 'there', assignment_title: assignment.title }, branding });
         await resend.emails.send({ from: FROM, to: studentRow.email, subject: rendered.subject, html: rendered.html });
 
         // Mark as sent so future callers know the email was delivered.

@@ -122,10 +122,6 @@ function eventLocationDisplay(data: Record<string, any>) {
   return data.eventLocation || data.location || (data.meetingLink || data.joinUrl ? 'Online' : 'To be announced');
 }
 
-function eventFixedDetails(data: Record<string, any>) {
-  return [{ label: 'When', value: eventTimeDisplay(data) }, { label: 'Where', value: eventLocationDisplay(data) }];
-}
-
 function applyMergeTags(template: string, values: Record<string, string>) {
   return template.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_match, key) => {
     const normalizedKey = String(key).toLowerCase();
@@ -198,9 +194,7 @@ export async function POST(req: NextRequest) {
               reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
               event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay(data),
             },
-            fixedDetails: eventFixedDetails(data),
-            branding, actionUrl: data.joinUrl || data.meetingLink || data.formUrl,
-            ctaLabel: data.joinUrl || data.meetingLink ? 'Join Meeting' : 'View Event',
+            branding,
           });
           await resend.emails.send({ from: FROM, to: to.trim(), subject: rendered.subject, html: rendered.html });
           return NextResponse.json({ success: true, test: true });
@@ -223,9 +217,7 @@ export async function POST(req: NextRequest) {
               reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
               event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay({ ...data, joinUrl }),
             },
-            fixedDetails: eventFixedDetails({ ...data, joinUrl }),
-            branding, actionUrl: joinUrl || data.meetingLink || data.formUrl,
-            ctaLabel: joinUrl || data.meetingLink ? 'Join Meeting' : 'View Event',
+            branding,
           });
           return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
         }))).filter((message): message is NonNullable<typeof message> => message !== null);
@@ -257,9 +249,7 @@ export async function POST(req: NextRequest) {
               reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
               event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay({ ...data, joinUrl }),
             },
-            fixedDetails: eventFixedDetails({ ...data, joinUrl }),
-            branding, actionUrl: joinUrl || data.meetingLink || data.formUrl,
-            ctaLabel: joinUrl || data.meetingLink ? 'Join Meeting' : 'View Event',
+            branding,
           });
           return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
         }))).filter((message): message is NonNullable<typeof message> => message !== null);
@@ -290,7 +280,7 @@ export async function POST(req: NextRequest) {
           key: data?.passed ? 'course_certificate' : 'course_result',
           fallbackSubject: testSubject, fallbackHtml: html,
           variables: { student_name: data?.name || 'there', content_title: data?.courseTitle || 'Course', score: data?.percentage ?? data?.score ?? 0 },
-          branding, actionUrl: data?.certUrl || data?.formUrl,
+          branding,
         });
         await resend.emails.send({ from: FROM, to: to.trim(), subject: rendered.subject, html: rendered.html });
         return NextResponse.json({ success: true, test: true });
@@ -442,9 +432,7 @@ export async function POST(req: NextRequest) {
               reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
               event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay(data),
             },
-            fixedDetails: eventFixedDetails(data),
-            branding, actionUrl: data.joinUrl || data.meetingLink || data.formUrl,
-            ctaLabel: data.joinUrl || data.meetingLink ? 'Join Meeting' : 'View Event',
+            branding,
           });
           subject = rendered.subject;
           html = rendered.html;
@@ -459,7 +447,7 @@ export async function POST(req: NextRequest) {
           key: d.passed ? 'course_certificate' : 'course_result',
           fallbackSubject: subject, fallbackHtml: html,
           variables: { student_name: d.name || 'there', content_title: d.courseTitle, score: d.percentage ?? 0 },
-          branding, actionUrl: d.certUrl || d.formUrl,
+          branding,
         });
         subject = rendered.subject;
         html = rendered.html;

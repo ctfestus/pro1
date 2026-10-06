@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       dashboardUrl,
       branding,
     });
-    const rendered = await applyEmailTemplate({ key: 'recording_published', fallbackSubject: subject, fallbackHtml, variables: { student_name: s.full_name || 'there', recording_title: recording.title, weeks: weeks.join(', ') }, branding, actionUrl: dashboardUrl });
+    const rendered = await applyEmailTemplate({ key: 'recording_published', fallbackSubject: subject, fallbackHtml, variables: { student_name: s.full_name || 'there', recording_title: recording.title, weeks: weeks.join(', ') }, branding });
     return { from: FROM, to: s.email, subject: rendered.subject, html: rendered.html };
   }));
 

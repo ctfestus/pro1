@@ -121,7 +121,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const fallbackSubject = `We missed you at ${event.title ?? 'the session'}`;
-      const rendered = await applyEmailTemplate({ key: 'missed_event', fallbackSubject, fallbackHtml: html, variables: { student_name: student.full_name ?? 'there', event_title: event.title ?? 'the session', event_date: targetDate }, branding, actionUrl: joinUrl || dashboardUrl });
+      const rendered = await applyEmailTemplate({ key: 'missed_event', fallbackSubject, fallbackHtml: html, variables: { student_name: student.full_name ?? 'there', event_title: event.title ?? 'the session', event_date: targetDate }, branding });
       await resend.emails.send({ from: FROM, to: student.email, subject: rendered.subject, html: rendered.html });
       sent++;
     } catch (err) {

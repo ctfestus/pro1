@@ -184,7 +184,7 @@ export async function POST(req: NextRequest) {
             certUrl,
             branding,
           });
-          const rendered = await applyEmailTemplate({ key: 'open_certificate', fallbackSubject, fallbackHtml, variables: { student_name: r.recipient_name, program_name: r.program_name }, branding, actionUrl: certUrl });
+          const rendered = await applyEmailTemplate({ key: 'open_certificate', fallbackSubject, fallbackHtml, variables: { student_name: r.recipient_name, program_name: r.program_name }, branding });
           return { from: FROM, to: r.recipient_email!, subject: rendered.subject, html: rendered.html };
         }));
         await resend.batch.send(messages);

@@ -88,7 +88,7 @@ export async function sendGroupSubmissionNotifications({
           dashboardUrl,
           branding,
         });
-      const rendered = await applyEmailTemplate({ key: 'group_submission_received', fallbackSubject, fallbackHtml, variables: { student_name: recipient.name, submitted_by: submitter?.full_name ?? 'A group member', assignment_title: assignmentTitle, group_name: groupName }, branding, actionUrl: dashboardUrl });
+      const rendered = await applyEmailTemplate({ key: 'group_submission_received', fallbackSubject, fallbackHtml, variables: { student_name: recipient.name, submitted_by: submitter?.full_name ?? 'A group member', assignment_title: assignmentTitle, group_name: groupName }, branding });
       emails.push({ from: FROM, to: recipient.email.trim(), subject: rendered.subject, html: rendered.html });
     }
 

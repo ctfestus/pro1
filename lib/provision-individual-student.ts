@@ -41,7 +41,7 @@ export async function sendIndividualStudentSetupEmail(
       setupUrl,
       branding,
     });
-  const rendered = await applyEmailTemplate({ key: 'account_setup', fallbackSubject, fallbackHtml, variables: { student_name: fullName || 'there', app_name: tenant.appName }, branding, actionUrl: setupUrl });
+  const rendered = await applyEmailTemplate({ key: 'account_setup', fallbackSubject, fallbackHtml, variables: { student_name: fullName || 'there', app_name: tenant.appName }, branding });
   const { error: emailError } = await resend.emails.send({ from, to: email, subject: rendered.subject, html: rendered.html });
   if (emailError) throw new Error(emailError.message);
 

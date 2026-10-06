@@ -8,7 +8,7 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 
 type Definition = {
   key: string; label: string; category: string; description: string; schedule: string;
-  defaultSubject: string; defaultBody: string; tags: string[]; requiredTags: string[];
+  tags: string[];
 };
 type Override = { template_key: string; subject_template: string; body_template: string; composition_mode: 'legacy_replace' | 'additive'; updated_at: string; updated_by: string | null };
 type HistoryRow = { id: string; template_key: string; action: string; changed_at: string; students?: { full_name?: string; email?: string } | null };
@@ -73,7 +73,12 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
 
   const dirty = subject !== loadedSubject || body !== loadedBody;
   const needsSafeComposition = selectedOverride?.composition_mode === 'legacy_replace';
-  const hasCustomization = Boolean(subject.trim() || body.replace(/<[^>]*>/g, '').trim());
+  const bodyHasVisibleText = Boolean(body
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ')
+    .replace(/[\s\u00a0\u200b\u200c\u200d\ufeff]/g, ''));
+  const hasCustomization = Boolean(subject.trim() || bodyHasVisibleText);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return definitions.filter(item => !needle || `${item.label} ${item.category} ${item.description}`.toLowerCase().includes(needle));
@@ -97,7 +102,7 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `Could not ${action} this email.`);
       if (action === 'preview') setPreview({ subject: json.subject, html: json.html });
-      else setMessage({ ok: true, text: `Custom-message sample sent to ${json.sentTo}.` });
+      else setMessage({ ok: true, text: `Sample email sent to ${json.sentTo}.` });
     } catch (error: any) {
       setMessage({ ok: false, text: error.message || `Could not ${action} this email.` });
     } finally { setBusy(null); }
@@ -189,13 +194,13 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
               <button onClick={save} disabled={(!dirty && !needsSafeComposition) || !hasCustomization || busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}Save customization</button>
-              <button onClick={() => request('preview')} disabled={!hasCustomization || busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'preview' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Mail className="w-4 h-4"/>}Preview custom message</button>
-              <button onClick={() => request('test')} disabled={!hasCustomization || busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'test' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}Send custom-message sample</button>
+              <button onClick={() => request('preview')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'preview' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Mail className="w-4 h-4"/>}Preview full sample</button>
+              <button onClick={() => request('test')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'test' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}Send full sample</button>
               {selectedOverride && <button onClick={reset} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>{busy === 'reset' ? <Loader2 className="w-4 h-4 animate-spin"/> : <RotateCcw className="w-4 h-4"/>}Restore system email</button>}
             </div>
           </section>
 
-          {preview && <section className="rounded-2xl p-5" style={cardStyle(C)}><p className="text-xs font-semibold" style={{ color: C.muted }}>Preview subject</p><p className="mt-1 text-sm font-bold" style={{ color: C.text }}>{preview.subject}</p><p className="mt-3 text-xs" style={{ color: C.faint }}>This preview shows the custom addition with sample data. The live email keeps its current system content and real learner-specific buttons below it.</p><iframe title="Email preview" srcDoc={preview.html} sandbox="" className="mt-4 h-[520px] w-full rounded-xl bg-white"/></section>}
+          {preview && <section className="rounded-2xl p-5" style={cardStyle(C)}><p className="text-xs font-semibold" style={{ color: C.muted }}>Preview subject</p><p className="mt-1 text-sm font-bold" style={{ color: C.text }}>{preview.subject}</p><p className="mt-3 text-xs" style={{ color: C.faint }}>This is the complete email layout with representative learner data. Buttons look the same but are disabled in previews and samples.</p><iframe title="Email preview" srcDoc={preview.html} sandbox="" className="mt-4 h-[520px] w-full rounded-xl bg-white"/></section>}
 
           <section className="rounded-2xl p-5" style={cardStyle(C)}>
             <div className="flex items-center gap-2"><History className="w-4 h-4" style={{ color: C.faint }}/><h3 className="text-sm font-bold" style={{ color: C.text }}>Recent changes</h3></div>

@@ -77,7 +77,7 @@ export async function POST(req: NextRequest) {
         score:           sub.score,
         passed,
         feedback:        sub.feedback,
-        studentUrl:      `${t.appUrl}/student`,
+        studentUrl:      `${t.appUrl.replace(/\/$/, '')}/student#assignments`,
         branding,
       });
       const fallbackSubject = `Your assignment has been graded: ${assignmentTitle}`;
@@ -89,11 +89,7 @@ export async function POST(req: NextRequest) {
           score: sub.score ?? '', score_display: sub.score == null ? 'Not scored' : `${sub.score}/100`,
           result_status: resultStatus, feedback: sub.feedback || '',
         },
-        fixedDetails: [
-          { label: 'Assignment', value: assignmentTitle }, { label: 'Result', value: resultStatus },
-          { label: 'Score', value: sub.score == null ? null : `${sub.score}/100` }, { label: 'Feedback', value: sub.feedback || null },
-        ],
-        branding, actionUrl: `${t.appUrl}/student#assignments`,
+        branding,
       });
       return resend.emails.send({ from: FROM, to: student.email.trim(), subject: rendered.subject, html: rendered.html });
     }));

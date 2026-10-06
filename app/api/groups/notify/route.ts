@@ -101,7 +101,7 @@ export async function POST(req: NextRequest) {
           dashboardUrl,
           branding,
         });
-      const rendered = await applyEmailTemplate({ key: 'group_assigned', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name ?? 'there', group_name: group.name, cohort_name: cohortName }, branding, actionUrl: dashboardUrl });
+      const rendered = await applyEmailTemplate({ key: 'group_assigned', fallbackSubject, fallbackHtml, variables: { student_name: student.full_name ?? 'there', group_name: group.name, cohort_name: cohortName }, branding });
       emails.push({ from: fromEmail, to: student.email, subject: rendered.subject, html: rendered.html });
     }
 

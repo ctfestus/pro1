@@ -132,7 +132,7 @@ export async function POST(req: NextRequest) {
         const messages = await Promise.all(inserted.map(async ({ email }) => {
           const fallbackSubject = `You've been invited to join ${t.appName || cohortName}`;
           const fallbackHtml = cohortInviteEmail({ cohortName, signupUrl, branding });
-          const rendered = await applyEmailTemplate({ key: 'cohort_invite', fallbackSubject, fallbackHtml, variables: { student_name: 'there', cohort_name: cohortName, app_name: t.appName }, branding, actionUrl: signupUrl });
+          const rendered = await applyEmailTemplate({ key: 'cohort_invite', fallbackSubject, fallbackHtml, variables: { student_name: 'there', cohort_name: cohortName, app_name: t.appName }, branding });
           return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
         }));
         await resend.batch.send(messages);

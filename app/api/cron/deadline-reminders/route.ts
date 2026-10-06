@@ -151,8 +151,7 @@ export async function POST(req: NextRequest) {
           const rendered = await applyEmailTemplate({
             key: 'deadline_reminder', fallbackSubject: subject, fallbackHtml,
             variables: { student_name: student.full_name || 'there', content_title: content.title, content_type: content.content_type, due_text: dueText },
-            fixedDetails: [{ label: 'Learning item', value: content.title }, { label: 'Due', value: dueText }],
-            branding, actionUrl: formUrl,
+            branding,
           });
           emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
           nudgeRecords.push({ student_id: student.id, form_id: contentId, nudge_type: 'deadline_reminder' });
@@ -224,8 +223,7 @@ export async function POST(req: NextRequest) {
           const rendered = await applyEmailTemplate({
             key: 'assignment_due', fallbackSubject: subject, fallbackHtml,
             variables: { student_name: student.full_name || 'there', assignment_title: asm.title, due_date: formatEmailDate(asm.deadline_date), due_text: daysLeft <= 0 ? 'today' : daysLeft === 1 ? 'tomorrow' : `in ${daysLeft} days` },
-            fixedDetails: [{ label: 'Assignment', value: asm.title }, { label: 'Due', value: formatEmailDate(asm.deadline_date) }],
-            branding, actionUrl: `${t.appUrl}/student#assignments`,
+            branding,
           });
           emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
           nudgeRecords.push({ student_id: student.id, form_id: asm.id, nudge_type: 'deadline_reminder' });

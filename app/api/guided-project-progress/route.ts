@@ -353,7 +353,7 @@ export async function POST(req: NextRequest) {
           const rendered = await applyEmailTemplate({
             key: 've_reviewed', fallbackSubject, fallbackHtml,
             variables: { student_name: student?.full_name || 'there', content_title: ve.title, score: review.score, feedback: review.feedback },
-            branding, actionUrl: veReviewHref(t.appUrl, attempt.ve_id),
+            branding,
           });
           const { error: sendError } = await resend.emails.send({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
           if (sendError) console.error('[guided-project-progress] review email error:', sendError);
@@ -486,7 +486,7 @@ export async function POST(req: NextRequest) {
           const rendered = await applyEmailTemplate({
             key: 'course_certificate', fallbackSubject, fallbackHtml,
             variables: { student_name: studentName || student.full_name || 'there', content_title: ve.title },
-            branding, actionUrl: certUrl,
+            branding,
           });
           await resend.emails.send({ from: FROM, to: student.email, subject: rendered.subject, html: rendered.html });
         } catch (emailErr) {
@@ -685,7 +685,7 @@ export async function POST(req: NextRequest) {
         const rendered = await applyEmailTemplate({
           key: 've_milestone', fallbackSubject, fallbackHtml: html,
           variables: { student_name: studentName || studentProfile.full_name || 'there', content_title: ve.title },
-          branding, actionUrl: `${t.appUrl}/${ve.slug ?? resolvedVeId}`,
+          branding,
         });
         await resend.emails.send({ from: FROM, to: studentProfile.email, subject: rendered.subject, html: rendered.html });
         await recordNudge(supabase, progressUser.id, resolvedVeId, 'milestone_80');

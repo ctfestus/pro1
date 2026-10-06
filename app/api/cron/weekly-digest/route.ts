@@ -211,7 +211,7 @@ export async function POST(req: NextRequest) {
         in_progress_count: inProgress.length, not_started_count: notStarted.length,
         overdue_count: missedDeadlines.length,
       },
-      branding, actionUrl: `${t.appUrl}/student`,
+      branding,
     });
     emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
     nudgeRecords.push({ student_id: student.id });

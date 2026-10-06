@@ -176,7 +176,7 @@ export async function POST(req: NextRequest) {
       const fallbackHtml = gracePeriodWarningEmail({
           name: c.studentName, graceEndDate: graceEndStr, daysLeft: c.daysLeft, dashboardUrl, branding,
         });
-      const rendered = await applyEmailTemplate({ key: 'grace_period', fallbackSubject, fallbackHtml, variables: { student_name: c.studentName, grace_end_date: graceEndStr, days_left: c.daysLeft }, branding, actionUrl: dashboardUrl });
+      const rendered = await applyEmailTemplate({ key: 'grace_period', fallbackSubject, fallbackHtml, variables: { student_name: c.studentName, grace_end_date: graceEndStr, days_left: c.daysLeft }, branding });
       emailBatch.push({ from: FROM, to: c.email, subject: rendered.subject, html: rendered.html });
       nudgeRecords.push({ student_id: c.studentId, form_id: c.installmentId, nudge_type: 'grace_period_start' });
       nudgedSet.add(startKey);
@@ -186,7 +186,7 @@ export async function POST(req: NextRequest) {
       const fallbackHtml = gracePeriodWarningEmail({
           name: c.studentName, graceEndDate: graceEndStr, daysLeft: 1, dashboardUrl, branding,
         });
-      const rendered = await applyEmailTemplate({ key: 'grace_period', fallbackSubject, fallbackHtml, variables: { student_name: c.studentName, grace_end_date: graceEndStr, days_left: 1 }, branding, actionUrl: dashboardUrl });
+      const rendered = await applyEmailTemplate({ key: 'grace_period', fallbackSubject, fallbackHtml, variables: { student_name: c.studentName, grace_end_date: graceEndStr, days_left: 1 }, branding });
       emailBatch.push({ from: FROM, to: c.email, subject: rendered.subject, html: rendered.html });
       nudgeRecords.push({ student_id: c.studentId, form_id: c.installmentId, nudge_type: 'grace_period_expiring' });
       nudgedSet.add(expiringKey);

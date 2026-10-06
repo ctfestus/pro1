@@ -1,12 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { customBodyForCompositionMode, formatEmailDate, preserveSystemEmailContent, renderEmailTemplatePreview, validateEmailTemplateDraft } from '@/lib/email-template-service';
 import { EMAIL_TEMPLATE_DEFINITIONS } from '@/lib/email-template-registry';
+import { buildEmailTemplateSample } from '@/lib/email-template-preview';
 import { weeklyDigestEmail } from '@/lib/email-templates';
 
 describe('email template validation', () => {
-  it('keeps every built-in custom-template starter valid', () => {
+  const branding = { appName: 'Academy', appUrl: 'https://academy.test', teamName: 'Academy Learning Team' };
+
+  it('builds a complete standard sample for every registered template', () => {
     for (const definition of EMAIL_TEMPLATE_DEFINITIONS) {
-      expect(validateEmailTemplateDraft(definition.key, definition.defaultSubject, definition.defaultBody)).not.toHaveProperty('error');
+      const sample = buildEmailTemplateSample(definition.key, branding);
+      expect(sample.subject, definition.key).toBeTruthy();
+      expect(sample.html, definition.key).toBeTruthy();
+
+      const rendered = renderEmailTemplatePreview({
+        key: definition.key,
+        subject: '',
+        body: '',
+        fallbackSubject: sample.subject,
+        fallbackHtml: sample.html,
+        variables: sample.variables,
+        branding,
+      });
+      expect(rendered, definition.key).toHaveProperty('html');
+      if (!('html' in rendered)) continue;
+      expect(rendered.subject, definition.key).toBe(sample.subject);
+      expect(rendered.html, definition.key).not.toMatch(/<a\b/i);
+      expect(rendered.html, definition.key).not.toMatch(/\shref\s*=/i);
     }
   });
 
@@ -19,6 +39,17 @@ describe('email template validation', () => {
     expect(validateEmailTemplateDraft('payment_request', 'Payment request', '')).not.toHaveProperty('error');
     expect(validateEmailTemplateDraft('payment_request', '', '<p>Please pay soon.</p>')).not.toHaveProperty('error');
     expect(validateEmailTemplateDraft('payment_request', '', '')).toEqual({ error: 'Add a custom subject or message before saving.' });
+  });
+
+  it('treats editor-only markup and non-breaking spaces as an empty message', () => {
+    const subjectOnly = validateEmailTemplateDraft('weekly_digest', 'Weekly update', '<p>&nbsp;<br></p>');
+    expect(subjectOnly).not.toHaveProperty('error');
+    if ('error' in subjectOnly) return;
+    expect(subjectOnly.body).toBe('');
+
+    expect(validateEmailTemplateDraft('weekly_digest', '', '<p>&#160;<br></p>')).toEqual({
+      error: 'Add a custom subject or message before saving.',
+    });
   });
 
   it('blocks author-controlled links because the platform supplies the secure action button', () => {
@@ -43,12 +74,15 @@ describe('email template validation', () => {
   });
 
   it('escapes merge values and produces a sandbox-safe preview document', () => {
+    const fallback = buildEmailTemplateSample('account_setup', branding);
     const rendered = renderEmailTemplatePreview({
       key: 'account_setup',
       subject: 'Hello {{student_name}}',
       body: '<p>Hi {{student_name}}</p>',
+      fallbackSubject: fallback.subject,
+      fallbackHtml: fallback.html,
       variables: { student_name: '<img src=x onerror=alert(1)>' },
-      branding: { appName: 'Academy', appUrl: 'https://academy.test' },
+      branding,
     });
     expect('html' in rendered).toBe(true);
     if (!('html' in rendered)) return;
@@ -58,17 +92,23 @@ describe('email template validation', () => {
     expect(rendered.html).not.toContain('href=');
   });
 
-  it('renders protected details safely and formats system dates for learners', () => {
+  it('renders the full standard email with sample data and disables its links', () => {
+    const fallback = buildEmailTemplateSample('payment_receipt', branding);
     const rendered = renderEmailTemplatePreview({
       key: 'payment_receipt', subject: 'Receipt', body: '<p>Payment received.</p>',
-      variables: {}, branding: { appName: 'Academy', appUrl: 'https://academy.test' },
-      fixedDetails: [{ label: 'Reference', value: '<script>alert(1)</script>' }],
+      fallbackSubject: fallback.subject,
+      fallbackHtml: fallback.html,
+      variables: fallback.variables,
+      branding,
     });
     expect('html' in rendered).toBe(true);
     if (!('html' in rendered)) return;
-    expect(rendered.html).toContain('Details');
-    expect(rendered.html).toContain('&lt;script&gt;');
-    expect(rendered.html).not.toContain('<script>alert');
+    expect(rendered.html).toContain('Message from your learning team');
+    expect(rendered.html).toContain('Payment received.');
+    expect(rendered.html).toContain('PAY-1024');
+    expect(rendered.html).toContain('Mobile Money');
+    expect(rendered.html).not.toMatch(/<a\b/i);
+    expect(rendered.html).not.toMatch(/\shref\s*=/i);
     expect(formatEmailDate('2026-11-04T00:00:00+00:00')).toBe('4 November 2026');
   });
 
@@ -127,5 +167,10 @@ describe('email template validation', () => {
     const legacyBody = customBodyForCompositionMode('legacy_replace', '<p>Old replacement email</p>');
     expect(preserveSystemEmailContent(fallback, legacyBody, {})).toBe(fallback);
     expect(customBodyForCompositionMode('additive', '<p>New message</p>')).toBe('<p>New message</p>');
+  });
+
+  it('does not insert an empty custom message box', () => {
+    const fallback = '<html><body><p>Current system email</p></body></html>';
+    expect(preserveSystemEmailContent(fallback, '<p>&nbsp;<br></p>', branding)).toBe(fallback);
   });
 });
