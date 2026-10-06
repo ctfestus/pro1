@@ -729,7 +729,8 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
   function importQuestions(imported: ApplicationQuestion[], mode: 'append' | 'replace') {
     const questions = mode === 'replace' ? imported : [...config.questions, ...imported];
     // Replacing removes the admission name question; point admission at a suitable new one.
-    const admission = config.admission && mode === 'replace' && !questions.some(item => item.id === config.admission!.nameQuestionId)
+    // "No name question" (no id) is a choice and is kept.
+    const admission = config.admission?.nameQuestionId && mode === 'replace' && !questions.some(item => item.id === config.admission!.nameQuestionId)
       ? { ...config.admission, nameQuestionId: suggestedNameQuestionId(questions) }
       : config.admission;
     setConfig({ questions: withValidConditions(questions), admission });
