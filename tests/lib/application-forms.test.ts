@@ -3,6 +3,7 @@ import {
   applicationFileAcceptAttribute,
   applicationFileContentType,
   applicationFileTypesLabel,
+  applicationQuestionValidationHint,
   isAcceptedStage,
   isApplicationContentBlock,
   formAvailability,
@@ -121,6 +122,61 @@ describe('application form contract', () => {
     hiddenAnswers[trigger.id] = 'Show';
     delete hiddenAnswers.conditional;
     expect(validateApplicationAnswers(config, hiddenAnswers).conditional).toBe('This question is required.');
+  });
+
+  it('checks configurable response rules and shows applicants the same criteria', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [
+      { id: 'site', label: 'Portfolio URL', type: 'short_text', required: true, validation: { minCharacters: 10, maxCharacters: 40, requireUrl: true } },
+      { id: 'essay', label: 'Motivation', type: 'long_text', required: false, validation: { minWords: 3, maxWords: 5 } },
+      { id: 'score', label: 'Score', type: 'number', required: true, validation: { minNumber: -2, maxNumber: 10 } },
+      { id: 'start', label: 'Start date', type: 'date', required: true, validation: { minDate: '2026-10-01', maxDate: '2026-10-31' } },
+      { id: 'skills', label: 'Skills', type: 'multiple_choice', required: true, options: ['SQL', 'Python', 'Excel'], validation: { minSelections: 2, maxSelections: 2 } },
+    ];
+    expect(validateApplicationForm(config, 'published')).toEqual([]);
+    expect(applicationQuestionValidationHint(config.questions[0])).toContain('HTTP or HTTPS URL');
+    expect(applicationQuestionValidationHint(config.questions[1])).toContain('At least 3 words');
+    const answers = { site: 'ftp://example.com', essay: 'One two', score: -3, start: '2026-09-30', skills: ['SQL'] };
+    expect(validateApplicationAnswers(config, answers)).toEqual({
+      site: 'Enter a valid HTTP or HTTPS URL.',
+      essay: 'Enter at least 3 words.',
+      score: 'Enter a number of at least -2.',
+      start: 'Choose a date on or after 2026-10-01.',
+      skills: 'Choose at least 2 options.',
+    });
+    expect(validateApplicationAnswers(config, { site: 'https://example.com', essay: '', score: 5, start: '2026-10-15', skills: ['SQL', 'Python'] })).toEqual({});
+    expect(validateApplicationAnswers(config, { site: 'short', essay: 'one two three four five six', score: 11, start: '2026-11-01', skills: ['SQL', 'Python', 'Excel'] })).toEqual({
+      site: 'Enter at least 10 characters.',
+      essay: 'Enter no more than 5 words.',
+      score: 'Enter a number no greater than 10.',
+      start: 'Choose a date on or before 2026-10-31.',
+      skills: 'Choose no more than 2 options.',
+    });
+    expect(validateApplicationAnswers(config, { site: 'https://example.com', score: 5, start: '2026-10-15', skills: ['SQL', 'SQL'] }).skills).toBe('Select valid options.');
+    expect(validateApplicationAnswers(config, { site: `https://example.com/${'a'.repeat(40)}`, score: 5, start: '2026-10-15', skills: ['SQL', 'Python'] }).site).toBe('Enter no more than 40 characters.');
+    expect(validateApplicationAnswers(config, { site: '    short    ', score: 5, start: '2026-10-15', skills: ['SQL', 'Python'] }).site).toBe('Enter at least 10 characters.');
+    expect(validateApplicationAnswers(config, { site: `${' '.repeat(25)}https://example.com${' '.repeat(25)}`, score: 5, start: '2026-10-15', skills: ['SQL', 'Python'] }).site).toBeUndefined();
+    expect(validateApplicationAnswers(config, { site: '   ', score: 5, start: '2026-10-15', skills: ['SQL', 'Python'] }).site).toBe('This question is required.');
+  });
+
+  it('rejects impossible or mismatched response rules before a form is published', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [
+      { id: 'site', label: 'Website', type: 'short_text', required: false, validation: { minCharacters: 20, maxCharacters: 10 } },
+      { id: 'essay', label: 'Essay', type: 'long_text', required: false, validation: { minWords: 0 } },
+      { id: 'score', label: 'Score', type: 'number', required: false, validation: { minNumber: 10, maxNumber: 1 } },
+      { id: 'date', label: 'Date', type: 'date', required: false, validation: { minDate: '2026-02-30' } },
+      { id: 'skills', label: 'Skills', type: 'multiple_choice', required: false, options: ['SQL', 'Python'], validation: { minSelections: 3 } },
+      { id: 'email', label: 'Email', type: 'email', required: false, validation: { requireUrl: true } },
+    ];
+    expect(validateApplicationForm(config)).toEqual(expect.arrayContaining([
+      'Website minimum characters cannot exceed the maximum.',
+      'Essay minimum words must be between 1 and 10000.',
+      'Score minimum number cannot exceed the maximum.',
+      'Date earliest date is invalid.',
+      'Skills minimum selections must be between 1 and 2.',
+      'Email has a response rule that does not apply to its question type.',
+    ]));
   });
 
   it('limits file questions to PDF, Word, JPG and PNG, narrowed per question', () => {

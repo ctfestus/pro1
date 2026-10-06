@@ -61,6 +61,20 @@ export interface ApplicationCondition {
   value: string;
 }
 
+export interface ApplicationQuestionValidation {
+  minCharacters?: number;
+  maxCharacters?: number;
+  requireUrl?: boolean;
+  minWords?: number;
+  maxWords?: number;
+  minNumber?: number;
+  maxNumber?: number;
+  minDate?: string;
+  maxDate?: string;
+  minSelections?: number;
+  maxSelections?: number;
+}
+
 export interface ApplicationQuestion {
   id: string;
   label: string;
@@ -75,6 +89,7 @@ export interface ApplicationQuestion {
   /** Image blocks only. The question label is used as an optional caption. */
   image?: ApplicationImageBlock;
   condition?: ApplicationCondition;
+  validation?: ApplicationQuestionValidation;
 }
 
 export interface ApplicationStage {
@@ -419,6 +434,86 @@ function imageBlockErrors(image: ApplicationImageBlock | undefined, name: string
   return errors;
 }
 
+const VALIDATION_RULES: Partial<Record<ApplicationQuestionType, (keyof ApplicationQuestionValidation)[]>> = {
+  short_text: ['minCharacters', 'maxCharacters', 'requireUrl'],
+  long_text: ['minWords', 'maxWords'],
+  number: ['minNumber', 'maxNumber'],
+  date: ['minDate', 'maxDate'],
+  multiple_choice: ['minSelections', 'maxSelections'],
+};
+
+function validIsoDate(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
+}
+
+function questionValidationErrors(item: ApplicationQuestion): string[] {
+  const validation = item.validation;
+  if (validation === undefined) return [];
+  const name = item.label?.trim() || 'Question';
+  if (!validation || typeof validation !== 'object' || Array.isArray(validation)) return [`${name} has invalid response validation.`];
+  const errors: string[] = [];
+  const allowed = Object.hasOwn(VALIDATION_RULES, item.type) ? VALIDATION_RULES[item.type] ?? [] : [];
+  if (Object.keys(validation).some(rule => !allowed.includes(rule as keyof ApplicationQuestionValidation))) {
+    errors.push(`${name} has a response rule that does not apply to its question type.`);
+  }
+  const positiveInteger = (value: unknown, maximum: number) => typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= maximum;
+  const countBounds = (minimum: unknown, maximum: unknown, limit: number, unit: string) => {
+    if (minimum !== undefined && !positiveInteger(minimum, limit)) errors.push(`${name} minimum ${unit} must be between 1 and ${limit}.`);
+    if (maximum !== undefined && !positiveInteger(maximum, limit)) errors.push(`${name} maximum ${unit} must be between 1 and ${limit}.`);
+    if (typeof minimum === 'number' && typeof maximum === 'number' && minimum > maximum) errors.push(`${name} minimum ${unit} cannot exceed the maximum.`);
+  };
+  if (item.type === 'short_text') {
+    countBounds(validation.minCharacters, validation.maxCharacters, 2_000, 'characters');
+    if (validation.requireUrl !== undefined && typeof validation.requireUrl !== 'boolean') errors.push(`${name} URL rule is invalid.`);
+  }
+  if (item.type === 'long_text') countBounds(validation.minWords, validation.maxWords, 10_000, 'words');
+  if (item.type === 'multiple_choice') {
+    const availableOptions = new Set((item.options ?? []).filter(option => typeof option === 'string' && option.trim())).size;
+    countBounds(validation.minSelections, validation.maxSelections, availableOptions, 'selections');
+  }
+  if (item.type === 'number') {
+    if (validation.minNumber !== undefined && (typeof validation.minNumber !== 'number' || !Number.isFinite(validation.minNumber))) errors.push(`${name} minimum number is invalid.`);
+    if (validation.maxNumber !== undefined && (typeof validation.maxNumber !== 'number' || !Number.isFinite(validation.maxNumber))) errors.push(`${name} maximum number is invalid.`);
+    if (typeof validation.minNumber === 'number' && typeof validation.maxNumber === 'number' && validation.minNumber > validation.maxNumber) errors.push(`${name} minimum number cannot exceed the maximum.`);
+  }
+  if (item.type === 'date') {
+    if (validation.minDate !== undefined && !validIsoDate(validation.minDate)) errors.push(`${name} earliest date is invalid.`);
+    if (validation.maxDate !== undefined && !validIsoDate(validation.maxDate)) errors.push(`${name} latest date is invalid.`);
+    if (validIsoDate(validation.minDate) && validIsoDate(validation.maxDate) && validation.minDate > validation.maxDate) errors.push(`${name} earliest date cannot be after the latest date.`);
+  }
+  return errors;
+}
+
+export function applicationQuestionValidationHint(item: ApplicationQuestion): string {
+  const validation = item.validation;
+  if (!validation) return '';
+  const hints: string[] = [];
+  if (item.type === 'short_text') {
+    if (validation.requireUrl) hints.push('Enter a full HTTP or HTTPS URL');
+    if (validation.minCharacters) hints.push(`At least ${validation.minCharacters} characters`);
+    if (validation.maxCharacters) hints.push(`Up to ${validation.maxCharacters} characters`);
+  }
+  if (item.type === 'long_text') {
+    if (validation.minWords) hints.push(`At least ${validation.minWords} words`);
+    if (validation.maxWords) hints.push(`Up to ${validation.maxWords} words`);
+  }
+  if (item.type === 'number') {
+    if (validation.minNumber !== undefined) hints.push(`Minimum ${validation.minNumber}`);
+    if (validation.maxNumber !== undefined) hints.push(`Maximum ${validation.maxNumber}`);
+  }
+  if (item.type === 'date') {
+    if (validation.minDate) hints.push(`On or after ${validation.minDate}`);
+    if (validation.maxDate) hints.push(`On or before ${validation.maxDate}`);
+  }
+  if (item.type === 'multiple_choice') {
+    if (validation.minSelections) hints.push(`Choose at least ${validation.minSelections}`);
+    if (validation.maxSelections) hints.push(`Choose up to ${validation.maxSelections}`);
+  }
+  return hints.join('. ');
+}
+
 export function validateApplicationForm(config: ApplicationFormConfig, status?: ApplicationFormStatus): string[] {
   const errors: string[] = [];
   if (!config.title?.trim()) errors.push('Title is required.');
@@ -475,6 +570,7 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
       && (!Array.isArray(item.allowedFileTypes) || item.allowedFileTypes.some(type => !APPLICATION_FILE_TYPE_IDS.includes(type)))) {
       errors.push(`${item.label || 'File question'} has an unsupported file type.`);
     }
+    errors.push(...questionValidationErrors(item));
     if (item.condition?.questionId && !conditionSources.has(item.condition.questionId)) {
       errors.push(`${item.label || 'Conditional question'} must depend on an earlier question.`);
     }
@@ -532,6 +628,7 @@ export function formAvailability(form: ApplicationFormRecord, now = new Date()):
 
 function present(value: ApplicationAnswer): boolean {
   if (value === null || value === undefined || value === '') return false;
+  if (typeof value === 'string') return value.trim().length > 0;
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === 'boolean') return value;
   if (typeof value === 'object') return Boolean(value.publicId);
@@ -557,15 +654,41 @@ export function validateApplicationAnswers(
     if (item.type === 'email' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) errors[item.id] = 'Enter a valid email address.';
     if (item.type === 'phone' && !/^[+()\-\s0-9]{7,30}$/.test(text)) errors[item.id] = 'Enter a valid phone number.';
     if (item.type === 'number' && !Number.isFinite(Number(value))) errors[item.id] = 'Enter a valid number.';
-    if (item.type === 'date' && Number.isNaN(new Date(text).getTime())) errors[item.id] = 'Enter a valid date.';
+    if (item.type === 'date' && !validIsoDate(text)) errors[item.id] = 'Enter a valid date.';
     if (['single_choice', 'dropdown'].includes(item.type) && !(item.options ?? []).includes(text)) errors[item.id] = 'Select a valid option.';
-    if (item.type === 'multiple_choice' && (!Array.isArray(value) || value.some(option => !(item.options ?? []).includes(String(option))))) errors[item.id] = 'Select valid options.';
+    if (item.type === 'multiple_choice' && (!Array.isArray(value) || value.some(option => !(item.options ?? []).includes(String(option))) || new Set(value.map(String)).size !== value.length)) errors[item.id] = 'Select valid options.';
     if (item.type === 'consent' && value !== true && value !== 'true') errors[item.id] = 'Consent is required.';
     if (item.type === 'file') {
       const file = value as ApplicationFileAnswer;
       if (!file?.publicId || !file.publicId.startsWith('supabase/')) {
         errors[item.id] = 'Upload a valid file.';
       }
+    }
+    if (errors[item.id] || !item.validation) continue;
+    const validation = item.validation;
+    if (item.type === 'short_text') {
+      const characters = Array.from(text.trim()).length;
+      if (validation.minCharacters !== undefined && characters < validation.minCharacters) errors[item.id] = `Enter at least ${validation.minCharacters} characters.`;
+      else if (validation.maxCharacters !== undefined && characters > validation.maxCharacters) errors[item.id] = `Enter no more than ${validation.maxCharacters} characters.`;
+      else if (validation.requireUrl && !isSafeHttpUrl(text.trim())) errors[item.id] = 'Enter a valid HTTP or HTTPS URL.';
+    }
+    if (item.type === 'long_text') {
+      const words = text.trim().split(/\s+/u).length;
+      if (validation.minWords !== undefined && words < validation.minWords) errors[item.id] = `Enter at least ${validation.minWords} words.`;
+      else if (validation.maxWords !== undefined && words > validation.maxWords) errors[item.id] = `Enter no more than ${validation.maxWords} words.`;
+    }
+    if (item.type === 'number') {
+      const number = Number(value);
+      if (validation.minNumber !== undefined && number < validation.minNumber) errors[item.id] = `Enter a number of at least ${validation.minNumber}.`;
+      else if (validation.maxNumber !== undefined && number > validation.maxNumber) errors[item.id] = `Enter a number no greater than ${validation.maxNumber}.`;
+    }
+    if (item.type === 'date') {
+      if (validation.minDate && text < validation.minDate) errors[item.id] = `Choose a date on or after ${validation.minDate}.`;
+      else if (validation.maxDate && text > validation.maxDate) errors[item.id] = `Choose a date on or before ${validation.maxDate}.`;
+    }
+    if (item.type === 'multiple_choice' && Array.isArray(value)) {
+      if (validation.minSelections !== undefined && value.length < validation.minSelections) errors[item.id] = `Choose at least ${validation.minSelections} options.`;
+      else if (validation.maxSelections !== undefined && value.length > validation.maxSelections) errors[item.id] = `Choose no more than ${validation.maxSelections} options.`;
     }
   }
   return errors;

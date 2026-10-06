@@ -49,6 +49,7 @@ import {
 } from 'lucide-react';
 import { ApplicationStart } from '@/components/ApplicationStart';
 import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
+import { ApplicationResponseValidation } from '@/components/dashboard/ApplicationResponseValidation';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import {
@@ -500,7 +501,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
           <span className="hidden text-[10px] font-semibold sm:inline">Drag to reorder</span>
         </button>
         <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold" style={{ background: C.pill, color: C.muted }}>{index + 1}</span>
-        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' || type === 'image' ? false : question.required, image: type === 'image' ? question.image : undefined, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined, allowedFileTypes: type === 'file' ? question.allowedFileTypes : undefined })} />
+        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' || type === 'image' ? false : question.required, image: type === 'image' ? question.image : undefined, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined, allowedFileTypes: type === 'file' ? question.allowedFileTypes : undefined, validation: type === question.type ? question.validation : undefined })} />
       </div>
 
       <input
@@ -568,6 +569,8 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
           <p className="mt-2 text-[11px]" style={{ color: C.faint }}>Applicants can upload one file up to 10 MB.</p>
         </div>
       )}
+
+      <ApplicationResponseValidation question={question} C={C} inputStyle={inputStyle} onChange={validation => onUpdate({ validation })} />
 
       {conditionSources.length > 0 && (
         <div className="mt-4 rounded-xl p-3" style={{ background: C.input }}>
@@ -663,7 +666,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
   }
   function duplicateQuestion(index: number) {
     const source = config.questions[index];
-    const duplicate: ApplicationQuestion = { ...source, id: `q-${crypto.randomUUID()}`, label: `${source.label} copy`, options: source.options ? [...source.options] : undefined, allowedFileTypes: source.allowedFileTypes ? [...source.allowedFileTypes] : undefined, image: source.image ? { ...source.image } : undefined, condition: source.condition ? { ...source.condition } : undefined };
+    const duplicate: ApplicationQuestion = { ...source, id: `q-${crypto.randomUUID()}`, label: `${source.label} copy`, options: source.options ? [...source.options] : undefined, allowedFileTypes: source.allowedFileTypes ? [...source.allowedFileTypes] : undefined, image: source.image ? { ...source.image } : undefined, condition: source.condition ? { ...source.condition } : undefined, validation: source.validation ? { ...source.validation } : undefined };
     const questions = [...config.questions]; questions.splice(index + 1, 0, duplicate); setQuestions(questions); setActiveQuestionId(duplicate.id);
   }
   function removeQuestion(index: number) {

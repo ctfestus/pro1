@@ -6,6 +6,7 @@ import {
   applicationFileAcceptAttribute,
   applicationFileContentType,
   applicationFileTypesLabel,
+  applicationQuestionValidationHint,
   isQuestionVisible,
   type ApplicationAnswer,
   type ApplicationQuestion,
@@ -238,6 +239,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
         const value = answers[question.id];
         const error = errors[question.id] || uploadError[question.id];
         const isTextBlock = question.type === 'text_block';
+        const validationHint = applicationQuestionValidationHint(question);
         return (
           <section key={question.id} id={`application-question-${question.id}`} className={focused ? '' : 'rounded-xl p-5 sm:p-6 scroll-mt-4'} style={focused ? undefined : { background: C.card, boxShadow: error ? `inset 4px 0 0 ${C.errorText}` : 'none' }}>
             {!focused && <div className="mb-4 flex items-start gap-3">
@@ -254,7 +256,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
             {isTextBlock && <div className="application-rich-content rich-content" style={{ color: C.muted }} dangerouslySetInnerHTML={{ __html: sanitizeRichText(question.richText ?? '') }} />}
 
             {question.type === 'long_text' && (
-              <textarea autoFocus={autoFocus} disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder || 'Type your answer'} onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical', minHeight: 132 }} />
+              <textarea autoFocus={autoFocus} disabled={disabled} rows={5} value={String(value ?? '')} placeholder={question.placeholder || 'Type your answer'} aria-describedby={validationHint ? `application-validation-${question.id}` : undefined} onChange={event => set(question.id, event.target.value)} style={{ ...inputStyle, resize: 'vertical', minHeight: 132 }} />
             )}
 
             {['short_text', 'email', 'phone', 'number', 'date'].includes(question.type) && (
@@ -262,8 +264,10 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                 disabled={disabled}
                 autoFocus={autoFocus}
                 type={question.type === 'short_text' ? 'text' : question.type === 'phone' ? 'tel' : question.type}
+                inputMode={question.type === 'short_text' && question.validation?.requireUrl ? 'url' : undefined}
                 value={String(value ?? '')}
-                placeholder={question.placeholder || 'Type your answer'}
+                placeholder={question.placeholder || (question.type === 'short_text' && question.validation?.requireUrl ? 'https://example.com' : 'Type your answer')}
+                aria-describedby={validationHint ? `application-validation-${question.id}` : undefined}
                 onChange={event => set(question.id, question.type === 'number' && event.target.value !== '' ? Number(event.target.value) : event.target.value)}
                 style={inputStyle}
               />
@@ -339,6 +343,7 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
               </div>
             )}
 
+            {validationHint && <p id={`application-validation-${question.id}`} className="mt-2 text-[11px] leading-5" style={{ color: C.muted }}>{validationHint}</p>}
             {error && <p className="mt-3 text-xs font-medium" style={{ color: C.errorText }}>{error}</p>}
           </section>
         );
