@@ -12,6 +12,8 @@ export const APPLICATION_QUESTION_TYPES = [
 
 export type ApplicationQuestionType = typeof APPLICATION_QUESTION_TYPES[number];
 
+export const APPLICATION_OTHER_OPTION = 'Other (please specify)';
+
 /**
  * How an image sits in its frame. The form cover and image blocks share this shape so they
  * crop, reposition, and zoom the same way. Missing values mean cover fit, centered, 100%.
@@ -84,6 +86,8 @@ export interface ApplicationQuestion {
   richText?: string;
   placeholder?: string;
   options?: string[];
+  /** Choice questions only. Adds a free-text Other option without changing authored options. */
+  allowOther?: boolean;
   /** File questions only. Missing or empty means every type in APPLICATION_FILE_TYPES. */
   allowedFileTypes?: ApplicationFileType[];
   /** Image blocks only. The question label is used as an optional caption. */
@@ -222,7 +226,29 @@ export interface ApplicationFileAnswer {
   type: string;
 }
 
-export type ApplicationAnswer = string | string[] | number | boolean | ApplicationFileAnswer | null;
+export interface ApplicationOtherAnswer {
+  kind: 'other_choice';
+  selections: string[];
+  otherText: string;
+}
+
+export type ApplicationAnswer = string | string[] | number | boolean | ApplicationFileAnswer | ApplicationOtherAnswer | null;
+
+export function isApplicationOtherAnswer(value: unknown): value is ApplicationOtherAnswer {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value) && (value as ApplicationOtherAnswer).kind === 'other_choice');
+}
+
+export function applicationChoiceSelections(value: ApplicationAnswer | undefined): string[] {
+  if (isApplicationOtherAnswer(value)) return Array.isArray(value.selections) ? value.selections : [];
+  if (Array.isArray(value)) return value;
+  return typeof value === 'string' && value ? [value] : [];
+}
+
+export function applicationChoiceAnswerText(value: ApplicationAnswer | undefined, separator = ', '): string {
+  const selections = applicationChoiceSelections(value);
+  if (isApplicationOtherAnswer(value)) return selections.map(option => option === APPLICATION_OTHER_OPTION ? `${APPLICATION_OTHER_OPTION}: ${value.otherText}` : option).join(separator);
+  return selections.join(separator);
+}
 
 export interface ApplicationStatusEvent {
   id: string;
@@ -374,7 +400,7 @@ export function isQuestionVisible(question: ApplicationQuestion, answers: Record
   const condition = question.condition;
   if (!condition?.questionId) return true;
   const raw = answers[condition.questionId];
-  const values = Array.isArray(raw) ? raw.map(String) : [String(raw ?? '')];
+  const values = isApplicationOtherAnswer(raw) ? applicationChoiceSelections(raw).map(String) : Array.isArray(raw) ? raw.map(String) : [String(raw ?? '')];
   if (condition.operator === 'equals') return values.some(value => value === condition.value);
   if (condition.operator === 'not_equals') return values.every(value => value !== condition.value);
   return values.some(value => value.toLowerCase().includes(condition.value.toLowerCase()));
@@ -470,7 +496,7 @@ function questionValidationErrors(item: ApplicationQuestion): string[] {
   }
   if (item.type === 'long_text') countBounds(validation.minWords, validation.maxWords, 10_000, 'words');
   if (item.type === 'multiple_choice') {
-    const availableOptions = new Set((item.options ?? []).filter(option => typeof option === 'string' && option.trim())).size;
+    const availableOptions = new Set((item.options ?? []).filter(option => typeof option === 'string' && option.trim())).size + (item.allowOther ? 1 : 0);
     countBounds(validation.minSelections, validation.maxSelections, availableOptions, 'selections');
   }
   if (item.type === 'number') {
@@ -566,6 +592,12 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
     if (['single_choice', 'multiple_choice', 'dropdown'].includes(item.type) && (item.options ?? []).filter(Boolean).length < 2) {
       errors.push(`${item.label || 'Choice question'} needs at least two options.`);
     }
+    if (item.allowOther !== undefined && (typeof item.allowOther !== 'boolean' || !['single_choice', 'multiple_choice', 'dropdown'].includes(item.type))) {
+      errors.push(`${item.label || 'Question'} can only use Other on a choice question.`);
+    }
+    if (item.allowOther && (item.options ?? []).some(option => typeof option === 'string' && option.trim().toLocaleLowerCase() === APPLICATION_OTHER_OPTION.toLocaleLowerCase())) {
+      errors.push(`${item.label || 'Choice question'} already has an option named ${APPLICATION_OTHER_OPTION}.`);
+    }
     if (item.allowedFileTypes !== undefined
       && (!Array.isArray(item.allowedFileTypes) || item.allowedFileTypes.some(type => !APPLICATION_FILE_TYPE_IDS.includes(type)))) {
       errors.push(`${item.label || 'File question'} has an unsupported file type.`);
@@ -631,6 +663,7 @@ function present(value: ApplicationAnswer): boolean {
   if (typeof value === 'string') return value.trim().length > 0;
   if (Array.isArray(value)) return value.length > 0;
   if (typeof value === 'boolean') return value;
+  if (isApplicationOtherAnswer(value)) return true;
   if (typeof value === 'object') return Boolean(value.publicId);
   return true;
 }
@@ -655,8 +688,23 @@ export function validateApplicationAnswers(
     if (item.type === 'phone' && !/^[+()\-\s0-9]{7,30}$/.test(text)) errors[item.id] = 'Enter a valid phone number.';
     if (item.type === 'number' && !Number.isFinite(Number(value))) errors[item.id] = 'Enter a valid number.';
     if (item.type === 'date' && !validIsoDate(text)) errors[item.id] = 'Enter a valid date.';
-    if (['single_choice', 'dropdown'].includes(item.type) && !(item.options ?? []).includes(text)) errors[item.id] = 'Select a valid option.';
-    if (item.type === 'multiple_choice' && (!Array.isArray(value) || value.some(option => !(item.options ?? []).includes(String(option))) || new Set(value.map(String)).size !== value.length)) errors[item.id] = 'Select valid options.';
+    if (['single_choice', 'dropdown', 'multiple_choice'].includes(item.type)) {
+      const otherAnswer = isApplicationOtherAnswer(value);
+      const selections = applicationChoiceSelections(value);
+      const available = item.allowOther ? [...(item.options ?? []), APPLICATION_OTHER_OPTION] : (item.options ?? []);
+      if ((item.type === 'multiple_choice' && !Array.isArray(value) && !otherAnswer)
+        || (item.type !== 'multiple_choice' && typeof value !== 'string' && !otherAnswer)
+        || (item.type !== 'multiple_choice' && selections.length !== 1)
+        || selections.some(option => typeof option !== 'string' || !available.includes(option))
+        || new Set(selections).size !== selections.length
+        || (otherAnswer && (!item.allowOther || !selections.includes(APPLICATION_OTHER_OPTION)
+          || typeof value.otherText !== 'string' || !value.otherText.trim() || value.otherText.trim().length > 500))
+        || (!otherAnswer && selections.includes(APPLICATION_OTHER_OPTION))) {
+        errors[item.id] = otherAnswer && selections.includes(APPLICATION_OTHER_OPTION) && (typeof value.otherText !== 'string' || !value.otherText.trim())
+          ? 'Please specify your other answer.'
+          : item.type === 'multiple_choice' ? 'Select valid options.' : 'Select a valid option.';
+      }
+    }
     if (item.type === 'consent' && value !== true && value !== 'true') errors[item.id] = 'Consent is required.';
     if (item.type === 'file') {
       const file = value as ApplicationFileAnswer;
@@ -686,9 +734,10 @@ export function validateApplicationAnswers(
       if (validation.minDate && text < validation.minDate) errors[item.id] = `Choose a date on or after ${validation.minDate}.`;
       else if (validation.maxDate && text > validation.maxDate) errors[item.id] = `Choose a date on or before ${validation.maxDate}.`;
     }
-    if (item.type === 'multiple_choice' && Array.isArray(value)) {
-      if (validation.minSelections !== undefined && value.length < validation.minSelections) errors[item.id] = `Choose at least ${validation.minSelections} options.`;
-      else if (validation.maxSelections !== undefined && value.length > validation.maxSelections) errors[item.id] = `Choose no more than ${validation.maxSelections} options.`;
+    if (item.type === 'multiple_choice') {
+      const count = applicationChoiceSelections(value).length;
+      if (validation.minSelections !== undefined && count < validation.minSelections) errors[item.id] = `Choose at least ${validation.minSelections} options.`;
+      else if (validation.maxSelections !== undefined && count > validation.maxSelections) errors[item.id] = `Choose no more than ${validation.maxSelections} options.`;
     }
   }
   return errors;

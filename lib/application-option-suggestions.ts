@@ -62,6 +62,19 @@ export function mergeApplicationOptions(current: string[] | undefined, suggested
   return result;
 }
 
+export function parseApplicationOptionList(input: string): string[] {
+  const options: string[] = [];
+  const seen = new Set<string>();
+  for (const cell of input.split(/[\r\n\t]+/)) {
+    const option = cell.trim().replace(/^(?:[-*\u2022]\s+|\d+[.)]\s+)/, '').trim();
+    const key = option.toLocaleLowerCase();
+    if (!option || seen.has(key)) continue;
+    options.push(option);
+    seen.add(key);
+  }
+  return options;
+}
+
 export function isApplicationChoiceType(type: ApplicationQuestionType): boolean {
   return type === 'single_choice' || type === 'multiple_choice' || type === 'dropdown';
 }
@@ -93,6 +106,7 @@ export function applyApplicationOptionSuggestion(question: ApplicationQuestion, 
   const type = suggestedType === 'yes_no' ? 'yes_no' : isApplicationChoiceType(question.type) ? question.type : 'single_choice';
   return {
     type,
+    allowOther: type === 'yes_no' ? undefined : question.allowOther,
     options: type === 'yes_no' ? undefined : mergeApplicationOptions(question.options, options),
     validation: type === question.type ? question.validation : undefined,
   };

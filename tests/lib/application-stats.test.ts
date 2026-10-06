@@ -41,6 +41,14 @@ describe('application insights', () => {
 });
 
 describe('answers by question', () => {
+  it('counts Other selections as one option while keeping typed details private to each answer', () => {
+    const fields = applicationFieldBreakdowns([
+      { id: 'track', label: 'Track', type: 'single_choice', required: false, options: ['Data', 'Design'], allowOther: true },
+      { id: 'skills', label: 'Skills', type: 'multiple_choice', required: false, options: ['SQL', 'Python'], allowOther: true },
+    ], [{ answers: { track: { kind: 'other_choice', selections: ['Other (please specify)'], otherText: 'Research' }, skills: { kind: 'other_choice', selections: ['SQL', 'Other (please specify)'], otherText: 'Power BI' } } }]);
+    expect(fields[0]).toMatchObject({ kind: 'choice', answered: 1, options: expect.arrayContaining([{ label: 'Other (please specify)', count: 1, share: 1 }]) });
+    expect(fields[1]).toMatchObject({ kind: 'multi', answered: 1, options: expect.arrayContaining([{ label: 'Other (please specify)', count: 1, share: 1 }]) });
+  });
   const q = (id: string, type: any, extra: Record<string, unknown> = {}) => ({ id, label: id, type, required: false, ...extra });
   const questions = [
     q('gender', 'single_choice', { options: ['Female', 'Male', 'Prefer not to say'] }),

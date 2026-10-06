@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  APPLICATION_OTHER_OPTION,
+  applicationChoiceAnswerText,
   applicationFileAcceptAttribute,
   applicationFileContentType,
   applicationFileTypesLabel,
@@ -20,6 +22,34 @@ import {
 import { applicationThemeColors } from '@/lib/application-theme-presets';
 
 describe('application form contract', () => {
+  it('validates an Other detail on single, multiple, and dropdown choices', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [
+      { id: 'single', label: 'Track', type: 'single_choice', required: true, options: ['Data', 'Design'], allowOther: true },
+      { id: 'multi', label: 'Skills', type: 'multiple_choice', required: true, options: ['SQL', 'Python'], allowOther: true, validation: { minSelections: 2 } },
+      { id: 'dropdown', label: 'Location', type: 'dropdown', required: false, options: ['Accra', 'Lagos'], allowOther: true },
+      { id: 'detail', label: 'Detail', type: 'short_text', required: true, condition: { questionId: 'single', operator: 'equals', value: APPLICATION_OTHER_OPTION } },
+    ];
+    const other = { kind: 'other_choice' as const, selections: [APPLICATION_OTHER_OPTION], otherText: 'Research' };
+    const answers = { single: other, multi: { ...other, selections: ['SQL', APPLICATION_OTHER_OPTION] }, dropdown: 'Accra', detail: 'Details here' };
+    expect(validateApplicationForm(config)).toEqual([]);
+    expect(isQuestionVisible(config.questions[3], answers)).toBe(true);
+    expect(validateApplicationAnswers(config, answers)).toEqual({});
+    expect(applicationChoiceAnswerText(answers.multi)).toBe('SQL, Other (please specify): Research');
+    expect(validateApplicationAnswers(config, { ...answers, single: { ...other, otherText: '   ' } }).single).toBe('Please specify your other answer.');
+    expect(validateApplicationAnswers(config, { ...answers, single: APPLICATION_OTHER_OPTION }).single).toBe('Select a valid option.');
+    expect(validateApplicationAnswers(config, { ...answers, multi: { ...other, selections: ['SQL', 'SQL', APPLICATION_OTHER_OPTION] } }).multi).toBe('Select valid options.');
+    expect(validateApplicationAnswers(config, { ...answers, dropdown: { ...other, otherText: 'X'.repeat(501) } }).dropdown).toBe('Select a valid option.');
+    expect(validateApplicationAnswers(config, { ...answers, single: 'Data', detail: '' })).toEqual({});
+  });
+
+  it('rejects Other settings outside choice questions and duplicate Other labels', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [{ id: 'q', label: 'Question', type: 'short_text', required: false, allowOther: true }];
+    expect(validateApplicationForm(config)).toContain('Question can only use Other on a choice question.');
+    config.questions = [{ id: 'q', label: 'Question', type: 'dropdown', required: false, allowOther: true, options: ['Yes', APPLICATION_OTHER_OPTION] }];
+    expect(validateApplicationForm(config)).toContain('Question already has an option named Other (please specify).');
+  });
   it('creates editable starter forms without fixed system questions', () => {
     const config = newApplicationFormConfig('internship');
     expect(config.coverImage).toBe('');

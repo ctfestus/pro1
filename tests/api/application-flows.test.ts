@@ -271,6 +271,22 @@ describe('application end-to-end route boundaries', () => {
     expect(saveSubmission).not.toHaveBeenCalled();
   });
 
+  it('requires an Other detail at the public submission boundary', async () => {
+    const choice = { id: 'track', label: 'Track', type: 'dropdown', required: true, options: ['Data', 'Design'], allowOther: true };
+    getFormBySlug.mockResolvedValue({ ...form, config: { ...config, questions: [...config.questions, choice] } });
+    const post = (otherText: string) => submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'submit', email: 'applicant@example.com', answers: { ...requiredAnswers, track: { kind: 'other_choice', selections: ['Other (please specify)'], otherText } } }),
+    }) as any, { params: Promise.resolve({ slug: 'bootcamp' }) });
+    const invalid = await post('  ');
+    expect(invalid.status).toBe(400);
+    expect((await invalid.json()).errors.track).toBe('Please specify your other answer.');
+    expect(saveSubmission).not.toHaveBeenCalled();
+    const valid = await post('Research');
+    expect(valid.status).toBe(200);
+    expect(saveSubmission.mock.calls.at(-1)?.[0].answers.track.otherText).toBe('Research');
+  });
+
   it('returns the reference and link when audit logging fails after submission', async () => {
     appendAudit.mockRejectedValueOnce(new Error('Audit unavailable'));
     const response = await submitPublicForm(new Request('http://localhost/api/public/application-forms/bootcamp', {

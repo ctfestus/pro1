@@ -37,7 +37,7 @@ export function ApplicationResponseValidation({ question, C, inputStyle, onChang
   const supported = ['short_text', 'long_text', 'number', 'date', 'multiple_choice'].includes(question.type);
   const validation = question.validation ?? {};
   const ruleCount = Object.values(validation).filter(value => value !== undefined && value !== false).length;
-  const choiceCount = new Set((question.options ?? []).filter(option => typeof option === 'string' && option.trim())).size;
+  const choiceCount = new Set((question.options ?? []).filter(option => typeof option === 'string' && option.trim())).size + (question.allowOther ? 1 : 0);
   const [open, setOpen] = useState(ruleCount > 0);
   if (!supported) return null;
 

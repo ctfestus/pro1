@@ -22,7 +22,7 @@ export async function GET(req: NextRequest, context: { params: Promise<{ id: str
     if (!canReview) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
     const file = submission.answers[questionId];
-    const path = file && typeof file === 'object' && !Array.isArray(file)
+    const path = file && typeof file === 'object' && !Array.isArray(file) && 'publicId' in file
       ? applicationFilePath(file.publicId ?? '', form.id, submission.id, questionId)
       : null;
     if (!path) return NextResponse.json({ error: 'File not found.' }, { status: 404 });

@@ -3,11 +3,14 @@
 import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent } from 'react';
 import { Check, ChevronDown, FileCheck2, Loader2, Upload } from 'lucide-react';
 import {
+  APPLICATION_OTHER_OPTION,
+  applicationChoiceSelections,
   applicationFileAcceptAttribute,
   applicationFileContentType,
   applicationFileTypesLabel,
   applicationQuestionValidationHint,
   isQuestionVisible,
+  isApplicationOtherAnswer,
   type ApplicationAnswer,
   type ApplicationQuestion,
 } from '@/lib/application-forms';
@@ -237,6 +240,17 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
           );
         }
         const value = answers[question.id];
+        const choiceSelections = applicationChoiceSelections(value);
+        const choiceOptions = question.allowOther ? [...(question.options ?? []), APPLICATION_OTHER_OPTION] : (question.options ?? []);
+        const otherSelected = question.allowOther && choiceSelections.includes(APPLICATION_OTHER_OPTION);
+        const otherText = isApplicationOtherAnswer(value) ? value.otherText : '';
+        const setChoice = (selections: string[]) => {
+          if (selections.includes(APPLICATION_OTHER_OPTION)) {
+            set(question.id, { kind: 'other_choice', selections, otherText });
+          } else {
+            set(question.id, question.type === 'multiple_choice' ? selections : selections[0] ?? '');
+          }
+        };
         const error = errors[question.id] || uploadError[question.id];
         const isTextBlock = question.type === 'text_block';
         const validationHint = applicationQuestionValidationHint(question);
@@ -274,16 +288,16 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
             )}
 
             {question.type === 'dropdown' && (
-              <ApplicationDropdown questionId={question.id} value={String(value ?? '')} options={question.options ?? []} onChange={next => set(question.id, next)} C={C} disabled={disabled} autoFocus={autoFocus} />
+              <ApplicationDropdown questionId={question.id} value={choiceSelections[0] ?? ''} options={choiceOptions} onChange={next => setChoice([next])} C={C} disabled={disabled} autoFocus={autoFocus} />
             )}
 
             {(question.type === 'single_choice' || question.type === 'yes_no') && (
               <div className={question.type === 'yes_no' ? 'grid grid-cols-2 gap-2.5' : 'grid gap-2.5'}>
-                {(question.type === 'yes_no' ? ['Yes', 'No'] : question.options ?? []).map((option, optionIndex) => {
-                  const selected = value === option;
+                {(question.type === 'yes_no' ? ['Yes', 'No'] : choiceOptions).map((option, optionIndex) => {
+                  const selected = choiceSelections.includes(option);
                   return (
                     <label key={option} onMouseEnter={event => { event.currentTarget.style.background = C.page; }} onMouseLeave={event => { event.currentTarget.style.background = C.input; }} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
-                      <input autoFocus={autoFocus && optionIndex === 0} className="sr-only" disabled={disabled} type="radio" name={question.id} checked={selected} onChange={() => set(question.id, option)} />
+                      <input autoFocus={autoFocus && optionIndex === 0} className="sr-only" disabled={disabled} type="radio" name={question.id} checked={selected} onChange={() => setChoice([option])} />
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
                         {selected && <span className="h-2 w-2 rounded-full" style={{ background: '#FFFFFF' }} />}
                       </span>
@@ -296,13 +310,12 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
 
             {question.type === 'multiple_choice' && (
               <div className="grid gap-2.5">
-                {(question.options ?? []).map((option, optionIndex) => {
-                  const selected = Array.isArray(value) && value.includes(option);
+                {choiceOptions.map((option, optionIndex) => {
+                  const selected = choiceSelections.includes(option);
                   return (
                     <label key={option} onMouseEnter={event => { event.currentTarget.style.background = C.page; }} onMouseLeave={event => { event.currentTarget.style.background = C.input; }} className="flex min-h-12 cursor-pointer items-center gap-3 px-4 py-3 transition-colors" style={optionStyle(selected)}>
                       <input autoFocus={autoFocus && optionIndex === 0} className="sr-only" disabled={disabled} type="checkbox" checked={selected} onChange={() => {
-                        const current = Array.isArray(value) ? value.map(String) : [];
-                        set(question.id, selected ? current.filter(item => item !== option) : [...current, option]);
+                        setChoice(selected ? choiceSelections.filter(item => item !== option) : [...choiceSelections, option]);
                       }} />
                       <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md" style={{ border: `2px solid ${selected ? C.cta : C.inputBorder}`, background: selected ? C.cta : C.card }}>
                         {selected && <Check className="h-3 w-3" strokeWidth={3} style={{ color: '#FFFFFF' }} />}
@@ -313,6 +326,11 @@ export function ApplicationQuestionFields({ questions, answers, onChange, errors
                 })}
               </div>
             )}
+
+            {otherSelected && <label className="mt-3 block text-xs font-semibold" style={{ color: C.muted }}>
+              Please specify
+              <input type="text" disabled={disabled} value={otherText} maxLength={500} onChange={event => set(question.id, { kind: 'other_choice', selections: choiceSelections, otherText: event.target.value })} placeholder="Type your answer" className="mt-2 block w-full text-sm" style={inputStyle} />
+            </label>}
 
             {question.type === 'consent' && (
               <label onMouseEnter={event => { event.currentTarget.style.background = C.page; }} onMouseLeave={event => { event.currentTarget.style.background = C.input; }} className="flex cursor-pointer items-start gap-3 px-4 py-4 transition-colors" style={optionStyle(value === true)}>

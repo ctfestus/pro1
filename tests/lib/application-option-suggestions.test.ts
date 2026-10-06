@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  parseApplicationOptionList,
   applyApplicationOptionSuggestion,
   applicationSuggestionActions,
   canApplyApplicationOptionSuggestion,
@@ -10,6 +11,9 @@ import {
 import { isQuestionVisible, type ApplicationQuestion } from '@/lib/application-forms';
 
 describe('application option suggestions', () => {
+  it('parses pasted lines and spreadsheet columns without repeated options', () => {
+    expect(parseApplicationOptionList('1. Alpha\n2) Beta\n- Gamma\nAlpha\tDelta\n')).toEqual(['Alpha', 'Beta', 'Gamma', 'Delta']);
+  });
   it('suggests editable choices across common application topics', () => {
     expect(suggestApplicationOptions('What is your gender?')?.options).toEqual(['Male', 'Female', 'Non-binary', 'Prefer to self-describe', 'Prefer not to say']);
     expect(suggestApplicationOptions('Current employment status')?.options).toContain('Self-employed');
