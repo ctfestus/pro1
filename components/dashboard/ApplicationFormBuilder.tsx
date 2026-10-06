@@ -50,6 +50,7 @@ import {
 import { ApplicationStart } from '@/components/ApplicationStart';
 import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
 import { ApplicationResponseValidation } from '@/components/dashboard/ApplicationResponseValidation';
+import { ApplicationOptionSuggestions } from '@/components/dashboard/ApplicationOptionSuggestions';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import {
@@ -549,6 +550,8 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
           <button type="button" onClick={() => onUpdate({ options: [...(question.options ?? []), `Option ${(question.options?.length ?? 0) + 1}`] })} className="ml-6 flex items-center gap-1.5 px-1 py-2 text-xs font-semibold" style={{ color: C.cta }}><Plus className="h-3.5 w-3.5" /> Add option</button>
         </div>
       )}
+
+      {active && <ApplicationOptionSuggestions question={question} hasDependentConditions={questions.some(item => item.condition?.questionId === question.id)} token={token} C={C} onUpdate={onUpdate} />}
 
       {question.type === 'file' && (
         <div className="mt-4">
