@@ -16,6 +16,7 @@ import {
   CircleDot,
   Copy,
   Eye,
+  FileSpreadsheet,
   FileText,
   GripVertical,
   ImageIcon,
@@ -52,6 +53,7 @@ import { ApplicationStart } from '@/components/ApplicationStart';
 import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
 import { ApplicationResponseValidation } from '@/components/dashboard/ApplicationResponseValidation';
 import { ApplicationOptionSuggestions } from '@/components/dashboard/ApplicationOptionSuggestions';
+import { ApplicationQuestionImport } from '@/components/dashboard/ApplicationQuestionImport';
 import { mergeApplicationOptions, parseApplicationOptionList } from '@/lib/application-option-suggestions';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -660,12 +662,14 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
   );
 }
 
-export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts = [], C, onBack, onSaved }: {
+export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts = [], submissionCount = null, C, onBack, onSaved }: {
   initial: ApplicationFormRecord;
   token: string;
   relatedItems: ApplicationRelatedItem[];
   /** Bootcamp cohorts this form can admit into; `ready` = fee and start date are set. */
   cohorts?: { id: string; name: string; startDate: string; ready: boolean }[];
+  /** Submitted applications for this form; null when unknown. Replacing questions needs zero. */
+  submissionCount?: number | null;
   C: ThemeColors;
   onBack: () => void;
   onSaved: (form: ApplicationFormRecord) => void;
@@ -677,6 +681,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [feeAmountInput, setFeeAmountInput] = useState(initial.config.fee?.amount ? String(initial.config.fee.amount) : '');
   const config = form.config;
   const applicationPreviewTheme = applicationThemeColors(C, config.themeColor, config.theme ?? 'platform', config.customTheme, config.themeMode ?? 'light');
@@ -720,6 +725,16 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
     const source = config.questions[index];
     const duplicate: ApplicationQuestion = { ...source, id: `q-${crypto.randomUUID()}`, label: `${source.label} copy`, options: source.options ? [...source.options] : undefined, allowedFileTypes: source.allowedFileTypes ? [...source.allowedFileTypes] : undefined, image: source.image ? { ...source.image } : undefined, condition: source.condition ? { ...source.condition } : undefined, validation: source.validation ? { ...source.validation } : undefined };
     const questions = [...config.questions]; questions.splice(index + 1, 0, duplicate); setQuestions(questions); setActiveQuestionId(duplicate.id);
+  }
+  function importQuestions(imported: ApplicationQuestion[], mode: 'append' | 'replace') {
+    const questions = mode === 'replace' ? imported : [...config.questions, ...imported];
+    // Replacing removes the admission name question; point admission at a suitable new one.
+    const admission = config.admission && mode === 'replace' && !questions.some(item => item.id === config.admission!.nameQuestionId)
+      ? { ...config.admission, nameQuestionId: suggestedNameQuestionId(questions) }
+      : config.admission;
+    setConfig({ questions: withValidConditions(questions), admission });
+    setActiveQuestionId(imported[0]?.id ?? '');
+    setImportOpen(false);
   }
   function removeQuestion(index: number) {
     if (config.questions.length === 1) { setError('A form must have at least one question.'); return; }
@@ -778,9 +793,10 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
                 <textarea rows={3} value={config.description} onChange={event => setConfig({ description: event.target.value })} placeholder="Describe the programme and what applicants should expect." className="mt-3 w-full resize-none bg-transparent text-xs leading-5 outline-none" style={{ color: C.muted }} />
               </section>
 
-              <div className="flex items-end justify-between gap-4 px-1">
+              <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 px-1">
                 <div><h2 className="text-sm font-semibold" style={{ color: C.text }}>Questions and content</h2><p className="mt-1 text-[11px]" style={{ color: C.faint }}>Email plus {config.questions.length} custom form item{config.questions.length === 1 ? '' : 's'}.</p></div>
-                <span className="rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{answerFieldCount} fields{textBlockCount > 0 ? `, ${textBlockCount} text block${textBlockCount === 1 ? '' : 's'}` : ''}{imageCount > 0 ? `, ${imageCount} image${imageCount === 1 ? '' : 's'}` : ''}</span>
+                <button type="button" onClick={() => setImportOpen(true)} className="ml-auto flex shrink-0 items-center gap-1.5 rounded-full px-3 py-1.5 text-[11px] font-semibold" style={{ background: C.card, color: C.cta }}><FileSpreadsheet className="h-3.5 w-3.5" /> Import questions</button>
+                <span className="shrink-0 rounded-full px-2.5 py-1 text-[10px] font-semibold" style={{ background: C.pill, color: C.muted }}>{answerFieldCount} fields{textBlockCount > 0 ? `, ${textBlockCount} text block${textBlockCount === 1 ? '' : 's'}` : ''}{imageCount > 0 ? `, ${imageCount} image${imageCount === 1 ? '' : 's'}` : ''}</span>
               </div>
 
               <section className="rounded-2xl p-4 sm:p-5" style={panelStyle}>
@@ -906,6 +922,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
         )}
       </div>
 
+      {importOpen && <ApplicationQuestionImport C={C} typeLabels={TYPE_LABELS} existingCount={config.questions.length} canReplace={submissionCount === 0} onImport={importQuestions} onClose={() => setImportOpen(false)} />}
       {preview && <div className="fixed inset-0 z-50 overflow-y-auto" style={{ background: C.page }}><div className="sticky top-0 z-10 flex items-center justify-between px-4 py-3 backdrop-blur-xl" style={{ background: C.nav, borderBottom: `1px solid ${C.navBorder}` }}><div><p className="flex items-center gap-2 text-xs font-semibold" style={{ color: C.cta }}><Eye className="h-4 w-4" /> Participant preview</p><p className="mt-0.5 text-xs" style={{ color: C.faint }}>This is the same form participants will see.</p></div><button type="button" onClick={() => setPreview(false)} className="rounded-xl p-2" style={{ background: C.pill }} aria-label="Close preview"><X className="h-5 w-5" style={{ color: C.muted }} /></button></div><ApplicationStart previewForm={form} previewRelatedItems={relatedItems.filter(item => (config.postSubmission.relatedEventIds ?? []).includes(item.id))} /></div>}
     </div>
   );
