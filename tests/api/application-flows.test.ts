@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   sendDecision: vi.fn(), related: vi.fn(), deleteFiles: vi.fn(), reviewerFormIds: vi.fn(),
   pruneDrafts: vi.fn(),
   countFiles: vi.fn(),
+  countSubmitted: vi.fn(),
 }));
 const { requireRole, listForms, getForm, getFormBySlug, getSubmission, getSubmissionByTokenHash, listSubmissions,
   saveForm, deleteStoredForm, saveSubmission, appendAudit, sendConfirmation, sendDecision, related,
@@ -32,6 +33,7 @@ vi.mock('@/lib/application-submissions', () => ({
   appendApplicationAudit: mocks.appendAudit,
   pruneExpiredApplicationDrafts: mocks.pruneDrafts,
   listApplicationFormIdsForReviewer: mocks.reviewerFormIds,
+  countSubmittedApplicationsByForm: mocks.countSubmitted,
   isDuplicateApplicationError: (error: any) => Boolean(error?.duplicateApplication),
 }));
 vi.mock('@/lib/application-email', () => ({
@@ -75,6 +77,7 @@ beforeEach(() => {
   saveForm.mockResolvedValue(undefined); deleteStoredForm.mockResolvedValue(true); saveSubmission.mockImplementation(async (item: any) => { persistedSubmission = item; }); appendAudit.mockResolvedValue(undefined);
   deleteFiles.mockResolvedValue(undefined); reviewerFormIds.mockResolvedValue([]);
   mocks.countFiles.mockResolvedValue(0);
+  mocks.countSubmitted.mockResolvedValue({});
   pruneDrafts.mockResolvedValue(undefined);
   sendConfirmation.mockResolvedValue(undefined); sendDecision.mockResolvedValue(undefined); related.mockResolvedValue([]);
 });
@@ -150,6 +153,25 @@ describe('application end-to-end route boundaries', () => {
 
     expect(response.status).toBe(400);
     expect(saveForm).not.toHaveBeenCalled();
+  });
+
+  it('refuses to save replaced questions once the form has applications, rechecked at save time', async () => {
+    const replaced = { ...config, questions: [{ id: 'q-imported', label: 'Imported question', type: 'short_text' as const, required: false }] };
+    const save = (body: Record<string, unknown>) => updateForm(new Request('http://localhost/api/application-forms/form-1', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    }) as any, { params: Promise.resolve({ id: form.id }) });
+
+    mocks.countSubmitted.mockResolvedValue({ 'form-1': 2 });
+    const refused = await save({ config: replaced, replacedQuestions: true });
+    expect(refused.status).toBe(409);
+    expect((await refused.json()).error).toContain('cannot be replaced');
+    expect(saveForm).not.toHaveBeenCalled();
+
+    // Deleting questions without a replace keeps working, with answers archived as before.
+    expect((await save({ config: replaced })).status).toBe(200);
+
+    mocks.countSubmitted.mockResolvedValue({});
+    expect((await save({ config: replaced, replacedQuestions: true })).status).toBe(200);
   });
 
   it('rejects a registration URL already used by another form', async () => {

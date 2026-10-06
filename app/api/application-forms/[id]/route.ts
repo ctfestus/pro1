@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { validateApplicationForm, type ApplicationFormConfig, type ApplicationFormStatus } from '@/lib/application-forms';
 import { deleteApplicationForm, getApplicationForm, listApplicationForms, saveApplicationForm } from '@/lib/application-form-store';
-import { appendApplicationAudit, listApplicationFormIdsForReviewer, listApplicationSubmissions } from '@/lib/application-submissions';
+import { appendApplicationAudit, countSubmittedApplicationsByForm, listApplicationFormIdsForReviewer, listApplicationSubmissions } from '@/lib/application-submissions';
 import { newApplicationId } from '@/lib/application-access';
 import { countApplicationFormFiles, deleteApplicationFormFiles } from '@/lib/application-storage';
 
@@ -38,7 +38,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   const auth = await requireRole(req, ['admin', 'instructor']);
   if (isAuthError(auth)) return auth.error;
   const { id } = await context.params;
-  const body = await req.json().catch(() => null) as null | { config?: ApplicationFormConfig; slug?: string; status?: ApplicationFormStatus };
+  const body = await req.json().catch(() => null) as null | { config?: ApplicationFormConfig; slug?: string; status?: ApplicationFormStatus; replacedQuestions?: boolean };
   if (!body) return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
   try {
     const form = await getApplicationForm(id);
@@ -55,6 +55,16 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const next = { ...form, slug, config: body.config ?? form.config, status: body.status ?? form.status, updatedAt: new Date().toISOString() };
     const errors = validateApplicationForm(next.config, next.status);
     if (errors.length) return NextResponse.json({ error: errors[0], errors }, { status: 400 });
+    if (body.config && body.replacedQuestions === true) {
+      // The builder only offers Replace on a form with no applications, but its count was read
+      // when the forms list loaded. Recheck now, so an application that arrived meanwhile never
+      // loses its questions to a replace. Deleting single questions is unaffected.
+      const nextQuestionIds = new Set(next.config.questions.map(question => question.id));
+      const removesQuestions = form.config.questions.some(question => !nextQuestionIds.has(question.id));
+      if (removesQuestions && ((await countSubmittedApplicationsByForm([id]))[id] ?? 0) > 0) {
+        return NextResponse.json({ error: 'This form has received applications, so its questions cannot be replaced. Reload the form, then import again and add the questions to the end instead.' }, { status: 409 });
+      }
+    }
     if (body.config) {
       const nextStageIds = new Set(next.config.stages.map(stage => stage.id));
       const removedStages = form.config.stages.filter(stage => !nextStageIds.has(stage.id));

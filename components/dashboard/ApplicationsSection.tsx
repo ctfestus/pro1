@@ -118,7 +118,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
     setMode(current => current?.form.id === updated.id ? { ...current, form: updated } : current);
   }
 
-  if (mode?.type === 'edit') return <ApplicationFormBuilder initial={mode.form} token={token} relatedItems={relatedItems} cohorts={cohorts} C={C} onBack={() => setMode(null)} onSaved={replace} />;
+  if (mode?.type === 'edit') return <ApplicationFormBuilder initial={mode.form} token={token} relatedItems={relatedItems} cohorts={cohorts} submissionCount={submissionCounts ? submissionCounts[mode.form.id] ?? 0 : null} C={C} onBack={() => setMode(null)} onSaved={replace} />;
   if (mode?.type === 'review') return <ApplicationReviewPanel form={mode.form} token={token} reviewers={reviewers} C={C} onBack={() => setMode(null)} />;
   if (mode?.type === 'insights') return <ApplicationInsights form={mode.form} token={token} C={C} onBack={() => setMode(null)} />;
   if (loading) return <div className="py-20"><Loader2 className="w-6 h-6 animate-spin mx-auto" style={{ color: C.cta }} /></div>;
