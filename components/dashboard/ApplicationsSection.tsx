@@ -1,12 +1,13 @@
 'use client';
 
 import { useContext, useEffect, useState } from 'react';
-import { BarChart3, Check, Copy, Edit2, FileText, Link2, Loader2, Pause, Play, Plus, Search, Trash2, XCircle } from 'lucide-react';
+import { BarChart3, Check, Copy, Edit2, FileText, Link2, Loader2, Pause, Play, Plus, QrCode, Search, Trash2, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { ApplicationFormBuilder } from '@/components/dashboard/ApplicationFormBuilder';
 import { ApplicationReviewPanel } from '@/components/dashboard/ApplicationReviewPanel';
 import { ApplicationInsights } from '@/components/dashboard/ApplicationInsights';
+import { ApplicationFormQrDialog } from '@/components/dashboard/ApplicationFormQrDialog';
 import { CardActionsMenu, type CardAction } from '@/components/dashboard/content-cards';
 import type { ApplicationFormRecord, ApplicationTemplateKey } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
@@ -24,6 +25,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   const [busy, setBusy] = useState('');
   const [copiedFormId, setCopiedFormId] = useState('');
   const [deletingFormId, setDeletingFormId] = useState('');
+  const [qrForm, setQrForm] = useState<ApplicationFormRecord | null>(null);
   const [error, setError] = useState('');
 
   async function load() {
@@ -126,6 +128,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   return (
     <div className="space-y-5">
       {error && <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
+      {qrForm && <ApplicationFormQrDialog title={qrForm.config.title} slug={qrForm.slug} url={`${window.location.origin}/apply/${qrForm.slug}`} C={C} onClose={() => setQrForm(null)} />}
       {!isStaff && <div className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold" style={{ color: C.text }}>Create an application form</h2><p className="text-xs mt-1" style={{ color: C.faint }}>Start with an editable template. No applicant account is required.</p></div><div className="flex flex-wrap gap-2">{(['bootcamp', 'scholarship', 'internship'] as ApplicationTemplateKey[]).map(template => <button key={template} disabled={Boolean(busy)} onClick={() => void create(template)} className="px-3 py-2 rounded-xl text-xs font-semibold capitalize flex items-center gap-1.5 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy === template ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}{template}</button>)}</div></div></div>}
 
       {forms.length === 0 ? <div className="rounded-2xl py-20 text-center" style={{ background: C.card }}><FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.faint }} /><p className="font-semibold" style={{ color: C.text }}>{isStaff ? 'No applications are assigned to you.' : 'No application forms yet.'}</p></div> : (
@@ -137,7 +140,10 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
             const actions: CardAction[] = [
               { key: 'review', label: 'Review applications', Icon: Search, onClick: () => setMode({ type: 'review', form }) },
               { key: 'insights', label: 'Insights', Icon: BarChart3, onClick: () => setMode({ type: 'insights', form }) },
-              ...(form.status === 'published' ? [{ key: 'copy', label: 'Copy public link', Icon: Link2, onClick: () => void copyLink(form) }] : []),
+              ...(form.status === 'published' ? [
+                { key: 'copy', label: 'Copy public link', Icon: Link2, onClick: () => void copyLink(form) },
+                { key: 'qr', label: 'QR code', Icon: QrCode, onClick: () => setQrForm(form) },
+              ] : []),
               ...(!isStaff ? [
                 { key: 'edit', label: 'Edit form', Icon: Edit2, onClick: () => setMode({ type: 'edit', form }) },
                 { key: 'duplicate', label: 'Duplicate', Icon: Copy, onClick: () => void duplicate(form) },
