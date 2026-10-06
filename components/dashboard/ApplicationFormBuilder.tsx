@@ -682,6 +682,9 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
   const [error, setError] = useState('');
   const [preview, setPreview] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  // Set by an import that replaced the questions, until the next successful save. The server
+  // then refuses the save if the form has received applications since the builder opened.
+  const [questionsReplaced, setQuestionsReplaced] = useState(false);
   const [feeAmountInput, setFeeAmountInput] = useState(initial.config.fee?.amount ? String(initial.config.fee.amount) : '');
   const config = form.config;
   const applicationPreviewTheme = applicationThemeColors(C, config.themeColor, config.theme ?? 'platform', config.customTheme, config.themeMode ?? 'light');
@@ -698,10 +701,10 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
   async function save(status = form.status) {
     setSaving(true); setError('');
     try {
-      const response = await fetch(`/api/application-forms/${form.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ config: form.config, slug: form.slug, status }) });
+      const response = await fetch(`/api/application-forms/${form.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }, body: JSON.stringify({ config: form.config, slug: form.slug, status, ...(questionsReplaced ? { replacedQuestions: true } : {}) }) });
       const value = await response.json();
       if (!response.ok) throw new Error(value.error || 'Could not save the form.');
-      setForm(value.form); onSaved(value.form);
+      setForm(value.form); onSaved(value.form); setQuestionsReplaced(false);
     } catch (reason) { setError((reason as Error).message); }
     finally { setSaving(false); }
   }
@@ -735,6 +738,7 @@ export function ApplicationFormBuilder({ initial, token, relatedItems, cohorts =
       : config.admission;
     setConfig({ questions: withValidConditions(questions), admission });
     setActiveQuestionId(imported[0]?.id ?? '');
+    if (mode === 'replace') setQuestionsReplaced(true);
     setImportOpen(false);
   }
   function removeQuestion(index: number) {

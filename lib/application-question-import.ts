@@ -60,6 +60,7 @@ const TYPE_NAMES: Record<string, ApplicationQuestionType> = {
 
 const CHOICE_TYPES: ApplicationQuestionType[] = ['single_choice', 'multiple_choice', 'dropdown'];
 const TRUE_VALUES = new Set(['yes', 'y', 'true', '1', 'required', 'x']);
+const FALSE_VALUES = new Set(['', 'no', 'n', 'false', '0', 'optional']);
 
 /** The downloadable template, also the documentation of the format. */
 export const QUESTION_IMPORT_TEMPLATE_ROWS: string[][] = [
@@ -149,7 +150,14 @@ export function parseApplicationQuestionRows(
 
     const question: ApplicationQuestion = { id: makeId(), label, type, required: false };
     const requiredText = cell(row, 'required').toLowerCase();
-    if (type !== 'text_block') question.required = TRUE_VALUES.has(requiredText);
+    if (type !== 'text_block') {
+      question.required = TRUE_VALUES.has(requiredText);
+      // Anything unrecognised is imported as optional, and said so, so a question meant to be
+      // required is not quietly weakened.
+      if (!question.required && !FALSE_VALUES.has(requiredText)) {
+        issues.push({ row: rowNumber, level: 'warning', message: `Required value "${cell(row, 'required')}" was not recognised, so the question is optional. Use Yes or No.` });
+      }
+    }
 
     let help = cell(row, 'help');
     if (help.length > MAX_HELP_TEXT) {
@@ -185,6 +193,8 @@ export function parseApplicationQuestionRows(
       }
       question.options = options;
       if (wantsOther) question.allowOther = true;
+    } else if (type === 'yes_no' && options.length && !(options.length === 2 && options[0].toLowerCase() === 'yes' && options[1].toLowerCase() === 'no')) {
+      issues.push({ row: rowNumber, level: 'warning', message: 'A Yes or no question only offers Yes and No, so the listed options were ignored. Use Multiple choice to keep them.' });
     } else if (options.length && type !== 'yes_no') {
       issues.push({ row: rowNumber, level: 'warning', message: 'Options were ignored because this question type does not use them.' });
     }

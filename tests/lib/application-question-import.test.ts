@@ -92,6 +92,18 @@ describe('parseApplicationQuestionRows', () => {
       .toBe('A choice question needs at least two options, separated by semicolons.');
   });
 
+  it('warns when a Yes or no row lists options it cannot keep', () => {
+    const { questions, issues } = parse([['Question', 'Type', 'Options'], ['Laptop?', 'Yes or no', 'Yes, my own; Yes, shared; No'], ['Employed?', 'Yes/No', 'Yes; No']]);
+    expect(questions.map(question => question.type)).toEqual(['yes_no', 'yes_no']);
+    expect(issues).toEqual([{ row: 2, level: 'warning', message: 'A Yes or no question only offers Yes and No, so the listed options were ignored. Use Multiple choice to keep them.' }]);
+  });
+
+  it('flags a Required value it does not recognise instead of quietly making it optional', () => {
+    const { questions, issues } = parse([['Question', 'Required'], ['A', 'Must'], ['B', 'No'], ['C', ''], ['D', 'Optional'], ['E', 'TRUE']]);
+    expect(questions.map(question => question.required)).toEqual([false, false, false, false, true]);
+    expect(issues).toEqual([{ row: 2, level: 'warning', message: 'Required value "Must" was not recognised, so the question is optional. Use Yes or No.' }]);
+  });
+
   it('builds a text block from the help text, escaped', () => {
     const { questions } = parse([['Question', 'Type', 'Help text'], ['Before you start', 'Text block', 'Have your <CV> ready & a photo']]);
     expect(questions[0]).toMatchObject({ type: 'text_block', required: false, richText: '<p>Have your &lt;CV&gt; ready &amp; a photo</p>' });
