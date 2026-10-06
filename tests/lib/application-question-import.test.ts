@@ -3,6 +3,7 @@ import Papa from 'papaparse';
 import { newApplicationFormConfig, validateApplicationForm } from '@/lib/application-forms';
 import {
   MAX_IMPORTED_QUESTIONS,
+  csvParseProblem,
   QUESTION_IMPORT_TEMPLATE_ROWS,
   parseApplicationQuestionRows,
   questionImportTemplateCsv,
@@ -102,6 +103,21 @@ describe('parseApplicationQuestionRows', () => {
     const { questions, issues } = parse([['Question', 'Required'], ['A', 'Must'], ['B', 'No'], ['C', ''], ['D', 'Optional'], ['E', 'TRUE']]);
     expect(questions.map(question => question.required)).toEqual([false, false, false, false, true]);
     expect(issues).toEqual([{ row: 2, level: 'warning', message: 'Required value "Must" was not recognised, so the question is optional. Use Yes or No.' }]);
+  });
+
+  it('rejects a CSV whose unclosed quote would merge rows, but accepts a one-column file', () => {
+    const broken = Papa.parse<string[]>(['Question,Options', 'Pick one,"Red; Blue', 'Second question,', 'Third question,', ''].join('\n'));
+    expect(csvParseProblem(broken.errors)).toBe('This CSV file could not be read near row 2: Quoted field unterminated. Check for a missing closing quote mark, or save the file again from your spreadsheet app.');
+    const oneColumn = Papa.parse<string[]>(['Question', 'Full name', 'Phone'].join('\n'));
+    expect(oneColumn.errors.map(error => error.code)).toEqual(['UndetectableDelimiter']);
+    expect(csvParseProblem(oneColumn.errors)).toBeNull();
+  });
+
+  it('shortens long options before removing repeats, so no two options end up identical', () => {
+    const long = 'a'.repeat(200);
+    const { questions, issues } = parse([['Question', 'Options'], ['Pick', `${long}x; ${long}y; Short`]]);
+    expect(questions[0].options).toEqual([long, 'Short']);
+    expect(issues).toEqual([{ row: 2, level: 'warning', message: 'Long options were shortened to 200 characters.' }]);
   });
 
   it('builds a text block from the help text, escaped', () => {

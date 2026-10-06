@@ -4,6 +4,7 @@ import { useRef, useState } from 'react';
 import { AlertTriangle, Download, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
 import type { ApplicationQuestion, ApplicationQuestionType } from '@/lib/application-forms';
 import {
+  csvParseProblem,
   parseApplicationQuestionRows,
   questionImportTemplateCsv,
   type QuestionImportResult,
@@ -21,6 +22,8 @@ async function readRows(file: File): Promise<string[][]> {
   if (name.endsWith('.csv') || name.endsWith('.tsv') || name.endsWith('.txt')) {
     const Papa = (await import('papaparse')).default;
     const parsed = Papa.parse<string[]>(await file.text(), { skipEmptyLines: false });
+    const problem = csvParseProblem(parsed.errors);
+    if (problem) throw new Error(problem);
     return parsed.data;
   }
   throw new Error('Choose a CSV file or an Excel (.xlsx) file. For an older .xls file, save it as .xlsx first.');

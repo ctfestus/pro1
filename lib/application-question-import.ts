@@ -86,17 +86,21 @@ function escapeHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
-function splitOptions(value: string): string[] {
+/** Options from one cell. Long options are shortened before repeats are removed, so two options
+ * that only differ after the limit do not both survive as identical entries. */
+function splitOptions(value: string): { options: string[]; shortened: boolean } {
   const options: string[] = [];
   const seen = new Set<string>();
+  let shortened = false;
   for (const part of value.split(/\r?\n|;|\|/)) {
-    const option = part.trim().replace(/^(?:[-*•]\s+|\d+[.)]\s+)/, '').trim();
+    let option = part.trim().replace(/^(?:[-*\u2022]\s+|\d+[.)]\s+)/, '').trim();
+    if (option.length > MAX_OPTION) { option = option.slice(0, MAX_OPTION).trim(); shortened = true; }
     const key = option.toLocaleLowerCase();
     if (!option || seen.has(key)) continue;
     seen.add(key);
     options.push(option);
   }
-  return options;
+  return { options, shortened };
 }
 
 export function parseApplicationQuestionRows(
@@ -137,7 +141,8 @@ export function parseApplicationQuestionRows(
       issues.push({ row: rowNumber, level: 'warning', message: `The question was shortened to ${MAX_LABEL} characters.` });
     }
 
-    let options = splitOptions(cell(row, 'options'));
+    const split = splitOptions(cell(row, 'options'));
+    let options = split.options;
     const typeText = cell(row, 'type');
     const typeKey = typeText.toLowerCase().replace(/[^a-z]/g, '');
     let type: ApplicationQuestionType | undefined = typeKey ? TYPE_NAMES[typeKey] : undefined;
@@ -179,8 +184,7 @@ export function parseApplicationQuestionRows(
       const otherKey = APPLICATION_OTHER_OPTION.toLocaleLowerCase();
       const wantsOther = options.some(option => option.toLocaleLowerCase() === otherKey);
       if (wantsOther) options = options.filter(option => option.toLocaleLowerCase() !== otherKey && !isPlainApplicationOtherOption(option));
-      if (options.some(option => option.length > MAX_OPTION)) {
-        options = options.map(option => option.slice(0, MAX_OPTION));
+      if (split.shortened) {
         issues.push({ row: rowNumber, level: 'warning', message: `Long options were shortened to ${MAX_OPTION} characters.` });
       }
       if (options.length > MAX_OPTIONS) {
@@ -206,6 +210,18 @@ export function parseApplicationQuestionRows(
     issues.push({ row: 0, level: 'error', message: 'No questions were found below the heading row.' });
   }
   return { questions, issues };
+}
+
+/**
+ * A message when a CSV file did not parse cleanly, or null. An unclosed quote makes the parser
+ * swallow the following rows into one cell, which would otherwise import as a single odd question
+ * with no warning. Papa reports a one-column file as an undetectable delimiter; that is harmless.
+ */
+export function csvParseProblem(errors: { code?: string; row?: number; message?: string }[]): string | null {
+  const problem = errors.find(error => error.code !== 'UndetectableDelimiter');
+  if (!problem) return null;
+  const where = typeof problem.row === 'number' ? ` near row ${problem.row + 1}` : '';
+  return `This CSV file could not be read${where}: ${problem.message || 'it is not valid CSV'}. Check for a missing closing quote mark, or save the file again from your spreadsheet app.`;
 }
 
 /** CSV text for the template download, with cells quoted where needed. */
