@@ -230,7 +230,7 @@ export async function sendCohortAccessEmails(
               setupUrl,
               branding,
             });
-        const rendered = await applyEmailTemplate({ key: 'account_setup', fallbackSubject, fallbackHtml, variables: { student_name: account.name, app_name: t.appName }, branding, actionUrl: setupUrl });
+        const rendered = await applyEmailTemplate({ key: 'account_setup', fallbackSubject, fallbackHtml, variables: { student_name: account.name, app_name: t.appName }, branding });
         return { from: FROM, to: account.email, subject: rendered.subject, html: rendered.html };
       }
       const fallbackSubject = `You have been added to ${cohortName}`;
@@ -241,7 +241,7 @@ export async function sendCohortAccessEmails(
               signInUrl,
               branding,
             });
-      const rendered = await applyEmailTemplate({ key: 'cohort_added', fallbackSubject, fallbackHtml, variables: { student_name: account.name, cohort_name: cohortName, app_name: t.appName }, branding, actionUrl: signInUrl });
+      const rendered = await applyEmailTemplate({ key: 'cohort_added', fallbackSubject, fallbackHtml, variables: { student_name: account.name, cohort_name: cohortName, app_name: t.appName }, branding });
       return { from: FROM, to: account.email, subject: rendered.subject, html: rendered.html };
     }));
     const { error: sendError } = await resend.batch.send(messages);

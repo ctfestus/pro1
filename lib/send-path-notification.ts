@@ -120,7 +120,7 @@ export async function sendPathNotification(
       const rendered = await applyEmailTemplate({
         key: 'learning_path_assigned', fallbackSubject, fallbackHtml,
         variables: { student_name: student.full_name ?? 'there', path_title: lp.title, app_name: t.appName },
-        branding, actionUrl: dashboardUrl,
+        branding,
       });
       return { from: FROM, to: student.email, subject: rendered.subject, html: rendered.html };
     }));

@@ -183,8 +183,7 @@ export async function POST(req: NextRequest) {
     const rendered = await applyEmailTemplate({
       key: 'inactivity_nudge', fallbackSubject, fallbackHtml,
       variables: { student_name: c.name, content_title: c.title, content_type: c.contentType, status_text: 'Needs attention' },
-      fixedDetails: [{ label: 'Learning item', value: c.title }, { label: 'Status', value: 'Needs attention' }],
-      branding, actionUrl: `${t.appUrl}/${c.slug}`,
+      branding,
     });
     emailBatch.push({ from: FROM, to: c.email, subject: rendered.subject, html: rendered.html });
     nudgeRecords.push({ student_id: c.studentId, form_id: c.contentId });

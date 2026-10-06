@@ -166,7 +166,7 @@ export async function sendAssignmentNotifications({
         const rendered = await applyEmailTemplate({
           key: 'content_assigned', fallbackSubject: subject, fallbackHtml: html,
           variables: { student_name: name, content_title: title, content_type: typeLabel, app_name: t.appName },
-          branding, actionUrl: formUrl, ctaLabel,
+          branding,
         });
         return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
       }));

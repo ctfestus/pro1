@@ -172,8 +172,7 @@ export async function POST(req: NextRequest) {
     const rendered = await applyEmailTemplate({
       key: 'inactivity_nudge', fallbackSubject: subject, fallbackHtml: html,
       variables: { student_name: studentName || 'there', content_title: content.title, content_type: contentType, status_text: statusText },
-      fixedDetails: [{ label: 'Learning item', value: content.title }, { label: 'Status', value: statusText }],
-      branding, actionUrl: formUrl,
+      branding,
     });
     const { error: sendError } = await resend.emails.send({ from: FROM, to: recipientEmail, subject: rendered.subject, html: rendered.html });
     if (sendError) {

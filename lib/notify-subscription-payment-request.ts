@@ -84,11 +84,7 @@ export async function notifySubscriptionPaymentRequest(
   const rendered = await applyEmailTemplate({
     key: 'payment_request', fallbackSubject, fallbackHtml,
     variables: { student_name: student.full_name || 'there', plan_name: request.plan_name, amount: Number(request.amount).toFixed(2), currency: request.currency, due_date: formatEmailDate(request.due_date) },
-    fixedDetails: [
-      { label: 'Plan', value: request.plan_name }, { label: 'Amount', value: `${request.currency} ${Number(request.amount).toFixed(2)}` },
-      { label: 'Due', value: formatEmailDate(request.due_date) },
-    ],
-    branding, actionUrl: dashboardUrl,
+    branding,
   });
   const payloadVersion = createHash('sha256').update(`${rendered.subject}\n${rendered.html}`).digest('hex').slice(0, 16);
   const { error: sendError } = await resend.emails.send(

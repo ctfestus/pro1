@@ -89,11 +89,7 @@ export async function autoRegisterEventCohorts(
         event_time_display: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' '),
         event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
       },
-      fixedDetails: [
-        { label: 'When', value: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' ') },
-        { label: 'Where', value: event.location || (event.meeting_link ? 'Online' : 'To be announced') },
-      ],
-      branding, actionUrl: joinUrl || formUrl,
+      branding,
     });
     batch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
 

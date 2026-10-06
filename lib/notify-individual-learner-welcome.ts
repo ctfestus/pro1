@@ -162,16 +162,7 @@ export async function sendIndividualLearnerWelcome(
         currency: access.kind === 'awaiting_payment' ? access.currency : '',
         due_date: access.kind === 'awaiting_payment' ? formatEmailDate(access.dueDate) : '',
       },
-      fixedDetails: access.kind === 'active'
-        ? [
-            { label: 'Plan', value: planName }, { label: 'Duration', value: `${durationMonths} months` },
-            { label: 'Access starts', value: formatEmailDate(access.periodStart) }, { label: 'Access ends', value: formatEmailDate(access.periodEnd) },
-          ]
-        : [
-            { label: 'Plan', value: planName }, { label: 'Duration', value: `${durationMonths} months` },
-            { label: 'Amount due', value: `${access.currency} ${Number(access.amount).toFixed(2)}` }, { label: 'Pay by', value: formatEmailDate(access.dueDate) },
-          ],
-      branding, actionUrl: setupUrl,
+      branding,
     });
     const { error: sendError } = await resend.emails.send({
       from,

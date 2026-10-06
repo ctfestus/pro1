@@ -93,7 +93,7 @@ export async function sendPaystackCartReminders(
           '<p>Nothing has been charged, and you owe nothing. If you have changed your mind you can ignore this.</p>',
         ].join('');
       const branding = { appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl, emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName };
-      const rendered = await applyEmailTemplate({ key: 'abandoned_checkout', fallbackSubject, fallbackHtml, variables: { student_name: (student.full_name || '').split(' ')[0] || 'there', plan_name: claim.planName, currency: claim.currency, amount: Number(claim.amount).toFixed(2), duration: months }, branding, actionUrl });
+      const rendered = await applyEmailTemplate({ key: 'abandoned_checkout', fallbackSubject, fallbackHtml, variables: { student_name: (student.full_name || '').split(' ')[0] || 'there', plan_name: claim.planName, currency: claim.currency, amount: Number(claim.amount).toFixed(2), duration: months }, branding });
       const { error: sendError } = await resend.emails.send({ from, to: student.email, subject: rendered.subject, html: rendered.html }, { idempotencyKey: `paystack-cart/${cart.reference}/${claim.reminderNumber}` });
       if (sendError) throw new Error(sendError.message);
       sent++;

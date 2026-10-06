@@ -8,9 +8,9 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 
 type Definition = {
   key: string; label: string; category: string; description: string; schedule: string;
-  defaultSubject: string; defaultBody: string; tags: string[]; requiredTags: string[];
+  tags: string[];
 };
-type Override = { template_key: string; subject_template: string; body_template: string; updated_at: string; updated_by: string | null };
+type Override = { template_key: string; subject_template: string; body_template: string; composition_mode: 'legacy_replace' | 'additive'; updated_at: string; updated_by: string | null };
 type HistoryRow = { id: string; template_key: string; action: string; changed_at: string; students?: { full_name?: string; email?: string } | null };
 
 async function authHeaders(json = false) {
@@ -60,8 +60,8 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
 
   useEffect(() => {
     if (!selected) return;
-    const nextSubject = selectedOverride?.subject_template ?? selected.defaultSubject;
-    const nextBody = selectedOverride?.body_template ?? selected.defaultBody;
+    const nextSubject = selectedOverride?.subject_template ?? '';
+    const nextBody = selectedOverride?.body_template ?? '';
     setSubject(nextSubject);
     setBody(nextBody);
     setLoadedSubject(nextSubject);
@@ -72,6 +72,13 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
   }, [selectedKey, selected, selectedOverride]);
 
   const dirty = subject !== loadedSubject || body !== loadedBody;
+  const needsSafeComposition = selectedOverride?.composition_mode === 'legacy_replace';
+  const bodyHasVisibleText = Boolean(body
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;|&#160;|&#x0*a0;/gi, ' ')
+    .replace(/[\s\u00a0\u200b\u200c\u200d\ufeff]/g, ''));
+  const hasCustomization = Boolean(subject.trim() || bodyHasVisibleText);
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
     return definitions.filter(item => !needle || `${item.label} ${item.category} ${item.description}`.toLowerCase().includes(needle));
@@ -95,7 +102,7 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || `Could not ${action} this email.`);
       if (action === 'preview') setPreview({ subject: json.subject, html: json.html });
-      else setMessage({ ok: true, text: `Test email sent to ${json.sentTo}.` });
+      else setMessage({ ok: true, text: `Sample email sent to ${json.sentTo}.` });
     } catch (error: any) {
       setMessage({ ok: false, text: error.message || `Could not ${action} this email.` });
     } finally { setBusy(null); }
@@ -103,7 +110,7 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
 
   async function save() {
     if (!selected) return;
-    if (!selectedOverride && !window.confirm('Saving activates this custom subject and body for future sends. Continue?')) return;
+    if (!selectedOverride && !window.confirm('Saving adds this customization to future emails while preserving the complete system email. Continue?')) return;
     setBusy('save');
     setMessage(null);
     try {
@@ -113,7 +120,7 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Could not save this template.');
-      setMessage({ ok: true, text: 'Saved. Future emails will use this version within 60 seconds.' });
+      setMessage({ ok: true, text: 'Saved. Future emails will keep the system content and include this customization within 60 seconds.' });
       await load(selected.key);
     } catch (error: any) {
       setMessage({ ok: false, text: error.message || 'Could not save this template.' });
@@ -146,7 +153,7 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
     <div className="space-y-5">
       <div>
         <div className="flex items-center gap-2"><Mail className="w-5 h-5" style={{ color: C.cta }}/><h1 className="text-xl font-bold" style={{ color: C.text }}>Email Templates</h1></div>
-        <p className="mt-1 text-sm" style={{ color: C.faint }}>Customize platform-wide emails sent to learners. Every instructor and admin sees the same shared version and change history.</p>
+        <p className="mt-1 text-sm" style={{ color: C.faint }}>Add a shared subject or message to learner emails without replacing their system-generated content, details, or action buttons.</p>
       </div>
 
       {message && <div role="status" className="rounded-xl px-4 py-3 text-sm" style={{ background: message.ok ? C.lime : C.errorBg, color: message.ok ? C.green : C.errorText }}>{message.text}</div>}
@@ -176,23 +183,24 @@ export function EmailTemplatesSection({ C }: { C: typeof LIGHT_C }) {
           <section className="rounded-2xl p-5" style={cardStyle(C)}>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div><h2 className="text-base font-bold" style={{ color: C.text }}>{selected.label}</h2><p className="mt-1 text-xs" style={{ color: C.faint }}>{selected.description}</p></div>
-              <span className="rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: selectedOverride ? C.lime : C.pill, color: selectedOverride ? C.green : C.muted }}>{selectedOverride ? 'Custom version active' : 'Custom template starter'}</span>
+              <span className="rounded-full px-3 py-1 text-[11px] font-semibold" style={{ background: selectedOverride ? C.lime : C.pill, color: selectedOverride ? C.green : C.muted }}>{selectedOverride ? 'Customization active' : 'System email active'}</span>
             </div>
-            {!selectedOverride && <p className="mt-4 rounded-xl px-3 py-2.5 text-xs" style={{ background: C.pill, color: C.muted }}>The existing system email remains active until you save. Saving activates this custom message. Required dates, amounts, results, references and event details are added by the platform in a fixed details block and cannot be removed.</p>}
+            <p className="mt-4 rounded-xl px-3 py-2.5 text-xs" style={{ background: C.pill, color: C.muted }}>The complete system email always remains in place, including course lists, results, dates, payment details, certificates, and real action buttons. A custom message appears above it. Leave the subject blank to keep the system subject.</p>
+            {selectedOverride?.composition_mode === 'legacy_replace' && <p className="mt-3 rounded-xl px-3 py-2.5 text-xs" style={{ background: C.errorBg, color: C.errorText }}>This customization was saved before protected composition was introduced. Its subject remains active, but its body is paused to prevent duplicated or missing content. Review it and save again to activate it as an added message.</p>}
             <div className="mt-5 space-y-4">
-              <label className="block"><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Subject</span><input value={subject} maxLength={200} onChange={event => setSubject(event.target.value)} className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ background: C.input, color: C.text }}/></label>
-              <div><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Email body</span><RichTextEditor value={body} onChange={setBody} placeholder="Write the learner email..." bgOverride={C.input}/></div>
-              <div><p className="text-xs font-semibold" style={{ color: C.muted }}>Available merge tags</p><div className="mt-2 flex flex-wrap gap-2">{selected.tags.map(tag => <button key={tag} type="button" onClick={() => setBody(value => `${value}<p>{{${tag}}}</p>`)} className="rounded-lg px-2 py-1 font-mono text-[11px]" style={{ background: C.pill, color: C.muted }}>{`{{${tag}}}`}{selected.requiredTags.includes(tag) ? ' *' : ''}</button>)}</div><p className="mt-2 text-[11px]" style={{ color: C.faint }}>* Required tags must remain visible because they carry essential learner information. Custom links are blocked; the secure action button is added by the platform.</p></div>
+              <label className="block"><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Custom subject (optional)</span><input value={subject} maxLength={200} onChange={event => setSubject(event.target.value)} placeholder="Leave blank to keep the system subject" className="w-full rounded-xl px-3 py-2.5 text-sm outline-none" style={{ background: C.input, color: C.text }}/></label>
+              <div><span className="mb-1.5 block text-xs font-semibold" style={{ color: C.muted }}>Custom message (optional)</span><RichTextEditor value={body} onChange={setBody} placeholder="Add a message above the system email..." bgOverride={C.input}/></div>
+              <div><p className="text-xs font-semibold" style={{ color: C.muted }}>Available merge tags</p><div className="mt-2 flex flex-wrap gap-2">{selected.tags.map(tag => <button key={tag} type="button" onClick={() => setBody(value => `${value}<p>{{${tag}}}</p>`)} className="rounded-lg px-2 py-1 font-mono text-[11px]" style={{ background: C.pill, color: C.muted }}>{`{{${tag}}}`}</button>)}</div><p className="mt-2 text-[11px]" style={{ color: C.faint }}>Merge tags are optional in your message because essential learner information stays in the protected system email. Custom links are blocked.</p></div>
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
-              <button onClick={save} disabled={!dirty || busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}Save template</button>
-              <button onClick={() => request('preview')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>{busy === 'preview' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Mail className="w-4 h-4"/>}Preview</button>
-              <button onClick={() => request('test')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>{busy === 'test' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}Send test to me</button>
+              <button onClick={save} disabled={(!dirty && !needsSafeComposition) || !hasCustomization || busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy === 'save' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Check className="w-4 h-4"/>}Save customization</button>
+              <button onClick={() => request('preview')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'preview' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Mail className="w-4 h-4"/>}Preview full sample</button>
+              <button onClick={() => request('test')} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold disabled:opacity-50" style={{ background: C.pill, color: C.text }}>{busy === 'test' ? <Loader2 className="w-4 h-4 animate-spin"/> : <Send className="w-4 h-4"/>}Send full sample</button>
               {selectedOverride && <button onClick={reset} disabled={busy !== null} className="inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>{busy === 'reset' ? <Loader2 className="w-4 h-4 animate-spin"/> : <RotateCcw className="w-4 h-4"/>}Restore system email</button>}
             </div>
           </section>
 
-          {preview && <section className="rounded-2xl p-5" style={cardStyle(C)}><p className="text-xs font-semibold" style={{ color: C.muted }}>Preview subject</p><p className="mt-1 text-sm font-bold" style={{ color: C.text }}>{preview.subject}</p><iframe title="Email preview" srcDoc={preview.html} sandbox="" className="mt-4 h-[520px] w-full rounded-xl bg-white"/></section>}
+          {preview && <section className="rounded-2xl p-5" style={cardStyle(C)}><p className="text-xs font-semibold" style={{ color: C.muted }}>Preview subject</p><p className="mt-1 text-sm font-bold" style={{ color: C.text }}>{preview.subject}</p><p className="mt-3 text-xs" style={{ color: C.faint }}>This is the complete email layout with representative learner data. Buttons look the same but are disabled in previews and samples.</p><iframe title="Email preview" srcDoc={preview.html} sandbox="" className="mt-4 h-[520px] w-full rounded-xl bg-white"/></section>}
 
           <section className="rounded-2xl p-5" style={cardStyle(C)}>
             <div className="flex items-center gap-2"><History className="w-4 h-4" style={{ color: C.faint }}/><h3 className="text-sm font-bold" style={{ color: C.text }}>Recent changes</h3></div>

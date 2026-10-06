@@ -76,11 +76,7 @@ export async function notifySubscriptionExpiring(
   const rendered = await applyEmailTemplate({
     key: 'subscription_expiring', fallbackSubject, fallbackHtml,
     variables: { student_name: student.full_name || 'there', plan_name: plan?.name ?? 'your plan', period_end: formatEmailDate(subscription.current_period_end), days_left: daysLeft },
-    fixedDetails: [
-      { label: 'Plan', value: plan?.name ?? 'Your plan' }, { label: 'Access ends', value: formatEmailDate(subscription.current_period_end) },
-      { label: 'Time remaining', value: daysLeft === 1 ? '1 day' : `${daysLeft} days` },
-    ],
-    branding, actionUrl: dashboardUrl,
+    branding,
   });
   const payloadVersion = createHash('sha256').update(`${rendered.subject}\n${rendered.html}`).digest('hex').slice(0, 16);
   const { error: sendError } = await resend.emails.send(

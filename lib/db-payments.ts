@@ -545,11 +545,7 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
             student_name: studentName, amount: input.amount.toFixed(2), currency: enroll.currency ?? 'GHS',
             reference: input.reference ?? '', payment_date: paymentDate, payment_method: input.method ?? '',
           },
-          fixedDetails: [
-            { label: 'Amount', value: `${enroll.currency ?? 'GHS'} ${input.amount.toFixed(2)}` },
-            { label: 'Date', value: paymentDate }, { label: 'Method', value: input.method ?? null }, { label: 'Reference', value: input.reference ?? null },
-          ],
-          branding, actionUrl: dashboardUrl,
+          branding,
         });
         const { error: sendErr } = await resend.emails.send({ from: FROM, to: input.payerEmail, subject: rendered.subject, html: rendered.html });
         if (sendErr) console.error('[db-payments] payment receipt email failed', sendErr);

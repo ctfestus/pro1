@@ -114,7 +114,6 @@ export async function POST(req: NextRequest) {
       branding,
     });
 
-    const actionUrl = joinToken ? `${t.appUrl}/api/join?token=${joinToken}` : `${t.appUrl}/${event.slug ?? formId}`;
     const rendered = await applyEmailTemplate({
       key: 'event_confirmation', fallbackSubject: subject, fallbackHtml: html,
       variables: {
@@ -122,11 +121,7 @@ export async function POST(req: NextRequest) {
         event_time_display: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' '),
         event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
       },
-      fixedDetails: [
-        { label: 'When', value: [event.event_date, event.event_time, event.timezone].filter(Boolean).join(' ') },
-        { label: 'Where', value: event.location || (event.meeting_link ? 'Online' : 'To be announced') },
-      ],
-      branding, actionUrl,
+      branding,
     });
     resend.emails
       .send({ from: FROM, to: student.email, subject: rendered.subject, html: rendered.html })

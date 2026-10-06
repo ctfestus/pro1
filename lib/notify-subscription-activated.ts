@@ -71,11 +71,7 @@ async function renderMessage(payment: PaymentRow, ctx: {
   const rendered = await applyEmailTemplate({
     key: 'subscription_activated', fallbackSubject, fallbackHtml,
     variables: { student_name: payment.students?.full_name || 'there', plan_name: payment.plan_name, duration_months: payment.duration_months, period_start: formatEmailDate(payment.period_start), period_end: formatEmailDate(payment.period_end) },
-    fixedDetails: [
-      { label: 'Plan', value: payment.plan_name }, { label: 'Duration', value: `${payment.duration_months} months` },
-      { label: 'Access starts', value: formatEmailDate(payment.period_start) }, { label: 'Access ends', value: formatEmailDate(payment.period_end) },
-    ],
-    branding: ctx.branding, actionUrl: ctx.dashboardUrl,
+    branding: ctx.branding,
   });
   return {
     from: ctx.from,
