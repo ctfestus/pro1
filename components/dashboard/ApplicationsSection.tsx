@@ -8,12 +8,18 @@ import { ApplicationFormBuilder } from '@/components/dashboard/ApplicationFormBu
 import { ApplicationReviewPanel } from '@/components/dashboard/ApplicationReviewPanel';
 import { ApplicationInsights } from '@/components/dashboard/ApplicationInsights';
 import { ApplicationFormQrDialog } from '@/components/dashboard/ApplicationFormQrDialog';
+import { useTenant } from '@/components/TenantProvider';
+import { normalizeAbsoluteBaseUrl } from '@/lib/public-url';
 import { CardActionsMenu, type CardAction } from '@/components/dashboard/content-cards';
 import type { ApplicationFormRecord, ApplicationTemplateKey } from '@/lib/application-forms';
 import type { ThemeColors } from '@/lib/theme';
 
 export function ApplicationsSection({ C }: { C: ThemeColors }) {
   const isStaff = useContext(IsStaffContext);
+  // The permanent public address, so links and printed QR codes made while viewing a preview
+  // deployment still point at the live site. The address being viewed is the fallback.
+  const publicBaseUrl = normalizeAbsoluteBaseUrl(useTenant().appUrl);
+  const publicFormUrl = (form: ApplicationFormRecord) => `${publicBaseUrl || window.location.origin}/apply/${form.slug}`;
   const [forms, setForms] = useState<ApplicationFormRecord[]>([]);
   const [submissionCounts, setSubmissionCounts] = useState<Record<string, number> | null>(null);
   const [reviewers, setReviewers] = useState<any[]>([]);
@@ -84,7 +90,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
 
   async function copyLink(form: ApplicationFormRecord) {
     setError('');
-    const url = `${window.location.origin}/apply/${form.slug}`;
+    const url = publicFormUrl(form);
     try {
       await navigator.clipboard.writeText(url);
       setCopiedFormId(form.id);
@@ -128,7 +134,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   return (
     <div className="space-y-5">
       {error && <div className="rounded-xl p-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>{error}</div>}
-      {qrForm && <ApplicationFormQrDialog title={qrForm.config.title} slug={qrForm.slug} url={`${window.location.origin}/apply/${qrForm.slug}`} C={C} onClose={() => setQrForm(null)} />}
+      {qrForm && <ApplicationFormQrDialog title={qrForm.config.title} slug={qrForm.slug} url={publicFormUrl(qrForm)} usingCurrentAddress={!publicBaseUrl} C={C} onClose={() => setQrForm(null)} returnFocus={() => document.querySelector<HTMLElement>(`[data-application-form-card="${qrForm.id}"] button[aria-label="More options"]`)} />}
       {!isStaff && <div className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}><div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="font-bold" style={{ color: C.text }}>Create an application form</h2><p className="text-xs mt-1" style={{ color: C.faint }}>Start with an editable template. No applicant account is required.</p></div><div className="flex flex-wrap gap-2">{(['bootcamp', 'scholarship', 'internship'] as ApplicationTemplateKey[]).map(template => <button key={template} disabled={Boolean(busy)} onClick={() => void create(template)} className="px-3 py-2 rounded-xl text-xs font-semibold capitalize flex items-center gap-1.5 disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>{busy === template ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}{template}</button>)}</div></div></div>}
 
       {forms.length === 0 ? <div className="rounded-2xl py-20 text-center" style={{ background: C.card }}><FileText className="w-10 h-10 mx-auto mb-3" style={{ color: C.faint }} /><p className="font-semibold" style={{ color: C.text }}>{isStaff ? 'No applications are assigned to you.' : 'No application forms yet.'}</p></div> : (
@@ -157,7 +163,7 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
               ] : []),
             ];
             return (
-              <div key={form.id} className="rounded-2xl p-4 sm:p-5 flex items-center gap-3 sm:gap-4" style={{ background: C.card }}>
+              <div key={form.id} data-application-form-card={form.id} className="rounded-2xl p-4 sm:p-5 flex items-center gap-3 sm:gap-4" style={{ background: C.card }}>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
                     <h3 className="font-bold truncate" style={{ color: C.text }}>{form.config.title}</h3>
