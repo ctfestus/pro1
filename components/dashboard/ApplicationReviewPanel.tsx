@@ -20,6 +20,8 @@ import {
   X,
 } from 'lucide-react';
 import {
+  applicationChoiceAnswerText,
+  isApplicationOtherAnswer,
   isAcceptedStage,
   isApplicationContentBlock,
   type ApplicationFormRecord,
@@ -137,6 +139,7 @@ function displayAnswer(value: any, openFile: () => void): React.ReactNode {
   if (value === null || value === undefined || value === '') return 'Not answered';
   if (Array.isArray(value)) return value.join(', ');
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (isApplicationOtherAnswer(value)) return applicationChoiceAnswerText(value);
   if (typeof value === 'object' && value.publicId) return <button type="button" onClick={openFile} className="underline">{value.name || 'View file'}</button>;
   return String(value);
 }

@@ -1,4 +1,6 @@
 import {
+  applicationChoiceAnswerText,
+  isApplicationOtherAnswer,
   isApplicationContentBlock,
   type ApplicationAnswer,
   type ApplicationFormRecord,
@@ -9,6 +11,7 @@ function answerValue(value: ApplicationAnswer | undefined): string {
   if (value === null || value === undefined) return '';
   if (Array.isArray(value)) return value.join('; ');
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (isApplicationOtherAnswer(value)) return applicationChoiceAnswerText(value, '; ');
   if (typeof value === 'object') return value.url || value.name || '';
   return String(value);
 }

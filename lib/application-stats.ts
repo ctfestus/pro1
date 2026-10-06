@@ -1,4 +1,7 @@
 import {
+  APPLICATION_OTHER_OPTION,
+  applicationChoiceSelections,
+  isApplicationOtherAnswer,
   isApplicationContentBlock,
   isQuestionVisible,
   type ApplicationAnswer,
@@ -142,18 +145,22 @@ export function applicationFieldBreakdowns(
     const base = { id: question.id, label: question.label, answered, shown: shownTo.length };
 
     if (['single_choice', 'dropdown', 'yes_no'].includes(question.type)) {
-      const configured = question.type === 'yes_no' ? ['Yes', 'No'] : (question.options ?? []).filter(Boolean);
+      const configured = question.type === 'yes_no' ? ['Yes', 'No'] : [...(question.options ?? []).filter(Boolean), ...(question.allowOther ? [APPLICATION_OTHER_OPTION] : [])];
       const counts = new Map<string, number>(configured.map(option => [option, 0]));
       // Answers to options that were later renamed or removed still count, under their own label.
-      for (const value of values) counts.set(String(value), (counts.get(String(value)) ?? 0) + 1);
+      for (const value of values) {
+        const option = isApplicationOtherAnswer(value) ? applicationChoiceSelections(value)[0] : String(value);
+        counts.set(option, (counts.get(option) ?? 0) + 1);
+      }
       result.push({ ...base, kind: 'choice', options: withShares(counts, answered) });
       continue;
     }
 
     if (question.type === 'multiple_choice') {
-      const counts = new Map<string, number>((question.options ?? []).filter(Boolean).map(option => [option, 0]));
+      const counts = new Map<string, number>([...(question.options ?? []).filter(Boolean), ...(question.allowOther ? [APPLICATION_OTHER_OPTION] : [])].map(option => [option, 0]));
       for (const value of values) {
-        for (const option of new Set((Array.isArray(value) ? value : [value]).map(String))) {
+        const selections = isApplicationOtherAnswer(value) ? applicationChoiceSelections(value) : Array.isArray(value) ? value : [String(value)];
+        for (const option of new Set(selections)) {
           counts.set(option, (counts.get(option) ?? 0) + 1);
         }
       }

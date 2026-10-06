@@ -46,4 +46,13 @@ describe('application submission export', () => {
     expect(csv).toContain('"Previous question"');
     expect(csv).toContain('"An earlier answer"');
   });
+
+  it('exports Other details in the same answer cell', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [{ id: 'skills', label: 'Skills', type: 'multiple_choice', required: true, options: ['SQL', 'Python'], allowOther: true }];
+    const form = { id: 'form-1', ownerId: 'owner-1', ownerEmail: 'owner@example.com', slug: 'bootcamp', status: 'published' as const, createdAt: '', updatedAt: '', config };
+    const csv = applicationSubmissionsCsv(form, [{ id: 'submission-1', formId: form.id, reference: 'APP-1', email: 'applicant@example.com', state: 'submitted', stageId: 'submitted', assignedReviewerId: '', assignedReviewerEmail: '', score: null, createdAt: '', updatedAt: '', submittedAt: '', tokenHash: 'secret', answers: { skills: { kind: 'other_choice', selections: ['SQL', 'Other (please specify)'], otherText: 'Power BI' } }, privateNotes: [], statusHistory: [], messages: [] }]);
+    expect(csv).toContain('"SQL; Other (please specify): Power BI"');
+    expect(csv).not.toContain('other_choice');
+  });
 });

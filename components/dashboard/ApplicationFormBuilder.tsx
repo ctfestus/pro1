@@ -28,6 +28,7 @@ import {
   Moon,
   Move,
   Palette,
+  ClipboardPaste,
   Phone,
   Plus,
   RotateCcw,
@@ -50,14 +51,19 @@ import {
 import { ApplicationStart } from '@/components/ApplicationStart';
 import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
 import { ApplicationResponseValidation } from '@/components/dashboard/ApplicationResponseValidation';
+import { ApplicationOptionSuggestions } from '@/components/dashboard/ApplicationOptionSuggestions';
+import { mergeApplicationOptions, parseApplicationOptionList } from '@/lib/application-option-suggestions';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import {
+  APPLICATION_OTHER_OPTION,
   APPLICATION_FILE_TYPE_IDS,
   APPLICATION_FILE_TYPES,
   APPLICATION_FEE_CURRENCIES,
   APPLICATION_FEE_TYPES,
+  applicationConditionUsesOther,
   applicationQuestionFileTypes,
+  isPlainApplicationOtherOption,
   isApplicationContentBlock,
   suggestedNameQuestionId,
   newApplicationFee,
@@ -441,11 +447,34 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
 }) {
   const [logicOpen, setLogicOpen] = useState(Boolean(question.condition));
   const [dragOver, setDragOver] = useState(false);
+  const [pasteOpen, setPasteOpen] = useState(false);
+  const [pasteDraft, setPasteDraft] = useState('');
+  const [otherToggleAttempted, setOtherToggleAttempted] = useState(false);
   const isChoice = CHOICE_TYPES.includes(question.type);
   const isTextBlock = question.type === 'text_block';
   const isImage = question.type === 'image';
   const isContentBlock = isApplicationContentBlock(question);
   const conditionSources = questions.slice(0, index).filter(item => !isApplicationContentBlock(item));
+  const conditionSource = conditionSources.find(item => item.id === question.condition?.questionId);
+  const conditionOptions = conditionSource?.type === 'yes_no' ? ['Yes', 'No'] : conditionSource && CHOICE_TYPES.includes(conditionSource.type) ? [...(conditionSource.options ?? []), ...(conditionSource.allowOther ? [APPLICATION_OTHER_OPTION] : [])] : [];
+  const hasPlainOther = (question.options ?? []).some(isPlainApplicationOtherOption);
+  const otherDependent = questions.find(item => item.condition?.questionId === question.id && applicationConditionUsesOther(item.condition, question.options));
+  const otherToggleWarning = question.allowOther && hasPlainOther
+    ? 'This question already has an Other option. Remove the plain Other option or turn off the specify field.'
+    : otherToggleAttempted && !question.allowOther && hasPlainOther
+      ? 'Remove the existing Other option before adding Other (please specify). Check any follow-up conditions first.'
+      : otherToggleAttempted && question.allowOther && otherDependent
+        ? `${otherDependent.label || 'A follow-up question'} depends on Other (please specify). Update its condition before turning this option off.`
+        : '';
+
+  function toggleOther(checked: boolean) {
+    if ((checked && hasPlainOther) || (!checked && otherDependent)) {
+      setOtherToggleAttempted(true);
+      return;
+    }
+    setOtherToggleAttempted(false);
+    onUpdate({ allowOther: checked || undefined });
+  }
 
   function updateOption(optionIndex: number, value: string) {
     const options = [...(question.options ?? [])];
@@ -455,6 +484,14 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
 
   function removeOption(optionIndex: number) {
     onUpdate({ options: (question.options ?? []).filter((_, current) => current !== optionIndex) });
+  }
+
+  function addPastedOptions(input: string) {
+    const incoming = parseApplicationOptionList(input);
+    if (!incoming.length) return;
+    onUpdate({ options: mergeApplicationOptions(question.options, incoming) });
+    setPasteDraft('');
+    setPasteOpen(false);
   }
 
   function setConditionQuestion(questionId: string) {
@@ -501,7 +538,7 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
           <span className="hidden text-[10px] font-semibold sm:inline">Drag to reorder</span>
         </button>
         <span className="grid h-7 w-7 place-items-center rounded-lg text-xs font-bold" style={{ background: C.pill, color: C.muted }}>{index + 1}</span>
-        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' || type === 'image' ? false : question.required, image: type === 'image' ? question.image : undefined, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined, allowedFileTypes: type === 'file' ? question.allowedFileTypes : undefined, validation: type === question.type ? question.validation : undefined })} />
+        <QuestionTypePicker value={question.type} index={index} C={C} onChange={type => onUpdate({ type, required: type === 'text_block' || type === 'image' ? false : question.required, image: type === 'image' ? question.image : undefined, options: CHOICE_TYPES.includes(type) ? question.options ?? ['Option 1', 'Option 2'] : undefined, allowOther: CHOICE_TYPES.includes(type) ? question.allowOther : undefined, richText: type === 'text_block' ? question.richText ?? '<p>Add helpful context or instructions here.</p>' : undefined, allowedFileTypes: type === 'file' ? question.allowedFileTypes : undefined, validation: type === question.type ? question.validation : undefined })} />
       </div>
 
       <input
@@ -542,13 +579,25 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
           {(question.options ?? []).map((option, optionIndex) => (
             <div key={`${question.id}-option-${optionIndex}`} className="flex items-center gap-2">
               {question.type === 'multiple_choice' ? <Square className="h-4 w-4 shrink-0" style={{ color: C.faint }} /> : <Circle className="h-4 w-4 shrink-0" style={{ color: C.faint }} />}
-              <input value={option} onChange={event => updateOption(optionIndex, event.target.value)} placeholder={`Option ${optionIndex + 1}`} className="flex-1" style={{ ...inputStyle, background: C.input, padding: '9px 10px' }} />
+              <input value={option} onChange={event => updateOption(optionIndex, event.target.value)} onPaste={event => { const pasted = event.clipboardData.getData('text'); if (/[\r\n\t]/.test(pasted)) { event.preventDefault(); addPastedOptions(pasted); } }} placeholder={`Option ${optionIndex + 1}`} className="flex-1" style={{ ...inputStyle, background: C.input, padding: '9px 10px' }} />
               <button type="button" onClick={() => removeOption(optionIndex)} className="rounded-lg p-2" style={{ color: C.faint }} aria-label={`Remove option ${optionIndex + 1}`}><X className="h-4 w-4" /></button>
             </div>
           ))}
-          <button type="button" onClick={() => onUpdate({ options: [...(question.options ?? []), `Option ${(question.options?.length ?? 0) + 1}`] })} className="ml-6 flex items-center gap-1.5 px-1 py-2 text-xs font-semibold" style={{ color: C.cta }}><Plus className="h-3.5 w-3.5" /> Add option</button>
+          <div className="ml-6 flex flex-wrap items-center gap-4">
+            <button type="button" onClick={() => onUpdate({ options: [...(question.options ?? []), `Option ${(question.options?.length ?? 0) + 1}`] })} className="flex items-center gap-1.5 px-1 py-2 text-xs font-semibold" style={{ color: C.cta }}><Plus className="h-3.5 w-3.5" /> Add option</button>
+            <button type="button" onClick={() => setPasteOpen(value => !value)} className="flex items-center gap-1.5 px-1 py-2 text-xs font-semibold" style={{ color: C.muted }} aria-expanded={pasteOpen}><ClipboardPaste className="h-3.5 w-3.5" /> Paste a list</button>
+          </div>
+          {pasteOpen && <div className="ml-6 rounded-lg p-3" style={{ background: C.input }}>
+            <label className="block text-xs font-semibold" style={{ color: C.text }} htmlFor={`paste-options-${question.id}`}>Paste options</label>
+            <textarea id={`paste-options-${question.id}`} value={pasteDraft} onChange={event => setPasteDraft(event.target.value)} rows={5} placeholder={'One option per line\nOr paste a spreadsheet column'} className="mt-2 w-full resize-y text-xs" style={{ ...inputStyle, background: C.card }} />
+            <div className="mt-2 flex items-center justify-between gap-3"><span className="text-[11px]" style={{ color: C.faint }}>Existing options are kept. Repeated options are skipped.</span><button type="button" disabled={!parseApplicationOptionList(pasteDraft).length} onClick={() => addPastedOptions(pasteDraft)} className="shrink-0 rounded-lg px-3 py-2 text-xs font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>Add options</button></div>
+          </div>}
+          <label className="ml-6 flex cursor-pointer items-center gap-2 py-2 text-xs font-medium" style={{ color: C.muted }}><input type="checkbox" checked={Boolean(question.allowOther)} onChange={event => toggleOther(event.target.checked)} aria-describedby={otherToggleWarning ? `other-warning-${question.id}` : undefined} style={{ accentColor: C.cta }} /> Add Other (please specify)</label>
+          {otherToggleWarning && <p id={`other-warning-${question.id}`} className="ml-6 rounded-lg px-3 py-2 text-xs leading-5" role="alert" style={{ background: C.errorBg, color: C.errorText }}>{otherToggleWarning}</p>}
         </div>
       )}
+
+      {active && <ApplicationOptionSuggestions question={question} hasDependentConditions={questions.some(item => item.condition?.questionId === question.id)} token={token} C={C} onUpdate={onUpdate} />}
 
       {question.type === 'file' && (
         <div className="mt-4">
@@ -589,7 +638,10 @@ function QuestionEditorCard({ question, index, questions, active, dragging, C, t
                   <select value={question.condition.operator} onChange={event => onUpdate({ condition: { ...question.condition!, operator: event.target.value as ApplicationCondition['operator'] } })} style={{ ...inputStyle, background: C.card }}>
                     <option value="equals">Equals</option><option value="not_equals">Does not equal</option><option value="contains">Contains</option>
                   </select>
-                  <input value={question.condition.value} onChange={event => onUpdate({ condition: { ...question.condition!, value: event.target.value } })} placeholder="Answer value" style={{ ...inputStyle, background: C.card }} />
+                  <div>
+                    <input value={question.condition.value} onChange={event => onUpdate({ condition: { ...question.condition!, value: event.target.value } })} placeholder="Answer value" list={conditionOptions.length ? `application-condition-${question.id}` : undefined} style={{ ...inputStyle, background: C.card }} />
+                    {conditionOptions.length > 0 && <datalist id={`application-condition-${question.id}`}>{conditionOptions.map(option => <option key={option} value={option} />)}</datalist>}
+                  </div>
                 </>
               )}
             </div>

@@ -8,7 +8,7 @@ import { ApplicationFeeTicket } from '@/components/ApplicationFeeTicket';
 import { ApplicationRelatedCards } from '@/components/ApplicationRelatedCards';
 import { ApplicationFramedImage } from '@/components/ApplicationFramedImage';
 import { applicationCoverFrame } from '@/lib/application-cover';
-import { isApplicationContentBlock, isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
+import { applicationChoiceAnswerText, isApplicationContentBlock, isApplicationOtherAnswer, isQuestionVisible, validateApplicationAnswers, type ApplicationAnswer, type ApplicationFormRecord } from '@/lib/application-forms';
 import type { ApplicationRelatedItem } from '@/lib/application-related';
 import { applicationThemeColors } from '@/lib/application-theme-presets';
 import { sanitizeRichText } from '@/lib/sanitize';
@@ -33,6 +33,7 @@ function answerSummary(value: ApplicationAnswer | undefined): string {
   if (value === null || value === undefined || value === '') return 'Not answered';
   if (Array.isArray(value)) return value.length ? value.join(', ') : 'Not answered';
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (isApplicationOtherAnswer(value)) return applicationChoiceAnswerText(value);
   if (typeof value === 'object') return value.name || 'Uploaded file';
   return String(value);
 }

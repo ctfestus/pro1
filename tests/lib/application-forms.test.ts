@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  APPLICATION_OTHER_OPTION,
+  applicationConditionUsesOther,
+  applicationChoiceAnswerText,
   applicationFileAcceptAttribute,
   applicationFileContentType,
   applicationFileTypesLabel,
@@ -11,6 +14,7 @@ import {
   formatApplicationFee,
   newApplicationFee,
   newApplicationFormConfig,
+  normalizeApplicationOtherAnswers,
   publicApplicationForm,
   suggestedNameQuestionId,
   validateApplicationAnswers,
@@ -20,6 +24,64 @@ import {
 import { applicationThemeColors } from '@/lib/application-theme-presets';
 
 describe('application form contract', () => {
+  it('validates an Other detail on single, multiple, and dropdown choices', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [
+      { id: 'single', label: 'Track', type: 'single_choice', required: true, options: ['Data', 'Design'], allowOther: true },
+      { id: 'multi', label: 'Skills', type: 'multiple_choice', required: true, options: ['SQL', 'Python'], allowOther: true, validation: { minSelections: 2 } },
+      { id: 'dropdown', label: 'Location', type: 'dropdown', required: false, options: ['Accra', 'Lagos'], allowOther: true },
+      { id: 'detail', label: 'Detail', type: 'short_text', required: true, condition: { questionId: 'single', operator: 'equals', value: APPLICATION_OTHER_OPTION } },
+    ];
+    const other = { kind: 'other_choice' as const, selections: [APPLICATION_OTHER_OPTION], otherText: 'Research' };
+    const answers = { single: other, multi: { ...other, selections: ['SQL', APPLICATION_OTHER_OPTION] }, dropdown: 'Accra', detail: 'Details here' };
+    expect(validateApplicationForm(config)).toEqual([]);
+    expect(isQuestionVisible(config.questions[3], answers)).toBe(true);
+    expect(validateApplicationAnswers(config, answers)).toEqual({});
+    expect(applicationChoiceAnswerText(answers.multi)).toBe('SQL, Other (please specify): Research');
+    expect(validateApplicationAnswers(config, { ...answers, single: { ...other, otherText: '   ' } }).single).toBe('Please specify your other answer.');
+    expect(validateApplicationAnswers(config, { ...answers, single: APPLICATION_OTHER_OPTION }).single).toBe('Select a valid option.');
+    expect(validateApplicationAnswers(config, { ...answers, multi: { ...other, selections: ['SQL', 'SQL', APPLICATION_OTHER_OPTION] } }).multi).toBe('Select valid options.');
+    expect(validateApplicationAnswers(config, { ...answers, dropdown: { ...other, otherText: 'X'.repeat(501) } }).dropdown).toBe('Select a valid option.');
+    expect(validateApplicationAnswers(config, { ...answers, single: 'Data', detail: '' })).toEqual({});
+  });
+
+  it('rejects Other settings outside choice questions and duplicate Other labels', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [{ id: 'q', label: 'Question', type: 'short_text', required: false, allowOther: true }];
+    expect(validateApplicationForm(config)).toContain('Question can only use Other on a choice question.');
+    config.questions = [{ id: 'q', label: 'Question', type: 'dropdown', required: false, allowOther: true, options: ['Yes', APPLICATION_OTHER_OPTION] }];
+    expect(validateApplicationForm(config)).toContain('Question already has an option named Other (please specify).');
+    config.questions = [{ id: 'q', label: 'Question', type: 'dropdown', required: false, allowOther: true, options: ['Yes', ' other '] }];
+    expect(validateApplicationForm(config)).toContain('Question has both Other and Other (please specify). Remove the plain Other option or turn off the specify field.');
+  });
+
+  it('rejects a follow-up condition when its choice is removed', () => {
+    const config = newApplicationFormConfig();
+    config.questions = [
+      { id: 'source', label: 'Source', type: 'single_choice', required: true, options: ['Friend', 'Search'], allowOther: true },
+      { id: 'detail', label: 'Detail', type: 'short_text', required: false, condition: { questionId: 'source', operator: 'equals', value: APPLICATION_OTHER_OPTION } },
+    ];
+    expect(validateApplicationForm(config)).toEqual([]);
+    config.questions[0].allowOther = undefined;
+    expect(validateApplicationForm(config)).toContain('Detail refers to an option no longer available in Source. Update its condition.');
+    config.questions[1].condition = { questionId: 'source', operator: 'contains', value: 'Other' };
+    expect(applicationConditionUsesOther(config.questions[1].condition)).toBe(true);
+    expect(applicationConditionUsesOther(config.questions[1].condition, ['Other programmes'])).toBe(false);
+    expect(validateApplicationForm(config)).toContain('Detail refers to an option no longer available in Source. Update its condition.');
+    config.questions[0].options = ['Friend', 'Other'];
+    config.questions[1].condition!.value = 'Other';
+    expect(validateApplicationForm(config)).toEqual([]);
+    config.questions[0].options = ['Friend', 'Search'];
+    expect(validateApplicationForm(config)).toContain('Detail refers to an option no longer available in Source. Update its condition.');
+  });
+
+  it('keeps only canonical Other fields and trims the detail', () => {
+    const answers = { track: { kind: 'other_choice' as const, selections: [APPLICATION_OTHER_OPTION], otherText: '  Research  ', hidden: { data: 'discard me' } }, ordinary: 'Data' };
+    const normalized = normalizeApplicationOtherAnswers(answers);
+    expect(normalized.track).toEqual({ kind: 'other_choice', selections: [APPLICATION_OTHER_OPTION], otherText: 'Research' });
+    expect(normalized.ordinary).toBe('Data');
+    expect(answers.track.otherText).toBe('  Research  ');
+  });
   it('creates editable starter forms without fixed system questions', () => {
     const config = newApplicationFormConfig('internship');
     expect(config.coverImage).toBe('');
