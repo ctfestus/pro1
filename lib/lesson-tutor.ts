@@ -24,7 +24,8 @@ export const MAX_HISTORY_CHARS = 400;
  * this; without a ceiling a runaway generation is billed in full. Set on the request rather
  * than asked for in the prompt, because a prompt instruction is a suggestion and this is not.
  */
-export const MAX_OUTPUT_TOKENS = 900;
+// Includes Claude's thinking tokens; the prompt still asks for a concise reply.
+export const MAX_OUTPUT_TOKENS = 2048;
 
 // Words that mean the learner is asking about the exercise itself rather than the concept.
 // Kept narrow on purpose: a false positive costs a few hundred characters of prompt, so the

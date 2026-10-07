@@ -34,6 +34,7 @@ interface ReviewResult {
   categories: CategoryScore[];
   topRecommendations: string[];
   rubricGrades?: RubricGrade[];
+  warning?: string;
 }
 
 interface Props {
@@ -170,7 +171,7 @@ export default function DocumentReviewPlayer({
       if (!result) return;
       await downloadStructuredReviewPdf({
         overallScore: result.overallScore,
-        executiveSummary: result.executiveSummary,
+        executiveSummary: [result.warning, result.executiveSummary].filter(Boolean).join('\n\n'),
         reportLabel: 'AI DOCUMENT INTELLIGENCE',
         reportTitle: 'Your document review',
         reportKicker: 'DOCUMENT REVIEW',
@@ -281,6 +282,12 @@ export default function DocumentReviewPlayer({
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
       <AiReviewDisclaimer isDark={isDark} />
+      {result?.warning && (
+        <div role="alert" className="flex items-start gap-2 rounded-lg p-3" style={{ background: card, color: text }}>
+          <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
+          <p className="text-sm">{result.warning}</p>
+        </div>
+      )}
       {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
         <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
       )}
