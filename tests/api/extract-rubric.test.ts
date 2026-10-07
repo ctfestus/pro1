@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import JSZip from 'jszip';
 
 vi.mock('@/lib/api-auth', () => ({
   requireRole: vi.fn(),
@@ -32,6 +33,24 @@ function postFile(file: File, label: string): Promise<Response> {
 beforeEach(() => {
   vi.clearAllMocks();
   mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, role: 'instructor' } as any);
+});
+
+it('extracts DOCX reference text before sending it to the AI', async () => {
+  const zip = new JSZip();
+  zip.file('word/document.xml', '<w:document><w:p><w:r><w:t>Reference solution</w:t></w:r></w:p></w:document>');
+  const bytes = await zip.generateAsync({ type: 'uint8array' });
+  mockGenerateJSON.mockResolvedValue({ criteria: ['Explains the solution'] });
+  const response = await postFile(new File([bytes as BlobPart], 'solution.docx'), 'reference_solution');
+  expect(response.status).toBe(200);
+  expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('Reference solution');
+  expect(mockGenerateVisionJSON).not.toHaveBeenCalled();
+});
+
+it('normalizes legacy DOC MIME even when the browser sends a generic type', async () => {
+  mockGenerateVisionJSON.mockResolvedValue({ criteria: ['Explains the solution'] });
+  const response = await postFile(new File(['doc-fixture'], 'solution.doc', { type: 'application/octet-stream' }), 'reference_solution');
+  expect(response.status).toBe(200);
+  expect(mockGenerateVisionJSON.mock.calls[0][1].mimeType).toBe('application/msword');
 });
 
 describe('POST /api/extract-rubric - Markdown rubric import', () => {

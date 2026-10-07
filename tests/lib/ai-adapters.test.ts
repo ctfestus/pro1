@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { geminiParameters, geminiAdapter } from '@/lib/ai/adapters/gemini';
 import { openaiParameters, openaiAdapter } from '@/lib/ai/adapters/openai';
 import { anthropicParameters, anthropicAdapter } from '@/lib/ai/adapters/anthropic';
-import { keyFor, modelFor, providerChain } from '@/lib/ai/config';
+import { CLAUDE_FEATURES, keyFor, modelFor, providerChain } from '@/lib/ai/config';
+import { MAX_OUTPUT_TOKENS } from '@/lib/lesson-tutor';
 import type { AiRequest } from '@/lib/ai/types';
 
 const mocks = vi.hoisted(() => ({
@@ -20,7 +21,7 @@ vi.mock('openai', () => ({ default: class {
 } }));
 vi.mock('@anthropic-ai/sdk', () => ({ default: class {
   constructor(opts: unknown) { mocks.claudeConstructor(opts); }
-  messages = { create: mocks.claudeCreate };
+  beta = { messages: { create: mocks.claudeCreate } };
 } }));
 
 const request = (opts: AiRequest['opts'] = {}): AiRequest => ({
@@ -44,7 +45,7 @@ describe('provider selection and isolation', () => {
   it('supports a feature override, deduplicates fallbacks, and respects noFallback', () => {
     vi.stubEnv('AI_PRIMARY_PROVIDER', 'openai');
     vi.stubEnv('AI_FALLBACK_PROVIDERS', 'gemini,openai,gemini');
-    expect(providerChain({ feature: 'tutor' })).toEqual(['gemini', 'openai']);
+    expect(providerChain({ feature: 'tutor' })).toEqual(['gemini']);
     expect(providerChain({ feature: 'tutor', noFallback: true })).toEqual(['gemini']);
     expect(providerChain({ feature: 'ai-course' })).toEqual(['openai', 'gemini']);
     vi.stubEnv('AI_FALLBACK_PROVIDERS', '');
@@ -70,6 +71,18 @@ describe('provider selection and isolation', () => {
       expect(modelFor('anthropic', { tier })).toBe('claude-sonnet-5-5');
       expect(modelFor('anthropic', { tier, feature: 'tutor' })).toBe('claude-sonnet-5-5');
     }
+  });
+
+  it('limits Claude to approved features and keeps tutor fallback isolated', () => {
+    vi.stubEnv('AI_PRIMARY_PROVIDER', 'anthropic');
+    for (const feature of ['ai-course', 'ai-guided-project', 'doc-course-extract', 'generate']) {
+      expect(() => providerChain({ feature })).toThrow('not enabled');
+    }
+    vi.stubEnv('AI_PROVIDER_TUTOR', 'anthropic');
+    expect(providerChain({ feature: 'tutor', noFallback: true })).toEqual(['anthropic', 'gemini']);
+    vi.stubEnv('ANTHROPIC_API_KEY', 'platform');
+    vi.stubEnv('ANTHROPIC_TUTOR_API_KEY', '');
+    expect(keyFor('anthropic', { feature: 'tutor' })).toBe('');
   });
 });
 
@@ -120,6 +133,26 @@ describe('adapter parameter mapping', () => {
     expect(params.temperature).toBe(0.4);
     expect(params.output_config).not.toHaveProperty('effort');
     expect(params).not.toHaveProperty('thinking');
+  });
+
+  it('sets feature effort, output headroom, and the server refusal fallback beta', () => {
+    for (const feature of ['excel-review', 'code-review', 'document-review', 'written-review', 'dashboard-critique', 've-answer-review', 've-instructor-review-draft', 'extract-rubric']) {
+      const params = anthropicParameters(request({ feature, effort: 'low' }));
+      expect(params.output_config.effort).toBe('medium');
+      expect(params.max_tokens).toBeGreaterThanOrEqual(4096);
+      expect(params.fallbacks).toBe('default');
+      expect(params.betas).toEqual(['server-side-fallback-2026-07-01']);
+    }
+    for (const feature of ['ai-assist', 'tutor']) {
+      expect(anthropicParameters(request({ feature })).output_config.effort).toBe('low');
+    }
+  });
+
+  it('uses the shared tutor reply limit without a duplicate Claude setting', () => {
+    expect(CLAUDE_FEATURES.tutor).toEqual({ effort: 'low' });
+    const opts = { feature: 'tutor', maxOutputTokens: MAX_OUTPUT_TOKENS };
+    expect(geminiParameters(request(opts)).config.maxOutputTokens).toBe(2048);
+    expect(anthropicParameters(request(opts)).max_tokens).toBe(2048);
   });
 
   it('maps PDFs and images separately and rejects Office binaries', () => {

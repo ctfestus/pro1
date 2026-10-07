@@ -92,6 +92,7 @@ describe('POST /api/ai-assist - generation', () => {
     const res = await post({ action: 'improve', text: 'meh' });
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ result: 'better text' });
+    expect(mockGenerateJSON.mock.calls[0][1]).toMatchObject({ required: ['result'] });
   });
 
   it('returns { kind: blocks } for an explicit block kind, in one model call', async () => {
@@ -101,6 +102,7 @@ describe('POST /api/ai-assist - generation', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ kind: 'blocks', blocks });
     expect(mockGenerateJSON).toHaveBeenCalledTimes(1);
+    expect(mockGenerateJSON.mock.calls[0][1]).toBeUndefined();
   });
 
   it('lets make_auto choose the block type itself', async () => {
@@ -130,6 +132,7 @@ describe('POST /api/ai-assist - generation', () => {
 
     const allowed = await post({ action: 'custom', text: 'x', instruction: 'make this three tabs', allowBlocks: true });
     expect(await allowed.json()).toEqual({ kind: 'blocks', blocks });
+    expect(mockGenerateJSON.mock.calls[0][1]).toBeUndefined();
 
     // No allowBlocks (the contentEditable editors) -> the text path, which has nowhere to
     // put a block and would otherwise drop the answer on the floor.

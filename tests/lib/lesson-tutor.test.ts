@@ -232,7 +232,7 @@ describe('input and output budget', () => {
     expect(MAX_LESSON_CHARS).toBeLessThanOrEqual(6000);
     expect(MAX_HISTORY_TURNS).toBeLessThanOrEqual(4);
     expect(MAX_HISTORY_CHARS).toBeLessThanOrEqual(400);
-    expect(MAX_OUTPUT_TOKENS).toBeLessThanOrEqual(900);
+    expect(MAX_OUTPUT_TOKENS).toBeLessThanOrEqual(2048);
   });
 
   it('keeps the fixed instruction overhead small', () => {
