@@ -14,6 +14,7 @@
     "clean": "node scripts/clean.mjs"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@codemirror/autocomplete": "^6.20.2",
     "@codemirror/commands": "^6.10.3",
     "@codemirror/lang-python": "^6.2.1",
@@ -43,6 +44,7 @@
     "@upstash/redis": "^1.37.0",
     "@upstash/vector": "^1.2.3",
     "@upstash/workflow": "^1.1.1",
+    "ajv": "^8.20.0",
     "cloudinary": "^2.9.0",
     "clsx": "^2.1.1",
     "exceljs": "^4.4.0",

@@ -87,7 +87,7 @@ describe('POST /api/extract-rubric - Markdown rubric import', () => {
   it('asks for retries so one busy moment does not end the import', async () => {
     mockGenerateJSON.mockResolvedValue({ criteria: ['Accuracy is at least 95%'] });
     await postFile(new File(['# Rubric heading', '- Accuracy is at least 95%'], 'rubric.md', { type: 'text/markdown' }), 'rubric');
-    expect(mockGenerateJSON.mock.calls[0][2]).toMatchObject({ geminiRetries: 2 });
+    expect(mockGenerateJSON.mock.calls[0][2]).toMatchObject({ retries: 2 });
   });
 
   it('says the AI service is busy rather than blaming the file', async () => {

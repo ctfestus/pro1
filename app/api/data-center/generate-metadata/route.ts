@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { Type } from '@google/genai';
+
 import { validatePublicDatasetUrl } from '@/lib/dataset-url-safety';
 import ExcelJS from 'exceljs';
 
@@ -129,29 +129,29 @@ const CATEGORIES = [
 ];
 
 const schema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    title:            { type: Type.STRING },
-    description:      { type: Type.STRING },
-    scenario:         { type: Type.STRING },
-    category:         { type: Type.STRING },
-    tags:             { type: Type.ARRAY, items: { type: Type.STRING } },
-    sample_questions: { type: Type.ARRAY, items: { type: Type.STRING } },
-    sample_question_types: { type: Type.ARRAY, items: { type: Type.STRING } },
+    title:            { type: 'string' },
+    description:      { type: 'string' },
+    scenario:         { type: 'string' },
+    category:         { type: 'string' },
+    tags:             { type: 'array', items: { type: 'string' } },
+    sample_questions: { type: 'array', items: { type: 'string' } },
+    sample_question_types: { type: 'array', items: { type: 'string' } },
     analyst_sections: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          title: { type: Type.STRING },
-          brief: { type: Type.STRING },
+          title: { type: 'string' },
+          brief: { type: 'string' },
           tasks: {
-            type: Type.ARRAY,
+            type: 'array',
             items: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                prompt: { type: Type.STRING },
-                type: { type: Type.STRING },
+                prompt: { type: 'string' },
+                type: { type: 'string' },
               },
               required: ['prompt', 'type'],
             },
@@ -201,7 +201,7 @@ Based on the data above, generate metadata for this dataset:
 Return only valid JSON.`;
 
   try {
-    const result = await generateJSON(prompt, schema, { temperature: 0.6 });
+    const result = await generateJSON(prompt, schema, { feature: 'data-center-generate-metadata', usageContext: { operation: 'data-center-generate-metadata' }, temperature: 0.6 });
     if (!CATEGORIES.includes(result.category)) result.category = 'Other';
     return NextResponse.json(result);
   } catch (err) {

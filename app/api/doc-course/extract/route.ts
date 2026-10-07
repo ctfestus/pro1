@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
+import { generateDocumentText } from '@/lib/ai';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
@@ -12,7 +12,6 @@ export const dynamic = 'force-dynamic';
 const MAX_FILE_BYTES = 20 * 1024 * 1024; // 20 MB
 const MAX_URL_BYTES = 512 * 1024; // URL imports only need enough HTML/text to extract source material
 const MAX_SOURCE_CHARS = 100_000;
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
 
 // Document types Gemini can read directly as inlineData.
 const SUPPORTED_MIME: Record<string, string> = {
@@ -166,18 +165,13 @@ async function extractFromFile(file: File, ext: string, mimeType: string): Promi
   // Plain text needs no model round-trip.
   if (ext === 'txt') return { sourceText: buffer.toString('utf-8').slice(0, MAX_SOURCE_CHARS) };
 
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
-  const ai = new GoogleGenAI({ apiKey });
-
   // Plain text (not JSON) so truncation on large docs degrades gracefully instead of breaking JSON.parse.
-  const result = await ai.models.generateContent({
-    model: GEMINI_MODEL,
-    contents: [{ role: 'user', parts: [{ text: EXTRACT_PROMPT }, { inlineData: { mimeType, data: buffer.toString('base64') } }] }],
-    config: { temperature: 0.1 },
+  const text = await generateDocumentText(EXTRACT_PROMPT, { mimeType, data: buffer.toString('base64') }, {
+    feature: 'doc-course-extract', temperature: 0.1, retries: 0, noFallback: true, systemInstruction: '',
+    usageContext: { operation: 'doc-course-extract', metadata: { fileBytes: file.size, fileType: ext } },
   });
 
-  return { sourceText: (result.text ?? '').slice(0, MAX_SOURCE_CHARS) };
+  return { sourceText: text.slice(0, MAX_SOURCE_CHARS) };
 }
 
 async function uploadPdf(file: File, userId: string): Promise<{ pdfUrl: string; pageCount: number } | null> {

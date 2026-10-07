@@ -1,14 +1,12 @@
-import { Type } from '@google/genai';
 
-// Gemini response schema + prompt guide for the AI block contract in lib/lesson-blocks.
+
+// Neutral response schema + prompt guide for the AI block contract in lib/lesson-blocks.
 //
-// Split from that module because this half imports @google/genai (server only) while the
-// converter is imported by the client editor too. Both AI surfaces -- the course/document
+// Split from the client-side converter to keep generation contracts together. The course/document
 // generators and the inline "Ask AI" assistant -- share the guide, so adding a lesson node
 // to the library means editing ONE list here instead of hunting through prompt strings.
 //
-// The guide matters as much as the schema: lib/ai.generateJSON only passes the response
-// schema to Gemini, so on the OpenAI fallback the prompt text is the only contract.
+// The guide describes authoring intent while the shared AI layer validates the JSON contract.
 
 /**
  * Every interactive block the AI can author, with its exact JSON shape and when to use it.
@@ -50,8 +48,8 @@ Nest at most two levels deep, and never nest a block type inside itself.
 
 Choosing well: pick the block that fits the content, not the flashiest one. Terminology becomes flipCards, a procedure becomes stepCards or guidedSteps, alternatives become tabs, chronology becomes timeline, optional detail becomes accordion, and anything the learner should try becomes runnableCode, promptBlock, or a knowledgeCheck. Plain paragraphs are still correct for explanation.`;
 
-const STR = { type: Type.STRING };
-const STR_ARRAY = { type: Type.ARRAY, items: STR };
+const STR = { type: 'string' };
+const STR_ARRAY = { type: 'array', items: STR };
 
 /**
  * One branch of the block union: the literal `type` plus only the fields that type uses,
@@ -68,8 +66,8 @@ const branch = (
   properties: Record<string, unknown>,
   required: string[],
 ) => ({
-  type: Type.OBJECT,
-  properties: { type: { type: Type.STRING, enum: [type], description: `always "${type}"` }, ...properties },
+  type: 'object',
+  properties: { type: { type: 'string', enum: [type], description: `always "${type}"` }, ...properties },
   required: ['type', ...required],
 });
 
@@ -81,13 +79,13 @@ const containerBranch = (
   description: string,
 ) => branch(type, {
   parts: {
-    type: Type.ARRAY,
+    type: 'array',
     description,
-    items: { type: Type.OBJECT, properties: partProperties, required: partRequired },
+    items: { type: 'object', properties: partProperties, required: partRequired },
   },
 }, ['parts']);
 
-const BODY = { type: Type.STRING, description: 'the section body, one or two sentences of plain text' };
+const BODY = { type: 'string', description: 'the section body, one or two sentences of plain text' };
 
 /**
  * Gemini response schema for one lesson block, as a discriminated union.
@@ -102,53 +100,53 @@ export function lessonBlockSchema(): Record<string, unknown> {
   return {
     anyOf: [
       branch('paragraph', { text: STR }, ['text']),
-      branch('heading', { text: STR, level: { type: Type.NUMBER, description: 'always 4' } }, ['text']),
+      branch('heading', { text: STR, level: { type: 'number', description: 'always 4' } }, ['text']),
       branch('bulletList', { items: { ...STR_ARRAY, description: 'the list items as plain strings' } }, ['items']),
       branch('orderedList', { items: { ...STR_ARRAY, description: 'the ordered items as plain strings' } }, ['items']),
       branch('blockquote', { text: STR }, ['text']),
       branch('table', {
         rows: {
-          type: Type.ARRAY,
+          type: 'array',
           description: 'rows top to bottom, the first row is the header',
-          items: { type: Type.OBJECT, properties: { cells: { ...STR_ARRAY, description: 'cells left to right' } }, required: ['cells'] },
+          items: { type: 'object', properties: { cells: { ...STR_ARRAY, description: 'cells left to right' } }, required: ['cells'] },
         },
       }, ['rows']),
       branch('callout', {
-        variant: { type: Type.STRING, enum: ['note', 'tip', 'warning', 'info', 'success'] },
-        title: { type: Type.STRING, description: 'short header label, 3-5 words' },
-        text: { type: Type.STRING, description: 'the callout body' },
+        variant: { type: 'string', enum: ['note', 'tip', 'warning', 'info', 'success'] },
+        title: { type: 'string', description: 'short header label, 3-5 words' },
+        text: { type: 'string', description: 'the callout body' },
       }, ['variant', 'title', 'text']),
       // options and correctIndex are required even though only format "choice" uses them:
       // left optional the model omits them on a choice question, and a choice question with
       // no options is dropped on the way in. The converter ignores them for the other formats,
       // where the guide says to send an empty array.
       branch('knowledgeCheck', {
-        format: { type: Type.STRING, enum: ['choice', 'fill', 'written'] },
+        format: { type: 'string', enum: ['choice', 'fill', 'written'] },
         question: STR,
         options: { ...STR_ARRAY, description: 'format choice: the answer options. Other formats: empty' },
-        correctIndex: { type: Type.NUMBER, description: 'format choice: 0-based index of the correct option. Other formats: 0' },
+        correctIndex: { type: 'number', description: 'format choice: 0-based index of the correct option. Other formats: 0' },
         acceptedAnswers: { ...STR_ARRAY, description: 'format fill: accepted answers for the gap' },
-        expectedAnswer: { type: Type.STRING, description: 'format written: model answer' },
-        explanation: { type: Type.STRING, description: 'one sentence shown after answering' },
+        expectedAnswer: { type: 'string', description: 'format written: model answer' },
+        explanation: { type: 'string', description: 'one sentence shown after answering' },
       }, ['format', 'question', 'options', 'correctIndex', 'explanation']),
       branch('runnableCode', {
-        language: { type: Type.STRING, enum: ['sql', 'python', 'javascript'] },
-        code: { type: Type.STRING, description: 'the snippet the learner edits and runs' },
-        setupSql: { type: Type.STRING, description: 'sql only: CREATE TABLE + INSERT seeding 3-5 rows' },
-        setupPython: { type: Type.STRING, description: 'python only: imports and helper setup, no output' },
+        language: { type: 'string', enum: ['sql', 'python', 'javascript'] },
+        code: { type: 'string', description: 'the snippet the learner edits and runs' },
+        setupSql: { type: 'string', description: 'sql only: CREATE TABLE + INSERT seeding 3-5 rows' },
+        setupPython: { type: 'string', description: 'python only: imports and helper setup, no output' },
       }, ['language', 'code']),
       branch('promptBlock', {
-        title: { type: Type.STRING, description: 'the card title' },
-        prompt: { type: Type.STRING, description: 'the full prompt text the learner copies' },
+        title: { type: 'string', description: 'the card title' },
+        prompt: { type: 'string', description: 'the full prompt text the learner copies' },
       }, ['title', 'prompt']),
       containerBranch('flipCards', {
-        front: { type: Type.STRING, description: 'the term, question, or prompt' },
-        back: { type: Type.STRING, description: 'the definition or answer' },
+        front: { type: 'string', description: 'the term, question, or prompt' },
+        back: { type: 'string', description: 'the definition or answer' },
       }, ['front', 'back'], '3 to 6 cards'),
       containerBranch('accordion', { title: STR, body: BODY }, ['title', 'body'], '2 to 6 collapsible sections'),
-      containerBranch('tabs', { label: { type: Type.STRING, description: 'the tab label' }, body: BODY }, ['label', 'body'], '2 to 5 tabs'),
+      containerBranch('tabs', { label: { type: 'string', description: 'the tab label' }, body: BODY }, ['label', 'body'], '2 to 5 tabs'),
       containerBranch('carousel', { title: STR, body: BODY }, ['title', 'body'], '3 to 6 slides'),
-      containerBranch('timeline', { date: { type: Type.STRING, description: 'the date or period' }, title: STR, body: BODY }, ['date', 'title', 'body'], 'entries in chronological order'),
+      containerBranch('timeline', { date: { type: 'string', description: 'the date or period' }, title: STR, body: BODY }, ['date', 'title', 'body'], 'entries in chronological order'),
       containerBranch('stepCards', { title: STR, body: BODY }, ['title', 'body'], 'the steps in order'),
       containerBranch('guidedSteps', { title: STR, body: BODY }, ['title', 'body'], 'the steps in order'),
     ],

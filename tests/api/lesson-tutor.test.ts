@@ -14,11 +14,9 @@ vi.mock('@/lib/redis', () => ({
   getRedis: vi.fn(),
 }));
 
-// GEMINI_MODEL is pinned here so the platform default is deterministic and the tests assert
-// the route's own resolution rather than whatever the machine's env happens to hold.
 vi.mock('@/lib/ai', () => ({
   generateText: vi.fn(),
-  GEMINI_MODEL: 'gemini-3.5-flash',
+  isAiFeatureConfigured: (feature: string) => feature === 'tutor' && !!process.env.GEMINI_TUTOR_API_KEY,
 }));
 
 import { requireUser } from '@/lib/api-auth';
@@ -119,33 +117,14 @@ afterEach(() => {
   process.env = { ...ORIGINAL_ENV };
 });
 
-describe('POST /api/lesson-tutor - model selection', () => {
-  it('sends the resolved tutor model, not the raw env value', async () => {
+describe('POST /api/lesson-tutor - neutral selection', () => {
+  it('asks for the tutor feature and leaves vendor/model mapping to the gateway', async () => {
     const POST = await loadRoute({ GEMINI_TUTOR_MODEL: 'gemini-3.1-flash-lite' });
     await post(POST, ask('What is a median?'));
-    expect(mockGenerateText.mock.calls[0][1]).toMatchObject({ geminiModel: 'gemini-3.1-flash-lite' });
-  });
-
-  it('falls back to the platform model when no tutor model is configured', async () => {
-    // Previously the raw env var was passed through, so this case sent `undefined` and let
-    // lib/ai resolve it -- which could disagree with the model the thinking gate was judged on.
-    const POST = await loadRoute();
-    await post(POST, ask('What is a median?'));
-    expect(mockGenerateText.mock.calls[0][1]).toMatchObject({ geminiModel: 'gemini-3.5-flash' });
-  });
-
-  it('caps thinking on the 3.x model the tutor actually ships on', async () => {
-    const POST = await loadRoute({ GEMINI_TUTOR_MODEL: 'gemini-3.1-flash-lite' });
-    await post(POST, ask('What is a median?'));
-    expect(mockGenerateText.mock.calls[0][1]).toMatchObject({ thinkingLevel: 'low' });
-  });
-
-  it('omits thinkingLevel on a pre-3 model, which rejects the parameter', async () => {
-    // Version-gate coverage rather than a deployable configuration: the 2.x line is closed to
-    // new keys, but an existing deployment may still have one pinned in its env.
-    const POST = await loadRoute({ GEMINI_TUTOR_MODEL: 'gemini-2.0-flash' });
-    await post(POST, ask('What is a median?'));
-    expect(mockGenerateText.mock.calls[0][1]).not.toHaveProperty('thinkingLevel');
+    const opts = mockGenerateText.mock.calls[0][1];
+    expect(opts).toMatchObject({ feature: 'tutor', tier: 'standard', effort: 'low', usageContext: { operation: 'lesson-tutor' } });
+    expect(opts).not.toHaveProperty('geminiModel');
+    expect(opts).not.toHaveProperty('geminiApiKey');
   });
 });
 
@@ -153,7 +132,7 @@ describe('POST /api/lesson-tutor - spend controls', () => {
   it('never retries automatically, since a retry doubles what one question costs', async () => {
     const POST = await loadRoute();
     await post(POST, ask('What is a median?'));
-    expect(mockGenerateText.mock.calls[0][1]).toMatchObject({ geminiRetries: 0 });
+    expect(mockGenerateText.mock.calls[0][1]).toMatchObject({ retries: 0 });
   });
 
   it('caps output tokens and refuses to fall back to another provider', async () => {
@@ -167,7 +146,7 @@ describe('POST /api/lesson-tutor - spend controls', () => {
   it('runs on the dedicated tutor key', async () => {
     const POST = await loadRoute();
     await post(POST, ask('What is a median?'));
-    expect(mockGenerateText.mock.calls[0][1]).toMatchObject({ geminiApiKey: 'tutor-key' });
+    expect(mockGenerateText.mock.calls[0][1]).toMatchObject({ feature: 'tutor', noFallback: true });
   });
 });
 

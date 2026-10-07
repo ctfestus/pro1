@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { LESSON_BLOCK_GUIDE } from '@/lib/lesson-blocks-ai';
 import { buildLessonNodes, type AiBlock } from '@/lib/lesson-blocks';
 
@@ -10,10 +10,8 @@ import { buildLessonNodes, type AiBlock } from '@/lib/lesson-blocks';
 // can nest one inside another (a callout inside a tab, a knowledge check inside a step). The
 // old per-format payloads could only ever produce a flat block with paragraph bodies.
 //
-// Every prompt states its exact JSON shape. This matters because lib/ai.generateJSON only
-// passes the response schema to Gemini -- the OpenAI fallback gets json_object mode with no
-// schema, so the shape (and the literal word "JSON", which OpenAI's json mode requires) has
-// to live in the prompt for the fallback to return the expected structure.
+// Every prompt states its exact JSON shape, including schema-less block calls. The AI
+// layer also supplies and validates explicit schemas when a call provides one.
 
 export const TEXT_ACTIONS = new Set([
   'improve', 'expand', 'summarize', 'shorten', 'grammar', 'simplify', 'formal', 'continue', 'custom',
@@ -38,11 +36,11 @@ export const MAX_TEXT = 6000;
 export const MAX_INSTRUCTION = 500;
 export const MAX_CONTEXT = 1500;
 
-// ---- Gemini response schemas ---
+// ---- Neutral response schemas ---
 
 export const TEXT_SCHEMA = {
-  type: Type.OBJECT,
-  properties: { result: { type: Type.STRING } },
+  type: 'object',
+  properties: { result: { type: 'string' } },
   required: ['result'],
 };
 
@@ -60,7 +58,7 @@ export const TEXT_SCHEMA = {
  */
 // Temperature is deliberately low: most block actions restructure the author's existing
 // sentences, and a warmer setting rewrites them into the model's own voice.
-export const BLOCK_CALL_OPTS = { temperature: 0.4, thinkingLevel: 'low' as const, geminiRetries: 2 };
+export const BLOCK_CALL_OPTS = { temperature: 0.4, effort: 'low' as const, retries: 2 };
 
 // ---- Prompts ---
 

@@ -44,7 +44,7 @@ describe('generateJSON retry behaviour', () => {
       .mockRejectedValueOnce(overloaded())
       .mockResolvedValueOnce(ok({ criteria: ['b'] }));
 
-    await expect(generateJSON('prompt', undefined, { geminiRetries: 2 })).resolves.toEqual({ criteria: ['b'] });
+    await expect(generateJSON('prompt', undefined, { retries: 2 })).resolves.toEqual({ criteria: ['b'] });
     expect(generateContent).toHaveBeenCalledTimes(3);
   });
 

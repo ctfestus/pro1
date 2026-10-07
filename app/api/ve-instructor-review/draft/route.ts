@@ -5,7 +5,7 @@
  * stored when they submit the review (guided-project-progress, action 'review').
  */
 import { NextRequest, NextResponse } from 'next/server';
-import { Type } from '@google/genai';
+
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
 import { getRedis } from '@/lib/redis';
@@ -62,41 +62,41 @@ const DRAFT_CATEGORIES = { min: 3, max: 5 };
 const DRAFT_RECOMMENDATIONS = 3;
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    score:   { type: Type.NUMBER },
-    summary: { type: Type.STRING },
+    score:   { type: 'number' },
+    summary: { type: 'string' },
     findings: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          location: { type: Type.STRING },
-          severity: { type: Type.STRING, enum: ['critical', 'improvement', 'suggestion'] },
-          title:    { type: Type.STRING },
-          detail:   { type: Type.STRING },
-          fix:      { type: Type.STRING },
+          location: { type: 'string' },
+          severity: { type: 'string', enum: ['critical', 'improvement', 'suggestion'] },
+          title:    { type: 'string' },
+          detail:   { type: 'string' },
+          fix:      { type: 'string' },
         },
         required: ['location', 'severity', 'title', 'detail', 'fix'],
       },
     },
     categories: {
-      type: Type.ARRAY,
-      minItems: String(DRAFT_CATEGORIES.min),
-      maxItems: String(DRAFT_CATEGORIES.max),
+      type: 'array',
+      minItems: DRAFT_CATEGORIES.min,
+      maxItems: DRAFT_CATEGORIES.max,
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          name:      { type: Type.STRING },
-          score:     { type: Type.NUMBER },
-          summary:   { type: Type.STRING },
-          strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-          gaps:      { type: Type.ARRAY, items: { type: Type.STRING } },
+          name:      { type: 'string' },
+          score:     { type: 'number' },
+          summary:   { type: 'string' },
+          strengths: { type: 'array', items: { type: 'string' } },
+          gaps:      { type: 'array', items: { type: 'string' } },
         },
         required: ['name', 'score', 'summary', 'strengths', 'gaps'],
       },
     },
-    recommendations: { type: Type.ARRAY, minItems: String(DRAFT_RECOMMENDATIONS), maxItems: String(DRAFT_RECOMMENDATIONS), items: { type: Type.STRING } },
+    recommendations: { type: 'array', minItems: DRAFT_RECOMMENDATIONS, maxItems: DRAFT_RECOMMENDATIONS, items: { type: 'string' } },
   },
   required: ['score', 'summary', 'findings', 'categories', 'recommendations'],
 };
@@ -299,8 +299,8 @@ export async function POST(req: NextRequest) {
   const usageContext = { operation: 've-instructor-review-draft', metadata: { fileType: ext } };
   try {
     const raw = BINARY_MIME[ext]
-      ? await generateVisionJSON(prompt, { data: Buffer.from(buffer).toString('base64'), mimeType: BINARY_MIME[ext] }, responseSchema, { temperature: 0.2, usageContext })
-      : await generateJSON(`${prompt}${sheetPrompt}\n\nFILE CONTENTS:\n${text}`, responseSchema, { temperature: 0.2, thinkingLevel: 'low', usageContext });
+      ? await generateVisionJSON(prompt, { data: Buffer.from(buffer).toString('base64'), mimeType: BINARY_MIME[ext] }, responseSchema, { feature: 've-instructor-review-draft',  temperature: 0.2, usageContext })
+      : await generateJSON(`${prompt}${sheetPrompt}\n\nFILE CONTENTS:\n${text}`, responseSchema, { feature: 've-instructor-review-draft',  temperature: 0.2, effort: 'low', usageContext });
 
     const report = normalizeInstructorReport({ ...raw, aiDrafted: true, fileUrl });
     if (!report || !hasReportContent(report)) {

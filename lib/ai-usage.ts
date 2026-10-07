@@ -1,16 +1,21 @@
 export type AiUsageContext = {
   operation: string;
   attempt?: number;
+  feature?: string;
+  latencyMs?: number;
+  fallbackReason?: string;
   metadata?: Record<string, string | number | boolean | null | undefined>;
 };
 
-type Provider = 'gemini' | 'openai';
+type Provider = 'gemini' | 'openai' | 'anthropic';
 
 type ModelPrice = {
   input: number;
   cachedInput: number;
   output: number;
   asOf: string;
+  cacheWrite?: number;
+  cacheWrite1h?: number;
 };
 
 // USD per one million tokens. Keep the date in every emitted event so historical estimates
@@ -19,9 +24,12 @@ type ModelPrice = {
 const MODEL_PRICES: Record<string, ModelPrice> = {
   'gemini-3.5-flash': { input: 1.5, cachedInput: 0.15, output: 9, asOf: '2026-09-08' },
   'gpt-4o-mini': { input: 0.15, cachedInput: 0.075, output: 0.6, asOf: '2026-09-08' },
+  'claude-sonnet-5-5': { input: 2, cachedInput: 0.2, output: 10, cacheWrite: 2.5, cacheWrite1h: 4, asOf: '2026-10-07' },
+  'claude-haiku-4-5-20251001': { input: 1, cachedInput: 0.1, output: 5, cacheWrite: 1.25, cacheWrite1h: 2, asOf: '2026-10-07' },
 };
 
 function finiteNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
   const number = Number(value);
   return Number.isFinite(number) && number >= 0 ? number : null;
 }
@@ -66,16 +74,26 @@ export function buildAiUsageEvent(args: {
   const outputTokens = provider === 'gemini'
     ? firstNumber(usage, ['candidatesTokenCount', 'candidates_token_count'])
     : firstNumber(usage, ['completion_tokens', 'output_tokens']);
-  const thinkingTokens = provider === 'gemini'
+  const thinkingTokens = provider === 'anthropic'
+    ? firstNumber(usage?.output_tokens_details, ['thinking_tokens'])
+    : provider === 'gemini'
     ? firstNumber(usage, ['thoughtsTokenCount', 'thoughts_token_count'])
     : firstNumber(usage?.completion_tokens_details, ['reasoning_tokens']);
-  const cachedTokens = provider === 'gemini'
+  const cachedTokens = provider === 'anthropic'
+    ? firstNumber(usage, ['cache_read_input_tokens'])
+    : provider === 'gemini'
     ? firstNumber(usage, ['cachedContentTokenCount', 'cached_content_token_count'])
     : firstNumber(usage?.prompt_tokens_details, ['cached_tokens']);
-  const totalTokens = provider === 'gemini'
+  const cacheWriteTokens = provider === 'anthropic' ? firstNumber(usage, ['cache_creation_input_tokens']) : null;
+  const cacheWrite1hTokens = provider === 'anthropic' ? firstNumber(usage?.cache_creation, ['ephemeral_1h_input_tokens']) : null;
+  const totalTokens = provider === 'anthropic'
+    ? (inputTokens !== null && outputTokens !== null ? inputTokens + outputTokens + (cachedTokens ?? 0) + (cacheWriteTokens ?? 0) : null)
+    : provider === 'gemini'
     ? firstNumber(usage, ['totalTokenCount', 'total_token_count'])
     : firstNumber(usage, ['total_tokens']);
-  const finishReason = provider === 'gemini'
+  const finishReason = provider === 'anthropic'
+    ? response?.stop_reason ?? null
+    : provider === 'gemini'
     ? response?.candidates?.[0]?.finishReason ?? response?.candidates?.[0]?.finish_reason ?? null
     : response?.choices?.[0]?.finish_reason ?? null;
 
@@ -87,14 +105,20 @@ export function buildAiUsageEvent(args: {
     // OpenAI completion_tokens already includes reasoning tokens. Gemini reports model thoughts
     // separately from candidate output, and both are billed at the output rate.
     const billableOutput = outputTokens + (provider === 'gemini' ? (thinkingTokens ?? 0) : 0);
-    estimatedCostUsd = Number((
-      (uncached * price.input + cached * price.cachedInput + billableOutput * price.output) / 1_000_000
-    ).toFixed(8));
+    const cost = provider === 'anthropic'
+      ? inputTokens * price.input + (cachedTokens ?? 0) * price.cachedInput +
+        Math.max(0, (cacheWriteTokens ?? 0) - (cacheWrite1hTokens ?? 0)) * (price.cacheWrite ?? price.input) +
+        (cacheWrite1hTokens ?? 0) * (price.cacheWrite1h ?? price.input) + outputTokens * price.output
+      : uncached * price.input + cached * price.cachedInput + billableOutput * price.output;
+    estimatedCostUsd = Number((cost / 1_000_000).toFixed(8));
   }
 
   return {
     event: 'ai_usage',
     operation: context.operation,
+    feature: context.feature ?? context.operation,
+    latencyMs: context.latencyMs ?? null,
+    fallbackReason: context.fallbackReason ?? null,
     provider,
     model,
     attempt: context.attempt ?? 1,
@@ -103,6 +127,7 @@ export function buildAiUsageEvent(args: {
     outputTokens,
     thinkingTokens,
     cachedTokens,
+    cacheWriteTokens,
     totalTokens,
     inputModalities: provider === 'gemini'
       ? modalityBreakdown(usage?.promptTokensDetails ?? usage?.prompt_tokens_details)

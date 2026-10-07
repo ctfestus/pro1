@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
@@ -35,47 +35,47 @@ async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
 
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    overallScore: { type: Type.NUMBER },
-    executiveSummary: { type: Type.STRING },
+    overallScore: { type: 'number' },
+    executiveSummary: { type: 'string' },
     issues: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          lines:    { type: Type.STRING },
-          severity: { type: Type.STRING },
-          title:    { type: Type.STRING },
-          detail:   { type: Type.STRING },
-          fix:      { type: Type.STRING },
+          lines:    { type: 'string' },
+          severity: { type: 'string' },
+          title:    { type: 'string' },
+          detail:   { type: 'string' },
+          fix:      { type: 'string' },
         },
         required: ['lines', 'severity', 'title', 'detail', 'fix'],
       },
     },
     categories: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          name:      { type: Type.STRING },
-          score:     { type: Type.NUMBER },
-          summary:   { type: Type.STRING },
-          strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-          gaps:      { type: Type.ARRAY, items: { type: Type.STRING } },
+          name:      { type: 'string' },
+          score:     { type: 'number' },
+          summary:   { type: 'string' },
+          strengths: { type: 'array', items: { type: 'string' } },
+          gaps:      { type: 'array', items: { type: 'string' } },
         },
         required: ['name', 'score', 'summary', 'strengths', 'gaps'],
       },
     },
-    topRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+    topRecommendations: { type: 'array', items: { type: 'string' } },
     rubricGrades: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          criterion: { type: Type.STRING },
-          passed:    { type: Type.BOOLEAN },
-          comment:   { type: Type.STRING },
+          criterion: { type: 'string' },
+          passed:    { type: 'boolean' },
+          comment:   { type: 'string' },
         },
         required: ['criterion', 'passed', 'comment'],
       },
@@ -190,7 +190,7 @@ export async function POST(req: NextRequest) {
     const dialectLabel = dialect ? ` (${dialect})` : '';
     const fullPrompt = `${systemPrompt}${rubricSection}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
 
-    const parsed = await generateJSON(fullPrompt, responseSchema, {
+    const parsed = await generateJSON(fullPrompt, responseSchema, { feature: 'code-review',
       temperature: 0.25,
       usageContext: {
         operation: 'code-review',

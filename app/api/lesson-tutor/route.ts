@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
-import { generateText, GEMINI_MODEL } from '@/lib/ai';
+import { generateText, isAiFeatureConfigured } from '@/lib/ai';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit, refundRateLimit } from '@/lib/rate-limit';
 import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 import { lessonPlainText } from '@/lib/lesson-doc';
 import {
   MAX_QUESTION_CHARS, MAX_LESSON_CHARS, MAX_OUTPUT_TOKENS, TUTOR_SYSTEM_INSTRUCTION,
-  asksAboutCode, buildTutorPrompt, normalizeHistory, supportsThinkingLevel,
+  asksAboutCode, buildTutorPrompt, normalizeHistory,
   type TutorLesson,
 } from '@/lib/lesson-tutor';
 
@@ -22,30 +22,19 @@ export const dynamic = 'force-dynamic';
 //
 // Nothing is persisted -- the thread lives in the player's session state by design.
 
-// GEMINI_TUTOR_API_KEY is REQUIRED, not an optional optimisation. Falling back to the platform
-// key would put a student-facing surface on the same quota as course generation -- one class
-// could take authoring down -- and would re-enable the OpenAI fallback, quietly spending paid
-// credit on a feature meant to run on a free tier. Missing key means the tutor is off.
-const TUTOR_KEY = process.env.GEMINI_TUTOR_API_KEY;
-const TUTOR_MODEL = process.env.GEMINI_TUTOR_MODEL || GEMINI_MODEL;
-
+// A dedicated provider tutor key is required. Never share course-generation credentials
+// or enable the generic fallback chain. Missing tutor credentials turn this surface off.
 const AI_OPTS = {
-  geminiApiKey: TUTOR_KEY,
-  // The RESOLVED model, not the raw env var. Passing the raw value sent `undefined` whenever
-  // GEMINI_TUTOR_MODEL was unset, so lib/ai fell back to the platform model while
-  // supportsThinkingLevel() below had already been evaluated against the resolved name. The
-  // two could disagree, which is how a thinking cap could reach a model that rejects it.
-  geminiModel: TUTOR_MODEL,
+  feature: 'tutor',
+  tier: 'standard' as const,
   noFallback: true,
   maxOutputTokens: MAX_OUTPUT_TOKENS,
   // No automatic retry. On a student-facing surface a retry silently doubles what one question
   // costs, and the failures a retry existed to paper over -- unparseable JSON and truncated
   // envelopes -- cannot happen now that the reply comes back as plain text.
-  geminiRetries: 0,
-  // Left at the model default, thinking burns output budget on a reply that is only a few
-  // paragraphs long. Only sent to models that accept the parameter: pre-3 models reject it
-  // outright, and the tutor ships on a 2.5 model, so this cannot be assumed.
-  ...(supportsThinkingLevel(TUTOR_MODEL) ? { thinkingLevel: 'low' as const } : {}),
+  retries: 0,
+  // Adapters map this intent only to controls supported by the resolved model.
+  effort: 'low' as const,
 };
 
 // Three ceilings, because they protect against different things.
@@ -130,8 +119,8 @@ const stripHtml = (v: unknown, cap: number) =>
 export async function POST(req: NextRequest) {
   // Checked before anything else: without its own key the tutor has no isolated quota, and
   // running it on the platform key is worse than not running it at all.
-  if (!TUTOR_KEY) {
-    console.warn('[lesson-tutor] GEMINI_TUTOR_API_KEY is not configured; refusing the request.');
+  if (!isAiFeatureConfigured('tutor')) {
+    console.warn('[lesson-tutor] Dedicated tutor credential is not configured; refusing the request.');
     return NextResponse.json({ error: 'The tutor is not available right now.' }, { status: 503 });
   }
 
@@ -207,7 +196,7 @@ export async function POST(req: NextRequest) {
     // otherwise outrank the prompt and flatten every reply into plain prose.
     const reply = await generateText(
       buildTutorPrompt(lesson, question, normalizeHistory(body?.history)),
-      { ...AI_OPTS, temperature: 0.6, systemInstruction: TUTOR_SYSTEM_INSTRUCTION },
+      { usageContext: { operation: 'lesson-tutor' }, ...AI_OPTS, temperature: 0.6, systemInstruction: TUTOR_SYSTEM_INSTRUCTION },
     );
     return NextResponse.json({ reply });
   } catch (err) {

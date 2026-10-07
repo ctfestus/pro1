@@ -2,6 +2,30 @@ import { describe, expect, it, vi } from 'vitest';
 import { buildAiUsageEvent, logAiUsage } from '@/lib/ai-usage';
 
 describe('AI usage telemetry', () => {
+  it('records Claude thinking, cache usage, latency, feature and fallback without double billing thinking', () => {
+    const event = buildAiUsageEvent({
+      provider: 'anthropic', model: 'claude-sonnet-5-5',
+      context: { operation: 'lesson-tutor', feature: 'tutor', latencyMs: 250, attempt: 2, fallbackReason: 'transient_or_invalid_output' },
+      response: { stop_reason: 'end_turn', content: [{ type: 'text', text: 'private student content' }], usage: {
+        input_tokens: 1000, output_tokens: 500, output_tokens_details: { thinking_tokens: 200 },
+        cache_read_input_tokens: 3000, cache_creation_input_tokens: 2000,
+        cache_creation: { ephemeral_1h_input_tokens: 1000, ephemeral_5m_input_tokens: 1000 },
+      } },
+    });
+    expect(event).toMatchObject({
+      feature: 'tutor', latencyMs: 250, attempt: 2, thinkingTokens: 200, inputTokens: 1000,
+      cachedTokens: 3000, cacheWriteTokens: 2000, totalTokens: 6500, estimatedCostUsd: 0.0141,
+      fallbackReason: 'transient_or_invalid_output', finishReason: 'end_turn',
+    });
+    expect(JSON.stringify(event)).not.toContain('private student content');
+  });
+
+  it('keeps missing usage values unknown rather than reporting zero spend', () => {
+    const event = buildAiUsageEvent({ provider: 'anthropic', model: 'claude-sonnet-5-5', response: {}, context: { operation: 'test' } });
+    expect(event.inputTokens).toBeNull();
+    expect(event.outputTokens).toBeNull();
+    expect(event.estimatedCostUsd).toBeNull();
+  });
   it('normalizes Gemini usage, finish reason, modalities, and estimated cost', () => {
     const event = buildAiUsageEvent({
       provider: 'gemini',

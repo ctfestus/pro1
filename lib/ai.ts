@@ -1,15 +1,13 @@
-import { GoogleGenAI } from '@google/genai';
-import OpenAI from 'openai';
-import { logAiUsage, type AiUsageContext } from '@/lib/ai-usage';
+import { logAiUsage } from '@/lib/ai-usage';
+import { geminiAdapter } from './ai/adapters/gemini';
+import { openaiAdapter } from './ai/adapters/openai';
+import { keyFor, modelFor, providerChain } from './ai/config';
+import { AiValidationError, validateAiResult } from './ai/schema';
+import type { AiAdapter, AiProvider, AiRequest, AiResult, GenerateJSONOpts, JsonSchema } from './ai/types';
 
-// All model names come from env -- no hardcoding
-// The 2.x line is closed to new API keys: it returns 404 NOT_FOUND rather than degrading, so a
-// deployment that relied on an older default would fail outright on every AI call.
-export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
-export const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
+export type { GenerateJSONOpts, JsonSchema } from './ai/types';
+export { isAiFeatureConfigured } from './ai/config';
 
-// Applied as a system instruction on every call so no individual prompt can miss it.
-// Prevents the model outputting typographic "AI slop" regardless of prompt content.
 const FORMATTING_SYSTEM_INSTRUCTION =
   'Plain ASCII only. Never use: em dashes (--), en dashes (-), ' +
   'curly/smart quotes, ellipsis characters, ' +
@@ -19,347 +17,135 @@ const FORMATTING_SYSTEM_INSTRUCTION =
   'Do not open any sentence with filler phrases such as "Certainly!", "Absolutely!", "Of course!", or "Great!". ' +
   'Write plainly and directly.';
 
-// `key` lets a caller run on its OWN Gemini project instead of the platform key -- used by
-// the student-facing lesson tutor so its free-tier quota is billed and exhausted separately
-// from the authoring generators. Falls back to the platform key when unset.
-function geminiClient(key?: string) {
-  const apiKey = key || process.env.GEMINI_API_KEY;
-  if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
-  return new GoogleGenAI({ apiKey });
-}
+// Anthropic deliberately cannot receive production calls during step 1.
+const adapters: Partial<Record<AiProvider, AiAdapter>> = { gemini: geminiAdapter, openai: openaiAdapter };
 
-function openaiClient() {
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) return null;
-  return new OpenAI({ apiKey });
-}
+class AiRefusalError extends Error { constructor() { super('AI provider declined the request'); } }
+class AiTruncationError extends Error { constructor() { super('AI response truncated'); } }
 
-const safeJSON = (text: string) =>
-  JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
-
-export type GenerateJSONOpts = {
-  temperature?: number;
-  geminiRetries?: number;
-  // Caps model thinking on large structured calls. Requires a Gemini 3+ model;
-  // older models reject thinkingLevel. Unbounded thinking adds 10-100s of latency
-  // per call and can starve the output budget, truncating the JSON mid-string.
-  thinkingLevel?: 'minimal' | 'low';
-  // Run this call on a different Gemini project / model than the platform default.
-  // Both fall back to the platform values when unset.
-  geminiApiKey?: string;
-  geminiModel?: string;
-  // Skip the OpenAI fallback. Routes on a dedicated free-tier key set this so a
-  // quota exhaustion surfaces as an error instead of silently spending paid credit.
-  noFallback?: boolean;
-  // Hard ceiling on generated tokens. Without one, a runaway generation is billed in full --
-  // and on a metered free tier that is the difference between one costly answer and a dead
-  // feature for the rest of the day.
-  maxOutputTokens?: number;
-  // Replace the default anti-slop system instruction for this call only.
-  //
-  // The default forbids every non-ASCII character and tells the model to write plainly,
-  // which is right for authored course content but suppresses markdown structure and
-  // emoji on a chat surface -- and a system instruction outranks the prompt, so a route
-  // cannot ask for structure without replacing this. Only override where the output is
-  // rendered as rich text and is never persisted as course content.
-  systemInstruction?: string;
-  // Optional operational label. When supplied, the shared provider boundary emits one
-  // structured usage event per paid model call, including retries and fallbacks.
-  usageContext?: AiUsageContext;
-};
-
-function isRetryableGeminiError(err: unknown) {
-  // Malformed JSON (bad string escaping, output cut off) is intermittent model
-  // flakiness -- a retry of the same prompt almost always returns a clean response.
-  if (err instanceof SyntaxError) return true;
-  const error = err as { message?: string; cause?: { code?: string; errno?: number; message?: string } };
+export function isRetryableAiError(err: unknown) {
+  if (err instanceof SyntaxError || err instanceof AiValidationError || err instanceof AiTruncationError) return true;
+  const error = err as { status?: number; message?: string; cause?: { code?: string; message?: string } };
   const message = String(error?.message ?? '').toLowerCase();
-  const causeMessage = String(error?.cause?.message ?? '').toLowerCase();
-  const code = String(error?.cause?.code ?? '');
-  // Gemini sheds load with a 503 UNAVAILABLE ("this model is currently experiencing high demand")
-  // that clears within seconds. Left unretried it surfaced as a hard failure on the caller -- and
-  // where no OpenAI key is configured there is no second chance at all.
-  const overloaded =
-    message.includes('unavailable') ||
-    message.includes('overloaded') ||
-    message.includes('high demand') ||
-    message.includes('"code":503') ||
-    message.includes('503 ');
-  return (
-    overloaded ||
-    message.includes('fetch failed') ||
-    message.includes('econnreset') ||
-    message.includes('truncated') ||
-    causeMessage.includes('econnreset') ||
-    code === 'ECONNRESET'
-  );
+  return error?.status === 429 || (error?.status ?? 0) >= 500 ||
+    ['unavailable', 'overloaded', 'high demand', '"code":503', '503 ', 'fetch failed', 'econnreset', 'truncated', 'timeout'].some(value => message.includes(value)) ||
+    String(error?.cause?.message ?? '').toLowerCase().includes('econnreset') || error?.cause?.code === 'ECONNRESET';
 }
 
-async function generateGeminiJSON(
-  prompt: string,
-  geminiSchema?: any,
-  opts: GenerateJSONOpts = {},
-) {
-  const retries = Math.max(0, opts.geminiRetries ?? 1);
-  const config: any = {
-    responseMimeType: 'application/json',
-    systemInstruction: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION,
-  };
-  if (geminiSchema) config.responseSchema = geminiSchema;
-  if (opts.temperature !== undefined) config.temperature = opts.temperature;
-  if (opts.thinkingLevel) config.thinkingConfig = { thinkingLevel: opts.thinkingLevel.toUpperCase() };
+function normalized(request: AiRequest): AiRequest {
+  const feature = request.opts.feature ?? request.opts.usageContext?.operation ?? 'unspecified';
+  return { ...request, opts: {
+    ...request.opts, feature,
+    systemInstruction: request.opts.systemInstruction ?? FORMATTING_SYSTEM_INSTRUCTION,
+    usageContext: request.opts.usageContext ?? { operation: feature },
+  } };
+}
 
+function finish(request: AiRequest, result: AiResult): any {
+  if (result.refused) throw new AiRefusalError();
+  if (request.json && result.truncated) throw new AiTruncationError();
+  if (!request.json) {
+    if (!result.text.trim()) throw new Error('AI provider returned an empty response');
+    return result.text.trim();
+  }
+  const parsed = JSON.parse(result.text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
+  validateAiResult(request.schema, parsed);
+  return parsed;
+}
+
+function logCall(request: AiRequest, provider: AiProvider, result: AiResult | undefined, started: number, attempt: number, fallbackReason?: string) {
+  logAiUsage({ provider, model: result?.model ?? modelFor(provider, request.opts), response: result?.response ?? {}, context: {
+    ...request.opts.usageContext!, feature: request.opts.feature,
+    latencyMs: Date.now() - started, attempt, fallbackReason,
+  } });
+}
+
+async function generate(raw: AiRequest): Promise<any> {
+  const request = normalized(raw);
+  const chain = providerChain(request.opts);
   let lastError: unknown;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const result = await geminiClient(opts.geminiApiKey).models.generateContent({
-        model: opts.geminiModel || GEMINI_MODEL,
-        contents: prompt,
-        config,
-      });
-      logAiUsage({
-        provider: 'gemini',
-        model: opts.geminiModel || GEMINI_MODEL,
-        response: result,
-        context: opts.usageContext ? { ...opts.usageContext, attempt: attempt + 1 } : undefined,
-      });
-      // result.text silently returns partial JSON when the output budget runs out.
-      if (result.candidates?.[0]?.finishReason === 'MAX_TOKENS') {
-        throw new Error('Gemini response truncated (MAX_TOKENS)');
+  let fallbackReason: string | undefined;
+  for (const [index, provider] of chain.entries()) {
+    const adapter = adapters[provider];
+    if (!adapter) throw new Error('Anthropic activation is reserved for step 3');
+    // Explicit credentials belong to the selected primary, never another vendor's fallback.
+    const current = index ? { ...request, opts: { ...request.opts, apiKey: undefined } } : request;
+    if (index && !keyFor(provider, current.opts)) continue;
+    const defaultRetries = provider === 'openai' ? 2 : current.asset ? 0 : 1;
+    const retries = Math.max(0, index ? defaultRetries : current.opts.retries ?? defaultRetries);
+    for (let attempt = 1; attempt <= retries + 1; attempt++) {
+      const started = Date.now();
+      const reason = index ? fallbackReason : undefined;
+      let result: AiResult | undefined;
+      try {
+        result = await adapter.generate(current);
+        return finish(current, result);
+      } catch (err) {
+        lastError = err;
+        if (err instanceof AiRefusalError) throw err;
+        fallbackReason = isRetryableAiError(err) ? 'transient_or_invalid_output' : 'provider_error';
+        if (attempt > retries || !isRetryableAiError(err)) break;
+      } finally {
+        logCall(current, provider, result, started, attempt, reason);
       }
-      return safeJSON(result.text ?? '{}');
-    } catch (err) {
-      lastError = err;
-      if (attempt >= retries || !isRetryableGeminiError(err)) throw err;
-      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+      await new Promise(resolve => setTimeout(resolve, 1000 * attempt));
     }
   }
-
-  throw lastError;
+  if (lastError instanceof AiValidationError || lastError instanceof AiTruncationError) throw lastError;
+  // Vendor error payloads can contain generated text. Route logs receive a safe message only.
+  throw new Error('AI service unavailable. Please try again.');
 }
 
-async function generateGeminiText(prompt: string, opts: GenerateJSONOpts = {}) {
-  const retries = Math.max(0, opts.geminiRetries ?? 1);
-  const config: any = {
-    systemInstruction: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION,
-  };
-  if (opts.temperature !== undefined) config.temperature = opts.temperature;
-  if (opts.thinkingLevel) config.thinkingConfig = { thinkingLevel: opts.thinkingLevel.toUpperCase() };
-  if (opts.maxOutputTokens) config.maxOutputTokens = opts.maxOutputTokens;
-
-  let lastError: unknown;
-  for (let attempt = 0; attempt <= retries; attempt += 1) {
-    try {
-      const result = await geminiClient(opts.geminiApiKey).models.generateContent({
-        model: opts.geminiModel || GEMINI_MODEL,
-        contents: prompt,
-        config,
-      });
-      logAiUsage({
-        provider: 'gemini',
-        model: opts.geminiModel || GEMINI_MODEL,
-        response: result,
-        context: opts.usageContext ? { ...opts.usageContext, attempt: attempt + 1 } : undefined,
-      });
-      // Deliberately NOT treating a MAX_TOKENS finish as an error the way the JSON path must:
-      // a cut-off sentence is still a usable answer, while cut-off JSON is unparseable. That
-      // difference is most of the reason this path exists -- it removes a retry trigger.
-      const text = (result.text ?? '').trim();
-      if (!text) throw new Error('Gemini returned an empty response');
-      return text;
-    } catch (err) {
-      lastError = err;
-      if (attempt >= retries || !isRetryableGeminiError(err)) throw err;
-      await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-    }
-  }
-
-  throw lastError;
-}
-
-// ---- 1. Plain text (primary: Gemini, fallback: OpenAI) ----
-//
-// For calls whose answer IS prose -- the lesson tutor. Asking those for JSON actively hurts:
-// the model has to escape every newline inside the string, one literal newline makes the whole
-// reply unparseable, and both that and a truncated string are classified retryable, so a
-// formatting slip silently doubles the request count against the AI quota.
-//
-// Kept as its own path rather than a flag on generateJSON so the JSON path every other route
-// depends on is left exactly as it was.
 export async function generateText(prompt: string, opts: GenerateJSONOpts = {}): Promise<string> {
-  try {
-    return await generateGeminiText(prompt, opts);
-  } catch (err) {
-    if (opts.noFallback) throw err;
-    const client = openaiClient();
-    if (!client) {
-      console.warn('[AI] Gemini text failed and no OpenAI fallback is configured:', (err as Error).message);
-      throw err;
-    }
-    console.warn('[AI] Gemini text failed, falling back to OpenAI:', (err as Error).message);
-    const res = await client.chat.completions.create({
-      model: OPENAI_MODEL,
-      messages: [
-        { role: 'system', content: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION },
-        { role: 'user', content: prompt },
-      ],
-      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
-      ...(opts.maxOutputTokens ? { max_tokens: opts.maxOutputTokens } : {}),
-    });
-    logAiUsage({ provider: 'openai', model: OPENAI_MODEL, response: res, context: opts.usageContext });
-    const text = (res.choices[0]?.message?.content ?? '').trim();
-    if (!text) throw err;
-    return text;
-  }
+  return generate({ prompt, opts, json: false });
 }
 
-// ---- 2. Text JSON (primary: Gemini, fallback: OpenAI) ----
-export async function generateJSON(
-  prompt: string,
-  geminiSchema?: any,
-  opts: GenerateJSONOpts = {},
-): Promise<any> {
-  try {
-    return await generateGeminiJSON(prompt, geminiSchema, opts);
-  } catch (err) {
-    if (opts.noFallback) throw err;
-    const client = openaiClient();
-    if (!client) {
-      console.warn('[AI] Gemini failed and no OpenAI fallback is configured:', (err as Error).message);
-      throw err;
-    }
-    console.warn('[AI] Gemini failed, falling back to OpenAI:', (err as Error).message);
-    const res = await client.chat.completions.create({
-      model: OPENAI_MODEL,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: opts.systemInstruction || FORMATTING_SYSTEM_INSTRUCTION },
-        { role: 'user', content: prompt },
-      ],
-      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
-    });
-    logAiUsage({ provider: 'openai', model: OPENAI_MODEL, response: res, context: opts.usageContext });
-    return safeJSON(res.choices[0]?.message?.content ?? '{}');
-  }
+export async function generateJSON(prompt: string, schema?: JsonSchema, opts: GenerateJSONOpts = {}): Promise<any> {
+  return generate({ prompt, schema, opts, json: true });
 }
 
-// ---- 3. Vision + Text JSON (primary: Gemini, fallback: OpenAI) ----
-export async function generateVisionJSON(
-  prompt: string,
-  image: { data: string; mimeType: string },
-  geminiSchema?: any,
-  opts: Pick<GenerateJSONOpts, 'temperature' | 'usageContext'> = {},
-): Promise<any> {
-  try {
-    const config: any = {
-      responseMimeType: 'application/json',
-      systemInstruction: FORMATTING_SYSTEM_INSTRUCTION,
-    };
-    if (geminiSchema) config.responseSchema = geminiSchema;
-    if (opts.temperature !== undefined) config.temperature = opts.temperature;
-
-    const result = await geminiClient().models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{ role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType: image.mimeType, data: image.data } }] }],
-      config,
-    });
-    logAiUsage({ provider: 'gemini', model: GEMINI_MODEL, response: result, context: opts.usageContext });
-    return safeJSON(result.text ?? '{}');
-  } catch (err) {
-    console.warn('[AI] Gemini vision failed, falling back to OpenAI:', (err as Error).message);
-    const client = openaiClient();
-    if (!client) throw err;
-    if (!image.mimeType.startsWith('image/')) {
-      throw new Error(`OpenAI vision fallback does not support ${image.mimeType}. Binary document types require Gemini.`);
-    }
-    const res = await client.chat.completions.create({
-      model: OPENAI_MODEL,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: FORMATTING_SYSTEM_INSTRUCTION },
-        {
-          role: 'user',
-          content: [
-            { type: 'text', text: prompt },
-            { type: 'image_url', image_url: { url: `data:${image.mimeType};base64,${image.data}` } },
-          ],
-        },
-      ],
-      ...(opts.temperature !== undefined ? { temperature: opts.temperature } : {}),
-    });
-    logAiUsage({ provider: 'openai', model: OPENAI_MODEL, response: res, context: opts.usageContext });
-    return safeJSON(res.choices[0]?.message?.content ?? '{}');
-  }
+export async function generateVisionJSON(prompt: string, asset: { data: string; mimeType: string }, schema?: JsonSchema, opts: GenerateJSONOpts = {}): Promise<any> {
+  return generate({ prompt, asset, schema, opts, json: true });
 }
 
-// ---- 4. Text Streaming JSON (primary: Gemini, fallback: OpenAI) ----
-export async function generateStream(
-  prompt: string,
-  geminiSchema?: any,
-): Promise<ReadableStream> {
+/** Existing document extraction behind the vendor boundary; parsing changes come later. */
+export async function generateDocumentText(prompt: string, asset: { data: string; mimeType: string }, opts: GenerateJSONOpts = {}): Promise<string> {
+  return generate({ prompt, asset, json: false, opts });
+}
+
+export async function generateStream(prompt: string, schema?: JsonSchema, opts: GenerateJSONOpts = {}): Promise<ReadableStream<Uint8Array>> {
+  const request = normalized({ prompt, schema, opts, json: true });
   const encoder = new TextEncoder();
-
-  try {
-    const config: any = {
-      responseMimeType: 'application/json',
-      systemInstruction: FORMATTING_SYSTEM_INSTRUCTION,
-    };
-    if (geminiSchema) config.responseSchema = geminiSchema;
-
-    const geminiStream = await geminiClient().models.generateContentStream({
-      model: GEMINI_MODEL,
-      contents: prompt,
-      config,
-    });
-
-    return new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of geminiStream) {
-            const text = chunk.text;
-            if (text) controller.enqueue(encoder.encode(text));
-          }
-        } catch {
-          controller.enqueue(encoder.encode(JSON.stringify({ error: 'Generation failed. Please try again.' })));
-        } finally {
-          controller.close();
-        }
-      },
-    });
-  } catch (err) {
-    console.warn('[AI] Gemini stream failed, falling back to OpenAI:', (err as Error).message);
-    const client = openaiClient();
-    if (!client) {
-      const message = (err as Error).message;
+  const chain = providerChain(request.opts);
+  let fallbackReason: string | undefined;
+  for (const [index, provider] of chain.entries()) {
+    const adapter = adapters[provider];
+    if (!adapter) throw new Error('Anthropic activation is reserved for step 3');
+    const current = index ? { ...request, opts: { ...request.opts, apiKey: undefined } } : request;
+    if (index && !keyFor(provider, current.opts)) continue;
+    const started = Date.now();
+    try {
+      const stream = await adapter.stream(current);
       return new ReadableStream({
-        start(controller) {
-          controller.enqueue(encoder.encode(JSON.stringify({ error: message })));
-          controller.close();
+        async start(controller) {
+          let result: AiResult | undefined;
+          try {
+            for await (const text of stream.chunks) controller.enqueue(encoder.encode(text));
+            result = await stream.final();
+            finish(current, result);
+            controller.close();
+          } catch {
+            // Already emitted bytes cannot be replaced with another JSON document.
+            controller.error(new Error('Generation failed. Please try again.'));
+          } finally {
+            logCall(current, provider, result, started, 1, fallbackReason);
+          }
         },
       });
+    } catch {
+      logCall(current, provider, undefined, started, 1, fallbackReason);
+      fallbackReason = 'stream_start_failed';
     }
-    const stream = await client.chat.completions.create({
-      model: OPENAI_MODEL,
-      stream: true,
-      response_format: { type: 'json_object' },
-      messages: [
-        { role: 'system', content: FORMATTING_SYSTEM_INSTRUCTION },
-        { role: 'user', content: prompt },
-      ],
-    });
-    return new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const text = chunk.choices[0]?.delta?.content ?? '';
-            if (text) controller.enqueue(encoder.encode(text));
-          }
-        } catch {
-          controller.enqueue(encoder.encode(JSON.stringify({ error: 'Generation failed. Please try again.' })));
-        } finally {
-          controller.close();
-        }
-      },
-    });
   }
+  throw new Error('Generation failed. Please try again.');
 }

@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateVisionJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
@@ -37,62 +37,62 @@ async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
 
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
     elements: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          id:          { type: Type.STRING },
-          label:       { type: Type.STRING },
-          elementType: { type: Type.STRING },
+          id:          { type: 'string' },
+          label:       { type: 'string' },
+          elementType: { type: 'string' },
           bounds: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              x: { type: Type.NUMBER },
-              y: { type: Type.NUMBER },
-              w: { type: Type.NUMBER },
-              h: { type: Type.NUMBER },
+              x: { type: 'number' },
+              y: { type: 'number' },
+              w: { type: 'number' },
+              h: { type: 'number' },
             },
             required: ['x', 'y', 'w', 'h'],
           },
-          strengths:      { type: Type.ARRAY, items: { type: Type.STRING } },
-          weaknesses:     { type: Type.ARRAY, items: { type: Type.STRING } },
-          recommendation: { type: Type.STRING },
+          strengths:      { type: 'array', items: { type: 'string' } },
+          weaknesses:     { type: 'array', items: { type: 'string' } },
+          recommendation: { type: 'string' },
         },
         required: ['id', 'label', 'elementType', 'bounds', 'strengths', 'weaknesses', 'recommendation'],
       },
     },
     audit: {
-      type: Type.OBJECT,
+      type: 'object',
       properties: {
-        overallScore: { type: Type.NUMBER },
-        executiveSummary: { type: Type.STRING },
+        overallScore: { type: 'number' },
+        executiveSummary: { type: 'string' },
         categories: {
-          type: Type.ARRAY,
+          type: 'array',
           items: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              name:       { type: Type.STRING },
-              score:      { type: Type.NUMBER },
-              summary:    { type: Type.STRING },
-              strengths:  { type: Type.ARRAY, items: { type: Type.STRING } },
-              gaps:       { type: Type.ARRAY, items: { type: Type.STRING } },
-              priority:   { type: Type.STRING },
+              name:       { type: 'string' },
+              score:      { type: 'number' },
+              summary:    { type: 'string' },
+              strengths:  { type: 'array', items: { type: 'string' } },
+              gaps:       { type: 'array', items: { type: 'string' } },
+              priority:   { type: 'string' },
             },
             required: ['name', 'score', 'summary', 'strengths', 'gaps', 'priority'],
           },
         },
-        topRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+        topRecommendations: { type: 'array', items: { type: 'string' } },
         rubricGrades: {
-          type: Type.ARRAY,
+          type: 'array',
           items: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              criterion: { type: Type.STRING },
-              passed:    { type: Type.BOOLEAN },
-              comment:   { type: Type.STRING },
+              criterion: { type: 'string' },
+              passed:    { type: 'boolean' },
+              comment:   { type: 'string' },
             },
             required: ['criterion', 'passed', 'comment'],
           },
@@ -260,7 +260,7 @@ export async function POST(req: NextRequest) {
 
     const fullPrompt = SYSTEM_PROMPT + rubricSection;
 
-    const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, responseSchema, {
+    const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, responseSchema, { feature: 'dashboard-critique',
       temperature: 0.35,
       usageContext: {
         operation: 'dashboard-critique',

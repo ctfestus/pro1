@@ -26,18 +26,6 @@ export const MAX_HISTORY_CHARS = 400;
  */
 export const MAX_OUTPUT_TOKENS = 900;
 
-/**
- * Whether a Gemini model accepts `thinkingLevel`. Pre-3 models reject the parameter outright,
- * which would fail every tutor request -- and the deployable default in .env.example is still
- * a 2.x model, so the tutor cannot assume the operator is on 3+. Unknown or unparseable names
- * are treated as unsupported: omitting the cap costs quota, sending it to a 2.x model breaks
- * the feature entirely.
- */
-export function supportsThinkingLevel(model: string | undefined | null): boolean {
-  const major = Number(/^gemini-(\d+)/.exec(String(model ?? '').trim())?.[1]);
-  return Number.isFinite(major) && major >= 3;
-}
-
 // Words that mean the learner is asking about the exercise itself rather than the concept.
 // Kept narrow on purpose: a false positive costs a few hundred characters of prompt, so the
 // list favours terms that are unambiguous in a lesson context over broad ones like "run" or

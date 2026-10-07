@@ -1,4 +1,4 @@
-﻿import { Type } from '@google/genai';
+﻿
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
@@ -481,27 +481,26 @@ Format rules (apply these within the creator's requirements above):
 - sqlHints: 2-3 progressive hints. First hint: which clause to use. Second: which table/column. Third: the full approach.
 - No em dashes, no curly quotes, plain ASCII only.`,
           {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
               questions: {
-                type: Type.ARRAY,
+                type: 'array',
                 items: {
-                  type: Type.OBJECT,
+                  type: 'object',
                   properties: {
-                    id:             { type: Type.STRING, description: 'unique short id like q_abc123' },
-                    type:           { type: Type.STRING, description: 'always sql_exercise' },
-                    question:       { type: Type.STRING, description: 'Realistic business scenario + task (1-2 sentences)' },
-                    sqlSolution:    { type: Type.STRING, description: 'Correct SQL query' },
-                    sqlStarterCode: { type: Type.STRING, description: 'Skeleton or partial query the learner edits' },
-                    sqlHints:       { type: Type.ARRAY, items: { type: Type.STRING }, description: '2-3 progressive hints' },
+                    id:             { type: 'string', description: 'unique short id like q_abc123' },
+                    type:           { type: 'string', description: 'always sql_exercise' },
+                    question:       { type: 'string', description: 'Realistic business scenario + task (1-2 sentences)' },
+                    sqlSolution:    { type: 'string', description: 'Correct SQL query' },
+                    sqlStarterCode: { type: 'string', description: 'Skeleton or partial query the learner edits' },
+                    sqlHints:       { type: 'array', items: { type: 'string' }, description: '2-3 progressive hints' },
                   },
                   required: ['id', 'question', 'sqlSolution', 'sqlStarterCode', 'sqlHints'],
                 },
               },
             },
             required: ['questions'],
-          },
-        );
+          }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
         return NextResponse.json(result);
       }
 
@@ -520,29 +519,28 @@ Format rules (apply these within the creator's requirements above):
 - Keep exercises self-contained: no file I/O, no network calls.
 - No em dashes, no curly quotes, plain ASCII only.`,
           {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
               questions: {
-                type: Type.ARRAY,
+                type: 'array',
                 items: {
-                  type: Type.OBJECT,
+                  type: 'object',
                   properties: {
-                    id:                   { type: Type.STRING, description: 'unique short id like q_abc123' },
-                    type:                 { type: Type.STRING, description: 'always python_exercise' },
-                    question:             { type: Type.STRING, description: 'Clear task description' },
-                    pythonSetupCode:      { type: Type.STRING, description: 'Import statements and setup data (no output)' },
-                    pythonStarterCode:    { type: Type.STRING, description: 'Skeleton code with # TODO markers' },
-                    pythonSolution:       { type: Type.STRING, description: 'Complete correct Python solution' },
-                    pythonExpectedOutput: { type: Type.STRING, description: 'Exact stdout from running the solution' },
-                    pythonHints:          { type: Type.ARRAY, items: { type: Type.STRING }, description: '2-3 progressive hints' },
+                    id:                   { type: 'string', description: 'unique short id like q_abc123' },
+                    type:                 { type: 'string', description: 'always python_exercise' },
+                    question:             { type: 'string', description: 'Clear task description' },
+                    pythonSetupCode:      { type: 'string', description: 'Import statements and setup data (no output)' },
+                    pythonStarterCode:    { type: 'string', description: 'Skeleton code with # TODO markers' },
+                    pythonSolution:       { type: 'string', description: 'Complete correct Python solution' },
+                    pythonExpectedOutput: { type: 'string', description: 'Exact stdout from running the solution' },
+                    pythonHints:          { type: 'array', items: { type: 'string' }, description: '2-3 progressive hints' },
                   },
                   required: ['id', 'question', 'pythonStarterCode', 'pythonSolution', 'pythonExpectedOutput', 'pythonHints'],
                 },
               },
             },
             required: ['questions'],
-          },
-        );
+          }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
         return NextResponse.json(result);
       }
 
@@ -550,28 +548,27 @@ Format rules (apply these within the creator's requirements above):
       const result = await generateJSON(
         `${creatorBlock}Generate ${count} course quiz questions about: "${topic}". Question type: ${type}. For multiple_choice, provide 4 options and mark the correct one. For fill_blank, use ___ in the question text. For arrange, provide items in the correct order.`,
         {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
             questions: {
-              type: Type.ARRAY,
+              type: 'array',
               items: {
-                type: Type.OBJECT,
+                type: 'object',
                 properties: {
-                  id: { type: Type.STRING, description: 'unique short random id like q_abc123' },
-                  type: { type: Type.STRING, description: 'multiple_choice, fill_blank, or arrange' },
-                  question: { type: Type.STRING },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For MC: 4 options. For arrange: items in correct order. For fill_blank: empty array.' },
-                  correctAnswer: { type: Type.STRING, description: 'For MC: exact text of correct option. For fill_blank: the answer word(s). For arrange: options joined with |||' },
-                  explanation: { type: Type.STRING, description: 'Brief explanation of why the answer is correct' },
-                  hint: { type: Type.STRING, description: 'A subtle hint that nudges toward the answer without giving it away' },
+                  id: { type: 'string', description: 'unique short random id like q_abc123' },
+                  type: { type: 'string', description: 'multiple_choice, fill_blank, or arrange' },
+                  question: { type: 'string' },
+                  options: { type: 'array', items: { type: 'string' }, description: 'For MC: 4 options. For arrange: items in correct order. For fill_blank: empty array.' },
+                  correctAnswer: { type: 'string', description: 'For MC: exact text of correct option. For fill_blank: the answer word(s). For arrange: options joined with |||' },
+                  explanation: { type: 'string', description: 'Brief explanation of why the answer is correct' },
+                  hint: { type: 'string', description: 'A subtle hint that nudges toward the answer without giving it away' },
                 },
                 required: ['id', 'question', 'options', 'correctAnswer'],
               },
             },
           },
           required: ['questions'],
-        },
-      );
+        }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -583,13 +580,12 @@ Format rules (apply these within the creator's requirements above):
       const result = await generateJSON(
         `For this quiz question: "${question}" with correct answer: "${correctAnswer}", generate ${count} plausible but incorrect answer options (distractors). They should be convincing enough to challenge students but clearly wrong to someone who knows the material. Return only the distractor strings, no explanations.`,
         {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
-            distractors: { type: Type.ARRAY, items: { type: Type.STRING } },
+            distractors: { type: 'array', items: { type: 'string' } },
           },
           required: ['distractors'],
-        },
-      );
+        }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -621,20 +617,19 @@ Blocks structure rules:
 
 Also provide "videoSearchQuery": a short YouTube search query for a high-quality educational explainer video.`,
         {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
-            title:            { type: Type.STRING, description: 'Short lesson title, 3-6 words' },
-            body:             { type: Type.STRING, description: 'Compact HTML fallback using p, strong, ul/li, h4, blockquote; no hr dividers' },
-            videoSearchQuery: { type: Type.STRING, description: 'Short YouTube search query for an educational explainer video' },
+            title:            { type: 'string', description: 'Short lesson title, 3-6 words' },
+            body:             { type: 'string', description: 'Compact HTML fallback using p, strong, ul/li, h4, blockquote; no hr dividers' },
+            videoSearchQuery: { type: 'string', description: 'Short YouTube search query for an educational explainer video' },
             blocks: {
-              type: Type.ARRAY,
+              type: 'array',
               description: 'Interactive lesson blocks for the rich lesson player',
               items: blockItemSchema,
             },
           },
           required: ['title', 'body', 'videoSearchQuery', 'blocks'],
-        },
-      );
+        }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       const query = lesson.videoSearchQuery || lesson.title || `${question} ${correctAnswer}`;
       const videoUrl = await findLessonVideo(query).catch(err => {
         console.warn('YouTube lookup failed:', err);
@@ -657,8 +652,7 @@ Also provide "videoSearchQuery": a short YouTube search query for a high-quality
       const correctAnswer = clamp(body.correctAnswer, 300);
       const result = await generateJSON(
         `Write a single-sentence hint for this quiz question: "${question}" (correct answer: "${correctAnswer}"). The hint should nudge students toward the answer without revealing it directly. Keep it to one sentence, max 20 words.`,
-        { type: Type.OBJECT, properties: { hint: { type: Type.STRING } }, required: ['hint'] },
-      );
+        { type: 'object', properties: { hint: { type: 'string' } }, required: ['hint'] }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -668,8 +662,7 @@ Also provide "videoSearchQuery": a short YouTube search query for a high-quality
       const correctAnswer = clamp(body.correctAnswer, 300);
       const result = await generateJSON(
         `Write a brief explanation (1-2 sentences, max 40 words) for why "${correctAnswer}" is the correct answer to this quiz question: "${question}". Be clear and educational.`,
-        { type: Type.OBJECT, properties: { explanation: { type: Type.STRING } }, required: ['explanation'] },
-      );
+        { type: 'object', properties: { explanation: { type: 'string' } }, required: ['explanation'] }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -679,8 +672,7 @@ Also provide "videoSearchQuery": a short YouTube search query for a high-quality
       const summary = questions.map((q: any, i: number) => `${i + 1}. ${clamp(q.question, 300)}`).join('\n');
       const result = await generateJSON(
         `Based on these ${questions.length} quiz questions:\n${summary}\n\nGenerate 3-5 concise learning outcomes (what students will know/be able to do after completing this course). Start each with an action verb (e.g. "Understand", "Apply", "Identify"). Keep each under 15 words.`,
-        { type: Type.OBJECT, properties: { outcomes: { type: Type.ARRAY, items: { type: Type.STRING } } }, required: ['outcomes'] },
-      );
+        { type: 'object', properties: { outcomes: { type: 'array', items: { type: 'string' } } }, required: ['outcomes'] }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -732,8 +724,7 @@ Requirements:
 - Use clear, direct language. No jargon, no filler phrases like "In this course you will...".
 - Do not use lists or line breaks -- write it as flowing prose.
 - End with a forward-looking motivating sentence.`,
-        { type: Type.OBJECT, properties: { description: { type: Type.STRING } }, required: ['description'] },
-      );
+        { type: 'object', properties: { description: { type: 'string' } }, required: ['description'] }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -779,54 +770,53 @@ Field rules:
 - For social fields, also include socialPlatforms as an array if useful.
 - Do not include duplicate first name, last name, email, or phone fields if not necessary.`,
         {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
-            title: { type: Type.STRING },
-            description: { type: Type.STRING },
+            title: { type: 'string' },
+            description: { type: 'string' },
             eventDetails: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                isEvent: { type: Type.BOOLEAN },
-                date: { type: Type.STRING },
-                time: { type: Type.STRING },
-                timezone: { type: Type.STRING },
-                capacity: { type: Type.NUMBER },
-                eventType: { type: Type.STRING },
-                meetingLink: { type: Type.STRING },
-                location: { type: Type.STRING },
+                isEvent: { type: 'boolean' },
+                date: { type: 'string' },
+                time: { type: 'string' },
+                timezone: { type: 'string' },
+                capacity: { type: 'number' },
+                eventType: { type: 'string' },
+                meetingLink: { type: 'string' },
+                location: { type: 'string' },
               },
               required: ['isEvent', 'eventType'],
             },
             fields: {
-              type: Type.ARRAY,
+              type: 'array',
               items: {
-                type: Type.OBJECT,
+                type: 'object',
                 properties: {
-                  id: { type: Type.STRING },
-                  name: { type: Type.STRING },
-                  label: { type: Type.STRING },
-                  type: { type: Type.STRING },
-                  placeholder: { type: Type.STRING },
-                  required: { type: Type.BOOLEAN },
-                  options: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  socialPlatforms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  id: { type: 'string' },
+                  name: { type: 'string' },
+                  label: { type: 'string' },
+                  type: { type: 'string' },
+                  placeholder: { type: 'string' },
+                  required: { type: 'boolean' },
+                  options: { type: 'array', items: { type: 'string' } },
+                  socialPlatforms: { type: 'array', items: { type: 'string' } },
                 },
                 required: ['id', 'name', 'label', 'type'],
               },
             },
             postSubmission: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                type: { type: Type.STRING },
-                noticeTitle: { type: Type.STRING },
-                noticeBody: { type: Type.STRING },
+                type: { type: 'string' },
+                noticeTitle: { type: 'string' },
+                noticeBody: { type: 'string' },
               },
               required: ['type', 'noticeTitle', 'noticeBody'],
             },
           },
           required: ['title', 'description', 'eventDetails', 'fields', 'postSubmission'],
-        },
-      );
+        }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -867,8 +857,7 @@ Requirements:
 - Do not include HTML.
 - Do not include placeholder brackets like [Name].
 - Do not include a sign-off from any specific platform; write as the creator/host.`,
-        { type: Type.OBJECT, properties: { subject: { type: Type.STRING }, body: { type: Type.STRING } }, required: ['subject', 'body'] },
-      );
+        { type: 'object', properties: { subject: { type: 'string' }, body: { type: 'string' } }, required: ['subject', 'body'] }, { feature: 'ai-course', usageContext: { operation: 'ai-course' } });
       return NextResponse.json(result);
     }
 
@@ -886,13 +875,13 @@ Requirements:
       const existingOutline = body.existingOutline ?? null;
 
       const lessonItemSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          id:              { type: Type.STRING },
-          title:           { type: Type.STRING },
-          skillFocus:      { type: Type.STRING },
-          questionType:    { type: Type.STRING },
-          questionSummary: { type: Type.STRING },
+          id:              { type: 'string' },
+          title:           { type: 'string' },
+          skillFocus:      { type: 'string' },
+          questionType:    { type: 'string' },
+          questionSummary: { type: 'string' },
         },
         required: ['id', 'title', 'skillFocus', 'questionType', 'questionSummary'],
       };
@@ -924,21 +913,21 @@ Generate a fresh replacement module that:
 - No em dashes, no curly quotes, no ellipsis characters, no asterisks`;
 
         const schema = {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
             module: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id: { type: Type.STRING }, title: { type: Type.STRING },
-                description: { type: Type.STRING },
-                lessons: { type: Type.ARRAY, items: lessonItemSchema },
+                id: { type: 'string' }, title: { type: 'string' },
+                description: { type: 'string' },
+                lessons: { type: 'array', items: lessonItemSchema },
               },
               required: ['id', 'title', 'description', 'lessons'],
             },
           },
           required: ['module'],
         };
-        const result = await generateJSON(prompt, schema, { temperature: 0.7, geminiRetries: 2, thinkingLevel: 'low' });
+        const result = await generateJSON(prompt, schema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.7, retries: 2, effort: 'low' });
         return NextResponse.json(result);
       }
 
@@ -982,32 +971,32 @@ Create a complete SQL course outline following these rules:
 Strict formatting: No em dashes. No curly quotes. No ellipsis. No asterisks.`;
 
       const structureSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          courseTitle:       { type: Type.STRING },
-          courseDescription: { type: Type.STRING },
-          businessScenario:  { type: Type.STRING },
-          learningOutcomes:  { type: Type.ARRAY, items: { type: Type.STRING } },
+          courseTitle:       { type: 'string' },
+          courseDescription: { type: 'string' },
+          businessScenario:  { type: 'string' },
+          learningOutcomes:  { type: 'array', items: { type: 'string' } },
           sharedDatasetPlan: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              description: { type: Type.STRING },
+              description: { type: 'string' },
               tables: {
-                type: Type.ARRAY,
+                type: 'array',
                 items: {
-                  type: Type.OBJECT,
+                  type: 'object',
                   properties: {
-                    tableName: { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    rowCount: { type: Type.NUMBER },
+                    tableName: { type: 'string' },
+                    description: { type: 'string' },
+                    rowCount: { type: 'number' },
                     columns: {
-                      type: Type.ARRAY,
+                      type: 'array',
                       items: {
-                        type: Type.OBJECT,
+                        type: 'object',
                         properties: {
-                          name: { type: Type.STRING },
-                          type: { type: Type.STRING },
-                          description: { type: Type.STRING },
+                          name: { type: 'string' },
+                          type: { type: 'string' },
+                          description: { type: 'string' },
                         },
                         required: ['name', 'type', 'description'],
                       },
@@ -1020,13 +1009,13 @@ Strict formatting: No em dashes. No curly quotes. No ellipsis. No asterisks.`;
             required: ['description', 'tables'],
           },
           modules: {
-            type: Type.ARRAY,
+            type: 'array',
             items: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id: { type: Type.STRING }, title: { type: Type.STRING },
-                description: { type: Type.STRING },
-                lessons: { type: Type.ARRAY, items: lessonItemSchema },
+                id: { type: 'string' }, title: { type: 'string' },
+                description: { type: 'string' },
+                lessons: { type: 'array', items: lessonItemSchema },
               },
               required: ['id', 'title', 'description', 'lessons'],
             },
@@ -1035,7 +1024,7 @@ Strict formatting: No em dashes. No curly quotes. No ellipsis. No asterisks.`;
         required: ['courseTitle', 'courseDescription', 'businessScenario', 'learningOutcomes', 'sharedDatasetPlan', 'modules'],
       };
 
-      const structure = await generateJSON(structurePrompt, structureSchema, { temperature: 0.7, geminiRetries: 2, thinkingLevel: 'low' });
+      const structure = await generateJSON(structurePrompt, structureSchema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.7, retries: 2, effort: 'low' });
 
       const datasetPrompt = `You are generating the shared dataset for a SQL course outline.
 
@@ -1065,20 +1054,20 @@ Planned tables:
 ${JSON.stringify(structure.sharedDatasetPlan?.tables ?? [], null, 2)}`;
 
       const datasetSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
           sharedDataset: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              description: { type: Type.STRING },
+              description: { type: 'string' },
               tables: {
-                type: Type.ARRAY,
+                type: 'array',
                 items: {
-                  type: Type.OBJECT,
+                  type: 'object',
                   properties: {
-                    tableName:   { type: Type.STRING },
-                    description: { type: Type.STRING },
-                    seedSql:     { type: Type.STRING },
+                    tableName:   { type: 'string' },
+                    description: { type: 'string' },
+                    seedSql:     { type: 'string' },
                   },
                   required: ['tableName', 'description', 'seedSql'],
                 },
@@ -1090,7 +1079,7 @@ ${JSON.stringify(structure.sharedDatasetPlan?.tables ?? [], null, 2)}`;
         required: ['sharedDataset'],
       };
 
-      const dataset = await generateJSON(datasetPrompt, datasetSchema, { temperature: 0.5, geminiRetries: 2, thinkingLevel: 'low' });
+      const dataset = await generateJSON(datasetPrompt, datasetSchema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.5, retries: 2, effort: 'low' });
       return NextResponse.json({
         ...structure,
         sharedDataset: dataset.sharedDataset,
@@ -1153,47 +1142,47 @@ STYLE: Write like a senior data professional coaching a junior analyst. Be pract
 Return the EXACT lessonId value from the input for every lesson - do not change IDs.`;
 
       const mcqQuestionSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          questionText:  { type: Type.STRING },
-          options:       { type: Type.ARRAY, items: { type: Type.STRING } },
-          correctAnswer: { type: Type.STRING },
-          explanation:   { type: Type.STRING },
+          questionText:  { type: 'string' },
+          options:       { type: 'array', items: { type: 'string' } },
+          correctAnswer: { type: 'string' },
+          explanation:   { type: 'string' },
         },
         required: ['questionText', 'options', 'correctAnswer', 'explanation'],
       };
 
       const mcqItemSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          lessonId:    { type: Type.STRING },
-          lessonTitle: { type: Type.STRING },
-          lessonBody:  { type: Type.STRING },
-          questions:   { type: Type.ARRAY, items: mcqQuestionSchema },
+          lessonId:    { type: 'string' },
+          lessonTitle: { type: 'string' },
+          lessonBody:  { type: 'string' },
+          questions:   { type: 'array', items: mcqQuestionSchema },
         },
         required: ['lessonId', 'lessonTitle', 'lessonBody', 'questions'],
       };
 
       const sqlQuestionSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          lessonBody:                { type: Type.STRING },
-          questionText:              { type: Type.STRING },
-          solution:                  { type: Type.STRING },
-          initialCode:               { type: Type.STRING },
-          hints:                     { type: Type.ARRAY, items: { type: Type.STRING } },
-          requirements:              { type: Type.ARRAY, items: { type: Type.STRING } },
-          expectedOutputDescription: { type: Type.STRING },
+          lessonBody:                { type: 'string' },
+          questionText:              { type: 'string' },
+          solution:                  { type: 'string' },
+          initialCode:               { type: 'string' },
+          hints:                     { type: 'array', items: { type: 'string' } },
+          requirements:              { type: 'array', items: { type: 'string' } },
+          expectedOutputDescription: { type: 'string' },
         },
         required: ['lessonBody', 'questionText', 'solution', 'initialCode', 'hints', 'requirements', 'expectedOutputDescription'],
       };
 
       const sqlItemSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          lessonId:    { type: Type.STRING },
-          lessonTitle: { type: Type.STRING },
-          questions:   { type: Type.ARRAY, items: sqlQuestionSchema },
+          lessonId:    { type: 'string' },
+          lessonTitle: { type: 'string' },
+          questions:   { type: 'array', items: sqlQuestionSchema },
         },
         required: ['lessonId', 'lessonTitle', 'questions'],
       };
@@ -1293,7 +1282,7 @@ For this MCQ lesson, produce a "questions" array with exactly 1 item:
 Lesson input:
 ${JSON.stringify(lessonInput, null, 2)}`;
 
-            const result = await generateJSON(mcqPrompt, mcqItemSchema, { temperature: 0.6, geminiRetries: 2, thinkingLevel: 'low' });
+            const result = await generateJSON(mcqPrompt, mcqItemSchema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.6, retries: 2, effort: 'low' });
             lessonMap.set(result.lessonId, result);
             continue;
           }
@@ -1323,7 +1312,7 @@ Good starter examples:
 Lesson input:
 ${JSON.stringify(lessonInput, null, 2)}`;
 
-          const result = await generateJSON(sqlPrompt, sqlItemSchema, { temperature: 0.6, geminiRetries: 2, thinkingLevel: 'low' });
+          const result = await generateJSON(sqlPrompt, sqlItemSchema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.6, retries: 2, effort: 'low' });
           lessonMap.set(result.lessonId, result);
         }
       }));
@@ -1475,12 +1464,12 @@ ${JSON.stringify(lessonInput, null, 2)}`;
       }
 
       const lessonItemSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          id:           { type: Type.STRING, description: 'short random id like l_ab12cd' },
-          title:        { type: Type.STRING },
-          summary:      { type: Type.STRING, description: 'one sentence on what this lesson teaches' },
-          questionType: { type: Type.STRING, description: 'one of: sql_exercise, python_exercise, code_review, excel_review, dashboard_critique, document_review, written_response, multiple_choice, fill_blank, arrange' },
+          id:           { type: 'string', description: 'short random id like l_ab12cd' },
+          title:        { type: 'string' },
+          summary:      { type: 'string', description: 'one sentence on what this lesson teaches' },
+          questionType: { type: 'string', description: 'one of: sql_exercise, python_exercise, code_review, excel_review, dashboard_critique, document_review, written_response, multiple_choice, fill_blank, arrange' },
         },
         required: ['id', 'title', 'summary', 'questionType'],
       };
@@ -1530,22 +1519,22 @@ DOCUMENT CONTENT:
 ${sourceText}`;
 
         const schema = {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
             module: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id:          { type: Type.STRING },
-                title:       { type: Type.STRING },
-                description: { type: Type.STRING },
-                lessons:     { type: Type.ARRAY, items: lessonItemSchema },
+                id:          { type: 'string' },
+                title:       { type: 'string' },
+                description: { type: 'string' },
+                lessons:     { type: 'array', items: lessonItemSchema },
               },
               required: ['id', 'title', 'description', 'lessons'],
             },
           },
           required: ['module'],
         };
-        const result = await generateJSON(prompt, schema, { temperature: 0.6, geminiRetries: 2, thinkingLevel: 'low' });
+        const result = await generateJSON(prompt, schema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.6, retries: 2, effort: 'low' });
         return NextResponse.json(result);
       }
 
@@ -1567,20 +1556,20 @@ DOCUMENT CONTENT:
 ${sourceText}`;
 
       const schema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          courseTitle:       { type: Type.STRING },
-          courseDescription: { type: Type.STRING },
-          learningOutcomes:  { type: Type.ARRAY, items: { type: Type.STRING } },
+          courseTitle:       { type: 'string' },
+          courseDescription: { type: 'string' },
+          learningOutcomes:  { type: 'array', items: { type: 'string' } },
           modules: {
-            type: Type.ARRAY,
+            type: 'array',
             items: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id:          { type: Type.STRING },
-                title:       { type: Type.STRING },
-                description: { type: Type.STRING },
-                lessons:     { type: Type.ARRAY, items: lessonItemSchema },
+                id:          { type: 'string' },
+                title:       { type: 'string' },
+                description: { type: 'string' },
+                lessons:     { type: 'array', items: lessonItemSchema },
               },
               required: ['id', 'title', 'description', 'lessons'],
             },
@@ -1589,7 +1578,7 @@ ${sourceText}`;
         required: ['courseTitle', 'courseDescription', 'learningOutcomes', 'modules'],
       };
 
-      const result = await generateJSON(prompt, schema, { temperature: 0.6, geminiRetries: 2, thinkingLevel: 'low' });
+      const result = await generateJSON(prompt, schema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.6, retries: 2, effort: 'low' });
       return NextResponse.json(result);
     }
 
@@ -1640,65 +1629,65 @@ STRICT GROUNDING: All facts, features, and steps must come from the DOCUMENT CON
 STRICT FORMATTING: Plain ASCII only. No em dashes, no curly quotes, no ellipsis, no asterisks.`;
 
       const questionSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          type:          { type: Type.STRING, description: 'Must equal the lesson planned questionType: sql_exercise, code_review, excel_review, dashboard_critique, document_review, written_response, multiple_choice, fill_blank, or arrange.' },
-          question:      { type: Type.STRING, description: 'The question, task, or brief. For fill_blank put ___ where the blank goes. For applied types this is the task/brief the learner must complete.' },
-          options:       { type: Type.ARRAY, items: { type: Type.STRING }, description: 'multiple_choice: exactly 4 options. arrange: items in correct order. Empty for all other types.' },
-          correctAnswer: { type: Type.STRING, description: 'multiple_choice: exact correct option text. fill_blank: the answer word(s). Empty for arrange and all applied types.' },
-          explanation:   { type: Type.STRING, description: 'For knowledge-check types: why the answer is correct.' },
-          hint:          { type: Type.STRING, description: 'Optional subtle hint (knowledge-check types).' },
-          codeSnippet:   { type: Type.STRING, description: 'Optional code shown with the question (code type only).' },
-          codeLanguage:  { type: Type.STRING, description: 'Language of codeSnippet, e.g. javascript, python (code type only).' },
+          type:          { type: 'string', description: 'Must equal the lesson planned questionType: sql_exercise, code_review, excel_review, dashboard_critique, document_review, written_response, multiple_choice, fill_blank, or arrange.' },
+          question:      { type: 'string', description: 'The question, task, or brief. For fill_blank put ___ where the blank goes. For applied types this is the task/brief the learner must complete.' },
+          options:       { type: 'array', items: { type: 'string' }, description: 'multiple_choice: exactly 4 options. arrange: items in correct order. Empty for all other types.' },
+          correctAnswer: { type: 'string', description: 'multiple_choice: exact correct option text. fill_blank: the answer word(s). Empty for arrange and all applied types.' },
+          explanation:   { type: 'string', description: 'For knowledge-check types: why the answer is correct.' },
+          hint:          { type: 'string', description: 'Optional subtle hint (knowledge-check types).' },
+          codeSnippet:   { type: 'string', description: 'Optional code shown with the question (code type only).' },
+          codeLanguage:  { type: 'string', description: 'Language of codeSnippet, e.g. javascript, python (code type only).' },
           // AI reviewer types (code_review, excel_review, dashboard_critique, document_review, written_response)
-          rubric:        { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For reviewer types: 3-5 specific grading criteria the AI should assess.' },
-          context:       { type: Type.STRING, description: 'For reviewer types: dataset, scope, or context the learner works with.' },
-          expectedAnswer:{ type: Type.STRING, description: 'For written_response: a model answer covering what a strong response includes. Grounding for the AI reviewer only - never shown to the learner.' },
-          reviewLanguage:{ type: Type.STRING, description: 'For code_review: the programming language, e.g. python, javascript, sql.' },
+          rubric:        { type: 'array', items: { type: 'string' }, description: 'For reviewer types: 3-5 specific grading criteria the AI should assess.' },
+          context:       { type: 'string', description: 'For reviewer types: dataset, scope, or context the learner works with.' },
+          expectedAnswer:{ type: 'string', description: 'For written_response: a model answer covering what a strong response includes. Grounding for the AI reviewer only - never shown to the learner.' },
+          reviewLanguage:{ type: 'string', description: 'For code_review: the programming language, e.g. python, javascript, sql.' },
           // sql_exercise
-          scenario:      { type: Type.STRING, description: 'For sql_exercise: a short HTML business scenario (2-3 sentences, <p> and <strong> only) that frames the task in a realistic workplace situation, naming a specific role, team, or report and why the data is needed.' },
-          sqlSolution:   { type: Type.STRING, description: 'For sql_exercise: a correct SQL query that answers the task, using ONLY the shared dataset tables and exact column names.' },
-          sqlStarterCode:{ type: Type.STRING, description: 'For sql_exercise: starter SQL the learner edits, e.g. a SELECT skeleton.' },
-          sqlHints:      { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For sql_exercise: 1-3 progressive hints.' },
+          scenario:      { type: 'string', description: 'For sql_exercise: a short HTML business scenario (2-3 sentences, <p> and <strong> only) that frames the task in a realistic workplace situation, naming a specific role, team, or report and why the data is needed.' },
+          sqlSolution:   { type: 'string', description: 'For sql_exercise: a correct SQL query that answers the task, using ONLY the shared dataset tables and exact column names.' },
+          sqlStarterCode:{ type: 'string', description: 'For sql_exercise: starter SQL the learner edits, e.g. a SELECT skeleton.' },
+          sqlHints:      { type: 'array', items: { type: 'string' }, description: 'For sql_exercise: 1-3 progressive hints.' },
           // python_exercise
-          pythonStarterCode:    { type: Type.STRING, description: 'For python_exercise: skeleton code with # TODO comments where the learner fills in logic.' },
-          pythonSolution:       { type: Type.STRING, description: 'For python_exercise: complete, correct Python solution.' },
-          pythonExpectedOutput: { type: Type.STRING, description: 'For python_exercise: exact stdout produced by running the solution (newline-separated lines).' },
-          pythonSetupCode:      { type: Type.STRING, description: 'For python_exercise: optional import statements and setup code that runs before the main code (no output).' },
-          pythonHints:          { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For python_exercise: 1-3 progressive hints.' },
+          pythonStarterCode:    { type: 'string', description: 'For python_exercise: skeleton code with # TODO comments where the learner fills in logic.' },
+          pythonSolution:       { type: 'string', description: 'For python_exercise: complete, correct Python solution.' },
+          pythonExpectedOutput: { type: 'string', description: 'For python_exercise: exact stdout produced by running the solution (newline-separated lines).' },
+          pythonSetupCode:      { type: 'string', description: 'For python_exercise: optional import statements and setup code that runs before the main code (no output).' },
+          pythonHints:          { type: 'array', items: { type: 'string' }, description: 'For python_exercise: 1-3 progressive hints.' },
         },
         required: ['type', 'question'],
       };
 
       const lessonContentSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          lessonId:   { type: Type.STRING },
-          title:      { type: Type.STRING },
-          body:       { type: Type.STRING, description: 'Practical, hands-on lesson HTML with a worked example or how-to steps where possible: <p>, <strong>, <ul>, <li>, <h4>, <blockquote>. 100-180 words. No hr dividers.' },
-          blocks:     { type: Type.ARRAY, items: blockItemSchema, description: 'Interactive lesson blocks for the rich player; mirrors body as interactive nodes.' },
-          imageQuery: { type: Type.STRING, description: 'Concrete visual 2-4 word subject for a professional stock photo (real-world scene/tool/object, never text or a UI screenshot)' },
-          sourcePage: { type: Type.NUMBER, description: '1-based page number ONLY if the document has a real figure/diagram/chart for this lesson worth showing; otherwise 0' },
-          questions:  { type: Type.ARRAY, items: questionSchema },
+          lessonId:   { type: 'string' },
+          title:      { type: 'string' },
+          body:       { type: 'string', description: 'Practical, hands-on lesson HTML with a worked example or how-to steps where possible: <p>, <strong>, <ul>, <li>, <h4>, <blockquote>. 100-180 words. No hr dividers.' },
+          blocks:     { type: 'array', items: blockItemSchema, description: 'Interactive lesson blocks for the rich player; mirrors body as interactive nodes.' },
+          imageQuery: { type: 'string', description: 'Concrete visual 2-4 word subject for a professional stock photo (real-world scene/tool/object, never text or a UI screenshot)' },
+          sourcePage: { type: 'number', description: '1-based page number ONLY if the document has a real figure/diagram/chart for this lesson worth showing; otherwise 0' },
+          questions:  { type: 'array', items: questionSchema },
         },
         required: ['lessonId', 'title', 'body', 'questions'],
       };
 
       const moduleContentSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
           intro: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              title:      { type: Type.STRING },
-              body:       { type: Type.STRING, description: 'Module intro HTML, 120-220 words, using <p>, <strong>, <ul>, <li>, <h4>, <blockquote>.' },
-              blocks:     { type: Type.ARRAY, items: blockItemSchema, description: 'Interactive lesson blocks for the rich player; mirrors body as interactive nodes.' },
-              videoQuery: { type: Type.STRING, description: 'Specific educational YouTube query naming the subject and ending with "tutorial" or "explained"' },
-              imageQuery: { type: Type.STRING, description: 'Concrete visual 2-4 word subject for a professional stock photo (real-world scene/tool/workplace, not abstract text)' },
+              title:      { type: 'string' },
+              body:       { type: 'string', description: 'Module intro HTML, 120-220 words, using <p>, <strong>, <ul>, <li>, <h4>, <blockquote>.' },
+              blocks:     { type: 'array', items: blockItemSchema, description: 'Interactive lesson blocks for the rich player; mirrors body as interactive nodes.' },
+              videoQuery: { type: 'string', description: 'Specific educational YouTube query naming the subject and ending with "tutorial" or "explained"' },
+              imageQuery: { type: 'string', description: 'Concrete visual 2-4 word subject for a professional stock photo (real-world scene/tool/workplace, not abstract text)' },
             },
             required: ['title', 'body'],
           },
-          lessons: { type: Type.ARRAY, items: lessonContentSchema },
+          lessons: { type: 'array', items: lessonContentSchema },
         },
         required: ['intro', 'lessons'],
       };
@@ -1742,16 +1731,16 @@ DOCUMENT CONTENT:
 ${clamp(sourceText, 40_000)}`;
 
         const datasetSchema = {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
             tables: {
-              type: Type.ARRAY,
+              type: 'array',
               items: {
-                type: Type.OBJECT,
+                type: 'object',
                 properties: {
-                  tableName:   { type: Type.STRING },
-                  description: { type: Type.STRING },
-                  seedSql:     { type: Type.STRING },
+                  tableName:   { type: 'string' },
+                  description: { type: 'string' },
+                  seedSql:     { type: 'string' },
                 },
                 required: ['tableName', 'description', 'seedSql'],
               },
@@ -1761,7 +1750,7 @@ ${clamp(sourceText, 40_000)}`;
         };
 
         try {
-          const ds = await generateJSON(datasetPrompt, datasetSchema, { temperature: 0.4, geminiRetries: 2, thinkingLevel: 'low' });
+          const ds = await generateJSON(datasetPrompt, datasetSchema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.4, retries: 2, effort: 'low' });
           if (Array.isArray(ds?.tables)) {
             sqlTables = ds.tables.filter((t: any) => t?.tableName && t?.seedSql);
           }
@@ -1833,7 +1822,7 @@ ${clamp(sourceText, 60_000)}`;
 
         let gen: any;
         try {
-          gen = await generateJSON(modulePrompt, moduleContentSchema, { temperature: 0.6, geminiRetries: 2, thinkingLevel: 'low' });
+          gen = await generateJSON(modulePrompt, moduleContentSchema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.6, retries: 2, effort: 'low' });
         } catch (err) {
           console.warn('[doc-course] module generation failed, skipping:', (err as Error).message);
           continue;
@@ -1966,13 +1955,13 @@ ${clamp(sourceText, 60_000)}`;
       const existingOutline = body.existingOutline ?? null;
 
       const lessonItemSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          id:              { type: Type.STRING },
-          title:           { type: Type.STRING },
-          skillFocus:      { type: Type.STRING },
-          questionType:    { type: Type.STRING },
-          questionSummary: { type: Type.STRING },
+          id:              { type: 'string' },
+          title:           { type: 'string' },
+          skillFocus:      { type: 'string' },
+          questionType:    { type: 'string' },
+          questionSummary: { type: 'string' },
         },
         required: ['id', 'title', 'skillFocus', 'questionType', 'questionSummary'],
       };
@@ -2018,15 +2007,15 @@ Return exactly one replacement module with 3-5 lessons.
 - Plain ASCII only. No em dashes, no curly quotes, no ellipsis, no asterisks.`;
 
         const schema = {
-          type: Type.OBJECT,
+          type: 'object',
           properties: {
             module: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id:          { type: Type.STRING },
-                title:       { type: Type.STRING },
-                description: { type: Type.STRING },
-                lessons:     { type: Type.ARRAY, items: lessonItemSchema },
+                id:          { type: 'string' },
+                title:       { type: 'string' },
+                description: { type: 'string' },
+                lessons:     { type: 'array', items: lessonItemSchema },
               },
               required: ['id', 'title', 'description', 'lessons'],
             },
@@ -2034,7 +2023,7 @@ Return exactly one replacement module with 3-5 lessons.
           required: ['module'],
         };
 
-        const result = await generateJSON(prompt, schema, { temperature: 0.7, geminiRetries: 2, thinkingLevel: 'low' });
+        const result = await generateJSON(prompt, schema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.7, retries: 2, effort: 'low' });
         return NextResponse.json(result);
       }
 
@@ -2068,24 +2057,24 @@ Create a complete Python course outline:
 Strict formatting: No em dashes. No curly quotes. No ellipsis. No asterisks.`;
 
       const schema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          courseTitle:       { type: Type.STRING },
-          courseDescription: { type: Type.STRING },
-          businessScenario:  { type: Type.STRING },
-          learningOutcomes:  { type: Type.ARRAY, items: { type: Type.STRING } },
+          courseTitle:       { type: 'string' },
+          courseDescription: { type: 'string' },
+          businessScenario:  { type: 'string' },
+          learningOutcomes:  { type: 'array', items: { type: 'string' } },
           datasetPlan: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              description: { type: Type.STRING },
+              description: { type: 'string' },
               datasets: {
-                type: Type.ARRAY,
+                type: 'array',
                 items: {
-                  type: Type.OBJECT,
+                  type: 'object',
                   properties: {
-                    variableName: { type: Type.STRING },
-                    description:  { type: Type.STRING },
-                    columns:      { type: Type.ARRAY, items: { type: Type.STRING } },
+                    variableName: { type: 'string' },
+                    description:  { type: 'string' },
+                    columns:      { type: 'array', items: { type: 'string' } },
                   },
                   required: ['variableName', 'description', 'columns'],
                 },
@@ -2094,14 +2083,14 @@ Strict formatting: No em dashes. No curly quotes. No ellipsis. No asterisks.`;
             required: ['description', 'datasets'],
           },
           modules: {
-            type: Type.ARRAY,
+            type: 'array',
             items: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id:          { type: Type.STRING },
-                title:       { type: Type.STRING },
-                description: { type: Type.STRING },
-                lessons:     { type: Type.ARRAY, items: lessonItemSchema },
+                id:          { type: 'string' },
+                title:       { type: 'string' },
+                description: { type: 'string' },
+                lessons:     { type: 'array', items: lessonItemSchema },
               },
               required: ['id', 'title', 'description', 'lessons'],
             },
@@ -2110,7 +2099,7 @@ Strict formatting: No em dashes. No curly quotes. No ellipsis. No asterisks.`;
         required: ['courseTitle', 'courseDescription', 'businessScenario', 'learningOutcomes', 'datasetPlan', 'modules'],
       };
 
-      const result = await generateJSON(prompt, schema, { temperature: 0.7, geminiRetries: 2, thinkingLevel: 'low' });
+      const result = await generateJSON(prompt, schema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.7, retries: 2, effort: 'low' });
       return NextResponse.json(result);
     }
 
@@ -2151,40 +2140,40 @@ STRICT FORMATTING: No em dashes. No curly quotes. No asterisks. Return exact les
       // One Gemini call per module generates: master intro lesson + all exercise lessons.
       // This keeps total calls to N_modules (typically 5-7) instead of N_modules * N_lessons (~25).
       const mcqItemSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          questionText:  { type: Type.STRING },
-          options:       { type: Type.ARRAY, items: { type: Type.STRING } },
-          correctAnswer: { type: Type.STRING },
-          explanation:   { type: Type.STRING },
+          questionText:  { type: 'string' },
+          options:       { type: 'array', items: { type: 'string' } },
+          correctAnswer: { type: 'string' },
+          explanation:   { type: 'string' },
         },
         required: ['questionText', 'options', 'correctAnswer', 'explanation'],
       };
 
       const lessonItemSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          lessonId:       { type: Type.STRING },
-          lessonTitle:    { type: Type.STRING },
-          lessonBody:     { type: Type.STRING },
-          lessonType:     { type: Type.STRING, description: 'python_exercise or multiple_choice' },
-          questionText:   { type: Type.STRING, description: 'For python_exercise: HTML numbered task steps using <ol><li>. Wrap function/variable/column names in <code>. Use <blockquote> for context. For mcq: empty string.' },
-          setupCode:      { type: Type.STRING, description: 'For python_exercise: imports + numpy/pandas seeded data generation (np.random.seed(42), pd.DataFrame, pd.date_range, etc). Must produce 30-80 rows. No hardcoded lists. This runs before student code.' },
-          starterCode:    { type: Type.STRING, description: 'For python_exercise: skeleton the student fills in. Dataset already created by setupCode -- do not recreate it.' },
-          solution:       { type: Type.STRING, description: 'For python_exercise: complete runnable solution. Runs after setupCode.' },
-          expectedOutput: { type: Type.STRING, description: 'For python_exercise: the exact stdout that running solution (after setupCode) produces. Must match character for character.' },
-          hints:          { type: Type.ARRAY, items: { type: Type.STRING }, description: 'For python_exercise: 3 hints.' },
-          mcqQuestions:   { type: Type.ARRAY, items: mcqItemSchema, description: 'For multiple_choice: 2 questions.' },
+          lessonId:       { type: 'string' },
+          lessonTitle:    { type: 'string' },
+          lessonBody:     { type: 'string' },
+          lessonType:     { type: 'string', description: 'python_exercise or multiple_choice' },
+          questionText:   { type: 'string', description: 'For python_exercise: HTML numbered task steps using <ol><li>. Wrap function/variable/column names in <code>. Use <blockquote> for context. For mcq: empty string.' },
+          setupCode:      { type: 'string', description: 'For python_exercise: imports + numpy/pandas seeded data generation (np.random.seed(42), pd.DataFrame, pd.date_range, etc). Must produce 30-80 rows. No hardcoded lists. This runs before student code.' },
+          starterCode:    { type: 'string', description: 'For python_exercise: skeleton the student fills in. Dataset already created by setupCode -- do not recreate it.' },
+          solution:       { type: 'string', description: 'For python_exercise: complete runnable solution. Runs after setupCode.' },
+          expectedOutput: { type: 'string', description: 'For python_exercise: the exact stdout that running solution (after setupCode) produces. Must match character for character.' },
+          hints:          { type: 'array', items: { type: 'string' }, description: 'For python_exercise: 3 hints.' },
+          mcqQuestions:   { type: 'array', items: mcqItemSchema, description: 'For multiple_choice: 2 questions.' },
         },
         required: ['lessonId', 'lessonTitle', 'lessonBody', 'lessonType'],
       };
 
       const moduleSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          moduleIntroTitle: { type: Type.STRING },
-          moduleIntroBody:  { type: Type.STRING },
-          lessons:          { type: Type.ARRAY, items: lessonItemSchema },
+          moduleIntroTitle: { type: 'string' },
+          moduleIntroBody:  { type: 'string' },
+          lessons:          { type: 'array', items: lessonItemSchema },
         },
         required: ['moduleIntroTitle', 'moduleIntroBody', 'lessons'],
       };
@@ -2296,7 +2285,7 @@ STRICT RULES:
       const moduleResults = await Promise.all(
         outline.modules.map(async (mod: any, modIdx: number) => {
           try {
-            const result = await generateJSON(buildModulePrompt(mod, modIdx), moduleSchema, { temperature: 0.5, geminiRetries: 2, thinkingLevel: 'low' });
+            const result = await generateJSON(buildModulePrompt(mod, modIdx), moduleSchema, { feature: 'ai-course', usageContext: { operation: 'ai-course' }, temperature: 0.5, retries: 2, effort: 'low' });
             return { mod, result };
           } catch {
             return { mod, result: null };
