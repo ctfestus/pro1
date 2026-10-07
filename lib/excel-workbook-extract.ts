@@ -70,6 +70,9 @@ export async function extractFromWorkbook(buffer: ArrayBuffer, requestedSheetNam
         if (totalCells >= cellCeiling) { sheetTruncated = true; return; }
         totalCells++;
         const addr = cell.address;
+        const numberFormat = (cell.formula || typeof cell.value === 'number') && cell.numFmt && cell.numFmt !== 'General'
+          ? ` [number format: ${JSON.stringify(cell.numFmt)}]`
+          : '';
         if (cell.formula) {
           // A listing cap, not an extraction limit: the sheet was read, the prompt just stops
           // enumerating. It must not mark the sheet as partially extracted.
@@ -85,13 +88,13 @@ export async function extractFromWorkbook(buffer: ArrayBuffer, requestedSheetNam
             ? (raw as any).result
             : undefined;
           const val = result !== undefined ? ` => ${result}` : '';
-          const line = `  ${addr}: =${cell.formula}${val}`;
+          const line = `  ${addr}: =${cell.formula}${val}${numberFormat}`;
           if (totalChars + line.length > charCeiling) { sheetTruncated = true; return; }
           totalChars += line.length;
           lines.push(line);
           formulaCount++;
         } else if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
-          const line = `  ${addr}: ${cell.value}`;
+          const line = `  ${addr}: ${cell.value}${numberFormat}`;
           if (totalChars + line.length > charCeiling) { sheetTruncated = true; return; }
           totalChars += line.length;
           lines.push(line);
@@ -110,7 +113,9 @@ export async function extractFromWorkbook(buffer: ArrayBuffer, requestedSheetNam
   });
 
   return {
-    text: sections.join('\n\n'),
+    text: sections.length > 0
+      ? 'Values are raw, not Excel display text. Untagged numbers use General (no custom number format). Use the supplied number formats to assess percentages and separators; never infer missing formatting from raw values alone. Assess currency and scale only from explicit format codes or labels.\n\n' + sections.join('\n\n')
+      : '',
     reviewedSheetNames,
     partiallyReviewedSheetNames,
     missingSheetNames,
