@@ -76,7 +76,7 @@ export async function POST(req: NextRequest) {
       if (!BLOCK_KIND_SET.has(kind)) {
         return NextResponse.json({ error: 'Unknown action' }, { status: 400 });
       }
-      const raw = await generateJSON(buildBlockPrompt(kind as BlockKind, text, context), undefined, BLOCK_CALL_OPTS);
+      const raw = await generateJSON(buildBlockPrompt(kind as BlockKind, text, context), undefined, { feature: 'ai-assist', usageContext: { operation: 'ai-assist' }, ...BLOCK_CALL_OPTS });
       const blocks = usableBlocks(raw?.blocks);
       if (!blocks) return NextResponse.json({ error: blockError }, { status: 502 });
       return NextResponse.json({ kind: 'blocks', blocks });
@@ -84,7 +84,7 @@ export async function POST(req: NextRequest) {
 
     // A free instruction on the lesson editor may ask for a block instead of a rewrite.
     if (action === 'custom' && allowBlocks) {
-      const out = await generateJSON(buildInstructionPrompt(text, instruction, context), undefined, BLOCK_CALL_OPTS);
+      const out = await generateJSON(buildInstructionPrompt(text, instruction, context), undefined, { feature: 'ai-assist', usageContext: { operation: 'ai-assist' }, ...BLOCK_CALL_OPTS });
       if (String(out?.mode ?? '').trim() === 'blocks') {
         const blocks = usableBlocks(out?.blocks);
         if (blocks) return NextResponse.json({ kind: 'blocks', blocks });
@@ -94,7 +94,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: blockError }, { status: 502 });
     }
 
-    const out = await generateJSON(buildTextPrompt(action, text, instruction, context), TEXT_SCHEMA, { temperature: action === 'grammar' ? 0.2 : 0.6 });
+    const out = await generateJSON(buildTextPrompt(action, text, instruction, context), TEXT_SCHEMA, { feature: 'ai-assist', usageContext: { operation: 'ai-assist' }, temperature: action === 'grammar' ? 0.2 : 0.6 });
     const result = String(out?.result ?? '').trim();
     if (!result) {
       return NextResponse.json({ error: 'No result generated. Please try again.' }, { status: 502 });

@@ -11,7 +11,7 @@
 // app/api/document-review). Nothing here is authoritative for scoring: the course attempt route
 // re-grades review questions from the stored 'completed' sentinel (lib/grade-question).
 
-import { Type } from '@google/genai';
+
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
@@ -67,47 +67,47 @@ async function checkRateLimit(auth: AuthedUser, depth: ReviewDepth) {
 }
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    overallScore:     { type: Type.NUMBER },
-    executiveSummary: { type: Type.STRING },
+    overallScore:     { type: 'number' },
+    executiveSummary: { type: 'string' },
     sections: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          name:           { type: Type.STRING },
-          severity:       { type: Type.STRING },
-          title:          { type: Type.STRING },
-          detail:         { type: Type.STRING },
-          recommendation: { type: Type.STRING },
+          name:           { type: 'string' },
+          severity:       { type: 'string' },
+          title:          { type: 'string' },
+          detail:         { type: 'string' },
+          recommendation: { type: 'string' },
         },
         required: ['name', 'severity', 'title', 'detail', 'recommendation'],
       },
     },
     categories: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          name:      { type: Type.STRING },
-          score:     { type: Type.NUMBER },
-          summary:   { type: Type.STRING },
-          strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-          gaps:      { type: Type.ARRAY, items: { type: Type.STRING } },
+          name:      { type: 'string' },
+          score:     { type: 'number' },
+          summary:   { type: 'string' },
+          strengths: { type: 'array', items: { type: 'string' } },
+          gaps:      { type: 'array', items: { type: 'string' } },
         },
         required: ['name', 'score', 'summary', 'strengths', 'gaps'],
       },
     },
-    topRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+    topRecommendations: { type: 'array', items: { type: 'string' } },
     rubricGrades: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          criterion: { type: Type.STRING },
-          passed:    { type: Type.BOOLEAN },
-          comment:   { type: Type.STRING },
+          criterion: { type: 'string' },
+          passed:    { type: 'boolean' },
+          comment:   { type: 'string' },
         },
         required: ['criterion', 'passed', 'comment'],
       },
@@ -230,7 +230,7 @@ Return ONLY valid JSON. No markdown fences.`;
   if (charge.response) return charge.response;
 
   try {
-    const parsed = await generateJSON(prompt, responseSchema, {
+    const parsed = await generateJSON(prompt, responseSchema, { feature: 'written-review',
       temperature: 0.3,
       usageContext: {
         operation: 'written-review',

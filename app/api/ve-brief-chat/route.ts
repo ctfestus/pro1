@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
@@ -27,9 +27,9 @@ async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
 }
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    reply: { type: Type.STRING },
+    reply: { type: 'string' },
   },
   required: ['reply'],
 };
@@ -189,7 +189,7 @@ Reply in character as ${managerName}. Rules:
 - No greeting or sign-off, just the reply body.`;
 
   try {
-    const parsed = await generateJSON(prompt, responseSchema, { temperature: 0.6 });
+    const parsed = await generateJSON(prompt, responseSchema, { feature: 've-brief-chat', usageContext: { operation: 've-brief-chat' }, temperature: 0.6 });
     const reply = typeof parsed?.reply === 'string' ? parsed.reply.trim() : '';
     if (!reply) throw new Error('empty reply');
     return NextResponse.json({ reply });

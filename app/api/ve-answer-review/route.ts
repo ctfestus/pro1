@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
@@ -36,11 +36,11 @@ async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
 
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    score:    { type: Type.NUMBER },
-    passed:   { type: Type.BOOLEAN },
-    feedback: { type: Type.STRING },
+    score:    { type: 'number' },
+    passed:   { type: 'boolean' },
+    feedback: { type: 'string' },
   },
   required: ['score', 'passed', 'feedback'],
 };
@@ -179,7 +179,7 @@ Score 0-100 (60+ passes). Write exactly 2-3 sentences of feedback. Rules:
   if (charge.response) return charge.response;
 
   try {
-    const parsed = await generateJSON(prompt, responseSchema, { temperature: 0.4 });
+    const parsed = await generateJSON(prompt, responseSchema, { feature: 've-answer-review', usageContext: { operation: 've-answer-review' }, temperature: 0.4 });
     return NextResponse.json({
       passed:   !!parsed.passed,
       feedback: parsed.feedback || '',

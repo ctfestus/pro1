@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
@@ -6,8 +6,8 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 export const dynamic = 'force-dynamic';
 
 const schema = {
-  type: Type.OBJECT,
-  properties: { subtitle: { type: Type.STRING } },
+  type: 'object',
+  properties: { subtitle: { type: 'string' } },
   required: ['subtitle'],
 };
 
@@ -46,7 +46,7 @@ Article content:
 ${plainText}`;
 
   try {
-    const result = await generateJSON(prompt, schema, { temperature: 0.8 });
+    const result = await generateJSON(prompt, schema, { feature: 'announcement-subtitle', usageContext: { operation: 'announcement-subtitle' }, temperature: 0.8 });
     const subtitle = (result.subtitle ?? '').trim().slice(0, 200);
     return NextResponse.json({ subtitle });
   } catch (err: any) {

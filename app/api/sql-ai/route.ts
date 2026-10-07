@@ -81,7 +81,7 @@ Explain what went wrong in 1-2 plain English sentences a beginner can understand
 
 Return JSON: { "explanation": "..." }`;
 
-      const result = await generateJSON(prompt, undefined, { temperature: 0.3 });
+      const result = await generateJSON(prompt, undefined, { feature: 'sql-ai', usageContext: { operation: 'sql-ai' }, temperature: 0.3 });
       return NextResponse.json({ explanation: result.explanation ?? '' });
     }
 
@@ -101,7 +101,7 @@ Give a specific, actionable hint that nudges them toward the solution without re
 
 Return JSON: { "hint": "..." }`;
 
-      const result = await generateJSON(prompt, undefined, { temperature: 0.4 });
+      const result = await generateJSON(prompt, undefined, { feature: 'sql-ai', usageContext: { operation: 'sql-ai' }, temperature: 0.4 });
       return NextResponse.json({ hint: result.hint ?? '' });
     }
 

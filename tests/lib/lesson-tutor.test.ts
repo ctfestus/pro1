@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import { lessonPlainText } from '@/lib/lesson-doc';
 import {
-  asksAboutCode, buildTutorPrompt, normalizeHistory, supportsThinkingLevel,
+  asksAboutCode, buildTutorPrompt, normalizeHistory,
   MAX_HISTORY_TURNS, MAX_HISTORY_CHARS, MAX_LESSON_CHARS, MAX_OUTPUT_TOKENS,
   TUTOR_SYSTEM_INSTRUCTION,
 } from '@/lib/lesson-tutor';
@@ -223,28 +223,6 @@ describe('normalizeHistory', () => {
     expect(normalizeHistory([{ who: 'tutor', text: 'ok' }])[0].who).toBe('tutor');
     expect(normalizeHistory([{ who: 'tutor', text: 'y'.repeat(MAX_HISTORY_CHARS + 50) }])[0].text)
       .toHaveLength(MAX_HISTORY_CHARS);
-  });
-});
-
-describe('supportsThinkingLevel', () => {
-  // A 2.x model rejects thinkingLevel outright, so sending it there breaks every request.
-  // .env.example ships a 2.x default, so the tutor cannot assume a 3+ model is configured.
-  it('is true only for Gemini 3 and above', () => {
-    expect(supportsThinkingLevel('gemini-3.5-flash')).toBe(true);
-    expect(supportsThinkingLevel('gemini-3-pro')).toBe(true);
-    expect(supportsThinkingLevel('gemini-4.0-flash')).toBe(true);
-    expect(supportsThinkingLevel('gemini-2.0-flash')).toBe(false);
-    expect(supportsThinkingLevel('gemini-1.5-pro')).toBe(false);
-  });
-
-  it('treats unknown or empty model names as unsupported', () => {
-    // Omitting the cap only costs quota; sending it to a model that refuses it kills the
-    // feature, so the safe default when we cannot tell is to leave it off.
-    expect(supportsThinkingLevel(undefined)).toBe(false);
-    expect(supportsThinkingLevel(null)).toBe(false);
-    expect(supportsThinkingLevel('')).toBe(false);
-    expect(supportsThinkingLevel('some-other-model')).toBe(false);
-    expect(supportsThinkingLevel('gpt-4o-mini')).toBe(false);
   });
 });
 

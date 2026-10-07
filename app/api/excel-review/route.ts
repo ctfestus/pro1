@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
@@ -86,47 +86,47 @@ async function resolveReviewConfig(auth: AuthedUser, target: ExcelReviewTarget):
 
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    overallScore: { type: Type.NUMBER },
-    executiveSummary: { type: Type.STRING },
+    overallScore: { type: 'number' },
+    executiveSummary: { type: 'string' },
     issues: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          cell:     { type: Type.STRING },
-          severity: { type: Type.STRING },
-          title:    { type: Type.STRING },
-          detail:   { type: Type.STRING },
-          fix:      { type: Type.STRING },
+          cell:     { type: 'string' },
+          severity: { type: 'string' },
+          title:    { type: 'string' },
+          detail:   { type: 'string' },
+          fix:      { type: 'string' },
         },
         required: ['cell', 'severity', 'title', 'detail', 'fix'],
       },
     },
     categories: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          name:      { type: Type.STRING },
-          score:     { type: Type.NUMBER },
-          summary:   { type: Type.STRING },
-          strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-          gaps:      { type: Type.ARRAY, items: { type: Type.STRING } },
+          name:      { type: 'string' },
+          score:     { type: 'number' },
+          summary:   { type: 'string' },
+          strengths: { type: 'array', items: { type: 'string' } },
+          gaps:      { type: 'array', items: { type: 'string' } },
         },
         required: ['name', 'score', 'summary', 'strengths', 'gaps'],
       },
     },
-    topRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+    topRecommendations: { type: 'array', items: { type: 'string' } },
     rubricGrades: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          id:      { type: Type.NUMBER },
-          passed:  { type: Type.BOOLEAN },
-          comment: { type: Type.STRING },
+          id:      { type: 'number' },
+          passed:  { type: 'boolean' },
+          comment: { type: 'string' },
         },
         required: ['id', 'passed', 'comment'],
       },
@@ -277,7 +277,7 @@ export async function POST(req: NextRequest) {
     if (receipt) refundAttempt = () => refundAiFeature(receipt);
     // The narrative half of the review always comes from the first attempt; only the grades
     // merge, so the report a student reads is one coherent response rather than two spliced.
-    const parsed = await generateJSON(prompt, schema, { temperature: 0.2, usageContext });
+    const parsed = await generateJSON(prompt, schema, { feature: 'excel-review',  temperature: 0.2, usageContext });
 
     if (rubric.length === 0) {
       const result = { ...parsed, rubricScore: null };
@@ -300,7 +300,7 @@ export async function POST(req: NextRequest) {
     // would throw away a retry that covered different criteria rather than more of them.
     if (graded.ungraded > 0) {
       try {
-        const retry = await generateJSON(prompt, schema, {
+        const retry = await generateJSON(prompt, schema, { feature: 'excel-review',
           temperature: 0.2,
           usageContext: { ...usageContext, metadata: { ...usageContext.metadata, gradeRetry: true } },
         });

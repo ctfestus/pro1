@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { generateJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
@@ -53,60 +53,60 @@ const INDUSTRY_TOOLS: Record<string, string[]> = {
 };
 
 const attachmentSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    name: { type: Type.STRING },
-    url: { type: Type.STRING },
-    mimeType: { type: Type.STRING },
+    name: { type: 'string' },
+    url: { type: 'string' },
+    mimeType: { type: 'string' },
   },
   required: ['name', 'url'],
 };
 
 // Requirement schema reused in both generate and improve
 const requirementSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    id:            { type: Type.STRING },
-    label:         { type: Type.STRING },
-    description:   { type: Type.STRING },
-    descriptionFormat: { type: Type.STRING },
-    type:          { type: Type.STRING }, // includes mcq/task/text plus deterministic simulation and AI reviewer types
-    options:       { type: Type.ARRAY, items: { type: Type.STRING } },
-    optionFeedback: { type: Type.ARRAY, items: { type: Type.STRING } },
-    correctAnswer:  { type: Type.STRING },
-    expectedAnswer: { type: Type.STRING },
-    rubric:        { type: Type.ARRAY, items: { type: Type.STRING } },
-    schema:        { type: Type.STRING },
-    context:       { type: Type.STRING },
-    minScore:      { type: Type.NUMBER },
-    aiReview:      { type: Type.BOOLEAN },
-    emailFrame:    { type: Type.BOOLEAN },
-    emailBody:     { type: Type.STRING },
-    attachments:   { type: Type.ARRAY, items: attachmentSchema },
+    id:            { type: 'string' },
+    label:         { type: 'string' },
+    description:   { type: 'string' },
+    descriptionFormat: { type: 'string' },
+    type:          { type: 'string' }, // includes mcq/task/text plus deterministic simulation and AI reviewer types
+    options:       { type: 'array', items: { type: 'string' } },
+    optionFeedback: { type: 'array', items: { type: 'string' } },
+    correctAnswer:  { type: 'string' },
+    expectedAnswer: { type: 'string' },
+    rubric:        { type: 'array', items: { type: 'string' } },
+    schema:        { type: 'string' },
+    context:       { type: 'string' },
+    minScore:      { type: 'number' },
+    aiReview:      { type: 'boolean' },
+    emailFrame:    { type: 'boolean' },
+    emailBody:     { type: 'string' },
+    attachments:   { type: 'array', items: attachmentSchema },
   },
   required: ['id', 'label', 'description', 'type'],
 };
 
 const lessonSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    id:           { type: Type.STRING },
-    title:        { type: Type.STRING },
-    body:         { type: Type.STRING }, // Rich HTML
-    videoUrl:     { type: Type.STRING },
-    requirements: { type: Type.ARRAY, items: requirementSchema },
+    id:           { type: 'string' },
+    title:        { type: 'string' },
+    body:         { type: 'string' }, // Rich HTML
+    videoUrl:     { type: 'string' },
+    requirements: { type: 'array', items: requirementSchema },
   },
   required: ['id', 'title', 'body', 'requirements'],
 };
 
 const moduleSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    id:            { type: Type.STRING },
-    title:         { type: Type.STRING },
-    description:   { type: Type.STRING },
-    solutionVideo: { type: Type.STRING },
-    lessons:       { type: Type.ARRAY, items: lessonSchema },
+    id:            { type: 'string' },
+    title:         { type: 'string' },
+    description:   { type: 'string' },
+    solutionVideo: { type: 'string' },
+    lessons:       { type: 'array', items: lessonSchema },
   },
   required: ['id', 'title', 'description', 'lessons'],
 };
@@ -273,30 +273,30 @@ DATASET (generate this first, carefully):
 `;
 
       const pass1 = await generateJSON(pass1Prompt, {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          tagline:       { type: Type.STRING },
-          role:          { type: Type.STRING },
-          company:       { type: Type.STRING },
-          managerName:   { type: Type.STRING },
-          managerTitle:  { type: Type.STRING },
-          duration:      { type: Type.STRING },
-          tools:         { type: Type.ARRAY, items: { type: Type.STRING } },
-          description:   { type: Type.STRING },
-          background:    { type: Type.STRING },
-          learnOutcomes: { type: Type.ARRAY, items: { type: Type.STRING } },
+          tagline:       { type: 'string' },
+          role:          { type: 'string' },
+          company:       { type: 'string' },
+          managerName:   { type: 'string' },
+          managerTitle:  { type: 'string' },
+          duration:      { type: 'string' },
+          tools:         { type: 'array', items: { type: 'string' } },
+          description:   { type: 'string' },
+          background:    { type: 'string' },
+          learnOutcomes: { type: 'array', items: { type: 'string' } },
           dataset: {
-            type: Type.OBJECT,
+            type: 'object',
             properties: {
-              filename:    { type: Type.STRING },
-              description: { type: Type.STRING },
-              csvContent:  { type: Type.STRING },
+              filename:    { type: 'string' },
+              description: { type: 'string' },
+              csvContent:  { type: 'string' },
             },
             required: ['filename', 'description', 'csvContent'],
           },
         },
         required: ['tagline', 'role', 'company', 'managerName', 'managerTitle', 'duration', 'tools', 'description', 'background', 'learnOutcomes', 'dataset'],
-      });
+      }, { feature: 'ai-guided-project', usageContext: { operation: 'ai-guided-project' } });
       const csvContent = pass1.dataset?.csvContent || '';
 
       // -- Pass 2: modules/lessons/questions (CSV provided) ---
@@ -368,10 +368,10 @@ ${emailFrameBlock}
 `;
 
       const pass2 = await generateJSON(pass2Prompt, {
-        type: Type.OBJECT,
-        properties: { modules: { type: Type.ARRAY, items: moduleSchema } },
+        type: 'object',
+        properties: { modules: { type: 'array', items: moduleSchema } },
         required: ['modules'],
-      });
+      }, { feature: 'ai-guided-project', usageContext: { operation: 'ai-guided-project' } });
       return NextResponse.json({
         config: {
           isVirtualExperience: true,
@@ -451,21 +451,21 @@ COMPANY:
 `;
 
       const pass1 = await generateJSON(pass1Prompt, {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          tagline:       { type: Type.STRING },
-          role:          { type: Type.STRING },
-          company:       { type: Type.STRING },
-          managerName:   { type: Type.STRING },
-          managerTitle:  { type: Type.STRING },
-          duration:      { type: Type.STRING },
-          tools:         { type: Type.ARRAY, items: { type: Type.STRING } },
-          description:   { type: Type.STRING },
-          background:    { type: Type.STRING },
-          learnOutcomes: { type: Type.ARRAY, items: { type: Type.STRING } },
+          tagline:       { type: 'string' },
+          role:          { type: 'string' },
+          company:       { type: 'string' },
+          managerName:   { type: 'string' },
+          managerTitle:  { type: 'string' },
+          duration:      { type: 'string' },
+          tools:         { type: 'array', items: { type: 'string' } },
+          description:   { type: 'string' },
+          background:    { type: 'string' },
+          learnOutcomes: { type: 'array', items: { type: 'string' } },
         },
         required: ['tagline', 'role', 'company', 'managerName', 'managerTitle', 'duration', 'tools', 'description', 'background', 'learnOutcomes'],
-      });
+      }, { feature: 'ai-guided-project', usageContext: { operation: 'ai-guided-project' } });
 
       // Pass 2: modules/lessons/questions -- using the full instructor dataset
       const pass2Prompt = `
@@ -524,10 +524,10 @@ ${emailFrameBlock}
 `;
 
       const pass2 = await generateJSON(pass2Prompt, {
-        type: Type.OBJECT,
-        properties: { modules: { type: Type.ARRAY, items: moduleSchema } },
+        type: 'object',
+        properties: { modules: { type: 'array', items: moduleSchema } },
         required: ['modules'],
-      });
+      }, { feature: 'ai-guided-project', usageContext: { operation: 'ai-guided-project' } });
       return NextResponse.json({
         config: {
           isVirtualExperience: true,
@@ -604,16 +604,16 @@ RULES:
 `;
 
       const applied = await generateJSON(applyPrompt, {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          tagline:       { type: Type.STRING },
-          background:    { type: Type.STRING },
-          description:   { type: Type.STRING },
-          learnOutcomes: { type: Type.ARRAY, items: { type: Type.STRING } },
-          modules:       { type: Type.ARRAY, items: moduleSchema },
+          tagline:       { type: 'string' },
+          background:    { type: 'string' },
+          description:   { type: 'string' },
+          learnOutcomes: { type: 'array', items: { type: 'string' } },
+          modules:       { type: 'array', items: moduleSchema },
         },
         required: ['modules'],
-      });
+      }, { feature: 'ai-guided-project', usageContext: { operation: 'ai-guided-project' } });
       // Merge: applied fields override, but preserve fields not in response (dataset, coverImage, etc.)
       return NextResponse.json({
         config: {

@@ -1,18 +1,16 @@
-import { Type } from '@google/genai';
+
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
-import { GoogleGenAI } from '@google/genai';
-import { logAiUsage } from '@/lib/ai-usage';
+import { generateVisionJSON } from '@/lib/ai';
 
 export const dynamic = 'force-dynamic';
 
 // Read from settings rather than declared here, so the AI features tab is the one place
 // this number lives. A constant left behind would quietly ignore whatever an admin typed.
 const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB
-const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
 
 const SUPPORTED_MIME: Record<string, string> = {
   pdf:  'application/pdf',
@@ -43,47 +41,47 @@ async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
 }
 
 const responseSchema = {
-  type: Type.OBJECT,
+  type: 'object',
   properties: {
-    overallScore: { type: Type.NUMBER },
-    executiveSummary: { type: Type.STRING },
+    overallScore: { type: 'number' },
+    executiveSummary: { type: 'string' },
     sections: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          name:           { type: Type.STRING },
-          severity:       { type: Type.STRING },
-          title:          { type: Type.STRING },
-          detail:         { type: Type.STRING },
-          recommendation: { type: Type.STRING },
+          name:           { type: 'string' },
+          severity:       { type: 'string' },
+          title:          { type: 'string' },
+          detail:         { type: 'string' },
+          recommendation: { type: 'string' },
         },
         required: ['name', 'severity', 'title', 'detail', 'recommendation'],
       },
     },
     categories: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          name:      { type: Type.STRING },
-          score:     { type: Type.NUMBER },
-          summary:   { type: Type.STRING },
-          strengths: { type: Type.ARRAY, items: { type: Type.STRING } },
-          gaps:      { type: Type.ARRAY, items: { type: Type.STRING } },
+          name:      { type: 'string' },
+          score:     { type: 'number' },
+          summary:   { type: 'string' },
+          strengths: { type: 'array', items: { type: 'string' } },
+          gaps:      { type: 'array', items: { type: 'string' } },
         },
         required: ['name', 'score', 'summary', 'strengths', 'gaps'],
       },
     },
-    topRecommendations: { type: Type.ARRAY, items: { type: Type.STRING } },
+    topRecommendations: { type: 'array', items: { type: 'string' } },
     rubricGrades: {
-      type: Type.ARRAY,
+      type: 'array',
       items: {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          criterion: { type: Type.STRING },
-          passed:    { type: Type.BOOLEAN },
-          comment:   { type: Type.STRING },
+          criterion: { type: 'string' },
+          passed:    { type: 'boolean' },
+          comment:   { type: 'string' },
         },
         required: ['criterion', 'passed', 'comment'],
       },
@@ -172,31 +170,14 @@ export async function POST(req: NextRequest) {
       : '';
     const promptText = `${SYSTEM_PROMPT}${contextBlock}${rubricBlock}\n\nReview the attached document.`;
 
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) throw new Error('GEMINI_API_KEY not configured');
-    const ai = new GoogleGenAI({ apiKey });
-
     const base64 = Buffer.from(buffer).toString('base64');
-    const result = await ai.models.generateContent({
-      model: GEMINI_MODEL,
-      contents: [{
-        role: 'user',
-        parts: [
-          { text: promptText },
-          { inlineData: { mimeType, data: base64 } },
-        ],
-      }],
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema,
-        temperature: 0.2,
-      },
-    });
-    logAiUsage({
-      provider: 'gemini',
-      model: GEMINI_MODEL,
-      response: result,
-      context: {
+    const parsed = await generateVisionJSON(promptText, { mimeType, data: base64 }, responseSchema, {
+      feature: 'document-review',
+      temperature: 0.2,
+      retries: 0,
+      noFallback: true,
+      systemInstruction: '',
+      usageContext: {
         operation: 'document-review',
         metadata: {
           fileBytes: file.size,
@@ -206,10 +187,6 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-
-    const safeJSON = (text: string) =>
-      JSON.parse(text.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim());
-    const parsed = safeJSON(result.text ?? '{}');
 
     return NextResponse.json(parsed);
   } catch (err: any) {

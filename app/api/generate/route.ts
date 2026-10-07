@@ -1,4 +1,4 @@
-import { Type } from '@google/genai';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { generateStream } from '@/lib/ai';
 import { requireRole, isAuthError } from '@/lib/api-auth';
@@ -33,50 +33,50 @@ export async function POST(req: NextRequest) {
   const promptText = `Generate a form or course schema for the following use case: "${trimmedPrompt}". Make sure to include all necessary fields, a catchy title, and a brief description. If the user asks for a course, set isCourse to true and populate the questions array with multiple-choice questions.`;
 
   const responseSchema = {
-        type: Type.OBJECT,
+        type: 'object',
         properties: {
-          title: { type: Type.STRING, description: 'Form or Course title' },
-          description: { type: Type.STRING, description: 'Form or Course description' },
-          isCourse: { type: Type.BOOLEAN, description: 'True if the user requested a course' },
+          title: { type: 'string', description: 'Form or Course title' },
+          description: { type: 'string', description: 'Form or Course description' },
+          isCourse: { type: 'boolean', description: 'True if the user requested a course' },
           eventDetails: {
-            type: Type.OBJECT,
+            type: 'object',
             description: 'If the form is for an event (live or online), provide these details. Omit if not an event.',
             properties: {
-              isEvent: { type: Type.BOOLEAN, description: 'True if this form is for an event' },
-              date: { type: Type.STRING, description: "Date of the event (e.g., 'October 15, 2026')" },
-              time: { type: Type.STRING, description: "Time of the event (e.g., '10:00 AM')" },
-              location: { type: Type.STRING, description: 'Physical location or online link' },
-              timezone: { type: Type.STRING, description: "Timezone of the event (e.g., 'PST', 'UTC')" },
+              isEvent: { type: 'boolean', description: 'True if this form is for an event' },
+              date: { type: 'string', description: "Date of the event (e.g., 'October 15, 2026')" },
+              time: { type: 'string', description: "Time of the event (e.g., '10:00 AM')" },
+              location: { type: 'string', description: 'Physical location or online link' },
+              timezone: { type: 'string', description: "Timezone of the event (e.g., 'PST', 'UTC')" },
             },
             required: ['isEvent'],
           },
           fields: {
-            type: Type.ARRAY,
+            type: 'array',
             description: 'Fields for a regular form. Provide this if isCourse is false.',
             items: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id: { type: Type.STRING, description: 'Unique random string ID' },
-                name: { type: Type.STRING, description: 'camelCase identifier' },
-                label: { type: Type.STRING, description: 'Human readable label' },
-                type: { type: Type.STRING, description: 'Must be one of: text, email, textarea, number, select' },
-                placeholder: { type: Type.STRING },
-                options: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Only provide if type is select' },
+                id: { type: 'string', description: 'Unique random string ID' },
+                name: { type: 'string', description: 'camelCase identifier' },
+                label: { type: 'string', description: 'Human readable label' },
+                type: { type: 'string', description: 'Must be one of: text, email, textarea, number, select' },
+                placeholder: { type: 'string' },
+                options: { type: 'array', items: { type: 'string' }, description: 'Only provide if type is select' },
               },
               required: ['id', 'name', 'label', 'type'],
             },
           },
           questions: {
-            type: Type.ARRAY,
+            type: 'array',
             description: 'Questions for a quiz. Provide this if isCourse is true.',
             items: {
-              type: Type.OBJECT,
+              type: 'object',
               properties: {
-                id: { type: Type.STRING, description: 'Unique random string ID' },
-                question: { type: Type.STRING, description: 'The quiz question text' },
-                options: { type: Type.ARRAY, items: { type: Type.STRING }, description: 'Array of possible answers (usually 4)' },
-                correctAnswer: { type: Type.STRING, description: 'The correct answer (must match one of the options exactly)' },
-                explanation: { type: Type.STRING, description: 'Optional explanation of why the answer is correct' },
+                id: { type: 'string', description: 'Unique random string ID' },
+                question: { type: 'string', description: 'The quiz question text' },
+                options: { type: 'array', items: { type: 'string' }, description: 'Array of possible answers (usually 4)' },
+                correctAnswer: { type: 'string', description: 'The correct answer (must match one of the options exactly)' },
+                explanation: { type: 'string', description: 'Optional explanation of why the answer is correct' },
               },
               required: ['id', 'question', 'options', 'correctAnswer'],
             },
@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
   };
 
   try {
-    const stream = await generateStream(promptText, responseSchema);
+    const stream = await generateStream(promptText, responseSchema, { feature: 'generate', usageContext: { operation: 'generate' } });
     return new Response(stream, {
       headers: { 'Content-Type': 'application/json; charset=utf-8' },
     });
