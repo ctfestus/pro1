@@ -76,8 +76,10 @@ describe('provider selection and isolation', () => {
   it('limits Claude to approved features and keeps tutor fallback isolated', () => {
     vi.stubEnv('AI_PRIMARY_PROVIDER', 'anthropic');
     for (const feature of ['ai-course', 'ai-guided-project', 'doc-course-extract', 'generate']) {
-      expect(() => providerChain({ feature })).toThrow('not enabled');
+      expect(providerChain({ feature })).toEqual(['gemini', 'openai']);
+      expect(providerChain({ feature, noFallback: true })).toEqual(['gemini']);
     }
+    expect(providerChain({ feature: 'excel-review' })).toEqual(['anthropic', 'openai']);
     vi.stubEnv('AI_PROVIDER_TUTOR', 'anthropic');
     expect(providerChain({ feature: 'tutor', noFallback: true })).toEqual(['anthropic', 'gemini']);
     vi.stubEnv('ANTHROPIC_API_KEY', 'platform');

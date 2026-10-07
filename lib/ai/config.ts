@@ -26,8 +26,8 @@ function provider(value: string): AiProvider {
 
 export function providerChain(opts: GenerateJSONOpts): AiProvider[] {
   const suffix = (opts.feature ?? '').replace(/[^a-z0-9]/gi, '_').toUpperCase();
-  const primary = provider((suffix && process.env[`AI_PROVIDER_${suffix}`]) || process.env.AI_PRIMARY_PROVIDER || 'gemini');
-  if (primary === 'anthropic' && !CLAUDE_FEATURES[opts.feature ?? '']) throw new Error('Claude is not enabled for this feature');
+  let primary = provider((suffix && process.env[`AI_PROVIDER_${suffix}`]) || process.env.AI_PRIMARY_PROVIDER || 'gemini');
+  if (primary === 'anthropic' && !CLAUDE_FEATURES[opts.feature ?? '']) primary = 'gemini';
   if (opts.feature === 'tutor') {
     if (primary === 'openai') throw new Error('OpenAI is not enabled for the tutor');
     // This dedicated operational fallback is independent of the generic fallback list.
