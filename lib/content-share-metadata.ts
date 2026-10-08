@@ -53,7 +53,11 @@ export async function buildShareMetadata(id: string, catalogueType?: string | nu
     }),
     getTenantSettings(),
   ]);
-  if (!found) return { title: 'Not Found' };
+  // A missing public preview does not mean the route itself is missing. A signed-in learner may
+  // still be allowed to open cohort-only content, and the client will replace this generic title
+  // with the content title once that access-controlled row loads. Keep private metadata private,
+  // but never stream a misleading "Not Found" title over a page the learner is already using.
+  if (!found) return tenant.appName ? { title: tenant.appName } : {};
   const data: ShareContent = {
     id: found.record.id,
     type: found.type,

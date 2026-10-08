@@ -60,13 +60,16 @@ describe('buildShareMetadata visibility', () => {
 
   it('gives a draft no preview', async () => {
     h.rows.courses = course({ status: 'draft' });
-    expect((await buildShareMetadata('shared-slug')).title).toBe('Not Found');
+    expect((await buildShareMetadata('shared-slug')).title).toBe('Example Academy');
   });
 
-  it('gives cohort-only content (not free, not on a sellable plan) no preview', async () => {
+  it('uses the platform title for cohort-only content without exposing private metadata', async () => {
     h.rows.courses = course({ available_to_everyone: false });
     h.rows.public_free_content = null;
-    expect((await buildShareMetadata('shared-slug')).title).toBe('Not Found');
+    const metadata: any = await buildShareMetadata('shared-slug');
+    expect(metadata).toEqual({ title: 'Example Academy' });
+    expect(metadata.title).not.toBe('SQL Basics');
+    expect(metadata.title).not.toBe('Not Found');
   });
 
   it('previews paid content that a sellable plan covers', async () => {
@@ -85,7 +88,7 @@ describe('buildShareMetadata visibility', () => {
 
   it('never previews an event: they are cohort-only to a signed-out visitor', async () => {
     h.rows.events = course({ title: 'Private Event' });
-    expect((await buildShareMetadata('shared-slug')).title).toBe('Not Found');
+    expect((await buildShareMetadata('shared-slug')).title).toBe('Example Academy');
   });
 });
 
