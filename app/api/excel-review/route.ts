@@ -1,6 +1,7 @@
 
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
+import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { refundAiFeature, reserveAiFeatureLimit, spendAiFeatureReservation, type AiFeatureReservation } from '@/lib/ai-feature-gate';
@@ -254,7 +255,7 @@ export async function POST(req: NextRequest) {
       ? `\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION BY ID\nThis rubric is what the student was actually asked to do, and it decides whether they pass. Return one "rubricGrades" entry per criterion: its "id" exactly as numbered below, a "passed" boolean, and a 1-2 sentence "comment" naming the cells or sheets you checked.\n\nGrade every id exactly once. Ids you omit are marked as not met and count against the student, ids you repeat are ignored after the first, and ids that are not on this list are discarded -- so a criterion you skip cannot be made up for by grading another one twice.\n\nMark a criterion "passed" only when the extracted contents show it was met. Absence of evidence is a fail, not a pass: if a criterion requires formulas in named cells and those cells hold constants, or are missing entirely, it fails. Never pass a criterion because the displayed value looks right.\n\nCriteria:\n${rubric.map((c, i) => `id ${rubricCriterionId(i)}: ${c}`).join('\n')}\n`
       : '';
 
-    const prompt = `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}${rubricBlock}${truncationBlock}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
+    const prompt = `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}${rubricBlock}${truncationBlock}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
 
     const schema = schemaFor(rubric.length > 0);
     const usageContext = {

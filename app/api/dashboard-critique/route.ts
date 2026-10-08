@@ -1,6 +1,7 @@
 
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateVisionJSON } from '@/lib/ai';
+import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
@@ -214,7 +215,7 @@ For each category provide:
 - priority: "HIGH" | "MEDIUM" | "LOW" -- how urgently this category needs attention
 
 Also provide:
-- overallScore: weighted average of the 4 category scores (one decimal)
+- overallScore: when an instructor rubric is supplied, score rubric completion only (one decimal), with at least 80 when every criterion passes; optional design improvements must not reduce this score. Only when no rubric is supplied, use the weighted average of the 4 category scores.
 - executiveSummary: 3-4 sentences. Write as if briefing a C-suite sponsor on this analyst's dashboard. Be direct about what works and what needs to change before this reaches a real audience.
 - topRecommendations: exactly 3 strings -- the single highest-impact actions across the entire dashboard, ordered by priority. Each must be concrete and specific (e.g., "Replace the 6-colour pie chart with a ranked horizontal bar chart sorted by value descending").
 
@@ -258,7 +259,7 @@ export async function POST(req: NextRequest) {
       ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nThe instructor has defined the following specific criteria for this assignment. In the audit.rubricGrades array, evaluate EVERY criterion below with a "passed" boolean and a 1-2 sentence "comment" explaining your judgement.\n\nCriteria:\n${rubric.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\nGrade strictly -- if the dashboard partially meets a criterion, mark passed: false and explain what's missing.`
       : '';
 
-    const fullPrompt = SYSTEM_PROMPT + rubricSection;
+    const fullPrompt = SYSTEM_PROMPT + rubricSection + '\n\n' + REVIEW_GRADING_INSTRUCTIONS;
 
     const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, responseSchema, { feature: 'dashboard-critique',
       temperature: 0.35,

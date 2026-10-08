@@ -1,6 +1,7 @@
 
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
+import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
@@ -171,7 +172,9 @@ Score 0-100 (60+ passes). Write exactly 2-3 sentences of feedback. Rules:
 - Reference what they actually wrote, not generic advice.
 - If passed: name one specific strength, then one concrete way to go further.
 - If not passed: name the exact gap, explain why it matters on the job, tell them precisely what to add or change.
-- No preamble. No filler phrases ("great effort", "however", "it's worth noting"). No bullet points. Start with the assessment, not their name.`;
+- No preamble. No filler phrases ("great effort", "however", "it's worth noting"). No bullet points. Start with the assessment, not their name.
+
+${REVIEW_GRADING_INSTRUCTIONS}`;
 
   // Consume the daily quota only now: the request is valid and the caller is authorized for a
   // real review, so a rejected attempt above never spent one of the student's ten.

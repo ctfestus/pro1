@@ -5,6 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 import { generateJSON, generateVisionJSON } from '@/lib/ai';
+import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
 import { assertZipWithinLimit, extractDocxText } from '@/lib/office-text';
 import { withTimeout, EXTRACTION_TIMEOUT_MS } from '@/lib/excel-workbook-extract';
 
@@ -170,7 +171,7 @@ export async function POST(req: NextRequest) {
     const rubricBlock = rubric.length > 0
       ? `\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION\nGrade every criterion with a "passed" boolean and a 1-2 sentence "comment".\n\nCriteria:\n${rubric.map((c, i) => `${i + 1}. ${c}`).join('\n')}\n`
       : '';
-    const promptText = `${SYSTEM_PROMPT}${contextBlock}${rubricBlock}\n\nReview the attached document.`;
+    const promptText = `${SYSTEM_PROMPT}${contextBlock}${rubricBlock}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nReview the attached document.`;
 
     const options = {
       feature: 'document-review',
