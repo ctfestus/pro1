@@ -20,6 +20,7 @@ import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { reviewPassed } from '@/lib/review-gate';
 import { AiReviewUpgradeNote, aiReviewResetWording, aiReviewAllowanceWording } from '@/components/AiReviewUpgradePrompt';
 import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
@@ -50,6 +51,7 @@ const MAX_WRITTEN_CHARS = 6000;
 // A brief AI review: score out of 100, a short summary, and one verdict per rubric criterion.
 interface BriefReview {
   overallScore: number;
+  rubricScore?: number | null;
   executiveSummary: string;
   rubricGrades?: { criterion: string; passed: boolean; comment: string }[];
 }
@@ -341,7 +343,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
       ? (selected === correctIndex ? 'correct' : 'incorrect')
       : format === 'fill'
         ? (!fillHasKey ? 'correct' : fillCorrect ? 'correct' : 'incorrect')
-        : (review ? (review.overallScore >= 60 ? 'correct' : 'incorrect') : 'idle');
+        : (review ? (reviewPassed(review, 60, gradingMode === 'ai' ? rubric.filter(c => c.trim()).length : 0) ? 'correct' : 'incorrect') : 'idle');
 
   const instruction = format === 'choice'
     ? 'Choose the best answer'

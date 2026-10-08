@@ -284,6 +284,10 @@ describe('mcqTaskScore / aiTaskScoreSuggestion', () => {
     expect(aiTaskScoreSuggestion(ans({ taskId: 'a', type: 'code_review' }))).toBeNull();
     expect(aiTaskScoreSuggestion(ans({ taskId: 'a', type: 'code_review', report: { summary: 'x' } }))).toBeNull();
   });
+  it('suggests rubric completion rather than model quality when a rubric was graded', () => {
+    expect(aiTaskScoreSuggestion(ans({ taskId: 'a', type: 'code_review', report: { overallScore: 99, rubricScore: 20 } }))).toBe(20);
+    expect(aiTaskScoreSuggestion(ans({ taskId: 'a', type: 'dashboard_critique', report: { audit: { overallScore: 58, rubricScore: 100 } } }))).toBe(100);
+  });
 });
 
 describe('passMarkOf', () => {

@@ -3,6 +3,7 @@
 import React, { useState, useRef } from 'react';
 import { Loader2, CheckCircle2, Zap, RotateCcw, Code2, Download, Upload, FileCode, Lock, ChevronDown, ShieldCheck, TriangleAlert, Lightbulb, ArrowUpRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import { downloadCodeReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
@@ -31,6 +32,7 @@ interface CategoryScore {
 }
 interface ReviewResult {
   overallScore: number;
+  rubricScore?: number | null;
   executiveSummary: string;
   issues: LineIssue[];
   categories: CategoryScore[];
@@ -144,7 +146,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
       if (json.error) throw new Error(json.error);
       const enriched: ReviewResult = { ...json, language, ...(language === 'SQL' ? { dialect } : {}) };
       setResult(enriched);
-      const passed = !minScore || enriched.overallScore >= minScore;
+      const passed = reviewPassed(enriched, minScore, rubric?.length);
       onComplete(enriched, passed);
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
@@ -527,12 +529,12 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
       )}
 
       {/* Completion / gate */}
-      {minScore && result.overallScore < minScore ? (
+      {minScore && !reviewPassed(result, minScore, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached | {result.overallScore.toFixed(1)}/100 | Required: {minScore}/100
+              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {minScore}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, revise your code, and submit another review.</p>
           </div>

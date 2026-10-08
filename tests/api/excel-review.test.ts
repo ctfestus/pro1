@@ -428,6 +428,18 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(json.rubricUngraded).toBe(4);
   });
 
+  it('uses rubric marks and excludes assessment notes from the gate', async () => {
+    mockGenerateJSON.mockResolvedValue({ ...baseReview, rubricGrades: [
+      { id: 1, passed: true, comment: 'Correct calculation' },
+      { id: 2, passed: false, comment: 'Missing presentation' },
+      { id: 3, passed: false, comment: 'Guidance only' },
+    ] });
+    const { json } = await review(['Calculation: 80 marks', 'Presentation: 20 marks', 'Assessment Note: Accept valid alternatives'], { minScore: 80 });
+    expect(json.overallScore).toBe(98);
+    expect(json.rubricScore).toBe(80);
+    expect(json.passed).toBe(true);
+  });
+
   it('discards an invented id instead of letting it stand in for a real criterion', async () => {
     mockGenerateJSON.mockResolvedValue({
       ...baseReview,

@@ -11,6 +11,7 @@ import { motion, useReducedMotion } from 'motion/react';
 import { useTheme } from '@/components/ThemeProvider';
 import { useC } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
+import { reviewGate } from '@/lib/review-gate';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
@@ -292,20 +293,20 @@ export default function StandardAssignmentPlayer({
     const common = { reqId, isDark, accentColor: scenarioAccent, completed, rubric: task.rubric, minScore: task.minScore } as const;
     if (task.type === 'code_review') {
       return <CodeReviewPlayer {...common} savedResult={a.report} schema={task.schema}
-        onComplete={(result: any) => patch(task.id, { report: result, score: typeof result?.overallScore === 'number' ? result.overallScore : null })} />;
+        onComplete={(result: any) => patch(task.id, { report: result, score: reviewGate(result, task.rubric?.length).score })} />;
     }
     if (task.type === 'excel_review') {
       return <ExcelReviewPlayer {...common} savedResult={a.report} context={task.context} reviewSheetNames={task.reviewSheetNames}
         reviewTarget={{ source: 'assignment', contentId: assignmentId, itemId: task.id }}
-        onComplete={(result: any) => patch(task.id, { report: result, score: typeof result?.overallScore === 'number' ? result.overallScore : null })} />;
+        onComplete={(result: any) => patch(task.id, { report: result, score: reviewGate(result, task.rubric?.length).score })} />;
     }
     if (task.type === 'document_review') {
       return <DocumentReviewPlayer {...common} savedResult={a.report} context={task.context} documentReviewMode={task.documentReviewMode ?? 'ai_only'}
-        onComplete={(result: any) => patch(task.id, { report: result, score: typeof result?.overallScore === 'number' ? result.overallScore : null })} />;
+        onComplete={(result: any) => patch(task.id, { report: result, score: reviewGate(result, task.rubric?.length).score })} />;
     }
     // dashboard_critique
     return <DashboardCritiquePlayer {...common} savedResult={a.report} savedImageUrl={a.imageUrl}
-      onComplete={(result: any, imageDataUrl: string) => patch(task.id, { report: result, imageUrl: imageDataUrl, score: typeof result?.audit?.overallScore === 'number' ? result.audit.overallScore : null })} />;
+      onComplete={(result: any, imageDataUrl: string) => patch(task.id, { report: result, imageUrl: imageDataUrl, score: reviewGate(result.audit ?? { overallScore: 0 }, task.rubric?.length).score })} />;
   }
 
   function renderTaskBody(task: AssignmentTask) {

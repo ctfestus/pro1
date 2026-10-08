@@ -316,7 +316,7 @@ export async function POST(req: NextRequest) {
 
     // The pass gate reads this, not overallScore. Computed here so every consumer -- the VE
     // player, the course player, and any saved report re-rendered later -- gates identically.
-    const rubricScore = rubricPassRate(graded.grades, rubric.length);
+    const rubricScore = rubricPassRate(graded.grades, rubric);
     const result = {
       ...parsed,
       rubricGrades: graded.grades,
