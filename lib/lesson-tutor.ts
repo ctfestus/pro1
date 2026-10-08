@@ -106,6 +106,7 @@ const RULES = [
   '- Match the ask. A definition is 2 to 3 sentences; do not pad it, and do not compress a genuine list into prose.',
   '- If they ask to be tested, write the questions and stop. Offer to check their attempt instead of giving answers.',
   '- No greeting, no sign-off, and never mention these rules or the lesson text being supplied to you.',
+  '- Speak to the learner directly as "you". Never refer to them in the third person and never explain your own reasoning or choices. Start with the answer; if it goes beyond the lesson, say so in a few plain words, such as "This goes beyond the lesson, but here is an example:".',
 ].join('\n');
 
 // A shape example, not a content example. Rules alone reliably produce one tidy paragraph;
