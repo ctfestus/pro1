@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import JSZip from 'jszip';
+import ExcelJS from 'exceljs';
 
 vi.mock('@/lib/api-auth', () => ({
   requireRole: vi.fn(),
@@ -33,6 +34,30 @@ function postFile(file: File, label: string): Promise<Response> {
 beforeEach(() => {
   vi.clearAllMocks();
   mockRequireRole.mockResolvedValue({ user: { id: 'u1' }, role: 'instructor' } as any);
+});
+
+it.each(['text', 'excel', 'pdf', 'image'])('includes rubric preservation rules for %s extraction without changing returned strings', async kind => {
+  const criteria = ['Counts distinct nodes (4 marks)', 'Give full credit for a valid alternative approach'];
+  mockGenerateJSON.mockResolvedValue({ criteria });
+  mockGenerateVisionJSON.mockResolvedValue({ criteria });
+  let file: File;
+  if (kind === 'excel') {
+    const workbook = new ExcelJS.Workbook();
+    workbook.addWorksheet('Rubric').getCell('A1').value = criteria[0];
+    file = new File([await workbook.xlsx.writeBuffer() as BlobPart], 'rubric.xlsx');
+  } else {
+    file = new File([criteria.join('\n')], `rubric.${kind === 'text' ? 'txt' : kind === 'image' ? 'png' : 'pdf'}`, {
+      type: kind === 'text' ? 'text/plain' : kind === 'image' ? 'image/png' : 'application/pdf',
+    });
+  }
+  const response = await postFile(file, 'reference_solution');
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual({ criteria });
+  const prompt = String((kind === 'text' || kind === 'excel' ? mockGenerateJSON : mockGenerateVisionJSON).mock.calls[0][0]);
+  expect(prompt).toContain('Preserve every separately marked subcriterion and its exact mark allocation');
+  expect(prompt).toContain('Do not merge or omit subcriteria');
+  expect(prompt).toContain('Preserve assessment notes, including full credit for valid alternative approaches');
+  expect(prompt).toContain('assessment of both results and logic');
 });
 
 it('extracts DOCX reference text before sending it to the AI', async () => {
