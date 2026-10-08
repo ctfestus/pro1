@@ -1,6 +1,7 @@
 
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
+import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
@@ -188,7 +189,7 @@ export async function POST(req: NextRequest) {
       : '';
 
     const dialectLabel = dialect ? ` (${dialect})` : '';
-    const fullPrompt = `${systemPrompt}${rubricSection}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+    const fullPrompt = `${systemPrompt}${rubricSection}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
 
     const parsed = await generateJSON(fullPrompt, responseSchema, { feature: 'code-review',
       temperature: 0.25,
