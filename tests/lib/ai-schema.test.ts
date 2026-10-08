@@ -8,7 +8,8 @@ import type { JsonSchema } from '@/lib/ai/types';
 
 // Evaluate only schema expressions, including schemas declared inside route branches.
 // No route runs and no service is contacted. Frozen hashes were verified against the
-// pre-migration Gemini contracts; tests must not depend on a moving Git branch.
+// pre-migration Gemini contracts, with review criterion IDs added for deterministic gates;
+// tests must not depend on a moving Git branch.
 function schemas(source: string, file: string): JsonSchema[] {
   const ast = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
   const declarations: ts.VariableDeclaration[] = [];
@@ -84,17 +85,17 @@ const geminiBaselines = [
   'cc439b9b28641c9c66eded1598941ffe49656b5a8c84f24a43b8b04e5b3b795e',
   'c7b8aa9a5222fdfd461a1ff1aa9820ba8aeca7d84200eb55e63de53a12b0b87e',
   '6db1454f29de4a684ad6223f2c96e95c95b48b140a23c270c2f97852f82de907',
-  '20c16fd5282c2395a156d564eda9aa5211ded17043e951cd60a54ebc5d04174a',
-  '34014bce6ab90c4dbbf794b749f77484fd1824c7b3f0d76a5524fb342c313935',
+  'cdb10333c7f2359387bef07bd6121969cc178b5ec9c52fa9de194dd26ee1c4e0',
+  '438edf66228bbeec89745ead06a8000766fd4894c84732086b60c038c6f621bf',
   '461e92f28e2b301f434e74bf190806efa0cd13412c9ff54f440f7ec3431be394',
-  '78130e48b81723973486fc55f3373ee080613bb2ca87631a214a06071744a7d0',
+  'e49f756b3e605cad4aa86259fb0d02dd35486052ab55d61c4ec32314bd8d7379',
   'fc468142930117fd4b49458a543e04fb92fa99bbf1b967c34f1b57e5c1d3c68a',
   'd92848e20e57340c0201aea54c02f52f2704da4329a28f860d38510d3a6956f0',
   '86e7a389712bc00addca5ed6fa7e645974575ff3dac7ccfaedf1c050ac9047ac',
   '0d8608126658fa8a3511b3a8573979dd0a2d0bd34abab6206a11b7be03fd81ed',
   '42902bb940defee23f8f240ca17bafbfc31f5347172a418564abc0820925017e',
   'cab4d6fec5114658ce2a796df59c59555f098b547e8a5b85ab2b1f94c2348ef2',
-  '099c5c248e4fb5e5fcf23ab5920b9a0e645944047b923222f85d54fb4b22c67b',
+  '40bdb15629bc45a305adc96f134785a1b4e62ef65054fa98ca173bfedd270e86',
   '05efd824961425824c6378edfb0645708582c81070f28ab366e5287310a9459b',
   '4881189f8b0f6b5274e7d8120e06438856464a870a6ae1cb683a7f9d8e5f334e',
 ];

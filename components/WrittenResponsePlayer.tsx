@@ -10,6 +10,7 @@
 import React, { useState } from 'react';
 import { Loader2, CheckCircle2, Zap, RotateCcw, PenLine, Download, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
@@ -36,6 +37,7 @@ interface CategoryScore {
 }
 export interface WrittenReviewResult {
   overallScore: number;
+  rubricScore?: number | null;
   executiveSummary: string;
   sections: SectionIssue[];
   categories: CategoryScore[];
@@ -137,7 +139,7 @@ export default function WrittenResponsePlayer({
       if (json.error) throw new Error(json.error);
       setResult(json);
 
-      const passed = !minScore || json.overallScore >= minScore;
+      const passed = reviewPassed(json, minScore, rubric?.length);
       onComplete(json, passed, answer.slice(0, MAX_ANSWER_CHARS));
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
@@ -324,12 +326,12 @@ export default function WrittenResponsePlayer({
           </div>
         )}
 
-      {minScore && result.overallScore < minScore ? (
+      {minScore && !reviewPassed(result, minScore, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached &middot; {result.overallScore.toFixed(1)}/100 &middot; Required: {minScore}/100
+              Minimum score not reached &middot; {reviewGate(result, rubric?.length).score.toFixed(1)}/100 &middot; Required: {minScore}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the feedback above, revise your answer, and submit another review.</p>
           </div>

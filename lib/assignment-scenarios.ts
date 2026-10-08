@@ -9,6 +9,7 @@
 // the instructor grading view can all agree on one shape without a module cycle.
 
 import type { LessonDoc } from '@/lib/lesson-doc';
+import { reviewGate } from '@/lib/review-gate';
 
 // -- Authoring model (stored in assignments.config.scenarios) ----------------------------
 //
@@ -88,7 +89,7 @@ export const TASK_TYPE_LABEL: Record<AssignmentTaskType, string> = {
 //
 // One record per submission, holding every task's answer. Detected by `format: 'scenarios'`
 // so the instructor grading view can render each task; the pending score is the mean of the
-// auto-scored tasks (MCQ 100/0 + AI overallScore), left for the instructor to confirm.
+// auto-scored tasks (MCQ 100/0 + AI rubric gate), left for the instructor to confirm.
 
 export interface TaskAnswer {
   scenarioId: string;
@@ -357,13 +358,12 @@ export function mcqTaskScore(answer: TaskAnswer, grade?: McqGrade): number | nul
   return grade.isCorrect ? 100 : 0;
 }
 
-// An AI report's overall score is advisory only, so it is offered as a suggestion the instructor
+// An AI report's gate score is advisory only, so it is offered as a suggestion the instructor
 // applies deliberately rather than prefilled.
 export function aiTaskScoreSuggestion(answer: TaskAnswer): number | null {
   const r: any = answer.report;
   if (!r) return null;
-  const n = typeof r.overallScore === 'number' ? r.overallScore
-    : typeof r?.audit?.overallScore === 'number' ? r.audit.overallScore
-    : null;
+  const report = r.audit ?? r;
+  const n = typeof report.overallScore === 'number' ? reviewGate(report).score : null;
   return n == null || !Number.isFinite(n) ? null : clampTaskScore(n);
 }

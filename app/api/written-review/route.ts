@@ -15,6 +15,7 @@
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
+import { scoreRubricReview } from '@/lib/review-gate';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
@@ -106,11 +107,12 @@ const responseSchema = {
       items: {
         type: 'object',
         properties: {
+          id:        { type: 'integer', description: 'The 1-based position in the instructor rubric.' },
           criterion: { type: 'string' },
           passed:    { type: 'boolean' },
           comment:   { type: 'string' },
         },
-        required: ['criterion', 'passed', 'comment'],
+        required: ['id', 'criterion', 'passed', 'comment'],
       },
     },
   },
@@ -247,7 +249,9 @@ Return ONLY valid JSON. No markdown fences.`;
     });
     const arr = (value: unknown) => (Array.isArray(value) ? value : []);
     const score = Number(parsed?.overallScore);
+    const result = scoreRubricReview(parsed, rubric);
     return NextResponse.json({
+      ...(rubric.length ? { rubricScore: result.rubricScore } : {}),
       overallScore:     Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0,
       executiveSummary: String(parsed?.executiveSummary ?? ''),
       // Normalized so a player can always .map()/.filter() these without a shape guard.
@@ -266,7 +270,7 @@ Return ONLY valid JSON. No markdown fences.`;
         gaps:      arr(c?.gaps).map(String),
       })),
       topRecommendations: arr(parsed?.topRecommendations).map(String),
-      rubricGrades: arr(parsed?.rubricGrades).map((g: any) => ({
+      rubricGrades: arr(result?.rubricGrades).map((g: any) => ({
         criterion: String(g?.criterion ?? ''),
         passed:    !!g?.passed,
         comment:   String(g?.comment ?? ''),

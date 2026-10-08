@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectRubricGrades, reviewGate, reviewPassed, rubricPassRate, UNGRADED_COMMENT } from '@/lib/review-gate';
+import { collectRubricGrades, reviewGate, reviewPassed, rubricPassRate, scoreRubricReview, UNGRADED_COMMENT } from '@/lib/review-gate';
 
 const grade = (passed: boolean) => ({ passed });
 
@@ -50,6 +50,52 @@ describe('reviewGate', () => {
     // The bypass this gate exists to close: the model returns no grades, the quality score is high.
     expect(reviewGate({ overallScore: 98, rubricGrades: [] }, 4))
       .toEqual({ score: 0, fromRubric: true });
+  });
+});
+
+describe('weighted rubric gates', () => {
+  const criteria = ['Correct joins: 70 marks', 'Readable output (30 marks)', 'Assessment Note: Accept valid alternatives'];
+  it('uses instructor marks, ignores assessment notes, and keeps quality for display', () => {
+    const result = scoreRubricReview({ overallScore: 99, rubricGrades: [
+      { id: 2, criterion: 'Invented: 100 marks', passed: true },
+      { id: 1, passed: false },
+    ] }, criteria);
+    expect(result.overallScore).toBe(99);
+    expect(reviewGate(result).score).toBe(30);
+    expect(reviewPassed(result, 80)).toBe(false);
+  });
+  it('passes complete work even when the model quality score is below the minimum', () => {
+    const result = scoreRubricReview({ overallScore: 58, rubricGrades: [
+      { id: 1, passed: true }, { id: 2, passed: true },
+    ] }, criteria);
+    expect(reviewGate(result).score).toBe(100);
+    expect(reviewPassed(result, 80)).toBe(true);
+  });
+  it('uses equal shares without marks and counts missing or duplicate grades as failed', () => {
+    const result = scoreRubricReview({ overallScore: 99, rubricGrades: [
+      { id: 1, passed: true }, { id: 1, passed: true }, { id: 99, passed: true },
+    ] }, ['A', 'B', 'Assessment Note: Use any correct method']);
+    expect(reviewGate(result).score).toBe(50);
+  });
+  it('keeps missing weighted criteria in the denominator', () => {
+    expect(rubricPassRate([grade(true)], ['A: 3 marks', 'B: 7 marks'])).toBe(30);
+  });
+  it('uses one share for an unweighted criterion in a mixed rubric', () => {
+    expect(rubricPassRate([grade(true), grade(false)], ['A: 4 marks', 'B'])).toBe(80);
+  });
+  it('supports decimal marks and ignores section totals', () => {
+    expect(rubricPassRate([grade(true), grade(false)], ['Section (10 marks total): A (2.5 marks)', 'B: 7.5 marks'])).toBe(25);
+  });
+  it('recounts weighted historical reports without counting notes', () => {
+    expect(reviewGate({ overallScore: 99, rubricGrades: criteria.map((criterion, i) => ({ criterion, passed: i === 1 })) }).score).toBe(30);
+  });
+  it('does not let a notes-only rubric auto-pass', () => {
+    expect(rubricPassRate([grade(true)], ['Assessment Note: 100 marks'])).toBe(0);
+  });
+  it('leaves reviews without rubrics unchanged', () => {
+    const result = { overallScore: 78 };
+    expect(scoreRubricReview(result, [])).toBe(result);
+    expect(reviewGate(result)).toEqual({ score: 78, fromRubric: false });
   });
 });
 

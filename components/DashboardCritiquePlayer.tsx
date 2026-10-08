@@ -3,6 +3,7 @@
 import React, { useState, useRef, useCallback } from 'react';
 import { Loader2, UploadIcon, Eye, EyeOff, RotateCcw, CheckCircle2, Zap, Download, Lightbulb } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
@@ -37,6 +38,7 @@ interface RubricGrade {
 }
 interface Audit {
   overallScore: number;
+  rubricScore?: number | null;
   executiveSummary: string;
   categories: AuditCategory[];
   topRecommendations: string[];
@@ -174,8 +176,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
       }
       if (json.error) throw new Error(json.error);
       setResult(json);
-      const score = (json as CritiqueResult).audit?.overallScore ?? 100;
-      const passed = !minScore || score >= minScore;
+      const passed = reviewPassed(json.audit ?? { overallScore: 0 }, minScore, rubric?.length);
       onComplete(json, dataUrl, passed);
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
@@ -551,7 +552,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
 
       {/* Completion / gate */}
       {result && (() => {
-        const score = result.audit?.overallScore ?? 100;
+        const score = reviewGate(result.audit ?? { overallScore: 0 }, rubric?.length).score;
         const failed = !!minScore && score < minScore;
         return failed ? (
           <div className="flex items-start gap-3 px-4 py-3" style={{ background: 'rgba(239,68,68,0.08)', borderLeft: '2px solid #ef4444' }}>

@@ -24,6 +24,7 @@
 
 export interface RubricGradeLike {
   passed: boolean;
+  criterion?: string;
 }
 
 export interface RubricGrade {
@@ -109,18 +110,39 @@ export function collectRubricGrades(criteria: readonly string[], ...responses: u
 /**
  * Share of the instructor's criteria the submission met, 0-100.
  *
- * `criteriaCount` is how many criteria were sent for grading. Ungraded criteria count as not met,
- * so the denominator is the larger of the two counts. Returns null only when there was no rubric
- * at all, which is the one case where the quality score is the right thing to gate on.
+ * Pass original criteria to use their marks; unweighted criteria each have weight 1.
+ * Assessment Note lines carry no marks. Ungraded criteria remain in the denominator.
+ * Numeric counts are supported for historical reports, using saved criterion text if present.
+ * Returns null only when there was no rubric at all.
  */
 export function rubricPassRate(
   grades: readonly RubricGradeLike[] | undefined | null,
-  criteriaCount = 0,
+  criteriaCount: number | readonly string[] = 0,
 ): number | null {
-  const total = Math.max(criteriaCount, grades?.length ?? 0);
-  if (total <= 0) return null;
-  const passed = (grades ?? []).filter(g => g?.passed).length;
-  return Math.round((Math.min(passed, total) / total) * 1000) / 10;
+  // Routes pass the original criteria; historical reports can use their saved criterion text.
+  const criteria = Array.isArray(criteriaCount) ? criteriaCount : undefined;
+  const count = typeof criteriaCount === 'number' ? criteriaCount : criteriaCount.length;
+  const texts = criteria ?? (grades ?? []).map(g => g.criterion ?? '');
+  const totalCount = Math.max(count, criteria ? criteria.length : grades?.length ?? 0);
+  if (totalCount <= 0) return null;
+  let totalWeight = 0;
+  let passedWeight = 0;
+  for (let i = 0; i < totalCount; i++) {
+    const text = texts[i] ?? '';
+    if (/^\s*Assessment Note\b/i.test(text)) continue;
+    const marks = [...text.matchAll(/\b(\d+(?:\.\d+)?)\s+marks?\b(?!\s+total)/gi)];
+    const weight = marks.length ? Number(marks[marks.length - 1][1]) : 1;
+    totalWeight += weight;
+    if (grades?.[i]?.passed === true) passedWeight += weight;
+  }
+  return totalWeight > 0 ? Math.round(passedWeight / totalWeight * 1000) / 10 : 0;
+}
+
+/** Apply Excel's criterion-ID contract and pass rate without changing the quality score. */
+export function scoreRubricReview<T extends GatedReviewResult>(result: T, criteria: readonly string[]): T {
+  if (!criteria.length) return result;
+  const { grades } = collectRubricGrades(criteria, result.rubricGrades);
+  return { ...result, rubricGrades: grades, rubricScore: rubricPassRate(grades, criteria) };
 }
 
 export function reviewGate(result: GatedReviewResult, criteriaCount = 0): ReviewGate {

@@ -2,6 +2,7 @@
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateVisionJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
+import { scoreRubricReview } from '@/lib/review-gate';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
@@ -91,11 +92,12 @@ const responseSchema = {
           items: {
             type: 'object',
             properties: {
+              id:        { type: 'integer', description: 'The 1-based position in the instructor rubric.' },
               criterion: { type: 'string' },
               passed:    { type: 'boolean' },
               comment:   { type: 'string' },
             },
-            required: ['criterion', 'passed', 'comment'],
+            required: ['id', 'criterion', 'passed', 'comment'],
           },
         },
       },
@@ -272,7 +274,9 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    return NextResponse.json(parsed);
+    return NextResponse.json({ ...parsed,
+      audit: scoreRubricReview(parsed.audit, Array.isArray(rubric) ? rubric : []),
+    });
   } catch (err: any) {
     console.error('dashboard-critique error:', err);
     // The review never happened, so it should not have cost them an attempt.

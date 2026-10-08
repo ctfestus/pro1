@@ -9,6 +9,7 @@ import dynamic from 'next/dynamic';
 import { motion } from 'motion/react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { reviewGate } from '@/lib/review-gate';
 import { useTheme } from '@/components/ThemeProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -805,7 +806,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               rubric={assignment.config?.rubric}
               schema={assignment.config?.schema}
               minScore={assignment.config?.minScore}
-              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(result.overallScore, buildReviewNotes('code_review', result, submission?.response_text))}
+              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(reviewGate(result, assignment.config?.rubric?.length).score, buildReviewNotes('code_review', result, submission?.response_text))}
             />
           )}
           {assignmentType === 'excel_review' && (
@@ -820,7 +821,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               reviewSheetNames={assignment.config?.reviewSheetNames}
               reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               minScore={assignment.config?.minScore}
-              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(result.overallScore, buildReviewNotes('excel_review', result, submission?.response_text))}
+              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(reviewGate(result, assignment.config?.rubric?.length).score, buildReviewNotes('excel_review', result, submission?.response_text))}
             />
           )}
           {assignmentType === 'dashboard_critique' && (
@@ -831,7 +832,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               completed={isGraded || isSubmitted}
               savedResult={parseReviewNotes(submission?.response_text)?.report}
               rubric={assignment.config?.rubric}
-              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(result.audit?.overallScore ?? null, buildReviewNotes('dashboard_critique', result, submission?.response_text))}
+              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(reviewGate(result.audit ?? { overallScore: 0 }, assignment.config?.rubric?.length).score, buildReviewNotes('dashboard_critique', result, submission?.response_text))}
             />
           )}
           {assignmentType === 'document_review' && (
@@ -845,7 +846,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
               context={assignment.config?.context}
               minScore={assignment.config?.minScore}
               documentReviewMode={assignment.config?.documentReviewMode ?? 'ai_only'}
-              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(result.overallScore || null, buildReviewNotes('document_review', result, submission?.response_text, { documentReviewMode: assignment.config?.documentReviewMode ?? 'ai_only' }))}
+              onComplete={isGroupAssignment && !isLeader ? () => {} : (result: any) => autoSubmit(assignment.config?.documentReviewMode === 'manual' ? null : reviewGate(result, assignment.config?.rubric?.length).score, buildReviewNotes('document_review', result, submission?.response_text, { documentReviewMode: assignment.config?.documentReviewMode ?? 'ai_only' }))}
             />
           )}
         </div>
