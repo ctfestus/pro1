@@ -23,6 +23,7 @@ export type TrackedItem = {
   slug?: string | null;
   contentType: ContentType;
   cohortIds: string[];
+  availableToEveryone: boolean;
   status: string;
   deadlineDays?: number | null;
   deadlineDate?: string | null;
@@ -30,7 +31,7 @@ export type TrackedItem = {
   veFormId?: string | null;
 };
 
-export type TrackedStudent = { id: string; email: string; full_name: string | null; cohort_id: string };
+export type TrackedStudent = { id: string; email: string; full_name: string | null; cohort_id: string | null };
 
 /** One student paired with one piece of content. progressPct is filled in separately -- see attachProgress. */
 export type StatusRow = {
@@ -51,6 +52,8 @@ export type StatusRow = {
   deadline: string | null;
   daysUntilDeadline: number | null;
   isAtRisk: boolean;
+  /** True when this row exists because of an attempt, not because the content targets the cohort. */
+  activityOnly: boolean;
 };
 
 export function daysSince(dateStr: string | null | undefined): number | null {
@@ -79,13 +82,13 @@ export async function loadTrackedContent(
   const requirePublished = seesAllContent || publishedOnly;
 
   const coursesQuery = (from: number, to: number) => {
-    let query = supabase.from('courses').select('id, title, slug, cohort_ids, deadline_days, status', { count: 'exact' });
+    let query = supabase.from('courses').select('id, title, slug, cohort_ids, available_to_everyone, deadline_days, status', { count: 'exact' });
     if (requirePublished) query = query.eq('status', 'published');
     if (!seesAllContent)  query = query.eq('user_id', userId);
     return query.order('id').range(from, to);
   };
   const vesQuery = (from: number, to: number) => {
-    let query = supabase.from('virtual_experiences').select('id, title, slug, cohort_ids, deadline_days, status', { count: 'exact' });
+    let query = supabase.from('virtual_experiences').select('id, title, slug, cohort_ids, available_to_everyone, deadline_days, status', { count: 'exact' });
     if (requirePublished) query = query.eq('status', 'published');
     if (!seesAllContent)  query = query.eq('user_id', userId);
     return query.order('id').range(from, to);
@@ -100,7 +103,7 @@ export async function loadTrackedContent(
   // app/api/guided-project-progress. Not owner-scoped: a path can only add cohorts for content the
   // caller already sees, and another instructor's path is a legitimate reason a cohort has access.
   const pathsQuery = (from: number, to: number) => supabase
-    .from('learning_paths').select('item_ids, cohort_ids', { count: 'exact' })
+    .from('learning_paths').select('item_ids, cohort_ids, available_to_everyone', { count: 'exact' })
     .eq('status', 'published').order('id').range(from, to);
 
   const wants = (t: ContentType) => typeFilter === 'all' || typeFilter === t;
@@ -114,13 +117,16 @@ export async function loadTrackedContent(
   ]);
 
   const pathCohortsByItem = new Map<string, string[]>();
+  const publiclyPathGrantedItems = new Set<string>();
   for (const path of paths) {
     const pathCohortIds: string[] = Array.isArray(path.cohort_ids) ? path.cohort_ids : [];
-    if (!pathCohortIds.length) continue;
     for (const itemId of Array.isArray(path.item_ids) ? path.item_ids : []) {
-      const existing = pathCohortsByItem.get(itemId);
-      if (existing) existing.push(...pathCohortIds);
-      else pathCohortsByItem.set(itemId, [...pathCohortIds]);
+      if (path.available_to_everyone === true) publiclyPathGrantedItems.add(itemId);
+      if (pathCohortIds.length) {
+        const existing = pathCohortsByItem.get(itemId);
+        if (existing) existing.push(...pathCohortIds);
+        else pathCohortsByItem.set(itemId, [...pathCohortIds]);
+      }
     }
   }
   // Both grants require the item itself to be published, so a draft an instructor can see keeps
@@ -131,19 +137,21 @@ export async function loadTrackedContent(
     const viaPath = pathCohortsByItem.get(item.id);
     return viaPath ? [...new Set([...direct, ...viaPath])] : direct;
   };
+  const availableToEveryoneFor = (item: any): boolean => item.status === 'published'
+    && (item.available_to_everyone === true || publiclyPathGrantedItems.has(item.id));
 
   return [
     ...courses.map((c: any): TrackedItem => ({
       id: c.id, title: c.title, slug: c.slug ?? null, contentType: 'course', status: c.status,
-      cohortIds: cohortIdsFor(c), deadlineDays: c.deadline_days ?? null,
+      cohortIds: cohortIdsFor(c), availableToEveryone: availableToEveryoneFor(c), deadlineDays: c.deadline_days ?? null,
     })),
     ...ves.map((v: any): TrackedItem => ({
       id: v.id, title: v.title, slug: v.slug ?? null, contentType: 'virtual_experience', status: v.status,
-      cohortIds: cohortIdsFor(v), deadlineDays: v.deadline_days ?? null,
+      cohortIds: cohortIdsFor(v), availableToEveryone: availableToEveryoneFor(v), deadlineDays: v.deadline_days ?? null,
     })),
     ...assignments.map((a: any): TrackedItem => ({
       id: a.id, title: a.title, slug: null, contentType: 'assignment', status: a.status,
-      cohortIds: Array.isArray(a.cohort_ids) ? a.cohort_ids : [],
+      cohortIds: Array.isArray(a.cohort_ids) ? a.cohort_ids : [], availableToEveryone: false,
       deadlineDate: a.deadline_date ?? null,
       veFormId: a.type === 'virtual_experience' ? (a.config?.ve_form_id ?? null) : null,
     })),
@@ -218,6 +226,80 @@ export async function loadStudents(supabase: any, cohortIds: string[]): Promise<
 }
 
 /**
+ * Students who have actually started reportable open content, whether or not their cohort was
+ * assigned to it. Open-to-everyone content deliberately has no cohort population, so treating its
+ * cohort list as its enrolment list made real attempts disappear from Student Tracking.
+ *
+ * Only courses and standalone VEs are included here. Assignments still use their explicit cohort
+ * audience, and a VE attempt does not by itself prove enrolment in a VE-backed assignment.
+ */
+export type TrackedActivity = {
+  students: TrackedStudent[];
+  courseAttempts: any[];
+  veAttempts: any[];
+  courseIds: string[];
+  veIds: string[];
+};
+
+export async function loadTrackedActivity(
+  supabase: any,
+  items: TrackedItem[],
+  scopedStudents?: TrackedStudent[],
+): Promise<TrackedActivity> {
+  // Assigned populations are loaded separately and have their attempts fetched by student+content.
+  // This discovery pass is needed only for published public content, where a real learner may have
+  // activity without appearing in any assigned cohort roster.
+  const courseIds = items
+    .filter(i => i.contentType === 'course' && i.status === 'published' && i.availableToEveryone)
+    .map(i => i.id);
+  const veIds = items
+    .filter(i => i.contentType === 'virtual_experience' && i.status === 'published' && i.availableToEveryone)
+    .map(i => i.id);
+  const scopedStudentIds = scopedStudents?.map(student => student.id);
+  if (scopedStudentIds && !scopedStudentIds.length) {
+    return { students: [], courseAttempts: [], veAttempts: [], courseIds, veIds };
+  }
+
+  const [courseAttempts, veAttempts] = await Promise.all([
+    scopedStudentIds
+      ? fetchAllRowsByIdPairs<any>(scopedStudentIds, courseIds, (studentChunk, contentChunk, from, to) => supabase
+          .from('course_attempts').select('student_id, course_id, completed_at, updated_at, score, passed', { count: 'exact' })
+          .in('student_id', studentChunk).in('course_id', contentChunk).order('id').range(from, to))
+      : fetchAllRowsByIds<any>(courseIds, (idChunk, from, to) => supabase
+          .from('course_attempts').select('student_id, course_id, completed_at, updated_at, score, passed', { count: 'exact' })
+          .in('course_id', idChunk).order('id').range(from, to)),
+    scopedStudentIds
+      ? fetchAllRowsByIdPairs<any>(scopedStudentIds, veIds, (studentChunk, contentChunk, from, to) => supabase
+          .from('guided_project_attempts').select('student_id, ve_id, completed_at, updated_at', { count: 'exact' })
+          .in('student_id', studentChunk).in('ve_id', contentChunk).order('id').range(from, to))
+      : fetchAllRowsByIds<any>(veIds, (idChunk, from, to) => supabase
+          .from('guided_project_attempts').select('student_id, ve_id, completed_at, updated_at', { count: 'exact' })
+          .in('ve_id', idChunk).order('id').range(from, to)),
+  ]);
+
+  const studentIds = [...new Set([...courseAttempts, ...veAttempts].map(a => a.student_id).filter(Boolean))];
+  if (!studentIds.length) return { students: [], courseAttempts: [], veAttempts: [], courseIds, veIds };
+
+  const students = scopedStudents ?? await fetchAllRowsByIds<TrackedStudent>(studentIds, (idChunk, from, to) => supabase
+    .from('students').select('id, email, full_name, cohort_id', { count: 'exact' })
+    .in('id', idChunk).eq('role', 'student').order('id').range(from, to));
+  const validStudentIds = new Set(students.map(student => student.id));
+  const reportableCourseAttempts = courseAttempts.filter(attempt => validStudentIds.has(attempt.student_id));
+  const reportableVeAttempts = veAttempts.filter(attempt => validStudentIds.has(attempt.student_id));
+  const activityStudentIds = new Set(
+    [...reportableCourseAttempts, ...reportableVeAttempts].map(attempt => attempt.student_id),
+  );
+
+  return {
+    students: students.filter(student => activityStudentIds.has(student.id)),
+    courseAttempts: reportableCourseAttempts,
+    veAttempts: reportableVeAttempts,
+    courseIds,
+    veIds,
+  };
+}
+
+/**
  * Build one row per (student, content) pairing, with status but without progress percentages.
  *
  * The heavy jsonb -- course answers, VE progress, course questions, VE modules -- is deliberately
@@ -227,9 +309,16 @@ export async function loadStudents(supabase: any, cohortIds: string[]): Promise<
  */
 export async function buildStatusRows(
   supabase: any,
-  opts: { items: TrackedItem[]; students: TrackedStudent[]; cohortNames: Map<string, string>; activeCohortIds: string[] },
+  opts: {
+    items: TrackedItem[];
+    students: TrackedStudent[];
+    cohortNames: Map<string, string>;
+    activeCohortIds: string[];
+    includeActivity?: boolean;
+    preloadedActivity?: Pick<TrackedActivity, 'courseAttempts' | 'veAttempts' | 'courseIds' | 'veIds'>;
+  },
 ): Promise<StatusRow[]> {
-  const { items, students, cohortNames, activeCohortIds } = opts;
+  const { items, students, cohortNames, activeCohortIds, includeActivity = false, preloadedActivity } = opts;
   if (!items.length || !students.length) return [];
 
   const courseIds  = items.filter(i => i.contentType === 'course').map(i => i.id);
@@ -241,18 +330,21 @@ export async function buildStatusRows(
   // the VE attempt alone (completable through the standalone or learning-path route) is not one.
   const submissionIds = items.filter(i => i.contentType === 'assignment').map(i => i.id);
   const allItemIds = items.map(i => i.id);
+  const preloadedCourseIds = new Set(preloadedActivity?.courseIds ?? []);
+  const preloadedVeIds = new Set(preloadedActivity?.veIds ?? []);
+  const courseIdsToLoad = courseIds.filter(id => !preloadedCourseIds.has(id));
+  const gpVeIdsToLoad = gpVeIds.filter(id => !preloadedVeIds.has(id));
 
   // Every query is scoped to both dimensions -- the students in view and the content in view.
   // Filtering on content alone pulled in the attempts of every student on the platform, so a
   // single-cohort view paid for every other cohort's history before discarding it.
   const studentIds = students.map(s => s.id);
-
-  const [courseAttempts, gpAttempts, submissions, cohortAssignments] = await Promise.all([
-    fetchAllRowsByIdPairs<any>(studentIds, courseIds, (studentChunk, contentChunk, from, to) => supabase
+  const [loadedCourseAttempts, loadedGpAttempts, submissions, cohortAssignments] = await Promise.all([
+    fetchAllRowsByIdPairs<any>(studentIds, courseIdsToLoad, (studentChunk, contentChunk, from, to) => supabase
       .from('course_attempts')
       .select('student_id, course_id, completed_at, updated_at, score, passed', { count: 'exact' })
       .in('student_id', studentChunk).in('course_id', contentChunk).order('id').range(from, to)),
-    fetchAllRowsByIdPairs<any>(studentIds, gpVeIds, (studentChunk, contentChunk, from, to) => supabase
+    fetchAllRowsByIdPairs<any>(studentIds, gpVeIdsToLoad, (studentChunk, contentChunk, from, to) => supabase
       .from('guided_project_attempts')
       .select('student_id, ve_id, completed_at, updated_at', { count: 'exact' })
       .in('student_id', studentChunk).in('ve_id', contentChunk).order('id').range(from, to)),
@@ -265,6 +357,8 @@ export async function buildStatusRows(
       .select('content_id, cohort_id, assigned_at', { count: 'exact' })
       .in('content_id', contentChunk).in('cohort_id', cohortChunk).order('id').range(from, to)),
   ]);
+  const courseAttempts = [...(preloadedActivity?.courseAttempts ?? []), ...loadedCourseAttempts];
+  const gpAttempts = [...(preloadedActivity?.veAttempts ?? []), ...loadedGpAttempts];
 
   const cohortAssignmentMap = new Map<string, string>();
   for (const ca of cohortAssignments) cohortAssignmentMap.set(`${ca.content_id}|${ca.cohort_id}`, ca.assigned_at);
@@ -289,11 +383,27 @@ export async function buildStatusRows(
   const gpAttemptMap = new Map<string, any>();
   for (const a of gpAttempts) gpAttemptMap.set(`${a.student_id}|${a.ve_id}`, a);
 
+  // Activity grants a report row, not enrolment. It adds only the exact student-content pair that
+  // has an attempt, so an open VE with one learner does not turn every free signup into Not Started.
+  const activityStudentIdsByItem = new Map<string, Set<string>>();
+  const addActivity = (itemId: string, studentId: string) => {
+    const ids = activityStudentIdsByItem.get(itemId) ?? new Set<string>();
+    ids.add(studentId);
+    activityStudentIdsByItem.set(itemId, ids);
+  };
+  for (const a of preloadedActivity?.courseAttempts ?? []) addActivity(a.course_id, a.student_id);
+  const standaloneVeIds = new Set(veIds);
+  for (const a of preloadedActivity?.veAttempts ?? []) {
+    if (standaloneVeIds.has(a.ve_id)) addActivity(a.ve_id, a.student_id);
+  }
+
   const submissionMap = new Map<string, any>();
   for (const s of submissions) submissionMap.set(`${s.student_id}|${s.assignment_id}`, s);
 
   const studentsByCohort = new Map<string, TrackedStudent[]>();
+  const studentsById = new Map(students.map(student => [student.id, student]));
   for (const student of students) {
+    if (!student.cohort_id) continue;
     const list = studentsByCohort.get(student.cohort_id);
     if (list) list.push(student);
     else studentsByCohort.set(student.cohort_id, [student]);
@@ -305,13 +415,20 @@ export async function buildStatusRows(
 
   for (const item of items) {
     const itemCohortIds = item.cohortIds.filter(id => activeCohortSet.has(id));
-    if (!itemCohortIds.length) continue;
+    const candidateIds = new Set(itemCohortIds.flatMap(cid => studentsByCohort.get(cid) ?? []).map(s => s.id));
+    if (includeActivity) {
+      for (const studentId of activityStudentIdsByItem.get(item.id) ?? []) {
+        if (studentsById.has(studentId)) candidateIds.add(studentId);
+      }
+    }
+    if (!candidateIds.size) continue;
 
     const isVE           = item.contentType === 'virtual_experience';
     const isAssignment   = item.contentType === 'assignment';
     const isVeAssignment = isAssignment && !!item.veFormId;
 
-    for (const student of itemCohortIds.flatMap(cid => studentsByCohort.get(cid) ?? [])) {
+    for (const studentId of candidateIds) {
+      const student = studentsById.get(studentId)!;
       const key = `${student.id}|${item.id}`;
 
       let status: RowStatus = 'not_started';
@@ -365,7 +482,7 @@ export async function buildStatusRows(
         deadline = dl.toISOString();
         daysUntilDeadline = Math.ceil((dl.getTime() - Date.now()) / 86400000);
       } else if (!isAssignment) {
-        const assignedAt = cohortAssignmentMap.get(`${item.id}|${student.cohort_id}`);
+        const assignedAt = student.cohort_id ? cohortAssignmentMap.get(`${item.id}|${student.cohort_id}`) : null;
         if (assignedAt && item.deadlineDays) {
           const dl = new Date(new Date(assignedAt).getTime() + Number(item.deadlineDays) * 86400000);
           deadline = dl.toISOString();
@@ -377,8 +494,8 @@ export async function buildStatusRows(
         studentId:         student.id,
         studentEmail:      student.email,
         studentName:       student.full_name ?? '',
-        cohortId:          student.cohort_id,
-        cohortName:        cohortNames.get(student.cohort_id) ?? '',
+        cohortId:          student.cohort_id ?? '',
+        cohortName:        student.cohort_id ? (cohortNames.get(student.cohort_id) ?? '') : 'No cohort',
         formId:            item.id,
         formTitle:         item.title,
         contentType:       item.contentType,
@@ -392,6 +509,7 @@ export async function buildStatusRows(
         deadline,
         daysUntilDeadline,
         isAtRisk:          status === 'failed' || (status !== 'completed' && daysUntilDeadline !== null && daysUntilDeadline <= 3),
+        activityOnly:      !student.cohort_id || !itemCohortIds.includes(student.cohort_id),
       });
     }
   }

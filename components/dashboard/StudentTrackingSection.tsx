@@ -427,7 +427,10 @@ export function StudentTrackingSection({ C }: { C: typeof LIGHT_C }) {
             const meta = STATUS_META[row.status as keyof typeof STATUS_META];
             const nudgeKey = `${row.studentEmail}|${row.formId}`;
             const isNudged = nudged.has(nudgeKey);
-            const canNudge = row.status === 'not_started' || row.status === 'stalled' || row.status === 'in_progress' || row.status === 'failed';
+            // Activity-only rows are visible for reporting, but the content was not assigned to
+            // their cohort. Keep the existing messaging boundary: viewing activity does not opt a
+            // learner into cohort nudges or bulk communication.
+            const canNudge = !row.activityOnly && (row.status === 'not_started' || row.status === 'stalled' || row.status === 'in_progress' || row.status === 'failed');
             return (
               <div key={nudgeKey}
                 className="grid grid-cols-[1fr_110px_90px] sm:grid-cols-[1fr_1fr_70px_110px_110px_90px]"
@@ -435,7 +438,9 @@ export function StudentTrackingSection({ C }: { C: typeof LIGHT_C }) {
                 {/* Student */}
                 <div style={{ minWidth: 0 }}>
                   <div style={{ fontSize: 13, fontWeight: 600, color: C.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.studentName || '--'}</div>
-                  <div style={{ fontSize: 11, color: C.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{row.studentEmail}</div>
+                  <div style={{ fontSize: 11, color: C.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {row.studentEmail}{row.cohortName ? ` - ${row.cohortName}` : ''}
+                  </div>
                 </div>
                 {/* Content */}
                 <div className="hidden sm:block" style={{ fontSize: 13, color: C.text, paddingRight: 8, wordBreak: 'break-word' }}>{row.formTitle}</div>

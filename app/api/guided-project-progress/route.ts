@@ -14,6 +14,7 @@ import { hasPublishedStudentContentAccess } from '@/lib/student-content-access';
 import { veReviewHref } from '@/lib/pending-ve-review';
 import { clampScore, normalizeInstructorReports, reportableRequirementIds, sameReportContent, type InstructorFileReport } from '@/lib/ve-instructor-report';
 import { applyEmailTemplate } from '@/lib/email-template-service';
+import { hasStandaloneVeReportEligibility, loadStandaloneVeReportStudentIds } from '@/lib/standalone-ve-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -184,7 +185,10 @@ export async function GET(req: NextRequest) {
     const { user } = authRes;
 
     const [{ data: ve }, { data: profile }] = await Promise.all([
-      supabase.from('virtual_experiences').select('user_id').eq('id', veId).single(),
+      supabase.from('virtual_experiences')
+        .select('id, user_id, status, cohort_ids, available_to_everyone')
+        .eq('id', veId)
+        .single(),
       supabase.from('students').select('role').eq('id', user.id).single(),
     ]);
     const isAdmin = profile?.role === 'admin';
@@ -192,16 +196,12 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     }
 
-    // Fetch VE cohort_ids, all enrolled students, and all attempts in parallel
-    const [{ data: veData }, { data: attempts }] = await Promise.all([
-      supabase.from('virtual_experiences').select('cohort_ids').eq('id', veId).single(),
-      supabase
-        .from('guided_project_attempts')
-        .select('id, student_id, progress, completed_at, started_at, updated_at, review')
-        .eq('ve_id', veId),
-    ]);
+    const { data: attempts } = await supabase
+      .from('guided_project_attempts')
+      .select('id, student_id, progress, completed_at, started_at, updated_at, review')
+      .eq('ve_id', veId);
 
-    const cohortIds: string[] = veData?.cohort_ids ?? [];
+    const cohortIds: string[] = ve.cohort_ids ?? [];
 
     // Get all students enrolled in this VE's cohorts
     const { data: enrolledStudents } = cohortIds.length > 0
@@ -213,9 +213,44 @@ export async function GET(req: NextRequest) {
           .order('full_name', { ascending: true })
       : { data: [] };
 
-    // Merge: every enrolled student gets a row; attempt fields are null if not started
-    const attemptsMap = new Map((attempts ?? []).map((a: any) => [a.student_id, a]));
-    const merged = (enrolledStudents ?? []).map((s: any) => {
+    // Open-to-everyone VEs often have no cohort_ids. Their attempts are still real report rows, so
+    // load the student profiles that are missing from the assigned cohort population and merge the
+    // union. Only assigned students can become Not Started; everyone else is present because they
+    // have an attempt.
+    const enrolledIds = new Set((enrolledStudents ?? []).map((student: any) => student.id));
+    const activityProfileIds = [...new Set(
+      (attempts ?? []).map((attempt: any) => attempt.student_id).filter((id: string) => id && !enrolledIds.has(id)),
+    )];
+    const { data: activityStudents } = activityProfileIds.length > 0
+      ? await supabase
+          .from('students')
+          .select('id, full_name, email, cohort_id')
+          .in('id', activityProfileIds)
+          .eq('role', 'student')
+      : { data: [] };
+
+    const reportStudentIds = await loadStandaloneVeReportStudentIds(
+      supabase,
+      ve,
+      [...(enrolledStudents ?? []), ...(activityStudents ?? [])],
+    );
+    // Current cohort members stay in the assigned population even when the VE is unpublished.
+    // Activity-only learners need current or historical standalone eligibility so assignment-only
+    // attempts do not leak into this report.
+    const allowedAttemptStudentIds = new Set([...enrolledIds, ...reportStudentIds]);
+    const reportAttempts = (attempts ?? []).filter((attempt: any) => allowedAttemptStudentIds.has(attempt.student_id));
+    const studentsById = new Map(
+      [
+        ...(enrolledStudents ?? []),
+        ...(activityStudents ?? []).filter((student: any) => reportStudentIds.has(student.id)),
+      ].map((student: any) => [student.id, student]),
+    );
+
+    // Merge: every assigned student gets a row; attempt fields are null if not started.
+    const attemptsMap = new Map(reportAttempts.map((attempt: any) => [attempt.student_id, attempt]));
+    const merged = [...studentsById.values()]
+      .sort((a: any, b: any) => String(a.full_name || a.email || '').localeCompare(String(b.full_name || b.email || '')))
+      .map((s: any) => {
       const attempt = attemptsMap.get(s.id) as any;
       return {
         id:            attempt?.id            ?? null,
@@ -228,8 +263,9 @@ export async function GET(req: NextRequest) {
         started_at:    attempt?.started_at    ?? null,
         updated_at:    attempt?.updated_at    ?? null,
         review:        attempt?.review        ?? null,
-      };
-    });
+        activity_only: !enrolledIds.has(s.id),
+        };
+      });
 
     return NextResponse.json({ attempts: merged });
   }
@@ -275,12 +311,18 @@ export async function POST(req: NextRequest) {
     if (!attempt) return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
 
     const [{ data: ve }, { data: reviewProfile }] = await Promise.all([
-      supabase.from('virtual_experiences').select('user_id, title, modules').eq('id', attempt.ve_id).single(),
+      supabase.from('virtual_experiences')
+        .select('id, user_id, title, modules, status, cohort_ids, available_to_everyone')
+        .eq('id', attempt.ve_id)
+        .single(),
       supabase.from('students').select('role').eq('id', user.id).single(),
     ]);
     const isAdmin = reviewProfile?.role === 'admin';
     if (!ve || (ve.user_id !== user.id && !isAdmin)) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+    if (!(await hasStandaloneVeReportEligibility(supabase, ve, attempt.student_id))) {
+      return NextResponse.json({ error: 'This work belongs to an assignment and must be reviewed there.' }, { status: 403 });
     }
 
     // Each report records the file it reviewed. A report for a file the student has since replaced

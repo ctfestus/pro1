@@ -62,7 +62,26 @@ const AI_REPORT = {
 function readStub(rows: Record<string, any>) {
   return {
     from: (table: string) => {
-      const q: any = { select: () => q, eq: () => q, single: async () => ({ data: rows[table] ?? null, error: null }) };
+      const q: any = {
+        select: () => q,
+        eq: () => q,
+        in: () => q,
+        contains: () => q,
+        or: () => q,
+        limit: () => q,
+        order: () => q,
+        range: () => q,
+        single: async () => ({ data: rows[table] ?? null, error: null }),
+        maybeSingle: async () => ({
+          data: Array.isArray(rows[table]) ? (rows[table][0] ?? null) : (rows[table] ?? null),
+          error: null,
+        }),
+        then: (resolve: (value: any) => any) => resolve({
+          data: Array.isArray(rows[table]) ? rows[table] : (rows[table] == null ? [] : [rows[table]]),
+          error: null,
+          count: Array.isArray(rows[table]) ? rows[table].length : (rows[table] == null ? 0 : 1),
+        }),
+      };
       return q;
     },
   };
@@ -71,12 +90,24 @@ function readStub(rows: Record<string, any>) {
 // The file URL the attempt holds after setupDraft; the panel sends it with each draft request.
 let panelFileUrl = '';
 
-function setupDraft({ ownerId = 'inst1', role = 'instructor', file = 'deck.txt', ve = 've1', modules = MODULES }: { ownerId?: string; role?: string; file?: string; ve?: string; modules?: any[] } = {}) {
+function setupDraft({
+  ownerId = 'inst1', role = 'instructor', file = 'deck.txt', ve = 've1', modules = MODULES,
+  directAccess = true, veStatus = 'published', cohortIds = [], studentCohort = null,
+  bootcampHistory = [], subscriptionHistory = [],
+}: {
+  ownerId?: string; role?: string; file?: string; ve?: string; modules?: any[];
+  directAccess?: boolean; veStatus?: string; cohortIds?: string[]; studentCohort?: string | null;
+  bootcampHistory?: any[]; subscriptionHistory?: any[];
+} = {}) {
   mockRequireRole.mockResolvedValue({ user: { id: 'inst1' }, role } as any);
   panelFileUrl = fileUrl(file, ve);
   vi.mocked(adminClient).mockReturnValue(readStub({
-    guided_project_attempts: { ve_id: 've1', progress: { u1: { fileUrl: fileUrl(file, ve), completed: true } } },
-    virtual_experiences: { user_id: ownerId, title: 'Market Entry', modules, company: 'Acme', role: 'Analyst' },
+    guided_project_attempts: { ve_id: 've1', student_id: 'stu1', progress: { u1: { fileUrl: fileUrl(file, ve), completed: true } } },
+    virtual_experiences: { id: 've1', user_id: ownerId, title: 'Market Entry', modules, company: 'Acme', role: 'Analyst', status: veStatus, cohort_ids: cohortIds, available_to_everyone: directAccess },
+    students: { role: 'student', cohort_id: studentCohort },
+    learning_paths: [],
+    bootcamp_enrollments: bootcampHistory,
+    individual_subscriptions: subscriptionHistory,
   }) as any);
 }
 
@@ -112,6 +143,34 @@ describe('AI draft route', () => {
     expect(mockBump).toHaveBeenCalledTimes(1);
     expect(mockRefund).not.toHaveBeenCalled();
     expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('Revenue grew 12 percent.');
+  });
+
+  it('refuses to draft a standalone review for assignment-only work', async () => {
+    setupDraft({ directAccess: false });
+    const fetchMock = respondWith('text');
+    const res = await draft();
+    expect(res.status).toBe(403);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(mockBump).not.toHaveBeenCalled();
+  });
+
+  it('allows a draft after the VE is unpublished', async () => {
+    setupDraft({ veStatus: 'draft' });
+    respondWith('text');
+    mockGenerateJSON.mockResolvedValue(AI_REPORT);
+    expect((await draft()).status).toBe(200);
+  });
+
+  it('allows a draft for a learner with historical standalone cohort access', async () => {
+    setupDraft({
+      directAccess: false,
+      cohortIds: ['former-cohort'],
+      studentCohort: 'new-cohort',
+      bootcampHistory: [{ student_id: 'stu1', cohort_id: 'former-cohort', released_at: '2026-10-09T00:00:00.000Z' }],
+    });
+    respondWith('text');
+    mockGenerateJSON.mockResolvedValue(AI_REPORT);
+    expect((await draft()).status).toBe(200);
   });
 
   it('records the reviewed file on the draft', async () => {
@@ -156,8 +215,9 @@ describe('AI draft route', () => {
     setupDraft();
     panelFileUrl = `${SUPABASE}/storage/v1/object/public/form-assets/ve-submissions/${veFolder}/user1/u1/1-deck.txt`;
     vi.mocked(adminClient).mockReturnValue(readStub({
-      guided_project_attempts: { ve_id: 've1', progress: { u1: { fileUrl: panelFileUrl, completed: true } } },
-      virtual_experiences: { user_id: 'inst1', title: 'Market Entry', modules: MODULES, company: 'Acme', role: 'Analyst' },
+      guided_project_attempts: { ve_id: 've1', student_id: 'stu1', progress: { u1: { fileUrl: panelFileUrl, completed: true } } },
+      virtual_experiences: { id: 've1', user_id: 'inst1', title: 'Market Entry', modules: MODULES, company: 'Acme', role: 'Analyst', status: 'published', cohort_ids: [], available_to_everyone: true },
+      students: { role: 'student', cohort_id: null },
     }) as any);
   }
 
@@ -173,8 +233,9 @@ describe('AI draft route', () => {
     // What the standalone player saved before uploads moved to the account-id folder.
     panelFileUrl = `${SUPABASE}/storage/v1/object/public/form-assets/submissions/ve1/s%2540x.com/u1-1-deck.txt`;
     vi.mocked(adminClient).mockReturnValue(readStub({
-      guided_project_attempts: { ve_id: 've1', progress: { u1: { fileUrl: panelFileUrl, completed: true } } },
-      virtual_experiences: { user_id: 'inst1', title: 'Market Entry', modules: MODULES, company: 'Acme', role: 'Analyst' },
+      guided_project_attempts: { ve_id: 've1', student_id: 'stu1', progress: { u1: { fileUrl: panelFileUrl, completed: true } } },
+      virtual_experiences: { id: 've1', user_id: 'inst1', title: 'Market Entry', modules: MODULES, company: 'Acme', role: 'Analyst', status: 'published', cohort_ids: [], available_to_everyone: true },
+      students: { role: 'student', cohort_id: null },
     }) as any);
     const fetchMock = respondWith('text');
     mockGenerateJSON.mockResolvedValue(AI_REPORT);
@@ -376,18 +437,41 @@ describe('saving reports with a review', () => {
   const CURRENT = fileUrl('v2.pdf');
   const OLDER = fileUrl('v1.pdf');
 
-  function setupSave(existingReview: any = null, modules: any[] = MODULES) {
+  function setupSave(
+    existingReview: any = null,
+    modules: any[] = MODULES,
+    directAccess = true,
+    access: {
+      status?: string;
+      cohortIds?: string[];
+      studentCohort?: string | null;
+      bootcampHistory?: any[];
+      subscriptionHistory?: any[];
+    } = {},
+  ) {
     const writes: any[] = [];
     const rows: Record<string, any> = {
       guided_project_attempts: { ve_id: 've1', student_id: 'stu1', review: existingReview, progress: { u1: { fileUrl: CURRENT }, u2: { fileUrl: CURRENT } } },
-      virtual_experiences: { user_id: 'inst1', title: 'Market Entry', modules },
-      students: { role: 'instructor', email: 'stu@example.com', full_name: 'Stu' },
+      virtual_experiences: { id: 've1', user_id: 'inst1', title: 'Market Entry', modules, status: access.status ?? 'published', cohort_ids: access.cohortIds ?? [], available_to_everyone: directAccess },
+      students: { role: 'student', cohort_id: access.studentCohort ?? null, email: 'stu@example.com', full_name: 'Stu' },
+      learning_paths: [],
+      bootcamp_enrollments: access.bootcampHistory ?? [],
+      individual_subscriptions: access.subscriptionHistory ?? [],
     };
     const client = {
       from: (table: string) => {
         const q: any = {
-          select: () => q, eq: () => q,
+          select: () => q, eq: () => q, in: () => q, contains: () => q, or: () => q, limit: () => q, order: () => q, range: () => q,
           single: async () => ({ data: rows[table] ?? null, error: null }),
+          maybeSingle: async () => ({
+            data: Array.isArray(rows[table]) ? (rows[table][0] ?? null) : (rows[table] ?? null),
+            error: null,
+          }),
+          then: (onFulfilled: any, onRejected: any) => Promise.resolve({
+            data: Array.isArray(rows[table]) ? rows[table] : [],
+            count: Array.isArray(rows[table]) ? rows[table].length : 0,
+            error: null,
+          }).then(onFulfilled, onRejected),
           update: (payload: any) => { writes.push(payload); return { eq: async () => ({ error: null }) }; },
         };
         return q;
@@ -411,6 +495,24 @@ describe('saving reports with a review', () => {
     const reports = writes[0].review.reports;
     expect(Object.keys(reports)).toEqual(['u1']);
     expect(reports.u1.findings).toHaveLength(1);
+  });
+
+  it('refuses to save a standalone review for assignment-only work', async () => {
+    const writes = setupSave(null, MODULES, false);
+    const res = await save({ reports: {} });
+    expect(res.status).toBe(403);
+    expect(writes).toHaveLength(0);
+  });
+
+  it('allows a review after an entitled subscriber expires and the VE is unpublished', async () => {
+    const writes = setupSave(null, MODULES, false, {
+      status: 'draft',
+      cohortIds: ['plan-cohort'],
+      subscriptionHistory: [{ student_id: 'stu1', cohort_id: 'plan-cohort', status: 'expired' }],
+    });
+    const res = await save({ reports: {} });
+    expect(res.status).toBe(200);
+    expect(writes).toHaveLength(1);
   });
 
   it('clamps the overall score to 0-100', async () => {

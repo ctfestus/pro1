@@ -19,6 +19,7 @@ import { ArchiveTooLargeError, assertZipWithinLimit, extractDocxText, extractPpt
 import { hasReportContent, normalizeInstructorReport, reportableRequirementIds } from '@/lib/ve-instructor-report';
 import { normalizeReviewSheetNames } from '@/lib/excel-review-config';
 import { repairVeSubmissionUrl } from '@/lib/ve-upload';
+import { hasStandaloneVeReportEligibility } from '@/lib/standalone-ve-access';
 
 export const dynamic = 'force-dynamic';
 
@@ -137,19 +138,22 @@ export async function POST(req: NextRequest) {
   const supabase = adminClient();
   const { data: attempt } = await supabase
     .from('guided_project_attempts')
-    .select('ve_id, progress')
+    .select('ve_id, student_id, progress')
     .eq('id', attemptId)
     .single();
   if (!attempt) return NextResponse.json({ error: 'Attempt not found' }, { status: 404 });
 
   const { data: ve } = await supabase
     .from('virtual_experiences')
-    .select('user_id, title, modules, company, role')
+    .select('id, user_id, title, modules, company, role, status, cohort_ids, available_to_everyone')
     .eq('id', attempt.ve_id)
     .single();
   // Same ownership rule as saving a review: the VE's author, or an admin.
   if (!ve || (ve.user_id !== user.id && role !== 'admin')) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+  if (!(await hasStandaloneVeReportEligibility(supabase, ve, attempt.student_id))) {
+    return NextResponse.json({ error: 'This work belongs to an assignment and must be reviewed there.' }, { status: 403 });
   }
   if (!reportableRequirementIds(ve.modules).has(reqId)) {
     return NextResponse.json({ error: 'This step does not collect a file.' }, { status: 400 });
