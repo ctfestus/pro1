@@ -804,7 +804,7 @@ export default function CreateAssignmentPage() {
                         onSelect={handleExtractRubric}
                       />
                     </div>
-                    <p style={{ ...hintStyle(C), marginBottom: 8 }}>Upload completed work to infer criteria, or import an existing Markdown rubric.</p>
+                    <p style={{ ...hintStyle(C), marginBottom: 8 }}>Upload completed work or your own rubric file to set the criteria.</p>
 
                     <textarea
                       value={rubricText}

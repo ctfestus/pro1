@@ -109,107 +109,42 @@ it('normalizes legacy DOC MIME even when the browser sends a generic type', asyn
   expect(mockGenerateVisionJSON.mock.calls[0][1].mimeType).toBe('application/msword');
 });
 
-describe('POST /api/extract-rubric - Markdown rubric import', () => {
-  it('treats Markdown rubric criteria as authoritative and normalizes the result', async () => {
+describe('POST /api/extract-rubric - authored rubric files', () => {
+  const markdown = () => new File(['# Rubric\n- Accuracy is at least 95%: 3 marks'], 'grading-rubric.md', { type: 'text/markdown' });
+
+  it('reads a Markdown rubric through the reference upload and normalizes the result', async () => {
     mockGenerateJSON.mockResolvedValue({
-      criteria: [' Accuracy is at least 95% ', 'accuracy is at least 95%', 'Explains every REVIEW result'],
+      criteria: [' Accuracy is at least 95%: 3 marks ', 'accuracy is at least 95%: 3 marks', 'Explains every REVIEW result'],
     });
-
-    const response = await postFile(
-      new File(['# Rubric\n- Accuracy is at least 95%'], 'grading-rubric.md', { type: 'text/markdown' }),
-      'rubric',
-    );
-
+    const response = await postFile(markdown(), 'reference_solution');
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual({
-      criteria: ['Accuracy is at least 95%', 'Explains every REVIEW result'],
+      criteria: ['Accuracy is at least 95%: 3 marks', 'Explains every REVIEW result'],
     });
-    expect(mockGenerateJSON).toHaveBeenCalledTimes(1);
-    const prompt = String(mockGenerateJSON.mock.calls[0][0]);
-    expect(prompt).toContain('Treat the rubric as authoritative data');
-    expect(prompt).toContain('Do not invent requirements');
-    expect(prompt).toContain('Rubric Markdown JSON string:');
+    expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('Accuracy is at least 95%: 3 marks');
+    expect(mockGenerateJSON.mock.calls[0][2]).toMatchObject({ retries: 2 });
     expect(mockGenerateVisionJSON).not.toHaveBeenCalled();
   });
 
-  it('rejects a non-Markdown file for direct rubric import', async () => {
-    const response = await postFile(new File(['criterion'], 'rubric.txt', { type: 'text/plain' }), 'rubric');
-    expect(response.status).toBe(415);
-    expect(await response.json()).toEqual({ error: 'Rubric imports must be Markdown (.md) files' });
+  it('rejects the removed Markdown import type', async () => {
+    const response = await postFile(markdown(), 'rubric');
+    expect(response.status).toBe(400);
     expect(mockGenerateJSON).not.toHaveBeenCalled();
-  });
-
-  it('rejects a renamed binary file with a conflicting MIME type', async () => {
-    const response = await postFile(
-      new File(['%PDF-1.7'], 'rubric.md', { type: 'application/pdf' }),
-      'rubric',
-    );
-    expect(response.status).toBe(415);
-    expect(await response.json()).toEqual({ error: 'Rubric imports must contain Markdown text' });
-    expect(mockGenerateJSON).not.toHaveBeenCalled();
-  });
-
-  it('rejects binary content disguised with a generic MIME type', async () => {
-    const response = await postFile(
-      new File([new Uint8Array([0, 1, 2, 3])], 'rubric.md', { type: 'application/octet-stream' }),
-      'rubric',
-    );
-    expect(response.status).toBe(415);
-    expect(await response.json()).toEqual({ error: 'Rubric imports must contain valid UTF-8 Markdown text' });
-    expect(mockGenerateJSON).not.toHaveBeenCalled();
-  });
-
-  it('asks for retries so one busy moment does not end the import', async () => {
-    mockGenerateJSON.mockResolvedValue({ criteria: ['Accuracy is at least 95%'] });
-    await postFile(new File(['# Rubric heading', '- Accuracy is at least 95%'], 'rubric.md', { type: 'text/markdown' }), 'rubric');
-    expect(mockGenerateJSON.mock.calls[0][2]).toMatchObject({ retries: 2 });
   });
 
   it('says the AI service is busy rather than blaming the file', async () => {
     mockGenerateJSON.mockRejectedValue(new Error(JSON.stringify({
       error: { code: 503, message: 'This model is currently experiencing high demand.', status: 'UNAVAILABLE' },
     })));
-
-    const response = await postFile(new File(['# Rubric heading', '- Accuracy is at least 95%'], 'rubric.md', { type: 'text/markdown' }), 'rubric');
-
+    const response = await postFile(markdown(), 'reference_solution');
     expect(response.status).toBe(503);
-    const { error } = await response.json();
-    expect(error).toContain('Your file is fine');
+    expect((await response.json()).error).toContain('Your file is fine');
   });
 
   it('still reports an unusable file as an extraction failure', async () => {
     mockGenerateJSON.mockRejectedValue(new Error('Unexpected token in JSON'));
-
-    const response = await postFile(new File(['# Rubric heading', '- Accuracy is at least 95%'], 'rubric.md', { type: 'text/markdown' }), 'rubric');
-
+    const response = await postFile(markdown(), 'reference_solution');
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: 'Failed to extract rubric from file' });
-  });
-
-  it('rejects a Markdown rubric over the import size limit', async () => {
-    const response = await postFile(
-      new File(['a'.repeat(200_001)], 'rubric.md', { type: 'text/markdown' }),
-      'rubric',
-    );
-    expect(response.status).toBe(413);
-    expect(mockGenerateJSON).not.toHaveBeenCalled();
-  });
-
-  it('rejects an unsupported extraction type', async () => {
-    const response = await postFile(new File(['criterion'], 'rubric.md', { type: 'text/markdown' }), 'instructions');
-    expect(response.status).toBe(400);
-    expect(mockGenerateJSON).not.toHaveBeenCalled();
-  });
-
-  it('keeps reference-solution extraction as an inference workflow', async () => {
-    mockGenerateJSON.mockResolvedValue({ criteria: ['Uses accurate calculations'] });
-    const response = await postFile(
-      new File(['completed analysis'], 'solution.txt', { type: 'text/plain' }),
-      'reference_solution',
-    );
-    expect(response.status).toBe(200);
-    const prompt = String(mockGenerateJSON.mock.calls[0][0]);
-    expect(prompt).toContain('completed reference solution file');
-    expect(prompt).not.toContain('Treat the rubric as authoritative data');
   });
 });

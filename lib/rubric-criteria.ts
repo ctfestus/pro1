@@ -1,4 +1,6 @@
-export type RubricImportKind = 'reference_solution' | 'rubric';
+// One upload path: a reference solution or an authored rubric file both go through it, and the
+// extraction prompt keeps any marks and assessment notes a rubric carries.
+export type RubricImportKind = 'reference_solution';
 
 // Code a reference solution can arrive as, matching what the code reviewer accepts from learners.
 // Read as plain text by the extraction route; browsers often send these with no text/* MIME type.
