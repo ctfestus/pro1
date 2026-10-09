@@ -81,6 +81,21 @@ function populatedDb() {
   });
 }
 
+function openVeActivityDb(withAttempt = true) {
+  return makeSupabaseStub({
+    courses: { data: [], error: null },
+    virtual_experiences: { data: [{ id: 've1', title: 'Open VE', slug: 'open-ve', cohort_ids: [], available_to_everyone: true, deadline_days: null, status: 'published', modules: [] }], error: null },
+    assignments: { data: [], error: null },
+    learning_paths: { data: [], error: null },
+    cohorts: { data: [], error: null },
+    students: { data: [{ id: 's-free', email: 'free@example.com', full_name: 'Free Learner', cohort_id: null }], error: null },
+    course_attempts: { data: [], error: null },
+    guided_project_attempts: { data: withAttempt ? [{ id: 'attempt-1', student_id: 's-free', ve_id: 've1', progress: {}, started_at: '2026-10-08T10:00:00.000Z', updated_at: '2026-10-08T10:00:00.000Z', completed_at: null }] : [], error: null },
+    assignment_submissions: { data: [], error: null },
+    cohort_assignments: { data: [], error: null },
+  });
+}
+
 beforeEach(() => mockRequireRole.mockReset());
 
 describe('GET /api/tracking', () => {
@@ -175,6 +190,73 @@ describe('GET /api/tracking paging', () => {
     const json = await (await get()).json();
     expect(json.stats.total).toBe(1);
     expect(json.stats.not_started).toBe(1);
+  });
+
+  it('reports real VE activity for a learner with no cohort', async () => {
+    authed('admin', openVeActivityDb());
+    const json = await (await get('?contentType=virtual_experience')).json();
+    expect(json.total).toBe(1);
+    expect(json.stats.not_started).toBe(0);
+    expect(json.rows[0]).toMatchObject({
+      studentEmail: 'free@example.com',
+      cohortId: '',
+      cohortName: 'No cohort',
+      formId: 've1',
+      status: 'in_progress',
+      activityOnly: true,
+    });
+  });
+
+  it('does not turn a free account with no attempt into a not-started VE learner', async () => {
+    authed('admin', openVeActivityDb(false));
+    const json = await (await get('?contentType=virtual_experience')).json();
+    expect(json.total).toBe(0);
+    expect(json.stats.not_started).toBe(0);
+  });
+
+  it('excludes an assignment-only VE attempt from standalone tracking', async () => {
+    const db = makeSupabaseStub({
+      courses: { data: [], error: null },
+      virtual_experiences: { data: [{ id: 've1', title: 'Private VE', slug: 'private-ve', cohort_ids: [], available_to_everyone: false, deadline_days: null, status: 'published' }], error: null },
+      assignments: { data: [], error: null },
+      learning_paths: { data: [], error: null },
+      cohorts: { data: [], error: null },
+      students: { data: [{ id: 's-assignment', email: 'assignment@example.com', full_name: 'Assignment Learner', cohort_id: 'assignment-cohort' }], error: null },
+      course_attempts: { data: [], error: null },
+      guided_project_attempts: { data: [{ id: 'attempt-1', student_id: 's-assignment', ve_id: 've1', updated_at: '2026-10-08T10:00:00.000Z', completed_at: null }], error: null },
+      assignment_submissions: { data: [], error: null },
+      cohort_assignments: { data: [], error: null },
+    });
+    authed('admin', db);
+    const json = await (await get('?contentType=virtual_experience')).json();
+    expect(json.total).toBe(0);
+  });
+
+  it('keeps an assigned learner\'s progress on draft content', async () => {
+    const db = makeSupabaseStub({
+      courses: { data: [{ id: 'course-draft', title: 'Draft Course', slug: null, cohort_ids: ['co1'], available_to_everyone: false, deadline_days: null, status: 'draft' }], error: null },
+      virtual_experiences: { data: [], error: null },
+      assignments: { data: [], error: null },
+      learning_paths: { data: [], error: null },
+      cohorts: { data: [{ id: 'co1', name: 'Alpha' }], error: null },
+      students: { data: [{ id: 's1', email: 'ama@example.com', full_name: 'Ama Mensah', cohort_id: 'co1' }], error: null },
+      course_attempts: { data: [{
+        id: 'attempt-1', student_id: 's1', course_id: 'course-draft', completed_at: null,
+        updated_at: '2026-10-08T10:00:00.000Z', score: null, passed: null,
+      }], error: null },
+      guided_project_attempts: { data: [], error: null },
+      assignment_submissions: { data: [], error: null },
+      cohort_assignments: { data: [], error: null },
+    });
+    authed('instructor', db);
+    const json = await (await get('?contentType=course')).json();
+    expect(json.total).toBe(1);
+    expect(json.rows[0]).toMatchObject({
+      studentEmail: 'ama@example.com',
+      formId: 'course-draft',
+      status: 'in_progress',
+      activityOnly: false,
+    });
   });
 
   it('does not extend a path grant to a draft item', async () => {

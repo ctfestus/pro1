@@ -1094,7 +1094,13 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
       };
     }
     if (isVE) {
-      const filtered = selectedCohortId === 'all' ? veAttempts : veAttempts.filter((a: any) => a.cohort_id === selectedCohortId);
+      // The report also includes direct-access learners who started an open VE without cohort
+      // assignment. Broadcast email deliberately remains cohort-only, so its button count must use
+      // the same audience as /api/email rather than every visible report row.
+      const enrolledAttempts = veAttempts.filter((attempt: any) => !attempt.activity_only);
+      const filtered = selectedCohortId === 'all'
+        ? enrolledAttempts
+        : enrolledAttempts.filter((attempt: any) => attempt.cohort_id === selectedCohortId);
       return {
         all:         filtered.length,
         not_started: filtered.filter((a: any) => !a.started_at && !a.completed_at).length,
@@ -2333,7 +2339,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
       {/* Stats */}
       <div className={`grid grid-cols-2 overflow-hidden rounded-2xl border sm:grid-cols-4 ${card}`}>
         {[
-          { label: 'Total Enrolled', value: attempts.length, color: '#00b95c' },
+          { label: 'Total Learners', value: attempts.length, color: '#00b95c' },
           { label: 'Not Started',    value: notStarted,       color: '#6b7280' },
           { label: 'In Progress',    value: inProgress,       color: '#f59e0b' },
           { label: 'Completed',      value: completed,        color: '#10b981' },
@@ -2419,7 +2425,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                 );
               })}
               {attempts.length === 0 && (
-                <tr><td colSpan={needsReview ? 7 : 5} className={`px-6 py-12 text-center ${textMut}`}>No students enrolled in this virtual experience yet.</td></tr>
+                <tr><td colSpan={needsReview ? 7 : 5} className={`px-6 py-12 text-center ${textMut}`}>No assigned students or learner activity yet.</td></tr>
               )}
             </tbody>
           </table>

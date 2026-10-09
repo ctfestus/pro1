@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { loadTrackedContent, loadPathGrantedPairs } from '@/lib/tracking-report';
+import { loadTrackedActivity, loadTrackedContent, loadPathGrantedPairs, type TrackedItem } from '@/lib/tracking-report';
 
 // Which content a caller may report on is two independent questions -- whose, and in what state --
 // and they were once answered by a single either/or. Asking for the owner's content therefore
@@ -84,7 +84,7 @@ function seededDb(rowsByTable: Record<string, unknown[]>) {
       const chain: any = {
         select: () => chain,
         eq: (col: string, val: unknown) => { calls[table].push([col, val]); return chain; },
-        in: () => chain,
+        in: (col: string, val: unknown) => { calls[table].push([col, val]); return chain; },
         order: () => chain,
         range: () => chain,
         then: (onFulfilled: any, onRejected: any) =>
@@ -135,5 +135,37 @@ describe('loadPathGrantedPairs', () => {
       virtual_experiences: [],
     }));
     expect(pairs).toEqual([]);
+  });
+});
+
+describe('loadTrackedActivity scoping', () => {
+  const item = (overrides: Partial<TrackedItem> = {}): TrackedItem => ({
+    id: 'course-1',
+    title: 'Course One',
+    contentType: 'course',
+    cohortIds: [],
+    availableToEveryone: true,
+    status: 'published',
+    ...overrides,
+  });
+
+  it('does not scan attempts for private content just to discover extra learners', async () => {
+    const db = seededDb({});
+    const activity = await loadTrackedActivity(db, [item({ availableToEveryone: false })]);
+    expect(activity.students).toEqual([]);
+    expect(db.calls.course_attempts).toBeUndefined();
+  });
+
+  it('applies the selected student population before reading public-content attempts', async () => {
+    const db = seededDb({
+      course_attempts: [{ student_id: 'student-1', course_id: 'course-1', completed_at: null, updated_at: '2026-10-08T10:00:00.000Z' }],
+    });
+    const students = [{ id: 'student-1', email: 'one@example.com', full_name: 'One', cohort_id: 'cohort-1' }];
+    const activity = await loadTrackedActivity(db, [item()], students);
+    expect(db.calls.course_attempts).toEqual(expect.arrayContaining([
+      ['student_id', ['student-1']],
+      ['course_id', ['course-1']],
+    ]));
+    expect(activity.students).toEqual(students);
   });
 });

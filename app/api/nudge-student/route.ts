@@ -123,6 +123,7 @@ export async function POST(req: NextRequest) {
         id: formId,
         title: content.title,
         contentType: contentType as 'course' | 'virtual_experience' | 'assignment',
+        availableToEveryone: false,
         // Authorization above already established that this content reaches this student; pairing
         // them here is what asks the classifier for their status.
         cohortIds: [recipient.cohort_id],

@@ -13,7 +13,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import {
-  attachProgress, buildStatusRows, loadCohortNames, loadStudents, loadTrackedContent,
+  attachProgress, buildStatusRows, loadCohortNames, loadStudents, loadTrackedActivity, loadTrackedContent,
 } from '@/lib/tracking-report';
 
 export const dynamic = 'force-dynamic';
@@ -47,27 +47,42 @@ export async function GET(req: NextRequest) {
   const items = await loadTrackedContent(supabase, { userId: user.id, role, typeFilter });
   if (!items.length) return empty([]);
 
-  const allCohortIds = [...new Set(items.flatMap(i => i.cohortIds))];
-  if (!allCohortIds.length) return empty([]);
+  const assignedCohortIds = [...new Set(items.flatMap(i => i.cohortIds))];
+  const activeAssignedCohortIds = cohortFilter === 'all'
+    ? assignedCohortIds
+    : assignedCohortIds.filter(id => id === cohortFilter);
 
-  const activeCohortIds = cohortFilter === 'all'
-    ? allCohortIds
-    : allCohortIds.filter(id => id === cohortFilter);
+  // Resolve the cohort population before activity. A selected cohort scopes every attempt query to
+  // its students; the unfiltered view still discovers learners on public content so no-cohort
+  // activity remains visible.
+  const populationCohortIds = cohortFilter === 'all' ? assignedCohortIds : [cohortFilter];
+  const assignedStudents = await loadStudents(supabase, populationCohortIds);
+  const activity = await loadTrackedActivity(
+    supabase,
+    items,
+    cohortFilter === 'all' ? undefined : assignedStudents,
+  );
+  const allCohortIds = [...new Set([
+    ...assignedCohortIds,
+    ...activity.students.map(s => s.cohort_id).filter((id): id is string => !!id),
+  ])];
 
   // The cohort list always spans every cohort this caller's content reaches, never just the
   // filtered one: the dashboard rebuilds its cohort dropdown from it, so narrowing it dropped
   // every other option the moment a cohort was picked. Only the students narrow.
-  const [cohorts, students] = await Promise.all([
-    loadCohortNames(supabase, allCohortIds),
-    loadStudents(supabase, activeCohortIds),
-  ]);
+  const cohorts = await loadCohortNames(supabase, allCohortIds);
+  const students = [...new Map(
+    [...assignedStudents, ...activity.students].map(student => [student.id, student]),
+  ).values()];
   if (!students.length) return empty(cohorts);
 
   const rows = await buildStatusRows(supabase, {
     items,
     students,
     cohortNames: new Map(cohorts.map(c => [c.id, c.name])),
-    activeCohortIds,
+    activeCohortIds: activeAssignedCohortIds,
+    includeActivity: true,
+    preloadedActivity: activity,
   });
 
   // KPI strip. Scoped to the cohort and content type -- the filters that reload the view -- and
