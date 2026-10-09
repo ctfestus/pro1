@@ -341,7 +341,7 @@ export default function CreateAssignmentPage() {
       const form = new FormData();
       form.append('file', file);
       form.append('label', label);
-      form.append('reviewSheetNames', JSON.stringify(reviewSheetNamesText.split('\n')));
+      form.append('reviewSheetNames', JSON.stringify(assignmentType === 'excel_review' ? reviewSheetNamesText.split('\n') : []));
 
       const res = await fetch('/api/extract-rubric', {
         method: 'POST',
