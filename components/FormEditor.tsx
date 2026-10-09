@@ -3423,11 +3423,9 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                 <label className={labelCls} style={labelStyle}>Rubric criteria</label>
                                 <div className="mb-2">
                                   {(() => {
-                                    const referenceKey = `${q.id}:reference_solution`;
-                                    const rubricKey = `${q.id}:rubric`;
-                                    const busy: RubricImportKind | null = extractingRubric === referenceKey
+                                    const busy: RubricImportKind | null = extractingRubric === `${q.id}:reference_solution`
                                       ? 'reference_solution'
-                                      : extractingRubric === rubricKey ? 'rubric' : null;
+                                      : null;
                                     return (
                                       <RubricFileImportActions
                                         busy={busy}
@@ -3439,7 +3437,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                     );
                                   })()}
                                 </div>
-                                <p className="text-xs mb-2" style={{ color: FE.faint }}>Upload completed work to infer criteria, or import an existing Markdown rubric.</p>
+                                <p className="text-xs mb-2" style={{ color: FE.faint }}>Upload completed work or your own rubric file to set the criteria.</p>
                                 <div className="space-y-1.5">
                                   {(q.rubric || []).map((criterion, cIdx) => (
                                     <div key={cIdx} className="flex items-center gap-2">

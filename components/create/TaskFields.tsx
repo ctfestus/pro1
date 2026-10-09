@@ -191,7 +191,7 @@ export function TaskFields({ task, onChange, C }: {
             placeholder={'One criterion per line:\nResults are correct\nQueries are optimised'}
             style={textareaStyle(C)}
           />
-          <p style={hintStyle(C)}>Upload completed work to infer criteria, import a Markdown rubric, or enter one criterion per line. Leave empty to use the AI default standards.</p>
+          <p style={hintStyle(C)}>Upload completed work or your own rubric file, or enter one criterion per line. Leave empty to use the AI default standards.</p>
           {extractError && <p style={{ ...hintStyle(C), color: C.errorText }}>{extractError}</p>}
         </div>
       )}

@@ -399,7 +399,7 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, not
             onSelect={handleFile}
           />
           <p className="text-[11px]" style={{ color: C.faint }}>
-            Upload completed work to infer criteria, or import an existing Markdown rubric.
+            Upload completed work or your own rubric file to set the criteria.
           </p>
           {extractError && <p className="text-[11px]" style={{ color: '#ef4444' }}>{extractError}</p>}
         </div>
