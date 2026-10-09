@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { FileText, Loader2, Upload } from 'lucide-react';
-import type { RubricImportKind } from '@/lib/rubric-criteria';
+import { CODE_FILE_EXTENSIONS, type RubricImportKind } from '@/lib/rubric-criteria';
 
 interface RubricFileImportActionsProps {
   busy: RubricImportKind | null;
@@ -13,7 +13,7 @@ interface RubricFileImportActionsProps {
   onSelect: (kind: RubricImportKind, file: File) => void | Promise<void>;
 }
 
-const REFERENCE_FILE_TYPES = '.xlsx,.pdf,.csv,.txt,.png,.jpg,.jpeg,.docx';
+const REFERENCE_FILE_TYPES = ['.xlsx', '.pdf', '.csv', '.txt', '.png', '.jpg', '.jpeg', '.docx', ...CODE_FILE_EXTENSIONS].join(',');
 
 export function RubricFileImportActions({
   busy,
