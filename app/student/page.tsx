@@ -81,11 +81,12 @@ const StudentBadgesSection      = dynamic(() => import('@/components/student/bad
 const LeaderboardSection        = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.LeaderboardSection), { ssr: false, loading: sectionLoading });
 const CertificatesSection       = dynamic(() => import('@/components/student/badges-leaderboard-certs').then(m => m.CertificatesSection), { ssr: false, loading: sectionLoading });
 const AiCareerToolkitSection    = dynamic(() => import('@/components/student/ai-career-toolkit').then(m => m.AiCareerToolkitSection), { ssr: false, loading: sectionLoading });
+const MyProgramSection          = dynamic(() => import('@/components/student/my-program').then(m => m.MyProgramSection), { ssr: false, loading: sectionLoading });
 const ExploreSection            = dynamic(() => import('@/components/student/explore').then(m => m.ExploreSection), { ssr: false, loading: sectionLoading });
 
 const ACTIVITY_POLL_MIN_GAP_MS = 30_000;
 const MY_LEARNING_SECTIONS: SectionId[] = ['learning_paths', 'courses', 'virtual_experiences'];
-const COHORT_ONLY_SECTIONS: SectionId[] = ['events', 'assignments', 'calendar', 'schedule', 'recordings', 'community', 'leaderboard'];
+const COHORT_ONLY_SECTIONS: SectionId[] = ['my_program', 'events', 'assignments', 'calendar', 'schedule', 'recordings', 'community', 'leaderboard'];
 
 function isSectionVisibleForStudent(id: SectionId, showExplore: boolean, showCohortActivities: boolean) {
   if (id === 'explore') return showExplore;
@@ -620,8 +621,8 @@ export default function StudentDashboard() {
         {/* -- Main content -- */}
         <main className="flex-1 min-w-0 overflow-y-auto px-5 md:px-8 py-7" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
           <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            {/* Section header -- hidden on overview (has its own greeting) and assignments (manages its own title) */}
-            {activeSection !== 'overview' && activeSection !== 'assignments' && activeSection !== 'certifications' && (
+            {/* Section header -- hidden on overview (has its own greeting), my program (titled by the cohort) and assignments (manages its own title) */}
+            {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'assignments' && activeSection !== 'certifications' && (
               <div className="flex items-center justify-between mb-6">
                 <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isMyLearning ? 'My Learning' : activeItem.label}</h1>
               </div>
@@ -751,6 +752,9 @@ export default function StudentDashboard() {
 
             {activeSection === 'overview' && user && (
               <OverviewSection user={{ ...user, id: effectiveId, email: effectiveEmail }} userEmail={effectiveEmail} C={C} onNavigate={goSection}/>
+            )}
+            {activeSection === 'my_program' && user && (
+              <MyProgramSection C={C} coursesLocked={isOutstanding}/>
             )}
             {activeSection === 'courses' && user && (
               <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding}/>
