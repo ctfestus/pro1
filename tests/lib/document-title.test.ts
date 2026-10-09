@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { keepDocumentTitle } from '@/lib/document-title';
+import { contentPageTitle, keepDocumentTitle } from '@/lib/document-title';
 
 let onMutation: MutationCallback;
 const observe = vi.fn();
@@ -49,5 +49,18 @@ describe('keepDocumentTitle', () => {
     document.title = 'Student Dashboard';
 
     expect(document.title).toBe('Student Dashboard');
+  });
+});
+
+describe('contentPageTitle', () => {
+  it('uses a learning path preview title when there is no form', () => {
+    expect(contentPageTitle(null, { title: 'Data Analyst Path' })).toBe('Data Analyst Path');
+  });
+
+  it('keeps form-backed content titles authoritative', () => {
+    expect(contentPageTitle(
+      { title: 'Row title', config: { title: 'Fintech Virtual Experience' } },
+      { title: 'Data Analyst Path' },
+    )).toBe('Fintech Virtual Experience');
   });
 });
