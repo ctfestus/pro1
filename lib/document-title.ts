@@ -15,3 +15,13 @@ export function keepDocumentTitle(name: string): () => void {
   observer.observe(document.head, { childList: true, subtree: true, characterData: true });
   return () => observer.disconnect();
 }
+
+type ContentTitleSource = {
+  title?: string | null;
+  config?: { title?: string | null } | null;
+} | null | undefined;
+
+/** Resolve the title for both form-backed content and the separate learning-path preview. */
+export function contentPageTitle(form: ContentTitleSource, pathPreview: ContentTitleSource): string {
+  return form?.config?.title || form?.title || pathPreview?.title || '';
+}

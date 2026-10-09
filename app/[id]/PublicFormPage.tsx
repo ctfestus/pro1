@@ -29,7 +29,7 @@ import { signInHref } from '@/lib/auth-redirect';
 import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { PromoCard } from '@/components/PromoCard';
-import { keepDocumentTitle } from '@/lib/document-title';
+import { contentPageTitle, keepDocumentTitle } from '@/lib/document-title';
 
 // --- Social platform data (mirrors page.tsx) ---
 const SOCIAL_PLATFORMS = [
@@ -1131,8 +1131,7 @@ export default function PublicFormPage() {
   }, [id]);
 
   useEffect(() => {
-    if (!form) return;
-    const name = form.config?.title || form.title;
+    const name = contentPageTitle(form, pathPreview);
     if (!name) return;
 
     // generateMetadata is streamed for normal browsers. For cohort-only content its anonymous
@@ -1140,7 +1139,7 @@ export default function PublicFormPage() {
     // replace the real content name after it briefly appeared. Keep the access-approved client
     // title authoritative for as long as this viewer remains mounted.
     return keepDocumentTitle(name);
-  }, [form]);
+  }, [form, pathPreview]);
 
   useEffect(() => {
     if (!success || !form) return;
