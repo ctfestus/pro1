@@ -5,6 +5,7 @@ import { Loader2, CheckCircle2, Zap, RotateCcw, Code2, Download, Upload, FileCod
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import { downloadCodeReviewPdf } from '@/lib/downloadReviewPdf';
+import { CODE_FILE_EXTENSIONS } from '@/lib/rubric-criteria';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
@@ -314,7 +315,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
               style={{ minHeight: 200, background: input, padding: '32px 24px' }}
             >
               <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileChange}
-                accept=".py,.js,.ts,.jsx,.tsx,.sql,.r,.R,.java,.cs,.c,.cpp,.go,.rs,.rb,.php,.swift,.kt,.scala,.txt" />
+                accept={[...CODE_FILE_EXTENSIONS, '.txt'].join(',')} />
               {uploadedFileName ? (
                 <>
                   <div style={{ width: 44, height: 44, borderRadius: 10, background: `${accentColor}18`,
