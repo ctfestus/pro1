@@ -20,10 +20,11 @@ const mockRequireRole = vi.mocked(requireRole);
 const mockGenerateJSON = vi.mocked(generateJSON);
 const mockGenerateVisionJSON = vi.mocked(generateVisionJSON);
 
-function postFile(file: File, label: string): Promise<Response> {
+function postFile(file: File, label: string, sheetNames?: string[]): Promise<Response> {
   const body = new FormData();
   body.append('file', file);
   body.append('label', label);
+  if (sheetNames) body.append('reviewSheetNames', JSON.stringify(sheetNames));
   return POST(new Request('http://localhost/api/extract-rubric', {
     method: 'POST',
     headers: { Authorization: 'Bearer test-token' },
@@ -58,6 +59,28 @@ it.each(['text', 'excel', 'pdf', 'image'])('includes rubric preservation rules f
   expect(prompt).toContain('Do not merge or omit subcriteria');
   expect(prompt).toContain('Preserve assessment notes, including full credit for valid alternative approaches');
   expect(prompt).toContain('assessment of both results and logic');
+});
+
+async function workbookFile(sheets: string[]): Promise<File> {
+  const workbook = new ExcelJS.Workbook();
+  for (const name of sheets) workbook.addWorksheet(name).getCell('A1').value = `${name} cell`;
+  return new File([await workbook.xlsx.writeBuffer() as BlobPart], 'solution.xlsx');
+}
+
+it('reads only the worksheets named on the task', async () => {
+  mockGenerateJSON.mockResolvedValue({ criteria: ['Uses SUMIFS'] });
+  const response = await postFile(await workbookFile(['Raw data', 'Summary']), 'reference_solution', [' summary ', '']);
+  expect(response.status).toBe(200);
+  const prompt = String(mockGenerateJSON.mock.calls[0][0]);
+  expect(prompt).toContain('Sheet: Summary');
+  expect(prompt).not.toContain('Raw data');
+});
+
+it('names a worksheet that is not in the uploaded workbook', async () => {
+  const response = await postFile(await workbookFile(['Summary']), 'reference_solution', ['Summry']);
+  expect(response.status).toBe(400);
+  expect((await response.json()).error).toContain('Summry');
+  expect(mockGenerateJSON).not.toHaveBeenCalled();
 });
 
 it('extracts DOCX reference text before sending it to the AI', async () => {

@@ -331,8 +331,10 @@ function normalizeToolList(tools: readonly string[] | undefined): string[] {
 }
 
 
-function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, note }: {
+function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, note, sheetNames }: {
   criteria: string[];
+  // The requirement's worksheets, so a workbook upload is read the same way the review reads it.
+  sheetNames?: string[];
   onChange: (rubric: string[]) => void;
   onImport: (criteria: string[]) => void;
   C: typeof LIGHT_C;
@@ -361,6 +363,7 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, not
       const form = new FormData();
       form.append('file', file);
       form.append('label', label);
+      form.append('reviewSheetNames', JSON.stringify(sheetNames ?? []));
       const res = await fetch('/api/extract-rubric', {
         method: 'POST',
         headers: { Authorization: `Bearer ${sessionToken}` },
@@ -3087,6 +3090,7 @@ function VirtualExperienceCreatePageInner() {
                                                     C={C}
                                                     inp={inp}
                                                     sessionToken={sessionToken}
+                                                    sheetNames={req.reviewSheetNames}
                                                     note="With criteria set, the pass mark measures the share of criteria the workbook meets, not the general quality score."
                                                   />
                                                 </div>

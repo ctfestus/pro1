@@ -3,8 +3,9 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { generateJSON, generateVisionJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import ExcelJS from 'exceljs';
 import { assertZipWithinLimit, extractDocxText } from '@/lib/office-text';
+import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
+import { normalizeReviewSheetNames } from '@/lib/excel-review-config';
 import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 
 export const dynamic = 'force-dynamic';
@@ -13,12 +14,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 120;
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
-const MAX_SHEETS = 5;
-const MAX_ROWS_PER_SHEET = 5_000;
-const MAX_TOTAL_CELLS = 50_000;
-const MAX_TEXT_BYTES = 300_000;
 const MAX_RUBRIC_BYTES = 200_000;
-const EXTRACTION_TIMEOUT_MS = 20_000;
 const RUBRIC_PRESERVATION_INSTRUCTIONS = 'If the uploaded content contains an assessment rubric, treat that rubric as authoritative. Preserve every separately marked subcriterion and its exact mark allocation in its criterion string. Do not merge or omit subcriteria. Preserve assessment notes, including full credit for valid alternative approaches and assessment of both results and logic, as separate strings. Do not invent marks where none are supplied.';
 
 function adminClient() {
@@ -34,50 +30,6 @@ async function authenticate(req: NextRequest): Promise<{ userId: string } | Next
   return { userId: auth.user.id };
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  let handle: ReturnType<typeof setTimeout>;
-  const timeout = new Promise<never>((_, reject) => {
-    handle = setTimeout(() => reject(new Error('Workbook extraction timed out')), ms);
-  });
-  return Promise.race([promise, timeout]).finally(() => clearTimeout(handle!));
-}
-
-async function extractExcelText(buffer: ArrayBuffer): Promise<string> {
-  const wb = new ExcelJS.Workbook();
-  await wb.xlsx.load(buffer);
-  const sections: string[] = [];
-  let totalCells = 0;
-  let totalChars = 0;
-  let aborted = false;
-
-  for (const ws of wb.worksheets.slice(0, MAX_SHEETS)) {
-    if (aborted) break;
-    const lines: string[] = [`Sheet: ${ws.name}`];
-    let rowCount = 0;
-
-    ws.eachRow(row => {
-      if (aborted || rowCount >= MAX_ROWS_PER_SHEET) return;
-      rowCount++;
-      row.eachCell({ includeEmpty: false }, cell => {
-        if (aborted || totalCells >= MAX_TOTAL_CELLS) { aborted = true; return; }
-        totalCells++;
-        let line: string;
-        if (cell.formula) line = `  ${cell.address}: =${cell.formula}`;
-        else if (cell.value != null && cell.value !== '') line = `  ${cell.address}: ${cell.value}`;
-        else return;
-        totalChars += line.length;
-        if (totalChars > MAX_TEXT_BYTES) { aborted = true; return; }
-        lines.push(line);
-      });
-    });
-
-    if (lines.length > 1) sections.push(lines.join('\n'));
-  }
-
-  if (aborted) sections.push('... (workbook truncated: extraction limit reached)');
-  return sections.join('\n\n');
-}
-
 const responseSchema = {
   type: 'object',
   properties: {
@@ -90,7 +42,8 @@ const responseSchema = {
 };
 
 // POST /api/extract-rubric
-// Body: multipart/form-data with `file` and `label` (reference_solution | rubric)
+// Body: multipart/form-data with `file`, `label` (reference_solution | rubric) and, for workbooks,
+// an optional `reviewSheetNames` JSON array: the same worksheets the task's Excel review reads.
 // Returns: { criteria: string[] }
 export async function POST(req: NextRequest) {
   const auth = await authenticate(req);
@@ -159,7 +112,15 @@ export async function POST(req: NextRequest) {
     let parsed: any;
 
     if (isExcel) {
-      const text = await withTimeout(extractExcelText(buffer), EXTRACTION_TIMEOUT_MS);
+      let requested: unknown;
+      try { requested = JSON.parse(String(form.get('reviewSheetNames') ?? '[]')); } catch { requested = 'invalid'; }
+      const sheets = normalizeReviewSheetNames(requested);
+      if (sheets.error) return NextResponse.json({ error: sheets.error }, { status: 400 });
+      const extraction = await withTimeout(extractFromWorkbook(buffer, sheets.names), EXTRACTION_TIMEOUT_MS);
+      if (extraction.missingSheetNames.length) {
+        return NextResponse.json({ error: `Worksheets not found in this file: ${extraction.missingSheetNames.join(', ')}. Check the worksheet names on this task.` }, { status: 400 });
+      }
+      const text = extraction.text;
       const prompt = `You are an expert assessment designer. The instructor has uploaded ${docDescription} (an Excel/spreadsheet file). Analyse the content below and extract clear, specific, measurable rubric criteria that an AI reviewer can use to grade student submissions. Extract as many criteria as the file warrants -- one criterion per distinct requirement, skill, or standard present in the file. Return each as a concise action-oriented statement.\n\nFile content:\n${text}`;
       parsed = await generateJSON(`${prompt}\n\n${RUBRIC_PRESERVATION_INSTRUCTIONS}`, responseSchema, { feature: 'extract-rubric',
         temperature: 0.3,

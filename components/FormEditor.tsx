@@ -1425,6 +1425,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
       const form = new FormData();
       form.append('file', file);
       form.append('label', label);
+      form.append('reviewSheetNames', JSON.stringify(formConfig?.questions?.find(q => q.id === questionId)?.reviewSheetNames ?? []));
       const res = await fetch('/api/extract-rubric', {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
