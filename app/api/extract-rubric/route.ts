@@ -6,7 +6,7 @@ import { createClient } from '@supabase/supabase-js';
 import { assertZipWithinLimit, extractDocxText } from '@/lib/office-text';
 import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
 import { normalizeReviewSheetNames } from '@/lib/excel-review-config';
-import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
+import { CODE_FILE_EXTENSIONS, mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteria';
 
 export const dynamic = 'force-dynamic';
 // A rubric of any size takes 20s or more on a thinking model, and the retries below stack on top
@@ -105,7 +105,7 @@ export async function POST(req: NextRequest) {
 
   const isExcel = mime.includes('spreadsheet') || mime.includes('excel') ||
     lowerName.endsWith('.xlsx');
-  const isText = mime.startsWith('text/') || ['.csv', '.txt', '.md'].some(ext => lowerName.endsWith(ext));
+  const isText = mime.startsWith('text/') || ['.csv', '.txt', '.md', ...CODE_FILE_EXTENSIONS].some(ext => lowerName.endsWith(ext));
   const isDocx = lowerName.endsWith('.docx') || mime.includes('wordprocessingml.document');
 
   try {

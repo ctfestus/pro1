@@ -83,6 +83,14 @@ it('names a worksheet that is not in the uploaded workbook', async () => {
   expect(mockGenerateJSON).not.toHaveBeenCalled();
 });
 
+it('reads a SQL reference solution as text even without a text MIME type', async () => {
+  mockGenerateJSON.mockResolvedValue({ criteria: ['Filters deposits'] });
+  const response = await postFile(new File(["SELECT AVG(n) FROM t WHERE txn_type = 'deposit';"], 'solution.sql', { type: '' }), 'reference_solution');
+  expect(response.status).toBe(200);
+  expect(String(mockGenerateJSON.mock.calls[0][0])).toContain("WHERE txn_type = 'deposit'");
+  expect(mockGenerateVisionJSON).not.toHaveBeenCalled();
+});
+
 it('extracts DOCX reference text before sending it to the AI', async () => {
   const zip = new JSZip();
   zip.file('word/document.xml', '<w:document><w:p><w:r><w:t>Reference solution</w:t></w:r></w:p></w:document>');
