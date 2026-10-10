@@ -355,7 +355,8 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
               <motion.line x1={padL} y1={y} y2={y} stroke={road} strokeWidth={thick} strokeLinecap="round"
                 initial={{ x2: padL }} animate={{ x2: fillTo }} transition={{ duration: 1.2, ease: [0.2, 0.8, 0.2, 1] }}/>
             )}
-            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={C.card} strokeWidth={3} strokeDasharray="10 12" strokeLinecap="round" opacity={0.9}
+            {/* Dashed centre line in the tenant's secondary colour. */}
+            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={roadHi} strokeWidth={2} strokeDasharray="10 12" strokeLinecap="round"
               className="mp-lane"/>
 
             {weeks.map(week => {
