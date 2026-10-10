@@ -34,7 +34,11 @@ export type ProgramItem = {
   recurring?: boolean;
   /** Last date of a repeating live session; it is only missed once that date has passed. */
   lastDate?: string | null;
-  /** Set by the dashboard when access is paused (unpaid balance); shown but not offered as next. */
+  /**
+   * Access is paused (unpaid balance): shown, but not offered as next and not counted as overdue or
+   * behind, since the student cannot act on it. Set by the route for a held student, and by the
+   * dashboard for courses of a payment-restricted one.
+   */
   locked?: boolean;
   /**
    * When the item reached the cohort (ISO). For a course or VE taught through a learning path, the
@@ -263,7 +267,7 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
       const required = week.items.filter(countsTowardCompletion);
       week.required = required.length;
       week.completed = required.filter(i => isCompleteStatus(i.status)).length;
-      week.hasOverdue = week.items.some(i => i.status === 'overdue');
+      week.hasOverdue = week.items.some(i => i.status === 'overdue' && !i.locked);
     }
   }
 
@@ -273,7 +277,7 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
   const statusCounts = emptyCounts();
   for (const item of required) statusCounts[item.status] += 1;
 
-  const behind = required.filter(i => i.dueDate && dayIndex(i.dueDate) < todayIdx && !isCompleteStatus(i.status)).length;
+  const behind = required.filter(i => !i.locked && i.dueDate && dayIndex(i.dueDate) < todayIdx && !isCompleteStatus(i.status)).length;
 
   let timePct: number | null = null;
   let daysLeft: number | null = null;

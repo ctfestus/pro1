@@ -13,7 +13,9 @@
 -- and content import.
 --
 -- An assignment's cohorts are its cohort_ids plus the cohorts of the groups in group_ids, so an
--- assignment handed to a group (and no cohort) is dated for that group's cohort.
+-- assignment handed to a group (and no cohort) is dated for that group's cohort. Dates are per
+-- cohort, not per group: a second group in the same cohort gets the first group's date (open work
+-- carries forward to the current week anyway).
 --
 -- Rules:
 --   * A row is added when a PUBLISHED path/assignment gains a cohort, or is published with it.
@@ -54,6 +56,10 @@ AS $$
       SELECT g.cohort_id FROM public.groups g WHERE g.id = ANY (COALESCE(p_group_ids, '{}'))
     ) t
 $$;
+-- Not callable anonymously (it reveals a group's cohort past groups RLS). authenticated keeps it:
+-- the BEFORE trigger runs as the saving user (the assignment editor writes from the browser).
+REVOKE EXECUTE ON FUNCTION public.assignment_target_cohorts(uuid[], uuid[]) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.assignment_target_cohorts(uuid[], uuid[]) TO authenticated, service_role;
 
 -- The baseline is captured once, when the column is first added, so re-running this migration
 -- never re-baselines content assigned since. It runs before the triggers exist, so it dates nothing.

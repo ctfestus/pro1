@@ -79,6 +79,32 @@ function setup({
 
 const statusOf = (body: any, id: string) => body.items.find((i: any) => i.id === id)?.baseStatus;
 
+/** Records every .eq(column, value) made on `table`, so a test can pin which cohort was queried. */
+function spyEq(table: string) {
+  const calls: [string, unknown][] = [];
+  const auth = requireStudentUser.mock.results.at(-1)?.value;
+  return auth.then((resolved: any) => {
+    const db = resolved.serviceDb;
+    const from = db.from.bind(db);
+    db.from = (t: string) => {
+      const builder = from(t);
+      if (t !== table) return builder;
+      // Follow the whole chain (.select().eq()...), recording .eq and staying awaitable.
+      const wrap = (target: any): any => new Proxy(target, {
+        get(t, prop) {
+          if (prop === 'then' || prop === 'catch' || prop === 'finally') return t[prop].bind(t);
+          return (...args: any[]) => {
+            if (prop === 'eq') calls.push([args[0], args[1]]);
+            return wrap(t[prop](...args));
+          };
+        },
+      });
+      return wrap(builder);
+    };
+    return calls;
+  });
+}
+
 beforeEach(() => vi.clearAllMocks());
 
 describe('GET /api/student/program', () => {
@@ -161,8 +187,47 @@ describe('GET /api/student/program', () => {
 
   it("loads an outstanding student's real cohort, not the holding cohort", async () => {
     setup({ originalCohortId: 'real-cohort' });
+    requireStudentUser(); // materialise the mocked auth so its client can be spied on
+    const cohortEq = await spyEq('cohorts');
+    const datesEq = await spyEq('cohort_assignments');
+    await GET(request());
+    expect(cohortEq).toContainEqual(['id', 'real-cohort']);
+    expect(datesEq).toContainEqual(['cohort_id', 'real-cohort']);
+  });
+
+  it('locks a held student\'s work, except assignments given to their group', async () => {
+    setup({
+      originalCohortId: 'real-cohort',
+      assignments: [
+        assignment('cohort-wide'),
+        { ...assignment('for-my-group'), group_ids: ['group-1'] },
+      ],
+      directCourses: [{ id: 'course-1', title: 'Excel', slug: 'excel', deadline_days: null }],
+      certs: [{ id: 'cert-1', title: 'SQL Cert', slug: 'sql-cert', deadline_days: null }],
+    });
     const body = await (await GET(request())).json();
-    expect(body.cohort.id).toBe('real-cohort');
+    const lockedOf = (id: string) => body.items.find((i: any) => i.id === id)?.locked;
+    expect(lockedOf('cohort-wide')).toBe(true);
+    expect(lockedOf('course-1')).toBe(true);
+    expect(lockedOf('cert-1')).toBe(true);
+    expect(lockedOf('for-my-group')).toBe(false);
+  });
+
+  it('does not lock anything for a student who is not held', async () => {
+    setup({ assignments: [assignment('a')] });
+    const body = await (await GET(request())).json();
+    expect(body.items.every((i: any) => i.locked === false)).toBe(true);
+  });
+
+  it('links courses and certifications with their type, so a shared slug cannot open the wrong one', async () => {
+    setup({
+      directCourses: [{ id: 'course-1', title: 'SQL', slug: 'sql', deadline_days: null }],
+      certs: [{ id: 'cert-1', title: 'SQL Cert', slug: 'sql', deadline_days: null }],
+    });
+    const body = await (await GET(request())).json();
+    const hrefOf = (id: string) => body.items.find((i: any) => i.id === id)?.href;
+    expect(hrefOf('course-1')).toBe('/sql?catalogueType=course');
+    expect(hrefOf('cert-1')).toBe('/sql?catalogueType=certification');
   });
 
   it('fails loudly when the group lookup fails instead of hiding group work', async () => {
@@ -189,7 +254,7 @@ describe('GET /api/student/program', () => {
     });
     const body = await (await GET(request())).json();
     const byId = Object.fromEntries(body.items.map((i: any) => [i.id, i]));
-    expect(byId['cert-pass']).toMatchObject({ type: 'certification', baseStatus: 'done', completedAt: '2026-09-25T10:00:00+00:00', href: '/sql-cert' });
+    expect(byId['cert-pass']).toMatchObject({ type: 'certification', baseStatus: 'done', completedAt: '2026-09-25T10:00:00+00:00', href: '/sql-cert?catalogueType=certification' });
     expect(byId['cert-pass'].dueDate).toBe('2026-09-15T10:00:00.000Z');
     expect(byId['cert-fail'].baseStatus).toBe('failed');
     expect(byId['cert-open'].baseStatus).toBe('in_progress');

@@ -73,7 +73,8 @@ type WeekKey = number | 'anytime';
 
 /**
  * `coursesLocked` mirrors My Learning: while a payment is outstanding the courses cannot be opened,
- * so they stay on the journey (they are still part of the program) but show as locked.
+ * so they stay on the journey (they are still part of the program) but show as locked. A student
+ * moved to the outstanding-payments cohort has the rest of their work locked by the route too.
  */
 export function MyProgramSection({ C, coursesLocked = false }: { C: typeof LIGHT_C; coursesLocked?: boolean }) {
   const [payload, setPayload] = useState<ProgramPayload | null>(null);
@@ -195,9 +196,9 @@ function ProgramView({ payload, timeline, coursesLocked, C }: {
         </div>
       ) : (
         <>
-          {coursesLocked && payload.items.some(i => i.type === 'course') && (
+          {payload.items.some(i => i.locked) && (
             <p className="text-[13px] font-medium px-4 py-3 rounded-xl" style={{ background: 'rgba(220,38,38,0.08)', color: '#dc2626' }}>
-              Your courses are locked until your payment is up to date. They stay on your journey so you can see what is coming.
+              Some of your work is locked until your payment is up to date. It stays on your journey so you can see what is coming.
             </p>
           )}
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -364,8 +365,8 @@ function TypeTiles({ items, timeline, filter, setFilter, C }: {
   const statusById = new Map([...timeline.weeks.flatMap(w => w.items), ...timeline.anytime].map(i => [i.id, i.status]));
   const types = TYPE_ORDER.filter(t => items.some(i => i.type === t));
   return (
-    // auto-fit keeps every row full whether the cohort has two content types or five.
-    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
+    // auto-fit: as many columns as fit (two on a phone), whether the cohort has two types or five.
+    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
       {types.map(type => {
         const list = items.filter(i => i.type === type);
         const done = list.filter(i => {

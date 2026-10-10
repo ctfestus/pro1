@@ -16,6 +16,7 @@ import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import { passMarkOf } from '@/lib/assignment-scenarios';
 import { attachProgress, buildStatusRows, type TrackedItem } from '@/lib/tracking-report';
+import { contentPath } from '@/lib/content-link';
 import type { ProgramBaseStatus, ProgramGroup, ProgramItem, ProgramPayload } from '@/lib/student-program';
 
 export const dynamic = 'force-dynamic';
@@ -31,10 +32,12 @@ export async function GET(req: NextRequest) {
     .from('students').select('id, email, full_name, cohort_id, original_cohort_id').eq('id', user.id).maybeSingle();
   if (studentError) return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
   // A student with an unpaid balance is parked in the outstanding-payments cohort and their real
-  // cohort is kept in original_cohort_id. Their program is the real cohort's; the dashboard shows
-  // its courses as locked until the balance is cleared.
+  // cohort is kept in original_cohort_id. Their program is the real cohort's, but every access check
+  // still goes by the holding cohort, so while held all of it is locked -- except assignments given
+  // to their group, which group membership (kept through the hold) still opens.
   const cohortId: string | null = student?.original_cohort_id ?? student?.cohort_id ?? null;
   if (!student || !cohortId) return NextResponse.json(EMPTY);
+  const held = !!student.original_cohort_id;
 
   const [{ data: cohort, error: cohortError }, { data: membership, error: membershipError }] = await Promise.all([
     db.from('cohorts').select('id, name, start_date, end_date, classes_end_date, cohort_kind').eq('id', cohortId).maybeSingle(),
@@ -213,6 +216,11 @@ export async function GET(req: NextRequest) {
   for (const a of veDoneRes.data ?? []) keepEarliest(a.ve_id, a.completed_at);
 
   const slugById = new Map<string, string>([...courses, ...ves].map((c: any) => [c.id, c.slug || c.id]));
+  const groupAssignmentIds = new Set(groupId
+    ? assignments.filter((a: any) => (a.group_ids ?? []).includes(groupId)).map((a: any) => a.id)
+    : []);
+  const lockedWhileHeld = (type: ProgramItem['type'], id: string) =>
+    held && !(type === 'assignment' && groupAssignmentIds.has(id));
   const trackedById = new Map(tracked.map(t => [t.id, t]));
   const items: ProgramItem[] = rows.map(row => {
     const isAssignment = row.contentType === 'assignment';
@@ -238,7 +246,10 @@ export async function GET(req: NextRequest) {
       id: row.formId,
       title: row.formTitle,
       type: row.contentType,
-      href: isAssignment ? `/student/assignments/${row.formId}` : `/${slugById.get(row.formId)}`,
+      // Typed links: slugs are unique per table, so an untyped link can open a same-slug course.
+      href: isAssignment
+        ? `/student/assignments/${row.formId}`
+        : contentPath({ slug: slugById.get(row.formId), id: row.formId, content_type: row.contentType }),
       baseStatus,
       progressPct: baseStatus === 'in_progress' && hasMeasuredProgress ? row.progressPct : 0,
       // Assignment deadlines are calendar dates. Course and VE deadlines are exact moments
@@ -246,6 +257,7 @@ export async function GET(req: NextRequest) {
       // local date, matching the deadline the Courses tab shows.
       dueDate: isAssignment ? (item?.deadlineDate?.slice(0, 10) ?? null) : row.deadline,
       assignedAt: assignedAtFor(row.formId),
+      locked: lockedWhileHeld(row.contentType, row.formId),
       completedAt: baseStatus === 'done' || baseStatus === 'awaiting_grade'
         ? (isAssignment ? (submissionFor.get(row.formId)?.submittedAt ?? null) : (completedAtById.get(row.formId) ?? null))
         : null,
@@ -269,7 +281,8 @@ export async function GET(req: NextRequest) {
       id: c.id,
       title: c.title,
       type: 'certification',
-      href: `/${c.slug || c.id}`,
+      href: contentPath({ slug: c.slug, id: c.id, content_type: 'certification' }),
+      locked: lockedWhileHeld('certification', c.id),
       baseStatus,
       progressPct: 0,
       dueDate: ownAssigned && c.deadline_days
@@ -286,6 +299,7 @@ export async function GET(req: NextRequest) {
       title: e.title,
       type: 'event',
       href: `/${e.slug || e.id}`,
+      locked: lockedWhileHeld('event', e.id),
       baseStatus: attended.has(e.id) ? 'attended' : 'not_attended',
       progressPct: 0,
       dueDate: String(e.event_date).slice(0, 10),

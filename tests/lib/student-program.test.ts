@@ -166,6 +166,14 @@ describe('statuses', () => {
 });
 
 describe('locked items', () => {
+  it('does not count locked work as behind or flag its week overdue', () => {
+    const t = buildProgramTimeline(payload([
+      item({ id: 'locked', baseStatus: 'not_started', dueDate: '2026-10-01', locked: true }),
+    ]), '2026-10-09');
+    expect(t.behind).toBe(0);
+    expect(t.weeks[4].hasOverdue).toBe(false);
+  });
+
   it('keeps locked items in the program but never offers them as next', () => {
     const t = buildProgramTimeline(payload([
       item({ id: 'locked', baseStatus: 'not_started', dueDate: '2026-10-01', locked: true }),

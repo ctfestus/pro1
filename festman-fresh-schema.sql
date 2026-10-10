@@ -1406,6 +1406,8 @@ AS $$
       SELECT g.cohort_id FROM public.groups g WHERE g.id = ANY (COALESCE(p_group_ids, '{}'))
     ) t
 $$;
+REVOKE EXECUTE ON FUNCTION public.assignment_target_cohorts(uuid[], uuid[]) FROM PUBLIC, anon;
+GRANT  EXECUTE ON FUNCTION public.assignment_target_cohorts(uuid[], uuid[]) TO authenticated, service_role;
 
 CREATE OR REPLACE FUNCTION public.prepare_cohort_dates_baseline()
 RETURNS trigger
