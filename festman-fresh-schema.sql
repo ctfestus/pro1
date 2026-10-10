@@ -53,6 +53,9 @@ CREATE TABLE public.cohorts (
   description text,
   start_date  date,
   end_date    date,
+  -- migration 223: last day of classes; end_date also covers the catch-up period after it.
+  -- NULL = classes run to end_date. Validated in the app, not by a CHECK (see the migration).
+  classes_end_date date,
   created_by  uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   status      text        NOT NULL DEFAULT 'active'
                             CHECK (status IN ('active','completed','archived')),

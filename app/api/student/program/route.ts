@@ -33,7 +33,7 @@ export async function GET(req: NextRequest) {
 
   const cohortId: string = student.cohort_id;
   const [{ data: cohort, error: cohortError }, { data: membership }] = await Promise.all([
-    db.from('cohorts').select('id, name, start_date, end_date, cohort_kind').eq('id', cohortId).maybeSingle(),
+    db.from('cohorts').select('id, name, start_date, end_date, classes_end_date, cohort_kind').eq('id', cohortId).maybeSingle(),
     db.from('group_members').select('group_id').eq('student_id', student.id).maybeSingle(),
   ]);
   if (cohortError) return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
@@ -200,7 +200,10 @@ export async function GET(req: NextRequest) {
   }
 
   const payload: ProgramPayload = {
-    cohort: { id: cohort.id, name: cohort.name, startDate: cohort.start_date ?? null, endDate: cohort.end_date ?? null },
+    cohort: {
+      id: cohort.id, name: cohort.name, startDate: cohort.start_date ?? null, endDate: cohort.end_date ?? null,
+      classesEndDate: cohort.classes_end_date ?? null,
+    },
     items,
     group,
   };

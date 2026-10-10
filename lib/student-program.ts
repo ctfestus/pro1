@@ -36,7 +36,15 @@ export type ProgramItem = {
   locked?: boolean;
 };
 
-export type ProgramCohort = { id: string; name: string; startDate: string | null; endDate: string | null };
+export type ProgramCohort = {
+  id: string;
+  name: string;
+  startDate: string | null;
+  /** End of the cohort, including the catch-up period after classes. */
+  endDate: string | null;
+  /** Last day of classes (migration 223). Null = classes run to endDate, no catch-up period. */
+  classesEndDate?: string | null;
+};
 export type ProgramGroupMember = { id: string; name: string; avatarUrl: string | null; isLeader: boolean; isYou: boolean };
 export type ProgramGroup = { id: string; name: string; description: string | null; members: ProgramGroupMember[] };
 
@@ -62,7 +70,11 @@ export type ProgramWeek = {
   hasOverdue: boolean;
 };
 
-export type ProgramPhase = 'before' | 'during' | 'after' | 'undated';
+/**
+ * `catch_up` = classes are over but the cohort's catch-up period is still running. Called catch-up,
+ * not grace, because "grace period" already means late-payment grace on the student page.
+ */
+export type ProgramPhase = 'before' | 'during' | 'catch_up' | 'after' | 'undated';
 
 export type ProgramTimeline = {
   weeks: ProgramWeek[];
@@ -73,8 +85,12 @@ export type ProgramTimeline = {
    * can run past its last dated week, so this may exceed weeks.length.
    */
   currentWeek: number | null;
-  /** True when the cohort has an end date, so "of N weeks" is meaningful. */
+  /** True when classes have a known last day, so "of N weeks" is meaningful. */
   hasEndDate: boolean;
+  /** The last day of classes actually used: the cohort's, or null when unset or out of range. */
+  classesEndDate: string | null;
+  /** The cohort end date when it extends past classes (a catch-up period), else null. */
+  catchUpEndDate: string | null;
   required: number;
   completed: number;
   pct: number;
@@ -82,8 +98,9 @@ export type ProgramTimeline = {
   statusCounts: Record<ProgramStatus, number>;
   /** Required items that were due before today and are not complete. */
   behind: number;
-  /** Share of the program's calendar already passed, or null without an end date. */
+  /** Share of class time already passed, or null when classes have no known last day. */
   timePct: number | null;
+  /** Days of classes left while classes run; days of catch-up left during the catch-up period. */
   daysLeft: number | null;
   daysUntilStart: number | null;
   upNext: TimelineItem | null;
@@ -161,16 +178,25 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
     ? dayIndex(payload.cohort.startDate)
     : dueIdxs.length ? Math.min(...dueIdxs) : null;
   const endIdx = payload.cohort?.endDate ? dayIndex(payload.cohort.endDate) : null;
+  // Teaching runs to the classes end date when one is set; the rest of the cohort is catch-up. Only
+  // the forms validate it (the payment panel can move the cohort dates around it), so a date
+  // outside the cohort is ignored rather than trusted.
+  const rawClassesEnd = payload.cohort?.classesEndDate ? dayIndex(payload.cohort.classesEndDate) : null;
+  const classesEndValid = rawClassesEnd !== null
+    && (startIdx === null || rawClassesEnd >= startIdx)
+    && (endIdx === null || rawClassesEnd <= endIdx);
+  const classesEndIdx = classesEndValid ? rawClassesEnd : endIdx;
+  const hasCatchUp = classesEndIdx !== null && endIdx !== null && classesEndIdx < endIdx;
 
   const weeks: ProgramWeek[] = [];
   let phase: ProgramPhase = 'undated';
   let currentWeek: number | null = null;
 
   if (startIdx !== null) {
-    const lastIdx = Math.max(startIdx, endIdx ?? (dueIdxs.length ? Math.max(...dueIdxs) : startIdx));
+    const lastIdx = Math.max(startIdx, classesEndIdx ?? (dueIdxs.length ? Math.max(...dueIdxs) : startIdx));
     const totalWeeks = Math.min(MAX_WEEKS, Math.floor((lastIdx - startIdx) / 7) + 1);
-    // Deadlines before the start or after the end are pulled into the first or last week, so
-    // nothing silently drops off the journey.
+    // Deadlines before the start or after classes end (including any set in the catch-up period) are
+    // pulled into the first or last week, so nothing silently drops off the journey.
     const weekOf = (idx: number) => Math.min(totalWeeks, Math.max(1, Math.floor((idx - startIdx) / 7) + 1));
 
     for (let w = 1; w <= totalWeeks; w++) {
@@ -190,12 +216,14 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
     }
 
     if (todayIdx < startIdx) phase = 'before';
-    else if (endIdx !== null && todayIdx > endIdx) phase = 'after';
+    // The cohort is over after its end date, or after classes when it has no separate end date.
+    else if ((endIdx ?? classesEndIdx) !== null && todayIdx > (endIdx ?? classesEndIdx)!) phase = 'after';
+    else if (hasCatchUp && todayIdx > classesEndIdx!) phase = 'catch_up';
     else phase = 'during';
-    // With an end date the journey covers the whole program, so clamp. Without one, report the
-    // real calendar week even past the last dated item rather than freezing on it.
+    // With a known last day of classes the journey covers all of them, so clamp. Without one,
+    // report the real calendar week even past the last dated item rather than freezing on it.
     currentWeek = phase === 'before' ? null
-      : endIdx !== null ? weekOf(todayIdx)
+      : classesEndIdx !== null ? weekOf(todayIdx)
       : Math.floor((todayIdx - startIdx) / 7) + 1;
   }
 
@@ -209,10 +237,10 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
 
   let timePct: number | null = null;
   let daysLeft: number | null = null;
-  if (startIdx !== null && endIdx !== null && endIdx >= startIdx) {
-    const span = endIdx - startIdx + 1;
+  if (startIdx !== null && classesEndIdx !== null && classesEndIdx >= startIdx) {
+    const span = classesEndIdx - startIdx + 1;
     timePct = Math.round(Math.min(1, Math.max(0, (todayIdx - startIdx + 1) / span)) * 100);
-    daysLeft = Math.max(0, endIdx - todayIdx);
+    daysLeft = Math.max(0, (phase === 'catch_up' ? endIdx! : classesEndIdx) - todayIdx);
   }
   const daysUntilStart = startIdx !== null && todayIdx < startIdx ? startIdx - todayIdx : null;
 
@@ -223,7 +251,9 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
   const upNext = pick('overdue') ?? pick('progress') ?? pick('todo') ?? pick('failed') ?? null;
 
   return {
-    weeks, anytime, phase, currentWeek, hasEndDate: endIdx !== null,
+    weeks, anytime, phase, currentWeek, hasEndDate: classesEndIdx !== null,
+    classesEndDate: classesEndValid ? payload.cohort!.classesEndDate! : null,
+    catchUpEndDate: hasCatchUp ? payload.cohort!.endDate : null,
     required: required.length,
     completed,
     pct: required.length ? Math.round((completed / required.length) * 100) : 0,

@@ -146,16 +146,25 @@ function ProgramView({ payload, timeline, coursesLocked, C }: {
     groupButtonRef.current?.focus();
   }, []);
 
-  const dateRange = cohort.startDate && cohort.endDate
-    ? `${formatDay(cohort.startDate)} to ${formatDay(cohort.endDate)}, ${cohort.endDate.slice(0, 4)}`
-    : cohort.startDate ? `${timeline.phase === 'before' ? 'Starts' : 'Started'} ${formatDay(cohort.startDate)}` : null;
+  const catchUpEnd = timeline.catchUpEndDate;
+  const classesEnd = timeline.classesEndDate;
+  const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`;
+  const withYear = (d: string) => `${formatDay(d)}, ${d.slice(0, 4)}`;
+  const dateRange = cohort.startDate && catchUpEnd && classesEnd
+    ? `Classes ${formatDay(cohort.startDate)} to ${withYear(classesEnd)}. Catch-up period until ${withYear(catchUpEnd)}.`
+    : cohort.startDate && cohort.endDate
+      ? `${formatDay(cohort.startDate)} to ${formatDay(cohort.endDate)}, ${cohort.endDate.slice(0, 4)}`
+      : cohort.startDate ? `${timeline.phase === 'before' ? 'Starts' : 'Started'} ${formatDay(cohort.startDate)}` : null;
 
   const weekChip = timeline.phase === 'before' && timeline.daysUntilStart !== null
-    ? `Starts in ${timeline.daysUntilStart} day${timeline.daysUntilStart === 1 ? '' : 's'}`
+    ? `Starts in ${days(timeline.daysUntilStart)}`
     : timeline.phase === 'after' ? 'Program ended'
+    : timeline.phase === 'catch_up'
+      ? `Catch-up period${timeline.daysLeft !== null ? `, ${days(timeline.daysLeft)} left` : ''}`
     : timeline.phase === 'during' && timeline.currentWeek
       ? timeline.hasEndDate
-        ? `Week ${timeline.currentWeek} of ${timeline.weeks.length}${timeline.daysLeft !== null ? `, ${timeline.daysLeft} days left` : ''}`
+        ? `Week ${timeline.currentWeek} of ${timeline.weeks.length}${timeline.daysLeft !== null
+            ? `, ${days(timeline.daysLeft)} ${catchUpEnd ? 'of classes ' : ''}left` : ''}`
         : `Week ${timeline.currentWeek}`
       : null;
 
@@ -268,8 +277,16 @@ function Bar({ label, pct, color, C }: { label: string; pct: number; color: stri
 
 function PaceCard({ timeline, C }: { timeline: ProgramTimeline; C: typeof LIGHT_C }) {
   const { behind, phase } = timeline;
+  const catchUpEnd = timeline.catchUpEndDate;
+  const remaining = timeline.required - timeline.completed;
   const verdict = phase === 'before'
     ? { text: 'Your program has not started yet. You can get a head start.', color: C.muted, bg: C.pill }
+    : phase === 'catch_up' && catchUpEnd
+      ? behind > 0
+        ? { text: `Classes have ended. Finish ${behind} overdue item${behind === 1 ? '' : 's'} by ${formatDay(catchUpEnd)}.`, color: '#b45309', bg: 'rgba(245,158,11,0.12)' }
+        : remaining > 0
+          ? { text: `Classes have ended. ${remaining} item${remaining === 1 ? '' : 's'} left to finish by ${formatDay(catchUpEnd)}.`, color: '#b45309', bg: 'rgba(245,158,11,0.12)' }
+          : { text: 'Classes have ended and you are all caught up.', color: GREEN, bg: 'rgba(22,163,74,0.10)' }
     : behind > 0
       ? { text: `${behind} item${behind === 1 ? '' : 's'} behind. Finish overdue work to get back on track.`, color: '#b45309', bg: 'rgba(245,158,11,0.12)' }
       : { text: 'You are on track. Keep going.', color: GREEN, bg: 'rgba(22,163,74,0.10)' };
@@ -277,7 +294,7 @@ function PaceCard({ timeline, C }: { timeline: ProgramTimeline; C: typeof LIGHT_
     <section className="rounded-2xl p-5" style={{ background: C.card }}>
       <CardTitle C={C}>Your pace</CardTitle>
       <div className="space-y-3.5 mb-4">
-        {timeline.timePct !== null && <Bar label="Program time passed" pct={timeline.timePct} color={GREY} C={C}/>}
+        {timeline.timePct !== null && <Bar label="Class time passed" pct={timeline.timePct} color={GREY} C={C}/>}
         <Bar label="Your progress" pct={timeline.pct} color={GREEN} C={C}/>
       </div>
       <div className="flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-[13px] font-semibold" style={{ background: verdict.bg, color: verdict.color }}>
@@ -478,7 +495,7 @@ function Journey({ timeline, filter, C }: { timeline: ProgramTimeline; filter: P
             {selectedWeek && (
               <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: C.cta }}>
                 {phase === 'during' && selectedWeek.week === currentWeek ? 'This week'
-                  : phase === 'after' || lastWeekPassed || (currentWeek && selectedWeek.week < currentWeek) ? 'Past week' : 'Coming up'}
+                  : phase === 'after' || phase === 'catch_up' || lastWeekPassed || (currentWeek && selectedWeek.week < currentWeek) ? 'Past week' : 'Coming up'}
               </p>
             )}
             <h3 className="text-base font-bold" style={{ color: C.text }}>

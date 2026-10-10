@@ -107,6 +107,53 @@ describe('locked items', () => {
   });
 });
 
+describe('catch-up period after classes', () => {
+  // 12 weeks of classes (Sep 1 to Nov 23), then a month of catch-up to Dec 23.
+  const withCatchUp = (items: ProgramItem[]) => payload(items, { endDate: '2026-12-23', classesEndDate: '2026-11-23' });
+
+  it('draws the journey and measures pace over classes only', () => {
+    const t = buildProgramTimeline(withCatchUp([item({ dueDate: '2026-09-05' })]), '2026-10-09');
+    expect(t.weeks).toHaveLength(12);
+    expect(t.phase).toBe('during');
+    expect(t.currentWeek).toBe(6);
+    expect(t.timePct).toBe(46);
+    expect(t.daysLeft).toBe(45);
+    expect(t.catchUpEndDate).toBe('2026-12-23');
+  });
+
+  it('switches to the catch-up phase after classes, counting days to the cohort end', () => {
+    const t = buildProgramTimeline(withCatchUp([item({ baseStatus: 'not_started', dueDate: '2026-11-20' })]), '2026-12-01');
+    expect(t.phase).toBe('catch_up');
+    expect(t.timePct).toBe(100);
+    expect(t.daysLeft).toBe(22);
+    expect(t.behind).toBe(1);
+  });
+
+  it('puts deadlines set inside the catch-up period into the last week of classes', () => {
+    const t = buildProgramTimeline(withCatchUp([item({ id: 'capstone', dueDate: '2026-12-15' })]), '2026-10-09');
+    expect(t.weeks[11].items.map(i => i.id)).toEqual(['capstone']);
+  });
+
+  it('ends after the cohort end date, not after classes', () => {
+    expect(buildProgramTimeline(withCatchUp([]), '2026-12-23').phase).toBe('catch_up');
+    expect(buildProgramTimeline(withCatchUp([]), '2026-12-24').phase).toBe('after');
+  });
+
+  it('ignores a classes end date outside the cohort rather than breaking the journey', () => {
+    const t = buildProgramTimeline(payload([], { endDate: '2026-11-23', classesEndDate: '2027-02-01' }), '2026-10-09');
+    expect(t.weeks).toHaveLength(12);
+    expect(t.catchUpEndDate).toBeNull();
+    expect(t.classesEndDate).toBeNull();
+  });
+
+  it('ignores a classes end date before the start instead of making it all catch-up', () => {
+    const t = buildProgramTimeline(payload([], { startDate: '2026-10-01', endDate: '2026-12-23', classesEndDate: '2026-09-20' }), '2026-10-02');
+    expect(t.phase).toBe('during');
+    expect(t.catchUpEndDate).toBeNull();
+    expect(t.weeks.length).toBeGreaterThan(1);
+  });
+});
+
 describe('cohorts without an end date', () => {
   it('keeps counting real weeks past the last dated item', () => {
     const t = buildProgramTimeline(payload([item({ dueDate: '2026-09-10' })], { endDate: null }), '2026-10-09');

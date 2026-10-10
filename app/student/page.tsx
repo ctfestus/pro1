@@ -334,7 +334,7 @@ export default function StudentDashboard() {
             if (s?.cohort_id) {
               const cohortResult = await supabase
                 .from('cohorts')
-                .select('id, name, start_date, end_date, cohort_kind')
+                .select('id, name, start_date, end_date, classes_end_date, cohort_kind')
                 .eq('id', s.cohort_id)
                 .maybeSingle();
               if (!cohortResult.error) {

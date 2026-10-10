@@ -18,7 +18,10 @@ export type CohortTimeline = {
   id: string;
   name: string;
   start_date: string | null;
+  /** End of the cohort, including any catch-up period after classes. */
   end_date: string | null;
+  /** Last day of classes (migration 223); null = classes run to end_date. */
+  classes_end_date?: string | null;
 };
 
 export type SubscriptionTimeline = {
@@ -141,12 +144,16 @@ function TimelineBadge(props: TimelineBadgeProps) {
   if (!start || !end) return null;
   const timeline = props.timeline;
 
+  // A cohort's weeks and progress run to its last day of classes; the rest of the cohort, up to
+  // end_date, is the catch-up period. A classes end outside the cohort's dates is ignored.
+  const classesEnd  = props.variant === 'cohort' ? parseDateOnly(props.timeline.classes_end_date) : null;
+  const teachEnd    = classesEnd && classesEnd >= start && classesEnd < end ? classesEnd : end;
+
   const today       = new Date();
-  const totalDays   = Math.max(diffDays(start, end), 1);
+  const totalDays   = Math.max(diffDays(start, teachEnd), 1);
   const elapsed     = diffDays(start, today);
   const bounded     = Math.min(Math.max(elapsed, 0), totalDays);
   const pct         = Math.round((bounded / totalDays) * 100);
-  const daysLeft    = Math.max(diffDays(today, end), 0);
   const daysToStart = Math.max(diffDays(today, start), 0);
   const totalWeeks  = Math.max(Math.ceil(totalDays / 7), 1);
   const weekNum     = Math.min(Math.max(Math.floor(bounded / 7) + 1, 1), totalWeeks);
@@ -155,23 +162,27 @@ function TimelineBadge(props: TimelineBadgeProps) {
   const isUpcoming = elapsed < 0;
   const isDone     = props.variant === 'subscription'
     ? subscriptionHasEnded(props.timeline.status, end)
-    : elapsed > totalDays;
+    : elapsed > Math.max(diffDays(start, end), 1);
+  const isCatchUp  = !isDone && teachEnd !== end && elapsed > totalDays;
   const isActive   = !isUpcoming && !isDone;
+  const daysLeft   = Math.max(diffDays(today, isCatchUp ? end : teachEnd), 0);
 
   const endedLabel = props.variant === 'subscription'
     ? subscriptionStatus === 'cancelled' ? 'Cancelled' : 'Expired'
     : 'Done';
-  const chipLabel   = isUpcoming ? 'Soon' : isDone ? endedLabel : 'Active';
+  const chipLabel   = isUpcoming ? 'Soon' : isDone ? endedLabel : isCatchUp ? 'Catch-up' : 'Active';
   const badgeStatus = isUpcoming
     ? `Starts in ${daysToStart}d`
     : isDone ? endedLabel
+    : isCatchUp ? `Catch-up, ${daysLeft}d left`
     : props.variant === 'subscription' ? `${daysLeft}d left` : `Wk ${weekNum}/${totalWeeks}`;
   const detailLine  = isUpcoming
     ? `Starts ${formatTimelineDate(start)}`
     : isDone ? props.variant === 'subscription'
       ? subscriptionStatus === 'cancelled' ? 'Subscription cancelled' : `Access ended ${formatTimelineDate(end)}`
       : 'This cohort has ended'
-    : `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`;
+    : isCatchUp ? `Catch-up period, ${daysLeft} day${daysLeft === 1 ? '' : 's'} left`
+    : `${daysLeft} day${daysLeft === 1 ? '' : 's'} ${teachEnd !== end ? 'of classes ' : ''}remaining`;
   const durationLine = props.variant === 'subscription'
     ? `${props.timeline.duration_months} month${props.timeline.duration_months === 1 ? '' : 's'} subscription`
     : null;
@@ -282,7 +293,8 @@ function TimelineBadge(props: TimelineBadgeProps) {
               {/* Date labels */}
               <div className="flex justify-between mt-1">
                 <span className="text-xs font-semibold" style={{ color: C.faint }}>{formatTimelineDate(start)}</span>
-                <span className="text-xs font-semibold" style={{ color: C.faint }}>{formatTimelineDate(end)}</span>
+                {/* The track measures classes, so it ends on the last day of classes. */}
+                <span className="text-xs font-semibold" style={{ color: C.faint }}>{formatTimelineDate(teachEnd)}</span>
               </div>
             </div>
           </motion.div>
