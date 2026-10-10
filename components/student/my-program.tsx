@@ -24,6 +24,8 @@ const GREEN = '#16a34a';
 const SKY = '#0ea5e9';
 const ATTN = '#f59e0b';
 const ATTN_SOFT = 'rgba(245,158,11,0.13)';
+// Amber text: deep in light mode, light in dark mode, so it stays readable on its soft tint.
+const useAttnInk = () => (useTheme().theme === 'dark' ? '#fbbf24' : '#b45309');
 const ROAD_ATTN = '#e5484d';
 const AVATAR_COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#14b8a6', '#ef4444', '#64748b'];
 
@@ -129,9 +131,10 @@ function ProgramView({ payload, timeline, studentName, C }: {
   payload: ProgramPayload; timeline: ProgramTimeline; studentName: string | null; C: typeof LIGHT_C;
 }) {
   const cohort = payload.cohort!;
+  const attnInk = useAttnInk();
   const { weeks, currentWeek, phase, anytime } = timeline;
-  // The week in view: the current one (clamped onto the road), else the first; "anytime" holds
-  // undated work. Nothing selected yet means "where I am".
+  // The week in view starts on the current one (clamped onto the road), else the first; "anytime"
+  // holds undated work. "This week" in the stepper returns here.
   const homeWeek: WeekKey = currentWeek && weeks.length
     ? Math.min(currentWeek, weeks.length)
     : weeks.length ? 1 : 'anytime';
@@ -161,7 +164,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
   const remaining = timeline.required - timeline.completed;
   const pace = timeline.behind > 0
     ? { text: `${plural(timeline.behind, 'thing')} ${timeline.behind === 1 ? 'needs' : 'need'} your attention`, attn: true }
-    : phase === 'catch_up' && remaining > 0 ? { text: `${plural(remaining, 'item')} left to finish`, attn: true }
+    : (phase === 'catch_up' || phase === 'after') && remaining > 0 ? { text: `${plural(remaining, 'item')} left to finish`, attn: true }
     : phase === 'before' ? null
     : { text: remaining === 0 && timeline.required > 0 ? 'All caught up' : 'You are on track', attn: false };
 
@@ -178,7 +181,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
               {pace && (
                 <span className="inline-flex items-center gap-2 text-[13px] font-bold px-3 py-1.5 rounded-full"
-                  style={pace.attn ? { background: ATTN_SOFT, color: '#b45309' } : { background: C.lime, color: C.cta }}>
+                  style={pace.attn ? { background: ATTN_SOFT, color: attnInk } : { background: C.lime, color: C.cta }}>
                   <span className="w-[7px] h-[7px] rounded-full" style={{ background: 'currentColor' }}/>{pace.text}
                 </span>
               )}
@@ -311,6 +314,13 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
     if (el && scrolls && sel !== null) el.scrollTo({ left: xAt(sel) - el.clientWidth / 2, behavior: 'smooth' });
     reportAnchor();
   }, [sel, scrolls, xAt, reportAnchor, viewW]);
+  const scrollFrame = useRef(0);
+  const onScroll = () => {
+    setTip(null);
+    if (scrollFrame.current) return;
+    scrollFrame.current = requestAnimationFrame(() => { scrollFrame.current = 0; reportAnchor(); });
+  };
+  useEffect(() => () => cancelAnimationFrame(scrollFrame.current), []);
 
   const move = (w: number) => onPick(Math.max(1, Math.min(n, w)));
   const onKey = (e: React.KeyboardEvent, w: number) => {
@@ -329,7 +339,7 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
 
   return (
     <div className="relative mt-3">
-      <div ref={scrollRef} onScroll={reportAnchor}
+      <div ref={scrollRef} onScroll={onScroll}
         className={`relative ${scrolls ? 'overflow-x-auto overflow-y-hidden' : ''}`}
         style={scrolls ? {
           scrollbarWidth: 'none',
@@ -355,22 +365,25 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
               const fill = late ? ROAD_ATTN : C.card;
               const stroke = late ? 'none' : full ? road : C.skeleton;
               const ink = late ? '#ffffff' : full ? road : C.muted;
-              const text = `${late ? `${late} past due . ` : ''}${week.completed} of ${week.required} done`;
+              const text = `${late ? `${late} past due, ` : ''}${week.completed} of ${week.required} done`;
               return (
                 <g key={w} data-week={w} role="button" tabIndex={w === (sel ?? 1) ? 0 : -1} className="cursor-pointer outline-none group"
                   aria-label={`Week ${w}, from ${formatDay(week.startDate)}, ${text}${w === currentWeek ? ', this week' : ''}`}
                   aria-pressed={w === sel}
                   onClick={() => onPick(w)} onKeyDown={e => onKey(e, w)}
-                  onMouseEnter={() => setTip({ x: x - (scrollRef.current?.scrollLeft ?? 0), y: y - r0, text })}
-                  onMouseLeave={() => setTip(null)}>
+                  onPointerEnter={e => { if (e.pointerType === 'mouse') setTip({ x: x - (scrollRef.current?.scrollLeft ?? 0), y: y - r0, text }); }}
+                  onPointerLeave={() => setTip(null)}>
                   <circle cx={x} cy={y} r={r0 + 8} fill="transparent"/>
                   <circle cx={x} cy={y} r={r0} fill={fill} stroke={stroke} strokeWidth={3}
                     className="transition-transform group-hover:scale-110 group-focus-visible:stroke-[4]"
                     style={{ transformBox: 'fill-box', transformOrigin: 'center' }}/>
-                  <text x={x} y={y} fill={ink} textAnchor="middle" dominantBaseline="central"
-                    style={{ fontWeight: 800, fontSize: late ? 15 : 12, pointerEvents: 'none' }}>
-                    {full ? '✓' : late ? '!' : w}
-                  </text>
+                  {full && !late
+                    ? <path d={`M${x - r0 * 0.36} ${y + r0 * 0.02} l${r0 * 0.24} ${r0 * 0.26} l${r0 * 0.46} ${-r0 * 0.5}`}
+                        fill="none" stroke={ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: 'none' }}/>
+                    : <text x={x} y={y} fill={ink} textAnchor="middle" dominantBaseline="central"
+                        style={{ fontWeight: 800, fontSize: late ? 15 : 12, pointerEvents: 'none' }}>
+                        {late ? '!' : w}
+                      </text>}
                 </g>
               );
             })}
@@ -382,11 +395,12 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
 
             {sel !== null && (
               <g ref={hlRef} style={{ pointerEvents: 'none' }} transform={`translate(${xAt(sel)} ${y})`}>
+                <circle className="mp-focus" r={r0 + 6} fill="none" stroke={C.text} strokeWidth={2}/>
                 <circle r={r0 + 1} fill="#ffffff" stroke={roadHi} strokeWidth={3}/>
                 <svg x={-r0} y={-r0} width={2 * r0} height={2 * r0} viewBox="0 0 24 24" overflow="visible">
                   <g ref={faceRef}><Runner/></g>
                 </svg>
-                <text ref={tagRef} y={r0 + 18} textAnchor="middle" fill={roadHi} style={{ fontWeight: 700, fontSize: 10.5 }}/>
+                <text ref={tagRef} y={r0 + 18} textAnchor="middle" fill={`color-mix(in srgb, ${roadHi} 55%, ${C.text})`} style={{ fontWeight: 800, fontSize: 11 }}/>
               </g>
             )}
           </svg>
@@ -394,11 +408,12 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
       </div>
       {tip && (
         <div className="absolute pointer-events-none text-xs font-bold px-2.5 py-1.5 rounded-lg whitespace-nowrap"
-          style={{ left: tip.x, top: tip.y, transform: 'translate(-50%, calc(-100% - 10px))', background: C.text, color: C.card }}>
+          style={{ left: Math.max(70, Math.min(viewW - 70, tip.x)), top: tip.y, transform: 'translate(-50%, calc(-100% - 10px))', background: C.text, color: C.card }}>
           {tip.text}
         </div>
       )}
-      <style>{`.mp-lane { animation: mp-flow 1.6s linear infinite; } @keyframes mp-flow { to { stroke-dashoffset: -22; } }
+      <style>{`.mp-focus { opacity: 0; } svg:has(:focus-visible) .mp-focus { opacity: 1; }
+        .mp-lane { animation: mp-flow 1.6s linear infinite; } @keyframes mp-flow { to { stroke-dashoffset: -22; } }
         .mp-rn { animation: mp-bob .22s ease-in-out infinite alternate; }
         .mp-rn .mp-a { animation: mp-a .44s steps(1) infinite; } .mp-rn .mp-b { animation: mp-b .44s steps(1) infinite; }
         @keyframes mp-a { 0% { opacity: 1; } 50% { opacity: 0; } } @keyframes mp-b { 0% { opacity: 0; } 50% { opacity: 1; } }
@@ -459,8 +474,9 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, anytime, C }: {
   // The one next step leads the current week, even when it belongs to an earlier one.
   const focus = isHome && phase !== 'before' && upNext ? upNext : null;
   const rest = list.filter(i => i !== focus);
-  const open = rest.filter(i => !isCompleteStatus(i.status) && i.status !== 'attended');
-  const fin = rest.filter(i => isCompleteStatus(i.status) || i.status === 'attended');
+  const settled = (i: TimelineItem) => isCompleteStatus(i.status) || i.status === 'attended' || i.status === 'missed';
+  const open = rest.filter(i => !settled(i));
+  const fin = rest.filter(settled);
   const required = week ? week.required : list.filter(i => i.type !== 'event').length;
   const done = week ? week.completed : list.filter(i => i.type !== 'event' && isCompleteStatus(i.status)).length;
   const allDone = !!week && required > 0 && done === required;
@@ -468,18 +484,18 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, anytime, C }: {
   const lastWeek = weeks.length;
 
   return (
-    <div aria-live="polite">
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0">
+        <div className="min-w-0" aria-live="polite">
           <h2 className="text-xl font-bold tracking-tight" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Any time'}</h2>
           <p className="text-[13px] mt-0.5 tabular-nums" style={{ color: C.muted }}>
-            {when}{week ? ` . from ${formatDay(week.startDate)}` : ''}{required ? ` . ${done} of ${required} done` : ''}
+            {when}{week ? `, from ${formatDay(week.startDate)}` : ''}{required ? `, ${done} of ${required} done` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
           {anytime.length > 0 && sel !== 'anytime' && (
             <button onClick={() => setSel('anytime')} className="text-[12.5px] font-bold px-3 py-2 rounded-full" style={{ background: C.pill, color: C.muted }}>
-              Any time . {anytime.length}
+              Any time ({anytime.length})
             </button>
           )}
           {lastWeek > 0 && (
@@ -562,7 +578,8 @@ function itemMeta(item: TimelineItem) {
   if (item.recurring) parts.push('Repeats');
   if ((item.status === 'progress' || item.status === 'overdue') && item.progressPct > 0) parts.push(`${item.progressPct}% done`);
   if (item.status === 'awaiting') parts.push('In review');
-  return parts.join(' . ');
+  if (item.type === 'event') parts.push('Not counted toward progress');
+  return parts.join(', ');
 }
 
 function FocusCard({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
@@ -573,7 +590,7 @@ function FocusCard({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
       <div className="min-w-0 flex-1">
         <p className="text-[11px] font-extrabold uppercase tracking-[0.12em]" style={{ color: C.cta }}>Start here</p>
         <p className="text-[17px] font-extrabold mt-0.5 truncate" style={{ color: C.text }}>{item.title}</p>
-        <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>{itemMeta(item)}{item.week ? ` . Week ${item.week}` : ''}</p>
+        <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>{itemMeta(item)}{item.week ? `, Week ${item.week}` : ''}</p>
       </div>
       <ItemLink item={item}
         className="w-full sm:w-auto justify-center inline-flex items-center gap-2 text-sm font-extrabold px-5 py-3 rounded-2xl transition-transform hover:-translate-y-px"
@@ -598,6 +615,7 @@ function StateMark({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
 }
 
 function ItemRow({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
+  const attnInk = useAttnInk();
   const finished = isCompleteStatus(item.status) || item.status === 'attended';
   const tags: { text: string; attn?: boolean }[] = [];
   if (item.status === 'overdue') tags.push({ text: 'Past due', attn: true });
@@ -614,7 +632,7 @@ function ItemRow({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
           <span>{itemMeta(item)}</span>
           {tags.map(t => (
             <span key={t.text} className="text-[11px] font-bold px-2 py-0.5 rounded-md"
-              style={t.attn ? { background: ATTN_SOFT, color: '#b45309' } : { background: C.pill, color: C.muted }}>{t.text}</span>
+              style={t.attn ? { background: ATTN_SOFT, color: attnInk } : { background: C.pill, color: C.muted }}>{t.text}</span>
           ))}
         </div>
       </div>
