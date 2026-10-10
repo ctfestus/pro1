@@ -1,6 +1,6 @@
 'use client';
 
-// My Program: completion and the next action lead, with a connected weekly timeline beneath.
+// My Program: completion and the next action lead, with the original road journey beneath.
 // Dates, locks, ongoing work and progress still come from the shared timeline contract.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -232,7 +232,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
                   </button>
                 )}
               </div>
-              {weeks.length > 0 && <WeekTimeline weeks={weeks} currentWeek={currentWeek} phase={phase} sel={typeof sel === 'number' ? sel : 1} onPick={setChoice} C={C}/>}
+              {weeks.length > 0 && <JourneyRoad weeks={weeks} currentWeek={currentWeek} phase={phase} sel={typeof sel === 'number' ? sel : 1} onPick={setChoice} C={C}/>}
               <WeekPanel sel={sel} setSel={setChoice} timeline={timeline} undated={anytime} C={C}/>
             </section>
           </>
@@ -281,36 +281,45 @@ function NextAction({ timeline, C }: { timeline: ProgramTimeline; C: typeof LIGH
   );
 }
 
-function WeekTimeline({ weeks, currentWeek, phase, sel, onPick, C }: {
+// The original road, stops, runner and finish flag, with calmer motion and native touch controls.
+function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, C }: {
   weeks: ProgramWeek[]; currentWeek: number | null; phase: ProgramTimeline['phase'];
   sel: number; onPick: (w: WeekKey) => void; C: typeof LIGHT_C;
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const buttons = useRef(new Map<number, HTMLButtonElement>());
+  const [viewW, setViewW] = useState(0);
   const reduceMotion = useReducedMotion();
   const attnInk = useAttnInk();
+  const n = weeks.length;
+  const W = Math.max(viewW, n * 72 + 96);
+  const padL = 24, padR = 64, y = 56, r = 14;
+  const xAt = useCallback((w: number) => padL + (W - padL - padR) * (w - 0.5) / n, [W, n]);
+  // Road colour tracks the calendar, as in the original; only checkmarks mean completed work.
+  const fillTo = phase === 'before' || !currentWeek ? null
+    : phase === 'after' ? W - padR : xAt(Math.min(currentWeek, n));
+  const successInk = 'color-mix(in srgb, ' + C.successText + ' 70%, ' + C.text + ')';
 
   useEffect(() => {
-    const container = scrollRef.current;
-    const button = buttons.current.get(sel);
-    if (!container || !button) return;
-    const reveal = () => {
-      const left = container.scrollLeft + button.getBoundingClientRect().left - container.getBoundingClientRect().left
-        - (container.clientWidth - button.offsetWidth) / 2;
-      container.scrollTo({ left, behavior: reduceMotion ? 'auto' : 'smooth' });
-    };
-    reveal();
-    const observer = new ResizeObserver(reveal);
-    observer.observe(container);
+    const el = scrollRef.current;
+    if (!el) return;
+    const measure = () => setViewW(el.clientWidth);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
     return () => observer.disconnect();
-  }, [sel, reduceMotion]);
+  }, []);
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ left: xAt(sel) - viewW / 2, behavior: reduceMotion ? 'auto' : 'smooth' });
+  }, [sel, viewW, xAt, reduceMotion]);
 
   const onKey = (e: React.KeyboardEvent<HTMLButtonElement>, week: number) => {
     let next: number;
-    if (e.key === 'ArrowRight') next = Math.min(weeks.length, week + 1);
-    else if (e.key === 'ArrowLeft') next = Math.max(1, week - 1);
+    if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = Math.min(n, week + 1);
+    else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') next = Math.max(1, week - 1);
     else if (e.key === 'Home') next = 1;
-    else if (e.key === 'End') next = weeks.length;
+    else if (e.key === 'End') next = n;
     else return;
     e.preventDefault();
     onPick(next);
@@ -318,45 +327,120 @@ function WeekTimeline({ weeks, currentWeek, phase, sel, onPick, C }: {
   };
 
   return (
-    <div className="mt-5 mb-6 min-w-0">
+    <div className="mt-4 mb-6 min-w-0">
       <div ref={scrollRef} role="group" aria-label="Program weeks. Use the left and right arrow keys to move."
-        className="relative overflow-x-auto overscroll-x-contain p-1 -mx-1"
-        style={{ scrollbarWidth: 'thin' }}>
-        <div className="flex w-max min-w-full">
-          {weeks.map((week, index) => {
+        className="relative overflow-x-auto overscroll-x-contain"
+        style={{ scrollbarWidth: 'thin', maskImage: W > viewW && viewW > 0
+          ? 'linear-gradient(90deg, transparent, #000 20px, #000 calc(100% - 20px), transparent)' : undefined }}>
+        <div className="relative" style={{ width: W, height: 150 }}>
+          <svg data-program-road="" aria-hidden="true" width={W} height={150} viewBox={`0 0 ${W} 150`} className="block pointer-events-none">
+            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={C.pill} strokeWidth={14} strokeLinecap="round"/>
+            {fillTo !== null && <motion.line x1={padL} y1={y} y2={y} stroke={C.cta} strokeWidth={14} strokeLinecap="round"
+              initial={false} animate={{ x2: fillTo }} transition={{ duration: reduceMotion ? 0 : 0.35 }}/>}
+            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={C.accent} strokeWidth={1.5} strokeDasharray="8 10" strokeLinecap="round"/>
+
+            {weeks.map(week => {
+              const x = xAt(week.week);
+              const complete = week.required > 0 && week.completed === week.required;
+              const current = phase === 'during' && currentWeek === week.week;
+              const onFilled = fillTo !== null && x <= fillTo + 1;
+              const ink = week.hasOverdue ? attnInk : complete ? successInk : onFilled ? C.cta : C.muted;
+              return (
+                <g key={week.week}>
+                  {current && week.week !== sel && <circle cx={x} cy={y} r={r + 5} fill="none" stroke={C.cta} strokeWidth={1.5}/>}
+                  <circle cx={x} cy={y} r={r} fill={C.card}
+                    stroke={week.hasOverdue ? C.accent : complete ? C.successText : onFilled ? C.cta : C.faint} strokeWidth={2.5}/>
+                  {complete ? <path data-completed-week={week.week} d={`M${x - 5} ${y} l3.5 3.5 l6.5 -7`}
+                    fill="none" stroke={ink} strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round"/>
+                    : <text x={x} y={y} fill={ink} textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>{week.week}</text>}
+                </g>
+              );
+            })}
+
+            <line x1={W - padR + 14} y1={y + 10} x2={W - padR + 14} y2={y - 29} stroke={C.text} strokeWidth={2} strokeLinecap="round"/>
+            <path d={`M${W - padR + 15} ${y - 29} l20 6 -20 7 z`} fill={C.accent}/>
+            <text x={W - padR + 14} y={y + 34} textAnchor="middle" fontWeight={600} fontSize={11} fill={C.muted}>Finish</text>
+
+            <motion.g data-road-runner="" initial={false} animate={{ x: xAt(sel), y }}
+              transition={{ duration: reduceMotion ? 0 : 0.45, ease: [0.2, 0.8, 0.2, 1] }}>
+              <circle r={r + 4} fill={C.card} stroke={C.accent} strokeWidth={2.5}/>
+              {/* Keep the original full-colour runner readable on a small light disk in either theme. */}
+              <circle r={r + 1} fill={LIGHT_C.card}/>
+              <svg key={sel} x={-r} y={-r} width={2 * r} height={2 * r} viewBox="0 0 24 24"><Runner/></svg>
+              <text y={-28} textAnchor="middle" fill={attnInk} fontWeight={700} fontSize={11}>
+                {sel === currentWeek && phase === 'during' ? 'You are here' : 'Viewing'}
+              </text>
+            </motion.g>
+          </svg>
+          {weeks.map(week => {
             const active = sel === week.week;
             const current = phase === 'during' && currentWeek === week.week;
             const complete = week.required > 0 && week.completed === week.required;
-            const note = current ? 'Current week' : week.hasOverdue ? 'Past due' : complete ? 'Complete' : formatDay(week.startDate);
+            const note = complete ? 'Complete' : week.hasOverdue ? 'Past due' : current ? 'This week' : formatDay(week.startDate);
             return (
-              <button key={week.week} ref={el => { if (el) buttons.current.set(week.week, el); else buttons.current.delete(week.week); }}
+              <button key={week.week} data-week={week.week}
+                ref={el => { if (el) buttons.current.set(week.week, el); else buttons.current.delete(week.week); }}
                 type="button" aria-pressed={active} aria-current={current ? 'step' : undefined}
                 aria-label={'Week ' + week.week + ', from ' + formatDay(week.startDate) + ', ' + week.completed + ' of ' + week.required + ' finished' + (current ? ', current week' : '') + (week.hasOverdue ? ', past due work' : '')}
                 tabIndex={active ? 0 : -1} onKeyDown={e => onKey(e, week.week)} onClick={() => onPick(week.week)}
-                className="relative min-w-[112px] flex-1 rounded-xl px-2 py-2 text-center focus-visible:outline-2 focus-visible:outline-offset-2"
-                style={{ color: C.text, outlineColor: C.cta }}>
-                {/* Neutral connectors show the schedule, not completion or elapsed-time progress. */}
-                {index > 0 && <span aria-hidden="true" className="absolute top-[26px] left-0 right-1/2 h-0.5" style={{ background: C.faint }}/>}
-                {index < weeks.length - 1 && <span aria-hidden="true" className="absolute top-[26px] left-1/2 right-0 h-0.5" style={{ background: C.faint }}/>}
-                <span aria-hidden="true" className="relative z-10 mx-auto grid place-items-center w-9 h-9 rounded-full text-sm font-bold tabular-nums transition-colors motion-reduce:transition-none"
-                  style={{ background: active ? C.cta : complete ? C.successBg : C.pill,
-                    color: active ? C.ctaText : complete ? 'color-mix(in srgb, ' + C.successText + ' 70%, ' + C.text + ')' : C.muted,
-                    boxShadow: current ? `0 0 0 3px ${C.card}, 0 0 0 5px ${C.cta}` : `0 0 0 5px ${C.card}` }}>
-                  {complete ? <Check className="w-4 h-4"/> : week.week}
-                </span>
-                <span className="relative block rounded-xl px-2 py-2 mt-3 transition-colors motion-reduce:transition-none"
+                className="absolute top-8 w-16 min-h-[108px] rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ left: xAt(week.week) - 32, color: C.text, outlineColor: C.cta }}>
+                <span className="absolute top-12 inset-x-0 block rounded-lg py-2 transition-colors motion-reduce:transition-none"
                   style={{ background: active ? C.lime : 'transparent' }}>
-                  <span className="block text-sm font-semibold">Week {week.week}</span>
-                  <span className="block text-xs mt-1.5 whitespace-nowrap"
-                    style={{ color: current ? C.text : week.hasOverdue ? attnInk : complete ? 'color-mix(in srgb, ' + C.successText + ' 70%, ' + C.text + ')' : C.muted }}>{note}</span>
+                  <span className="block text-xs font-semibold">Week {week.week}</span>
+                  <span className="block text-[11px] mt-1 whitespace-nowrap"
+                    style={{ color: complete ? successInk : week.hasOverdue ? attnInk : C.muted }}>{note}</span>
                 </span>
               </button>
             );
           })}
         </div>
       </div>
-      {weeks.length > 3 && <p className="sm:hidden text-xs mt-2" style={{ color: C.muted }}>Swipe to browse weeks</p>}
+      <p className="text-xs mt-2 leading-relaxed" style={{ color: C.muted }}>
+        {W > viewW && viewW > 0 ? 'Swipe or scroll to explore. ' : ''}The road shows your schedule; checkmarks show completed weeks.
+      </p>
+      <style>{`.mp-rn .mp-b { opacity: 0; }
+        .mp-rn .mp-a { animation: mp-road-a .44s steps(1) 2; }
+        .mp-rn .mp-b { animation: mp-road-b .44s steps(1) 2; }
+        @keyframes mp-road-a { 0% { opacity: 1; } 50% { opacity: 0; } }
+        @keyframes mp-road-b { 0% { opacity: 0; } 50% { opacity: 1; } }
+        @media (prefers-reduced-motion: reduce) { .mp-rn .mp-a, .mp-rn .mp-b { animation: none; } }`}</style>
     </div>
+  );
+}
+
+// A small full-colour runner (shirt, jeans, boots). Two stride poses swap like a flip-book.
+const SHIRT = '#0ea5a4', SKIN = '#f2c27b', HAIR = '#4a2c1a', JEANS = '#2f5fd0', BOOT = '#6b3f1f';
+type Pt = [number, number];
+const limb = (pts: Pt[], color: string, w: number) => (
+  <path d={'M' + pts.map(p => p.join(' ')).join(' L')} stroke={color} strokeWidth={w}/>
+);
+function Pose({ cls, backArm, backLeg, backBoot, frontArm, frontLeg, frontBoot }: {
+  cls: string; backArm: Pt[]; backLeg: Pt[]; backBoot: Pt[]; frontArm: Pt[]; frontLeg: Pt[]; frontBoot: Pt[];
+}) {
+  const hand = (pts: Pt[]) => <circle cx={pts[pts.length - 1][0]} cy={pts[pts.length - 1][1]} r={1.25} fill={SKIN}/>;
+  return (
+    <g className={cls}>
+      {limb(backLeg, JEANS, 3.4)}{limb(backBoot, BOOT, 3.6)}
+      {limb(backArm, SHIRT, 2.8)}{hand(backArm)}
+      <path d="M13.6 7.6 L11.4 13.6" stroke={SHIRT} strokeWidth={4.4}/>
+      {limb(frontLeg, JEANS, 3.4)}{limb(frontBoot, BOOT, 3.6)}
+      {limb(frontArm, SHIRT, 2.8)}{hand(frontArm)}
+    </g>
+  );
+}
+function Runner() {
+  return (
+    <g className="mp-rn" transform="translate(2.6 1.8) scale(0.8)" fill="none" strokeLinecap="round" strokeLinejoin="round">
+      <Pose cls="mp-a"
+        backArm={[[13.2, 8.9], [10, 10.3], [8.7, 12.6]]} backLeg={[[11.4, 13.6], [8.6, 16.8], [5.9, 17.9]]} backBoot={[[5.9, 17.9], [4.4, 16.4]]}
+        frontArm={[[13.2, 8.9], [16.3, 10.4], [17.5, 8.3]]} frontLeg={[[11.4, 13.6], [14.4, 16.8], [13.5, 20.6]]} frontBoot={[[13.3, 21], [15.6, 21]]}/>
+      <Pose cls="mp-b"
+        backArm={[[13.2, 8.9], [15.4, 11.2], [17.7, 11.8]]} backLeg={[[11.4, 13.6], [10.4, 17.5], [8.6, 20.6]]} backBoot={[[8.4, 21], [6.4, 20.8]]}
+        frontArm={[[13.2, 8.9], [10.7, 11], [11.6, 13.2]]} frontLeg={[[11.4, 13.6], [15.4, 15.6], [17.7, 17.9]]} frontBoot={[[17.7, 17.9], [19.3, 16.8]]}/>
+      <circle cx="14.6" cy="4.4" r="2.6" fill={SKIN}/>
+      <path d="M12.1 4.1 C12.2 1.6 15.6 1.1 16.9 3 C16.1 2.7 15.2 3 14.7 3.6 C14 3 13 3.2 12.1 4.1 Z" fill={HAIR}/>
+    </g>
   );
 }
 
