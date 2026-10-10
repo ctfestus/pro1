@@ -34,10 +34,38 @@ describe('week placement', () => {
     expect(t.weeks[2].startDate).toBe('2026-09-15');
   });
 
-  it('puts undated items in Any time, never in a week', () => {
-    const t = buildProgramTimeline(payload([item({ id: 'a' })]), '2026-09-02');
+  it('runs work with no dates from Week 1 to the current week, counted once', () => {
+    const t = buildProgramTimeline(payload([item({ id: 'a' })]), '2026-10-09');
+    expect(t.anytime).toHaveLength(0);
+    const placed = t.weeks[5].items.find(i => i.id === 'a')!;
+    expect(placed.week).toBe(6);
+    expect(placed.spanFrom).toBe(1);
+    // Listed as ongoing in weeks 1-5, counted only in week 6.
+    expect(t.weeks.slice(0, 5).every(w => w.ongoing.some(i => i.id === 'a'))).toBe(true);
+    expect(t.weeks.slice(0, 5).every(w => w.required === 0)).toBe(true);
+    expect(t.weeks[5].required).toBe(1);
+  });
+
+  it('stops spreading in the week the work was completed', () => {
+    const t = buildProgramTimeline(payload([
+      item({ id: 'a', baseStatus: 'done', completedAt: '2026-09-25T10:00:00.000Z' }),
+    ]), '2026-10-09');
+    const placed = t.weeks.flatMap(w => w.items).find(i => i.id === 'a')!;
+    expect(placed.week).toBe(4);
+    expect(t.weeks.slice(0, 3).every(w => w.ongoing.some(i => i.id === 'a'))).toBe(true);
+    expect(t.weeks.slice(4).some(w => w.ongoing.some(i => i.id === 'a') || w.items.some(i => i.id === 'a'))).toBe(false);
+  });
+
+  it('starts spreading from the assigned week when there is one', () => {
+    const t = buildProgramTimeline(payload([item({ id: 'a', assignedAt: '2026-09-17T10:00:00.000Z' })]), '2026-10-09');
+    expect(t.weeks[1].ongoing).toHaveLength(0);
+    expect(t.weeks.slice(2, 5).every(w => w.ongoing.some(i => i.id === 'a'))).toBe(true);
+  });
+
+  it('keeps Any time only when the cohort has no dates at all', () => {
+    const t = buildProgramTimeline(payload([item({ id: 'a' })], { startDate: null, endDate: null }), '2026-10-09');
     expect(t.anytime.map(i => i.id)).toEqual(['a']);
-    expect(t.weeks.every(w => w.items.length === 0)).toBe(true);
+    expect(t.weeks).toHaveLength(0);
   });
 
   it('pulls deadlines outside the program into the first or last week', () => {

@@ -6,9 +6,11 @@
 // local date, so a deadline flips to Overdue at the student's midnight rather than the server's.
 //
 // Weeks are counted from the cohort start date: days 0-6 are Week 1, days 7-13 Week 2, and so on.
-// An item with a due date lands in the week it is due. An item with no due date starts in the week
-// it was assigned (a path's courses use the path's date), moves forward with the current week while
-// unfinished, and settles in the week it was completed. Items with neither date go to `anytime`.
+// An item with a due date lands in the week it is due. Work with no due date spans the journey: it
+// starts in the week it was assigned (a path's courses use the path's date; with no assigned date,
+// Week 1), appears in every week until it is completed, and stops in the week it was completed --
+// or carries on to the current week while still open. It counts once, in that last week; the earlier
+// weeks list it as ongoing. `anytime` is left only for a cohort with no dates at all.
 
 export type ProgramItemType = 'course' | 'virtual_experience' | 'assignment' | 'certification' | 'event';
 
@@ -77,12 +79,16 @@ export type TimelineItem = ProgramItem & {
   week: number | null;
   /** For unfinished work with no deadline: the week it was assigned, when it has since moved on. */
   carriedFrom: number | null;
+  /** For work with no deadline: the first week it appears in (its counted week is `week`). */
+  spanFrom: number | null;
 };
 
 export type ProgramWeek = {
   week: number;
   startDate: string;
   items: TimelineItem[];
+  /** Deadline-free work running through this week that is counted in a later week. */
+  ongoing: TimelineItem[];
   required: number;
   completed: number;
   hasOverdue: boolean;
@@ -189,8 +195,9 @@ const byDueThenTitle = (a: TimelineItem, b: TimelineItem) => {
 export function buildProgramTimeline(payload: ProgramPayload, today: string): ProgramTimeline {
   const todayIdx = dayIndex(today);
   const items: TimelineItem[] = payload.items.map(item => ({
-    ...item, dueDate: dueDateKey(item.dueDate), status: displayStatus(item, today), week: null, carriedFrom: null,
+    ...item, dueDate: dueDateKey(item.dueDate), status: displayStatus(item, today), week: null, carriedFrom: null, spanFrom: null,
   }));
+  const deadlineFree = (i: TimelineItem) => !i.dueDate && i.type !== 'event';
 
   // The day each item is placed by before "today" is considered: its deadline, else (for work with
   // no deadline) the day it was finished or, failing that, assigned.
@@ -225,7 +232,7 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
     // Without a last day of classes the journey runs to the latest dated item -- and to today while
     // deadline-free work is still open, so it can be carried into the current week.
     const carriesToToday = classesEndIdx === null
-      && items.some(i => !i.dueDate && i.type !== 'event' && !isCompleteStatus(i.status) && anchorKey(i));
+      && items.some(i => deadlineFree(i) && !isCompleteStatus(i.status));
     const lastIdx = Math.max(
       startIdx,
       classesEndIdx ?? Math.max(dueIdxs.length ? Math.max(...dueIdxs) : startIdx, carriesToToday ? todayIdx : startIdx),
@@ -247,25 +254,34 @@ export function buildProgramTimeline(payload: ProgramPayload, today: string): Pr
       : Math.floor((todayIdx - startIdx) / 7) + 1;
 
     for (let w = 1; w <= totalWeeks; w++) {
-      weeks.push({ week: w, startDate: dateFromDayIndex(startIdx + (w - 1) * 7), items: [], required: 0, completed: 0, hasOverdue: false });
+      weeks.push({ week: w, startDate: dateFromDayIndex(startIdx + (w - 1) * 7), items: [], ongoing: [], required: 0, completed: 0, hasOverdue: false });
     }
     // The week unfinished, deadline-free work has reached: this week, or the last one once over.
     const carryWeek = phase === 'before' ? null : weekOf(todayIdx);
     for (const item of items) {
-      const anchor = anchorKey(item);
+      const free = deadlineFree(item);
+      // Deadline-free work with no date of its own runs from the start of the program.
+      const anchor = anchorKey(item) ?? (free ? dateFromDayIndex(startIdx) : null);
       if (!anchor) continue;
       const anchorWeek = weekOf(dayIndex(anchor));
       item.week = anchorWeek;
-      // Work with no deadline that is still open moves forward with the current week until done.
-      const carries = !item.dueDate && item.type !== 'event' && !isCompleteStatus(item.status);
-      if (carries && carryWeek !== null && carryWeek > anchorWeek) {
-        item.week = carryWeek;
-        item.carriedFrom = anchorWeek;
+      if (free) {
+        const assigned = dueDateKey(item.assignedAt);
+        const startWeek = assigned ? weekOf(dayIndex(assigned)) : 1;
+        // Still open: it moves forward with the current week until done.
+        if (!isCompleteStatus(item.status) && carryWeek !== null && carryWeek > anchorWeek) {
+          item.week = carryWeek;
+          item.carriedFrom = anchorWeek;
+        }
+        // It shows in every week from its start up to the week it is counted in.
+        item.spanFrom = Math.min(startWeek, item.week);
+        for (let w = item.spanFrom; w < item.week; w++) weeks[w - 1].ongoing.push(item);
       }
       weeks[item.week - 1].items.push(item);
     }
     for (const week of weeks) {
       week.items.sort(byDueThenTitle);
+      week.ongoing.sort(byDueThenTitle);
       const required = week.items.filter(countsTowardCompletion);
       week.required = required.length;
       week.completed = required.filter(i => isCompleteStatus(i.status)).length;

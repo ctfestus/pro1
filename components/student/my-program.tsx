@@ -470,6 +470,8 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, anytime, C }: {
 }) {
   const { weeks, currentWeek, phase, upNext } = timeline;
   const week = typeof sel === 'number' ? weeks[sel - 1] : null;
+  // Deadline-free work running through this week shows here too, after the week's own work.
+  const ongoing = week ? week.ongoing : [];
   const list = week ? week.items : anytime;
   const isHome = sel === homeWeek;
   const when = sel === 'anytime' ? 'No due or assigned date'
@@ -538,7 +540,8 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, anytime, C }: {
             </div>
           )}
           {[...open, ...fin].map(item => <ItemRow key={`${item.type}-${item.id}`} item={item} C={C}/>)}
-          {!focus && open.length + fin.length === 0 && (
+          {ongoing.filter(i => i !== focus).map(item => <ItemRow key={`ongoing-${item.type}-${item.id}`} item={item} ongoing C={C}/>)}
+          {!focus && open.length + fin.length + ongoing.length === 0 && (
             <div className="text-center px-4 py-6 rounded-2xl" style={{ background: C.page }}>
               <p className="text-base font-bold" style={{ color: C.text }}>Nothing planned</p>
               <p className="text-sm mt-0.5" style={{ color: C.muted }}>No work is scheduled for this week.</p>
@@ -619,18 +622,23 @@ function StateMark({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
   return <span className={base} style={{ border: `2px solid ${attn ? ATTN : C.skeleton}` }}/>;
 }
 
-function ItemRow({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
+/** `ongoing`: shown in a week it runs through but is not counted in (see ProgramWeek.ongoing). */
+function ItemRow({ item, ongoing = false, C }: { item: TimelineItem; ongoing?: boolean; C: typeof LIGHT_C }) {
   const attnInk = useAttnInk();
-  const finished = isCompleteStatus(item.status) || item.status === 'attended';
+  // In an earlier week it ran through, finished work was not finished yet, so it reads as ongoing.
+  const finished = !ongoing && (isCompleteStatus(item.status) || item.status === 'attended');
   const tags: { text: string; attn?: boolean }[] = [];
+  if (ongoing) tags.push({ text: isCompleteStatus(item.status) && item.week ? `Finished week ${item.week}` : 'Ongoing' });
   if (item.status === 'overdue') tags.push({ text: 'Past due', attn: true });
   if (item.status === 'failed') tags.push({ text: 'Not passed', attn: true });
   if (item.status === 'missed') tags.push({ text: 'Missed' });
-  if (item.carriedFrom) tags.push({ text: `From week ${item.carriedFrom}` });
+  if (item.carriedFrom && !ongoing) tags.push({ text: `From week ${item.carriedFrom}` });
   if (item.locked) tags.push({ text: 'Locked' });
   return (
     <div className="flex items-center gap-3.5 px-3.5 py-3 rounded-2xl" style={{ background: C.page }}>
-      <StateMark item={item} C={C}/>
+      {ongoing
+        ? <span className="w-[22px] h-[22px] rounded-full flex-shrink-0" style={{ border: `2px dashed ${C.skeleton}` }}/>
+        : <StateMark item={item} C={C}/>}
       <div className="min-w-0 flex-1">
         <p className="text-[14.5px] font-bold truncate" style={{ color: finished ? C.muted : C.text }}>{item.title}</p>
         <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] mt-0.5" style={{ color: C.faint }}>
