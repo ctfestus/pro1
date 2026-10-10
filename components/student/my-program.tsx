@@ -50,7 +50,8 @@ function actionLabel(item: TimelineItem) {
   }
 }
 
-type WeekKey = number | 'anytime';
+// A week on the journey, or 'all' for a program with no dates at all (no weeks to draw).
+type WeekKey = number | 'all';
 
 /**
  * `coursesLocked` mirrors My Learning: while a payment is outstanding the courses cannot be opened,
@@ -133,11 +134,12 @@ function ProgramView({ payload, timeline, studentName, C }: {
   const cohort = payload.cohort!;
   const attnInk = useAttnInk();
   const { weeks, currentWeek, phase, anytime } = timeline;
-  // The week in view starts on the current one (clamped onto the road), else the first; "anytime"
-  // holds undated work. "This week" in the stepper returns here.
+  // The week in view starts on the current one (clamped onto the road), else the first. Work with
+  // no deadline is placed on the journey itself, so there is no separate undated list; only a
+  // program with no dates at all shows its work as one plain list. "This week" returns here.
   const homeWeek: WeekKey = currentWeek && weeks.length
     ? Math.min(currentWeek, weeks.length)
-    : weeks.length ? 1 : 'anytime';
+    : weeks.length ? 1 : 'all';
   const [sel, setSel] = useState<WeekKey>(homeWeek);
   const [groupOpen, setGroupOpen] = useState(false);
   const groupButtonRef = useRef<HTMLButtonElement>(null);
@@ -212,11 +214,11 @@ function ProgramView({ payload, timeline, studentName, C }: {
                 sel={typeof sel === 'number' ? sel : null} onPick={setSel} onAnchor={onAnchor} C={C}/>
             )}
             <div ref={panelRef} className="relative px-5 sm:px-6 pt-5 pb-6" style={{ borderTop: weeks.length ? `1px solid ${C.divider}` : 'none' }}>
-              {weeks.length > 0 && notchX !== null && sel !== 'anytime' && (
+              {weeks.length > 0 && notchX !== null && sel !== 'all' && (
                 <span aria-hidden className="absolute -top-[8px] w-[14px] h-[14px] rounded-tl-[3px] transition-[left] duration-500"
                   style={{ left: notchX, transform: 'translateX(-50%) rotate(45deg)', background: C.card, borderTop: `1px solid ${C.divider}`, borderLeft: `1px solid ${C.divider}` }}/>
               )}
-              <WeekPanel sel={sel} setSel={setSel} homeWeek={homeWeek} timeline={timeline} anytime={anytime} C={C}/>
+              <WeekPanel sel={sel} setSel={setSel} homeWeek={homeWeek} timeline={timeline} undated={anytime} C={C}/>
             </div>
           </>
         )}
@@ -465,16 +467,17 @@ function Runner() {
 
 // --- Week panel ---
 
-function WeekPanel({ sel, setSel, homeWeek, timeline, anytime, C }: {
-  sel: WeekKey; setSel: (w: WeekKey) => void; homeWeek: WeekKey; timeline: ProgramTimeline; anytime: TimelineItem[]; C: typeof LIGHT_C;
+/** `undated` is only non-empty for a program with no dates at all, shown as one plain list. */
+function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
+  sel: WeekKey; setSel: (w: WeekKey) => void; homeWeek: WeekKey; timeline: ProgramTimeline; undated: TimelineItem[]; C: typeof LIGHT_C;
 }) {
   const { weeks, currentWeek, phase, upNext } = timeline;
   const week = typeof sel === 'number' ? weeks[sel - 1] : null;
   // Deadline-free work running through this week shows here too, after the week's own work.
   const ongoing = week ? week.ongoing : [];
-  const list = week ? week.items : anytime;
+  const list = week ? week.items : undated;
   const isHome = sel === homeWeek;
-  const when = sel === 'anytime' ? 'No due or assigned date'
+  const when = sel === 'all' ? 'This program has no dates yet'
     : phase === 'during' && sel === currentWeek ? 'This week'
     : currentWeek && typeof sel === 'number' && sel < currentWeek ? 'Earlier'
     : phase === 'after' || phase === 'catch_up' ? 'Earlier' : 'Coming up';
@@ -494,17 +497,12 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, anytime, C }: {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0" aria-live="polite">
-          <h2 className="text-xl font-bold tracking-tight" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Any time'}</h2>
+          <h2 className="text-xl font-bold tracking-tight" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Your work'}</h2>
           <p className="text-[13px] mt-0.5 tabular-nums" style={{ color: C.muted }}>
             {when}{week ? `, from ${formatDay(week.startDate)}` : ''}{required ? `, ${done} of ${required} done` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          {anytime.length > 0 && sel !== 'anytime' && (
-            <button onClick={() => setSel('anytime')} className="text-[12.5px] font-bold px-3 py-2 rounded-full" style={{ background: C.pill, color: C.muted }}>
-              Any time ({anytime.length})
-            </button>
-          )}
           {lastWeek > 0 && (
             <div className="flex items-center gap-1.5 p-1 rounded-full" style={{ background: C.pill }} role="group" aria-label="Choose a week">
               <StepButton label="Previous week" disabled={sel === 1} onClick={() => setSel(typeof sel === 'number' ? sel - 1 : lastWeek)} C={C}>
@@ -515,7 +513,7 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, anytime, C }: {
                   {phase === 'during' ? 'This week' : 'Back'}
                 </button>
               )}
-              <StepButton label="Next week" disabled={sel === lastWeek || sel === 'anytime'} onClick={() => typeof sel === 'number' && setSel(sel + 1)} C={C}>
+              <StepButton label="Next week" disabled={sel === lastWeek} onClick={() => typeof sel === 'number' && setSel(sel + 1)} C={C}>
                 <ArrowRight className="w-4 h-4"/>
               </StepButton>
             </div>
