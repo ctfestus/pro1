@@ -49,6 +49,8 @@ export type ProgramItem = {
   assignedAt?: string | null;
   /** When the student finished it (ISO), for done and submitted work. */
   completedAt?: string | null;
+  /** The content's cover image (a URL or Cloudinary reference), when it has one. */
+  coverImage?: string | null;
 };
 
 export type ProgramCohort = {

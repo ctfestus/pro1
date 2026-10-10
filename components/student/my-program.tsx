@@ -10,6 +10,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Lock, RefreshCw, Route, Users, X } from 'lucide-react';
+import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { supabase } from '@/lib/supabase';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useTheme } from '@/components/ThemeProvider';
@@ -22,7 +23,6 @@ import {
 
 const GREEN = '#16a34a';
 const SKY = '#0ea5e9';
-const ATTN = '#f59e0b';
 const ATTN_SOFT = 'rgba(245,158,11,0.13)';
 // Amber text: deep in light mode, light in dark mode, so it stays readable on its soft tint.
 const useAttnInk = () => (useTheme().theme === 'dark' ? '#fbbf24' : '#b45309');
@@ -176,8 +176,8 @@ function ProgramView({ payload, timeline, studentName, C }: {
         {/* Header */}
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 flex flex-wrap items-start justify-between gap-3">
           <div className="min-w-0">
-            <p className="text-sm" style={{ color: C.muted }}>{greeting(studentName)}</p>
-            <h1 id="program-heading" className="text-[28px] sm:text-[34px] font-extrabold leading-[1.08] tracking-tight mt-0.5" style={{ color: C.text }}>
+            <p className="text-[13px]" style={{ color: C.muted }}>{greeting(studentName)}</p>
+            <h1 id="program-heading" className="text-[22px] sm:text-[26px] font-extrabold leading-tight tracking-tight mt-0.5" style={{ color: C.text }}>
               {heading}
             </h1>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-2">
@@ -233,8 +233,8 @@ function ProgramView({ payload, timeline, studentName, C }: {
 
 // --- Journey road ---
 
-const ROAD_H = 150;
-const MIN_GAP = 46; // px per week before the road scrolls sideways
+const ROAD_H = 116;
+const MIN_GAP = 40; // px per week before the road scrolls sideways
 
 function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
   weeks: ProgramWeek[]; currentWeek: number | null; phase: ProgramTimeline['phase'];
@@ -273,7 +273,7 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
   const W = Math.max(viewW, n * MIN_GAP + 90);
   const scrolls = W > viewW;
   const padL = 28, padR = 60, y = ROAD_H / 2;
-  const r0 = phone ? 12 : 15, thick = phone ? 14 : 18;
+  const r0 = phone ? 10 : 12, thick = phone ? 6 : 8;
   const xAt = useCallback((w: number) => padL + (W - padL - padR) * (w - 0.5) / n, [W, n]);
   const fillTo = phase === 'before' || !currentWeek ? null : phase === 'after' ? W - padR : xAt(Math.min(currentWeek, n));
 
@@ -360,7 +360,7 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
                 initial={{ x2: padL }} animate={{ x2: fillTo }} transition={{ duration: 1.2, ease: [0.2, 0.8, 0.2, 1] }}/>
             )}
             {/* Dashed centre line in the tenant's secondary colour. */}
-            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={roadHi} strokeWidth={2} strokeDasharray="10 12" strokeLinecap="round"
+            <line x1={padL} y1={y} x2={W - padR} y2={y} stroke={roadHi} strokeWidth={1.5} strokeDasharray="6 8" strokeLinecap="round"
               className="mp-lane"/>
 
             {weeks.map(week => {
@@ -382,14 +382,14 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
                   onPointerEnter={e => { if (e.pointerType === 'mouse') setTip({ x: x - (scrollRef.current?.scrollLeft ?? 0), y: y - r0, text }); }}
                   onPointerLeave={() => setTip(null)}>
                   <circle cx={x} cy={y} r={r0 + 8} fill="transparent"/>
-                  <circle cx={x} cy={y} r={r0} fill={fill} stroke={stroke} strokeWidth={3}
+                  <circle cx={x} cy={y} r={r0} fill={fill} stroke={stroke} strokeWidth={2}
                     className="transition-transform group-hover:scale-110 group-focus-visible:stroke-[4]"
                     style={{ transformBox: 'fill-box', transformOrigin: 'center' }}/>
                   {full && !late
                     ? <path d={`M${x - r0 * 0.36} ${y + r0 * 0.02} l${r0 * 0.24} ${r0 * 0.26} l${r0 * 0.46} ${-r0 * 0.5}`}
                         fill="none" stroke={ink} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" style={{ pointerEvents: 'none' }}/>
                     : <text x={x} y={y} fill={ink} textAnchor="middle" dominantBaseline="central"
-                        style={{ fontWeight: 800, fontSize: late ? 15 : 12, pointerEvents: 'none' }}>
+                        style={{ fontWeight: 800, fontSize: late ? 13 : 10.5, pointerEvents: 'none' }}>
                         {late ? '!' : w}
                       </text>}
                 </g>
@@ -397,18 +397,18 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
             })}
 
             {/* Finish flag */}
-            <line x1={W - padR + 14} y1={y + 12} x2={W - padR + 14} y2={y - 40} stroke={C.text} strokeWidth={3} strokeLinecap="round"/>
-            <path d={`M${W - padR + 15} ${y - 40} l24 7 -24 8 z`} fill={roadHi}/>
-            <text x={W - padR + 12} y={y + 30} textAnchor="middle" style={{ fontWeight: 700, fontSize: 11 }} fill={C.muted}>Finish</text>
+            <line x1={W - padR + 14} y1={y + 9} x2={W - padR + 14} y2={y - 30} stroke={C.text} strokeWidth={2} strokeLinecap="round"/>
+            <path d={`M${W - padR + 15} ${y - 30} l18 5 -18 6 z`} fill={roadHi}/>
+            <text x={W - padR + 12} y={y + 24} textAnchor="middle" style={{ fontWeight: 700, fontSize: 10 }} fill={C.muted}>Finish</text>
 
             {sel !== null && (
               <g ref={hlRef} style={{ pointerEvents: 'none' }} transform={`translate(${xAt(sel)} ${y})`}>
                 <circle className="mp-focus" r={r0 + 6} fill="none" stroke={C.text} strokeWidth={2}/>
-                <circle r={r0 + 1} fill="#ffffff" stroke={roadHi} strokeWidth={3}/>
+                <circle r={r0 + 2} fill="#ffffff" stroke={roadHi} strokeWidth={2}/>
                 <svg x={-r0} y={-r0} width={2 * r0} height={2 * r0} viewBox="0 0 24 24" overflow="visible">
                   <g ref={faceRef}><Runner/></g>
                 </svg>
-                <text ref={tagRef} y={r0 + 18} textAnchor="middle" fill={`color-mix(in srgb, ${roadHi} 55%, ${C.text})`} style={{ fontWeight: 800, fontSize: 11 }}/>
+                <text ref={tagRef} y={r0 + 16} textAnchor="middle" fill={`color-mix(in srgb, ${roadHi} 55%, ${C.text})`} style={{ fontWeight: 800, fontSize: 10 }}/>
               </g>
             )}
           </svg>
@@ -469,10 +469,26 @@ function Runner() {
 // --- Week panel ---
 
 /** `undated` is only non-empty for a program with no dates at all, shown as one plain list. */
+// The week's work grouped for the filter tabs. Ongoing work (counted in a later week) is in
+// progress in the weeks it runs through; a missed live session sits in All only.
+type Bucket = 'completed' | 'progress' | 'due';
+const BUCKET_LABEL: Record<Bucket | 'all', string> = { all: 'All', completed: 'Completed', progress: 'In progress', due: 'Due' };
+function bucketOf(item: TimelineItem, ongoing: boolean): Bucket | null {
+  if (ongoing) return 'progress';
+  if (isCompleteStatus(item.status) || item.status === 'attended') return 'completed';
+  if (item.status === 'progress') return 'progress';
+  if (item.status === 'todo' || item.status === 'overdue' || item.status === 'failed' || item.status === 'upcoming') return 'due';
+  return null;
+}
+// In "All": what needs doing first, then work underway, then finished.
+const order = (e: { item: TimelineItem; ongoing: boolean }) =>
+  ({ due: 0, progress: 1, completed: 2 } as Record<string, number>)[bucketOf(e.item, e.ongoing) ?? 'completed'] ?? 3;
+
 function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
   sel: WeekKey; setSel: (w: WeekKey) => void; homeWeek: WeekKey; timeline: ProgramTimeline; undated: TimelineItem[]; C: typeof LIGHT_C;
 }) {
   const { weeks, currentWeek, phase, upNext } = timeline;
+  const [filter, setFilter] = useState<Bucket | 'all'>('all');
   const week = typeof sel === 'number' ? weeks[sel - 1] : null;
   // Deadline-free work running through this week shows here too, after the week's own work.
   const ongoing = week ? week.ongoing : [];
@@ -484,10 +500,18 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
     : phase === 'after' || phase === 'catch_up' ? 'Earlier' : 'Coming up';
   // The one next step leads the current week, even when it belongs to an earlier one.
   const focus = isHome && phase !== 'before' && upNext ? upNext : null;
-  const rest = list.filter(i => i !== focus);
-  const settled = (i: TimelineItem) => isCompleteStatus(i.status) || i.status === 'attended' || i.status === 'missed';
-  const open = rest.filter(i => !settled(i));
-  const fin = rest.filter(settled);
+  // Everything in view this week, with ongoing work (counted in a later week) flagged as such.
+  const entries: { item: TimelineItem; ongoing: boolean }[] = [
+    ...list.map(item => ({ item, ongoing: false })),
+    ...ongoing.map(item => ({ item, ongoing: true })),
+  ];
+  // The next step can come from an earlier week; it still counts in this week's groups.
+  if (focus && !entries.some(e => e.item === focus)) entries.unshift({ item: focus, ongoing: false });
+  const counts = { all: entries.length, completed: 0, progress: 0, due: 0 };
+  for (const e of entries) { const b = bucketOf(e.item, e.ongoing); if (b) counts[b] += 1; }
+  const shown = entries
+    .filter(e => filter === 'all' ? e.item !== focus : bucketOf(e.item, e.ongoing) === filter)
+    .sort((a, b) => order(a) - order(b));
   const required = week ? week.required : list.filter(i => i.type !== 'event').length;
   const done = week ? week.completed : list.filter(i => i.type !== 'event' && isCompleteStatus(i.status)).length;
   const allDone = !!week && required > 0 && done === required;
@@ -498,7 +522,7 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
     <div>
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0" aria-live="polite">
-          <h2 className="text-xl font-bold tracking-tight" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Your work'}</h2>
+          <h2 className="text-[17px] font-bold tracking-tight" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Your work'}</h2>
           <p className="text-[13px] mt-0.5 tabular-nums" style={{ color: C.muted }}>
             {when}{week ? `, from ${formatDay(week.startDate)}` : ''}{required ? `, ${done} of ${required} done` : ''}
           </p>
@@ -527,23 +551,38 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
         </div>
       )}
 
-      {focus && <FocusCard item={focus} C={C}/>}
+      {entries.length > 0 && (
+        <div className="flex gap-0.5 sm:gap-1 p-1 rounded-full mt-4" style={{ background: C.pill }} role="tablist" aria-label="Filter this week">
+          {(['all', 'completed', 'progress', 'due'] as const).map(key => {
+            const on = filter === key;
+            return (
+              <button key={key} role="tab" aria-selected={on} onClick={() => setFilter(key)}
+                className="flex-auto inline-flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap text-[12px] sm:text-[12.5px] font-bold px-2 sm:px-3 py-1.5 rounded-full transition-colors"
+                style={on ? { background: C.card, color: C.text, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: C.muted }}>
+                {BUCKET_LABEL[key]}
+                <span className="tabular-nums text-[11px] font-extrabold px-1 sm:px-1.5 rounded-full" style={{ background: on ? C.pill : 'transparent', color: C.faint }}>{counts[key]}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {filter === 'all' && focus && <FocusCard item={focus} C={C}/>}
 
       <AnimatePresence mode="wait">
-        <motion.div key={String(sel)} className="space-y-2 mt-3"
+        <motion.div key={`${String(sel)}-${filter}`} className="space-y-2 mt-3"
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
-          {allDone && currentWeek && typeof sel === 'number' && sel < currentWeek && (
-            <div className="text-center px-4 py-5 rounded-2xl" style={{ background: C.page }}>
-              <p className="text-base font-bold" style={{ color: C.text }}>Week {sel} complete</p>
-              <p className="text-sm mt-0.5" style={{ color: C.muted }}>You finished everything planned for this week.</p>
+          {filter === 'all' && allDone && currentWeek && typeof sel === 'number' && sel < currentWeek && (
+            <div className="text-center px-4 py-4 rounded-2xl" style={{ background: C.page }}>
+              <p className="text-[15px] font-bold" style={{ color: C.text }}>Week {sel} complete</p>
+              <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>You finished everything planned for this week.</p>
             </div>
           )}
-          {[...open, ...fin].map(item => <ItemRow key={`${item.type}-${item.id}`} item={item} C={C}/>)}
-          {ongoing.filter(i => i !== focus).map(item => <ItemRow key={`ongoing-${item.type}-${item.id}`} item={item} ongoing C={C}/>)}
-          {!focus && open.length + fin.length + ongoing.length === 0 && (
-            <div className="text-center px-4 py-6 rounded-2xl" style={{ background: C.page }}>
-              <p className="text-base font-bold" style={{ color: C.text }}>Nothing planned</p>
-              <p className="text-sm mt-0.5" style={{ color: C.muted }}>No work is scheduled for this week.</p>
+          {shown.map(e => <ItemRow key={`${e.ongoing ? 'ongoing-' : ''}${e.item.type}-${e.item.id}`} item={e.item} ongoing={e.ongoing} C={C}/>)}
+          {shown.length === 0 && !(filter === 'all' && focus) && (
+            <div className="text-center px-4 py-5 rounded-2xl" style={{ background: C.page }}>
+              <p className="text-[15px] font-bold" style={{ color: C.text }}>{filter === 'all' ? 'Nothing planned' : `Nothing ${BUCKET_LABEL[filter].toLowerCase()}`}</p>
+              <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>{filter === 'all' ? 'No work is scheduled for this week.' : 'Nothing in this group for this week.'}</p>
             </div>
           )}
         </motion.div>
@@ -583,7 +622,6 @@ function itemMeta(item: TimelineItem) {
   const assigned = dueDateKey(item.assignedAt);
   if (!item.dueDate && assigned) parts.push(`Assigned ${formatDay(assigned)}`);
   if (item.recurring) parts.push('Repeats');
-  if ((item.status === 'progress' || item.status === 'overdue') && item.progressPct > 0) parts.push(`${item.progressPct}% done`);
   if (item.status === 'awaiting') parts.push('In review');
   if (item.type === 'event') parts.push('Not counted toward progress');
   return parts.join(', ');
@@ -594,13 +632,15 @@ function FocusCard({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
     <div className="relative isolate overflow-hidden mt-4 rounded-2xl p-4 flex flex-wrap sm:flex-nowrap items-center gap-3.5" style={{ background: C.page }}>
       <span aria-hidden className="absolute -right-16 -top-20 w-56 h-56 rounded-full -z-10"
         style={{ background: `radial-gradient(circle, color-mix(in srgb, ${C.cta} 28%, transparent), transparent 65%)` }}/>
+      <Cover item={item} large C={C}/>
       <div className="min-w-0 flex-1">
-        <p className="text-[11px] font-extrabold uppercase tracking-[0.12em]" style={{ color: C.cta }}>Start here</p>
-        <p className="text-[17px] font-extrabold mt-0.5 truncate" style={{ color: C.text }}>{item.title}</p>
-        <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>{itemMeta(item)}{item.week ? `, Week ${item.week}` : ''}</p>
+        <p className="text-[10.5px] font-extrabold uppercase tracking-[0.12em]" style={{ color: C.cta }}>Start here</p>
+        <p className="text-[15px] font-extrabold mt-0.5 truncate" style={{ color: C.text }}>{item.title}</p>
+        <p className="text-[12.5px] mt-0.5" style={{ color: C.muted }}>{itemMeta(item)}{item.week ? `, Week ${item.week}` : ''}</p>
+        {item.progressPct > 0 && (item.status === 'progress' || item.status === 'overdue') && <ProgressBar pct={item.progressPct} C={C}/>}
       </div>
       <ItemLink item={item}
-        className="w-full sm:w-auto justify-center inline-flex items-center gap-2 text-sm font-extrabold px-5 py-3 rounded-2xl transition-transform hover:-translate-y-px"
+        className="w-full sm:w-auto justify-center inline-flex items-center gap-2 text-[13px] font-extrabold px-4 py-2.5 rounded-xl transition-transform hover:-translate-y-px"
         style={{ background: C.cta, color: C.ctaText }}>
         {actionLabel(item)} <ArrowRight className="w-4 h-4"/>
       </ItemLink>
@@ -608,17 +648,43 @@ function FocusCard({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
   );
 }
 
-function StateMark({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
-  const base = 'w-[22px] h-[22px] rounded-full grid place-items-center flex-shrink-0';
-  if (isCompleteStatus(item.status) || item.status === 'attended') {
-    return <span className={base} style={{ background: GREEN, color: '#ffffff' }}><Check className="w-3 h-3" strokeWidth={3.5}/></span>;
-  }
-  if (item.status === 'progress') {
-    const p = Math.max(item.progressPct, 8);
-    return <span className={base} style={{ border: `2px solid ${SKY}`, background: `conic-gradient(${SKY} ${p}%, transparent 0)` }}/>;
-  }
-  const attn = item.status === 'overdue' || item.status === 'failed';
-  return <span className={base} style={{ border: `2px solid ${attn ? ATTN : C.skeleton}` }}/>;
+const TYPE_TINT: Record<ProgramItemType, string> = {
+  course: '#0ea5e9', virtual_experience: '#14b8a6', assignment: '#f59e0b', certification: '#16a34a', event: '#64748b',
+};
+
+// The content's real cover; a tinted tile with its initial when there is none (or it fails to load).
+// A small badge on the corner carries the status.
+function Cover({ item, large = false, ongoing = false, C }: { item: TimelineItem; large?: boolean; ongoing?: boolean; C: typeof LIGHT_C }) {
+  const [broken, setBroken] = useState(false);
+  const src = item.coverImage && !broken ? resolveCoverUrl(item.coverImage) : null;
+  const w = large ? 84 : 60, h = large ? 56 : 40;
+  const tint = TYPE_TINT[item.type];
+  const done = !ongoing && (isCompleteStatus(item.status) || item.status === 'attended');
+  const late = !ongoing && (item.status === 'overdue' || item.status === 'failed');
+  return (
+    <span className="relative flex-shrink-0 rounded-xl overflow-hidden" style={{ width: w, height: h, background: `color-mix(in srgb, ${tint} 18%, ${C.card})` }}>
+      {src
+        ? <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" style={done ? { opacity: 0.7 } : undefined}/>
+        : <span className="absolute inset-0 grid place-items-center font-extrabold" style={{ color: tint, fontSize: large ? 20 : 15 }}>{item.title.trim().charAt(0).toUpperCase()}</span>}
+      {(done || late) && (
+        <span className="absolute bottom-1 right-1 w-[18px] h-[18px] rounded-full grid place-items-center text-[11px] font-extrabold"
+          style={{ background: done ? GREEN : ROAD_ATTN, color: '#ffffff', boxShadow: `0 0 0 2px ${C.card}` }}>
+          {done ? <Check className="w-2.5 h-2.5" strokeWidth={4}/> : '!'}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function ProgressBar({ pct, C }: { pct: number; C: typeof LIGHT_C }) {
+  return (
+    <span className="inline-flex items-center gap-2 mt-1.5 w-full max-w-[220px]">
+      <span className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: C.pill }}>
+        <span className="block h-full rounded-full" style={{ width: `${Math.max(4, pct)}%`, background: SKY }}/>
+      </span>
+      <span className="text-[11px] font-bold tabular-nums" style={{ color: C.faint }}>{pct}%</span>
+    </span>
+  );
 }
 
 /** `ongoing`: shown in a week it runs through but is not counted in (see ProgramWeek.ongoing). */
@@ -633,20 +699,20 @@ function ItemRow({ item, ongoing = false, C }: { item: TimelineItem; ongoing?: b
   if (item.status === 'missed') tags.push({ text: 'Missed' });
   if (item.carriedFrom && !ongoing) tags.push({ text: `From week ${item.carriedFrom}` });
   if (item.locked) tags.push({ text: 'Locked' });
+  const showBar = !finished && (item.status === 'progress' || item.status === 'overdue') && item.progressPct > 0;
   return (
-    <div className="flex items-center gap-3.5 px-3.5 py-3 rounded-2xl" style={{ background: C.page }}>
-      {ongoing
-        ? <span className="w-[22px] h-[22px] rounded-full flex-shrink-0" style={{ border: `2px dashed ${C.skeleton}` }}/>
-        : <StateMark item={item} C={C}/>}
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl" style={{ background: C.page }}>
+      <Cover item={item} ongoing={ongoing} C={C}/>
       <div className="min-w-0 flex-1">
-        <p className="text-[14.5px] font-bold truncate" style={{ color: finished ? C.muted : C.text }}>{item.title}</p>
-        <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] mt-0.5" style={{ color: C.faint }}>
+        <p className="text-[13.5px] font-bold truncate" style={{ color: finished ? C.muted : C.text }}>{item.title}</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px] mt-0.5" style={{ color: C.faint }}>
           <span>{itemMeta(item)}</span>
           {tags.map(t => (
             <span key={t.text} className="text-[11px] font-bold px-2 py-0.5 rounded-md"
               style={t.attn ? { background: ATTN_SOFT, color: attnInk } : { background: C.pill, color: C.muted }}>{t.text}</span>
           ))}
         </div>
+        {showBar && <ProgressBar pct={item.progressPct} C={C}/>}
       </div>
       {item.locked
         ? <span className="w-9 h-9 grid place-items-center flex-shrink-0" style={{ color: C.faint }}><Lock className="w-4 h-4" aria-label="Locked"/></span>

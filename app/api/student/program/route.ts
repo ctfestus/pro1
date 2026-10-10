@@ -56,18 +56,18 @@ export async function GET(req: NextRequest) {
   // The same audience rules the student's own sections use: content tagged with the cohort, items
   // inside a learning path tagged with the cohort, and assignments aimed at the cohort or the group.
   const [coursesRes, vesRes, pathsRes, assignmentsRes, eventsRes, certsRes] = await Promise.all([
-    db.from('courses').select('id, title, slug, deadline_days')
+    db.from('courses').select('id, title, slug, deadline_days, cover_image')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
-    db.from('virtual_experiences').select('id, title, slug, deadline_days')
+    db.from('virtual_experiences').select('id, title, slug, deadline_days, cover_image')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
     db.from('learning_paths').select('id, item_ids')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
-    db.from('assignments').select('id, title, deadline_date, type, config, group_ids')
+    db.from('assignments').select('id, title, deadline_date, type, config, group_ids, cover_image')
       .eq('status', 'published')
       .or(groupId ? `cohort_ids.cs.{${cohortId}},group_ids.cs.{${groupId}}` : `cohort_ids.cs.{${cohortId}}`),
-    db.from('events').select('id, title, slug, event_date, recurrence, recurrence_end_date')
+    db.from('events').select('id, title, slug, event_date, recurrence, recurrence_end_date, cover_image')
       .contains('cohort_ids', [cohortId]).eq('status', 'published').not('event_date', 'is', null),
-    db.from('certifications').select('id, title, slug, deadline_days')
+    db.from('certifications').select('id, title, slug, deadline_days, cover_image')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
   ]);
   const firstError = [coursesRes, vesRes, pathsRes, assignmentsRes, eventsRes, certsRes].find(r => r.error)?.error;
@@ -85,9 +85,9 @@ export async function GET(req: NextRequest) {
   if (pathItemIds.length) {
     // A path grants only its published items: courses, VEs and certifications.
     const [pathCourses, pathVes, pathCerts] = await Promise.all([
-      db.from('courses').select('id, title, slug, deadline_days').in('id', pathItemIds).eq('status', 'published'),
-      db.from('virtual_experiences').select('id, title, slug, deadline_days').in('id', pathItemIds).eq('status', 'published'),
-      db.from('certifications').select('id, title, slug, deadline_days').in('id', pathItemIds).eq('status', 'published'),
+      db.from('courses').select('id, title, slug, deadline_days, cover_image').in('id', pathItemIds).eq('status', 'published'),
+      db.from('virtual_experiences').select('id, title, slug, deadline_days, cover_image').in('id', pathItemIds).eq('status', 'published'),
+      db.from('certifications').select('id, title, slug, deadline_days, cover_image').in('id', pathItemIds).eq('status', 'published'),
     ]);
     // Dropping path content silently would shrink the program and inflate the student's %.
     const pathError = pathCourses.error ?? pathVes.error ?? pathCerts.error;
@@ -216,6 +216,7 @@ export async function GET(req: NextRequest) {
   for (const a of veDoneRes.data ?? []) keepEarliest(a.ve_id, a.completed_at);
 
   const slugById = new Map<string, string>([...courses, ...ves].map((c: any) => [c.id, c.slug || c.id]));
+  const coverById = new Map<string, string | null>([...courses, ...ves, ...assignments].map((c: any) => [c.id, c.cover_image ?? null]));
   const groupAssignmentIds = new Set(groupId
     ? assignments.filter((a: any) => (a.group_ids ?? []).includes(groupId)).map((a: any) => a.id)
     : []);
@@ -257,6 +258,7 @@ export async function GET(req: NextRequest) {
       // local date, matching the deadline the Courses tab shows.
       dueDate: isAssignment ? (item?.deadlineDate?.slice(0, 10) ?? null) : row.deadline,
       assignedAt: assignedAtFor(row.formId),
+      coverImage: coverById.get(row.formId) ?? null,
       locked: lockedWhileHeld(row.contentType, row.formId),
       completedAt: baseStatus === 'done' || baseStatus === 'awaiting_grade'
         ? (isAssignment ? (submissionFor.get(row.formId)?.submittedAt ?? null) : (completedAtById.get(row.formId) ?? null))
@@ -281,6 +283,7 @@ export async function GET(req: NextRequest) {
       id: c.id,
       title: c.title,
       type: 'certification',
+      coverImage: c.cover_image ?? null,
       href: contentPath({ slug: c.slug, id: c.id, content_type: 'certification' }),
       locked: lockedWhileHeld('certification', c.id),
       baseStatus,
@@ -298,6 +301,7 @@ export async function GET(req: NextRequest) {
       id: e.id,
       title: e.title,
       type: 'event',
+      coverImage: e.cover_image ?? null,
       href: `/${e.slug || e.id}`,
       locked: lockedWhileHeld('event', e.id),
       baseStatus: attended.has(e.id) ? 'attended' : 'not_attended',
