@@ -157,7 +157,9 @@ export function dueDateKey(due: string | null | undefined): string | null {
 
 export function displayStatus(item: ProgramItem, today: string): ProgramStatus {
   const due = dueDateKey(item.dueDate);
-  const pastDue = !!due && dayIndex(due) < dayIndex(today);
+  // Locked work (unpaid balance) is never overdue: the student cannot open it, so it must not
+  // feed the overdue count or the red week markers while the item itself says Locked.
+  const pastDue = !item.locked && !!due && dayIndex(due) < dayIndex(today);
   if (item.type === 'event') {
     if (item.baseStatus === 'attended') return 'attended';
     // A repeating session keeps happening after its first date; with no end date it never lapses.

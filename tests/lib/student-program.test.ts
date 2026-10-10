@@ -166,10 +166,14 @@ describe('statuses', () => {
 });
 
 describe('locked items', () => {
-  it('does not count locked work as behind or flag its week overdue', () => {
+  it('never classifies or counts locked work as overdue', () => {
     const t = buildProgramTimeline(payload([
       item({ id: 'locked', baseStatus: 'not_started', dueDate: '2026-10-01', locked: true }),
+      item({ id: 'locked-started', baseStatus: 'in_progress', dueDate: '2026-10-01', locked: true }),
     ]), '2026-10-09');
+    const statuses = t.weeks.flatMap(w => w.items).map(i => i.status);
+    expect(statuses.sort()).toEqual(['progress', 'todo']);
+    expect(t.statusCounts.overdue).toBe(0);
     expect(t.behind).toBe(0);
     expect(t.weeks[4].hasOverdue).toBe(false);
   });
