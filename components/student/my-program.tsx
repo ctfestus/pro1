@@ -10,6 +10,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   BookOpen, Briefcase, ClipboardList, Video, Users, X, Check, Clock, ArrowRight, Route, RefreshCw, CalendarClock, Lock,
+  ShieldCheck,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C } from '@/lib/theme';
@@ -44,9 +45,10 @@ const TYPE_META: Record<ProgramItemType, { label: string; plural: string; Icon: 
   course:             { label: 'Course',             plural: 'Courses',             Icon: BookOpen },
   virtual_experience: { label: 'Virtual Experience', plural: 'Virtual Experiences', Icon: Briefcase },
   assignment:         { label: 'Assignment',         plural: 'Assignments',         Icon: ClipboardList },
+  certification:      { label: 'Certification',      plural: 'Certifications',      Icon: ShieldCheck },
   event:              { label: 'Live Session',       plural: 'Live Sessions',       Icon: Video },
 };
-const TYPE_ORDER: ProgramItemType[] = ['course', 'virtual_experience', 'assignment', 'event'];
+const TYPE_ORDER: ProgramItemType[] = ['course', 'virtual_experience', 'assignment', 'certification', 'event'];
 
 const AVATAR_COLORS = ['#16a34a', '#0ea5e9', '#f59e0b', '#14b8a6', '#ef4444', '#64748b'];
 
@@ -362,7 +364,8 @@ function TypeTiles({ items, timeline, filter, setFilter, C }: {
   const statusById = new Map([...timeline.weeks.flatMap(w => w.items), ...timeline.anytime].map(i => [i.id, i.status]));
   const types = TYPE_ORDER.filter(t => items.some(i => i.type === t));
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    // auto-fit keeps every row full whether the cohort has two content types or five.
+    <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))' }}>
       {types.map(type => {
         const list = items.filter(i => i.type === type);
         const done = list.filter(i => {

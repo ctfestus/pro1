@@ -29,12 +29,14 @@ const assignment = (id: string, passingScore?: number) => ({
 function setup({
   cohortKind = 'bootcamp', assignments = [] as any[], submissions = [] as any[], submissionsError = null as any,
   paths = [] as any[], pathCourses = [] as any[], assignedDates = [] as any[], courseDone = [] as any[],
+  directCourses = [] as any[], certs = [] as any[], certAttempts = [] as any[],
+  originalCohortId = null as string | null, membershipError = null as any,
 } = {}) {
   buildStatusRows.mockResolvedValue([
     ...assignments.map(a => ({
       formId: a.id, formTitle: a.title, contentType: 'assignment', status: 'not_started', progressPct: 0, deadline: null,
     })),
-    ...pathCourses.map(c => ({
+    ...[...directCourses, ...pathCourses].map(c => ({
       formId: c.id, formTitle: c.title, contentType: 'course',
       status: courseDone.some(d => d.course_id === c.id) ? 'completed' : 'not_started', progressPct: 0, deadline: null,
     })),
@@ -43,15 +45,15 @@ function setup({
     user: { id: ME, email: 'me@example.com' },
     serviceDb: makeSupabaseStub({
       students: [
-        { data: { id: ME, email: 'me@example.com', full_name: 'Efua Boateng', cohort_id: 'cohort-1' }, error: null },
+        { data: { id: ME, email: 'me@example.com', full_name: 'Efua Boateng', cohort_id: originalCohortId ? 'outstanding-cohort' : 'cohort-1', original_cohort_id: originalCohortId }, error: null },
         { data: [
           { id: ME, full_name: 'Efua Boateng', avatar_url: null, email: 'me@example.com' },
           { id: 'student-2', full_name: 'Ama Owusu', avatar_url: 'https://x/a.png', email: 'ama@example.com' },
         ], error: null },
       ],
-      cohorts: { data: { id: 'cohort-1', name: 'Cohort 7', start_date: '2026-09-01', end_date: '2026-11-23', cohort_kind: cohortKind }, error: null },
+      cohorts: { data: { id: originalCohortId ?? 'cohort-1', name: 'Cohort 7', start_date: '2026-09-01', end_date: '2026-11-23', cohort_kind: cohortKind }, error: null },
       group_members: [
-        { data: { group_id: 'group-1' }, error: null },
+        membershipError ? { data: null, error: membershipError } : { data: { group_id: 'group-1' }, error: null },
         { data: [
           { student_id: 'student-2', is_leader: true, joined_at: '2026-09-01' },
           { student_id: ME, is_leader: false, joined_at: '2026-09-02' },
@@ -59,7 +61,10 @@ function setup({
       ],
       groups: { data: { id: 'group-1', name: 'Team Insight', description: null }, error: null },
       // First call: courses tagged with the cohort. Second: courses reached through a path.
-      courses: [{ data: [], error: null }, { data: pathCourses, error: null }],
+      courses: [{ data: directCourses, error: null }, { data: pathCourses, error: null }],
+      // First call: certifications tagged with the cohort. Second: certifications in a path.
+      certifications: [{ data: certs, error: null }, { data: [], error: null }],
+      certification_attempts: { data: certAttempts, error: null },
       virtual_experiences: { data: [], error: null },
       learning_paths: { data: paths, error: null },
       cohort_assignments: { data: assignedDates, error: null },
@@ -152,6 +157,56 @@ describe('GET /api/student/program', () => {
     });
     const body = await (await GET(request())).json();
     expect(body.items.find((i: any) => i.id === 'a').completedAt).toBe('2026-10-02T08:00:00+00:00');
+  });
+
+  it("loads an outstanding student's real cohort, not the holding cohort", async () => {
+    setup({ originalCohortId: 'real-cohort' });
+    const body = await (await GET(request())).json();
+    expect(body.cohort.id).toBe('real-cohort');
+  });
+
+  it('fails loudly when the group lookup fails instead of hiding group work', async () => {
+    setup({ membershipError: { message: 'timeout' } });
+    const response = await GET(request());
+    expect(response.status).toBe(500);
+  });
+
+  it('includes certifications with pass, fail and in-progress status and a deadline', async () => {
+    setup({
+      certs: [
+        { id: 'cert-pass', title: 'SQL Cert', slug: 'sql-cert', deadline_days: 14 },
+        { id: 'cert-fail', title: 'Excel Cert', slug: 'excel-cert', deadline_days: null },
+        { id: 'cert-open', title: 'BI Cert', slug: 'bi-cert', deadline_days: null },
+        { id: 'cert-new', title: 'Python Cert', slug: 'py-cert', deadline_days: null },
+      ],
+      certAttempts: [
+        { certification_id: 'cert-pass', completed_at: '2026-09-20T10:00:00+00:00', passed: false },
+        { certification_id: 'cert-pass', completed_at: '2026-09-25T10:00:00+00:00', passed: true },
+        { certification_id: 'cert-fail', completed_at: '2026-09-22T10:00:00+00:00', passed: false },
+        { certification_id: 'cert-open', completed_at: null, passed: null },
+      ],
+      assignedDates: [{ content_id: 'cert-pass', assigned_at: '2026-09-01T10:00:00.000Z' }],
+    });
+    const body = await (await GET(request())).json();
+    const byId = Object.fromEntries(body.items.map((i: any) => [i.id, i]));
+    expect(byId['cert-pass']).toMatchObject({ type: 'certification', baseStatus: 'done', completedAt: '2026-09-25T10:00:00+00:00', href: '/sql-cert' });
+    expect(byId['cert-pass'].dueDate).toBe('2026-09-15T10:00:00.000Z');
+    expect(byId['cert-fail'].baseStatus).toBe('failed');
+    expect(byId['cert-open'].baseStatus).toBe('in_progress');
+    expect(byId['cert-new'].baseStatus).toBe('not_started');
+  });
+
+  it('uses the earliest of a direct assignment and a path grant', async () => {
+    setup({
+      directCourses: [{ id: 'course-1', title: 'Excel', slug: 'excel', deadline_days: null }],
+      paths: [{ id: 'path-1', item_ids: ['course-1'] }],
+      assignedDates: [
+        { content_id: 'course-1', assigned_at: '2026-10-05T10:00:00+00:00' },
+        { content_id: 'path-1', assigned_at: '2026-09-08T10:00:00+00:00' },
+      ],
+    });
+    const body = await (await GET(request())).json();
+    expect(body.items.find((i: any) => i.id === 'course-1').assignedAt).toBe('2026-09-08T10:00:00+00:00');
   });
 
   it('fails loudly rather than showing handed-in work as not started', async () => {

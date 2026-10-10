@@ -10,7 +10,7 @@
 // it was assigned (a path's courses use the path's date), moves forward with the current week while
 // unfinished, and settles in the week it was completed. Items with neither date go to `anytime`.
 
-export type ProgramItemType = 'course' | 'virtual_experience' | 'assignment' | 'event';
+export type ProgramItemType = 'course' | 'virtual_experience' | 'assignment' | 'certification' | 'event';
 
 /** What the student has done, independent of the date. */
 export type ProgramBaseStatus =

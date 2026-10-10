@@ -1387,24 +1387,46 @@ CREATE TRIGGER trg_learning_paths_updated_at
   BEFORE UPDATE ON public.learning_paths FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 
 -- migration 224: record when a published learning path or assignment is given to a cohort, in
--- cohort_assignments. Added when a cohort is newly added (date kept on later saves), removed when
--- the cohort is taken off or the content deleted. Stale cohort ids are skipped. Cohorts in
--- cohort_dates_baseline (what content already had before 224) are never dated. Full rationale in
+-- cohort_assignments. An assignment's cohorts are its cohort_ids plus its groups' cohorts. Added
+-- when a cohort is newly targeted (date kept on later saves), removed when it no longer is or the
+-- content is deleted. Stale cohort ids are skipped. Cohorts in cohort_dates_baseline (what content
+-- already had before 224) are never dated. Full rationale in
 -- migrations/224_path_and_assignment_assigned_dates.sql.
+CREATE OR REPLACE FUNCTION public.assignment_target_cohorts(p_cohort_ids uuid[], p_group_ids uuid[])
+RETURNS uuid[]
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT COALESCE(array_agg(DISTINCT c), '{}')
+    FROM (
+      SELECT unnest(COALESCE(p_cohort_ids, '{}')) AS c
+      UNION
+      SELECT g.cohort_id FROM public.groups g WHERE g.id = ANY (COALESCE(p_group_ids, '{}'))
+    ) t
+$$;
+
 CREATE OR REPLACE FUNCTION public.prepare_cohort_dates_baseline()
 RETURNS trigger
 LANGUAGE plpgsql
 SET search_path = ''
 AS $$
+DECLARE
+  v_targets uuid[];
 BEGIN
   IF TG_OP = 'INSERT' THEN
     NEW.cohort_dates_baseline := '{}';
-  ELSE
-    NEW.cohort_dates_baseline := ARRAY(
-      SELECT b FROM unnest(COALESCE(OLD.cohort_dates_baseline, '{}')) AS b
-       WHERE b = ANY (COALESCE(NEW.cohort_ids, '{}'))
-    );
+    RETURN NEW;
   END IF;
+  IF TG_TABLE_NAME = 'assignments' THEN
+    v_targets := public.assignment_target_cohorts(NEW.cohort_ids, NEW.group_ids);
+  ELSE
+    v_targets := COALESCE(NEW.cohort_ids, '{}');
+  END IF;
+  NEW.cohort_dates_baseline := ARRAY(
+    SELECT b FROM unnest(COALESCE(OLD.cohort_dates_baseline, '{}')) AS b WHERE b = ANY (v_targets)
+  );
   RETURN NEW;
 END;
 $$;
@@ -1417,6 +1439,8 @@ SET search_path = ''
 AS $$
 DECLARE
   v_type text := CASE TG_TABLE_NAME WHEN 'learning_paths' THEN 'learning_path' ELSE 'assignment' END;
+  v_new uuid[];
+  v_old uuid[] := '{}';
   v_prev uuid[];
 BEGIN
   IF TG_OP = 'DELETE' THEN
@@ -1424,22 +1448,32 @@ BEGIN
     RETURN OLD;
   END IF;
 
+  IF TG_TABLE_NAME = 'assignments' THEN
+    v_new := public.assignment_target_cohorts(NEW.cohort_ids, NEW.group_ids);
+    IF TG_OP = 'UPDATE' THEN v_old := public.assignment_target_cohorts(OLD.cohort_ids, OLD.group_ids); END IF;
+  ELSE
+    v_new := COALESCE(NEW.cohort_ids, '{}');
+    IF TG_OP = 'UPDATE' THEN v_old := COALESCE(OLD.cohort_ids, '{}'); END IF;
+  END IF;
+
+  -- Cohorts that are not newly assigned: those from before this migration, and those that already
+  -- had the content while it was live.
   v_prev := COALESCE(NEW.cohort_dates_baseline, '{}');
 
   IF TG_OP = 'UPDATE' THEN
     DELETE FROM public.cohort_assignments
      WHERE content_id = NEW.id
        AND content_type = v_type
-       AND NOT (cohort_id = ANY (COALESCE(NEW.cohort_ids, '{}')));
+       AND NOT (cohort_id = ANY (v_new));
     IF OLD.status = 'published' THEN
-      v_prev := v_prev || COALESCE(OLD.cohort_ids, '{}');
+      v_prev := v_prev || v_old;
     END IF;
   END IF;
 
   IF NEW.status = 'published' THEN
     INSERT INTO public.cohort_assignments (cohort_id, content_type, content_id)
     SELECT c, v_type, NEW.id
-      FROM unnest(COALESCE(NEW.cohort_ids, '{}')) AS c
+      FROM unnest(v_new) AS c
      WHERE NOT (c = ANY (v_prev))
        AND EXISTS (SELECT 1 FROM public.cohorts WHERE id = c)
     ON CONFLICT (content_id, cohort_id) DO NOTHING;
@@ -1459,7 +1493,7 @@ CREATE TRIGGER trg_assignments_cohort_baseline
   BEFORE INSERT OR UPDATE ON public.assignments
   FOR EACH ROW EXECUTE FUNCTION public.prepare_cohort_dates_baseline();
 CREATE TRIGGER trg_assignments_cohort_dates
-  AFTER INSERT OR DELETE OR UPDATE OF cohort_ids, status ON public.assignments
+  AFTER INSERT OR DELETE OR UPDATE OF cohort_ids, group_ids, status ON public.assignments
   FOR EACH ROW EXECUTE FUNCTION public.sync_cohort_assignment_dates();
 CREATE TRIGGER trg_tool_icons_updated_at
   BEFORE UPDATE ON public.tool_icons FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
