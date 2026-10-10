@@ -754,7 +754,7 @@ export default function StudentDashboard() {
               <OverviewSection user={{ ...user, id: effectiveId, email: effectiveEmail }} userEmail={effectiveEmail} C={C} onNavigate={goSection}/>
             )}
             {activeSection === 'my_program' && user && (
-              <MyProgramSection C={C} coursesLocked={isOutstanding}/>
+              <MyProgramSection C={C} coursesLocked={isOutstanding} studentName={viewingAs?.name ?? profile?.full_name ?? null}/>
             )}
             {activeSection === 'courses' && user && (
               <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding}/>
