@@ -11,7 +11,7 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { ArrowLeft, ArrowRight, Check, ChevronRight, Lock, RefreshCw, Route, Users, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { LIGHT_C } from '@/lib/theme';
+import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { Sk, EmptyState } from '@/components/student/shared';
@@ -243,10 +243,11 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
   const { primaryColor, accentColor } = useTenant();
   const { theme } = useTheme();
   const dark = theme === 'dark';
-  // The road alone carries the tenant's brand: primary for progress, secondary for "you".
-  const road = dark ? `color-mix(in srgb, ${primaryColor} 62%, white)` : primaryColor;
-  const roadHi = accentColor || ATTN;
-  const roadBed = dark ? '#262a35' : '#e9edf4';
+  // Same rule as useC: light mode carries the tenant's brand (primary for progress, secondary for
+  // "you"); dark mode uses the dark theme's own colours (ocean CTA, theme accent).
+  const road = dark ? DARK_C.cta : primaryColor || LIGHT_C.cta;
+  const roadHi = dark ? DARK_C.accent : accentColor || LIGHT_C.accent;
+  const roadBed = dark ? DARK_C.pill : '#e9edf4';
   const upcomingRing = dark ? '#4b5263' : '#c4ccd6';
 
   const scrollRef = useRef<HTMLDivElement>(null);
