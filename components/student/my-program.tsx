@@ -245,6 +245,7 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
   const road = dark ? `color-mix(in srgb, ${primaryColor} 62%, white)` : primaryColor;
   const roadHi = accentColor || ATTN;
   const roadBed = dark ? '#262a35' : '#e9edf4';
+  const upcomingRing = dark ? '#4b5263' : '#c4ccd6';
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
@@ -363,9 +364,12 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
               const w = week.week, x = xAt(w);
               const full = week.required > 0 && week.completed === week.required;
               const late = week.items.filter(i => i.status === 'overdue').length;
+              // Stops on the filled part of the road take the road colour so they belong to it; a light
+              // grey border there reads as white. Upcoming stops get a grey visible on the grey road.
+              const onFilled = fillTo !== null && x <= fillTo + 1;
               const fill = late ? ROAD_ATTN : C.card;
-              const stroke = late ? 'none' : full ? road : C.skeleton;
-              const ink = late ? '#ffffff' : full ? road : C.muted;
+              const stroke = late ? 'none' : full || onFilled ? road : upcomingRing;
+              const ink = late ? '#ffffff' : full || onFilled ? road : C.muted;
               const text = `${late ? `${late} past due, ` : ''}${week.completed} of ${week.required} done`;
               return (
                 <g key={w} data-week={w} role="button" tabIndex={w === (sel ?? 1) ? 0 : -1} className="cursor-pointer outline-none group"
