@@ -26,10 +26,19 @@ const assignment = (id: string, passingScore?: number) => ({
   id, title: `Assignment ${id}`, deadline_date: '2026-10-12', type: 'standard', config: passingScore ? { passingScore } : {}, group_ids: [],
 });
 
-function setup({ cohortKind = 'bootcamp', assignments = [] as any[], submissions = [] as any[], submissionsError = null as any } = {}) {
-  buildStatusRows.mockResolvedValue(assignments.map(a => ({
-    formId: a.id, formTitle: a.title, contentType: 'assignment', status: 'not_started', progressPct: 0, deadline: null,
-  })));
+function setup({
+  cohortKind = 'bootcamp', assignments = [] as any[], submissions = [] as any[], submissionsError = null as any,
+  paths = [] as any[], pathCourses = [] as any[], assignedDates = [] as any[], courseDone = [] as any[],
+} = {}) {
+  buildStatusRows.mockResolvedValue([
+    ...assignments.map(a => ({
+      formId: a.id, formTitle: a.title, contentType: 'assignment', status: 'not_started', progressPct: 0, deadline: null,
+    })),
+    ...pathCourses.map(c => ({
+      formId: c.id, formTitle: c.title, contentType: 'course',
+      status: courseDone.some(d => d.course_id === c.id) ? 'completed' : 'not_started', progressPct: 0, deadline: null,
+    })),
+  ]);
   requireStudentUser.mockResolvedValue({
     user: { id: ME, email: 'me@example.com' },
     serviceDb: makeSupabaseStub({
@@ -49,9 +58,13 @@ function setup({ cohortKind = 'bootcamp', assignments = [] as any[], submissions
         ], error: null },
       ],
       groups: { data: { id: 'group-1', name: 'Team Insight', description: null }, error: null },
-      courses: { data: [], error: null },
+      // First call: courses tagged with the cohort. Second: courses reached through a path.
+      courses: [{ data: [], error: null }, { data: pathCourses, error: null }],
       virtual_experiences: { data: [], error: null },
-      learning_paths: { data: [], error: null },
+      learning_paths: { data: paths, error: null },
+      cohort_assignments: { data: assignedDates, error: null },
+      course_attempts: { data: courseDone, error: null },
+      guided_project_attempts: { data: [], error: null },
       events: { data: [], error: null },
       assignments: { data: assignments, error: null },
       assignment_submissions: { data: submissionsError ? null : submissions, error: submissionsError },
@@ -112,6 +125,33 @@ describe('GET /api/student/program', () => {
       ],
     });
     expect(JSON.stringify(body)).not.toContain('@example.com');
+  });
+
+  it("dates a path's courses by when the path reached the cohort, and records completion", async () => {
+    setup({
+      paths: [{ id: 'path-1', item_ids: ['course-1', 'course-2'] }],
+      pathCourses: [
+        { id: 'course-1', title: 'Excel', slug: 'excel', deadline_days: null },
+        { id: 'course-2', title: 'SQL', slug: 'sql', deadline_days: null },
+      ],
+      assignedDates: [{ content_id: 'path-1', assigned_at: '2026-09-15T10:00:00+00:00' }],
+      courseDone: [{ course_id: 'course-2', completed_at: '2026-10-01T09:00:00+00:00', passed: true }],
+    });
+    const body = await (await GET(request())).json();
+    const byId = Object.fromEntries(body.items.map((i: any) => [i.id, i]));
+    expect(byId['course-1'].assignedAt).toBe('2026-09-15T10:00:00+00:00');
+    expect(byId['course-1'].completedAt).toBeNull();
+    expect(byId['course-2'].assignedAt).toBe('2026-09-15T10:00:00+00:00');
+    expect(byId['course-2'].completedAt).toBe('2026-10-01T09:00:00+00:00');
+  });
+
+  it("uses the submission time as a handed-in assignment's completion date", async () => {
+    setup({
+      assignments: [assignment('a')],
+      submissions: [{ assignment_id: 'a', status: 'submitted', score: null, group_id: null, participants: [], submitted_at: '2026-10-02T08:00:00+00:00', graded_at: null }],
+    });
+    const body = await (await GET(request())).json();
+    expect(body.items.find((i: any) => i.id === 'a').completedAt).toBe('2026-10-02T08:00:00+00:00');
   });
 
   it('fails loudly rather than showing handed-in work as not started', async () => {

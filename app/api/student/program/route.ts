@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
     db.from('virtual_experiences').select('id, title, slug, deadline_days')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
-    db.from('learning_paths').select('item_ids')
+    db.from('learning_paths').select('id, item_ids')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
     db.from('assignments').select('id, title, deadline_date, type, config, group_ids')
       .eq('status', 'published')
@@ -105,7 +105,9 @@ export async function GET(req: NextRequest) {
 
   const assignmentIds = assignments.map((a: any) => a.id);
   const eventIds = events.map((e: any) => e.id);
-  const [rows, submissionsRes, attendanceRes, group] = await Promise.all([
+  const courseIds = courses.map((c: any) => c.id);
+  const veIds = ves.map((v: any) => v.id);
+  const [rows, submissionsRes, attendanceRes, group, datesRes, courseDoneRes, veDoneRes] = await Promise.all([
     tracked.length
       ? buildStatusRows(db, {
           items: tracked,
@@ -115,7 +117,7 @@ export async function GET(req: NextRequest) {
         }).then(async r => { await attachProgress(db, r, tracked); return r; })
       : Promise.resolve([]),
     assignmentIds.length
-      ? db.from('assignment_submissions').select('assignment_id, status, score, group_id, participants')
+      ? db.from('assignment_submissions').select('assignment_id, status, score, group_id, participants, submitted_at, graded_at')
           .in('assignment_id', assignmentIds)
           .or(groupId ? `student_id.eq.${student.id},group_id.eq.${groupId}` : `student_id.eq.${student.id}`)
       : Promise.resolve({ data: [] as any[], error: null }),
@@ -123,10 +125,22 @@ export async function GET(req: NextRequest) {
       ? db.from('live_attendance').select('event_id').eq('student_id', student.id).in('event_id', eventIds)
       : Promise.resolve({ data: [] as any[], error: null }),
     groupId ? loadGroup(db, groupId, student.id) : Promise.resolve(null),
+    // When each piece of content (or the path holding it) was given to this cohort. Places work
+    // with no deadline in the week it was handed out -- see lib/student-program.
+    db.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohortId),
+    // When the student finished, so finished work settles in the week it was completed.
+    courseIds.length
+      ? db.from('course_attempts').select('course_id, completed_at, passed')
+          .eq('student_id', student.id).in('course_id', courseIds).not('completed_at', 'is', null)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    veIds.length
+      ? db.from('guided_project_attempts').select('ve_id, completed_at')
+          .eq('student_id', student.id).in('ve_id', veIds).not('completed_at', 'is', null)
+      : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 
   // Without submissions every handed-in assignment would read as not started or overdue.
-  const statusError = submissionsRes.error ?? attendanceRes.error;
+  const statusError = submissionsRes.error ?? attendanceRes.error ?? datesRes.error ?? courseDoneRes.error ?? veDoneRes.error;
   if (statusError) {
     console.error('[student/program]', (statusError as any).message);
     return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
@@ -136,18 +150,42 @@ export async function GET(req: NextRequest) {
   // the members the leader listed as participants -- the rule the Assignments tab and grading use --
   // while a group draft is shared work in progress for everyone in the group.
   const rank: Record<string, number> = { draft: 1, submitted: 2, graded: 3 };
-  const submissionFor = new Map<string, { status: string; score: number | null }>();
+  const submissionFor = new Map<string, { status: string; score: number | null; submittedAt: string | null }>();
   for (const s of submissionsRes.data ?? []) {
     const isParticipant = !s.group_id || s.status === 'draft'
       || (Array.isArray(s.participants) && s.participants.includes(student.id));
     if (!isParticipant) continue;
     const current = submissionFor.get(s.assignment_id);
     if (!current || (rank[s.status] ?? 0) > (rank[current.status] ?? 0)) {
-      submissionFor.set(s.assignment_id, { status: s.status, score: s.score ?? null });
+      submissionFor.set(s.assignment_id, { status: s.status, score: s.score ?? null, submittedAt: s.submitted_at ?? s.graded_at ?? null });
     }
   }
   const passMarkById = new Map(assignments.map((a: any) => [a.id, passMarkOf(a.config)]));
   const attended = new Set((attendanceRes.data ?? []).map((a: any) => a.event_id));
+
+  // Assigned date: the item's own, else the earliest date a path holding it reached the cohort.
+  const assignedAtById = new Map<string, string>();
+  for (const row of datesRes.data ?? []) assignedAtById.set(row.content_id, row.assigned_at);
+  const pathDateByItem = new Map<string, string>();
+  for (const path of (pathsRes.data ?? []) as any[]) {
+    const pathDate = assignedAtById.get(path.id);
+    if (!pathDate) continue;
+    for (const itemId of path.item_ids ?? []) {
+      const current = pathDateByItem.get(itemId);
+      if (!current || pathDate < current) pathDateByItem.set(itemId, pathDate);
+    }
+  }
+  const assignedAtFor = (id: string) => assignedAtById.get(id) ?? pathDateByItem.get(id) ?? null;
+
+  // First passing completion of a course; a completed VE attempt.
+  const completedAtById = new Map<string, string>();
+  const keepEarliest = (id: string, at: string | null) => {
+    if (!at) return;
+    const current = completedAtById.get(id);
+    if (!current || at < current) completedAtById.set(id, at);
+  };
+  for (const a of courseDoneRes.data ?? []) if (a.passed !== false) keepEarliest(a.course_id, a.completed_at);
+  for (const a of veDoneRes.data ?? []) keepEarliest(a.ve_id, a.completed_at);
 
   const slugById = new Map<string, string>([...courses, ...ves].map((c: any) => [c.id, c.slug || c.id]));
   const trackedById = new Map(tracked.map(t => [t.id, t]));
@@ -182,6 +220,10 @@ export async function GET(req: NextRequest) {
       // (assigned_at + deadline_days); they go out whole so the browser resolves the student's
       // local date, matching the deadline the Courses tab shows.
       dueDate: isAssignment ? (item?.deadlineDate?.slice(0, 10) ?? null) : row.deadline,
+      assignedAt: assignedAtFor(row.formId),
+      completedAt: baseStatus === 'done' || baseStatus === 'awaiting_grade'
+        ? (isAssignment ? (submissionFor.get(row.formId)?.submittedAt ?? null) : (completedAtById.get(row.formId) ?? null))
+        : null,
     };
   });
 

@@ -15,7 +15,7 @@ import { supabase } from '@/lib/supabase';
 import { LIGHT_C } from '@/lib/theme';
 import { Sk, EmptyState } from '@/components/student/shared';
 import {
-  buildProgramTimeline, countsTowardCompletion, isCompleteStatus, localDateKey,
+  buildProgramTimeline, countsTowardCompletion, dueDateKey, isCompleteStatus, localDateKey,
   type ProgramGroup, type ProgramItemType, type ProgramPayload, type ProgramStatus, type ProgramTimeline, type TimelineItem,
 } from '@/lib/student-program';
 
@@ -504,7 +504,7 @@ function Journey({ timeline, filter, C }: { timeline: ProgramTimeline; filter: P
           </div>
           {selectedWeek
             ? <span className="text-[13px] tabular-nums" style={{ color: C.muted }}>{selectedWeek.completed} of {selectedWeek.required} required items done</span>
-            : <span className="text-[13px]" style={{ color: C.muted }}>No due date set</span>}
+            : <span className="text-[13px]" style={{ color: C.muted }}>No due or assigned date</span>}
         </div>
         <AnimatePresence mode="wait">
           <motion.div key={`${selected}-${filter ?? 'all'}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
@@ -571,6 +571,7 @@ function ItemRow({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
   const color = STATUS_META[item.status].color;
   const quiet = item.status === 'done' || item.status === 'awaiting' || item.type === 'event';
   const showProgress = (item.status === 'progress' || item.status === 'overdue') && item.progressPct > 0;
+  const assigned = dueDateKey(item.assignedAt);
   return (
     <div className="grid grid-cols-[40px_1fr] sm:grid-cols-[40px_1fr_auto] items-center gap-x-3.5 gap-y-2 p-3 rounded-xl" style={{ background: C.page }}>
       <span className="w-10 h-10 rounded-xl grid place-items-center" style={{ background: C.card, color: color ?? C.muted }}>
@@ -582,6 +583,8 @@ function ItemRow({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
           <span>{label}</span>
           {item.dueDate && <span>{item.type === 'event' ? formatDay(item.dueDate) : `Due ${formatDay(item.dueDate)}`}</span>}
           {item.recurring && <span>Repeats</span>}
+          {!item.dueDate && assigned && <span>Assigned {formatDay(assigned)}</span>}
+          {item.carriedFrom && <span className="font-semibold" style={{ color: AMBER }}>From Week {item.carriedFrom}</span>}
           {showProgress && (
             <span className="inline-flex items-center gap-1.5">
               <span className="w-20 h-1.5 rounded-full overflow-hidden" style={{ background: C.pill }}>

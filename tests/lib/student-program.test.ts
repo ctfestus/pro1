@@ -67,6 +67,75 @@ describe('week placement', () => {
   });
 });
 
+describe('work with no deadline', () => {
+  // Cohort Sep 1 - Nov 23; today Oct 9 is Week 6.
+  it('starts in the week it was assigned and moves forward while unfinished', () => {
+    const t = buildProgramTimeline(payload([
+      item({ id: 'open', baseStatus: 'in_progress', assignedAt: '2026-09-10T10:00:00.000Z' }),
+    ]), '2026-10-09');
+    const placed = t.weeks.flatMap(w => w.items).find(i => i.id === 'open')!;
+    expect(placed.week).toBe(6);
+    expect(placed.carriedFrom).toBe(2);
+    expect(placed.status).toBe('progress'); // no deadline, so never overdue
+    expect(t.anytime).toHaveLength(0);
+  });
+
+  it('settles in the week it was completed', () => {
+    const t = buildProgramTimeline(payload([
+      item({ id: 'done', baseStatus: 'done', assignedAt: '2026-09-10T10:00:00.000Z', completedAt: '2026-09-25T10:00:00.000Z' }),
+    ]), '2026-10-09');
+    const placed = t.weeks.flatMap(w => w.items).find(i => i.id === 'done')!;
+    expect(placed.week).toBe(4);
+    expect(placed.carriedFrom).toBeNull();
+  });
+
+  it('stays in its assigned week when assigned this week or before the program starts', () => {
+    const thisWeek = buildProgramTimeline(payload([item({ id: 'a', assignedAt: '2026-10-07T10:00:00.000Z' })]), '2026-10-09');
+    expect(thisWeek.weeks[5].items[0].carriedFrom).toBeNull();
+    const before = buildProgramTimeline(payload([item({ id: 'b', assignedAt: '2026-08-20T10:00:00.000Z' })]), '2026-08-25');
+    expect(before.weeks[0].items.map(i => i.id)).toEqual(['b']);
+  });
+
+  it('is not counted as behind, since there is no deadline to miss', () => {
+    const t = buildProgramTimeline(payload([item({ assignedAt: '2026-09-02T10:00:00.000Z' })]), '2026-10-09');
+    expect(t.behind).toBe(0);
+  });
+
+  it('carries into the current week when the cohort has no end date', () => {
+    const t = buildProgramTimeline(payload([
+      item({ id: 'open', baseStatus: 'not_started', assignedAt: '2026-09-03T10:00:00.000Z' }),
+    ], { endDate: null }), '2026-10-09');
+    const placed = t.weeks.flatMap(w => w.items).find(i => i.id === 'open')!;
+    expect(t.weeks).toHaveLength(6);
+    expect(placed.week).toBe(6);
+    expect(placed.carriedFrom).toBe(1);
+  });
+
+  it('carries a not-passed item forward until it is passed', () => {
+    const t = buildProgramTimeline(payload([
+      item({ id: 'retake', type: 'assignment', baseStatus: 'failed', assignedAt: '2026-09-10T10:00:00.000Z' }),
+    ]), '2026-10-09');
+    expect(t.weeks[5].items.map(i => i.id)).toEqual(['retake']);
+  });
+
+  it('does not let an old completion date set Week 1 when the cohort has no start date', () => {
+    const t = buildProgramTimeline(payload([
+      item({ baseStatus: 'done', completedAt: '2026-03-01T10:00:00.000Z', assignedAt: '2026-09-01T10:00:00.000Z' }),
+      item({ dueDate: '2026-09-20' }),
+    ], { startDate: null, endDate: null }), '2026-09-10');
+    expect(t.weeks[0].startDate).toBe('2026-09-01');
+  });
+
+  it('keeps work with a deadline in its due week, even when it has an assigned date', () => {
+    const t = buildProgramTimeline(payload([
+      item({ id: 'due', baseStatus: 'not_started', dueDate: '2026-09-20', assignedAt: '2026-09-02T10:00:00.000Z' }),
+    ]), '2026-10-09');
+    const placed = t.weeks.flatMap(w => w.items).find(i => i.id === 'due')!;
+    expect(placed.week).toBe(3);
+    expect(placed.carriedFrom).toBeNull();
+  });
+});
+
 describe('statuses', () => {
   it('turns unfinished work overdue only after its due date has passed', () => {
     const due = item({ dueDate: '2026-10-12' });

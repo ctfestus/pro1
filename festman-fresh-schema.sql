@@ -519,6 +519,8 @@ CREATE TABLE public.assignments (
   related_course          uuid        REFERENCES public.courses(id) ON DELETE SET NULL,
   created_by              uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
   cohort_ids              uuid[]      NOT NULL DEFAULT '{}',
+  -- migration 224: cohorts this already had before 224 (never dated); see prepare_cohort_dates_baseline.
+  cohort_dates_baseline   uuid[]      NOT NULL DEFAULT '{}',
   group_ids               uuid[]      NOT NULL DEFAULT '{}',
   cover_image             text,
   status                  text        NOT NULL DEFAULT 'draft'
@@ -748,12 +750,13 @@ CREATE TABLE public.schedule_resources (
 );
 
 -- ── cohort_assignments (polymorphic: tracks content-to-cohort assignments) ──
--- content_type is 'course' | 'event' | 'virtual_experience' | 'form'
+-- content_type is 'course' | 'event' | 'virtual_experience' | 'form' | 'certification'
+-- | 'learning_path' | 'assignment' (migration 224; those two are kept by trg_*_cohort_dates)
 -- content_id references the corresponding table's primary key
 CREATE TABLE public.cohort_assignments (
   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   cohort_id    uuid        NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
-  content_type text        NOT NULL CHECK (content_type IN ('course','event','virtual_experience','form','certification')),
+  content_type text        NOT NULL CHECK (content_type IN ('course','event','virtual_experience','form','certification','learning_path','assignment')),
   content_id   uuid        NOT NULL,
   assigned_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (content_id, cohort_id)
@@ -768,6 +771,8 @@ CREATE TABLE public.learning_paths (
   instructor_id uuid        NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   item_ids      uuid[]      NOT NULL DEFAULT '{}',
   cohort_ids    uuid[]      NOT NULL DEFAULT '{}',
+  -- migration 224: cohorts this already had before 224 (never dated); see prepare_cohort_dates_baseline.
+  cohort_dates_baseline uuid[] NOT NULL DEFAULT '{}',
   status        text        NOT NULL DEFAULT 'draft'
                               CHECK (status IN ('draft','published')),
   next_path_id    uuid        REFERENCES public.learning_paths(id) ON DELETE SET NULL,
@@ -1380,6 +1385,82 @@ CREATE TRIGGER trg_schedules_updated_at
   BEFORE UPDATE ON public.schedules FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_learning_paths_updated_at
   BEFORE UPDATE ON public.learning_paths FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- migration 224: record when a published learning path or assignment is given to a cohort, in
+-- cohort_assignments. Added when a cohort is newly added (date kept on later saves), removed when
+-- the cohort is taken off or the content deleted. Stale cohort ids are skipped. Cohorts in
+-- cohort_dates_baseline (what content already had before 224) are never dated. Full rationale in
+-- migrations/224_path_and_assignment_assigned_dates.sql.
+CREATE OR REPLACE FUNCTION public.prepare_cohort_dates_baseline()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = ''
+AS $$
+BEGIN
+  IF TG_OP = 'INSERT' THEN
+    NEW.cohort_dates_baseline := '{}';
+  ELSE
+    NEW.cohort_dates_baseline := ARRAY(
+      SELECT b FROM unnest(COALESCE(OLD.cohort_dates_baseline, '{}')) AS b
+       WHERE b = ANY (COALESCE(NEW.cohort_ids, '{}'))
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.sync_cohort_assignment_dates()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_type text := CASE TG_TABLE_NAME WHEN 'learning_paths' THEN 'learning_path' ELSE 'assignment' END;
+  v_prev uuid[];
+BEGIN
+  IF TG_OP = 'DELETE' THEN
+    DELETE FROM public.cohort_assignments WHERE content_id = OLD.id AND content_type = v_type;
+    RETURN OLD;
+  END IF;
+
+  v_prev := COALESCE(NEW.cohort_dates_baseline, '{}');
+
+  IF TG_OP = 'UPDATE' THEN
+    DELETE FROM public.cohort_assignments
+     WHERE content_id = NEW.id
+       AND content_type = v_type
+       AND NOT (cohort_id = ANY (COALESCE(NEW.cohort_ids, '{}')));
+    IF OLD.status = 'published' THEN
+      v_prev := v_prev || COALESCE(OLD.cohort_ids, '{}');
+    END IF;
+  END IF;
+
+  IF NEW.status = 'published' THEN
+    INSERT INTO public.cohort_assignments (cohort_id, content_type, content_id)
+    SELECT c, v_type, NEW.id
+      FROM unnest(COALESCE(NEW.cohort_ids, '{}')) AS c
+     WHERE NOT (c = ANY (v_prev))
+       AND EXISTS (SELECT 1 FROM public.cohorts WHERE id = c)
+    ON CONFLICT (content_id, cohort_id) DO NOTHING;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trg_learning_paths_cohort_baseline
+  BEFORE INSERT OR UPDATE ON public.learning_paths
+  FOR EACH ROW EXECUTE FUNCTION public.prepare_cohort_dates_baseline();
+CREATE TRIGGER trg_learning_paths_cohort_dates
+  AFTER INSERT OR DELETE OR UPDATE OF cohort_ids, status ON public.learning_paths
+  FOR EACH ROW EXECUTE FUNCTION public.sync_cohort_assignment_dates();
+CREATE TRIGGER trg_assignments_cohort_baseline
+  BEFORE INSERT OR UPDATE ON public.assignments
+  FOR EACH ROW EXECUTE FUNCTION public.prepare_cohort_dates_baseline();
+CREATE TRIGGER trg_assignments_cohort_dates
+  AFTER INSERT OR DELETE OR UPDATE OF cohort_ids, status ON public.assignments
+  FOR EACH ROW EXECUTE FUNCTION public.sync_cohort_assignment_dates();
 CREATE TRIGGER trg_tool_icons_updated_at
   BEFORE UPDATE ON public.tool_icons FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_guided_project_attempts_updated_at
