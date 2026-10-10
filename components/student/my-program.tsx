@@ -1,6 +1,6 @@
 'use client';
 
-// My Program: completion and the next action lead, with a compact week selector beneath.
+// My Program: completion and the next action lead, with a connected weekly timeline beneath.
 // Dates, locks, ongoing work and progress still come from the shared timeline contract.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -222,7 +222,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <h2 id="journey-heading" className="text-lg font-bold tracking-tight" style={{ color: C.text }}>Your journey</h2>
-                  <p className="text-[13px] mt-1" style={{ color: C.muted }}>{weeks.length ? 'Browse your weeks and see what is planned.' : 'All your assigned work, in one place.'}</p>
+                  <p className="text-[13px] mt-1" style={{ color: C.muted }}>{weeks.length ? 'Follow your weekly timeline and explore what is planned.' : 'All your assigned work, in one place.'}</p>
                 </div>
                 {weeks.length > 0 && (
                   <button type="button" onClick={() => setChoice(homeWeek)}
@@ -232,7 +232,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
                   </button>
                 )}
               </div>
-              {weeks.length > 0 && <WeekSelector weeks={weeks} currentWeek={currentWeek} phase={phase} sel={typeof sel === 'number' ? sel : 1} onPick={setChoice} C={C}/>}
+              {weeks.length > 0 && <WeekTimeline weeks={weeks} currentWeek={currentWeek} phase={phase} sel={typeof sel === 'number' ? sel : 1} onPick={setChoice} C={C}/>}
               <WeekPanel sel={sel} setSel={setChoice} timeline={timeline} undated={anytime} C={C}/>
             </section>
           </>
@@ -281,7 +281,7 @@ function NextAction({ timeline, C }: { timeline: ProgramTimeline; C: typeof LIGH
   );
 }
 
-function WeekSelector({ weeks, currentWeek, phase, sel, onPick, C }: {
+function WeekTimeline({ weeks, currentWeek, phase, sel, onPick, C }: {
   weeks: ProgramWeek[]; currentWeek: number | null; phase: ProgramTimeline['phase'];
   sel: number; onPick: (w: WeekKey) => void; C: typeof LIGHT_C;
 }) {
@@ -322,26 +322,34 @@ function WeekSelector({ weeks, currentWeek, phase, sel, onPick, C }: {
       <div ref={scrollRef} role="group" aria-label="Program weeks. Use the left and right arrow keys to move."
         className="relative overflow-x-auto overscroll-x-contain p-1 -mx-1"
         style={{ scrollbarWidth: 'thin' }}>
-        <div className="flex gap-2 w-max min-w-full">
-          {weeks.map(week => {
+        <div className="flex w-max min-w-full">
+          {weeks.map((week, index) => {
             const active = sel === week.week;
             const current = phase === 'during' && currentWeek === week.week;
             const complete = week.required > 0 && week.completed === week.required;
-            const note = week.hasOverdue ? 'Past due' : complete ? 'Complete' : current ? 'Current week' : formatDay(week.startDate);
+            const note = current ? 'Current week' : week.hasOverdue ? 'Past due' : complete ? 'Complete' : formatDay(week.startDate);
             return (
               <button key={week.week} ref={el => { if (el) buttons.current.set(week.week, el); else buttons.current.delete(week.week); }}
                 type="button" aria-pressed={active} aria-current={current ? 'step' : undefined}
                 aria-label={'Week ' + week.week + ', from ' + formatDay(week.startDate) + ', ' + week.completed + ' of ' + week.required + ' finished' + (current ? ', current week' : '') + (week.hasOverdue ? ', past due work' : '')}
                 tabIndex={active ? 0 : -1} onKeyDown={e => onKey(e, week.week)} onClick={() => onPick(week.week)}
-                className="min-w-[100px] flex-1 rounded-xl px-3 py-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 transition-colors motion-reduce:transition-none"
-                style={{ background: active ? C.lime : C.pill, color: C.text, outlineColor: C.cta }}>
-                <span className="flex items-center justify-between gap-2 text-sm font-semibold">
-                  Week {week.week}
-                  {complete ? <Check className="w-3.5 h-3.5" style={{ color: C.successText }} aria-hidden="true"/>
-                    : active ? <span className="w-1.5 h-1.5 rounded-full" style={{ background: C.cta }}/> : null}
+                className="relative min-w-[112px] flex-1 rounded-xl px-2 py-2 text-center focus-visible:outline-2 focus-visible:outline-offset-2"
+                style={{ color: C.text, outlineColor: C.cta }}>
+                {/* Neutral connectors show the schedule, not completion or elapsed-time progress. */}
+                {index > 0 && <span aria-hidden="true" className="absolute top-[26px] left-0 right-1/2 h-0.5" style={{ background: C.faint }}/>}
+                {index < weeks.length - 1 && <span aria-hidden="true" className="absolute top-[26px] left-1/2 right-0 h-0.5" style={{ background: C.faint }}/>}
+                <span aria-hidden="true" className="relative z-10 mx-auto grid place-items-center w-9 h-9 rounded-full text-sm font-bold tabular-nums transition-colors motion-reduce:transition-none"
+                  style={{ background: active ? C.cta : complete ? C.successBg : C.pill,
+                    color: active ? C.ctaText : complete ? 'color-mix(in srgb, ' + C.successText + ' 70%, ' + C.text + ')' : C.muted,
+                    boxShadow: current ? `0 0 0 3px ${C.card}, 0 0 0 5px ${C.cta}` : `0 0 0 5px ${C.card}` }}>
+                  {complete ? <Check className="w-4 h-4"/> : week.week}
                 </span>
-                <span className="block text-xs mt-1.5 whitespace-nowrap"
-                  style={{ color: week.hasOverdue ? attnInk : complete ? C.successText : C.muted }}>{note}</span>
+                <span className="relative block rounded-xl px-2 py-2 mt-3 transition-colors motion-reduce:transition-none"
+                  style={{ background: active ? C.lime : 'transparent' }}>
+                  <span className="block text-sm font-semibold">Week {week.week}</span>
+                  <span className="block text-xs mt-1.5 whitespace-nowrap"
+                    style={{ color: current ? C.text : week.hasOverdue ? attnInk : complete ? 'color-mix(in srgb, ' + C.successText + ' 70%, ' + C.text + ')' : C.muted }}>{note}</span>
+                </span>
               </button>
             );
           })}
