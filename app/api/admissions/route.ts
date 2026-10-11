@@ -11,9 +11,9 @@ export const dynamic = 'force-dynamic';
 // Enrolling in a learning_paths row doesn't need its own per-item
 // tagging: courses/virtual_experiences/certifications already grant access through
 // any published learning path containing them, so tagging just the path cascades to
-// everything inside it. cohort_assignments.content_type has no 'learning_path' value
-// (see festman-fresh-schema.sql), so that bookkeeping upsert is skipped for paths --
-// same as POST /api/cohort-content-assignment already does.
+// everything inside it. The path's own cohort_assignments row (migration 224) is kept by a
+// trigger on learning_paths, so no bookkeeping upsert is done for paths here -- same as
+// POST /api/cohort-content-assignment.
 /** What to call each type in a message a person reads. */
 const CONTENT_LABEL: Record<string, string> = {
   courses: 'course',

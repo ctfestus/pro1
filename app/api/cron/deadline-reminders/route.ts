@@ -54,8 +54,9 @@ export async function POST(req: NextRequest) {
   // -- 1. Courses / Events / VEs via cohort_assignments ---
   // Paged: this reads the whole table, so past the row cap the assignments beyond it silently
   // never produced a reminder. Learning-path grants are deliberately not folded in here -- a
-  // deadline is counted from the date content was assigned to a cohort, and granting access
-  // through a path creates no such date, so path-taught content has no deadline to remind about.
+  // deadline is counted from the date content itself was assigned to a cohort. A path's own
+  // assigned date (migration 224) is recorded, but by decision it is not a deadline for the items
+  // inside it: they would all fall due together, and nobody starts every course in a path at once.
   const cohortAssignments = await fetchAllRows<any>((from, to) => supabase
     .from('cohort_assignments')
     .select('content_id, content_type, cohort_id, assigned_at', { count: 'exact' })

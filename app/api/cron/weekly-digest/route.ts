@@ -37,8 +37,9 @@ export async function POST(req: NextRequest) {
 
   // -- 1. Fetch all cohort assignments (polymorphic), plus what learning paths grant --
   // Paged: this reads the whole table, so past the row cap it silently returned a partial list and
-  // the cohorts beyond it received no digest at all. The path grants are appended because a path
-  // writes no row here, which made a cohort taught only through one invisible to this job.
+  // the cohorts beyond it received no digest at all. The path grants are appended because the items
+  // inside a path get no row here (the path itself does, since migration 224, but this job cannot
+  // resolve a path id and skips it), which made a cohort taught only through one invisible.
   const directAssignments = await fetchAllRows<any>((from, to) => supabase
     .from('cohort_assignments')
     .select('content_id, content_type, cohort_id, assigned_at', { count: 'exact' })

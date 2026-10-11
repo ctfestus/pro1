@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
+import { classesEndDateError } from '@/lib/cohort-dates';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,20 +25,35 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if ('description' in body) payload.description = String(body.description ?? '').trim() || null;
   if ('start_date' in body) payload.start_date = body.start_date ? String(body.start_date) : null;
   if ('end_date' in body) payload.end_date = body.end_date ? String(body.end_date) : null;
+  if ('classes_end_date' in body) payload.classes_end_date = body.classes_end_date ? String(body.classes_end_date) : null;
 
   if (!Object.keys(payload).length) {
     return NextResponse.json({ error: 'No editable cohort fields provided.' }, { status: 400 });
   }
 
-  const { data: existing } = await supabase
+  const { data: existing, error: existingError } = await supabase
     .from('cohorts')
-    .select('id, created_by')
+    .select('id, created_by, start_date, end_date, classes_end_date')
     .eq('id', id)
-    .single();
+    .maybeSingle();
+  if (existingError) {
+    // Say what failed rather than claiming the cohort is missing (e.g. a database behind on migrations).
+    console.error('[api/cohorts] lookup error:', existingError.message);
+    return NextResponse.json({ error: 'Could not load this cohort.' }, { status: 500 });
+  }
   if (!existing) return NextResponse.json({ error: 'Cohort not found.' }, { status: 404 });
   if (role === 'instructor' && existing.created_by !== user.id) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
+
+  // Checked against the dates the cohort will have after this update, so moving the end date
+  // earlier than an existing classes end date is caught too.
+  const datesError = classesEndDateError(
+    'start_date' in payload ? payload.start_date : existing.start_date,
+    'classes_end_date' in payload ? payload.classes_end_date : existing.classes_end_date,
+    'end_date' in payload ? payload.end_date : existing.end_date,
+  );
+  if (datesError) return NextResponse.json({ error: datesError }, { status: 400 });
 
   const { data, error } = await supabase
     .from('cohorts')

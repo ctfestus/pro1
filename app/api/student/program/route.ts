@@ -1,0 +1,354 @@
+// GET /api/student/program -- everything a bootcamp student needs to see where they are in their
+// program: the cohort's dates, every piece of content assigned to the cohort with this student's
+// status on it, and their group.
+//
+// Course and virtual-experience status, deadlines and progress come from lib/tracking-report, the
+// same engine behind Student Tracking, so a student and their instructor see the same picture.
+// Assignments are classified here because a group assignment is submitted once for the whole
+// group, and the tracking engine only looks at a student's own submission. Certifications are
+// classified here too; the tracking engine does not cover them.
+//
+// Date-dependent statuses (overdue, current week) are decided in the browser by
+// lib/student-program from the student's local date.
+
+import { NextRequest, NextResponse } from 'next/server';
+import { requireStudentUser, isAuthError } from '@/lib/api-auth';
+import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
+import { passMarkOf } from '@/lib/assignment-scenarios';
+import { attachProgress, buildStatusRows, type TrackedItem } from '@/lib/tracking-report';
+import { contentPath } from '@/lib/content-link';
+import type { ProgramBaseStatus, ProgramGroup, ProgramItem, ProgramPayload } from '@/lib/student-program';
+
+export const dynamic = 'force-dynamic';
+
+const EMPTY: ProgramPayload = { cohort: null, items: [], group: null };
+
+export async function GET(req: NextRequest) {
+  const auth = await requireStudentUser(req);
+  if (isAuthError(auth)) return auth.error;
+  const { user, serviceDb: db } = auth;
+
+  const { data: student, error: studentError } = await db
+    .from('students').select('id, email, full_name, cohort_id, original_cohort_id').eq('id', user.id).maybeSingle();
+  if (studentError) return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
+  // A student with an unpaid balance is parked in the outstanding-payments cohort and their real
+  // cohort is kept in original_cohort_id. Their program is the real cohort's, but every access check
+  // still goes by the holding cohort, so while held all of it is locked -- except assignments given
+  // to their group, which group membership (kept through the hold) still opens.
+  const cohortId: string | null = student?.original_cohort_id ?? student?.cohort_id ?? null;
+  if (!student || !cohortId) return NextResponse.json(EMPTY);
+  const held = !!student.original_cohort_id;
+
+  const [{ data: cohort, error: cohortError }, { data: membership, error: membershipError }] = await Promise.all([
+    db.from('cohorts').select('id, name, start_date, end_date, classes_end_date, cohort_kind').eq('id', cohortId).maybeSingle(),
+    db.from('group_members').select('group_id').eq('student_id', student.id).maybeSingle(),
+  ]);
+  // A failed membership lookup must not read as "no group": that would silently drop group work.
+  if (cohortError || membershipError) {
+    console.error('[student/program]', (cohortError ?? membershipError)!.message);
+    return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
+  }
+  // Subscription and individual students have no program, only a catalogue.
+  if (!cohort || cohort.cohort_kind !== COHORT_KIND_BOOTCAMP) return NextResponse.json(EMPTY);
+
+  const groupId: string | null = membership?.group_id ?? null;
+
+  // The same audience rules the student's own sections use: content tagged with the cohort, items
+  // inside a learning path tagged with the cohort, and assignments aimed at the cohort or the group.
+  const [coursesRes, vesRes, pathsRes, assignmentsRes, eventsRes, certsRes] = await Promise.all([
+    db.from('courses').select('id, title, slug, deadline_days, cover_image')
+      .contains('cohort_ids', [cohortId]).eq('status', 'published'),
+    db.from('virtual_experiences').select('id, title, slug, deadline_days, cover_image')
+      .contains('cohort_ids', [cohortId]).eq('status', 'published'),
+    db.from('learning_paths').select('id, item_ids')
+      .contains('cohort_ids', [cohortId]).eq('status', 'published'),
+    db.from('assignments').select('id, title, deadline_date, type, config, group_ids, cover_image')
+      .eq('status', 'published')
+      .or(groupId ? `cohort_ids.cs.{${cohortId}},group_ids.cs.{${groupId}}` : `cohort_ids.cs.{${cohortId}}`),
+    db.from('events').select('id, title, slug, event_date, recurrence, recurrence_end_date, cover_image')
+      .contains('cohort_ids', [cohortId]).eq('status', 'published').not('event_date', 'is', null),
+    db.from('certifications').select('id, title, slug, deadline_days, cover_image')
+      .contains('cohort_ids', [cohortId]).eq('status', 'published'),
+  ]);
+  const firstError = [coursesRes, vesRes, pathsRes, assignmentsRes, eventsRes, certsRes].find(r => r.error)?.error;
+  if (firstError) {
+    console.error('[student/program]', firstError.message);
+    return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
+  }
+
+  const courses = [...(coursesRes.data ?? [])];
+  const ves = [...(vesRes.data ?? [])];
+  const certs = [...(certsRes.data ?? [])];
+  const known = new Set([...courses, ...ves, ...certs].map(c => c.id));
+  const pathItemIds = [...new Set((pathsRes.data ?? []).flatMap((p: any) => p.item_ids ?? []))]
+    .filter((id: string) => !known.has(id));
+  if (pathItemIds.length) {
+    // A path grants only its published items: courses, VEs and certifications.
+    const [pathCourses, pathVes, pathCerts] = await Promise.all([
+      db.from('courses').select('id, title, slug, deadline_days, cover_image').in('id', pathItemIds).eq('status', 'published'),
+      db.from('virtual_experiences').select('id, title, slug, deadline_days, cover_image').in('id', pathItemIds).eq('status', 'published'),
+      db.from('certifications').select('id, title, slug, deadline_days, cover_image').in('id', pathItemIds).eq('status', 'published'),
+    ]);
+    // Dropping path content silently would shrink the program and inflate the student's %.
+    const pathError = pathCourses.error ?? pathVes.error ?? pathCerts.error;
+    if (pathError) {
+      console.error('[student/program]', pathError.message);
+      return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
+    }
+    courses.push(...(pathCourses.data ?? []));
+    ves.push(...(pathVes.data ?? []));
+    certs.push(...(pathCerts.data ?? []));
+  }
+
+  const assignments = assignmentsRes.data ?? [];
+  const events = eventsRes.data ?? [];
+
+  const tracked: TrackedItem[] = [
+    ...courses.map((c: any): TrackedItem => ({
+      id: c.id, title: c.title, slug: c.slug, contentType: 'course', status: 'published',
+      cohortIds: [cohortId], availableToEveryone: false, deadlineDays: c.deadline_days ?? null,
+    })),
+    ...ves.map((v: any): TrackedItem => ({
+      id: v.id, title: v.title, slug: v.slug, contentType: 'virtual_experience', status: 'published',
+      cohortIds: [cohortId], availableToEveryone: false, deadlineDays: v.deadline_days ?? null,
+    })),
+    ...assignments.map((a: any): TrackedItem => ({
+      id: a.id, title: a.title, contentType: 'assignment', status: 'published',
+      cohortIds: [cohortId], availableToEveryone: false, deadlineDate: a.deadline_date ?? null,
+      veFormId: a.type === 'virtual_experience' ? (a.config?.ve_form_id ?? null) : null,
+    })),
+  ];
+
+  const assignmentIds = assignments.map((a: any) => a.id);
+  const eventIds = events.map((e: any) => e.id);
+  const courseIds = courses.map((c: any) => c.id);
+  const veIds = ves.map((v: any) => v.id);
+  const certIds = certs.map((c: any) => c.id);
+  const [rows, submissionsRes, attendanceRes, group, datesRes, courseDoneRes, veDoneRes, certAttemptsRes] = await Promise.all([
+    tracked.length
+      ? buildStatusRows(db, {
+          items: tracked,
+          students: [{ id: student.id, email: student.email, full_name: student.full_name, cohort_id: cohortId }],
+          cohortNames: new Map([[cohortId, cohort.name]]),
+          activeCohortIds: [cohortId],
+        }).then(async r => { await attachProgress(db, r, tracked); return r; })
+      : Promise.resolve([]),
+    assignmentIds.length
+      ? db.from('assignment_submissions').select('assignment_id, status, score, group_id, participants, submitted_at, graded_at')
+          .in('assignment_id', assignmentIds)
+          .or(groupId ? `student_id.eq.${student.id},group_id.eq.${groupId}` : `student_id.eq.${student.id}`)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    eventIds.length
+      ? db.from('live_attendance').select('event_id').eq('student_id', student.id).in('event_id', eventIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    groupId ? loadGroup(db, groupId, student.id) : Promise.resolve(null),
+    // When each piece of content (or the path holding it) was given to this cohort. Places work
+    // with no deadline in the week it was handed out -- see lib/student-program.
+    db.from('cohort_assignments').select('content_id, assigned_at').eq('cohort_id', cohortId),
+    // When the student finished, so finished work settles in the week it was completed.
+    courseIds.length
+      ? db.from('course_attempts').select('course_id, completed_at, passed')
+          .eq('student_id', student.id).in('course_id', courseIds).not('completed_at', 'is', null)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    veIds.length
+      ? db.from('guided_project_attempts').select('ve_id, completed_at')
+          .eq('student_id', student.id).in('ve_id', veIds).not('completed_at', 'is', null)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    certIds.length
+      ? db.from('certification_attempts').select('certification_id, completed_at, passed')
+          .eq('student_id', student.id).in('certification_id', certIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
+
+  // Without submissions every handed-in assignment would read as not started or overdue.
+  const statusError = submissionsRes.error ?? attendanceRes.error ?? datesRes.error
+    ?? courseDoneRes.error ?? veDoneRes.error ?? certAttemptsRes.error;
+  if (statusError) {
+    console.error('[student/program]', (statusError as any).message);
+    return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
+  }
+
+  // Own or group submission, whichever is furthest along. A submitted group answer belongs only to
+  // the members the leader listed as participants -- the rule the Assignments tab and grading use --
+  // while a group draft is shared work in progress for everyone in the group.
+  const rank: Record<string, number> = { draft: 1, submitted: 2, graded: 3 };
+  const submissionFor = new Map<string, { status: string; score: number | null; submittedAt: string | null }>();
+  for (const s of submissionsRes.data ?? []) {
+    const isParticipant = !s.group_id || s.status === 'draft'
+      || (Array.isArray(s.participants) && s.participants.includes(student.id));
+    if (!isParticipant) continue;
+    const current = submissionFor.get(s.assignment_id);
+    if (!current || (rank[s.status] ?? 0) > (rank[current.status] ?? 0)) {
+      submissionFor.set(s.assignment_id, { status: s.status, score: s.score ?? null, submittedAt: s.submitted_at ?? s.graded_at ?? null });
+    }
+  }
+  const passMarkById = new Map(assignments.map((a: any) => [a.id, passMarkOf(a.config)]));
+  const attended = new Set((attendanceRes.data ?? []).map((a: any) => a.event_id));
+
+  // Assigned date: the earliest of the item's own date and the dates of paths holding it -- the
+  // cohort had it from whichever came first.
+  const assignedAtById = new Map<string, string>();
+  for (const row of datesRes.data ?? []) assignedAtById.set(row.content_id, row.assigned_at);
+  const pathDateByItem = new Map<string, string>();
+  for (const path of (pathsRes.data ?? []) as any[]) {
+    const pathDate = assignedAtById.get(path.id);
+    if (!pathDate) continue;
+    for (const itemId of path.item_ids ?? []) {
+      const current = pathDateByItem.get(itemId);
+      if (!current || pathDate < current) pathDateByItem.set(itemId, pathDate);
+    }
+  }
+  const assignedAtFor = (id: string) => {
+    const own = assignedAtById.get(id);
+    const viaPath = pathDateByItem.get(id);
+    if (own && viaPath) return own < viaPath ? own : viaPath;
+    return own ?? viaPath ?? null;
+  };
+
+  // First passing completion of a course; a completed VE attempt.
+  const completedAtById = new Map<string, string>();
+  const keepEarliest = (id: string, at: string | null) => {
+    if (!at) return;
+    const current = completedAtById.get(id);
+    if (!current || at < current) completedAtById.set(id, at);
+  };
+  for (const a of courseDoneRes.data ?? []) if (a.passed !== false) keepEarliest(a.course_id, a.completed_at);
+  for (const a of veDoneRes.data ?? []) keepEarliest(a.ve_id, a.completed_at);
+
+  const slugById = new Map<string, string>([...courses, ...ves].map((c: any) => [c.id, c.slug || c.id]));
+  const coverById = new Map<string, string | null>([...courses, ...ves, ...assignments].map((c: any) => [c.id, c.cover_image ?? null]));
+  const groupAssignmentIds = new Set(groupId
+    ? assignments.filter((a: any) => (a.group_ids ?? []).includes(groupId)).map((a: any) => a.id)
+    : []);
+  const lockedWhileHeld = (type: ProgramItem['type'], id: string) =>
+    held && !(type === 'assignment' && groupAssignmentIds.has(id));
+  const trackedById = new Map(tracked.map(t => [t.id, t]));
+  const items: ProgramItem[] = rows.map(row => {
+    const isAssignment = row.contentType === 'assignment';
+    const item = trackedById.get(row.formId);
+    let baseStatus: ProgramBaseStatus =
+      row.status === 'completed' ? 'done'
+      : row.status === 'failed' ? 'failed'
+      : row.status === 'in_progress' || row.status === 'stalled' ? 'in_progress'
+      : 'not_started';
+    if (isAssignment) {
+      // Ignore the engine's own-submission view: a group member's work lives on the group row.
+      baseStatus = row.status === 'in_progress' || row.status === 'stalled' ? 'in_progress' : 'not_started';
+      const sub = submissionFor.get(row.formId);
+      if (sub?.status === 'graded') {
+        // Graded below the pass mark is a fail the student must resubmit, as the Assignments tab says.
+        baseStatus = sub.score !== null && sub.score < (passMarkById.get(row.formId) ?? 0) ? 'failed' : 'done';
+      } else if (sub?.status === 'submitted') baseStatus = 'awaiting_grade';
+      else if (sub?.status === 'draft') baseStatus = 'in_progress';
+    }
+    // A plain assignment draft has no measurable progress; only course and VE work does.
+    const hasMeasuredProgress = !isAssignment || !!item?.veFormId;
+    return {
+      id: row.formId,
+      title: row.formTitle,
+      type: row.contentType,
+      // Typed links: slugs are unique per table, so an untyped link can open a same-slug course.
+      href: isAssignment
+        ? `/student/assignments/${row.formId}`
+        : contentPath({ slug: slugById.get(row.formId), id: row.formId, content_type: row.contentType }),
+      baseStatus,
+      progressPct: baseStatus === 'in_progress' && hasMeasuredProgress ? row.progressPct : 0,
+      // Assignment deadlines are calendar dates. Course and VE deadlines are exact moments
+      // (assigned_at + deadline_days); they go out whole so the browser resolves the student's
+      // local date, matching the deadline the Courses tab shows.
+      dueDate: isAssignment ? (item?.deadlineDate?.slice(0, 10) ?? null) : row.deadline,
+      assignedAt: assignedAtFor(row.formId),
+      coverImage: coverById.get(row.formId) ?? null,
+      locked: lockedWhileHeld(row.contentType, row.formId),
+      completedAt: baseStatus === 'done' || baseStatus === 'awaiting_grade'
+        ? (isAssignment ? (submissionFor.get(row.formId)?.submittedAt ?? null) : (completedAtById.get(row.formId) ?? null))
+        : null,
+    };
+  });
+
+  // Certifications: passed is done; an attempt in progress is in progress; only failed attempts is
+  // not passed (a retake is due). Like courses, a deadline counts from the certification's own
+  // assignment to the cohort; one reached only through a path has none.
+  const certAttempts = certAttemptsRes.data ?? [];
+  for (const c of certs as any[]) {
+    const mine = certAttempts.filter((a: any) => a.certification_id === c.id);
+    const passedAt = mine.filter((a: any) => a.completed_at && a.passed === true)
+      .map((a: any) => a.completed_at as string).sort()[0] ?? null;
+    const baseStatus: ProgramBaseStatus = passedAt ? 'done'
+      : mine.some((a: any) => !a.completed_at) ? 'in_progress'
+      : mine.some((a: any) => a.completed_at) ? 'failed'
+      : 'not_started';
+    const ownAssigned = assignedAtById.get(c.id);
+    items.push({
+      id: c.id,
+      title: c.title,
+      type: 'certification',
+      coverImage: c.cover_image ?? null,
+      href: contentPath({ slug: c.slug, id: c.id, content_type: 'certification' }),
+      locked: lockedWhileHeld('certification', c.id),
+      baseStatus,
+      progressPct: 0,
+      dueDate: ownAssigned && c.deadline_days
+        ? new Date(new Date(ownAssigned).getTime() + Number(c.deadline_days) * 86_400_000).toISOString()
+        : null,
+      assignedAt: assignedAtFor(c.id),
+      completedAt: passedAt,
+    });
+  }
+
+  for (const e of events as any[]) {
+    items.push({
+      id: e.id,
+      title: e.title,
+      type: 'event',
+      coverImage: e.cover_image ?? null,
+      href: `/${e.slug || e.id}`,
+      locked: lockedWhileHeld('event', e.id),
+      baseStatus: attended.has(e.id) ? 'attended' : 'not_attended',
+      progressPct: 0,
+      dueDate: String(e.event_date).slice(0, 10),
+      recurring: !!e.recurrence && e.recurrence !== 'once',
+      lastDate: e.recurrence_end_date ? String(e.recurrence_end_date).slice(0, 10) : null,
+    });
+  }
+
+  const payload: ProgramPayload = {
+    cohort: {
+      id: cohort.id, name: cohort.name, startDate: cohort.start_date ?? null, endDate: cohort.end_date ?? null,
+      classesEndDate: cohort.classes_end_date ?? null,
+    },
+    items,
+    group,
+  };
+  return NextResponse.json(payload);
+}
+
+/** The student's own group. Names and photos only -- no contact details. */
+async function loadGroup(db: any, groupId: string, studentId: string): Promise<ProgramGroup | null> {
+  const [{ data: group }, { data: memberRows }] = await Promise.all([
+    db.from('groups').select('id, name, description').eq('id', groupId).maybeSingle(),
+    db.from('group_members').select('student_id, is_leader, joined_at').eq('group_id', groupId)
+      .order('is_leader', { ascending: false }).order('joined_at', { ascending: true }),
+  ]);
+  if (!group) return null;
+  const ids = (memberRows ?? []).map((m: any) => m.student_id);
+  const { data: profiles } = ids.length
+    ? await db.from('students').select('id, full_name, avatar_url').in('id', ids)
+    : { data: [] as any[] };
+  const byId = new Map((profiles ?? []).map((p: any) => [p.id, p]));
+  return {
+    id: group.id,
+    name: group.name,
+    description: group.description ?? null,
+    members: (memberRows ?? []).map((m: any) => {
+      const p: any = byId.get(m.student_id) ?? {};
+      return {
+        id: m.student_id,
+        name: p.full_name || 'Group member',
+        avatarUrl: p.avatar_url ?? null,
+        isLeader: !!m.is_leader,
+        isYou: m.student_id === studentId,
+      };
+    }),
+  };
+}

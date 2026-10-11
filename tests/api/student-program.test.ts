@@ -1,0 +1,282 @@
+// GET /api/student/program: the student's own view of their program must agree with the
+// Assignments tab and grading -- a fail is a fail, and a group answer belongs to its participants --
+// and must never carry another student's contact details.
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { NextRequest } from 'next/server';
+import { makeSupabaseStub } from '../helpers/supabaseStub';
+
+const requireStudentUser = vi.hoisted(() => vi.fn());
+const buildStatusRows = vi.hoisted(() => vi.fn());
+
+vi.mock('@/lib/api-auth', () => ({
+  requireStudentUser,
+  isAuthError: (value: any) => Boolean(value?.error),
+}));
+vi.mock('@/lib/tracking-report', () => ({
+  buildStatusRows,
+  attachProgress: vi.fn(async () => {}),
+}));
+
+import { GET } from '@/app/api/student/program/route';
+
+const ME = 'student-1';
+const request = () => new NextRequest('http://localhost/api/student/program', { headers: { authorization: 'Bearer t' } });
+
+const assignment = (id: string, passingScore?: number) => ({
+  id, title: `Assignment ${id}`, deadline_date: '2026-10-12', type: 'standard', config: passingScore ? { passingScore } : {}, group_ids: [],
+});
+
+function setup({
+  cohortKind = 'bootcamp', assignments = [] as any[], submissions = [] as any[], submissionsError = null as any,
+  paths = [] as any[], pathCourses = [] as any[], assignedDates = [] as any[], courseDone = [] as any[],
+  directCourses = [] as any[], certs = [] as any[], certAttempts = [] as any[],
+  originalCohortId = null as string | null, membershipError = null as any,
+} = {}) {
+  buildStatusRows.mockResolvedValue([
+    ...assignments.map(a => ({
+      formId: a.id, formTitle: a.title, contentType: 'assignment', status: 'not_started', progressPct: 0, deadline: null,
+    })),
+    ...[...directCourses, ...pathCourses].map(c => ({
+      formId: c.id, formTitle: c.title, contentType: 'course',
+      status: courseDone.some(d => d.course_id === c.id) ? 'completed' : 'not_started', progressPct: 0, deadline: null,
+    })),
+  ]);
+  requireStudentUser.mockResolvedValue({
+    user: { id: ME, email: 'me@example.com' },
+    serviceDb: makeSupabaseStub({
+      students: [
+        { data: { id: ME, email: 'me@example.com', full_name: 'Efua Boateng', cohort_id: originalCohortId ? 'outstanding-cohort' : 'cohort-1', original_cohort_id: originalCohortId }, error: null },
+        { data: [
+          { id: ME, full_name: 'Efua Boateng', avatar_url: null, email: 'me@example.com' },
+          { id: 'student-2', full_name: 'Ama Owusu', avatar_url: 'https://x/a.png', email: 'ama@example.com' },
+        ], error: null },
+      ],
+      cohorts: { data: { id: originalCohortId ?? 'cohort-1', name: 'Cohort 7', start_date: '2026-09-01', end_date: '2026-11-23', cohort_kind: cohortKind }, error: null },
+      group_members: [
+        membershipError ? { data: null, error: membershipError } : { data: { group_id: 'group-1' }, error: null },
+        { data: [
+          { student_id: 'student-2', is_leader: true, joined_at: '2026-09-01' },
+          { student_id: ME, is_leader: false, joined_at: '2026-09-02' },
+        ], error: null },
+      ],
+      groups: { data: { id: 'group-1', name: 'Team Insight', description: null }, error: null },
+      // First call: courses tagged with the cohort. Second: courses reached through a path.
+      courses: [{ data: directCourses, error: null }, { data: pathCourses, error: null }],
+      // First call: certifications tagged with the cohort. Second: certifications in a path.
+      certifications: [{ data: certs, error: null }, { data: [], error: null }],
+      certification_attempts: { data: certAttempts, error: null },
+      virtual_experiences: { data: [], error: null },
+      learning_paths: { data: paths, error: null },
+      cohort_assignments: { data: assignedDates, error: null },
+      course_attempts: { data: courseDone, error: null },
+      guided_project_attempts: { data: [], error: null },
+      events: { data: [], error: null },
+      assignments: { data: assignments, error: null },
+      assignment_submissions: { data: submissionsError ? null : submissions, error: submissionsError },
+    }),
+  });
+}
+
+const statusOf = (body: any, id: string) => body.items.find((i: any) => i.id === id)?.baseStatus;
+
+/** Records every .eq(column, value) made on `table`, so a test can pin which cohort was queried. */
+function spyEq(table: string) {
+  const calls: [string, unknown][] = [];
+  const auth = requireStudentUser.mock.results.at(-1)?.value;
+  return auth.then((resolved: any) => {
+    const db = resolved.serviceDb;
+    const from = db.from.bind(db);
+    db.from = (t: string) => {
+      const builder = from(t);
+      if (t !== table) return builder;
+      // Follow the whole chain (.select().eq()...), recording .eq and staying awaitable.
+      const wrap = (target: any): any => new Proxy(target, {
+        get(t, prop) {
+          if (prop === 'then' || prop === 'catch' || prop === 'finally') return t[prop].bind(t);
+          return (...args: any[]) => {
+            if (prop === 'eq') calls.push([args[0], args[1]]);
+            return wrap(t[prop](...args));
+          };
+        },
+      });
+      return wrap(builder);
+    };
+    return calls;
+  });
+}
+
+beforeEach(() => vi.clearAllMocks());
+
+describe('GET /api/student/program', () => {
+  it('returns no program for a cohort that is not a bootcamp', async () => {
+    setup({ cohortKind: 'subscription_plan' });
+    const body = await (await GET(request())).json();
+    expect(body).toEqual({ cohort: null, items: [], group: null });
+  });
+
+  it('marks a graded assignment below its pass mark as failed, not done', async () => {
+    setup({
+      assignments: [assignment('low', 70), assignment('high', 70), assignment('default')],
+      submissions: [
+        { assignment_id: 'low', status: 'graded', score: 40, group_id: null, participants: [] },
+        { assignment_id: 'high', status: 'graded', score: 70, group_id: null, participants: [] },
+        // No configured pass mark: the platform default (85) applies.
+        { assignment_id: 'default', status: 'graded', score: 80, group_id: null, participants: [] },
+      ],
+    });
+    const body = await (await GET(request())).json();
+    expect(statusOf(body, 'low')).toBe('failed');
+    expect(statusOf(body, 'high')).toBe('done');
+    expect(statusOf(body, 'default')).toBe('failed');
+  });
+
+  it('credits a group submission only to the members listed as participants', async () => {
+    setup({
+      assignments: [assignment('included'), assignment('excluded'), assignment('draft')],
+      submissions: [
+        { assignment_id: 'included', status: 'submitted', score: null, group_id: 'group-1', participants: ['student-2', ME] },
+        { assignment_id: 'excluded', status: 'graded', score: 95, group_id: 'group-1', participants: ['student-2'] },
+        { assignment_id: 'draft', status: 'draft', score: null, group_id: 'group-1', participants: [] },
+      ],
+    });
+    const body = await (await GET(request())).json();
+    expect(statusOf(body, 'included')).toBe('awaiting_grade');
+    expect(statusOf(body, 'excluded')).toBe('not_started');
+    expect(statusOf(body, 'draft')).toBe('in_progress');
+  });
+
+  it('returns group members with names and photos only, leaders first', async () => {
+    setup();
+    const body = await (await GET(request())).json();
+    expect(body.group).toEqual({
+      id: 'group-1', name: 'Team Insight', description: null,
+      members: [
+        { id: 'student-2', name: 'Ama Owusu', avatarUrl: 'https://x/a.png', isLeader: true, isYou: false },
+        { id: ME, name: 'Efua Boateng', avatarUrl: null, isLeader: false, isYou: true },
+      ],
+    });
+    expect(JSON.stringify(body)).not.toContain('@example.com');
+  });
+
+  it("dates a path's courses by when the path reached the cohort, and records completion", async () => {
+    setup({
+      paths: [{ id: 'path-1', item_ids: ['course-1', 'course-2'] }],
+      pathCourses: [
+        { id: 'course-1', title: 'Excel', slug: 'excel', deadline_days: null },
+        { id: 'course-2', title: 'SQL', slug: 'sql', deadline_days: null },
+      ],
+      assignedDates: [{ content_id: 'path-1', assigned_at: '2026-09-15T10:00:00+00:00' }],
+      courseDone: [{ course_id: 'course-2', completed_at: '2026-10-01T09:00:00+00:00', passed: true }],
+    });
+    const body = await (await GET(request())).json();
+    const byId = Object.fromEntries(body.items.map((i: any) => [i.id, i]));
+    expect(byId['course-1'].assignedAt).toBe('2026-09-15T10:00:00+00:00');
+    expect(byId['course-1'].completedAt).toBeNull();
+    expect(byId['course-2'].assignedAt).toBe('2026-09-15T10:00:00+00:00');
+    expect(byId['course-2'].completedAt).toBe('2026-10-01T09:00:00+00:00');
+  });
+
+  it("uses the submission time as a handed-in assignment's completion date", async () => {
+    setup({
+      assignments: [assignment('a')],
+      submissions: [{ assignment_id: 'a', status: 'submitted', score: null, group_id: null, participants: [], submitted_at: '2026-10-02T08:00:00+00:00', graded_at: null }],
+    });
+    const body = await (await GET(request())).json();
+    expect(body.items.find((i: any) => i.id === 'a').completedAt).toBe('2026-10-02T08:00:00+00:00');
+  });
+
+  it("loads an outstanding student's real cohort, not the holding cohort", async () => {
+    setup({ originalCohortId: 'real-cohort' });
+    requireStudentUser(); // materialise the mocked auth so its client can be spied on
+    const cohortEq = await spyEq('cohorts');
+    const datesEq = await spyEq('cohort_assignments');
+    await GET(request());
+    expect(cohortEq).toContainEqual(['id', 'real-cohort']);
+    expect(datesEq).toContainEqual(['cohort_id', 'real-cohort']);
+  });
+
+  it('locks a held student\'s work, except assignments given to their group', async () => {
+    setup({
+      originalCohortId: 'real-cohort',
+      assignments: [
+        assignment('cohort-wide'),
+        { ...assignment('for-my-group'), group_ids: ['group-1'] },
+      ],
+      directCourses: [{ id: 'course-1', title: 'Excel', slug: 'excel', deadline_days: null }],
+      certs: [{ id: 'cert-1', title: 'SQL Cert', slug: 'sql-cert', deadline_days: null }],
+    });
+    const body = await (await GET(request())).json();
+    const lockedOf = (id: string) => body.items.find((i: any) => i.id === id)?.locked;
+    expect(lockedOf('cohort-wide')).toBe(true);
+    expect(lockedOf('course-1')).toBe(true);
+    expect(lockedOf('cert-1')).toBe(true);
+    expect(lockedOf('for-my-group')).toBe(false);
+  });
+
+  it('does not lock anything for a student who is not held', async () => {
+    setup({ assignments: [assignment('a')] });
+    const body = await (await GET(request())).json();
+    expect(body.items.every((i: any) => i.locked === false)).toBe(true);
+  });
+
+  it('links courses and certifications with their type, so a shared slug cannot open the wrong one', async () => {
+    setup({
+      directCourses: [{ id: 'course-1', title: 'SQL', slug: 'sql', deadline_days: null }],
+      certs: [{ id: 'cert-1', title: 'SQL Cert', slug: 'sql', deadline_days: null }],
+    });
+    const body = await (await GET(request())).json();
+    const hrefOf = (id: string) => body.items.find((i: any) => i.id === id)?.href;
+    expect(hrefOf('course-1')).toBe('/sql?catalogueType=course');
+    expect(hrefOf('cert-1')).toBe('/sql?catalogueType=certification');
+  });
+
+  it('fails loudly when the group lookup fails instead of hiding group work', async () => {
+    setup({ membershipError: { message: 'timeout' } });
+    const response = await GET(request());
+    expect(response.status).toBe(500);
+  });
+
+  it('includes certifications with pass, fail and in-progress status and a deadline', async () => {
+    setup({
+      certs: [
+        { id: 'cert-pass', title: 'SQL Cert', slug: 'sql-cert', deadline_days: 14 },
+        { id: 'cert-fail', title: 'Excel Cert', slug: 'excel-cert', deadline_days: null },
+        { id: 'cert-open', title: 'BI Cert', slug: 'bi-cert', deadline_days: null },
+        { id: 'cert-new', title: 'Python Cert', slug: 'py-cert', deadline_days: null },
+      ],
+      certAttempts: [
+        { certification_id: 'cert-pass', completed_at: '2026-09-20T10:00:00+00:00', passed: false },
+        { certification_id: 'cert-pass', completed_at: '2026-09-25T10:00:00+00:00', passed: true },
+        { certification_id: 'cert-fail', completed_at: '2026-09-22T10:00:00+00:00', passed: false },
+        { certification_id: 'cert-open', completed_at: null, passed: null },
+      ],
+      assignedDates: [{ content_id: 'cert-pass', assigned_at: '2026-09-01T10:00:00.000Z' }],
+    });
+    const body = await (await GET(request())).json();
+    const byId = Object.fromEntries(body.items.map((i: any) => [i.id, i]));
+    expect(byId['cert-pass']).toMatchObject({ type: 'certification', baseStatus: 'done', completedAt: '2026-09-25T10:00:00+00:00', href: '/sql-cert?catalogueType=certification' });
+    expect(byId['cert-pass'].dueDate).toBe('2026-09-15T10:00:00.000Z');
+    expect(byId['cert-fail'].baseStatus).toBe('failed');
+    expect(byId['cert-open'].baseStatus).toBe('in_progress');
+    expect(byId['cert-new'].baseStatus).toBe('not_started');
+  });
+
+  it('uses the earliest of a direct assignment and a path grant', async () => {
+    setup({
+      directCourses: [{ id: 'course-1', title: 'Excel', slug: 'excel', deadline_days: null }],
+      paths: [{ id: 'path-1', item_ids: ['course-1'] }],
+      assignedDates: [
+        { content_id: 'course-1', assigned_at: '2026-10-05T10:00:00+00:00' },
+        { content_id: 'path-1', assigned_at: '2026-09-08T10:00:00+00:00' },
+      ],
+    });
+    const body = await (await GET(request())).json();
+    expect(body.items.find((i: any) => i.id === 'course-1').assignedAt).toBe('2026-09-08T10:00:00+00:00');
+  });
+
+  it('fails loudly rather than showing handed-in work as not started', async () => {
+    setup({ assignments: [assignment('a')], submissionsError: { message: 'timeout' } });
+    const response = await GET(request());
+    expect(response.status).toBe(500);
+  });
+});

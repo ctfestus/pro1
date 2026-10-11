@@ -10,6 +10,7 @@ import { supabase } from '@/lib/supabase';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { LIGHT_C, cardStyle, modalStyle } from '@/lib/theme';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { classesEndDateError } from '@/lib/cohort-dates';
 
 function formatAdmissionDate(value?: string | null) {
   return value ? new Date(value).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '--';
@@ -46,6 +47,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
   const [newDesc, setNewDesc]           = useState('');
   const [newStartDate, setNewStartDate] = useState('');
   const [newEndDate, setNewEndDate]     = useState('');
+  const [newClassesEndDate, setNewClassesEndDate] = useState('');
   const [toast, setToast]               = useState<{ ok: boolean; text: string } | null>(null);
   const [deletingId, setDeletingId]     = useState<string | null>(null);
   const [viewMode, setViewMode]         = useState<'list' | 'detail'>('list');
@@ -55,7 +57,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
   const [admissionsLoading, setAdmissionsLoading] = useState(false);
   const [menuOpenId, setMenuOpenId]     = useState<string | null>(null);
   const [editOpen, setEditOpen]         = useState(false);
-  const [editForm, setEditForm]         = useState({ name: '', description: '', start_date: '', end_date: '' });
+  const [editForm, setEditForm]         = useState({ name: '', description: '', start_date: '', end_date: '', classes_end_date: '' });
   const [editSaving, setEditSaving]     = useState(false);
   // A delete that would take something with it comes back from the server with the list of what
   // would go. This modal shows that list before anything is touched, and is where the choice
@@ -348,13 +350,15 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
   };
 
   const openEditMeta = (c: any) => {
-    setEditForm({ name: c.name, description: c.description ?? '', start_date: c.start_date ?? '', end_date: c.end_date ?? '' });
+    setEditForm({ name: c.name, description: c.description ?? '', start_date: c.start_date ?? '', end_date: c.end_date ?? '', classes_end_date: c.classes_end_date ?? '' });
     setEditOpen(true);
     setMenuOpenId(null);
   };
 
   const saveEdit = async () => {
     if (!selectedCohort || !editForm.name.trim()) return;
+    const datesError = classesEndDateError(editForm.start_date, editForm.classes_end_date, editForm.end_date);
+    if (datesError) { showToast(false, datesError); return; }
     setEditSaving(true);
     const { data: { session } } = await supabase.auth.getSession();
     const res = await fetch(`/api/cohorts/${selectedCohort.id}`, {
@@ -365,6 +369,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
         description: editForm.description.trim() || null,
         start_date:  editForm.start_date || null,
         end_date:    editForm.end_date || null,
+        classes_end_date: editForm.classes_end_date || null,
       }),
     });
     const json = await res.json().catch(() => ({}));
@@ -447,6 +452,8 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
   const createCohort = async () => {
     if (!newName.trim()) return;
     if (!newStartDate) { showToast(false, 'Start date is required.'); return; }
+    const datesError = classesEndDateError(newStartDate, newClassesEndDate, newEndDate);
+    if (datesError) { showToast(false, datesError); return; }
     setSaving(true);
     const { data: { user } } = await supabase.auth.getUser();
     const { data, error } = await supabase.from('cohorts')
@@ -455,12 +462,14 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
         description: newDesc.trim() || null,
         start_date:  newStartDate,
         end_date:    newEndDate || null,
+        // Only sent when set, so creating a cohort without one still works where 223 has not run yet.
+        ...(newClassesEndDate ? { classes_end_date: newClassesEndDate } : {}),
         created_by:  user!.id,
       })
       .select().single();
     if (error) { showToast(false, error.message); }
     else {
-      setNewName(''); setNewDesc(''); setNewStartDate(''); setNewEndDate(''); setShowCreate(false);
+      setNewName(''); setNewDesc(''); setNewStartDate(''); setNewEndDate(''); setNewClassesEndDate(''); setShowCreate(false);
       setCohorts(prev => [data, ...prev]);
       setSelectedCohort(data);
       showToast(true, `"${data.name}" created`);
@@ -1243,6 +1252,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                     className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
                 </div>
               </div>
+              <ClassesEndField value={newClassesEndDate} onChange={setNewClassesEndDate} C={C} input={input}/>
             </div>
             <div className="px-6 pb-5 flex gap-2">
               <button onClick={() => setShowCreate(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
@@ -1295,6 +1305,7 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
                     className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
                 </div>
               </div>
+              <ClassesEndField value={editForm.classes_end_date} onChange={v => setEditForm(p => ({ ...p, classes_end_date: v }))} C={C} input={input}/>
             </div>
             <div className="px-6 pb-5 flex gap-2">
               <button onClick={() => setEditOpen(false)} className="flex-1 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.muted }}>Cancel</button>
@@ -1504,6 +1515,23 @@ export function CohortsSection({ C }: { C: typeof LIGHT_C }) {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// Optional last day of classes (migration 223). The cohort end date also covers the catch-up period
+// after classes; this tells the student My Program view where teaching stops.
+function ClassesEndField({ value, onChange, C, input }: {
+  value: string; onChange: (v: string) => void; C: typeof LIGHT_C; input: React.CSSProperties;
+}) {
+  return (
+    <div>
+      <label className="block text-xs font-semibold mb-1" style={{ color: C.muted }}>Classes End Date</label>
+      <input type="date" value={value} onChange={e => onChange(e.target.value)}
+        className="w-full rounded-xl px-3 py-2.5 text-sm focus:outline-none" style={input}/>
+      <p className="text-[11px] mt-1 leading-relaxed" style={{ color: C.faint }}>
+        Last day of teaching. The time from here to the end date is the catch-up period students get to finish their work. Leave blank if there is none.
+      </p>
     </div>
   );
 }

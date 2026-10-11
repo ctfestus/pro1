@@ -24,8 +24,8 @@ const OWNER_COL: Record<string, string> = {
   learning_paths:      'instructor_id',
 };
 
-// content_type values for cohort_assignments table
-// (only 'course' and 'virtual_experience' are supported by the schema constraint)
+// content_type values for cohort_assignments table. Learning paths and assignments also get rows
+// (migration 224), but a trigger on their tables keeps those, so they are null here.
 const CA_CONTENT_TYPE: Record<string, string | null> = {
   courses:             'course',
   virtual_experiences: 'virtual_experience',
