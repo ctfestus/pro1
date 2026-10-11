@@ -11,7 +11,7 @@ import {
 
 export const NAV_ITEMS = [
   { id: 'overview',          label: 'Dashboard',           Icon: LayoutDashboard },
-  { id: 'my_program',        label: 'My Program',          Icon: Route           },
+  { id: 'my_program',        label: 'My Bootcamp',         Icon: Route, badge: 'New' },
   { id: 'courses',           label: 'My Learning',         Icon: Film            },
   { id: 'learning_paths',    label: 'Learning Paths',      Icon: Layers          },
   { id: 'virtual_experiences', label: 'Virtual Experiences', Icon: Briefcase     },
@@ -28,7 +28,7 @@ export const NAV_ITEMS = [
   { id: 'leaderboard',       label: 'Leaderboard',         Icon: Trophy          },
   { id: 'certificates',      label: 'Certificates',        Icon: Award           },
   { id: 'badges',            label: 'Badges',              Icon: Medal           },
-  { id: 'ai_toolkit',        label: 'AI Toolkit',          Icon: Sparkles, badge: 'New' },
+  { id: 'ai_toolkit',        label: 'AI Toolkit',          Icon: Sparkles        },
   { id: 'payments',          label: 'My Plan',             Icon: CreditCard      },
 ] as const;
 export type SectionId = typeof NAV_ITEMS[number]['id'];
