@@ -233,7 +233,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
 
 // --- Journey road ---
 
-const ROAD_H = 116;
+const ROAD_H = 132;
 const MIN_GAP = 40; // px per week before the road scrolls sideways
 
 function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
@@ -273,7 +273,7 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
   const W = Math.max(viewW, n * MIN_GAP + 90);
   const scrolls = W > viewW;
   const padL = 28, padR = 60, y = ROAD_H / 2;
-  const r0 = phone ? 10 : 12, thick = phone ? 6 : 8;
+  const r0 = phone ? 11 : 13, thick = phone ? 8 : 10;
   const xAt = useCallback((w: number) => padL + (W - padL - padR) * (w - 0.5) / n, [W, n]);
   const fillTo = phase === 'before' || !currentWeek ? null : phase === 'after' ? W - padR : xAt(Math.min(currentWeek, n));
 
@@ -484,6 +484,9 @@ function bucketOf(item: TimelineItem, ongoing: boolean): Bucket | null {
 const order = (e: { item: TimelineItem; ongoing: boolean }) =>
   ({ due: 0, progress: 1, completed: 2 } as Record<string, number>)[bucketOf(e.item, e.ongoing) ?? 'completed'] ?? 3;
 
+// The soft surface for rows inside the card: a light tint of the platform's pill grey.
+const soft = (C: typeof LIGHT_C) => `color-mix(in srgb, ${C.pill} 55%, ${C.card})`;
+
 function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
   sel: WeekKey; setSel: (w: WeekKey) => void; homeWeek: WeekKey; timeline: ProgramTimeline; undated: TimelineItem[]; C: typeof LIGHT_C;
 }) {
@@ -552,18 +555,20 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
       )}
 
       {entries.length > 0 && (
-        <div className="flex gap-0.5 sm:gap-1 p-1 rounded-full mt-4" style={{ background: C.pill }} role="tablist" aria-label="Filter this week">
+        <div className="flex justify-end mt-4">
+        <div className="inline-flex max-w-full gap-0.5 p-0.5 rounded-full" style={{ background: C.pill }} role="tablist" aria-label="Filter this week">
           {(['all', 'completed', 'progress', 'due'] as const).map(key => {
             const on = filter === key;
             return (
               <button key={key} role="tab" aria-selected={on} onClick={() => setFilter(key)}
-                className="flex-auto inline-flex items-center justify-center gap-1 sm:gap-1.5 whitespace-nowrap text-[12px] sm:text-[12.5px] font-bold px-2 sm:px-3 py-1.5 rounded-full transition-colors"
+                className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-bold px-2.5 py-1 rounded-full transition-colors"
                 style={on ? { background: C.card, color: C.text, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: C.muted }}>
                 {BUCKET_LABEL[key]}
-                <span className="tabular-nums text-[11px] font-extrabold px-1 sm:px-1.5 rounded-full" style={{ background: on ? C.pill : 'transparent', color: C.faint }}>{counts[key]}</span>
+                <span className="tabular-nums text-[11px] font-extrabold" style={{ color: C.faint }}>{counts[key]}</span>
               </button>
             );
           })}
+        </div>
         </div>
       )}
 
@@ -573,14 +578,14 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
         <motion.div key={`${String(sel)}-${filter}`} className="space-y-2 mt-3"
           initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }}>
           {filter === 'all' && allDone && currentWeek && typeof sel === 'number' && sel < currentWeek && (
-            <div className="text-center px-4 py-4 rounded-2xl" style={{ background: C.page }}>
+            <div className="text-center px-4 py-4 rounded-2xl" style={{ background: soft(C) }}>
               <p className="text-[15px] font-bold" style={{ color: C.text }}>Week {sel} complete</p>
               <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>You finished everything planned for this week.</p>
             </div>
           )}
           {shown.map(e => <ItemRow key={`${e.ongoing ? 'ongoing-' : ''}${e.item.type}-${e.item.id}`} item={e.item} ongoing={e.ongoing} C={C}/>)}
           {shown.length === 0 && !(filter === 'all' && focus) && (
-            <div className="text-center px-4 py-5 rounded-2xl" style={{ background: C.page }}>
+            <div className="text-center px-4 py-5 rounded-2xl" style={{ background: soft(C) }}>
               <p className="text-[15px] font-bold" style={{ color: C.text }}>{filter === 'all' ? 'Nothing planned' : `Nothing ${BUCKET_LABEL[filter].toLowerCase()}`}</p>
               <p className="text-[13px] mt-0.5" style={{ color: C.muted }}>{filter === 'all' ? 'No work is scheduled for this week.' : 'Nothing in this group for this week.'}</p>
             </div>
@@ -629,7 +634,7 @@ function itemMeta(item: TimelineItem) {
 
 function FocusCard({ item, C }: { item: TimelineItem; C: typeof LIGHT_C }) {
   return (
-    <div className="relative isolate overflow-hidden mt-4 rounded-2xl p-4 flex flex-wrap sm:flex-nowrap items-center gap-3.5" style={{ background: C.page }}>
+    <div className="relative isolate overflow-hidden mt-4 rounded-2xl p-4 flex flex-wrap sm:flex-nowrap items-center gap-3.5" style={{ background: soft(C) }}>
       <span aria-hidden className="absolute -right-16 -top-20 w-56 h-56 rounded-full -z-10"
         style={{ background: `radial-gradient(circle, color-mix(in srgb, ${C.cta} 28%, transparent), transparent 65%)` }}/>
       <Cover item={item} large C={C}/>
@@ -662,7 +667,7 @@ function Cover({ item, large = false, ongoing = false, C }: { item: TimelineItem
   const done = !ongoing && (isCompleteStatus(item.status) || item.status === 'attended');
   const late = !ongoing && (item.status === 'overdue' || item.status === 'failed');
   return (
-    <span className="relative flex-shrink-0 rounded-xl overflow-hidden" style={{ width: w, height: h, background: `color-mix(in srgb, ${tint} 18%, ${C.card})` }}>
+    <span className="relative flex-shrink-0 rounded-md overflow-hidden" style={{ width: w, height: h, background: `color-mix(in srgb, ${tint} 18%, ${C.card})` }}>
       {src
         ? <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="absolute inset-0 w-full h-full object-cover" style={done ? { opacity: 0.7 } : undefined}/>
         : <span className="absolute inset-0 grid place-items-center font-extrabold" style={{ color: tint, fontSize: large ? 20 : 15 }}>{item.title.trim().charAt(0).toUpperCase()}</span>}
@@ -701,7 +706,7 @@ function ItemRow({ item, ongoing = false, C }: { item: TimelineItem; ongoing?: b
   if (item.locked) tags.push({ text: 'Locked' });
   const showBar = !finished && (item.status === 'progress' || item.status === 'overdue') && item.progressPct > 0;
   return (
-    <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl" style={{ background: C.page }}>
+    <div className="flex items-center gap-3 px-3 py-2.5 rounded-2xl" style={{ background: soft(C) }}>
       <Cover item={item} ongoing={ongoing} C={C}/>
       <div className="min-w-0 flex-1">
         <p className="text-[13.5px] font-bold truncate" style={{ color: finished ? C.muted : C.text }}>{item.title}</p>
