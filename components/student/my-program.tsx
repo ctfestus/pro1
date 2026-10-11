@@ -9,7 +9,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
-import { ArrowLeft, ArrowRight, Check, ChevronRight, Lock, RefreshCw, Route, Users, X } from 'lucide-react';
+import { ArrowRight, Check, ChevronRight, Lock, RefreshCw, Route, Users, X } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { supabase } from '@/lib/supabase';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
@@ -218,7 +218,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
                 <span aria-hidden className="absolute -top-[8px] w-[14px] h-[14px] rounded-tl-[3px] transition-[left] duration-500"
                   style={{ left: notchX, transform: 'translateX(-50%) rotate(45deg)', background: C.card, borderTop: `1px solid ${C.divider}`, borderLeft: `1px solid ${C.divider}` }}/>
               )}
-              <WeekPanel sel={sel} setSel={setSel} homeWeek={homeWeek} timeline={timeline} undated={anytime} C={C}/>
+              <WeekPanel sel={sel} homeWeek={homeWeek} timeline={timeline} undated={anytime} C={C}/>
             </div>
           </>
         )}
@@ -233,7 +233,7 @@ function ProgramView({ payload, timeline, studentName, C }: {
 
 // --- Journey road ---
 
-const ROAD_H = 132;
+const ROAD_H = 140;
 const MIN_GAP = 40; // px per week before the road scrolls sideways
 
 function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
@@ -273,7 +273,7 @@ function JourneyRoad({ weeks, currentWeek, phase, sel, onPick, onAnchor, C }: {
   const W = Math.max(viewW, n * MIN_GAP + 90);
   const scrolls = W > viewW;
   const padL = 28, padR = 60, y = ROAD_H / 2;
-  const r0 = phone ? 11 : 13, thick = phone ? 8 : 10;
+  const r0 = phone ? 12 : 14, thick = phone ? 11 : 14;
   const xAt = useCallback((w: number) => padL + (W - padL - padR) * (w - 0.5) / n, [W, n]);
   const fillTo = phase === 'before' || !currentWeek ? null : phase === 'after' ? W - padR : xAt(Math.min(currentWeek, n));
 
@@ -487,8 +487,8 @@ const order = (e: { item: TimelineItem; ongoing: boolean }) =>
 // The soft surface for rows inside the card: a light tint of the platform's pill grey.
 const soft = (C: typeof LIGHT_C) => `color-mix(in srgb, ${C.pill} 55%, ${C.card})`;
 
-function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
-  sel: WeekKey; setSel: (w: WeekKey) => void; homeWeek: WeekKey; timeline: ProgramTimeline; undated: TimelineItem[]; C: typeof LIGHT_C;
+function WeekPanel({ sel, homeWeek, timeline, undated, C }: {
+  sel: WeekKey; homeWeek: WeekKey; timeline: ProgramTimeline; undated: TimelineItem[]; C: typeof LIGHT_C;
 }) {
   const { weeks, currentWeek, phase, upNext } = timeline;
   const [filter, setFilter] = useState<Bucket | 'all'>('all');
@@ -497,10 +497,6 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
   const ongoing = week ? week.ongoing : [];
   const list = week ? week.items : undated;
   const isHome = sel === homeWeek;
-  const when = sel === 'all' ? 'This program has no dates yet'
-    : phase === 'during' && sel === currentWeek ? 'This week'
-    : currentWeek && typeof sel === 'number' && sel < currentWeek ? 'Earlier'
-    : phase === 'after' || phase === 'catch_up' ? 'Earlier' : 'Coming up';
   // The one next step leads the current week, even when it belongs to an earlier one.
   const focus = isHome && phase !== 'before' && upNext ? upNext : null;
   // Everything in view this week, with ongoing work (counted in a later week) flagged as such.
@@ -510,8 +506,6 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
   ];
   // The next step can come from an earlier week; it still counts in this week's groups.
   if (focus && !entries.some(e => e.item === focus)) entries.unshift({ item: focus, ongoing: false });
-  const counts = { all: entries.length, completed: 0, progress: 0, due: 0 };
-  for (const e of entries) { const b = bucketOf(e.item, e.ongoing); if (b) counts[b] += 1; }
   const shown = entries
     .filter(e => filter === 'all' ? e.item !== focus : bucketOf(e.item, e.ongoing) === filter)
     .sort((a, b) => order(a) - order(b));
@@ -519,34 +513,16 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
   const done = week ? week.completed : list.filter(i => i.type !== 'event' && isCompleteStatus(i.status)).length;
   const allDone = !!week && required > 0 && done === required;
   const pct = required ? (done / required) * 100 : 0;
-  const lastWeek = weeks.length;
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="min-w-0" aria-live="polite">
-          <h2 className="text-[17px] font-bold tracking-tight" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Your work'}</h2>
+      <div className="min-w-0" aria-live="polite">
+        <h2 className="text-[17px] font-bold tracking-tight" style={{ color: C.text }}>{week ? `Week ${week.week}` : 'Your work'}</h2>
+        {(required > 0 || !week) && (
           <p className="text-[13px] mt-0.5 tabular-nums" style={{ color: C.muted }}>
-            {when}{week ? `, from ${formatDay(week.startDate)}` : ''}{required ? `, ${done} of ${required} done` : ''}
+            {week ? `${done} of ${required} done` : `This program has no dates yet${required ? `, ${done} of ${required} done` : ''}`}
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          {lastWeek > 0 && (
-            <div className="flex items-center gap-1.5 p-1 rounded-full" style={{ background: C.pill }} role="group" aria-label="Choose a week">
-              <StepButton label="Previous week" disabled={sel === 1} onClick={() => setSel(typeof sel === 'number' ? sel - 1 : lastWeek)} C={C}>
-                <ArrowLeft className="w-4 h-4"/>
-              </StepButton>
-              {!isHome && (
-                <button onClick={() => setSel(homeWeek)} className="text-[12.5px] font-extrabold px-3 py-2 rounded-full" style={{ background: C.lime, color: C.cta }}>
-                  {phase === 'during' ? 'This week' : 'Back'}
-                </button>
-              )}
-              <StepButton label="Next week" disabled={sel === lastWeek} onClick={() => typeof sel === 'number' && setSel(sel + 1)} C={C}>
-                <ArrowRight className="w-4 h-4"/>
-              </StepButton>
-            </div>
-          )}
-        </div>
+        )}
       </div>
       {required > 0 && (
         <div className="h-1.5 rounded-full overflow-hidden mt-3.5" style={{ background: C.pill }}>
@@ -555,16 +531,15 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
       )}
 
       {entries.length > 0 && (
-        <div className="flex justify-end mt-4">
+        <div className="flex mt-4">
         <div className="inline-flex max-w-full gap-0.5 p-0.5 rounded-full" style={{ background: C.pill }} role="tablist" aria-label="Filter this week">
           {(['all', 'completed', 'progress', 'due'] as const).map(key => {
             const on = filter === key;
             return (
               <button key={key} role="tab" aria-selected={on} onClick={() => setFilter(key)}
-                className="inline-flex items-center gap-1 whitespace-nowrap text-[12px] font-bold px-2.5 py-1 rounded-full transition-colors"
+                className="inline-flex items-center whitespace-nowrap text-[12px] font-bold px-2.5 py-1 rounded-full transition-colors"
                 style={on ? { background: C.card, color: C.text, boxShadow: '0 1px 3px rgba(0,0,0,0.08)' } : { color: C.muted }}>
                 {BUCKET_LABEL[key]}
-                <span className="tabular-nums text-[11px] font-extrabold" style={{ color: C.faint }}>{counts[key]}</span>
               </button>
             );
           })}
@@ -593,18 +568,6 @@ function WeekPanel({ sel, setSel, homeWeek, timeline, undated, C }: {
         </motion.div>
       </AnimatePresence>
     </div>
-  );
-}
-
-function StepButton({ label, disabled, onClick, children, C }: {
-  label: string; disabled: boolean; onClick: () => void; children: React.ReactNode; C: typeof LIGHT_C;
-}) {
-  return (
-    <button aria-label={label} disabled={disabled} onClick={onClick}
-      className="w-[34px] h-[34px] rounded-full grid place-items-center transition-opacity disabled:opacity-35"
-      style={{ background: C.card, color: C.text, border: `1.5px solid ${C.divider}` }}>
-      {children}
-    </button>
   );
 }
 
