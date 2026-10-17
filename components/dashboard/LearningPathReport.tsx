@@ -80,8 +80,6 @@ function Bar({ C, pct, color }: { C: Theme; pct: number; color?: string }) {
   );
 }
 
-const KIND_NAME: Record<PathItemKind, string> = { course: 'Course', virtual_experience: 'Virtual experience', certification: 'Certification' };
-
 const STATUS_RANK: Record<PathItemStatus, number> = { completed: 0, in_progress: 1, failed: 2, not_started: 3 };
 
 const EMPTY_PROGRESS: PathReportItemProgress = { status: 'not_started', score: null, progress_pct: 0, last_active_at: null };
@@ -89,33 +87,39 @@ const EMPTY_PROGRESS: PathReportItemProgress = { status: 'not_started', score: n
 // One column layout for both drill-downs (learners on an item, items for a learner) so they read the same.
 // Small screens keep the name and status; progress, score and last active join as space allows.
 const ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_110px_minmax(140px,240px)_70px] lg:grid-cols-[minmax(0,1fr)_110px_minmax(140px,260px)_70px_100px] items-center gap-x-4';
+// Without the status column the progress bar carries status (by colour), so it shows at every width.
+const ROW_GRID_NO_STATUS = 'grid grid-cols-[minmax(0,1fr)_minmax(110px,160px)] sm:grid-cols-[minmax(0,1fr)_minmax(140px,280px)_70px] lg:grid-cols-[minmax(0,1fr)_minmax(140px,300px)_70px_100px] items-center gap-x-4';
 
-function ProgressList({ C, heading, rows }: {
+function ProgressList({ C, heading, rows, showStatus = true }: {
   C: Theme;
   heading: string;
+  showStatus?: boolean;
   rows: { key: string; title: string; sub?: string; progress: PathReportItemProgress }[];
 }) {
+  const grid = showStatus ? ROW_GRID : ROW_GRID_NO_STATUS;
   return (
     <div role="table" className="text-sm">
-      <div role="row" className={`${ROW_GRID} py-2 text-[11px] font-semibold uppercase tracking-wider`} style={{ color: C.faint, borderBottom: `1px solid ${C.divider}` }}>
+      <div role="row" className={`${grid} py-2 text-[11px] font-semibold uppercase tracking-wider`} style={{ color: C.faint, borderBottom: `1px solid ${C.divider}` }}>
         <span role="columnheader">{heading}</span>
-        <span role="columnheader">Status</span>
-        <span role="columnheader" className="hidden sm:block">Progress</span>
+        {showStatus && <span role="columnheader">Status</span>}
+        <span role="columnheader" className={showStatus ? 'hidden sm:block' : ''}>Progress</span>
         <span role="columnheader" className="hidden sm:block text-right">Score</span>
         <span role="columnheader" className="hidden lg:block text-right">Last active</span>
       </div>
       {rows.map(({ key, title, sub, progress: p }) => {
         const sc = statusColors(C, p.status);
         return (
-          <div role="row" key={key} className={`${ROW_GRID} py-2.5`} style={{ borderBottom: `1px solid ${C.divider}` }}>
+          <div role="row" key={key} className={`${grid} py-2.5`} style={{ borderBottom: `1px solid ${C.divider}` }}>
             <div role="cell" className="min-w-0">
               <p className="font-semibold truncate" style={{ color: C.text }}>{title}</p>
               {sub && <p className="text-xs truncate" style={{ color: C.faint }}>{sub}</p>}
             </div>
-            <div role="cell">
-              <span className="text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap" style={{ background: sc.bg, color: sc.fg }}>{ITEM_STATUS_LABEL[p.status]}</span>
-            </div>
-            <div role="cell" className="hidden sm:flex items-center gap-2">
+            {showStatus && (
+              <div role="cell">
+                <span className="text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap" style={{ background: sc.bg, color: sc.fg }}>{ITEM_STATUS_LABEL[p.status]}</span>
+              </div>
+            )}
+            <div role="cell" className={`${showStatus ? 'hidden sm:flex' : 'flex'} items-center gap-2`}>
               <Bar C={C} pct={p.progress_pct} color={p.status === 'not_started' ? undefined : sc.fg}/>
               <span className="text-xs font-semibold w-9 text-right" style={{ color: C.muted }}>{p.progress_pct}%</span>
             </div>
@@ -479,10 +483,9 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                           <tr style={{ borderBottom: `1px solid ${C.divider}` }}>
                             <td colSpan={6} className="px-4 pb-4 pt-1">
                               <div className="pl-6">
-                                <ProgressList C={C} heading="Content" rows={items.map((item, idx) => ({
+                                <ProgressList C={C} heading="Content" showStatus={false} rows={items.map((item, idx) => ({
                                   key: item.id,
                                   title: `${idx + 1}. ${item.title}`,
-                                  sub: KIND_NAME[item.kind],
                                   progress: l.items[item.id] ?? EMPTY_PROGRESS,
                                 }))}/>
                               </div>
