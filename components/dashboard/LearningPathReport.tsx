@@ -9,7 +9,7 @@ import { supabase } from '@/lib/supabase';
 import { cardStyle, type LIGHT_C } from '@/lib/theme';
 import { reportExportCSV } from '@/lib/dashboard-export';
 import type {
-  EnrollmentSource, PathItemKind, PathItemStatus, PathLearnerStatus, PathReport, PathReportLearner,
+  EnrollmentSource, PathItemKind, PathItemStatus, PathLearnerStatus, PathReport, PathReportItemProgress, PathReportLearner,
 } from '@/lib/learning-path-report';
 
 type Theme = typeof LIGHT_C;
@@ -76,6 +76,58 @@ function Bar({ C, pct, color }: { C: Theme; pct: number; color?: string }) {
   return (
     <div className="h-1.5 rounded-full overflow-hidden flex-1" style={{ background: C.pill }}>
       <div className="h-full rounded-full transition-all" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color ?? C.green }}/>
+    </div>
+  );
+}
+
+const KIND_NAME: Record<PathItemKind, string> = { course: 'Course', virtual_experience: 'Virtual experience', certification: 'Certification' };
+
+const STATUS_RANK: Record<PathItemStatus, number> = { completed: 0, in_progress: 1, failed: 2, not_started: 3 };
+
+const EMPTY_PROGRESS: PathReportItemProgress = { status: 'not_started', score: null, progress_pct: 0, last_active_at: null };
+
+// One column layout for both drill-downs (learners on an item, items for a learner) so they read the same.
+// Small screens keep the name and status; progress, score and last active join as space allows.
+const ROW_GRID = 'grid grid-cols-[minmax(0,1fr)_auto] sm:grid-cols-[minmax(0,1fr)_110px_minmax(140px,240px)_70px] lg:grid-cols-[minmax(0,1fr)_110px_minmax(140px,260px)_70px_100px] items-center gap-x-4';
+
+function ProgressList({ C, heading, rows }: {
+  C: Theme;
+  heading: string;
+  rows: { key: string; title: string; sub?: string; progress: PathReportItemProgress }[];
+}) {
+  return (
+    <div role="table" className="text-sm">
+      <div role="row" className={`${ROW_GRID} py-2 text-[11px] font-semibold uppercase tracking-wider`} style={{ color: C.faint, borderBottom: `1px solid ${C.divider}` }}>
+        <span role="columnheader">{heading}</span>
+        <span role="columnheader">Status</span>
+        <span role="columnheader" className="hidden sm:block">Progress</span>
+        <span role="columnheader" className="hidden sm:block text-right">Score</span>
+        <span role="columnheader" className="hidden lg:block text-right">Last active</span>
+      </div>
+      {rows.map(({ key, title, sub, progress: p }) => {
+        const sc = statusColors(C, p.status);
+        return (
+          <div role="row" key={key} className={`${ROW_GRID} py-2.5`} style={{ borderBottom: `1px solid ${C.divider}` }}>
+            <div role="cell" className="min-w-0">
+              <p className="font-semibold truncate" style={{ color: C.text }}>{title}</p>
+              {sub && <p className="text-xs truncate" style={{ color: C.faint }}>{sub}</p>}
+            </div>
+            <div role="cell">
+              <span className="text-[11px] font-bold px-2 py-1 rounded-full whitespace-nowrap" style={{ background: sc.bg, color: sc.fg }}>{ITEM_STATUS_LABEL[p.status]}</span>
+            </div>
+            <div role="cell" className="hidden sm:flex items-center gap-2">
+              <Bar C={C} pct={p.progress_pct} color={p.status === 'not_started' ? undefined : sc.fg}/>
+              <span className="text-xs font-semibold w-9 text-right" style={{ color: C.muted }}>{p.progress_pct}%</span>
+            </div>
+            <div role="cell" className="hidden sm:block text-right text-xs font-semibold" style={{ color: p.score !== null ? C.text : C.faint }}>
+              {p.score !== null ? `${p.score}%` : '-'}
+            </div>
+            <div role="cell" className="hidden lg:block text-right text-xs whitespace-nowrap" style={{ color: C.muted }}>
+              {p.last_active_at ? daysAgo(p.last_active_at) : '-'}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -300,21 +352,15 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
             {items.length === 0 ? (
               <p className="text-sm px-5 pb-5" style={{ color: C.faint }}>This path has no content yet.</p>
             ) : items.map((item, idx) => {
-              const byStatus = (st: PathItemStatus) => scoped
-                .filter(l => (l.items[item.id]?.status ?? 'not_started') === st)
-                .sort((a, b) => a.name.localeCompare(b.name));
-              const done = byStatus('completed');
-              const working = byStatus('in_progress');
-              const notPassed = byStatus('failed');
-              const notStarted = byStatus('not_started');
-              const pct = scoped.length ? Math.round((done.length / scoped.length) * 100) : 0;
+              const rows = scoped
+                .map(l => ({ l, p: l.items[item.id] ?? EMPTY_PROGRESS }))
+                .sort((a, b) => STATUS_RANK[a.p.status] - STATUS_RANK[b.p.status] || b.p.progress_pct - a.p.progress_pct || a.l.name.localeCompare(b.l.name));
+              const counts: Record<PathItemStatus, number> = { completed: 0, in_progress: 0, failed: 0, not_started: 0 };
+              for (const r of rows) counts[r.p.status] += 1;
+              const done = counts.completed;
+              const notPassed = counts.failed;
+              const pct = scoped.length ? Math.round((done / scoped.length) * 100) : 0;
               const open = expandedItem === item.id;
-              const groups: { status: PathItemStatus; label: string; rows: PathReportLearner[] }[] = [
-                { status: 'completed', label: 'Completed', rows: done },
-                { status: 'in_progress', label: 'In progress', rows: working },
-                ...(notPassed.length ? [{ status: 'failed' as const, label: 'Not passed', rows: notPassed }] : []),
-                { status: 'not_started', label: 'Not started', rows: notStarted },
-              ];
               return (
                 <div key={item.id} style={{ borderTop: `1px solid ${C.divider}` }}>
                   <button onClick={() => setExpandedItem(open ? null : item.id)} aria-expanded={open}
@@ -325,37 +371,19 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{KIND_LABEL[item.kind]}</span>
                     <span className="flex-1 min-w-0 truncate text-sm font-semibold" style={{ color: C.text }}>{item.title}</span>
                     <span className="hidden sm:flex items-center gap-3 w-56 flex-shrink-0"><Bar C={C} pct={pct}/><span className="text-xs font-semibold w-9 text-right" style={{ color: C.muted }}>{pct}%</span></span>
-                    <span className="text-xs flex-shrink-0 w-28 text-right" style={{ color: C.faint }}>{done.length} of {scoped.length} done</span>
+                    <span className="text-xs flex-shrink-0 w-28 text-right" style={{ color: C.faint }}>{done} of {scoped.length} done</span>
                   </button>
                   {open && (
-                    <div className="px-5 pb-5 pt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                      {groups.map(g => {
-                        const gc = statusColors(C, g.status);
-                        return (
-                          <div key={g.status} className="rounded-xl p-3" style={{ background: C.page }}>
-                            <div className="flex items-center justify-between mb-2">
-                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: gc.bg, color: gc.fg }}>{g.label}</span>
-                              <span className="text-xs font-bold" style={{ color: C.text }}>{g.rows.length}</span>
-                            </div>
-                            {g.rows.length === 0 ? (
-                              <p className="text-xs py-1" style={{ color: C.faint }}>No one</p>
-                            ) : (
-                              <ul className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
-                                {g.rows.map(l => {
-                                  const p = l.items[item.id];
-                                  const detail = g.status === 'in_progress' ? `${p?.progress_pct ?? 0}%` : p?.score !== null && p?.score !== undefined ? `${p.score}%` : '';
-                                  return (
-                                    <li key={l.student_id} className="flex items-center justify-between gap-2 text-xs">
-                                      <span className="truncate" style={{ color: C.text }} title={l.email}>{l.name}</span>
-                                      {detail && <span className="flex-shrink-0 font-semibold" style={{ color: C.muted }}>{detail}</span>}
-                                    </li>
-                                  );
-                                })}
-                              </ul>
-                            )}
-                          </div>
-                        );
-                      })}
+                    <div className="px-5 pb-4 pt-1">
+                      <div className="flex flex-wrap gap-2 mb-2 pl-9">
+                        {(['completed', 'in_progress', 'failed', 'not_started'] as PathItemStatus[]).filter(st => st !== 'failed' || notPassed > 0).map(st => {
+                          const sc = statusColors(C, st);
+                          return <span key={st} className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: sc.bg, color: sc.fg }}>{counts[st]} {ITEM_STATUS_LABEL[st].toLowerCase()}</span>;
+                        })}
+                      </div>
+                      <div className="pl-9 max-h-[480px] overflow-y-auto">
+                        <ProgressList C={C} heading="Learner" rows={rows.map(r => ({ key: r.l.student_id, title: r.l.name, sub: r.l.email, progress: r.p }))}/>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -449,34 +477,14 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                         </tr>
                         {open && (
                           <tr style={{ borderBottom: `1px solid ${C.divider}` }}>
-                            <td colSpan={6} className="px-4 pb-5 pt-1">
-                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mb-3 pl-6" style={{ color: C.faint }}>
-                                <span>Enrolled {fmtDate(l.enrolled_at)}</span>
-                                <span>{l.completed_count} of {l.total_items} completed</span>
-                                {l.certificate_issued && <span className="inline-flex items-center gap-1" style={{ color: C.successText }}><Award className="w-3 h-3"/>Certificate issued</span>}
-                              </div>
-                              <div className="grid gap-2 pl-6 sm:grid-cols-2 xl:grid-cols-3 max-w-5xl">
-                                {items.map((item, idx) => {
-                                  const p = l.items[item.id];
-                                  const st = p?.status ?? 'not_started';
-                                  const ic = statusColors(C, st);
-                                  return (
-                                    <div key={item.id} className="rounded-xl p-3" style={{ background: ic.bg }}>
-                                      <div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}>
-                                        <span className="font-bold">{idx + 1}</span>
-                                        <span>{KIND_LABEL[item.kind]}</span>
-                                        <span className="ml-auto font-bold" style={{ color: ic.fg }}>{ITEM_STATUS_LABEL[st]}</span>
-                                      </div>
-                                      <p className="text-sm font-semibold mt-1 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
-                                      <div className="flex items-center gap-2 mt-2">
-                                        <Bar C={C} pct={p?.progress_pct ?? 0} color={ic.fg}/>
-                                        <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: C.muted }}>
-                                          {p?.score !== null && p?.score !== undefined ? `Score ${p.score}%` : `${p?.progress_pct ?? 0}%`}
-                                        </span>
-                                      </div>
-                                    </div>
-                                  );
-                                })}
+                            <td colSpan={6} className="px-4 pb-4 pt-1">
+                              <div className="pl-6">
+                                <ProgressList C={C} heading="Content" rows={items.map((item, idx) => ({
+                                  key: item.id,
+                                  title: `${idx + 1}. ${item.title}`,
+                                  sub: KIND_NAME[item.kind],
+                                  progress: l.items[item.id] ?? EMPTY_PROGRESS,
+                                }))}/>
                               </div>
                             </td>
                           </tr>
