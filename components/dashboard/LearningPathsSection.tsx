@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { AlertCircle, ArrowDown, ArrowLeft, ArrowUp, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, GraduationCap, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
+import { AlertCircle, ArrowDown, ArrowLeft, ArrowUp, BarChart3, BookOpen, Check, CheckCircle2, ChevronLeft, ChevronRight, Circle, GraduationCap, Images, Layers3, Loader2, Plus, Radar, Rocket, Search, Settings2, Trash2, Upload, Users, X, Zap } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useToolIcons, useToolIconMap } from '@/lib/use-tool-icons';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -13,6 +13,7 @@ import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import { DARK_C, LIGHT_C, cardStyle } from '@/lib/theme';
+import { LearningPathReport } from '@/components/dashboard/LearningPathReport';
 
 // A request that never reached the server is worth distinguishing from one the server
 // refused: the first is usually the connection and retrying often works.
@@ -36,6 +37,9 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   const [uploadingBadge, setUploadingBadge] = useState(false);
   const [generatingDesc, setGeneratingDesc] = useState(false);
   const [lpSection, setLpSection] = useState<'overview' | 'content' | 'audience' | 'publish'>('overview');
+  // Set while the progress report for a saved path is open. Checked before the editor, so closing
+  // the report returns to whichever view (list or editor) opened it.
+  const [reportPathId, setReportPathId] = useState<string | null>(null);
   const [contentSearch, setContentSearch] = useState('');
   const [contentFilter, setContentFilter] = useState<'all' | 'course' | 'virtual_experience' | 'certification'>('all');
   const coverInputRef = useRef<HTMLInputElement>(null);
@@ -280,6 +284,11 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
     </div>
   );
 
+  // -- Report ---
+  if (reportPathId) {
+    return <LearningPathReport C={C} pathId={reportPathId} onBack={() => setReportPathId(null)}/>;
+  }
+
   // -- Editor ---
   if (editing !== null) {
     const selectedIds: string[]    = editing.item_ids ?? [];
@@ -333,6 +342,13 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                   </button>
                 );
               })}
+              {editing.id && (
+                <button onClick={() => setReportPathId(editing.id)}
+                  className="flex items-center gap-2 px-3.5 py-2.5 rounded-xl text-sm font-semibold whitespace-nowrap transition-colors"
+                  style={{ background: 'transparent', color: C.faint }}>
+                  <BarChart3 className="w-4 h-4"/>Report
+                </button>
+              )}
             </div>
             </div>
             <div className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
@@ -777,6 +793,11 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
                       className="flex-1 text-center text-xs font-bold py-2.5 rounded-xl transition-all hover:opacity-80"
                       style={{ background: `${C.green}18`, color: C.green }}>
                       Edit
+                    </button>
+                    <button onClick={() => setReportPathId(path.id)}
+                      className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold py-2.5 rounded-xl transition-all hover:opacity-80"
+                      style={{ background: C.pill, color: C.text }}>
+                      <BarChart3 className="w-3.5 h-3.5"/> Report
                     </button>
                     <button onClick={() => { if (window.confirm(`Delete "${path.title}"? This cannot be undone.`)) deletePath(path.id); }} disabled={deleting === path.id}
                       aria-label={`Delete ${path.title}`} title="Delete learning path" className="w-10 rounded-xl grid place-items-center transition-all hover:opacity-80 disabled:opacity-50"
