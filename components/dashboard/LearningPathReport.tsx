@@ -89,6 +89,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
   const [cohortFilter, setCohortFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState<'all' | PathLearnerStatus>('all');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [expandedItem, setExpandedItem] = useState<string | null>(null);
   const [visible, setVisible] = useState(PAGE_SIZE);
 
   const load = async () => {
@@ -172,7 +173,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
     reportExportCSV(headers, rows, `${report.path.title.replace(/[^a-z0-9]+/gi, '_')}_path_report.csv`);
   };
 
-  const selectStyle = { background: C.input, color: C.text, border: `1px solid ${C.inputBorder}` };
+  const selectStyle = { background: C.card, color: C.text, border: `1px solid ${C.divider}` };
 
   if (loading && !report) {
     return (
@@ -261,64 +262,106 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
         </div>
       ) : (
         <>
-          {/* Enrollment breakdown + item funnel */}
-          <div className="grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] gap-4">
-            <section className="rounded-2xl p-5" style={{ ...cardStyle(C) }}>
+          {/* Enrollment breakdown: one row, one card per way in */}
+          <section className="rounded-2xl p-5" style={{ ...cardStyle(C) }}>
+            <div className="flex items-baseline justify-between gap-3 mb-4">
               <h3 className="text-sm font-bold" style={{ color: C.text }}>By enrollment</h3>
-              <p className="text-xs mt-0.5 mb-4" style={{ color: C.faint }}>Cohort learners and subscribers side by side.</p>
-              <div className="space-y-3">
-                {sourcesPresent.map(source => {
-                  const s = summarize(learners.filter(l => l.source === source));
-                  const active = sourceFilter === source;
-                  return (
-                    <button key={source} onClick={() => { setSourceFilter(active ? 'all' : source); setCohortFilter('all'); }}
-                      className="w-full text-left rounded-xl p-3 transition-colors"
-                      style={{ background: active ? `${C.green}10` : C.pill, boxShadow: active ? `inset 0 0 0 1.5px ${C.green}` : 'none' }}>
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-sm font-semibold" style={{ color: C.text }}>{SOURCE_LABEL[source]}</span>
-                        <span className="text-xs" style={{ color: C.faint }}>{s.total} learner{s.total === 1 ? '' : 's'}</span>
-                      </div>
-                      <div className="flex items-center gap-3 mt-2">
-                        <Bar C={C} pct={s.avg}/>
-                        <span className="text-xs font-semibold w-10 text-right" style={{ color: C.muted }}>{s.avg}%</span>
-                      </div>
-                      <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>{s.completed} completed - {s.inProgress} in progress - {s.notStarted} not started</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
+              <p className="text-xs" style={{ color: C.faint }}>Click one to filter the report</p>
+            </div>
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+              {sourcesPresent.map(source => {
+                const s = summarize(learners.filter(l => l.source === source));
+                const active = sourceFilter === source;
+                return (
+                  <button key={source} onClick={() => { setSourceFilter(active ? 'all' : source); setCohortFilter('all'); }}
+                    className="text-left rounded-xl p-4 transition-colors"
+                    style={{ background: active ? `${C.green}10` : C.page, boxShadow: active ? `inset 0 0 0 1.5px ${C.green}` : 'none' }}>
+                    <div className="flex items-baseline justify-between gap-3">
+                      <span className="text-sm font-semibold" style={{ color: C.text }}>{SOURCE_LABEL[source]}</span>
+                      <span className="text-xl font-bold" style={{ color: C.text }}>{s.total}</span>
+                    </div>
+                    <div className="flex items-center gap-3 mt-3">
+                      <Bar C={C} pct={s.avg}/>
+                      <span className="text-xs font-semibold" style={{ color: C.muted }}>{s.avg}% avg</span>
+                    </div>
+                    <p className="text-[11px] mt-2" style={{ color: C.faint }}>{s.completed} completed - {s.inProgress} in progress - {s.notStarted} not started</p>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
 
-            <section className="rounded-2xl p-5" style={{ ...cardStyle(C) }}>
-              <h3 className="text-sm font-bold" style={{ color: C.text }}>Step by step</h3>
-              <p className="text-xs mt-0.5 mb-4" style={{ color: C.faint }}>How many learners have completed each item, in path order.</p>
-              {items.length === 0 ? (
-                <p className="text-sm" style={{ color: C.faint }}>This path has no content yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {items.map((item, idx) => {
-                    const done = scoped.filter(l => l.items[item.id]?.status === 'completed').length;
-                    const working = scoped.filter(l => l.items[item.id]?.status === 'in_progress').length;
-                    const pct = scoped.length ? Math.round((done / scoped.length) * 100) : 0;
-                    return (
-                      <div key={item.id}>
-                        <div className="flex items-center gap-2 text-sm">
-                          <span className="text-[11px] font-bold w-6 h-6 rounded-full grid place-items-center flex-shrink-0" style={{ color: C.green, background: `${C.green}16` }}>{idx + 1}</span>
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{KIND_LABEL[item.kind]}</span>
-                          <span className="flex-1 truncate" style={{ color: C.text }}>{item.title}</span>
-                          <span className="text-xs flex-shrink-0" style={{ color: C.faint }}>{done}/{scoped.length}{working ? ` - ${working} working` : ''}</span>
-                        </div>
-                        <div className="flex items-center gap-3 mt-1.5 pl-8">
-                          <Bar C={C} pct={pct}/>
-                          <span className="text-xs font-semibold w-10 text-right" style={{ color: C.muted }}>{pct}%</span>
-                        </div>
-                      </div>
-                    );
-                  })}
+          {/* Content breakdown: each item, and who is where on it */}
+          <section className="rounded-2xl overflow-hidden" style={{ ...cardStyle(C) }}>
+            <div className="px-5 pt-5 pb-3">
+              <h3 className="text-sm font-bold" style={{ color: C.text }}>Content breakdown</h3>
+              <p className="text-xs mt-0.5" style={{ color: C.faint }}>Completion for each course, experience and certification. Click one to see its learners.</p>
+            </div>
+            {items.length === 0 ? (
+              <p className="text-sm px-5 pb-5" style={{ color: C.faint }}>This path has no content yet.</p>
+            ) : items.map((item, idx) => {
+              const byStatus = (st: PathItemStatus) => scoped
+                .filter(l => (l.items[item.id]?.status ?? 'not_started') === st)
+                .sort((a, b) => a.name.localeCompare(b.name));
+              const done = byStatus('completed');
+              const working = byStatus('in_progress');
+              const notPassed = byStatus('failed');
+              const notStarted = byStatus('not_started');
+              const pct = scoped.length ? Math.round((done.length / scoped.length) * 100) : 0;
+              const open = expandedItem === item.id;
+              const groups: { status: PathItemStatus; label: string; rows: PathReportLearner[] }[] = [
+                { status: 'completed', label: 'Completed', rows: done },
+                { status: 'in_progress', label: 'In progress', rows: working },
+                ...(notPassed.length ? [{ status: 'failed' as const, label: 'Not passed', rows: notPassed }] : []),
+                { status: 'not_started', label: 'Not started', rows: notStarted },
+              ];
+              return (
+                <div key={item.id} style={{ borderTop: `1px solid ${C.divider}` }}>
+                  <button onClick={() => setExpandedItem(open ? null : item.id)} aria-expanded={open}
+                    className="w-full flex items-center gap-3 px-5 py-3 text-left transition-colors"
+                    style={{ background: open ? `${C.green}08` : 'transparent' }}>
+                    {open ? <ChevronDown className="w-4 h-4 flex-shrink-0" style={{ color: C.faint }}/> : <ChevronRight className="w-4 h-4 flex-shrink-0" style={{ color: C.faint }}/>}
+                    <span className="text-[11px] font-bold w-6 h-6 rounded-full grid place-items-center flex-shrink-0" style={{ color: C.green, background: `${C.green}16` }}>{idx + 1}</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{KIND_LABEL[item.kind]}</span>
+                    <span className="flex-1 min-w-0 truncate text-sm font-semibold" style={{ color: C.text }}>{item.title}</span>
+                    <span className="hidden sm:flex items-center gap-3 w-56 flex-shrink-0"><Bar C={C} pct={pct}/><span className="text-xs font-semibold w-9 text-right" style={{ color: C.muted }}>{pct}%</span></span>
+                    <span className="text-xs flex-shrink-0 w-28 text-right" style={{ color: C.faint }}>{done.length} of {scoped.length} done</span>
+                  </button>
+                  {open && (
+                    <div className="px-5 pb-5 pt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      {groups.map(g => {
+                        const gc = statusColors(C, g.status);
+                        return (
+                          <div key={g.status} className="rounded-xl p-3" style={{ background: C.page }}>
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ background: gc.bg, color: gc.fg }}>{g.label}</span>
+                              <span className="text-xs font-bold" style={{ color: C.text }}>{g.rows.length}</span>
+                            </div>
+                            {g.rows.length === 0 ? (
+                              <p className="text-xs py-1" style={{ color: C.faint }}>No one</p>
+                            ) : (
+                              <ul className="space-y-1.5 max-h-60 overflow-y-auto pr-1">
+                                {g.rows.map(l => {
+                                  const p = l.items[item.id];
+                                  const detail = g.status === 'in_progress' ? `${p?.progress_pct ?? 0}%` : p?.score !== null && p?.score !== undefined ? `${p.score}%` : '';
+                                  return (
+                                    <li key={l.student_id} className="flex items-center justify-between gap-2 text-xs">
+                                      <span className="truncate" style={{ color: C.text }} title={l.email}>{l.name}</span>
+                                      {detail && <span className="flex-shrink-0 font-semibold" style={{ color: C.muted }}>{detail}</span>}
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-              )}
-            </section>
-          </div>
+              );
+            })}
+          </section>
 
           {/* Filters */}
           <div className="flex flex-col md:flex-row gap-3">
@@ -366,7 +409,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                     return (
                       <Fragment key={l.student_id}>
                         <tr onClick={() => setExpanded(open ? null : l.student_id)} className="cursor-pointer transition-colors"
-                          style={{ borderBottom: `1px solid ${C.divider}`, background: open ? C.pill : 'transparent' }}>
+                          style={{ borderBottom: `1px solid ${C.divider}`, background: open ? `${C.green}08` : 'transparent' }}>
                           <td className="px-4 py-3 min-w-[200px]">
                             <div className="flex items-center gap-2">
                               {open ? <ChevronDown className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }}/> : <ChevronRight className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }}/>}
@@ -405,21 +448,32 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                           <td className="px-4 py-3 whitespace-nowrap text-xs" style={{ color: C.muted }}>{daysAgo(l.last_active_at)}</td>
                         </tr>
                         {open && (
-                          <tr style={{ borderBottom: `1px solid ${C.divider}`, background: C.pill }}>
-                            <td colSpan={6} className="px-4 pb-4 pt-1">
-                              <div className="rounded-xl p-4 space-y-2" style={{ background: C.card }}>
-                                <p className="text-[11px]" style={{ color: C.faint }}>Enrolled {fmtDate(l.enrolled_at)}</p>
+                          <tr style={{ borderBottom: `1px solid ${C.divider}` }}>
+                            <td colSpan={6} className="px-4 pb-5 pt-1">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mb-3 pl-6" style={{ color: C.faint }}>
+                                <span>Enrolled {fmtDate(l.enrolled_at)}</span>
+                                <span>{l.completed_count} of {l.total_items} completed</span>
+                                {l.certificate_issued && <span className="inline-flex items-center gap-1" style={{ color: C.successText }}><Award className="w-3 h-3"/>Certificate issued</span>}
+                              </div>
+                              <div className="grid gap-2 pl-6 sm:grid-cols-2 xl:grid-cols-3 max-w-5xl">
                                 {items.map((item, idx) => {
                                   const p = l.items[item.id];
-                                  const ic = statusColors(C, p?.status ?? 'not_started');
+                                  const st = p?.status ?? 'not_started';
+                                  const ic = statusColors(C, st);
                                   return (
-                                    <div key={item.id} className="flex items-center gap-3 text-sm">
-                                      <span className="text-[11px] font-bold w-5 text-center flex-shrink-0" style={{ color: C.faint }}>{idx + 1}</span>
-                                      <span className="flex-1 truncate" style={{ color: C.text }}>{item.title}</span>
-                                      {p?.score !== null && p?.score !== undefined && <span className="text-xs flex-shrink-0" style={{ color: C.muted }}>Score {p.score}%</span>}
-                                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: ic.bg, color: ic.fg }}>
-                                        {p?.status === 'in_progress' ? `In progress ${p.progress_pct}%` : ITEM_STATUS_LABEL[p?.status ?? 'not_started']}
-                                      </span>
+                                    <div key={item.id} className="rounded-xl p-3" style={{ background: ic.bg }}>
+                                      <div className="flex items-center gap-2 text-[11px]" style={{ color: C.faint }}>
+                                        <span className="font-bold">{idx + 1}</span>
+                                        <span>{KIND_LABEL[item.kind]}</span>
+                                        <span className="ml-auto font-bold" style={{ color: ic.fg }}>{ITEM_STATUS_LABEL[st]}</span>
+                                      </div>
+                                      <p className="text-sm font-semibold mt-1 line-clamp-2" style={{ color: C.text }}>{item.title}</p>
+                                      <div className="flex items-center gap-2 mt-2">
+                                        <Bar C={C} pct={p?.progress_pct ?? 0} color={ic.fg}/>
+                                        <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: C.muted }}>
+                                          {p?.score !== null && p?.score !== undefined ? `Score ${p.score}%` : `${p?.progress_pct ?? 0}%`}
+                                        </span>
+                                      </div>
                                     </div>
                                   );
                                 })}
