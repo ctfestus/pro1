@@ -97,6 +97,36 @@ describe('GET /api/learning-paths/report', () => {
     expect(body.cohorts.map((c: any) => [c.name, c.source])).toEqual([['Cohort 7', 'cohort'], ['Pro Monthly', 'subscriber']]);
   });
 
+  it('finds a subscriber who lapsed mid-item with no stored progress, and drops lapsed ones who did nothing', async () => {
+    const serviceDb = stub({
+      learning_path_progress: { data: [], count: 0, error: null },
+      students: [
+        { data: [], count: 0, error: null },
+        { data: [
+          { id: 'midway', email: 'm@example.com', full_name: 'Midway Learner', status: 'active', cohort_id: null },
+          { id: 'ghost', email: 'g@example.com', full_name: 'Ghost Learner', status: 'active', cohort_id: null },
+        ], count: 2, error: null },
+      ],
+      individual_subscriptions: [
+        // Discovery: lapsed subscriptions on the path's plan cohort.
+        { data: [{ id: 'sub3', student_id: 'midway' }, { id: 'sub4', student_id: 'ghost' }], count: 2, error: null },
+        { data: [
+          { id: 'sub3', student_id: 'midway', plan_id: 'plan1', cohort_id: 'plancohort1', status: 'expired', current_period_end: '2026-09-10T00:00:00Z', created_at: '2026-06-01T00:00:00Z' },
+          { id: 'sub4', student_id: 'ghost', plan_id: 'plan1', cohort_id: 'plancohort1', status: 'expired', current_period_end: '2026-09-10T00:00:00Z', created_at: '2026-06-01T00:00:00Z' },
+        ], count: 2, error: null },
+      ],
+      course_attempts: [
+        { data: [{ student_id: 'midway', course_id: 'course1', passed: null, score: 0, completed_at: null, updated_at: '2026-09-08T00:00:00Z' }], count: 1, error: null },
+        { data: [], count: 0, error: null },
+      ],
+      guided_project_attempts: { data: [], count: 0, error: null },
+    });
+    mockRequireRole.mockResolvedValue({ user: { id: 'owner1' }, role: 'instructor', serviceDb } as any);
+    const body = await (await get()).json();
+    expect(body.learners.map((l: any) => l.student_id)).toEqual(['midway']);
+    expect(body.learners[0]).toMatchObject({ source: 'former', status: 'in_progress', plan_name: 'Pro Monthly', former_plan_cohort_id: 'plancohort1' });
+  });
+
   it('fails closed when the path lookup errors instead of reporting not found', async () => {
     mockRequireRole.mockResolvedValue({ user: { id: 'owner1' }, role: 'instructor', serviceDb: stub({ learning_paths: { data: null, error: { message: 'timeout' } } }) } as any);
     expect((await get()).status).toBe(500);

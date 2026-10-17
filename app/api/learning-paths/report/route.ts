@@ -103,6 +103,15 @@ export async function GET(req: NextRequest) {
       ]);
       for (const a of discovered.flat()) if (a.student_id) activityIds.add(a.student_id);
     }
+    if (!path.available_to_everyone) {
+      // Expiry clears students.cohort_id, and a subscriber who lapsed mid-item may have attempts but
+      // no stored progress row. Their subscription still names the plan cohort, so find them there.
+      // Lapsed subscribers with nothing done are dropped once progress is known, below.
+      const lapsedSubs = await fetchAllRowsByIds<any>(pathCohortIds, (chunk, from, to) => supabase
+        .from('individual_subscriptions').select('id, student_id', { count: 'exact' })
+        .in('cohort_id', chunk).neq('status', 'active').order('id').range(from, to));
+      for (const sub of lapsedSubs) if (sub.student_id) activityIds.add(sub.student_id);
+    }
     const inCohorts = new Set(cohortStudents.map((s: any) => s.id));
     const extraIds = [...activityIds].filter(id => !inCohorts.has(id));
     const extraStudents = await fetchAllRowsByIds<any>(extraIds, (chunk, from, to) => supabase
@@ -241,7 +250,7 @@ export async function GET(req: NextRequest) {
         completed_at: summary.status === 'completed' ? (prog?.completed_at ?? summary.last_active_at) : null,
         certificate_issued: !!prog?.cert_id,
       };
-    });
+    }).filter(l => l.source !== 'former' || l.status !== 'not_started' || progressByStudent.has(l.student_id));
 
     const seen = new Set<string>();
     const cohorts: PathReportCohort[] = [];

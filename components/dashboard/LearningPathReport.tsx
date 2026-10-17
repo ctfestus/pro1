@@ -60,6 +60,11 @@ function matchesCohort(l: PathReportLearner, cohortFilter: string): boolean {
   return cohortFilter === 'all' || l.cohort_id === cohortFilter || l.former_plan_cohort_id === cohortFilter;
 }
 
+// Where the learner sits: their cohort or current plan, else the plan they held.
+function enrollmentLabel(l: PathReportLearner): string {
+  return l.cohort_name ?? (l.plan_name ? `Plan: ${l.plan_name}` : '');
+}
+
 function statusColors(C: Theme, status: PathLearnerStatus | PathItemStatus) {
   if (status === 'completed') return { bg: C.successBg, fg: C.successText };
   if (status === 'in_progress') return { bg: `${C.accent}18`, fg: C.accent };
@@ -153,7 +158,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
       'Items completed', 'Total items', 'Progress %', 'Current step', 'Last active', 'Completed on', 'Certificate',
       ...items.map(i => `${i.title} (${KIND_LABEL[i.kind]})`)];
     const rows = filtered.map(l => [
-      l.name, l.email, SOURCE_LABEL[l.source], l.cohort_name ?? '', l.subscription_status ?? '', l.subscription_ends_at ? fmtDate(l.subscription_ends_at) : '',
+      l.name, l.email, SOURCE_LABEL[l.source], enrollmentLabel(l), l.subscription_status ?? '', l.subscription_ends_at ? fmtDate(l.subscription_ends_at) : '',
       l.enrolled_at ? fmtDate(l.enrolled_at) : '', STATUS_LABEL[l.status], l.completed_count, l.total_items, l.progress_pct,
       l.current_item_id ? itemTitle(l.current_item_id) : '', l.last_active_at ? fmtDate(l.last_active_at) : '',
       l.completed_at ? fmtDate(l.completed_at) : '', l.certificate_issued ? 'Yes' : 'No',
@@ -330,7 +335,9 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
             <select value={cohortFilter} onChange={e => setCohortFilter(e.target.value)}
               className="px-3 py-2.5 rounded-xl text-sm outline-none" style={selectStyle} aria-label="Filter by cohort or plan">
               <option value="all">All cohorts and plans</option>
-              {report.cohorts.filter(c => sourceFilter === 'all' || c.source === sourceFilter).map(c => (
+              {report.cohorts.filter(c => sourceFilter === 'all' || c.source === sourceFilter
+                // Lapsed learners are filed under the plan they held.
+                || (sourceFilter === 'former' && learners.some(l => l.source === 'former' && l.former_plan_cohort_id === c.id))).map(c => (
                 <option key={c.id} value={c.id}>{c.source === 'subscriber' ? `Plan: ${c.name}` : c.name}</option>
               ))}
             </select>
@@ -371,7 +378,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                           </td>
                           <td className="px-4 py-3 min-w-[170px]">
                             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: C.pill, color: C.muted }}>{SOURCE_LABEL[l.source]}</span>
-                            <p className="text-xs mt-1 truncate" style={{ color: C.muted }}>{l.cohort_name ?? (l.plan_name ? `Plan: ${l.plan_name}` : '-')}</p>
+                            <p className="text-xs mt-1 truncate" style={{ color: C.muted }}>{enrollmentLabel(l) || '-'}</p>
                             {l.subscription_status && (l.source === 'subscriber' || l.source === 'former') && (
                               <p className="text-[11px]" style={{ color: C.faint }}>
                                 {l.subscription_status === 'active' ? `Paid through ${fmtDate(l.subscription_ends_at)}` : `Subscription ${l.subscription_status}`}
