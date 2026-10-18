@@ -17,8 +17,9 @@ export async function GET(req: NextRequest) {
   // nothing. Under-reporting progress is worse than failing, because nobody goes looking.
   const [completedCourses, completedVEs, courses, ves, paths] = await Promise.all([
     fetchAllRows<{ student_id: string; course_id: string }>((from, to) => supabase
+      // A finished attempt with passed = false is a fail, which the detail panel labels as such.
       .from('course_attempts').select('student_id, course_id', { count: 'exact' })
-      .not('completed_at', 'is', null).order('id').range(from, to)),
+      .not('completed_at', 'is', null).or('passed.is.null,passed.eq.true').order('id').range(from, to)),
     fetchAllRows<{ student_id: string; ve_id: string }>((from, to) => supabase
       .from('guided_project_attempts').select('student_id, ve_id', { count: 'exact' })
       .not('completed_at', 'is', null).order('id').range(from, to)),
