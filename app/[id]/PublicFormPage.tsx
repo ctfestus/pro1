@@ -29,6 +29,8 @@ import { signInHref } from '@/lib/auth-redirect';
 import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { PromoCard } from '@/components/PromoCard';
+import { DiscountScrollPopup } from '@/components/DiscountScrollPopup';
+import { promotionForItem, type PromotionTeaser } from '@/lib/pricing-offer';
 import { contentPageTitle, keepDocumentTitle } from '@/lib/document-title';
 
 // --- Social platform data (mirrors page.tsx) ---
@@ -765,7 +767,9 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   );
 }
 
-export default function PublicFormPage() {
+// promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
+// one on the detail views, free and locked alike -- never inside the course or experience player.
+export default function PublicFormPage({ promotions = [] }: { promotions?: PromotionTeaser[] }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -1326,7 +1330,12 @@ export default function PublicFormPage() {
 
   if (!form) {
     if (pathPreview) {
-      return <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} />;
+      return (
+        <>
+          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} />
+          <DiscountScrollPopup promotion={promotionForItem(promotions, !!pathPreview.locked, pathPreview.unlock)} />
+        </>
+      );
     }
     // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
     // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
@@ -1426,7 +1435,10 @@ export default function PublicFormPage() {
         unlockLabel={certNoAccess ? enrollLabel(form.unlock) : 'Sign in to start'}
         unlockHref={certNoAccess ? '/pricing' : backHere}
         onExit={() => { window.location.href = certAuth ? '/student' : '/'; }}
-      /></>
+      />
+      {/* Only while the overview is all there is: a signed-in candidate with access may be mid-exam. */}
+      {(certNoAccess || certSignedOut) && <DiscountScrollPopup promotion={promotionForItem(promotions, certNoAccess, form.unlock)} />}
+      </>
     );
   }
 
@@ -1773,6 +1785,7 @@ export default function PublicFormPage() {
           </div>
         </div>
 
+        <DiscountScrollPopup promotion={promotionForItem(promotions, !!form.locked, form.unlock)} />
       </div>
     );
   }
@@ -2072,6 +2085,7 @@ export default function PublicFormPage() {
         )}
 
         <PromoCard placement="course" />
+        {!courseStarted && <DiscountScrollPopup promotion={promotionForItem(promotions, !!form.locked, form.unlock)} />}
 
       </div>
     );
