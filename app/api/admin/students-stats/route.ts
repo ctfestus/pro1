@@ -15,34 +15,56 @@ export async function GET(req: NextRequest) {
   // they pass the PostgREST row cap long before the student list does -- and the cap truncates
   // SILENTLY, which here does not look like an error: it looks like students who completed
   // nothing. Under-reporting progress is worse than failing, because nobody goes looking.
-  const [completedCourses, completedVEs, courses, ves] = await Promise.all([
-    fetchAllRows<{ student_id: string }>((from, to) => supabase
+  const [completedCourses, completedVEs, courses, ves, paths] = await Promise.all([
+    fetchAllRows<{ student_id: string; course_id: string }>((from, to) => supabase
       .from('course_attempts').select('student_id, course_id', { count: 'exact' })
       .not('completed_at', 'is', null).order('id').range(from, to)),
-    fetchAllRows<{ student_id: string }>((from, to) => supabase
+    fetchAllRows<{ student_id: string; ve_id: string }>((from, to) => supabase
       .from('guided_project_attempts').select('student_id, ve_id', { count: 'exact' })
       .not('completed_at', 'is', null).order('id').range(from, to)),
-    fetchAllRows<{ cohort_ids: string[] | null }>((from, to) => supabase
+    fetchAllRows<{ id: string; cohort_ids: string[] | null }>((from, to) => supabase
       .from('courses').select('id, cohort_ids', { count: 'exact' })
       .eq('status', 'published').order('id').range(from, to)),
-    fetchAllRows<{ cohort_ids: string[] | null }>((from, to) => supabase
+    fetchAllRows<{ id: string; cohort_ids: string[] | null }>((from, to) => supabase
       .from('virtual_experiences').select('id, cohort_ids', { count: 'exact' })
+      .eq('status', 'published').order('id').range(from, to)),
+    // A published path grants its cohorts every item in it without the cohort appearing in the
+    // item's own cohort_ids, so a cohort taught only through a path would otherwise count 0.
+    fetchAllRows<{ item_ids: string[] | null; cohort_ids: string[] | null }>((from, to) => supabase
+      .from('learning_paths').select('item_ids, cohort_ids', { count: 'exact' })
       .eq('status', 'published').order('id').range(from, to)),
   ]);
 
-  // Per-student completed count (courses + VEs combined)
+  // Per-student completed count (courses + VEs combined). Distinct items, not attempt rows: a
+  // retake writes another completed attempt, which would count the same course again.
+  const completedItems: Record<string, Set<string>> = {};
+  const markCompleted = (studentId: string, itemId: string) => {
+    (completedItems[studentId] ??= new Set()).add(itemId);
+  };
+  for (const a of completedCourses) markCompleted(a.student_id, a.course_id);
+  for (const a of completedVEs) markCompleted(a.student_id, a.ve_id);
   const completedCount: Record<string, number> = {};
-  for (const a of completedCourses) completedCount[a.student_id] = (completedCount[a.student_id] ?? 0) + 1;
-  for (const a of completedVEs) completedCount[a.student_id] = (completedCount[a.student_id] ?? 0) + 1;
+  for (const [studentId, items] of Object.entries(completedItems)) completedCount[studentId] = items.size;
 
-  // Per-cohort total content count (courses + VEs)
+  // Per-cohort total content count (courses + VEs), direct assignments plus published path items.
+  // Only published courses and VEs count; a path's certifications and unpublished items do not.
+  const cohortItems: Record<string, Set<string>> = {};
+  const addCohortItem = (cohortId: string, itemId: string) => {
+    (cohortItems[cohortId] ??= new Set()).add(itemId);
+  };
+  const publishedIds = new Set<string>();
+  for (const c of [...courses, ...ves]) {
+    publishedIds.add(c.id);
+    for (const cid of (c.cohort_ids ?? [])) addCohortItem(cid, c.id);
+  }
+  for (const p of paths) {
+    for (const itemId of (p.item_ids ?? [])) {
+      if (!publishedIds.has(itemId)) continue;
+      for (const cid of (p.cohort_ids ?? [])) addCohortItem(cid, itemId);
+    }
+  }
   const cohortContentCount: Record<string, number> = {};
-  for (const c of courses) {
-    for (const cid of (c.cohort_ids ?? [])) cohortContentCount[cid] = (cohortContentCount[cid] ?? 0) + 1;
-  }
-  for (const v of ves) {
-    for (const cid of (v.cohort_ids ?? [])) cohortContentCount[cid] = (cohortContentCount[cid] ?? 0) + 1;
-  }
+  for (const [cohortId, items] of Object.entries(cohortItems)) cohortContentCount[cohortId] = items.size;
 
   return NextResponse.json({ completedCount, cohortContentCount });
 }

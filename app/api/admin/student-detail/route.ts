@@ -32,13 +32,23 @@ export async function GET(req: NextRequest) {
 
   const cohortId = student.cohort_id;
   const groupIds = (groupMemberships ?? []).map((m: any) => m.group_id as string);
+  // A published path assigned to the cohort grants every item in it without the cohort appearing
+  // in the item's own cohort_ids, so those items are looked up by id alongside the direct ones.
+  const { data: cohortPaths } = cohortId
+    ? await supabase.from('learning_paths').select('item_ids').contains('cohort_ids', [cohortId]).eq('status', 'published')
+    : { data: [] as any[] };
+  const pathItemIds = [...new Set((cohortPaths ?? []).flatMap((p: any) => (p.item_ids ?? []) as string[]))];
+  const idOrCohort = (ids: string[]) => ids.length
+    ? `cohort_ids.cs.{${cohortId}},id.in.(${ids.join(',')})`
+    : `cohort_ids.cs.{${cohortId}}`;
+
   const [{ data: cohort }, { data: cohortCourses }, { data: cohortAssignments }, { data: groupAssignments }, { data: groupSubmissions }, { data: cohortVEs }] = await Promise.all([
     cohortId ? supabase.from('cohorts').select('id, name').eq('id', cohortId).single() : Promise.resolve({ data: null }),
-    cohortId ? supabase.from('courses').select('id, title, slug').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[] }),
+    cohortId ? supabase.from('courses').select('id, title, slug').or(idOrCohort(pathItemIds)).eq('status', 'published') : Promise.resolve({ data: [] as any[] }),
     cohortId ? supabase.from('assignments').select('id, title, type').contains('cohort_ids', [cohortId]) : Promise.resolve({ data: [] as any[] }),
     groupIds.length ? supabase.from('assignments').select('id, title, type').overlaps('group_ids', groupIds) : Promise.resolve({ data: [] as any[] }),
     groupIds.length ? supabase.from('assignment_submissions').select('assignment_id, status, score, submitted_at, participants').in('group_id', groupIds) : Promise.resolve({ data: [] as any[] }),
-    cohortId ? supabase.from('virtual_experiences').select('id, title, slug, modules').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[] }),
+    cohortId ? supabase.from('virtual_experiences').select('id, title, slug, modules').or(idOrCohort(pathItemIds)).eq('status', 'published') : Promise.resolve({ data: [] as any[] }),
   ]);
 
   const certSet = new Set((certificates ?? []).map((c: any) => c.form_id ?? c.course_id));

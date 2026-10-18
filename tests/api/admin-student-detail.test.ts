@@ -52,6 +52,7 @@ describe('GET /api/admin/student-detail course status', () => {
         ],
         group_members: { data: [], error: null },
         certificates: { data: [], error: null },
+        learning_paths: { data: [], error: null },
         cohorts: { data: { id: 'cohort1', name: 'Cohort One' }, error: null },
         courses: { data: [{ id: 'course1', title: 'SQL Course', slug: 'sql-course' }], error: null },
         assignments: [
