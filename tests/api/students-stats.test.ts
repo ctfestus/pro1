@@ -38,6 +38,7 @@ describe('GET /api/admin/students-stats', () => {
       guided_project_attempts: { data: [], error: null },
       courses: { data: [{ id: 'c1', cohort_ids: ['co1'] }], error: null },
       virtual_experiences: { data: [], error: null },
+      learning_paths: { data: [], error: null },
     });
     mockRequireRole.mockResolvedValue({ user: { id: 'i1' }, serviceDb: supabase, role: 'instructor', token: 't' } as any);
 
@@ -45,5 +46,27 @@ describe('GET /api/admin/students-stats', () => {
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.completedCount).toEqual({ s1: 1 });
+  });
+
+  it('counts path content toward the cohort and each completed item once', async () => {
+    // A cohort taught only through a learning path, with a learner who retook courses.
+    const supabase = makeSupabaseStub({
+      course_attempts: { data: [
+        { student_id: 's1', course_id: 'c1' },
+        { student_id: 's1', course_id: 'c1' },
+        { student_id: 's1', course_id: 'c2' },
+        { student_id: 's1', course_id: 'c2' },
+      ], error: null },
+      guided_project_attempts: { data: [{ student_id: 's1', ve_id: 'v1' }, { student_id: 's1', ve_id: 'v1' }], error: null },
+      courses: { data: [{ id: 'c1', cohort_ids: [] }, { id: 'c2', cohort_ids: null }, { id: 'c3', cohort_ids: ['co2'] }], error: null },
+      virtual_experiences: { data: [{ id: 'v1', cohort_ids: [] }], error: null },
+      // 'draft' and 'cert1' are not published courses or VEs, so they do not count.
+      learning_paths: { data: [{ item_ids: ['c1', 'c2', 'v1', 'draft', 'cert1', 'c3'], cohort_ids: ['co1', 'co2'] }], error: null },
+    });
+    mockRequireRole.mockResolvedValue({ user: { id: 'i1' }, serviceDb: supabase, role: 'admin', token: 't' } as any);
+
+    const body = await (await get()).json();
+    expect(body.completedCount).toEqual({ s1: 3 });
+    expect(body.cohortContentCount).toEqual({ co1: 4, co2: 4 });
   });
 });

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { veProgressPct } from '@/lib/ve-completion';
+import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 
 export const dynamic = 'force-dynamic';
 
@@ -32,14 +33,42 @@ export async function GET(req: NextRequest) {
 
   const cohortId = student.cohort_id;
   const groupIds = (groupMemberships ?? []).map((m: any) => m.group_id as string);
-  const [{ data: cohort }, { data: cohortCourses }, { data: cohortAssignments }, { data: groupAssignments }, { data: groupSubmissions }, { data: cohortVEs }] = await Promise.all([
+  const [{ data: cohort }, { data: directCourses }, { data: cohortAssignments }, { data: groupAssignments }, { data: groupSubmissions }, { data: directVEs }, cohortPaths] = await Promise.all([
     cohortId ? supabase.from('cohorts').select('id, name').eq('id', cohortId).single() : Promise.resolve({ data: null }),
     cohortId ? supabase.from('courses').select('id, title, slug').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[] }),
     cohortId ? supabase.from('assignments').select('id, title, type').contains('cohort_ids', [cohortId]) : Promise.resolve({ data: [] as any[] }),
     groupIds.length ? supabase.from('assignments').select('id, title, type').overlaps('group_ids', groupIds) : Promise.resolve({ data: [] as any[] }),
     groupIds.length ? supabase.from('assignment_submissions').select('assignment_id, status, score, submitted_at, participants').in('group_id', groupIds) : Promise.resolve({ data: [] as any[] }),
     cohortId ? supabase.from('virtual_experiences').select('id, title, slug, modules').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[] }),
+    // A published path assigned to the cohort grants every item in it without the cohort appearing
+    // in the item's own cohort_ids, so a cohort taught only through a path has no direct content.
+    cohortId ? supabase.from('learning_paths').select('item_ids').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[], error: null }),
   ]);
+
+  // A failed path read must fail the panel. Treated as empty, it shows "No courses in cohort" for
+  // a learner whose whole programme is a path.
+  if (cohortPaths.error) {
+    console.error('[admin/student-detail] learning path lookup error:', cohortPaths.error);
+    return NextResponse.json({ error: 'Failed to load student detail.' }, { status: 500 });
+  }
+  const directIds = new Set([...(directCourses ?? []), ...(directVEs ?? [])].map((c: any) => c.id as string));
+  const pathItemIds = [...new Set((cohortPaths.data ?? []).flatMap((p: any) => (p.item_ids ?? []) as string[]))]
+    .filter(id => !directIds.has(id));
+  let pathCourses: any[] = [];
+  let pathVEs: any[] = [];
+  try {
+    [pathCourses, pathVEs] = await Promise.all([
+      fetchAllRowsByIds<any>(pathItemIds, (chunk, from, to) => supabase
+        .from('courses').select('id, title, slug', { count: 'exact' }).in('id', chunk).eq('status', 'published').order('id').range(from, to)),
+      fetchAllRowsByIds<any>(pathItemIds, (chunk, from, to) => supabase
+        .from('virtual_experiences').select('id, title, slug, modules', { count: 'exact' }).in('id', chunk).eq('status', 'published').order('id').range(from, to)),
+    ]);
+  } catch (err) {
+    console.error('[admin/student-detail] path item lookup error:', err);
+    return NextResponse.json({ error: 'Failed to load student detail.' }, { status: 500 });
+  }
+  const cohortCourses = [...(directCourses ?? []), ...pathCourses];
+  const cohortVEs = [...(directVEs ?? []), ...pathVEs];
 
   const certSet = new Set((certificates ?? []).map((c: any) => c.form_id ?? c.course_id));
   const attemptMap = (courseAttempts ?? []).reduce((map: Record<string, any>, a: any) => {
@@ -58,7 +87,7 @@ export async function GET(req: NextRequest) {
   const submMap    = Object.fromEntries([...participantGroupSubmissions, ...(submissions ?? [])].map((s: any) => [s.assignment_id, s]));
   const gpMap      = Object.fromEntries((gpAttempts ?? []).map((a: any) => [a.ve_id, a]));
 
-  const courses = (cohortCourses ?? []).map((c: any) => {
+  const courses = cohortCourses.map((c: any) => {
     const att = attemptMap[c.id];
     return {
       id: c.id, title: c.title, slug: c.slug,
@@ -81,7 +110,7 @@ export async function GET(req: NextRequest) {
     };
   });
 
-  const ves = (cohortVEs ?? []).map((v: any) => {
+  const ves = cohortVEs.map((v: any) => {
     const att = gpMap[v.id];
     // Shared rule, so a skipped optional LinkedIn share does not show as unfinished work.
     const pct = veProgressPct(v.modules ?? [], att?.progress ?? {});
