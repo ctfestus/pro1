@@ -13,7 +13,6 @@ import Link from 'next/link';
 import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/lib/theme';
-import { getStudentMode } from '@/lib/student-mode-client';
 import { promotionHeading } from '@/lib/subscription-discount';
 import type { PromotionTeaser } from '@/lib/pricing-offer';
 
@@ -30,26 +29,42 @@ function offerKey(promotion: PromotionTeaser) {
   return `${promotion.priceId}:${promotion.percentOff}`;
 }
 
-function closedRecently(promotion: PromotionTeaser): boolean {
+// Offer key to when it was closed. Keyed per offer, so closing one does not forget another: a
+// visitor moving between a free course and a locked one can be shown two different offers.
+function readClosed(): Record<string, number> {
   try {
-    const saved = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? 'null');
-    return saved?.key === offerKey(promotion) && Date.now() - Number(saved.at) < REMIND_AFTER_MS;
+    const saved = JSON.parse(localStorage.getItem(CLOSED_KEY) ?? '{}');
+    return saved && typeof saved === 'object' && !Array.isArray(saved) ? saved : {};
   } catch {
-    return false;
+    return {};
   }
+}
+
+function closedRecently(promotion: PromotionTeaser): boolean {
+  return Date.now() - Number(readClosed()[offerKey(promotion)] ?? 0) < REMIND_AFTER_MS;
 }
 
 function rememberClosed(promotion: PromotionTeaser) {
   try {
-    localStorage.setItem(CLOSED_KEY, JSON.stringify({ key: offerKey(promotion), at: Date.now() }));
+    const now = Date.now();
+    // Expired closings are dropped on the way, so the record cannot grow without bound.
+    const live = Object.fromEntries(
+      Object.entries(readClosed()).filter(([, at]) => now - Number(at) < REMIND_AFTER_MS),
+    );
+    localStorage.setItem(CLOSED_KEY, JSON.stringify({ ...live, [offerKey(promotion)]: now }));
   } catch {}
 }
 
-/** Whether this viewer could take the offer: signed out, or a student with no running plan. */
+/**
+ * Whether this viewer could take the offer: signed out, or a student with no running plan.
+ *
+ * Always the signed-in person, never a Student Mode target. Student Mode is staff viewing as a
+ * learner, and judging the target would show staff an offer they are not meant to see.
+ */
 async function viewerCanSubscribe(): Promise<{ eligible: boolean; signedIn: boolean }> {
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) return { eligible: true, signedIn: false };
-  const studentId = getStudentMode()?.studentId ?? session.user.id;
+  const studentId = session.user.id;
   const [{ data: student }, { data: subscription, error }] = await Promise.all([
     supabase.from('students').select('role, enrollment_model').eq('id', studentId).maybeSingle(),
     supabase.from('individual_subscriptions')
@@ -65,6 +80,10 @@ async function viewerCanSubscribe(): Promise<{ eligible: boolean; signedIn: bool
   const running = subscription?.status === 'active'
     && new Date(subscription.current_period_end).getTime() > Date.now();
   return { eligible: !running, signedIn: true };
+}
+
+function pageScrolledShare(): number | null {
+  return scrolledShare(document);
 }
 
 /** How far down its scroller the event's target is, 0 to 1, or null when it is not the page. */
@@ -85,27 +104,41 @@ export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser 
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [audience, setAudience] = useState<{ signedIn: boolean } | null>(null);
   const [open, setOpen] = useState(false);
+  // Halfway is tracked from the start, not from when the eligibility lookup returns: a fast
+  // reader, a slow network or a restored scroll position can be past halfway before it does, and
+  // would otherwise see nothing until they happened to scroll again.
+  const reachedHalfway = useRef(false);
+  const eligible = useRef(false);
 
   useEffect(() => {
     if (!promotion || closedRecently(promotion)) return;
     let cancelled = false;
-    viewerCanSubscribe()
-      .then(result => { if (!cancelled && result.eligible) setAudience({ signedIn: result.signedIn }); })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, [promotion]);
+    const past = (share: number | null) => share !== null && share >= 0.5;
 
-  // Listened for in the capture phase: scroll does not bubble, and some detail pages scroll an
-  // inner container rather than the window.
-  useEffect(() => {
-    if (!audience || open) return;
+    // Capture phase, because scroll does not bubble and some detail pages scroll an inner
+    // container rather than the window.
     const onScroll = (event: Event) => {
-      const share = scrolledShare(event.target);
-      if (share !== null && share >= 0.5) setOpen(true);
+      if (!past(scrolledShare(event.target))) return;
+      reachedHalfway.current = true;
+      if (eligible.current) setOpen(true);
     };
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    return () => window.removeEventListener('scroll', onScroll, { capture: true });
-  }, [audience, open]);
+
+    viewerCanSubscribe()
+      .then(result => {
+        if (cancelled || !result.eligible) return;
+        eligible.current = true;
+        setAudience({ signedIn: result.signedIn });
+        // Where the page is now, too: a restored position can land without a scroll event.
+        if (reachedHalfway.current || past(pageScrolledShare())) setOpen(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      eligible.current = false;
+      window.removeEventListener('scroll', onScroll, { capture: true });
+    };
+  }, [promotion]);
 
   // showModal gives focus trapping, Escape and the inert page behind it for free.
   useEffect(() => {
@@ -118,6 +151,7 @@ export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser 
   const close = () => {
     rememberClosed(promotion);
     if (dialogRef.current?.open) dialogRef.current.close();
+    eligible.current = false;
     setAudience(null);
   };
   const badge = promotionHeading(promotion.label, 'Limited offer');
