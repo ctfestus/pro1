@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   courseProgressCounts, courseProgressPct, answeredScorableCount, courseContentCounts, courseXpOnOffer,
-  isCountableSlide,
+  isCountableSlide, completedLessonCount, reachesLessonMidpoint,
 } from '@/lib/course-progress';
 import { DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 
@@ -155,5 +155,41 @@ describe('courseXpOnOffer', () => {
   it('is zero when the points system is off or absent', () => {
     expect(courseXpOnOffer([q('a')], ps({ enabled: false }))).toBe(0);
     expect(courseXpOnOffer([q('a')], null)).toBe(0);
+  });
+});
+
+describe('completedLessonCount', () => {
+  it('counts viewed lessons only, not exercises, sections or downloads', () => {
+    const questions = [section('s'), lesson('l1'), q('e1'), lesson('l2'), download('d')];
+    expect(completedLessonCount(questions, { l1: 'viewed', e1: 'a', s: 'viewed', d: 'viewed' })).toBe(1);
+    expect(completedLessonCount(questions, {})).toBe(0);
+  });
+});
+
+describe('reachesLessonMidpoint', () => {
+  it('fires on the lesson that reaches half the lessons', () => {
+    // 4 lessons: the midpoint is the 2nd.
+    expect(reachesLessonMidpoint(0, 1, 4)).toBe(false);
+    expect(reachesLessonMidpoint(0, 2, 4)).toBe(true);
+  });
+
+  it('rounds an odd count up, so "half" is never short of half', () => {
+    // 5 lessons: 2 is under half, 3 is the first at or past it.
+    expect(reachesLessonMidpoint(0, 2, 5)).toBe(false);
+    expect(reachesLessonMidpoint(0, 3, 5)).toBe(true);
+  });
+
+  it('never fires for a learner who was already past the midpoint when the visit began', () => {
+    expect(reachesLessonMidpoint(3, 4, 4)).toBe(false);
+    expect(reachesLessonMidpoint(2, 2, 4)).toBe(false);
+  });
+
+  it('fires for a learner resuming just below the midpoint', () => {
+    expect(reachesLessonMidpoint(1, 2, 4)).toBe(true);
+  });
+
+  it('has no midpoint for a course with fewer than two lessons', () => {
+    expect(reachesLessonMidpoint(0, 1, 1)).toBe(false);
+    expect(reachesLessonMidpoint(0, 0, 0)).toBe(false);
   });
 });

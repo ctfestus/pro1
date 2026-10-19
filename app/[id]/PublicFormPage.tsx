@@ -8,7 +8,7 @@ import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, Extern
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
-import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
+import { courseContentCounts, courseXpOnOffer, reachesLessonMidpoint } from '@/lib/course-progress';
 import { CourseTaker } from '@/components/CourseTaker';
 import dynamic from 'next/dynamic';
 const VirtualExperienceTaker = dynamic(() => import('@/components/VirtualExperienceTaker'), { ssr: false });
@@ -850,6 +850,13 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
   const [projectPreviewMode,  setProjectPreviewMode]  = useState(false);
   // Course sign-up flow
   const [courseStarted, setCourseStarted] = useState(true);
+  // The lesson that took this learner to half the course's lessons, finished in this visit. The
+  // discount prompt's moment for a learner who opened straight into the course and so never had
+  // an overview to scroll. The baseline is where they stood at their first lesson this visit, so
+  // someone already past the midpoint -- before this shipped, or on an earlier visit -- is not
+  // shown it for going on, or for revisiting lessons they had done.
+  const [courseHalfway, setCourseHalfway] = useState(false);
+  const lessonsDoneAtStart = useRef<number | null>(null);
   const [retakeKey, setRetakeKey] = useState(0);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [prefilledName, setPrefilledName] = useState('');
@@ -2081,11 +2088,20 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
             relatedAssignment={relatedAssignment}
             logoUrl={logoUrl}
             logoDarkUrl={logoDarkUrl}
+            onLessonComplete={({ lessonsDoneBefore, lessonsDone, totalLessons }: { lessonsDoneBefore: number; lessonsDone: number; totalLessons: number }) => {
+              if (lessonsDoneAtStart.current === null) lessonsDoneAtStart.current = lessonsDoneBefore;
+              if (reachesLessonMidpoint(lessonsDoneAtStart.current, lessonsDone, totalLessons)) setCourseHalfway(true);
+            }}
           />
         )}
 
         <PromoCard placement="course" />
-        {!courseStarted && <DiscountScrollPopup promotion={promotionForItem(promotions, !!form.locked, form.unlock)} />}
+        {/* On the overview it waits for half scroll; inside the course, for the lesson that
+            reaches the midpoint, opening as the next slide does. */}
+        <DiscountScrollPopup
+          promotion={promotionForItem(promotions, !!form.locked, form.unlock)}
+          reached={courseStarted ? courseHalfway : undefined}
+        />
 
       </div>
     );

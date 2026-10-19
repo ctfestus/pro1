@@ -95,7 +95,15 @@ function scrolledShare(target: EventTarget | null): number | null {
   return el.scrollTop / range;
 }
 
-export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser | null }) {
+export function DiscountScrollPopup({ promotion, reached }: {
+  promotion: PromotionTeaser | null;
+  /**
+   * When given, the host decides when the moment has come instead of the scroll position. A
+   * signed-in learner on an open course goes straight into the course with no overview to
+   * scroll, so the page passes "past the middle of the course" here instead.
+   */
+  reached?: boolean;
+}) {
   const C = useC();
   const dialogRef = useRef<HTMLDialogElement>(null);
   // Which offer is showing, and to whom. Keyed by offer rather than a plain flag, so a different
@@ -126,6 +134,10 @@ export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser 
       if (past(scrolledShare(event.target))) trigger();
     }
 
+    if (reached !== undefined) {
+      if (reached) trigger();
+      return () => { cancelled = true; };
+    }
     window.addEventListener('scroll', onScroll, { capture: true, passive: true });
     // A restored scroll position can already be past halfway when the page mounts.
     if (past(scrolledShare(document))) trigger();
@@ -133,7 +145,7 @@ export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser 
       cancelled = true;
       window.removeEventListener('scroll', onScroll, { capture: true });
     };
-  }, [promotion]);
+  }, [promotion, reached]);
 
   // showModal gives focus trapping, Escape and the inert page behind it for free.
   useEffect(() => {
@@ -151,6 +163,9 @@ export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser 
     setShown(null);
   };
   const term = durationLabel(promotion.durationMonths);
+  // Mid-course, the prompt must not cost the learner their place: the way out reads as carrying
+  // on, and the plans open in a new tab so the lesson is still there behind it.
+  const inCourse = reached !== undefined;
   const badge = promotionHeading(promotion.label, 'Limited offer');
 
   return (
@@ -191,6 +206,7 @@ export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser 
             : `Create a free account, then choose ${term} on the pricing page to get everything in the plan for less while the offer lasts.`}
         </p>
         <Link href="/pricing" onClick={() => rememberClosed(promotion)}
+          {...(inCourse ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
           className="mt-6 flex items-center justify-center rounded-xl text-sm font-bold transition-opacity hover:opacity-90"
           style={{ background: C.cta, color: C.ctaText, padding: '13px 16px', textDecoration: 'none' }}>
           See plans
@@ -198,7 +214,7 @@ export function DiscountScrollPopup({ promotion }: { promotion: PromotionTeaser 
         <button type="button" onClick={dismiss}
           className="mt-2 w-full rounded-xl text-sm font-semibold transition-opacity hover:opacity-70"
           style={{ background: 'transparent', color: C.muted, padding: '10px 16px', border: 'none', cursor: 'pointer' }}>
-          Not now
+          {inCourse ? 'Continue learning' : 'Not now'}
         </button>
       </div>
     </dialog>
