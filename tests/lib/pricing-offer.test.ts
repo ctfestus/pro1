@@ -3,7 +3,7 @@
 // A hero has room for a single figure, so choosing the wrong one misprices the whole page in a
 // visitor's head -- and a struck-through rate with nothing behind it is a fake discount.
 import { describe, expect, it } from 'vitest';
-import { featuredOffer, featuredOfferForDuration, formatMoney, durationLabel, planPromotions, promotionForItem } from '@/lib/pricing-offer';
+import { featuredOffer, featuredOfferForDuration, formatMoney, durationLabel, planPromotions, promotionForItem, promotionEnded } from '@/lib/pricing-offer';
 import type { PricingPlan } from '@/lib/pricing-contract';
 
 const plan = (name: string, prices: [number, number][], recommended = false): PricingPlan => ({
@@ -134,7 +134,7 @@ describe('planPromotions', () => {
 
   it('states a percentage promotion as the seller set it', () => {
     const [teaser] = planPromotions([promo('Pro', [{ months: 12, amount: 800, list: 1000, type: 'percentage', value: 20, label: 'Back to school' }])]);
-    expect(teaser).toEqual({ planId: 'pro', planName: 'Pro', recommended: false, percentOff: 20, durationMonths: 12, label: 'Back to school', priceId: 'Pro-12' });
+    expect(teaser).toEqual({ planId: 'pro', planName: 'Pro', recommended: false, percentOff: 20, durationMonths: 12, label: 'Back to school', priceId: 'Pro-12', endsAt: null });
   });
 
   it('expresses a fixed promotion against the list price, never rounding up', () => {
@@ -183,5 +183,27 @@ describe('planPromotions', () => {
     it('shows nothing when no plan is discounted', () => {
       expect(promotionForItem([], false, null)).toBeNull();
     });
+  });
+});
+
+describe('promotionEnded', () => {
+  const teaser = (endsAt: string | null) => ({
+    planId: 'pro', planName: 'Pro', recommended: false, percentOff: 20, durationMonths: 12,
+    label: null, priceId: 'Pro-12', endsAt,
+  });
+  const at = Date.parse('2026-10-19T12:00:00Z');
+
+  it('never ends an open-ended promotion', () => {
+    expect(promotionEnded(teaser(null), at)).toBe(false);
+  });
+
+  it('ends exactly at the end time, matching the view (now() < ends_at is running)', () => {
+    expect(promotionEnded(teaser('2026-10-19T12:00:01Z'), at)).toBe(false);
+    expect(promotionEnded(teaser('2026-10-19T12:00:00Z'), at)).toBe(true);
+    expect(promotionEnded(teaser('2026-10-18T09:00:00Z'), at)).toBe(true);
+  });
+
+  it('treats an unreadable end time as no end time rather than hiding the offer', () => {
+    expect(promotionEnded(teaser('not a date'), at)).toBe(false);
   });
 });

@@ -29,6 +29,8 @@ export interface PricingPrice {
   discountType?: 'percentage' | 'fixed' | null;
   discountValue?: number | null;
   discountLabel?: string | null;
+  /** When the running promotion stops (ISO timestamp), or null when it is open-ended. */
+  discountEndsAt?: string | null;
   discountAmount?: number;
   currency: string;
 }

@@ -121,6 +121,18 @@ export interface PromotionTeaser {
   /** What the seller called the promotion, or null when they did not name it. */
   label: string | null;
   priceId: string;
+  /** When the promotion stops (ISO timestamp), or null when it is open-ended. */
+  endsAt: string | null;
+}
+
+/**
+ * Whether the promotion had stopped by `at` (epoch ms). A page can hold an offer for hours before
+ * the moment to show it, so this is checked then, not when the offer was loaded.
+ */
+export function promotionEnded(promotion: PromotionTeaser, at: number): boolean {
+  if (!promotion.endsAt) return false;
+  const ends = Date.parse(promotion.endsAt);
+  return Number.isFinite(ends) && ends <= at;
 }
 
 function percentOff(price: PricingPrice): number {
@@ -141,7 +153,7 @@ export function planPromotions(plans: PricingPlan[]): PromotionTeaser[] {
     for (const price of plan.prices) {
       const off = percentOff(price);
       if (off <= 0 || (best && off <= best.percentOff)) continue;
-      best = { planId: plan.id, planName: plan.name, recommended: plan.recommended, percentOff: off, durationMonths: price.durationMonths, label: price.discountLabel ?? null, priceId: price.id };
+      best = { planId: plan.id, planName: plan.name, recommended: plan.recommended, percentOff: off, durationMonths: price.durationMonths, label: price.discountLabel ?? null, priceId: price.id, endsAt: price.discountEndsAt ?? null };
     }
     return best ? [best] : [];
   });

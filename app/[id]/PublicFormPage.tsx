@@ -855,7 +855,7 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
   // an overview to scroll. The baseline is where they stood at their first lesson this visit, so
   // someone already past the midpoint -- before this shipped, or on an earlier visit -- is not
   // shown it for going on, or for revisiting lessons they had done.
-  const [courseHalfway, setCourseHalfway] = useState(false);
+  const [courseHalfwayAt, setCourseHalfwayAt] = useState<number | null>(null);
   const lessonsDoneAtStart = useRef<number | null>(null);
   const [retakeKey, setRetakeKey] = useState(0);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
@@ -2090,7 +2090,7 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
             logoDarkUrl={logoDarkUrl}
             onLessonComplete={({ lessonsDoneBefore, lessonsDone, totalLessons }: { lessonsDoneBefore: number; lessonsDone: number; totalLessons: number }) => {
               if (lessonsDoneAtStart.current === null) lessonsDoneAtStart.current = lessonsDoneBefore;
-              if (reachesLessonMidpoint(lessonsDoneAtStart.current, lessonsDone, totalLessons)) setCourseHalfway(true);
+              if (reachesLessonMidpoint(lessonsDoneAtStart.current, lessonsDone, totalLessons)) setCourseHalfwayAt(Date.now());
             }}
           />
         )}
@@ -2100,7 +2100,7 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
             reaches the midpoint, opening as the next slide does. */}
         <DiscountScrollPopup
           promotion={promotionForItem(promotions, !!form.locked, form.unlock)}
-          reached={courseStarted ? courseHalfway : undefined}
+          reachedAt={courseStarted ? courseHalfwayAt : undefined}
         />
 
       </div>
