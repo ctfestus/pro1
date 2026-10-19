@@ -134,7 +134,7 @@ describe('planPromotions', () => {
 
   it('states a percentage promotion as the seller set it', () => {
     const [teaser] = planPromotions([promo('Pro', [{ months: 12, amount: 800, list: 1000, type: 'percentage', value: 20, label: 'Back to school' }])]);
-    expect(teaser).toEqual({ planId: 'pro', planName: 'Pro', recommended: false, percentOff: 20, label: 'Back to school', priceId: 'Pro-12' });
+    expect(teaser).toEqual({ planId: 'pro', planName: 'Pro', recommended: false, percentOff: 20, durationMonths: 12, label: 'Back to school', priceId: 'Pro-12' });
   });
 
   it('expresses a fixed promotion against the list price, never rounding up', () => {
@@ -149,7 +149,8 @@ describe('planPromotions', () => {
       promo('Basic', [{ months: 1, amount: 100 }]),
     ]);
     expect(teasers).toHaveLength(1);
-    expect(teasers[0]).toMatchObject({ planId: 'pro', percentOff: 30 });
+    // The term travels with it: 30% is on the year, not on the month.
+    expect(teasers[0]).toMatchObject({ planId: 'pro', percentOff: 30, durationMonths: 12 });
   });
 
   describe('promotionForItem', () => {

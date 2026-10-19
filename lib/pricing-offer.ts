@@ -112,6 +112,12 @@ export interface PromotionTeaser {
   /** Marked by the seller as the plan to lead with. */
   recommended: boolean;
   percentOff: number;
+  /**
+   * The term the discount is on. Promotions are set per price, so a plan can be 30% off for a
+   * year and full price for a month; naming the term keeps the prompt from implying the first
+   * applies to the second.
+   */
+  durationMonths: number;
   /** What the seller called the promotion, or null when they did not name it. */
   label: string | null;
   priceId: string;
@@ -135,7 +141,7 @@ export function planPromotions(plans: PricingPlan[]): PromotionTeaser[] {
     for (const price of plan.prices) {
       const off = percentOff(price);
       if (off <= 0 || (best && off <= best.percentOff)) continue;
-      best = { planId: plan.id, planName: plan.name, recommended: plan.recommended, percentOff: off, label: price.discountLabel ?? null, priceId: price.id };
+      best = { planId: plan.id, planName: plan.name, recommended: plan.recommended, percentOff: off, durationMonths: price.durationMonths, label: price.discountLabel ?? null, priceId: price.id };
     }
     return best ? [best] : [];
   });
