@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { requireBootcampCohortAccess } from '@/lib/bootcamp-cohort-access';
-import { rankCourseAttempts, type CourseRankResult } from '@/lib/course-rank';
+import { rankCourseAttempts, type CourseRankResult, type RankAttempt, type RankRosterEntry } from '@/lib/course-rank';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 
 export const dynamic = 'force-dynamic';
 
 const INELIGIBLE: CourseRankResult = { eligible: false };
+
+// course_attempts.course_id is a uuid; anything else makes Postgres throw, which would surface as 500.
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // GET /api/course-rank?course_id=...
 // The caller's rank on one course within their own bootcamp cohort. A completed attempt is the
@@ -17,7 +21,9 @@ export async function GET(req: NextRequest) {
   if (isAuthError(auth)) return auth.error;
 
   const courseId = new URL(req.url).searchParams.get('course_id');
-  if (!courseId) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
+  if (!courseId || !UUID_RE.test(courseId)) {
+    return NextResponse.json({ error: 'A valid course_id is required.' }, { status: 400 });
+  }
 
   try {
     const serviceDb = auth.serviceDb;
@@ -38,29 +44,27 @@ export async function GET(req: NextRequest) {
       return access.error.status >= 500 ? access.error : NextResponse.json(INELIGIBLE);
     }
 
-    const { data: roster, error: rErr } = await serviceDb
+    // Paged and id-chunked: a single select is silently capped at the project's max rows, which
+    // would drop students or retakes and produce a wrong rank, total, or best attempt.
+    const roster = await fetchAllRows<RankRosterEntry>((from, to) => serviceDb
       .from('students')
-      .select('id, full_name')
+      .select('id, full_name', { count: 'exact' })
       .eq('cohort_id', profile.cohort_id)
-      .eq('role', 'student');
-    if (rErr) {
-      console.error('[course-rank] roster fetch', rErr);
-      return NextResponse.json({ error: 'Failed to load rank.' }, { status: 500 });
-    }
-    if (!roster?.length) return NextResponse.json(INELIGIBLE);
+      .eq('role', 'student')
+      .order('id')
+      .range(from, to));
+    if (!roster.length) return NextResponse.json(INELIGIBLE);
 
-    const { data: attempts, error: aErr } = await serviceDb
+    const attempts = await fetchAllRowsByIds<RankAttempt>(roster.map(s => s.id), (ids, from, to) => serviceDb
       .from('course_attempts')
-      .select('student_id, score, points, completed_at')
+      .select('student_id, score, points, completed_at', { count: 'exact' })
       .eq('course_id', courseId)
-      .in('student_id', roster.map((s: any) => s.id))
-      .not('completed_at', 'is', null);
-    if (aErr) {
-      console.error('[course-rank] attempts fetch', aErr);
-      return NextResponse.json({ error: 'Failed to load rank.' }, { status: 500 });
-    }
+      .in('student_id', ids)
+      .not('completed_at', 'is', null)
+      .order('id')
+      .range(from, to));
 
-    return NextResponse.json(rankCourseAttempts(attempts ?? [], roster, auth.user.id), {
+    return NextResponse.json(rankCourseAttempts(attempts, roster, auth.user.id), {
       headers: { 'Cache-Control': 'private, no-store' },
     });
   } catch (err: any) {

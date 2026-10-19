@@ -32,7 +32,10 @@ function authAs(tables: Record<string, QueryResult | QueryResult[]>) {
 const students = (p: unknown = profile, r: unknown = roster): QueryResult[] =>
   [{ data: p, error: null }, { data: p, error: null }, { data: r, error: null }];
 
-const get = (query = 'course_id=course-1') => GET(new NextRequest(
+const COURSE_ID = '11111111-1111-4111-8111-111111111111';
+const UNKNOWN_COURSE_ID = '99999999-9999-4999-8999-999999999999';
+
+const get = (query = `course_id=${COURSE_ID}`) => GET(new NextRequest(
   `http://localhost/api/course-rank?${query}`,
   { headers: { authorization: 'Bearer token' } },
 ));
@@ -99,14 +102,15 @@ describe('course rank', () => {
       cohorts: { data: { cohort_kind: 'bootcamp' }, error: null },
       course_attempts: { data: [attempts[0]], error: null },
     });
-    const res = await get('course_id=someone-elses-course');
+    const res = await get(`course_id=${UNKNOWN_COURSE_ID}`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ eligible: false });
   });
 
-  it('requires course_id', async () => {
+  it('rejects a missing or malformed course_id before querying', async () => {
     authAs({});
     expect((await get('')).status).toBe(400);
+    expect((await get('course_id=someone-elses-course')).status).toBe(400);
   });
 
   it('passes through an auth failure', async () => {
