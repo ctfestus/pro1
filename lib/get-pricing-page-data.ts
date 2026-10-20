@@ -16,7 +16,6 @@ import { PRICING_CACHE_TAG } from '@/lib/revalidate-pricing';
 import { createClient } from '@supabase/supabase-js';
 import {
   emptyContentCounts,
-  pricingPlanFromRow,
   type ContentCounts,
   type PricingPageData,
   type PricingPlan,
@@ -52,7 +51,30 @@ export const getPricingPageData = unstable_cache(
     if (plansResult.error) throw plansResult.error;
     if (freeResult.error) throw freeResult.error;
 
-    const plans: PricingPlan[] = (plansResult.data ?? []).map(pricingPlanFromRow);
+    const plans: PricingPlan[] = (plansResult.data ?? []).map((row: any) => ({
+      id: row.plan_id,
+      name: row.plan_name,
+      description: row.plan_description ?? null,
+      recommended: row.recommended === true,
+      // Already ordered by duration in the view, so the toggle reads left to right as it comes.
+      prices: ((row.prices ?? []) as any[]).map((price): PricingPrice => ({
+        id: price.id,
+        durationMonths: Number(price.durationMonths),
+        amount: Number(price.amount),
+        listAmount: Number(price.listAmount ?? price.amount),
+        discountType: price.discountType ?? null,
+        discountValue: price.discountValue == null ? null : Number(price.discountValue),
+        discountLabel: price.discountLabel ?? null,
+        discountAmount: Number(price.discountAmount ?? 0),
+        currency: price.currency || 'GHS',
+      })),
+      coverage: {
+        courses: Number(row.courses ?? 0),
+        learning_paths: Number(row.learning_paths ?? 0),
+        virtual_experiences: Number(row.virtual_experiences ?? 0),
+        certifications: Number(row.certifications ?? 0),
+      },
+    }));
 
     const free: ContentCounts = emptyContentCounts();
     for (const row of (freeResult.data ?? []) as any[]) {

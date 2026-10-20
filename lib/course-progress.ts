@@ -129,26 +129,15 @@ export function completedLessonCount(questions: any[], answers: Record<string, u
 }
 
 /**
- * Whether finishing a lesson just took the learner to half the course's lessons, from below.
- *
- * `doneAtStart` is where they stood when this visit began. Measured against that rather than the
- * count before this one lesson, so a learner already past the midpoint never crosses it again --
- * not by going on, and not by revisiting lessons they had already done.
+ * Whether finishing one lesson just took the learner from under half the course's lessons to half
+ * or more. True on that one lesson only: never for the lessons after it, and never for a learner
+ * who was already past the midpoint (on an earlier visit, or before this was built), because
+ * their count before the lesson is already at or over it.
  */
-export function reachesLessonMidpoint(doneAtStart: number, lessonsDone: number, totalLessons: number): boolean {
+export function crossesLessonMidpoint(lessonsDoneBefore: number, lessonsDone: number, totalLessons: number): boolean {
   if (totalLessons < 2) return false;
   const midpoint = Math.ceil(totalLessons / 2);
-  return doneAtStart < midpoint && lessonsDone >= midpoint;
-}
-
-/**
- * Whether finishing a lesson just left the learner one lesson short of the midpoint, on the way
- * to reaching it this visit. The moment to re-read anything that should be fresh at the midpoint.
- */
-export function oneLessonBeforeMidpoint(doneAtStart: number, lessonsDone: number, totalLessons: number): boolean {
-  if (totalLessons < 2) return false;
-  const midpoint = Math.ceil(totalLessons / 2);
-  return doneAtStart < midpoint && lessonsDone === midpoint - 1;
+  return lessonsDoneBefore < midpoint && lessonsDone >= midpoint;
 }
 
 /**

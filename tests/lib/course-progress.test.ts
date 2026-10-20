@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   courseProgressCounts, courseProgressPct, answeredScorableCount, courseContentCounts, courseXpOnOffer,
-  isCountableSlide, completedLessonCount, reachesLessonMidpoint, oneLessonBeforeMidpoint,
+  isCountableSlide, completedLessonCount, crossesLessonMidpoint,
 } from '@/lib/course-progress';
 import { DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 
@@ -166,46 +166,28 @@ describe('completedLessonCount', () => {
   });
 });
 
-describe('reachesLessonMidpoint', () => {
-  it('fires on the lesson that reaches half the lessons', () => {
-    // 4 lessons: the midpoint is the 2nd.
-    expect(reachesLessonMidpoint(0, 1, 4)).toBe(false);
-    expect(reachesLessonMidpoint(0, 2, 4)).toBe(true);
+describe('crossesLessonMidpoint', () => {
+  it('is true only on the lesson that reaches half the lessons', () => {
+    // 4 lessons, midpoint 2: lessons 1, 3 and 4 are not the crossing.
+    expect(crossesLessonMidpoint(0, 1, 4)).toBe(false);
+    expect(crossesLessonMidpoint(1, 2, 4)).toBe(true);
+    expect(crossesLessonMidpoint(2, 3, 4)).toBe(false);
+    expect(crossesLessonMidpoint(3, 4, 4)).toBe(false);
   });
 
   it('rounds an odd count up, so "half" is never short of half', () => {
-    // 5 lessons: 2 is under half, 3 is the first at or past it.
-    expect(reachesLessonMidpoint(0, 2, 5)).toBe(false);
-    expect(reachesLessonMidpoint(0, 3, 5)).toBe(true);
+    // 5 lessons: the 3rd is the first at or past half.
+    expect(crossesLessonMidpoint(1, 2, 5)).toBe(false);
+    expect(crossesLessonMidpoint(2, 3, 5)).toBe(true);
   });
 
-  it('never fires for a learner who was already past the midpoint when the visit began', () => {
-    expect(reachesLessonMidpoint(3, 4, 4)).toBe(false);
-    expect(reachesLessonMidpoint(2, 2, 4)).toBe(false);
-  });
-
-  it('fires for a learner resuming just below the midpoint', () => {
-    expect(reachesLessonMidpoint(1, 2, 4)).toBe(true);
+  it('never fires for a learner already past the midpoint, even revisiting a lesson', () => {
+    // Re-finishing a done lesson leaves the count where it was.
+    expect(crossesLessonMidpoint(3, 3, 4)).toBe(false);
   });
 
   it('has no midpoint for a course with fewer than two lessons', () => {
-    expect(reachesLessonMidpoint(0, 1, 1)).toBe(false);
-    expect(reachesLessonMidpoint(0, 0, 0)).toBe(false);
-  });
-});
-
-describe('oneLessonBeforeMidpoint', () => {
-  it('fires on the lesson just before the midpoint lesson', () => {
-    // 4 lessons, midpoint 2: finishing the 1st leaves one to go.
-    expect(oneLessonBeforeMidpoint(0, 1, 4)).toBe(true);
-    expect(oneLessonBeforeMidpoint(0, 2, 4)).toBe(false);
-  });
-
-  it('does not fire for a learner already past the midpoint', () => {
-    expect(oneLessonBeforeMidpoint(3, 1, 4)).toBe(false);
-  });
-
-  it('has nothing to do for a course with fewer than two lessons', () => {
-    expect(oneLessonBeforeMidpoint(0, 0, 1)).toBe(false);
+    expect(crossesLessonMidpoint(0, 1, 1)).toBe(false);
+    expect(crossesLessonMidpoint(0, 0, 0)).toBe(false);
   });
 });

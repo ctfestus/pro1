@@ -9,7 +9,7 @@
 // plan) never see it. Closing it is remembered per browser for that same offer, so it does not
 // nag on every page they open.
 //
-// Inside a course it waits for the lesson that reaches the midpoint instead; see `reachedAt`.
+// Inside a course it waits for the learner to finish the midpoint lesson instead; see `reached`.
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
@@ -17,8 +17,7 @@ import { X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/lib/theme';
 import { promotionHeading } from '@/lib/subscription-discount';
-import { durationLabel, offerKey, planPromotions, type PromotionTeaser } from '@/lib/pricing-offer';
-import { pricingPlanFromRow } from '@/lib/pricing-contract';
+import { durationLabel, offerKey, type PromotionTeaser } from '@/lib/pricing-offer';
 
 const CLOSED_KEY = 'discount-popup-closed';
 // Long enough that one offer does not follow a learner around every page, short enough that a
@@ -82,23 +81,6 @@ async function viewerCanSubscribe(): Promise<{ eligible: boolean; signedIn: bool
   return { eligible: !running, signedIn: true };
 }
 
-/**
- * Whether this exact offer is still on sale, read fresh from the same public view the pricing
- * page uses. The view only carries a promotion while it is running, so one that has ended, been
- * withdrawn or been repriced since the page loaded reads as gone. Any failure reads as gone too:
- * advertising terms checkout will not honour is worse than skipping the prompt.
- */
-async function stillOffered(promotion: PromotionTeaser): Promise<boolean> {
-  const { data, error } = await supabase
-    .from('public_pricing_plans')
-    .select('plan_id, plan_name, plan_description, recommended, prices')
-    .eq('plan_id', promotion.planId)
-    .maybeSingle();
-  if (error || !data) return false;
-  const key = offerKey(promotion);
-  return planPromotions([pricingPlanFromRow(data)]).some(current => offerKey(current) === key);
-}
-
 /** How far down its scroller the event's target is, 0 to 1, or null when it is not the page. */
 function scrolledShare(target: EventTarget | null): number | null {
   const el = target === document || target === window
@@ -112,101 +94,49 @@ function scrolledShare(target: EventTarget | null): number | null {
   return el.scrollTop / range;
 }
 
-export function DiscountScrollPopup({ promotion, reachedAt, checkpoint = 0 }: {
+export function DiscountScrollPopup({ promotion, reached }: {
   promotion: PromotionTeaser | null;
   /**
-   * When given, the host decides when the moment has come instead of the scroll position: the
-   * time (epoch ms) it came, or null until then. A signed-in learner on an open course goes
-   * straight into the course with no overview to scroll, so the page passes the moment they
-   * finish the lesson that reaches the midpoint.
+   * When given, the host says when the moment has come instead of the scroll position. A
+   * signed-in learner on an open course goes straight into the course with no overview to
+   * scroll, so the page passes "finished the midpoint lesson" here.
    */
-  reachedAt?: number | null;
-  /**
-   * Bumped by the host when the moment is near (one lesson from the midpoint), to re-read the
-   * offer then. The page loaded it when the course opened, which can be hours earlier.
-   */
-  checkpoint?: number;
+  reached?: boolean;
 }) {
   const C = useC();
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const inCourse = reachedAt !== undefined;
-  const key = promotion ? offerKey(promotion) : null;
-  // Who may see which offer, and since when. Keyed by offer rather than a plain flag, so a
-  // different promotion arriving while this stays mounted starts over instead of inheriting.
-  const [audience, setAudience] = useState<{ key: string; signedIn: boolean; at: number } | null>(null);
-  // The last live reading of whether this exact offer is still on sale, and when it was taken.
-  const [offerCheck, setOfferCheck] = useState<{ key: string; live: boolean; at: number } | null>(null);
-  const ready = key !== null && audience?.key === key ? audience : null;
-  // On the overview the lookup itself is the trigger, so ready means open. In a course both
-  // readings are taken ahead of time and must have landed BEFORE the midpoint lesson was
-  // finished: then the prompt opens in the same render as the next slide. If either was still
-  // in flight, this opening is skipped rather than arriving late over a slide being read.
-  const open = Boolean(ready) && (!inCourse || (
-    reachedAt != null
-    && (ready as { at: number }).at <= reachedAt
-    && offerCheck?.key === key && offerCheck.live && offerCheck.at <= reachedAt
-  ));
+  const inCourse = reached !== undefined;
+  // Who may see the offer, read once when the page loads. Null until known, and again once closed.
+  const [audience, setAudience] = useState<{ signedIn: boolean } | null>(null);
+  const [scrolledHalfway, setScrolledHalfway] = useState(false);
+  const open = Boolean(promotion && audience && (inCourse ? reached : scrolledHalfway));
 
   useEffect(() => {
     if (!promotion || closedRecently(promotion)) return;
-    const offer = offerKey(promotion);
     let cancelled = false;
-
-    if (inCourse) {
-      viewerCanSubscribe()
-        .then(result => {
-          if (!cancelled && result.eligible) setAudience({ key: offer, signedIn: result.signedIn, at: Date.now() });
-        })
-        .catch(() => {});
-      return () => { cancelled = true; };
-    }
-
-    // On the overview the offer is read again with the eligibility, at the moment it would show:
-    // the page may have been open long enough for the promotion to end or change.
-    const lookUp = () => {
-      Promise.all([viewerCanSubscribe(), stillOffered(promotion)])
-        .then(([result, live]) => {
-          if (!cancelled && result.eligible && live) setAudience({ key: offer, signedIn: result.signedIn, at: Date.now() });
-        })
-        .catch(() => {});
-    };
-
-    // Nothing is looked up until the visitor is halfway: most never get there. The listener goes
-    // as soon as it has fired once, so it does not keep reading layout on every scroll afterwards.
-    // Capture phase, because scroll does not bubble and some detail pages scroll an inner
-    // container rather than the window.
-    const past = (share: number | null) => share !== null && share >= 0.5;
-    let triggered = false;
-    const trigger = () => {
-      if (triggered) return;
-      triggered = true;
-      window.removeEventListener('scroll', onScroll, { capture: true });
-      lookUp();
-    };
-    function onScroll(event: Event) {
-      if (past(scrolledShare(event.target))) trigger();
-    }
-    window.addEventListener('scroll', onScroll, { capture: true, passive: true });
-    // A restored scroll position can already be past halfway when the page mounts.
-    if (past(scrolledShare(document))) trigger();
-    return () => {
-      cancelled = true;
-      window.removeEventListener('scroll', onScroll, { capture: true });
-    };
-  }, [promotion, inCourse]);
-
-  // In a course, read the offer when the course opens and again at each checkpoint, so the one
-  // in hand at the midpoint is minutes old rather than hours: a promotion that ended, was
-  // withdrawn or was repriced in between is not advertised.
-  useEffect(() => {
-    if (!inCourse || !promotion || closedRecently(promotion)) return;
-    const offer = offerKey(promotion);
-    let cancelled = false;
-    stillOffered(promotion)
-      .then(live => { if (!cancelled) setOfferCheck({ key: offer, live, at: Date.now() }); })
+    viewerCanSubscribe()
+      .then(result => { if (!cancelled && result.eligible) setAudience({ signedIn: result.signedIn }); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [promotion, inCourse, checkpoint]);
+  }, [promotion]);
+
+  // On a detail page, halfway down. Capture phase, because scroll does not bubble and some detail
+  // pages scroll an inner container rather than the window. The listener goes once it has fired.
+  useEffect(() => {
+    if (inCourse || scrolledHalfway) return;
+    const past = (target: EventTarget | null) => {
+      const share = scrolledShare(target);
+      return share !== null && share >= 0.5;
+    };
+    const onScroll = (event: Event) => { if (past(event.target)) setScrolledHalfway(true); };
+    window.addEventListener('scroll', onScroll, { capture: true, passive: true });
+    // A restored scroll position can already be past halfway when the page mounts.
+    const frame = requestAnimationFrame(() => { if (past(document)) setScrolledHalfway(true); });
+    return () => {
+      cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', onScroll, { capture: true });
+    };
+  }, [inCourse, scrolledHalfway]);
   // showModal gives focus trapping, Escape and the inert page behind it for free. A layout effect,
   // so mid-course the prompt is up before the next slide is painted rather than a frame after.
   useLayoutEffect(() => {
@@ -214,7 +144,7 @@ export function DiscountScrollPopup({ promotion, reachedAt, checkpoint = 0 }: {
     if (open && dialog && !dialog.open) dialog.showModal();
   }, [open]);
 
-  if (!promotion || !open || !ready) return null;
+  if (!promotion || !open || !audience) return null;
 
   // Every way out -- the buttons, the backdrop, Escape -- ends in the dialog's close event, so the
   // closing is remembered once, in onClose, rather than by each control.
@@ -224,8 +154,6 @@ export function DiscountScrollPopup({ promotion, reachedAt, checkpoint = 0 }: {
     setAudience(null);
   };
   const term = durationLabel(promotion.durationMonths);
-  // Mid-course, the prompt must not cost the learner their place: the way out reads as carrying
-  // on, and the plans open in a new tab so the lesson is still there behind it.
   const badge = promotionHeading(promotion.label, 'Limited offer');
 
   return (
@@ -261,11 +189,12 @@ export function DiscountScrollPopup({ promotion, reachedAt, checkpoint = 0 }: {
           Subscribe to {promotion.planName} for {term} and save {promotion.percentOff}%
         </h2>
         <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>
-          {ready.signedIn
+          {audience.signedIn
             ? `Choose ${term} on the pricing page to get everything in the plan for less while the offer lasts.`
             : `Create a free account, then choose ${term} on the pricing page to get everything in the plan for less while the offer lasts.`}
         </p>
         <Link href="/pricing" onClick={() => rememberClosed(promotion)}
+          // Mid-course the plans open in a new tab, so the lesson is still there behind it.
           {...(inCourse ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
           className="mt-6 flex items-center justify-center rounded-xl text-sm font-bold transition-opacity hover:opacity-90"
           style={{ background: C.cta, color: C.ctaText, padding: '13px 16px', textDecoration: 'none' }}>
