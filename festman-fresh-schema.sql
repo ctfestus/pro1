@@ -6963,7 +6963,6 @@ price_promotions AS (
     p.discount_type,
     p.discount_value,
     p.discount_label,
-    p.discount_ends_at,
     (
       p.discount_type IN ('percentage', 'fixed')
       AND p.discount_value > 0
@@ -7013,9 +7012,6 @@ SELECT
                'discountType', CASE WHEN pr.promotion_active THEN pr.discount_type ELSE NULL END,
                'discountValue', CASE WHEN pr.promotion_active THEN pr.discount_value ELSE NULL END,
                'discountLabel', CASE WHEN pr.promotion_active THEN pr.discount_label ELSE NULL END,
-               -- migration 225: when a running promotion stops, so a page left open past it can
-               -- stop advertising it without asking again. Null for an open-ended one.
-               'discountEndsAt', CASE WHEN pr.promotion_active THEN pr.discount_ends_at ELSE NULL END,
                'discountAmount', pr.amount - pr.effective_amount,
                'currency', pr.currency
              ) ORDER BY pr.duration_months

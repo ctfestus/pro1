@@ -142,6 +142,16 @@ export function reachesLessonMidpoint(doneAtStart: number, lessonsDone: number, 
 }
 
 /**
+ * Whether finishing a lesson just left the learner one lesson short of the midpoint, on the way
+ * to reaching it this visit. The moment to re-read anything that should be fresh at the midpoint.
+ */
+export function oneLessonBeforeMidpoint(doneAtStart: number, lessonsDone: number, totalLessons: number): boolean {
+  if (totalLessons < 2) return false;
+  const midpoint = Math.ceil(totalLessons / 2);
+  return doneAtStart < midpoint && lessonsDone === midpoint - 1;
+}
+
+/**
  * The XP a course advertises before a student starts, for the "Total XP" line on its landing page.
  *
  * Every gradeable question is worth basePoints; a LinkedIn share slide is worth its own configured

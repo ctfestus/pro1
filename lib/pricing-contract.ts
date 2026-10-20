@@ -29,8 +29,6 @@ export interface PricingPrice {
   discountType?: 'percentage' | 'fixed' | null;
   discountValue?: number | null;
   discountLabel?: string | null;
-  /** When the running promotion stops (ISO timestamp), or null when it is open-ended. */
-  discountEndsAt?: string | null;
   discountAmount?: number;
   currency: string;
 }
@@ -50,6 +48,37 @@ export interface PricingPageData {
   plans: PricingPlan[];
   /** What an account with no plan can already open. */
   free: ContentCounts;
+}
+
+/**
+ * One row of the public_pricing_plans view, as the pricing page and the learning pages read it.
+ * Shared so the server render and a live re-read in the browser can never shape a plan apart.
+ */
+export function pricingPlanFromRow(row: any): PricingPlan {
+  return {
+    id: row.plan_id,
+    name: row.plan_name,
+    description: row.plan_description ?? null,
+    recommended: row.recommended === true,
+    // Already ordered by duration in the view, so the toggle reads left to right as it comes.
+    prices: ((row.prices ?? []) as any[]).map((price): PricingPrice => ({
+      id: price.id,
+      durationMonths: Number(price.durationMonths),
+      amount: Number(price.amount),
+      listAmount: Number(price.listAmount ?? price.amount),
+      discountType: price.discountType ?? null,
+      discountValue: price.discountValue == null ? null : Number(price.discountValue),
+      discountLabel: price.discountLabel ?? null,
+      discountAmount: Number(price.discountAmount ?? 0),
+      currency: price.currency || 'GHS',
+    })),
+    coverage: {
+      courses: Number(row.courses ?? 0),
+      learning_paths: Number(row.learning_paths ?? 0),
+      virtual_experiences: Number(row.virtual_experiences ?? 0),
+      certifications: Number(row.certifications ?? 0),
+    },
+  };
 }
 
 export const emptyContentCounts = (): ContentCounts => ({

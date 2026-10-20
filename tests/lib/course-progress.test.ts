@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   courseProgressCounts, courseProgressPct, answeredScorableCount, courseContentCounts, courseXpOnOffer,
-  isCountableSlide, completedLessonCount, reachesLessonMidpoint,
+  isCountableSlide, completedLessonCount, reachesLessonMidpoint, oneLessonBeforeMidpoint,
 } from '@/lib/course-progress';
 import { DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 
@@ -191,5 +191,21 @@ describe('reachesLessonMidpoint', () => {
   it('has no midpoint for a course with fewer than two lessons', () => {
     expect(reachesLessonMidpoint(0, 1, 1)).toBe(false);
     expect(reachesLessonMidpoint(0, 0, 0)).toBe(false);
+  });
+});
+
+describe('oneLessonBeforeMidpoint', () => {
+  it('fires on the lesson just before the midpoint lesson', () => {
+    // 4 lessons, midpoint 2: finishing the 1st leaves one to go.
+    expect(oneLessonBeforeMidpoint(0, 1, 4)).toBe(true);
+    expect(oneLessonBeforeMidpoint(0, 2, 4)).toBe(false);
+  });
+
+  it('does not fire for a learner already past the midpoint', () => {
+    expect(oneLessonBeforeMidpoint(3, 1, 4)).toBe(false);
+  });
+
+  it('has nothing to do for a course with fewer than two lessons', () => {
+    expect(oneLessonBeforeMidpoint(0, 0, 1)).toBe(false);
   });
 });
