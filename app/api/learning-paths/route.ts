@@ -234,10 +234,10 @@ export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Get student's cohort
+    // Get student's cohort (and name, for the track welcome)
     const { data: student } = await supabase
       .from('students')
-      .select('cohort_id')
+      .select('cohort_id, full_name')
       .eq('id', user.id)
       .single();
 
@@ -253,6 +253,7 @@ export async function POST(req: NextRequest) {
       : publishedPaths.eq('available_to_everyone', true));
 
     if (!paths?.length) return NextResponse.json({ paths: [] });
+    const studentName: string | null = student?.full_name ?? null;
 
     // Fetch student's progress for those paths
     const pathIds = paths.map((p: any) => p.id);
@@ -398,7 +399,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({ paths: result });
+    return NextResponse.json({ paths: result, student_name: studentName });
   }
 
   // -- Student: pick (or switch) their track on a path with tracks ---

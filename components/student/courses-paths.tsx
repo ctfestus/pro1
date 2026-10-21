@@ -7,10 +7,11 @@ import { motion, AnimatePresence } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase, Hand,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
+import { useTenant } from '@/components/TenantProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { computeAccess } from '@/lib/enrollment-access';
@@ -341,6 +342,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [lockedPath, setLockedPath] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [learnerName, setLearnerName] = useState<string | null>(null);
 
   useEffect(() => {
     const syncSelectedPath = () => setSelectedPathId(new URLSearchParams(window.location.search).get('path'));
@@ -363,8 +365,9 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
         body: JSON.stringify({ action: 'get-student-paths' }),
       });
       if (!res.ok) { setError(LOAD_ERROR_SERVER); return; }
-      const { paths: p } = await res.json();
+      const { paths: p, student_name } = await res.json();
       setPaths(p ?? []);
+      setLearnerName(student_name ?? null);
     } catch {
       // fetch itself rejected: connection dropped, request cancelled, or timed out.
       setError(LOAD_ERROR_NETWORK);
@@ -438,7 +441,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   if (selectedPath) return (
     <div>
-      <PathRow path={selectedPath} C={C} onChooseTrack={trackId => chooseTrack(selectedPath.id, trackId)}/>
+      <PathRow path={selectedPath} C={C} learnerName={learnerName} onChooseTrack={trackId => chooseTrack(selectedPath.id, trackId)}/>
     </div>
   );
 
@@ -654,34 +657,42 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
   );
 }
 
-// Track choice on a path with tracks. Open (as a set of cards) until a track is picked; after that
-// a one-line summary with a Change control, until the path is finished and the track is fixed.
-function TrackPicker({ path, C, onChoose, finished }: {
+// Track choice on a path with tracks, as a short conversation: a welcome, the question, the
+// tracks as answers. Until a track is picked the path's content stays hidden (PathRow), and once
+// one is picked the timeline drops in item by item. After that it is a one-line summary with a
+// Change control, until the path is finished and the track is fixed.
+function TrackPicker({ path, C, onChoose, finished, learnerName, onRevealed }: {
   path: any; C: typeof LIGHT_C; onChoose: (trackId: string) => Promise<void>; finished: boolean;
+  learnerName: string | null; onRevealed: () => void;
 }) {
+  const { appName } = useTenant();
   const tracks: { id: string; name: string; description: string | null; item_count: number }[] = path.tracks ?? [];
   const current = tracks.find(t => t.id === path.track_id) ?? null;
   const [open, setOpen] = useState(!current);
-  const [saving, setSaving] = useState<string | null>(null);
+  const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
   const [error, setError] = useState('');
+  const firstName = (learnerName ?? '').trim().split(/\s+/)[0] ?? '';
+  const ease = [0.16, 1, 0.3, 1] as const;
 
-  const choose = async (trackId: string) => {
-    if (trackId === current?.id) { setOpen(false); return; }
-    setSaving(trackId);
+  const choose = async (track: { id: string; name: string }) => {
+    if (track.id === current?.id) { setOpen(false); return; }
+    setPicked(track);
     setError('');
     try {
-      await onChoose(trackId);
+      // A short beat so the answer reads as heard before the path appears.
+      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, 900))]);
+      onRevealed();
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save your track. Please try again.');
     } finally {
-      setSaving(null);
+      setPicked(null);
     }
   };
 
   if (!open && current) return (
     <div className="mt-5 flex flex-wrap items-center gap-2 text-sm" style={{ color: C.muted }}>
-      <span>Your track:</span>
+      <span>Your specialization:</span>
       <strong className="font-semibold" style={{ color: C.text }}>{current.name}</strong>
       {!finished && (
         <button onClick={() => setOpen(true)} className="text-xs font-semibold underline-offset-2 hover:underline" style={{ color: C.cta }}>Change</button>
@@ -689,48 +700,87 @@ function TrackPicker({ path, C, onChoose, finished }: {
     </div>
   );
 
+  const bubble = 'rounded-2xl rounded-bl-md px-4 py-3 sm:px-5';
   return (
-    <div className="mt-5 rounded-2xl p-4 sm:p-5" style={{ background: C.pill }}>
-      <p className="text-sm font-bold" style={{ color: C.text }}>{current ? 'Change your track' : 'Choose your track'}</p>
-      <p className="text-xs mt-1" style={{ color: C.muted }}>
-        Everyone takes the core content. Your track adds the content for your background.
-        {current ? ' Anything you have already completed still counts.' : ' You can start the core content now and change your track later.'}
-      </p>
-      <div className="grid sm:grid-cols-2 gap-3 mt-4">
-        {tracks.map(track => {
-          const selected = track.id === current?.id;
-          return (
-            <button key={track.id} onClick={() => choose(track.id)} disabled={saving !== null}
-              className="text-left rounded-xl p-4 transition-opacity hover:opacity-90 disabled:opacity-60"
-              style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
-              <span className="flex items-center justify-between gap-2">
-                <span className="text-sm font-bold" style={{ color: C.text }}>{track.name}</span>
-                {saving === track.id
-                  ? <RefreshCw className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: C.faint }}/>
-                  : selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/>}
-              </span>
-              {track.description && <span className="block text-xs mt-1" style={{ color: C.muted }}>{track.description}</span>}
-              <span className="block text-[11px] mt-2" style={{ color: C.faint }}>
-                {track.item_count} extra item{track.item_count === 1 ? '' : 's'}
-              </span>
-            </button>
-          );
-        })}
-      </div>
-      {error && <p role="alert" className="text-xs mt-3" style={{ color: '#ef4444' }}>{error}</p>}
-      {current && (
-        <button onClick={() => setOpen(false)} className="mt-3 text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
+    <div className="mt-6 flex max-w-3xl flex-col gap-3">
+      {!current && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}
+          className={`${bubble} self-start`} style={{ background: C.pill }}>
+          <p className="flex items-center gap-2 text-base font-bold" style={{ color: C.text }}>
+            {firstName ? `Welcome, ${firstName}!` : 'Welcome!'}
+            <motion.span aria-hidden="true" className="inline-flex origin-bottom-right"
+              animate={{ rotate: [0, 18, -8, 18, 0] }} transition={{ duration: 1.2, delay: 0.4 }}>
+              <Hand className="h-5 w-5" style={{ color: '#d4a017' }}/>
+            </motion.span>
+          </p>
+          <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
+            {appName
+              ? `So glad to have you here. The entire ${appName} team and I are excited to kick this off with you.`
+              : 'So glad to have you here. We are excited to kick this off with you.'}
+          </p>
+        </motion.div>
+      )}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: current ? 0 : 0.5, ease }}
+        className={`${bubble} self-start`} style={{ background: C.pill }}>
+        <p className="text-base font-bold" style={{ color: C.text }}>
+          {current ? 'Where will you specialize?' : 'Before we dive into the learning path, where will you specialize?'}
+        </p>
+        <p className="mt-1 text-sm italic leading-relaxed" style={{ color: C.muted }}>
+          You&apos;ll build essential skills through our core courses, then take your expertise further with specialized learning tailored to your chosen path.
+        </p>
+      </motion.div>
+
+      {picked ? (
+        <>
+          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease }}
+            className="self-end rounded-2xl rounded-br-md px-4 py-2.5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
+            {picked.name}
+          </motion.div>
+          <div role="status" aria-label="Building your path" className={`${bubble} self-start flex gap-1.5`} style={{ background: C.pill }}>
+            {[0, 1, 2].map(i => (
+              <motion.span key={i} className="h-2 w-2 rounded-full" style={{ background: C.muted }}
+                animate={{ opacity: [0.25, 1, 0.25] }} transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18 }}/>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {tracks.map((track, i) => {
+            const selected = track.id === current?.id;
+            return (
+              <motion.button key={track.id} onClick={() => choose(track)}
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: (current ? 0.1 : 0.9) + i * 0.1, ease }}
+                whileHover={{ y: -2 }}
+                className="text-left rounded-xl p-4"
+                style={{ background: C.card, boxShadow: `inset 0 0 0 ${selected ? '2px' : '1.5px'} ${selected ? C.cta : C.cardBorder}` }}>
+                <span className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold" style={{ color: C.text }}>{track.name}</span>
+                  {selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/>}
+                </span>
+                {track.description && <span className="block text-xs mt-1" style={{ color: C.muted }}>{track.description}</span>}
+              </motion.button>
+            );
+          })}
+        </div>
+      )}
+      {error && <p role="alert" className="text-xs" style={{ color: '#ef4444' }}>{error}</p>}
+      {current && !picked && (
+        <button onClick={() => setOpen(false)} className="self-start text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
       )}
     </div>
   );
 }
 
 // One learning path rendered as an ordered, open-access course timeline.
-export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack }: {
+export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack, learnerName = null }: {
   path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean;
   /** Learner view of a path with tracks: save the learner's track choice. */
   onChooseTrack?: (trackId: string) => Promise<void>;
+  learnerName?: string | null;
 }) {
+  // Set once the learner answers the track question, so their path drops in item by item.
+  const [revealing, setRevealing] = useState(false);
   const totalItems     = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
   const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
@@ -746,6 +796,8 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
   // joins the numbered steps, and a line too faint to see there left the steps floating.
   const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
   const isLight = C.page === LIGHT_C.page;
+  // Until a track is chosen the content is not shown: the question comes first.
+  const awaitingTrack = !publicPreview && !path.locked && !!onChooseTrack && path.needs_track === true;
 
   return (
     <section
@@ -803,9 +855,11 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
       )}
 
       {!publicPreview && !path.locked && onChooseTrack && (path.tracks ?? []).length > 0 && (
-        <TrackPicker path={path} C={C} onChoose={onChooseTrack} finished={allDone || !!pathCertId}/>
+        <TrackPicker path={path} C={C} onChoose={onChooseTrack} finished={allDone || !!pathCertId}
+          learnerName={learnerName} onRevealed={() => setRevealing(true)}/>
       )}
 
+      {!awaitingTrack && (<>
       {!publicPreview && (
       <div className={hideHeader ? '' : 'mt-5'}>
         <div className="flex items-center justify-between text-[11px] mb-2">
@@ -858,7 +912,9 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
           const typeAccent = isCert ? '#0891B2' : isVE ? '#00BF63' : C.cta;
 
           return (
-            <div key={item.id} className="relative flex gap-3 sm:gap-4">
+            <motion.div key={item.id} className="relative flex gap-3 sm:gap-4"
+              initial={revealing ? { opacity: 0, y: -16 } : false} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: revealing ? 0.1 + idx * 0.12 : 0, ease: [0.16, 1, 0.3, 1] }}>
               <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
                 {items.length > 0 && (
                   // On the public overview the line stops short of each numbered step, above and
@@ -942,7 +998,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                   </div>
                 </div>
               </a>
-            </div>
+            </motion.div>
           );
         })}
         <div className="relative flex gap-3 sm:gap-4">
@@ -983,6 +1039,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
         </div>
         </div>
       </div>
+      </>)}
       </div>
     </section>
   );
