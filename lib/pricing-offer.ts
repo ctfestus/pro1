@@ -8,6 +8,7 @@
  */
 import { comparePlanPrice } from '@/lib/plan-price-comparison';
 import type { PricingPlan, PricingPrice } from '@/lib/pricing-contract';
+import { sellablePlans, type UnlockInfo } from '@/lib/unlock-pricing';
 
 export interface FeaturedOffer {
   plan: PricingPlan;
@@ -96,4 +97,87 @@ export function featuredOffer(plans: PricingPlan[]): FeaturedOffer | null {
 export function featuredOfferForDuration(plans: PricingPlan[], durationMonths: number | null): FeaturedOffer | null {
   if (durationMonths === null) return featuredOffer(plans);
   return preferred(plans, candidates => findFeaturedOffer(candidates, durationMonths));
+}
+
+/**
+ * A plan's running promotion, reduced to what a small prompt on a learning page can say.
+ *
+ * Plain data so it can cross from the server wrapper to the client page. Only a real promotion
+ * counts -- a list price above the charged one -- never the arithmetic saving of a longer term,
+ * because "subscribe and get N% off" has to be a discount the checkout will actually apply.
+ */
+export interface PromotionTeaser {
+  planId: string;
+  planName: string;
+  /** Marked by the seller as the plan to lead with. */
+  recommended: boolean;
+  percentOff: number;
+  /**
+   * The term the discount is on. Promotions are set per price, so a plan can be 30% off for a
+   * year and full price for a month; naming the term keeps the prompt from implying the first
+   * applies to the second.
+   */
+  durationMonths: number;
+  /** What the seller called the promotion, or null when they did not name it. */
+  label: string | null;
+  priceId: string;
+}
+
+/**
+ * The identity of an offer: which price, at what discount. A repriced or re-discounted price is a
+ * different offer -- for closing it, and for checking it is still the one on sale.
+ */
+export function offerKey(promotion: PromotionTeaser): string {
+  return `${promotion.priceId}:${promotion.percentOff}`;
+}
+
+function percentOff(price: PricingPrice): number {
+  const list = Number(price.listAmount ?? price.amount);
+  if (!(list > price.amount)) return 0;
+  // A percentage promotion states its own figure; a fixed one is expressed against the list
+  // price, floored so the prompt never claims more than is taken off.
+  if (price.discountType === 'percentage' && Number(price.discountValue) > 0) {
+    return Math.floor(Number(price.discountValue));
+  }
+  return Math.floor(((list - price.amount) / list) * 100);
+}
+
+/** Each plan's biggest running promotion. Plans with none are left out. */
+export function planPromotions(plans: PricingPlan[]): PromotionTeaser[] {
+  return plans.flatMap(plan => {
+    let best: PromotionTeaser | null = null;
+    for (const price of plan.prices) {
+      const off = percentOff(price);
+      if (off <= 0 || (best && off <= best.percentOff)) continue;
+      best = { planId: plan.id, planName: plan.name, recommended: plan.recommended, percentOff: off, durationMonths: price.durationMonths, label: price.discountLabel ?? null, priceId: price.id };
+    }
+    return best ? [best] : [];
+  });
+}
+
+function biggest(promotions: PromotionTeaser[]): PromotionTeaser | null {
+  return promotions.reduce<PromotionTeaser | null>(
+    (best, promotion) => (!best || promotion.percentOff > best.percentOff ? promotion : best),
+    null,
+  );
+}
+
+/**
+ * The promotion to advertise on one learning detail page.
+ *
+ * Open content -- free, or already available to this viewer -- leads with the best discount on
+ * offer, from the recommended plan when that one is discounted, the same preference the pricing
+ * hero uses. Locked content only ever names a plan that opens it: a discount on a plan without
+ * this item would be a true number about the wrong thing.
+ */
+export function promotionForItem(
+  promotions: PromotionTeaser[],
+  locked: boolean,
+  unlock: UnlockInfo,
+): PromotionTeaser | null {
+  if (locked) {
+    const opening = new Set(sellablePlans(unlock).map(plan => plan.id));
+    return biggest(promotions.filter(promotion => opening.has(promotion.planId)));
+  }
+  return biggest(promotions.filter(promotion => promotion.recommended)) ?? biggest(promotions);
 }

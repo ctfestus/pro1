@@ -8,7 +8,7 @@ import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, Extern
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
-import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
+import { courseContentCounts, courseXpOnOffer, crossesLessonMidpoint } from '@/lib/course-progress';
 import { CourseTaker } from '@/components/CourseTaker';
 import dynamic from 'next/dynamic';
 const VirtualExperienceTaker = dynamic(() => import('@/components/VirtualExperienceTaker'), { ssr: false });
@@ -29,6 +29,8 @@ import { signInHref } from '@/lib/auth-redirect';
 import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { PromoCard } from '@/components/PromoCard';
+import { DiscountScrollPopup } from '@/components/DiscountScrollPopup';
+import { promotionForItem, type PromotionTeaser } from '@/lib/pricing-offer';
 import { contentPageTitle, keepDocumentTitle } from '@/lib/document-title';
 
 // --- Social platform data (mirrors page.tsx) ---
@@ -765,7 +767,9 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   );
 }
 
-export default function PublicFormPage() {
+// promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
+// one on the detail views, free and locked alike -- never inside the course or experience player.
+export default function PublicFormPage({ promotions = [] }: { promotions?: PromotionTeaser[] }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -846,6 +850,10 @@ export default function PublicFormPage() {
   const [projectPreviewMode,  setProjectPreviewMode]  = useState(false);
   // Course sign-up flow
   const [courseStarted, setCourseStarted] = useState(true);
+  // Set once, when the learner finishes the lesson that takes them to half the course's lessons:
+  // the discount prompt's moment for a learner who opened straight into the course and so never
+  // had an overview to scroll. Never unset, so it cannot fire twice in one visit.
+  const [courseHalfway, setCourseHalfway] = useState(false);
   const [retakeKey, setRetakeKey] = useState(0);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [prefilledName, setPrefilledName] = useState('');
@@ -1326,7 +1334,12 @@ export default function PublicFormPage() {
 
   if (!form) {
     if (pathPreview) {
-      return <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} />;
+      return (
+        <>
+          <PublicLearningPathOverview path={pathPreview} C={C} authHref={backHere} signedIn={!signedOut} />
+          <DiscountScrollPopup promotion={promotionForItem(promotions, !!pathPreview.locked, pathPreview.unlock)} />
+        </>
+      );
     }
     // Nothing to show a signed-out visitor: either this is private to a cohort, or the link is
     // wrong. Both look the same on purpose, so this never reveals which links exist. Sign-in is
@@ -1426,7 +1439,10 @@ export default function PublicFormPage() {
         unlockLabel={certNoAccess ? enrollLabel(form.unlock) : 'Sign in to start'}
         unlockHref={certNoAccess ? '/pricing' : backHere}
         onExit={() => { window.location.href = certAuth ? '/student' : '/'; }}
-      /></>
+      />
+      {/* Only while the overview is all there is: a signed-in candidate with access may be mid-exam. */}
+      {(certNoAccess || certSignedOut) && <DiscountScrollPopup promotion={promotionForItem(promotions, certNoAccess, form.unlock)} />}
+      </>
     );
   }
 
@@ -1773,6 +1789,7 @@ export default function PublicFormPage() {
           </div>
         </div>
 
+        <DiscountScrollPopup promotion={promotionForItem(promotions, !!form.locked, form.unlock)} />
       </div>
     );
   }
@@ -2068,10 +2085,18 @@ export default function PublicFormPage() {
             relatedAssignment={relatedAssignment}
             logoUrl={logoUrl}
             logoDarkUrl={logoDarkUrl}
+            onLessonComplete={({ lessonsDoneBefore, lessonsDone, totalLessons }: { lessonsDoneBefore: number; lessonsDone: number; totalLessons: number }) => {
+              if (crossesLessonMidpoint(lessonsDoneBefore, lessonsDone, totalLessons)) setCourseHalfway(true);
+            }}
           />
         )}
 
         <PromoCard placement="course" />
+        {/* On the overview it waits for half scroll; inside the course, for the midpoint lesson. */}
+        <DiscountScrollPopup
+          promotion={promotionForItem(promotions, !!form.locked, form.unlock)}
+          reached={courseStarted ? courseHalfway : undefined}
+        />
 
       </div>
     );

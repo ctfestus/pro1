@@ -117,6 +117,30 @@ export function courseContentCounts(questions: any[]): CourseContentCounts {
 }
 
 /**
+ * How many of a course's lessons this set of answers has completed. A lesson is what
+ * courseContentCounts counts as one -- a lesson-only slide -- and it is complete once marked viewed.
+ */
+export function completedLessonCount(questions: any[], answers: Record<string, unknown>): number {
+  let done = 0;
+  for (const q of questions ?? []) {
+    if (q && !q.isSection && q.lessonOnly && answers[q.id] != null) done++;
+  }
+  return done;
+}
+
+/**
+ * Whether finishing one lesson just took the learner from under half the course's lessons to half
+ * or more. True on that one lesson only: never for the lessons after it, and never for a learner
+ * who was already past the midpoint (on an earlier visit, or before this was built), because
+ * their count before the lesson is already at or over it.
+ */
+export function crossesLessonMidpoint(lessonsDoneBefore: number, lessonsDone: number, totalLessons: number): boolean {
+  if (totalLessons < 2) return false;
+  const midpoint = Math.ceil(totalLessons / 2);
+  return lessonsDoneBefore < midpoint && lessonsDone >= midpoint;
+}
+
+/**
  * The XP a course advertises before a student starts, for the "Total XP" line on its landing page.
  *
  * Every gradeable question is worth basePoints; a LinkedIn share slide is worth its own configured

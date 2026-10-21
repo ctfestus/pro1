@@ -22,7 +22,7 @@ import { AnimatedField } from '@/components/AnimatedField';
 import { useTheme } from '@/components/ThemeProvider';
 import type { QuestionType, DownloadItem, CourseQuestion } from '@/lib/course-schema';
 import { linkedInSharePointsFor } from '@/lib/course-schema';
-import { courseProgressCounts, answeredScorableCount } from '@/lib/course-progress';
+import { courseProgressCounts, answeredScorableCount, completedLessonCount, courseContentCounts } from '@/lib/course-progress';
 import type { CourseRankResult } from '@/lib/course-rank';
 import { preflightLinkedInPostUrl } from '@/lib/linkedin-post-url';
 import { saveMyLinkedInProfileUrl, shareClaimErrorMessage } from '@/lib/linkedin-profile';
@@ -268,6 +268,10 @@ export function CourseTaker({
   relatedAssignment = null,
   logoUrl = '',
   logoDarkUrl = '',
+  // Called as a lesson is finished with Next and another slide follows: the break between one
+  // lesson and the next, so a host can act there without interrupting reading or an exercise.
+  // Counts are lessons, not slides. Never called in review mode.
+  onLessonComplete,
 }: any) {
   const [phase, setPhase] = useState<'info' | 'course' | 'complete'>(
     collectStudentInfo || !!initialStudentName ? 'info' : 'course'
@@ -2369,10 +2373,18 @@ export function CourseTaker({
     if (currentQuestionIndex < totalSlides - 1) {
       const nextIndex = currentQuestionIndex + 1;
       if (isViewedOnlySlide(currentQuestion)) {
+        const lessonsDoneBefore = completedLessonCount(questions, answersRef.current);
         const newAnswers = { ...answersRef.current, [currentQuestion.id]: 'viewed' };
         answersRef.current = newAnswers;
         setAnswers(newAnswers);
         saveProgress(newAnswers, nextIndex, score, totalPoints, streak, hintsUsed);
+        if (currentQuestion?.lessonOnly && !reviewMode) {
+          onLessonComplete?.({
+            lessonsDoneBefore,
+            lessonsDone: completedLessonCount(questions, newAnswers),
+            totalLessons: courseContentCounts(questions).lessons,
+          });
+        }
       }
       setCurrentQuestionIndex(nextIndex);
       setSelectedOption(null);
