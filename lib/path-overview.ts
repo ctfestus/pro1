@@ -10,12 +10,23 @@
  * apart.
  */
 
+import { pathTracks } from '@/lib/learning-path-tracks';
+
+/** A specialization a visitor can pick on a path with tracks: its name and the items it adds. */
+export interface PathSpecialization {
+  name: string;
+  description: string | null;
+  itemIds: string[];
+}
+
 export interface PathOverviewFields {
   overview: string | null;
   skills: string[];
   whoShouldTake: string[];
   /** Tool NAMES. Icons resolve through the tool_icons registry at render time. */
   tools: string[];
+  /** Empty on a path without tracks. Items in no specialization are the core everyone takes. */
+  specializations: PathSpecialization[];
 }
 
 const list = (value: unknown): string[] =>
@@ -27,5 +38,7 @@ export function pathOverviewFields(row: any): PathOverviewFields {
     skills: list(row?.skills),
     whoShouldTake: list(row?.who_should_take),
     tools: list(row?.tools),
+    specializations: pathTracks({ item_ids: row?.item_ids ?? [], tracks: row?.tracks })
+      .map(t => ({ name: t.name, description: t.description ?? null, itemIds: t.item_ids })),
   };
 }
