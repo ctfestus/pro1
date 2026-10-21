@@ -13,9 +13,11 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { X } from 'lucide-react';
+import { ArrowRight, Sparkles, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/lib/theme';
+import { useTenant } from '@/components/TenantProvider';
+import { contrastRatio } from '@/lib/ve-accent';
 import { promotionHeading } from '@/lib/subscription-discount';
 import { durationLabel, offerKey, type PromotionTeaser } from '@/lib/pricing-offer';
 
@@ -27,6 +29,13 @@ const REMIND_AFTER_MS = 3 * 24 * 60 * 60 * 1000;
 // is the page's own scroller rather than a carousel or a code block someone happens to scroll.
 const MIN_SCROLLABLE_PX = 240;
 const MAIN_SCROLLER_SHARE = 0.6;
+// Faint percent marks in the brand band, echoing the pricing hero. Decoration only.
+const PERCENT_MARKS: React.CSSProperties[] = [
+  { top: '18%', left: '9%', width: 18, height: 18 },
+  { top: '58%', left: '17%', width: 13, height: 13 },
+  { top: '22%', right: '19%', width: 15, height: 15 },
+  { bottom: '20%', right: '9%', width: 21, height: 21 },
+];
 
 // Offer key to when it was closed. Keyed per offer, so closing one does not forget another: a
 // visitor moving between a free course and a locked one can be shown two different offers.
@@ -104,6 +113,7 @@ export function DiscountScrollPopup({ promotion, reached }: {
   reached?: boolean;
 }) {
   const C = useC();
+  const { primaryColor } = useTenant();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const inCourse = reached !== undefined;
   // Who may see the offer, read once when the page loads. Null until known, and again once closed.
@@ -155,6 +165,11 @@ export function DiscountScrollPopup({ promotion, reached }: {
   };
   const term = durationLabel(promotion.durationMonths);
   const badge = promotionHeading(promotion.label, 'Limited offer');
+  // The band is the tenant's brand colour, as the pricing hero is; its text is white unless the
+  // colour is too pale for that, the same rule the promo card uses.
+  const bandColor = primaryColor || C.cta;
+  const bandText = /^#[0-9a-f]{6}$/i.test(bandColor) && contrastRatio('#ffffff', bandColor) < contrastRatio('#111827', bandColor)
+    ? '#111827' : '#ffffff';
 
   return (
     <dialog
@@ -163,29 +178,66 @@ export function DiscountScrollPopup({ promotion, reached }: {
       onClose={onClosed}
       onClick={event => { if (event.target === dialogRef.current) dismiss(); }}
       className="discount-popup"
-      style={{ background: C.card, color: C.text, border: 'none', borderRadius: 20, padding: 0, width: 'min(400px, calc(100vw - 32px))', boxShadow: '0 24px 64px rgba(0,0,0,0.28)' }}
+      // margin: auto is what centres a modal dialog; the CSS reset zeroes it, which left the
+      // dialog pinned to the left edge.
+      style={{ margin: 'auto', background: C.card, color: C.text, border: 'none', borderRadius: 24, padding: 0, overflow: 'hidden', width: 'min(420px, calc(100vw - 32px))', maxHeight: 'calc(100dvh - 32px)', boxShadow: '0 32px 80px rgba(0,0,0,0.30), 0 4px 16px rgba(0,0,0,0.12)' }}
     >
       <style>{`
-        .discount-popup::backdrop { background: rgba(0,0,0,0.45); }
+        .discount-popup::backdrop { background: rgba(15,23,42,0.55); backdrop-filter: blur(3px); }
         @media (prefers-reduced-motion: no-preference) {
-          .discount-popup[open] { animation: discount-popup-in 220ms ease-out; }
-          @keyframes discount-popup-in { from { opacity: 0; transform: translateY(12px) scale(0.98); } }
+          .discount-popup[open] { animation: discount-popup-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+          .discount-popup[open]::backdrop { animation: discount-popup-fade 260ms ease-out; }
+          @keyframes discount-popup-in { from { opacity: 0; transform: translateY(16px) scale(0.96); } }
+          @keyframes discount-popup-fade { from { opacity: 0; } }
         }
       `}</style>
-      <div style={{ position: 'relative', padding: '28px 24px 24px', textAlign: 'center' }}>
+
+      {/* Brand band: the offer in one glance. */}
+      <div style={{ position: 'relative', overflow: 'hidden', background: bandColor, color: bandText, padding: '28px 24px 40px', textAlign: 'center' }}>
+        <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+          <div className="absolute rounded-full" style={{ right: '-30%', top: '-60%', width: 320, height: 320, background: 'radial-gradient(circle, rgba(255,255,255,0.22), transparent 68%)' }} />
+          {PERCENT_MARKS.map((mark, i) => (
+            <svg key={i} className="absolute" style={{ ...mark, opacity: 0.35 }} viewBox="0 0 24 24" fill="none" stroke={bandText} strokeWidth="1.75">
+              <circle cx="7.5" cy="7.5" r="2.5" />
+              <circle cx="16.5" cy="16.5" r="2.5" />
+              <path d="M18.5 5.5 5.5 18.5" strokeLinecap="round" />
+            </svg>
+          ))}
+        </div>
         <button type="button" onClick={dismiss} aria-label="Close"
-          className="flex items-center justify-center rounded-full transition-opacity hover:opacity-70"
-          style={{ position: 'absolute', top: 12, right: 12, width: 30, height: 30, background: C.pill, border: 'none', cursor: 'pointer' }}>
-          <X className="w-4 h-4" style={{ color: C.muted }} />
+          className="absolute flex items-center justify-center rounded-full transition-opacity hover:opacity-80"
+          style={{ top: 12, right: 12, width: 32, height: 32, background: 'rgba(255,255,255,0.22)', border: 'none', cursor: 'pointer' }}>
+          <X className="w-4 h-4" style={{ color: bandText }} />
         </button>
-        <span className="inline-block rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider"
-          style={{ background: C.successBg, color: C.successText }}>
+        <span className="relative inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider"
+          style={{ background: '#FFFFFF', color: C.successText }}>
+          <Sparkles className="h-3 w-3" />
           {badge}
         </span>
-        <p className="mt-4 font-black tracking-tight" style={{ fontSize: 44, lineHeight: 1, color: C.text }}>
-          {promotion.percentOff}% off
+        <p className="relative mt-4 font-black tracking-tight" style={{ fontSize: 64, lineHeight: 0.95 }}>
+          {promotion.percentOff}%
+          <span className="ml-1 align-top text-2xl font-black tracking-normal" style={{ lineHeight: 1.6 }}>OFF</span>
         </p>
-        <h2 id="discount-popup-title" className="mt-3 text-lg font-bold" style={{ color: C.text }}>
+      </div>
+
+      {/* The ticket, in the same treatment the pricing page gives a promotion. */}
+      <div style={{ padding: '0 24px', marginTop: -24, position: 'relative' }}>
+        <div className="ticket-cutout rounded-2xl px-5 py-3.5" style={{ background: '#FFCC00', boxShadow: '0 8px 24px rgba(0,0,0,0.12)' }}>
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <div className="min-w-0 text-left">
+              <p className="truncate text-sm font-black" style={{ color: '#101828' }}>{promotion.planName}</p>
+              <p className="text-xs font-bold" style={{ color: 'rgba(16,24,40,0.62)' }}>{term} of full access</p>
+            </div>
+            <div className="border-l-2 border-dashed pl-4 text-right" style={{ borderColor: 'rgba(16,24,40,0.35)' }}>
+              <p className="text-[11px] font-bold" style={{ color: 'rgba(16,24,40,0.62)' }}>You save</p>
+              <p className="text-base font-black" style={{ color: '#101828' }}>{promotion.percentOff}%</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style={{ padding: '20px 24px 24px', textAlign: 'center' }}>
+        <h2 id="discount-popup-title" className="text-lg font-bold leading-snug" style={{ color: C.text, textWrap: 'balance' }}>
           Subscribe to {promotion.planName} for {term} and save {promotion.percentOff}%
         </h2>
         <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>
@@ -196,9 +248,9 @@ export function DiscountScrollPopup({ promotion, reached }: {
         <Link href="/pricing" onClick={() => rememberClosed(promotion)}
           // Mid-course the plans open in a new tab, so the lesson is still there behind it.
           {...(inCourse ? { target: '_blank', rel: 'noopener noreferrer' } : {})}
-          className="mt-6 flex items-center justify-center rounded-xl text-sm font-bold transition-opacity hover:opacity-90"
-          style={{ background: C.cta, color: C.ctaText, padding: '13px 16px', textDecoration: 'none' }}>
-          See plans
+          className="mt-6 flex items-center justify-center gap-2 rounded-xl text-sm font-bold transition-transform duration-200 hover:-translate-y-0.5 motion-reduce:transition-none"
+          style={{ background: C.cta, color: C.ctaText, padding: '14px 16px', textDecoration: 'none' }}>
+          See plans <ArrowRight className="h-4 w-4" />
         </Link>
         <button type="button" onClick={dismiss}
           className="mt-2 w-full rounded-xl text-sm font-semibold transition-opacity hover:opacity-70"
