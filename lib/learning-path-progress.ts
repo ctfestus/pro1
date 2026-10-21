@@ -137,6 +137,8 @@ export async function reconcilePathCompletion(
   studentId: string,
   path: { id: string; title: string; item_ids?: string[]; next_path_id?: string | null },
   completedItemIds: string[],
+  /** The track completion was computed for; a learner who has since switched is not finalized. */
+  trackId: string | null = null,
 ) {
   try {
     const [{ data: student }, { data: prog }] = await Promise.all([
@@ -147,8 +149,10 @@ export async function reconcilePathCompletion(
         .eq('learning_path_id', path.id)
         .maybeSingle(),
     ]);
-    // Fresh read: skip when another request already finalized this path.
+    // Fresh read: skip when another request already finalized this path, or when the learner
+    // switched track since completion was computed (the new track may not be finished).
     if (prog?.completed_at && prog?.cert_id) return;
+    if ((prog?.track_id ?? null) !== trackId) return;
 
     const { data: upserted } = await supabase
       .from('learning_path_progress')

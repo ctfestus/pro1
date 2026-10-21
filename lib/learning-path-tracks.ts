@@ -70,6 +70,33 @@ export function requiredItemIds(path: TrackedPath, trackId: string | null | unde
   return itemIds.filter(id => !inAnyTrack.has(id) || mine.has(id));
 }
 
+/**
+ * Track items a student is not taking, as `${studentId}|${itemId}` keys.
+ *
+ * On a path with tracks the other tracks' items are reachable (the path grants access to every
+ * item) but not required of a student, so they must not show as Not started or overdue for them.
+ * Before a track is chosen only the core is required, matching the student's own path view. An
+ * item another path reaching their cohort requires is kept; a direct assignment of the item to the
+ * cohort is the caller's to honour. `trackOf` maps `${studentId}|${pathId}` to the chosen track.
+ */
+export function trackOptOuts(
+  paths: (TrackedPath & { id: string; cohort_ids?: string[] | null })[],
+  students: { id: string; cohort_id: string | null }[],
+  trackOf: Map<string, string | null>,
+): Set<string> {
+  const out = new Set<string>();
+  for (const s of students) {
+    if (!s.cohort_id) continue;
+    const mine = paths.filter(p => (p.cohort_ids ?? []).includes(s.cohort_id!));
+    if (!mine.some(p => pathTracks(p).length > 0)) continue;
+    const required = new Set(mine.flatMap(p => requiredItemIds(p, trackOf.get(`${s.id}|${p.id}`) ?? null)));
+    for (const p of mine) {
+      for (const t of pathTracks(p)) for (const itemId of t.item_ids) if (!required.has(itemId)) out.add(`${s.id}|${itemId}`);
+    }
+  }
+  return out;
+}
+
 /** True when every required item is done and no track choice is outstanding. */
 export function isPathComplete(path: TrackedPath, trackId: string | null | undefined, completedIds: Iterable<string>): boolean {
   if (needsTrack(path, trackId)) return false;

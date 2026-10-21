@@ -180,7 +180,10 @@ export async function POST(req: NextRequest) {
           if (!changed.has(trackId)) {
             const before = needsTrack(prev, trackId) ? null : requiredItemIds(prev, trackId);
             const after = needsTrack(nextShape, trackId) ? null : requiredItemIds(nextShape, trackId);
-            changed.set(trackId, !before || !after || !sameSet(before, after));
+            // A completer who never had a track on a path with tracks (only possible through a race
+            // with the first tracks being added) has no requirement to protect, so they never lock
+            // the path.
+            changed.set(trackId, !!before && (!after || !sameSet(before, after)));
           }
           return changed.get(trackId)!;
         };
@@ -188,9 +191,9 @@ export async function POST(req: NextRequest) {
         if (stranded.length > 0) {
           const prevNames = new Map(pathTracks(prev).map(t => [t.id, t.name] as [string, string]));
           const names = [...new Set(stranded.map((c: any) => (c.track_id && prevNames.get(c.track_id)) || 'the core'))];
-          const who = `${stranded.length} learner${stranded.length === 1 ? ' has' : 's have'} already completed this path`;
+          const who = `${stranded.length} learner${stranded.length === 1 ? '' : 's'}`;
           return NextResponse.json({
-            error: `This change alters what ${who} on was required to take (${names.join(', ')}). Undo that change, or create a new path.`,
+            error: `This change alters the content ${who} already completed (${names.join(', ')}). Undo that change, or create a new path.`,
           }, { status: 409 });
         }
       }
@@ -442,7 +445,7 @@ export async function POST(req: NextRequest) {
       const source = paths.find((x: any) => x.id === p.id);
       const finished = isPathComplete(source, p.track_id, done);
       if (finished && (!p.progress?.completed_at || !p.progress?.cert_id)) {
-        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: p.item_ids, next_path_id: p.next_path_id }, done));
+        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: p.item_ids, next_path_id: p.next_path_id }, done, p.track_id));
       }
     }
 
@@ -459,11 +462,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'path_id and track_id are required' }, { status: 400 });
     }
 
-    const [{ data: student }, { data: path }, { data: prog }] = await Promise.all([
+    const [{ data: student }, { data: path }, { data: prog, error: progError }] = await Promise.all([
       supabase.from('students').select('cohort_id').eq('id', user.id).single(),
       supabase.from('learning_paths').select('id, item_ids, tracks, cohort_ids, available_to_everyone, status').eq('id', path_id).maybeSingle(),
       supabase.from('learning_path_progress').select('completed_at, cert_id').eq('student_id', user.id).eq('learning_path_id', path_id).maybeSingle(),
     ]);
+    if (progError) { console.error('[learning-paths] choose-track progress error:', progError); return NextResponse.json({ error: 'Could not save your track.' }, { status: 500 }); }
     // Same reach rule as get-student-paths: published, and open or assigned to their cohort.
     const reachable = path?.status === 'published'
       && (path.available_to_everyone === true || (!!student?.cohort_id && (path.cohort_ids ?? []).includes(student.cohort_id)));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete } from '@/lib/learning-path-tracks';
+import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete, trackOptOuts } from '@/lib/learning-path-tracks';
 
 const path = {
   item_ids: ['core1', 'fin1', 'core2', 'hr1', 'hr2'],
@@ -45,5 +45,22 @@ describe('learning path tracks', () => {
       { id: 'b', name: '  ', item_ids: ['x'] },
       'junk',
     ], ['x'])).toEqual([{ id: 'a', name: 'Finance', item_ids: ['x'] }]);
+  });
+});
+
+describe('trackOptOuts', () => {
+  const tracked = { id: 'lp', cohort_ids: ['co1'], ...path };
+
+  it('opts a student out of the other tracks, and out of every track before they pick', () => {
+    const out = trackOptOuts([tracked], [{ id: 's1', cohort_id: 'co1' }, { id: 's2', cohort_id: 'co1' }],
+      new Map([['s1|lp', 'fin']]));
+    expect([...out].sort()).toEqual(['s1|hr1', 's1|hr2', 's2|fin1', 's2|hr1', 's2|hr2']);
+  });
+
+  it('keeps an item another reaching path requires, and ignores other cohorts', () => {
+    const other = { id: 'lp2', cohort_ids: ['co1'], item_ids: ['hr1'], tracks: [] };
+    const out = trackOptOuts([tracked, other], [{ id: 's1', cohort_id: 'co1' }, { id: 's3', cohort_id: 'co2' }],
+      new Map([['s1|lp', 'fin']]));
+    expect([...out].sort()).toEqual(['s1|hr2']);
   });
 });

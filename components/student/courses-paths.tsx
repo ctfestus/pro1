@@ -828,7 +828,7 @@ export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }:
         {specs.map((spec, i) => {
           const selected = spec === active;
           return (
-            <button key={spec.name} role="tab" aria-selected={selected} onClick={() => setIdx(i)}
+            <button key={i} role="tab" aria-selected={selected} onClick={() => setIdx(i)}
               className="rounded-full px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90"
               style={{ background: selected ? C.cta : tabIdle, color: selected ? C.ctaText : textColor }}>
               {spec.name}
@@ -839,7 +839,7 @@ export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }:
       {active.description && (
         <p className="mb-4 px-1 text-sm" style={{ color: mutedColor }}>{active.description}</p>
       )}
-      <PathRow key={active.name} path={pathWithItems(path, active.itemIds)} C={C} publicPreview hideHeader />
+      <PathRow key={Math.min(idx, specs.length - 1)} path={pathWithItems(path, active.itemIds)} C={C} publicPreview hideHeader />
     </div>
   );
 }

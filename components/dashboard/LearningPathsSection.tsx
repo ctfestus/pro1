@@ -163,6 +163,12 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
       tools: cleanList(editing?.tools),
     };
     if (!editingToSave?.title?.trim()) { setSaveMsg({ ok: false, text: 'Title is required.' }); return; }
+    // An unnamed track is dropped on save, which would quietly make its items core for everyone.
+    if ((Array.isArray(editingToSave.tracks) ? editingToSave.tracks : []).some((t: any) => !String(t?.name ?? '').trim())) {
+      setLpSection('content');
+      setSaveMsg({ ok: false, text: 'Every track needs a name. Name it or remove it before saving.' });
+      return;
+    }
     setSaving(true);
     setSaveMsg(null);
 

@@ -198,7 +198,7 @@ describe('POST /api/learning-paths student read path', () => {
     // Every item is complete but the stored progress was never finalized (no completed_at /
     // cert_id) -- the route must schedule the completion reconciliation for this path.
     expect(mockReconcile).toHaveBeenCalledWith(
-      h.db, 's1', expect.objectContaining({ id: 'lp1', item_ids: ['cert1'] }), ['cert1'],
+      h.db, 's1', expect.objectContaining({ id: 'lp1', item_ids: ['cert1'] }), ['cert1'], null,
     );
   });
 
@@ -467,6 +467,15 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
       tracks: [{ ...tracked.tracks[0], item_ids: ['fin', 'fin2'] }, tracked.tracks[1]],
     });
     expect(res.status).toBe(200);
+  });
+
+  it('never locks a path on a completer who has no track on a path with tracks', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: [{ data: tracked, error: null }, { data: null, error: null }],
+      learning_path_progress: { data: [{ track_id: null }], error: null },
+    });
+    expect((await post({ action: 'update', id: 'lp1', title: 'Renamed', item_ids: tracked.item_ids, tracks: tracked.tracks })).status).toBe(200);
   });
 
   it('allows a track change that keeps every completer\'s track', async () => {
