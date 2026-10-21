@@ -157,31 +157,40 @@ export async function POST(req: NextRequest) {
     if (!prev) return NextResponse.json({ error: 'Learning path not found' }, { status: 404 });
 
     // A completed path keeps the track its certificate was issued for, and its learner can no
-    // longer change track. So a track change must leave every completer's track in place: adding
-    // the first tracks to a path completed without one would ask them for a track they can never
-    // pick, and removing a track someone completed on (including removing the last one, which
-    // turns every former specialization into required content) would rewrite a finished path
-    // under a certificate already issued.
-    if (tracks !== undefined) {
-      const nextTracks = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
-      if (nextTracks.length > 0 || pathTracks(prev).length > 0) {
+    // longer change track. So on a path with tracks (before or after this save), no change may
+    // alter what a completer was required to take: not adding the first tracks (they would be
+    // asked for a track they can never pick), not removing their track (including the last one,
+    // which makes every former specialization required), and not moving items into or out of
+    // their track or the core while keeping the track's id. Each completer's required items are
+    // compared before and after, so every one of those is caught the same way.
+    if (tracks !== undefined || item_ids !== undefined) {
+      const nextShape = {
+        item_ids: item_ids ?? prev.item_ids ?? [],
+        tracks: tracks !== undefined ? tracks : prev.tracks,
+      };
+      if (pathTracks(nextShape).length > 0 || pathTracks(prev).length > 0) {
         const { data: completers, error: completersError } = await supabase.from('learning_path_progress')
           .select('track_id')
           .eq('learning_path_id', id)
           .not('completed_at', 'is', null);
         if (completersError) { console.error('[learning-paths] update completers error:', completersError); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
-        const kept = new Set(nextTracks.map(t => t.id));
-        const stranded = (completers ?? []).filter((c: any) => nextTracks.length > 0
-          ? !c.track_id || !kept.has(c.track_id)
-          : !!c.track_id);
+        const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every(x => b.includes(x));
+        const changed = new Map<string | null, boolean>();
+        const affects = (trackId: string | null) => {
+          if (!changed.has(trackId)) {
+            const before = needsTrack(prev, trackId) ? null : requiredItemIds(prev, trackId);
+            const after = needsTrack(nextShape, trackId) ? null : requiredItemIds(nextShape, trackId);
+            changed.set(trackId, !before || !after || !sameSet(before, after));
+          }
+          return changed.get(trackId)!;
+        };
+        const stranded = (completers ?? []).filter((c: any) => affects(c.track_id ?? null));
         if (stranded.length > 0) {
           const prevNames = new Map(pathTracks(prev).map(t => [t.id, t.name] as [string, string]));
-          const removed = [...new Set(stranded.map((c: any) => c.track_id && prevNames.get(c.track_id)).filter(Boolean))];
+          const names = [...new Set(stranded.map((c: any) => (c.track_id && prevNames.get(c.track_id)) || 'the core'))];
           const who = `${stranded.length} learner${stranded.length === 1 ? ' has' : 's have'} already completed this path`;
           return NextResponse.json({
-            error: removed.length
-              ? `This change removes a track that ${who} on (${removed.join(', ')}). Keep that track, or create a new path.`
-              : `Tracks cannot be added: ${who}. Create a new path with tracks instead.`,
+            error: `This change alters what ${who} on was required to take (${names.join(', ')}). Undo that change, or create a new path.`,
           }, { status: 409 });
         }
       }

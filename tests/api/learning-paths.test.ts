@@ -379,7 +379,7 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
     });
     const res = await post({ action: 'update', id: 'lp1', tracks: tracked.tracks });
     expect(res.status).toBe(409);
-    expect((await res.json()).error).toMatch(/Create a new path/);
+    expect((await res.json()).error).toMatch(/create a new path/i);
   });
 
   it('409s when removing a track a learner completed on', async () => {
@@ -413,13 +413,69 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
     expect((await post({ action: 'update', id: 'lp1', tracks: [] })).status).toBe(200);
   });
 
+  it('409s when a completer\'s track keeps its id but loses its items', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: tracked, error: null },
+      learning_path_progress: { data: [{ track_id: 'hr' }], error: null },
+    });
+    // HR keeps its id, but its item moves to Finance: an HR completer would no longer have it required.
+    const res = await post({ action: 'update', id: 'lp1', tracks: [{ ...tracked.tracks[0], item_ids: ['fin', 'hr'] }, { ...tracked.tracks[1], item_ids: [] }] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/HR/);
+  });
+
+  it('409s when another track\'s cleared item becomes core for a completer', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: tracked, error: null },
+      learning_path_progress: { data: [{ track_id: 'hr' }], error: null },
+    });
+    // Finance's item leaves its track, so it is core and now required of an HR completer.
+    const res = await post({ action: 'update', id: 'lp1', tracks: [{ ...tracked.tracks[0], item_ids: [] }, tracked.tracks[1]] });
+    expect(res.status).toBe(409);
+  });
+
+  it('409s when an item moves out of the core a completer took', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: tracked, error: null },
+      learning_path_progress: { data: [{ track_id: 'fin' }], error: null },
+    });
+    // 'core' moves into HR: a Finance completer no longer had it required.
+    const res = await post({ action: 'update', id: 'lp1', tracks: [tracked.tracks[0], { ...tracked.tracks[1], item_ids: ['hr', 'core'] }] });
+    expect(res.status).toBe(409);
+  });
+
+  it('409s when an item list change alone alters a completer\'s requirements', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: tracked, error: null },
+      learning_path_progress: { data: [{ track_id: 'hr' }], error: null },
+    });
+    expect((await post({ action: 'update', id: 'lp1', item_ids: ['core', 'fin', 'hr', 'new-core'] })).status).toBe(409);
+  });
+
+  it('allows adding an item to a track no completer is on', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: [{ data: tracked, error: null }, { data: null, error: null }],
+      learning_path_progress: { data: [{ track_id: 'hr' }], error: null },
+    });
+    const res = await post({
+      action: 'update', id: 'lp1', item_ids: ['core', 'fin', 'hr', 'fin2'],
+      tracks: [{ ...tracked.tracks[0], item_ids: ['fin', 'fin2'] }, tracked.tracks[1]],
+    });
+    expect(res.status).toBe(200);
+  });
+
   it('allows a track change that keeps every completer\'s track', async () => {
     mockRole.mockResolvedValue(instructor as any);
     h.db = makeSupabaseStub({
       learning_paths: [{ data: tracked, error: null }, { data: null, error: null }],
       learning_path_progress: { data: [{ track_id: 'hr' }], error: null },
     });
-    const res = await post({ action: 'update', id: 'lp1', tracks: [{ ...tracked.tracks[1], name: 'People & HR' }] });
+    const res = await post({ action: 'update', id: 'lp1', tracks: [tracked.tracks[0], { ...tracked.tracks[1], name: 'People & HR' }] });
     expect(res.status).toBe(200);
   });
 });

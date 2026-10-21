@@ -353,32 +353,35 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   // A dropped request on a phone must never leave the skeleton up forever, and it must never
   // read as "no paths assigned" -- the empty state below is only for a successful empty list.
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  // silent: refresh in place (after a track choice) without swapping the path for the skeleton,
+  // which would unmount it and lose the drop-in reveal.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) { setLoading(true); setError(''); }
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) { setError(LOAD_ERROR_SERVER); return; }
+      if (!session?.access_token) { if (!silent) setError(LOAD_ERROR_SERVER); return; }
       const res = await fetch('/api/learning-paths', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ action: 'get-student-paths' }),
       });
-      if (!res.ok) { setError(LOAD_ERROR_SERVER); return; }
+      if (!res.ok) { if (!silent) setError(LOAD_ERROR_SERVER); return; }
       const { paths: p, student_name } = await res.json();
       setPaths(p ?? []);
       setLearnerName(student_name ?? null);
     } catch {
       // fetch itself rejected: connection dropped, request cancelled, or timed out.
-      setError(LOAD_ERROR_NETWORK);
+      if (!silent) setError(LOAD_ERROR_NETWORK);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  const reloadInPlace = useCallback(() => load({ silent: true }), [load]);
 
-  // Throws with a message the picker shows; on success the reload returns the learner's own path.
+  // Saves only, and throws with a message the picker shows. The picker reloads (reloadInPlace)
+  // once its pause is over, so the path cannot appear under the typing indicator.
   const chooseTrack = useCallback(async (pathId: string, trackId: string) => {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session?.access_token) throw new Error(LOAD_ERROR_SERVER);
@@ -391,8 +394,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
       const json = await res.json().catch(() => ({}));
       throw new Error(json.error ?? 'Could not save your track. Please try again.');
     }
-    await load();
-  }, [load]);
+  }, []);
 
   useEffect(() => {
     if (!selectedPathId) { setLockedPath(null); return; }
@@ -451,7 +453,8 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   if (selectedPath) return (
     <div>
-      <PathRow path={selectedPath} C={C} learnerName={learnerName} onChooseTrack={trackId => chooseTrack(selectedPath.id, trackId)}/>
+      <PathRow path={selectedPath} C={C} learnerName={learnerName}
+        onChooseTrack={trackId => chooseTrack(selectedPath.id, trackId)} onTrackSaved={reloadInPlace}/>
     </div>
   );
 
@@ -463,7 +466,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
         <AlertCircle className="w-7 h-7" style={{ color: C.faint }}/>
       </div>
       <p className="font-semibold text-base mb-1" style={{ color: C.text }}>{error}</p>
-      <button onClick={load} className="mt-5 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Retry</button>
+      <button onClick={() => load()} className="mt-5 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Retry</button>
     </div>
   );
 
@@ -671,9 +674,9 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
 // tracks as answers. Until a track is picked the path's content stays hidden (PathRow), and once
 // one is picked the timeline drops in item by item. After that it is a one-line summary with a
 // Change control, until the path is finished and the track is fixed.
-function TrackPicker({ path, C, onChoose, finished, learnerName, onRevealed }: {
-  path: any; C: typeof LIGHT_C; onChoose: (trackId: string) => Promise<void>; finished: boolean;
-  learnerName: string | null; onRevealed: () => void;
+function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onRevealed }: {
+  path: any; C: typeof LIGHT_C; onChoose: (trackId: string) => Promise<void>; onSaved: () => Promise<void>;
+  finished: boolean; learnerName: string | null; onRevealed: () => void;
 }) {
   const { appName } = useTenant();
   const tracks: { id: string; name: string; description: string | null; item_count: number }[] = path.tracks ?? [];
@@ -689,9 +692,11 @@ function TrackPicker({ path, C, onChoose, finished, learnerName, onRevealed }: {
     setPicked(track);
     setError('');
     try {
-      // A short beat so the answer reads as heard before the path appears.
+      // Save during a short beat, so the answer reads as heard. The path is only reloaded once
+      // both are done, and the reveal is armed first, so the content mounts with its drop-in.
       await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, 900))]);
       onRevealed();
+      await onSaved();
       setOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save your track. Please try again.');
@@ -840,12 +845,14 @@ export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }:
 }
 
 // One learning path rendered as an ordered, open-access course timeline.
-export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack, learnerName = null, hideCredential = false }: {
+export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack, onTrackSaved, learnerName = null, hideCredential = false }: {
   path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean;
   /** A partial segment (the core of a path with specializations): the credential comes once, after the last segment. */
   hideCredential?: boolean;
   /** Learner view of a path with tracks: save the learner's track choice. */
   onChooseTrack?: (trackId: string) => Promise<void>;
+  /** Reload the learner's paths after a track choice is saved. */
+  onTrackSaved?: () => Promise<void>;
   learnerName?: string | null;
 }) {
   // Set once the learner answers the track question, so their path drops in item by item.
@@ -925,7 +932,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
       )}
 
       {!publicPreview && !path.locked && onChooseTrack && (path.tracks ?? []).length > 0 && (
-        <TrackPicker path={path} C={C} onChoose={onChooseTrack} finished={allDone || !!pathCertId}
+        <TrackPicker path={path} C={C} onChoose={onChooseTrack} onSaved={onTrackSaved ?? (async () => {})} finished={allDone || !!pathCertId}
           learnerName={learnerName} onRevealed={() => setRevealing(true)}/>
       )}
 
