@@ -106,3 +106,14 @@ describe('sendPathNotification', () => {
     expect(args?.specializations).toEqual(['Finance', 'HR']);
   });
 });
+
+describe('sendPathNotification fails closed on the saved path', () => {
+  it('sends nothing when the saved path cannot be read', async () => {
+    const db = makeSupabaseStub({
+      learning_paths: { data: null, error: { message: 'down' } },
+      students: { data: studentRows(2), error: null },
+    });
+    await expect(sendPathNotification(db as any, { ...path, item_ids: ['a', 'b'] }, ['co1'])).rejects.toBeTruthy();
+    expect(batchSend).not.toHaveBeenCalled();
+  });
+});

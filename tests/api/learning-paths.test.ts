@@ -341,3 +341,65 @@ describe('POST /api/learning-paths student read path', () => {
     expect(stub.reads('virtual_experiences')).toBe(2);
   });
 });
+
+describe('POST /api/learning-paths update: tracks and completed learners', () => {
+  const tracked = {
+    status: 'draft', cohort_ids: [], item_ids: ['core', 'fin', 'hr'],
+    tracks: [{ id: 'fin', name: 'Finance', item_ids: ['fin'] }, { id: 'hr', name: 'HR', item_ids: ['hr'] }],
+  };
+
+  it('404s for a path the instructor does not own, revealing nothing about it', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({ learning_paths: { data: null, error: null } });
+    const res = await post({ action: 'update', id: 'lp-other', tracks: [{ id: 'fin', name: 'Finance', item_ids: [] }] });
+    expect(res.status).toBe(404);
+    expect(JSON.stringify(await res.json())).not.toMatch(/learner/);
+  });
+
+  it('500s when the path lookup fails', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({ learning_paths: { data: null, error: { message: 'down' } } });
+    expect((await post({ action: 'update', id: 'lp1', title: 'P' })).status).toBe(500);
+  });
+
+  it('500s when the completed-learner check fails, instead of saving', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: tracked, error: null },
+      learning_path_progress: { data: null, error: { message: 'down' } },
+    });
+    expect((await post({ action: 'update', id: 'lp1', tracks: tracked.tracks })).status).toBe(500);
+  });
+
+  it('409s when adding the first tracks to a path someone completed without one', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: { ...tracked, tracks: [] }, error: null },
+      learning_path_progress: { data: [{ track_id: null }], error: null },
+    });
+    const res = await post({ action: 'update', id: 'lp1', tracks: tracked.tracks });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/Create a new path/);
+  });
+
+  it('409s when removing a track a learner completed on', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: tracked, error: null },
+      learning_path_progress: { data: [{ track_id: 'fin' }, { track_id: 'hr' }], error: null },
+    });
+    const res = await post({ action: 'update', id: 'lp1', tracks: [tracked.tracks[1]] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/Finance/);
+  });
+
+  it('allows a track change that keeps every completer\'s track', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: [{ data: tracked, error: null }, { data: null, error: null }],
+      learning_path_progress: { data: [{ track_id: 'hr' }], error: null },
+    });
+    const res = await post({ action: 'update', id: 'lp1', tracks: [{ ...tracked.tracks[1], name: 'People & HR' }] });
+    expect(res.status).toBe(200);
+  });
+});

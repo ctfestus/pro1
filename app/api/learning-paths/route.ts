@@ -146,22 +146,40 @@ export async function POST(req: NextRequest) {
             overview, skills, who_should_take, tools, tracks } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
-    // Fetch previous state to detect newly published or newly added cohorts
-    const { data: prev } = await supabase.from('learning_paths').select('status, cohort_ids, item_ids, tracks').eq('id', id).single();
+    // Fetch previous state to detect newly published or newly added cohorts. Scoped to the owner,
+    // like the write below: nothing about another instructor's path is read or revealed.
+    const { data: prev, error: prevError } = await supabase.from('learning_paths')
+      .select('status, cohort_ids, item_ids, tracks')
+      .eq('id', id)
+      .eq('instructor_id', user.id)
+      .maybeSingle();
+    if (prevError) { console.error('[learning-paths] update lookup error:', prevError); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    if (!prev) return NextResponse.json({ error: 'Learning path not found' }, { status: 404 });
 
-    // Turning a path someone has already completed into a path with tracks would leave them with
-    // a finished path that now asks for a track they can never pick (a completed path keeps its
-    // track). Build a new path with tracks instead.
-    if (tracks !== undefined && normalizeTracks(tracks, item_ids ?? prev?.item_ids ?? []).length > 0
-        && pathTracks(prev ?? {}).length === 0) {
-      const { count: completers } = await supabase.from('learning_path_progress')
-        .select('id', { count: 'exact', head: true })
-        .eq('learning_path_id', id)
-        .not('completed_at', 'is', null);
-      if ((completers ?? 0) > 0) {
-        return NextResponse.json({
-          error: `Tracks cannot be added: ${completers} learner${completers === 1 ? ' has' : 's have'} already completed this path. Create a new path with tracks instead.`,
-        }, { status: 409 });
+    // A completed path keeps the track its certificate was issued for, and its learner can no
+    // longer change track. So a track change must leave every completer's track in place: adding
+    // the first tracks to a path completed without one, or removing a track someone completed on,
+    // would leave them on a finished path that asks for a track they can never pick.
+    if (tracks !== undefined) {
+      const nextTracks = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
+      if (nextTracks.length > 0) {
+        const { data: completers, error: completersError } = await supabase.from('learning_path_progress')
+          .select('track_id')
+          .eq('learning_path_id', id)
+          .not('completed_at', 'is', null);
+        if (completersError) { console.error('[learning-paths] update completers error:', completersError); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+        const kept = new Set(nextTracks.map(t => t.id));
+        const stranded = (completers ?? []).filter((c: any) => !c.track_id || !kept.has(c.track_id));
+        if (stranded.length > 0) {
+          const prevNames = new Map(pathTracks(prev).map(t => [t.id, t.name] as [string, string]));
+          const removed = [...new Set(stranded.map((c: any) => c.track_id && prevNames.get(c.track_id)).filter(Boolean))];
+          const who = `${stranded.length} learner${stranded.length === 1 ? ' has' : 's have'} already completed this path`;
+          return NextResponse.json({
+            error: removed.length
+              ? `This change removes a track that ${who} on (${removed.join(', ')}). Keep that track, or create a new path.`
+              : `Tracks cannot be added: ${who}. Create a new path with tracks instead.`,
+          }, { status: 409 });
+        }
       }
     }
 
@@ -173,7 +191,7 @@ export async function POST(req: NextRequest) {
     if (item_ids        !== undefined) updateData.item_ids        = item_ids;
     // Tracks may only name items in the path, so they are cleaned against the item list being
     // saved (or the stored one when the request leaves items alone).
-    if (tracks          !== undefined) updateData.tracks          = normalizeTracks(tracks, item_ids ?? prev?.item_ids ?? []);
+    if (tracks          !== undefined) updateData.tracks          = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
     if (overview        !== undefined) updateData.overview        = overview ?? null;
     if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
     if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];

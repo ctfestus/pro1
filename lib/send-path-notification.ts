@@ -60,8 +60,13 @@ export async function sendPathNotification(
   // Tracks are read from the saved row rather than trusted from the caller (every caller notifies
   // after its write commits). On a path with tracks nobody has picked one yet, so the email lists
   // the core only and names the specializations, never one track's content as required.
-  const { data: saved } = await supabase.from('learning_paths').select('item_ids, tracks').eq('id', lp.id).maybeSingle();
-  const pathShape = { item_ids: saved?.item_ids ?? lp.item_ids ?? [], tracks: saved?.tracks ?? [] };
+  // Fails closed: without the saved tracks the email cannot tell core from track content, so a
+  // failed read throws (callers report it as a notification failure) instead of falling back to
+  // the full item list.
+  const { data: saved, error: savedError } = await supabase.from('learning_paths').select('item_ids, tracks').eq('id', lp.id).maybeSingle();
+  if (savedError) throw savedError;
+  if (!saved) throw new Error(`Learning path ${lp.id} not found`);
+  const pathShape = { item_ids: saved.item_ids ?? [], tracks: saved.tracks ?? [] };
   const specializations = pathTracks(pathShape).map(t => t.name);
   const itemIds: string[] = requiredItemIds(pathShape, null);
   const [{ data: coursesRaw }, { data: vesRaw }, { data: certsRaw }] = itemIds.length
