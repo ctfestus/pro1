@@ -423,6 +423,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
               content_type: pathItem.type,
             })),
             locked: true,
+            specializations: item.specializations ?? [],
           });
         }
       } catch {
@@ -438,6 +439,15 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   const selectedPath = paths.find((path: any) => path.id === selectedPathId)
     ?? (lockedPath?.id === selectedPathId ? lockedPath : null);
+
+  if (selectedPath?.locked && (selectedPath.specializations ?? []).length > 0) return (
+    <div className="space-y-4">
+      <PathRow path={pathCoreOnly(selectedPath)} C={C}/>
+      <section className="rounded-[22px] p-5 sm:p-7" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+        <PathSpecializations path={selectedPath} C={C} textColor={C.text} mutedColor={C.muted} tabIdle={C.pill}/>
+      </section>
+    </div>
+  );
 
   if (selectedPath) return (
     <div>
@@ -768,6 +778,63 @@ function TrackPicker({ path, C, onChoose, finished, learnerName, onRevealed }: {
       {current && !picked && (
         <button onClick={() => setOpen(false)} className="self-start text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
       )}
+    </div>
+  );
+}
+
+// A path with tracks, as shown before anyone has picked one (the public overview, the locked
+// preview): the core everyone takes, then the specializations to choose from. Shared so the two
+// views cannot drift apart. `specializations` comes from pathOverviewFields.
+type PathSpecializationView = { name: string; description: string | null; itemIds: string[] };
+
+function pathWithItems(path: any, ids: string[]) {
+  const keep = new Set(ids);
+  const items = (path.items ?? []).filter((item: any) => keep.has(item.id));
+  return { ...path, items, item_ids: items.map((item: any) => item.id) };
+}
+
+/** The core part of a path with specializations; the path itself when it has none. */
+export function pathCoreOnly(path: any) {
+  const specs: PathSpecializationView[] = path.specializations ?? [];
+  if (!specs.length) return path;
+  const inSpecialization = new Set(specs.flatMap(s => s.itemIds));
+  return pathWithItems(path, (path.item_ids ?? []).filter((id: string) => !inSpecialization.has(id)));
+}
+
+/** "Then choose your specialization": one tab per specialization, showing what it adds. */
+export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }: {
+  path: any; C: typeof LIGHT_C; textColor: string; mutedColor: string; tabIdle: string;
+}) {
+  const specs: PathSpecializationView[] = path.specializations ?? [];
+  const [idx, setIdx] = useState(0);
+  const active = specs[Math.min(idx, specs.length - 1)];
+  if (!active) return null;
+  return (
+    <div className="mt-9">
+      <div className="mb-5 px-1">
+        <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: textColor }}>
+          Then choose your specialization
+        </h2>
+        <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: mutedColor }}>
+          Take your expertise further with learning tailored to your field. You pick one when you start the path.
+        </p>
+      </div>
+      <div role="tablist" aria-label="Specializations" className="mb-5 flex flex-wrap gap-2 px-1">
+        {specs.map((spec, i) => {
+          const selected = spec === active;
+          return (
+            <button key={spec.name} role="tab" aria-selected={selected} onClick={() => setIdx(i)}
+              className="rounded-full px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90"
+              style={{ background: selected ? C.cta : tabIdle, color: selected ? C.ctaText : textColor }}>
+              {spec.name}
+            </button>
+          );
+        })}
+      </div>
+      {active.description && (
+        <p className="mb-4 px-1 text-sm" style={{ color: mutedColor }}>{active.description}</p>
+      )}
+      <PathRow key={active.name} path={pathWithItems(path, active.itemIds)} C={C} publicPreview hideHeader />
     </div>
   );
 }

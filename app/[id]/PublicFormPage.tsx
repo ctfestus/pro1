@@ -20,7 +20,7 @@ import { getFontById } from '@/lib/fonts';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
-import { PathRow } from '@/components/student/courses-paths';
+import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
 import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/ve/guide';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
@@ -574,16 +574,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   const tools: string[] = path.tools ?? [];
   // A path with tracks is sold as core + one specialization the learner picks, so the outline
   // shows the core, then the specializations to choose from, rather than every item as required.
-  const specializations: { name: string; description: string | null; itemIds: string[] }[] = path.specializations ?? [];
-  const [specIdx, setSpecIdx] = useState(0);
-  const inSpecialization = new Set(specializations.flatMap(s => s.itemIds));
-  const pathWith = (ids: string[]) => {
-    const keep = new Set(ids);
-    const items = (path.items ?? []).filter((item: any) => keep.has(item.id));
-    return { ...path, items, item_ids: items.map((item: any) => item.id) };
-  };
-  const corePath = pathWith((path.item_ids ?? []).filter((id: string) => !inSpecialization.has(id)));
-  const activeSpec = specializations[Math.min(specIdx, specializations.length - 1)] ?? null;
+  const hasSpecializations = (path.specializations ?? []).length > 0;
   // Authored as rich text, so it is rendered rather than stripped. The plain-text flattening
   // that used to live here silently dropped every list and emphasis an author had added.
   const description: string = (path.description ?? '').trim();
@@ -764,47 +755,17 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
           <div className="mx-4 border-t px-0 pb-7 pt-7 sm:mx-9 sm:pb-9" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)' }}>
             <div className="mb-5 px-1 sm:mb-6">
               <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>
-                {specializations.length > 0 ? 'Core courses' : 'Content in this learning path'}
+                {hasSpecializations ? 'Core courses' : 'Content in this learning path'}
               </h2>
               <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: panelMuted }}>
-                {specializations.length > 0
+                {hasSpecializations
                   ? 'Everyone builds essential skills through these core courses first.'
                   : 'Level up your skills with this curated, hands-on content.'}
               </p>
             </div>
-            <PathRow path={specializations.length > 0 ? corePath : path} C={C} publicPreview hideHeader />
-
-            {activeSpec && (
-              <div className="mt-9">
-                <div className="mb-5 px-1">
-                  <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>
-                    Then choose your specialization
-                  </h2>
-                  <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: panelMuted }}>
-                    Take your expertise further with learning tailored to your field. You pick one when you start the path.
-                  </p>
-                </div>
-                <div role="tablist" aria-label="Specializations" className="mb-5 flex flex-wrap gap-2 px-1">
-                  {specializations.map((spec, i) => {
-                    const active = spec === activeSpec;
-                    return (
-                      <button key={spec.name} role="tab" aria-selected={active} onClick={() => setSpecIdx(i)}
-                        className="rounded-full px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90"
-                        style={{
-                          background: active ? C.cta : (isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.05)'),
-                          color: active ? C.ctaText : panelText,
-                        }}>
-                        {spec.name}
-                      </button>
-                    );
-                  })}
-                </div>
-                {activeSpec.description && (
-                  <p className="mb-4 px-1 text-sm" style={{ color: panelMuted }}>{activeSpec.description}</p>
-                )}
-                <PathRow key={activeSpec.name} path={pathWith(activeSpec.itemIds)} C={C} publicPreview hideHeader />
-              </div>
-            )}
+            <PathRow path={pathCoreOnly(path)} C={C} publicPreview hideHeader />
+            <PathSpecializations path={path} C={C} textColor={panelText} mutedColor={panelMuted}
+              tabIdle={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.05)'}/>
           </div>
         </div>
       </div>
