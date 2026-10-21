@@ -23,6 +23,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import type { QuestionType, DownloadItem, CourseQuestion } from '@/lib/course-schema';
 import { linkedInSharePointsFor } from '@/lib/course-schema';
 import { courseProgressCounts, answeredScorableCount, completedLessonCount, courseContentCounts } from '@/lib/course-progress';
+import type { CourseRankResult } from '@/lib/course-rank';
 import { preflightLinkedInPostUrl } from '@/lib/linkedin-post-url';
 import { saveMyLinkedInProfileUrl, shareClaimErrorMessage } from '@/lib/linkedin-profile';
 import { sanitizeRichText } from '@/lib/sanitize';
@@ -366,7 +367,7 @@ export function CourseTaker({
   const answersRef  = useRef<Record<string, string>>({});
 
   // Leaderboard rank context (shown on result screen)
-  const [rankCtx, setRankCtx] = useState<{ above: any; me: any; below: any; rank: number; total: number } | null>(null);
+  const [rankCtx, setRankCtx] = useState<Extract<CourseRankResult, { eligible: true }> | null>(null);
 
   // Existing certificate (student already completed this course)
   const [existingCertId, setExistingCertId] = useState<string | null>(null);
@@ -1347,42 +1348,24 @@ export function CourseTaker({
   }, [totalPoints, displayedPoints]);
 
   // -- Fetch leaderboard rank when result appears --
+  // Ranked server-side within the student's bootcamp cohort: course_attempts RLS only lets a
+  // student read their own rows, so a browser query here always produced "#1 out of 1".
   useEffect(() => {
-    if (!isSuccess || !formId || !studentEmail) return;
-    supabase
-      .from('course_attempts')
-      .select('student_id, score, points, passed, students(email, full_name)')
-      .eq('course_id', formId)
-      .not('completed_at', 'is', null)
-      .then(({ data }) => {
-        if (!data) return;
-        // Keep best attempt per student
-        const byEmail = new Map<string, any>();
-        for (const r of data) {
-          const email = ((r.students as any)?.email || '').toLowerCase();
-          const name  = (r.students as any)?.full_name || email;
-          const entry = { email, name, percentage: r.score ?? 0, points: r.points ?? 0, passed: r.passed };
-          const existing = byEmail.get(email);
-          if (!existing || (entry.percentage > existing.percentage)) {
-            byEmail.set(email, entry);
-          }
-        }
-        const sorted = Array.from(byEmail.values()).sort((a, b) => {
-          const d = b.percentage - a.percentage;
-          return d !== 0 ? d : (b.points ?? 0) - (a.points ?? 0);
-        });
-        const myKey = studentEmail.trim().toLowerCase();
-        const idx   = sorted.findIndex(d => d.email === myKey);
-        if (idx === -1) return;
-        setRankCtx({
-          rank:  idx + 1,
-          total: sorted.length,
-          above: idx > 0                  ? sorted[idx - 1] : null,
-          me:    sorted[idx],
-          below: idx < sorted.length - 1  ? sorted[idx + 1] : null,
-        });
-      });
-  }, [isSuccess, formId, studentEmail]);
+    if (!isSuccess || !formId) return;
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session?.access_token) return;
+      fetch(`/api/course-rank?course_id=${encodeURIComponent(formId)}`, {
+        headers: { Authorization: `Bearer ${session.access_token}` },
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then((res: CourseRankResult | null) => {
+          if (!cancelled && res?.eligible) setRankCtx(res);
+        })
+        .catch(() => {});
+    });
+    return () => { cancelled = true; };
+  }, [isSuccess, formId]);
 
   // -- Smart course recommendations (fetch when student passes) --
   const [recommendations, setRecommendations] = useState<any[]>([]);
@@ -1634,9 +1617,8 @@ export function CourseTaker({
               {/* One above */}
               {rankCtx.above && (
                 <div className={`flex items-center gap-3 px-4 py-3 ${isDark ? 'border-b border-zinc-700/40' : 'border-b border-zinc-200/60'}`}>
-                  <span className={`text-[11px] font-bold w-5 tabular-nums text-right ${mutedColor}`}>{rankCtx.rank - 1}</span>
+                  <span className={`text-[11px] font-bold w-5 tabular-nums text-right ${mutedColor}`}>{rankCtx.above.rank}</span>
                   <span className={`text-sm flex-1 truncate ${mutedColor}`}>{rankCtx.above.name || 'Anonymous'}</span>
-                  <span className={`text-xs font-semibold tabular-nums ${mutedColor}`}>{rankCtx.above.percentage ?? 0}%</span>
                 </div>
               )}
 
@@ -1650,15 +1632,14 @@ export function CourseTaker({
                   {rankCtx.me.name || 'You'}
                   <span className={`ml-1.5 text-[10px] font-normal px-1.5 py-0.5 rounded-md ${isDark ? 'bg-zinc-700 text-[#A8B5C2]' : 'bg-zinc-200 text-[#555555]'}`}>you</span>
                 </span>
-                <span className="text-sm font-bold tabular-nums" style={{ color: accent }}>{rankCtx.me.percentage ?? 0}%</span>
+                <span className="text-sm font-bold tabular-nums" style={{ color: accent }}>{rankCtx.me.score}%</span>
               </div>
 
               {/* One below */}
               {rankCtx.below && (
                 <div className="flex items-center gap-3 px-4 py-3">
-                  <span className={`text-[11px] font-bold w-5 tabular-nums text-right ${mutedColor}`}>{rankCtx.rank + 1}</span>
+                  <span className={`text-[11px] font-bold w-5 tabular-nums text-right ${mutedColor}`}>{rankCtx.below.rank}</span>
                   <span className={`text-sm flex-1 truncate ${mutedColor}`}>{rankCtx.below.name || 'Anonymous'}</span>
-                  <span className={`text-xs font-semibold tabular-nums ${mutedColor}`}>{rankCtx.below.percentage ?? 0}%</span>
                 </div>
               )}
             </div>
