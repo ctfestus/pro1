@@ -796,7 +796,8 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
   // joins the numbered steps, and a line too faint to see there left the steps floating.
   const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
   const isLight = C.page === LIGHT_C.page;
-  // Until a track is chosen the content is not shown: the question comes first.
+  // Until a track is chosen no path content is shown, not even the current step: the question
+  // comes first.
   const awaitingTrack = !publicPreview && !path.locked && !!onChooseTrack && path.needs_track === true;
 
   return (
@@ -818,7 +819,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                   <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
                 </span>
               )}
-              {!publicPreview && !path.locked && currentIndex >= 0 && !allDone && (
+              {!publicPreview && !path.locked && !awaitingTrack && currentIndex >= 0 && !allDone && (
                 <motion.span key={items[currentIndex]?.id ?? currentIndex}
                   initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                   className="flex items-center gap-1.5 min-w-0 max-w-full">

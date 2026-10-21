@@ -7,7 +7,7 @@ import {
   courseCompletedNextUpEmail,
   learningPathAssignedEmail,
 } from '@/lib/email-templates';
-import { isPathComplete, requiredItemIds } from '@/lib/learning-path-tracks';
+import { isPathComplete, pathTracks, requiredItemIds } from '@/lib/learning-path-tracks';
 
 export async function updateLearningPathProgress(
   supabase: any,
@@ -193,7 +193,7 @@ async function runPathCompletionEffects(
     try {
       const { data: nextPath } = await supabase
         .from('learning_paths')
-        .select('id, cohort_ids, title, description, item_ids')
+        .select('id, cohort_ids, title, description, item_ids, tracks')
         .eq('id', path.next_path_id)
         .single();
       if (nextPath) {
@@ -216,7 +216,8 @@ async function runPathCompletionEffects(
             const t    = await getTenantSettings();
             const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
             const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-            const itemIds: string[] = nextPath.item_ids ?? [];
+            // Track-neutral, as for the cohort assignment email: core only, plus the specializations.
+            const itemIds: string[] = requiredItemIds(nextPath, null);
             const [{ data: courseItems }, { data: veItems }, { data: certItems }] = itemIds.length
               ? await Promise.all([
                   supabase.from('courses').select('id, title, cover_image, description').in('id', itemIds),
@@ -240,6 +241,7 @@ async function runPathCompletionEffects(
             const fallbackHtml = learningPathAssignedEmail({
                 name: studentRow.full_name ?? 'there', pathTitle: nextPath.title,
                 pathDescription: nextPath.description ?? undefined, dashboardUrl, items, branding,
+                specializations: pathTracks(nextPath).map(t => t.name),
               });
             const rendered = await applyEmailTemplate({ key: 'learning_path_assigned', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: nextPath.title, app_name: t.appName }, branding });
             const settled = await sendCertificateEmailOnce(supabase, {

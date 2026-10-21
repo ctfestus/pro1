@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { learningPathAssignedEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { applyEmailTemplate } from '@/lib/email-template-service';
+import { pathTracks, requiredItemIds } from '@/lib/learning-path-tracks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100;
@@ -56,7 +57,13 @@ export async function sendPathNotification(
   }
   if (!cohortIds.length) return { total: 0, sent: 0, failed: 0 };
 
-  const itemIds: string[] = lp.item_ids ?? [];
+  // Tracks are read from the saved row rather than trusted from the caller (every caller notifies
+  // after its write commits). On a path with tracks nobody has picked one yet, so the email lists
+  // the core only and names the specializations, never one track's content as required.
+  const { data: saved } = await supabase.from('learning_paths').select('item_ids, tracks').eq('id', lp.id).maybeSingle();
+  const pathShape = { item_ids: saved?.item_ids ?? lp.item_ids ?? [], tracks: saved?.tracks ?? [] };
+  const specializations = pathTracks(pathShape).map(t => t.name);
+  const itemIds: string[] = requiredItemIds(pathShape, null);
   const [{ data: coursesRaw }, { data: vesRaw }, { data: certsRaw }] = itemIds.length
     ? await Promise.all([
         supabase.from('courses').select('id, title, cover_image').in('id', itemIds),
@@ -116,6 +123,7 @@ export async function sendPathNotification(
         branding,
         reason,
         appName: t.appName,
+        specializations,
       });
       const rendered = await applyEmailTemplate({
         key: 'learning_path_assigned', fallbackSubject, fallbackHtml,

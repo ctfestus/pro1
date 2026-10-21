@@ -147,7 +147,23 @@ export async function POST(req: NextRequest) {
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
     // Fetch previous state to detect newly published or newly added cohorts
-    const { data: prev } = await supabase.from('learning_paths').select('status, cohort_ids, item_ids').eq('id', id).single();
+    const { data: prev } = await supabase.from('learning_paths').select('status, cohort_ids, item_ids, tracks').eq('id', id).single();
+
+    // Turning a path someone has already completed into a path with tracks would leave them with
+    // a finished path that now asks for a track they can never pick (a completed path keeps its
+    // track). Build a new path with tracks instead.
+    if (tracks !== undefined && normalizeTracks(tracks, item_ids ?? prev?.item_ids ?? []).length > 0
+        && pathTracks(prev ?? {}).length === 0) {
+      const { count: completers } = await supabase.from('learning_path_progress')
+        .select('id', { count: 'exact', head: true })
+        .eq('learning_path_id', id)
+        .not('completed_at', 'is', null);
+      if ((completers ?? 0) > 0) {
+        return NextResponse.json({
+          error: `Tracks cannot be added: ${completers} learner${completers === 1 ? ' has' : 's have'} already completed this path. Create a new path with tracks instead.`,
+        }, { status: 409 });
+      }
+    }
 
     const updateData: any = { updated_at: new Date().toISOString() };
     if (title           !== undefined) updateData.title           = title.trim();
