@@ -550,7 +550,11 @@ function ExploreMorePaths({ currentId, C }: { currentId: string; C: ReturnType<t
 function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
-  const items = path.items ?? [];
+  // On a path with specializations no learner takes every item: count the core, and name the
+  // specializations separately, rather than advertising all branches as one learner's total.
+  const specializationCount: number = (path.specializations ?? []).length;
+  const items = (specializationCount > 0 ? pathCoreOnly(path).items : path.items) ?? [];
+  const coreWord = specializationCount > 0 ? 'core ' : '';
   const courseCount = items.filter((item: any) => item.content_type === 'course').length;
   const virtualExperienceCount = items.filter((item: any) => item.content_type === 'virtual_experience').length;
   // Locked content sends people to the pricing page to choose a length, rather than quoting a
@@ -664,7 +668,18 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                     >
                       <MonitorPlay className="h-4 w-4" strokeWidth={2.1} />
                     </span>
-                    {courseCount} course{courseCount !== 1 ? 's' : ''}
+                    {courseCount} {coreWord}course{courseCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {specializationCount > 0 && (
+                  <span className={statPillClass} style={statPillStyle}>
+                    <span
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md"
+                      style={{ background: isDark ? 'rgba(62,147,255,0.18)' : '#eef4ff', color: isDark ? '#93c5fd' : '#344054' }}
+                    >
+                      <ListChecks className="h-4 w-4" strokeWidth={2.1} />
+                    </span>
+                    + {specializationCount} specialization{specializationCount !== 1 ? 's' : ''}
                   </span>
                 )}
                 {virtualExperienceCount > 0 && (
@@ -675,7 +690,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                     >
                       <Building2 className="h-4 w-4" strokeWidth={2.1} />
                     </span>
-                    {virtualExperienceCount} virtual experience{virtualExperienceCount !== 1 ? 's' : ''}
+                    {virtualExperienceCount} {coreWord}virtual experience{virtualExperienceCount !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
@@ -763,7 +778,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                   : 'Level up your skills with this curated, hands-on content.'}
               </p>
             </div>
-            <PathRow path={pathCoreOnly(path)} C={C} publicPreview hideHeader />
+            <PathRow path={pathCoreOnly(path)} C={C} publicPreview hideHeader hideCredential={hasSpecializations} />
             <PathSpecializations path={path} C={C} textColor={panelText} mutedColor={panelMuted}
               tabIdle={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.05)'}/>
           </div>

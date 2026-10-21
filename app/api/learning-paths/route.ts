@@ -158,18 +158,22 @@ export async function POST(req: NextRequest) {
 
     // A completed path keeps the track its certificate was issued for, and its learner can no
     // longer change track. So a track change must leave every completer's track in place: adding
-    // the first tracks to a path completed without one, or removing a track someone completed on,
-    // would leave them on a finished path that asks for a track they can never pick.
+    // the first tracks to a path completed without one would ask them for a track they can never
+    // pick, and removing a track someone completed on (including removing the last one, which
+    // turns every former specialization into required content) would rewrite a finished path
+    // under a certificate already issued.
     if (tracks !== undefined) {
       const nextTracks = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
-      if (nextTracks.length > 0) {
+      if (nextTracks.length > 0 || pathTracks(prev).length > 0) {
         const { data: completers, error: completersError } = await supabase.from('learning_path_progress')
           .select('track_id')
           .eq('learning_path_id', id)
           .not('completed_at', 'is', null);
         if (completersError) { console.error('[learning-paths] update completers error:', completersError); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
         const kept = new Set(nextTracks.map(t => t.id));
-        const stranded = (completers ?? []).filter((c: any) => !c.track_id || !kept.has(c.track_id));
+        const stranded = (completers ?? []).filter((c: any) => nextTracks.length > 0
+          ? !c.track_id || !kept.has(c.track_id)
+          : !!c.track_id);
         if (stranded.length > 0) {
           const prevNames = new Map(pathTracks(prev).map(t => [t.id, t.name] as [string, string]));
           const removed = [...new Set(stranded.map((c: any) => c.track_id && prevNames.get(c.track_id)).filter(Boolean))];

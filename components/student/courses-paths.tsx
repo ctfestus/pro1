@@ -442,7 +442,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   if (selectedPath?.locked && (selectedPath.specializations ?? []).length > 0) return (
     <div className="space-y-4">
-      <PathRow path={pathCoreOnly(selectedPath)} C={C}/>
+      <PathRow path={pathCoreOnly(selectedPath)} C={C} hideCredential/>
       <section className="rounded-[22px] p-5 sm:p-7" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
         <PathSpecializations path={selectedPath} C={C} textColor={C.text} mutedColor={C.muted} tabIdle={C.pill}/>
       </section>
@@ -840,8 +840,10 @@ export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }:
 }
 
 // One learning path rendered as an ordered, open-access course timeline.
-export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack, learnerName = null }: {
+export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack, learnerName = null, hideCredential = false }: {
   path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean;
+  /** A partial segment (the core of a path with specializations): the credential comes once, after the last segment. */
+  hideCredential?: boolean;
   /** Learner view of a path with tracks: save the learner's track choice. */
   onChooseTrack?: (trackId: string) => Promise<void>;
   learnerName?: string | null;
@@ -1069,6 +1071,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
             </motion.div>
           );
         })}
+        {!hideCredential && (
         <div className="relative flex gap-3 sm:gap-4">
           <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
             <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6" style={{ background: 'transparent' }}>
@@ -1105,6 +1108,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
             )}
           </div>
         </div>
+        )}
         </div>
       </div>
       </>)}

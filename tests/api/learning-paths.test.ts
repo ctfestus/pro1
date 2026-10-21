@@ -393,6 +393,26 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
     expect((await res.json()).error).toMatch(/Finance/);
   });
 
+  it('409s when removing the last track while someone completed on a track', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: { data: tracked, error: null },
+      learning_path_progress: { data: [{ track_id: 'hr' }], error: null },
+    });
+    const res = await post({ action: 'update', id: 'lp1', tracks: [] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/HR/);
+  });
+
+  it('allows removing every track when nobody completed on one', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({
+      learning_paths: [{ data: tracked, error: null }, { data: null, error: null }],
+      learning_path_progress: { data: [], error: null },
+    });
+    expect((await post({ action: 'update', id: 'lp1', tracks: [] })).status).toBe(200);
+  });
+
   it('allows a track change that keeps every completer\'s track', async () => {
     mockRole.mockResolvedValue(instructor as any);
     h.db = makeSupabaseStub({
