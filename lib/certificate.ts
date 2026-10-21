@@ -1,5 +1,6 @@
 import 'server-only';
 import { createClient } from '@supabase/supabase-js';
+import { chosenTrack, requiredItemIds } from '@/lib/learning-path-tracks';
 
 // Server-only loader for public certificate display data. Shared by the
 // /api/certificate route and the server-rendered /certificate/[id] page.
@@ -144,11 +145,20 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
 
   // Learning path certificate
   if (!cert.course_id && cert.learning_path_id) {
-    const { data: path } = await svc
-      .from('learning_paths')
-      .select('title, instructor_id, item_ids, cover_image, badge_image_url')
-      .eq('id', cert.learning_path_id)
-      .single();
+    const [{ data: pathRow }, { data: prog }] = await Promise.all([
+      svc.from('learning_paths')
+        .select('title, instructor_id, item_ids, tracks, cover_image, badge_image_url')
+        .eq('id', cert.learning_path_id)
+        .single(),
+      cert.student_id
+        ? svc.from('learning_path_progress').select('track_id')
+            .eq('learning_path_id', cert.learning_path_id).eq('student_id', cert.student_id).maybeSingle()
+        : Promise.resolve({ data: null }),
+    ]);
+    // On a path with tracks the certificate lists what this learner took (core + their track)
+    // and names the track.
+    const track = pathRow ? chosenTrack(pathRow, (prog as any)?.track_id) : null;
+    const path = pathRow ? { ...pathRow, item_ids: requiredItemIds(pathRow, track?.id) } : pathRow;
 
     const [{ data: rawSettings }, pathItemsResult] = await Promise.all([
       path?.instructor_id
@@ -178,7 +188,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
       status: 'ready',
       data: {
         ...base,
-        courseName:     path?.title ?? 'Learning Path',
+        courseName:     path?.title ? (track ? `${path.title}: ${track.name} track` : path.title) : 'Learning Path',
         certType:       'learning_path',
         badgeImageUrl:  (path as any)?.badge_image_url ?? null,
         pathItems,

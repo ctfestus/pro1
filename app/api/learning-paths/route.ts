@@ -6,6 +6,7 @@ import { reconcilePathCompletion } from '@/lib/learning-path-progress';
 import { countPathLearners } from '@/lib/learning-path-learners';
 import { courseProgressPct } from '@/lib/course-progress';
 import { veProgressPct } from '@/lib/ve-completion';
+import { normalizeTracks, pathTracks, chosenTrack, needsTrack, requiredItemIds, isPathComplete } from '@/lib/learning-path-tracks';
 
 function adminClient() {
   return createClient(
@@ -67,7 +68,7 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone,
-            overview, skills, who_should_take, tools } = body;
+            overview, skills, who_should_take, tools, tracks } = body;
     // Open access replaces cohort targeting rather than adding to it -- the database enforces the
     // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
     const openAccess = available_to_everyone === true;
@@ -91,6 +92,7 @@ export async function POST(req: NextRequest) {
       tools: Array.isArray(tools) ? tools : [],
       instructor_id: user.id,
       item_ids: item_ids ?? [],
+      tracks: normalizeTracks(tracks, item_ids ?? []),
       cohort_ids: targetCohorts,
       available_to_everyone: openAccess,
       status: status ?? 'draft',
@@ -141,11 +143,11 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone,
-            overview, skills, who_should_take, tools } = body;
+            overview, skills, who_should_take, tools, tracks } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
 
     // Fetch previous state to detect newly published or newly added cohorts
-    const { data: prev } = await supabase.from('learning_paths').select('status, cohort_ids').eq('id', id).single();
+    const { data: prev } = await supabase.from('learning_paths').select('status, cohort_ids, item_ids').eq('id', id).single();
 
     const updateData: any = { updated_at: new Date().toISOString() };
     if (title           !== undefined) updateData.title           = title.trim();
@@ -153,6 +155,9 @@ export async function POST(req: NextRequest) {
     if (cover_image     !== undefined) updateData.cover_image     = cover_image;
     if (badge_image_url !== undefined) updateData.badge_image_url = badge_image_url ?? null;
     if (item_ids        !== undefined) updateData.item_ids        = item_ids;
+    // Tracks may only name items in the path, so they are cleaned against the item list being
+    // saved (or the stored one when the request leaves items alone).
+    if (tracks          !== undefined) updateData.tracks          = normalizeTracks(tracks, item_ids ?? prev?.item_ids ?? []);
     if (overview        !== undefined) updateData.overview        = overview ?? null;
     if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
     if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];
@@ -357,13 +362,22 @@ export async function POST(req: NextRequest) {
         ...storedIds,
         ...(path.item_ids ?? []).filter((id: string) => actuallyCompleted.has(id)),
       ])];
+      // A path with tracks is sent as this learner's own path: core + their track, so every
+      // count and timeline on the client needs no track logic. Before a track is chosen that is
+      // the core, with needs_track telling the client to ask for one.
+      const trackId: string | null = chosenTrack(path, prog?.track_id) ? prog.track_id : null;
+      const myItemIds = requiredItemIds(path, trackId);
       return {
         ...path,
+        item_ids: myItemIds,
+        tracks: pathTracks(path).map(t => ({ id: t.id, name: t.name, description: t.description ?? null, item_count: t.item_ids.length })),
+        track_id: trackId,
+        needs_track: needsTrack(path, trackId),
         learner_count: learnerCounts[path.id] ?? 0,
         progress: prog
           ? { ...prog, completed_item_ids: effectiveCompleted }
           : effectiveCompleted.length ? { completed_item_ids: effectiveCompleted, completed_at: null, cert_id: null } : null,
-        items: (path.item_ids ?? []).map((id: string) => {
+        items: myItemIds.map((id: string) => {
           const item = formMap[id] ?? { id, title: 'Unknown' };
           const pct = inProgressPct.get(id);
           return typeof pct === 'number' ? { ...item, in_progress_pct: pct } : item;
@@ -376,15 +390,53 @@ export async function POST(req: NextRequest) {
     // after the response is sent so those side effects run exactly once without slowing
     // the dashboard load.
     for (const p of result) {
-      const itemIds: string[] = p.item_ids ?? [];
       const done: string[] = p.progress?.completed_item_ids ?? [];
-      const finished = itemIds.length > 0 && itemIds.every((id: string) => done.includes(id));
+      const source = paths.find((x: any) => x.id === p.id);
+      const finished = isPathComplete(source, p.track_id, done);
       if (finished && (!p.progress?.completed_at || !p.progress?.cert_id)) {
-        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: itemIds, next_path_id: p.next_path_id }, done));
+        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: p.item_ids, next_path_id: p.next_path_id }, done));
       }
     }
 
     return NextResponse.json({ paths: result });
+  }
+
+  // -- Student: pick (or switch) their track on a path with tracks ---
+  if (action === 'choose-track') {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { path_id, track_id } = body;
+    if (typeof path_id !== 'string' || typeof track_id !== 'string') {
+      return NextResponse.json({ error: 'path_id and track_id are required' }, { status: 400 });
+    }
+
+    const [{ data: student }, { data: path }, { data: prog }] = await Promise.all([
+      supabase.from('students').select('cohort_id').eq('id', user.id).single(),
+      supabase.from('learning_paths').select('id, item_ids, tracks, cohort_ids, available_to_everyone, status').eq('id', path_id).maybeSingle(),
+      supabase.from('learning_path_progress').select('completed_at, cert_id').eq('student_id', user.id).eq('learning_path_id', path_id).maybeSingle(),
+    ]);
+    // Same reach rule as get-student-paths: published, and open or assigned to their cohort.
+    const reachable = path?.status === 'published'
+      && (path.available_to_everyone === true || (!!student?.cohort_id && (path.cohort_ids ?? []).includes(student.cohort_id)));
+    if (!path || !reachable) return NextResponse.json({ error: 'Learning path not found' }, { status: 404 });
+    if (!chosenTrack(path, track_id)) return NextResponse.json({ error: 'That track is not part of this path' }, { status: 400 });
+    // A finished path keeps the track its certificate was issued for.
+    if (prog?.completed_at || prog?.cert_id) {
+      return NextResponse.json({ error: 'You have completed this path, so its track can no longer be changed.' }, { status: 409 });
+    }
+
+    const { error } = await supabase.from('learning_path_progress').upsert({
+      student_id:       user.id,
+      learning_path_id: path_id,
+      track_id,
+      updated_at:       new Date().toISOString(),
+    }, { onConflict: 'student_id,learning_path_id' });
+    if (error) { console.error('[learning-paths] choose-track error:', error); return NextResponse.json({ error: 'Could not save your track.' }, { status: 500 }); }
+
+    // Completion (when the core and the track's items are already done) is picked up by the
+    // reconciliation in get-student-paths, which the client reloads next.
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

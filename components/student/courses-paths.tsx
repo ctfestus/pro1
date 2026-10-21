@@ -375,6 +375,22 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   useEffect(() => { load(); }, [load]);
 
+  // Throws with a message the picker shows; on success the reload returns the learner's own path.
+  const chooseTrack = useCallback(async (pathId: string, trackId: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error(LOAD_ERROR_SERVER);
+    const res = await fetch('/api/learning-paths', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ action: 'choose-track', path_id: pathId, track_id: trackId }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json.error ?? 'Could not save your track. Please try again.');
+    }
+    await load();
+  }, [load]);
+
   useEffect(() => {
     if (!selectedPathId) { setLockedPath(null); return; }
     let cancelled = false;
@@ -422,7 +438,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   if (selectedPath) return (
     <div>
-      <PathRow path={selectedPath} C={C}/>
+      <PathRow path={selectedPath} C={C} onChooseTrack={trackId => chooseTrack(selectedPath.id, trackId)}/>
     </div>
   );
 
@@ -508,7 +524,7 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
           const completedIds: string[] = path.progress?.completed_item_ids ?? [];
           const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
           const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
-          const complete = totalItems > 0 && completedCount === totalItems;
+          const complete = totalItems > 0 && completedCount === totalItems && !path.needs_track;
           const hasItemProgress = (path.items ?? []).some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
           const started = !complete && (completedCount > 0 || hasItemProgress);
           return (
@@ -526,7 +542,7 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
                 <p className="mt-0.5 line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{path.title}</p>
                 <ProgressBar value={pct} color="#22c55e"/>
                 <p className="mt-1 text-[11px]" style={{ color: C.faint }}>
-                  {complete ? 'Completed' : completedCount > 0 ? `${completedCount} of ${totalItems} complete` : started ? 'In progress' : 'Not started'}
+                  {complete ? 'Completed' : path.needs_track ? 'Choose your track' : completedCount > 0 ? `${completedCount} of ${totalItems} complete` : started ? 'In progress' : 'Not started'}
                 </p>
               </button>
             </div>
@@ -574,7 +590,7 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
   const completedCount = items.filter((item: any) => completedIds.includes(item.id)).length;
   const total = items.length;
   const pct = total ? Math.round((completedCount / total) * 100) : 0;
-  const allDone = total > 0 && completedCount === total;
+  const allDone = total > 0 && completedCount === total && !path.needs_track;
   const hasItemProgress = items.some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
   const started = !allDone && (completedCount > 0 || hasItemProgress);
   const shown = items.slice(0, PATH_PREVIEW_MAX_ITEMS);
@@ -638,12 +654,89 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
   );
 }
 
+// Track choice on a path with tracks. Open (as a set of cards) until a track is picked; after that
+// a one-line summary with a Change control, until the path is finished and the track is fixed.
+function TrackPicker({ path, C, onChoose, finished }: {
+  path: any; C: typeof LIGHT_C; onChoose: (trackId: string) => Promise<void>; finished: boolean;
+}) {
+  const tracks: { id: string; name: string; description: string | null; item_count: number }[] = path.tracks ?? [];
+  const current = tracks.find(t => t.id === path.track_id) ?? null;
+  const [open, setOpen] = useState(!current);
+  const [saving, setSaving] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const choose = async (trackId: string) => {
+    if (trackId === current?.id) { setOpen(false); return; }
+    setSaving(trackId);
+    setError('');
+    try {
+      await onChoose(trackId);
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save your track. Please try again.');
+    } finally {
+      setSaving(null);
+    }
+  };
+
+  if (!open && current) return (
+    <div className="mt-5 flex flex-wrap items-center gap-2 text-sm" style={{ color: C.muted }}>
+      <span>Your track:</span>
+      <strong className="font-semibold" style={{ color: C.text }}>{current.name}</strong>
+      {!finished && (
+        <button onClick={() => setOpen(true)} className="text-xs font-semibold underline-offset-2 hover:underline" style={{ color: C.cta }}>Change</button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="mt-5 rounded-2xl p-4 sm:p-5" style={{ background: C.pill }}>
+      <p className="text-sm font-bold" style={{ color: C.text }}>{current ? 'Change your track' : 'Choose your track'}</p>
+      <p className="text-xs mt-1" style={{ color: C.muted }}>
+        Everyone takes the core content. Your track adds the content for your background.
+        {current ? ' Anything you have already completed still counts.' : ' You can start the core content now and change your track later.'}
+      </p>
+      <div className="grid sm:grid-cols-2 gap-3 mt-4">
+        {tracks.map(track => {
+          const selected = track.id === current?.id;
+          return (
+            <button key={track.id} onClick={() => choose(track.id)} disabled={saving !== null}
+              className="text-left rounded-xl p-4 transition-opacity hover:opacity-90 disabled:opacity-60"
+              style={{ background: C.card, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
+              <span className="flex items-center justify-between gap-2">
+                <span className="text-sm font-bold" style={{ color: C.text }}>{track.name}</span>
+                {saving === track.id
+                  ? <RefreshCw className="w-4 h-4 animate-spin flex-shrink-0" style={{ color: C.faint }}/>
+                  : selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/>}
+              </span>
+              {track.description && <span className="block text-xs mt-1" style={{ color: C.muted }}>{track.description}</span>}
+              <span className="block text-[11px] mt-2" style={{ color: C.faint }}>
+                {track.item_count} extra item{track.item_count === 1 ? '' : 's'}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {error && <p role="alert" className="text-xs mt-3" style={{ color: '#ef4444' }}>{error}</p>}
+      {current && (
+        <button onClick={() => setOpen(false)} className="mt-3 text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
+      )}
+    </div>
+  );
+}
+
 // One learning path rendered as an ordered, open-access course timeline.
-export function PathRow({ path, C, publicPreview = false, hideHeader = false }: { path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean }) {
+export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack }: {
+  path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean;
+  /** Learner view of a path with tracks: save the learner's track choice. */
+  onChooseTrack?: (trackId: string) => Promise<void>;
+}) {
   const totalItems     = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
   const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
-  const allDone        = completedCount === totalItems && totalItems > 0;
+  // A path with tracks is not finished until the learner has picked one (the server sends the
+  // core only until then).
+  const allDone        = completedCount === totalItems && totalItems > 0 && !path.needs_track;
   const pathCertId     = path.progress?.cert_id ?? null;
   const items: any[]   = path.items ?? [];
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
@@ -707,6 +800,10 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
             )}
           </div>
         </div>
+      )}
+
+      {!publicPreview && !path.locked && onChooseTrack && (path.tracks ?? []).length > 0 && (
+        <TrackPicker path={path} C={C} onChoose={onChooseTrack} finished={allDone || !!pathCertId}/>
       )}
 
       {!publicPreview && (

@@ -7,6 +7,7 @@ import {
   courseCompletedNextUpEmail,
   learningPathAssignedEmail,
 } from '@/lib/email-templates';
+import { isPathComplete, requiredItemIds } from '@/lib/learning-path-tracks';
 
 export async function updateLearningPathProgress(
   supabase: any,
@@ -19,7 +20,7 @@ export async function updateLearningPathProgress(
 
     const pathQuery = supabase
       .from('learning_paths')
-      .select('id, item_ids, title, next_path_id')
+      .select('id, item_ids, tracks, title, next_path_id')
       .eq('status', 'published')
       .contains('item_ids', [completedItemId]);
     const { data: paths } = await (student.cohort_id
@@ -42,7 +43,10 @@ export async function updateLearningPathProgress(
       if (existingCompleted.includes(completedItemId)) continue;
 
       const updatedCompleted = [...existingCompleted, completedItemId];
-      const allDone = (path.item_ids ?? []).every((id: string) => updatedCompleted.includes(id));
+      // On a path with tracks only core + the learner's track count, and nothing completes the
+      // path before a track is chosen.
+      const trackId: string | null = prog?.track_id ?? null;
+      const allDone = isPathComplete(path, trackId, updatedCompleted);
 
       const upsertData: any = {
         student_id:         studentId,
@@ -60,7 +64,7 @@ export async function updateLearningPathProgress(
 
       // Send "next up" email when a non-final item is completed
       if (!allDone) {
-        const itemIds: string[] = path.item_ids ?? [];
+        const itemIds: string[] = requiredItemIds(path, trackId);
         const completedIdx = itemIds.indexOf(completedItemId);
         const nextItemId   = completedIdx >= 0 && completedIdx + 1 < itemIds.length ? itemIds[completedIdx + 1] : null;
         if (nextItemId) {
@@ -115,7 +119,7 @@ export async function updateLearningPathProgress(
       }
 
       if (allDone) {
-        await runPathCompletionEffects(supabase, studentId, student.cohort_id ?? null, path, upserted?.id, !!prog?.cert_id);
+        await runPathCompletionEffects(supabase, studentId, student.cohort_id ?? null, path, upserted?.id, !!prog?.cert_id, trackId);
       }
     }
   } catch (err) {
@@ -158,7 +162,7 @@ export async function reconcilePathCompletion(
       .select('id')
       .single();
 
-    await runPathCompletionEffects(supabase, studentId, student?.cohort_id ?? null, path, upserted?.id, !!prog?.cert_id);
+    await runPathCompletionEffects(supabase, studentId, student?.cohort_id ?? null, path, upserted?.id, !!prog?.cert_id, prog?.track_id ?? null);
   } catch (err) {
     console.error('[reconcilePathCompletion]', err);
   }
@@ -177,6 +181,7 @@ async function runPathCompletionEffects(
   path: { id: string; title: string; next_path_id?: string | null },
   progressRowId: string | undefined,
   hadCertId: boolean,
+  trackId: string | null,
 ) {
   // Emails must be settled (sent / already sent) before the cert_id commit marker is
   // written; a provider failure or a lock held by a live sender leaves the row
@@ -307,11 +312,12 @@ async function runPathCompletionEffects(
       try {
         const { data: fullPath } = await supabase
           .from('learning_paths')
-          .select('title, description, item_ids')
+          .select('title, description, item_ids, tracks')
           .eq('id', path.id)
           .single();
 
-        const itemIds: string[] = fullPath?.item_ids ?? [];
+        // The certificate email lists what this learner took: core + their track.
+        const itemIds: string[] = fullPath ? requiredItemIds(fullPath, trackId) : [];
         const [{ data: courseItems }, { data: veItems }, { data: certItems }] = await Promise.all([
           itemIds.length ? supabase.from('courses').select('id, title, cover_image, description').in('id', itemIds) : { data: [] },
           itemIds.length ? supabase.from('virtual_experiences').select('id, title, cover_image, description').in('id', itemIds) : { data: [] },

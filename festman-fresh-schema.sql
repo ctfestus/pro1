@@ -785,6 +785,10 @@ CREATE TABLE public.learning_paths (
   skills          text[]      NOT NULL DEFAULT '{}',
   who_should_take text[]      NOT NULL DEFAULT '{}',
   tools           text[]      NOT NULL DEFAULT '{}',
+  -- migration 225: [{ id, name, description?, item_ids[] }]. Items in no track are core; a
+  -- learner takes core + their chosen track (learning_path_progress.track_id).
+  tracks          jsonb       NOT NULL DEFAULT '[]'::jsonb
+    CONSTRAINT learning_paths_tracks_is_array CHECK (jsonb_typeof(tracks) = 'array'),
   -- migration 186, as for virtual_experiences above.
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
@@ -974,6 +978,8 @@ CREATE TABLE public.learning_path_progress (
   completed_item_ids uuid[]      NOT NULL DEFAULT '{}',
   completed_at       timestamptz,
   cert_id            uuid,
+  -- migration 225: the learning_paths.tracks[].id the learner picked; NULL until they pick.
+  track_id           text,
   updated_at         timestamptz NOT NULL DEFAULT now(),
   UNIQUE (student_id, learning_path_id),
   CONSTRAINT check_cert_requires_completion CHECK (cert_id IS NULL OR completed_at IS NOT NULL)

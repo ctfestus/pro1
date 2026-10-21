@@ -211,12 +211,12 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
 
   const exportCsv = () => {
     if (!report) return;
-    const headers = ['Name', 'Email', 'Enrollment', 'Cohort or plan', 'Subscription status', 'Subscription ends', 'Enrolled', 'Status',
+    const headers = ['Name', 'Email', 'Enrollment', 'Cohort or plan', 'Subscription status', 'Subscription ends', 'Enrolled', 'Track', 'Status',
       'Items completed', 'Total items', 'Progress %', 'Current step', 'Last active', 'Completed on', 'Certificate',
       ...items.map(i => `${i.title} (${KIND_LABEL[i.kind]})`)];
     const rows = filtered.map(l => [
       l.name, l.email, SOURCE_LABEL[l.source], enrollmentLabel(l), l.subscription_status ?? '', l.subscription_ends_at ? fmtDate(l.subscription_ends_at) : '',
-      l.enrolled_at ? fmtDate(l.enrolled_at) : '', STATUS_LABEL[l.status], l.completed_count, l.total_items, l.progress_pct,
+      l.enrolled_at ? fmtDate(l.enrolled_at) : '', l.track_name ?? '', STATUS_LABEL[l.status], l.completed_count, l.total_items, l.progress_pct,
       l.current_item_id ? itemTitle(l.current_item_id) : '', l.last_active_at ? fmtDate(l.last_active_at) : '',
       l.completed_at ? fmtDate(l.completed_at) : '', l.certificate_issued ? 'Yes' : 'No',
       ...items.map(i => {
@@ -356,14 +356,17 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
             {items.length === 0 ? (
               <p className="text-sm px-5 pb-5" style={{ color: C.faint }}>This path has no content yet.</p>
             ) : items.map((item, idx) => {
+              // On a path with tracks a track item only belongs to its own learners, whose items
+              // map is exactly what they are required to take.
               const rows = scoped
+                .filter(l => !!l.items[item.id])
                 .map(l => ({ l, p: l.items[item.id] ?? EMPTY_PROGRESS }))
                 .sort((a, b) => STATUS_RANK[a.p.status] - STATUS_RANK[b.p.status] || b.p.progress_pct - a.p.progress_pct || a.l.name.localeCompare(b.l.name));
               const counts: Record<PathItemStatus, number> = { completed: 0, in_progress: 0, failed: 0, not_started: 0 };
               for (const r of rows) counts[r.p.status] += 1;
               const done = counts.completed;
               const notPassed = counts.failed;
-              const pct = scoped.length ? Math.round((done / scoped.length) * 100) : 0;
+              const pct = rows.length ? Math.round((done / rows.length) * 100) : 0;
               const open = expandedItem === item.id;
               return (
                 <div key={item.id} style={{ borderTop: `1px solid ${C.divider}` }}>
@@ -375,7 +378,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full flex-shrink-0" style={{ background: C.pill, color: C.muted }}>{KIND_LABEL[item.kind]}</span>
                     <span className="flex-1 min-w-0 truncate text-sm font-semibold" style={{ color: C.text }}>{item.title}</span>
                     <span className="hidden sm:flex items-center gap-3 w-56 flex-shrink-0"><Bar C={C} pct={pct}/><span className="text-xs font-semibold w-9 text-right" style={{ color: C.muted }}>{pct}%</span></span>
-                    <span className="text-xs flex-shrink-0 w-28 text-right" style={{ color: C.faint }}>{done} of {scoped.length} done</span>
+                    <span className="text-xs flex-shrink-0 w-28 text-right" style={{ color: C.faint }}>{done} of {rows.length} done</span>
                   </button>
                   {open && (
                     <div className="px-5 pb-4 pt-1">
@@ -465,6 +468,9 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                               <Bar C={C} pct={l.progress_pct}/>
                               <span className="text-xs font-semibold whitespace-nowrap" style={{ color: C.muted }}>{l.completed_count}/{l.total_items}</span>
                             </div>
+                            {report?.path.has_tracks && (
+                              <p className="text-[11px] mt-1 truncate" style={{ color: C.faint }}>{l.track_name ? `${l.track_name} track` : 'No track chosen'}</p>
+                            )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">
                             <span className="text-[11px] font-bold px-2 py-1 rounded-full inline-flex items-center gap-1" style={{ background: sc.bg, color: sc.fg }}>
@@ -483,7 +489,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                           <tr style={{ borderBottom: `1px solid ${C.divider}` }}>
                             <td colSpan={6} className="px-4 pb-4 pt-1">
                               <div className="pl-6">
-                                <ProgressList C={C} heading="Content" showStatus={false} rows={items.map((item, idx) => ({
+                                <ProgressList C={C} heading="Content" showStatus={false} rows={items.filter(item => !!l.items[item.id]).map((item, idx) => ({
                                   key: item.id,
                                   title: `${idx + 1}. ${item.title}`,
                                   progress: l.items[item.id] ?? EMPTY_PROGRESS,
