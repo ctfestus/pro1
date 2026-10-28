@@ -457,6 +457,9 @@ export async function POST(req: NextRequest) {
         item_ids: myItemIds,
         tracks: pathTracks(path).map(t => ({ id: t.id, name: t.name, description: t.description ?? null, item_count: t.item_ids.length })),
         track_id: trackId,
+        // Which of item_ids are the track's own, so the timeline can show core and
+        // specialization as separate sections.
+        track_item_ids: chosenTrack(path, trackId)?.item_ids ?? [],
         needs_track: needsTrack(path, trackId),
         learner_count: learnerCounts[path.id] ?? 0,
         progress: prog

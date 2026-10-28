@@ -2,12 +2,12 @@
 
 // Courses and learning-path journeys shared by the learner dashboard and public detail pages.
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Fragment, useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase, Hand,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase, Hand, Sparkles,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -670,31 +670,52 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
   );
 }
 
-// Track choice on a path with tracks, as a short conversation: a welcome, the question, the
-// tracks as answers. Until a track is picked the path's content stays hidden (PathRow), and once
-// one is picked the timeline drops in item by item. After that it is a one-line summary with a
-// Change control, until the path is finished and the track is fixed.
+// Track choice on a path with tracks: a welcome, the question, and the tracks as options. Until a
+// track is picked the path's content stays hidden (PathRow). Once one is picked, a short "building
+// your path" step runs while it saves, then the timeline drops in item by item. After that it is a
+// one-line summary with a Change control, until the path is finished and the track is fixed.
+const BUILD_STEP_MS = 650;
+
 function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onRevealed }: {
   path: any; C: typeof LIGHT_C; onChoose: (trackId: string) => Promise<void>; onSaved: () => Promise<void>;
   finished: boolean; learnerName: string | null; onRevealed: () => void;
 }) {
   const { appName } = useTenant();
+  const reduceMotion = useReducedMotion();
   const tracks: { id: string; name: string; description: string | null; item_count: number }[] = path.tracks ?? [];
   const current = tracks.find(t => t.id === path.track_id) ?? null;
   const [open, setOpen] = useState(!current);
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
+  const [step, setStep] = useState(0);
   const [error, setError] = useState('');
   const firstName = (learnerName ?? '').trim().split(/\s+/)[0] ?? '';
   const ease = [0.16, 1, 0.3, 1] as const;
+
+  const steps = picked ? [
+    'Saving your choice',
+    'Gathering your core courses',
+    `Adding your ${picked.name} courses`,
+    'Setting up your certificate',
+  ] : [];
+
+  // Walks the building steps while the choice saves. It stops on the last step, which stays up
+  // until the save and reload are done.
+  useEffect(() => {
+    if (!picked) return;
+    setStep(0);
+    const timer = setInterval(() => setStep(s => Math.min(s + 1, 3)), BUILD_STEP_MS);
+    return () => clearInterval(timer);
+  }, [picked]);
 
   const choose = async (track: { id: string; name: string }) => {
     if (track.id === current?.id) { setOpen(false); return; }
     setPicked(track);
     setError('');
     try {
-      // Save during a short beat, so the answer reads as heard. The path is only reloaded once
-      // both are done, and the reveal is armed first, so the content mounts with its drop-in.
-      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, 900))]);
+      // Save during the building steps, so the learner sees the path being put together. The path
+      // is only reloaded once both are done, and the reveal is armed first, so the content mounts
+      // with its drop-in.
+      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, reduceMotion ? 300 : BUILD_STEP_MS * 4))]);
       onRevealed();
       await onSaved();
       setOpen(false);
@@ -715,13 +736,11 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
     </div>
   );
 
-  const bubble = 'rounded-2xl rounded-bl-md px-4 py-3 sm:px-5';
   return (
-    <div className="mt-6 flex max-w-3xl flex-col gap-3">
+    <div className="mt-6 max-w-3xl">
       {!current && (
-        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}
-          className={`${bubble} self-start`} style={{ background: C.pill }}>
-          <p className="flex items-center gap-2 text-base font-bold" style={{ color: C.text }}>
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}>
+          <p className="flex items-center gap-2 text-lg font-bold" style={{ color: C.text }}>
             {firstName ? `Welcome, ${firstName}!` : 'Welcome!'}
             <motion.span aria-hidden="true" className="inline-flex origin-bottom-right"
               animate={{ rotate: [0, 18, -8, 18, 0] }} transition={{ duration: 1.2, delay: 0.4 }}>
@@ -730,58 +749,94 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
           </p>
           <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
             {appName
-              ? `So glad to have you here. The entire ${appName} team and I are excited to kick this off with you.`
+              ? `So glad to have you here. The entire ${appName} team is excited to kick this off with you.`
               : 'So glad to have you here. We are excited to kick this off with you.'}
           </p>
         </motion.div>
       )}
-      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: current ? 0 : 0.5, ease }}
-        className={`${bubble} self-start`} style={{ background: C.pill }}>
-        <p className="text-base font-bold" style={{ color: C.text }}>
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: current ? 0 : 0.35, ease }}
+        className={current ? '' : 'mt-5'}>
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.faint }}>Choose your specialization</p>
+        <p className="mt-1 text-base font-bold" style={{ color: C.text }}>
           {current ? 'Where will you specialize?' : 'Before we dive into the learning path, where will you specialize?'}
         </p>
-        <p className="mt-1 text-sm italic leading-relaxed" style={{ color: C.muted }}>
-          You&apos;ll build essential skills through our core courses, then take your expertise further with specialized learning tailored to your chosen path.
+        <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
+          You&apos;ll build essential skills through the core courses, then take your expertise further with specialized learning tailored to your chosen path.
         </p>
       </motion.div>
 
-      {picked ? (
-        <>
-          <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3, ease }}
-            className="self-end rounded-2xl rounded-br-md px-4 py-2.5 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
-            {picked.name}
+      <AnimatePresence mode="wait">
+        {picked ? (
+          <motion.div key="building" role="status" aria-live="polite"
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease }}
+            className="mt-4 rounded-xl p-4 sm:p-5" style={{ background: C.pill }}>
+            <div className="flex items-center gap-3">
+              <motion.span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: C.cta, color: C.ctaText }}
+                initial={{ scale: 0.4 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 16 }}>
+                <Check className="h-4 w-4" strokeWidth={3}/>
+              </motion.span>
+              <div className="min-w-0">
+                <p className="text-xs" style={{ color: C.faint }}>You chose</p>
+                <p className="text-sm font-bold" style={{ color: C.text }}>{picked.name}</p>
+              </div>
+            </div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full" style={{ background: C.card }}>
+              <motion.div className="h-full rounded-full" style={{ background: '#22c55e' }}
+                initial={{ width: '4%' }} animate={{ width: `${((step + 1) / steps.length) * 100}%` }}
+                transition={{ duration: BUILD_STEP_MS / 1000, ease: 'easeOut' }}/>
+            </div>
+            <ul className="mt-3 space-y-1.5">
+              {steps.map((label, i) => {
+                const done = i < step;
+                const active = i === step;
+                return (
+                  <motion.li key={label} className="flex items-center gap-2 text-sm"
+                    initial={{ opacity: 0, x: -6 }} animate={{ opacity: i <= step ? 1 : 0.4, x: 0 }}
+                    transition={{ duration: 0.3, delay: i * 0.05, ease }}
+                    style={{ color: done || active ? C.text : C.faint }}>
+                    <span className="grid h-4 w-4 flex-shrink-0 place-items-center">
+                      {done ? (
+                        <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 18 }}>
+                          <CheckCircle className="h-4 w-4" style={{ color: '#16a34a' }}/>
+                        </motion.span>
+                      ) : active ? (
+                        <motion.span className="h-3.5 w-3.5 rounded-full" style={{ border: '2px solid #22c55e', borderTopColor: 'transparent' }}
+                          animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}/>
+                      ) : (
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: C.faint }}/>
+                      )}
+                    </span>
+                    {label}
+                  </motion.li>
+                );
+              })}
+            </ul>
           </motion.div>
-          <div role="status" aria-label="Building your path" className={`${bubble} self-start flex gap-1.5`} style={{ background: C.pill }}>
-            {[0, 1, 2].map(i => (
-              <motion.span key={i} className="h-2 w-2 rounded-full" style={{ background: C.muted }}
-                animate={{ opacity: [0.25, 1, 0.25] }} transition={{ duration: 1.1, repeat: Infinity, delay: i * 0.18 }}/>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {tracks.map((track, i) => {
-            const selected = track.id === current?.id;
-            return (
-              <motion.button key={track.id} onClick={() => choose(track)}
-                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.4, delay: (current ? 0.1 : 0.9) + i * 0.1, ease }}
-                whileHover={{ y: -2 }}
-                className="text-left rounded-xl p-4"
-                style={{ background: C.card, boxShadow: `inset 0 0 0 ${selected ? '2px' : '1.5px'} ${selected ? C.cta : C.cardBorder}` }}>
-                <span className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-bold" style={{ color: C.text }}>{track.name}</span>
-                  {selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/>}
-                </span>
-                {track.description && <span className="block text-xs mt-1" style={{ color: C.muted }}>{track.description}</span>}
-              </motion.button>
-            );
-          })}
-        </div>
-      )}
-      {error && <p role="alert" className="text-xs" style={{ color: '#ef4444' }}>{error}</p>}
+        ) : (
+          <motion.div key="options" className="mt-4 grid gap-3 sm:grid-cols-2" exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
+            {tracks.map((track, i) => {
+              const selected = track.id === current?.id;
+              return (
+                <motion.button key={track.id} onClick={() => choose(track)}
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: (current ? 0.1 : 0.6) + i * 0.1, ease }}
+                  whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
+                  className="text-left rounded-xl p-4"
+                  style={{ background: C.card, boxShadow: `inset 0 0 0 ${selected ? '2px' : '1.5px'} ${selected ? C.cta : C.cardBorder}` }}>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold" style={{ color: C.text }}>{track.name}</span>
+                    {selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/>}
+                  </span>
+                  {track.description && <span className="block text-xs mt-1" style={{ color: C.muted }}>{track.description}</span>}
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {error && <p role="alert" className="mt-3 text-xs" style={{ color: '#ef4444' }}>{error}</p>}
       {current && !picked && (
-        <button onClick={() => setOpen(false)} className="self-start text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
+        <button onClick={() => setOpen(false)} className="mt-3 text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
       )}
     </div>
   );
@@ -857,14 +912,24 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
 }) {
   // Set once the learner answers the track question, so their path drops in item by item.
   const [revealing, setRevealing] = useState(false);
-  const totalItems     = (path.item_ids ?? []).length;
+  const reduceMotion = useReducedMotion();
+  const totalItems    = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
   const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
   // A path with tracks is not finished until the learner has picked one (the server sends the
   // core only until then).
   const allDone        = completedCount === totalItems && totalItems > 0 && !path.needs_track;
   const pathCertId     = path.progress?.cert_id ?? null;
-  const items: any[]   = path.items ?? [];
+  // A learner on a track sees the core first, then their specialization, as two sections (the
+  // server sends both as one list, with track_item_ids naming the track's own).
+  const trackItemSet   = new Set<string>(path.track_item_ids ?? []);
+  const rawItems: any[] = path.items ?? [];
+  const grouped        = !publicPreview && !path.locked && rawItems.some((item: any) => trackItemSet.has(item.id));
+  const items: any[]   = grouped
+    ? [...rawItems.filter((item: any) => !trackItemSet.has(item.id)), ...rawItems.filter((item: any) => trackItemSet.has(item.id))]
+    : rawItems;
+  const coreCount      = grouped ? items.filter((item: any) => !trackItemSet.has(item.id)).length : -1;
+  const trackName: string = (path.tracks ?? []).find((t: any) => t.id === path.track_id)?.name ?? 'Specialization';
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
   const currentIndex   = path.locked || publicPreview ? -1 : items.findIndex((item: any) => !completedIds.includes(item.id));
   const learnerCount: number = path.learner_count ?? 0;
@@ -937,6 +1002,38 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
       )}
 
       {!awaitingTrack && (<>
+      {revealing && (
+        <motion.div role="status" className="mt-5 flex items-center gap-3 rounded-xl px-4 py-3"
+          style={{ background: isLight ? '#f0fdf4' : 'rgba(34,197,94,0.10)' }}
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.9, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 320, damping: 18 }}>
+          <span className="relative grid h-9 w-9 flex-shrink-0 place-items-center">
+            <motion.span aria-hidden="true" className="absolute inset-0 rounded-full" style={{ background: '#22c55e' }}
+              initial={{ scale: 0.6, opacity: 0.5 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 1.1, repeat: 2, ease: 'easeOut' }}/>
+            {!reduceMotion && [0, 1, 2, 3, 4, 5].map(i => {
+              const angle = (i / 6) * Math.PI * 2;
+              return (
+                <motion.span key={i} aria-hidden="true" className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full"
+                  style={{ background: i % 2 ? '#d4a017' : '#22c55e' }}
+                  initial={{ x: -3, y: -3, opacity: 1, scale: 1 }}
+                  animate={{ x: Math.cos(angle) * 26 - 3, y: Math.sin(angle) * 26 - 3, opacity: 0, scale: 0.4 }}
+                  transition={{ duration: 0.9, delay: 0.15, ease: 'easeOut' }}/>
+              );
+            })}
+            <motion.span className="relative grid h-9 w-9 place-items-center rounded-full" style={{ background: '#16a34a', color: '#ffffff' }}
+              initial={reduceMotion ? false : { rotate: -30, scale: 0.5 }} animate={{ rotate: 0, scale: 1 }}
+              transition={{ type: 'spring', stiffness: 400, damping: 12 }}>
+              <Sparkles className="h-4 w-4"/>
+            </motion.span>
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold" style={{ color: C.text }}>Your path is ready!</p>
+            <p className="text-xs" style={{ color: C.muted }}>
+              {grouped ? `Start with the core, then dive into ${trackName}. Let's go!` : "Here is everything you will learn. Let's go!"}
+            </p>
+          </div>
+        </motion.div>
+      )}
       {!publicPreview && (
       <div className={hideHeader ? '' : 'mt-5'}>
         <div className="flex items-center justify-between text-[11px] mb-2">
@@ -988,10 +1085,36 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
           const TypeIcon = isCert ? Award : isVE ? Briefcase : Film;
           const typeAccent = isCert ? '#0891B2' : isVE ? '#00BF63' : C.cta;
 
+          // Section headings count as steps in the drop-in, so each lands before its courses.
+          const order = idx + (grouped ? (idx >= coreCount ? 2 : 1) : 0);
+          const dropDelay = 0.45 + order * 0.2;
+          const heading = grouped && (idx === 0 || idx === coreCount) ? (
+            <motion.div className="relative flex gap-3 sm:gap-4"
+              initial={revealing && !reduceMotion ? { opacity: 0, x: -12 } : false} animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: revealing ? dropDelay - 0.2 : 0, ease: [0.16, 1, 0.3, 1] }}>
+              <div className="relative z-10 flex w-5 flex-shrink-0 justify-center sm:w-6">
+                {idx > 0 && <span aria-hidden="true" className="absolute -top-6 -bottom-6 left-1/2 w-0.5 -translate-x-1/2" style={{ background: connectorColor }}/>}
+              </div>
+              <div className="min-w-0 flex-1 pt-1">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: idx === 0 ? C.faint : '#16a34a' }}>
+                  {idx === 0 ? 'Core courses' : 'Your specialization'}
+                </p>
+                <p className="mt-0.5 text-base font-bold" style={{ color: C.text }}>
+                  {idx === 0 ? 'Essential skills for everyone on this path' : trackName}
+                </p>
+              </div>
+            </motion.div>
+          ) : null;
+
           return (
-            <motion.div key={item.id} className="relative flex gap-3 sm:gap-4"
-              initial={revealing ? { opacity: 0, y: -16 } : false} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.45, delay: revealing ? 0.1 + idx * 0.12 : 0, ease: [0.16, 1, 0.3, 1] }}>
+            <Fragment key={item.id}>
+            {heading}
+            <motion.div className="relative flex gap-3 sm:gap-4"
+              initial={revealing && !reduceMotion ? { opacity: 0, y: -36, scale: 0.92, rotate: idx % 2 ? 1.5 : -1.5 } : false}
+              animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+              transition={revealing
+                ? { type: 'spring', stiffness: 260, damping: 17, mass: 0.9, delay: dropDelay }
+                : { duration: 0 }}>
               <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
                 {items.length > 0 && (
                   // On the public overview the line stops short of each numbered step, above and
@@ -1076,6 +1199,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                 </div>
               </a>
             </motion.div>
+            </Fragment>
           );
         })}
         {!hideCredential && (
