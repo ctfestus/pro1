@@ -234,6 +234,8 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
   const [cohorts,         setCohorts]         = useState<any[]>([]);
   const [courseCounts,    setCourseCounts]    = useState<Record<string, number>>({});
   const [completedCounts, setCompletedCounts] = useState<Record<string, number>>({});
+  // Learners on a path with tracks: core + their own track, not the cohort's full total.
+  const [studentCounts,   setStudentCounts]   = useState<Record<string, number>>({});
   const [loading,      setLoading]      = useState(true);
   const [search,       setSearch]       = useState('');
   const [filterCohort, setFilterCohort] = useState('');
@@ -264,11 +266,12 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
       supabase.from('cohorts').select('id, name, cohort_kind'),
       fetch('/api/admin/students-stats', { headers: { Authorization: `Bearer ${session?.access_token}` } }),
     ]);
-    const stats = statsRes.ok ? await statsRes.json() : { completedCount: {}, cohortContentCount: {} };
+    const stats = statsRes.ok ? await statsRes.json() : { completedCount: {}, cohortContentCount: {}, studentContentCount: {} };
     setStudents(stu);
     setCohorts(coh ?? []);
     setCourseCounts(stats.cohortContentCount ?? {});
     setCompletedCounts(stats.completedCount ?? {});
+    setStudentCounts(stats.studentContentCount ?? {});
     setLoading(false);
   };
 
@@ -328,7 +331,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
                   fullDate(s.password_set_at),
                   fullDate(s.onboarding_completed_at),
                   fullDate(s.last_login_at),
-                  s.cohort_id ? (courseCounts[s.cohort_id] ?? 0) : '',
+                  s.cohort_id ? (studentCounts[s.id] ?? courseCounts[s.cohort_id] ?? 0) : '',
                   completedCounts[s.id] ?? 0,
                 ];
               }),
@@ -392,7 +395,7 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: access.bg, color: access.color }}>{access.label}</span>
                     <span className="text-[10px]" style={{ color: C.faint }}>{access.at ? shortDate(access.at) : ''}</span>
                   </span>
-                  <span className="hidden sm:block text-sm tabular-nums text-center" style={{ color: C.text }}>{s.cohort_id ? (courseCounts[s.cohort_id] ?? 0) : '--'}</span>
+                  <span className="hidden sm:block text-sm tabular-nums text-center" style={{ color: C.text }}>{s.cohort_id ? (studentCounts[s.id] ?? courseCounts[s.cohort_id] ?? 0) : '--'}</span>
                   <span className="hidden sm:block text-sm tabular-nums font-semibold text-center" style={{ color: C.green }}>{completedCounts[s.id] ?? 0}</span>
                   <span className="hidden sm:block text-xs" style={{ color: C.faint }}>{shortDate(s.last_login_at)}</span>
                   <div className="flex justify-end">

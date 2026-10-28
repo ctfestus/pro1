@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
-import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
+import { pathTracks, trackOptOuts } from '@/lib/learning-path-tracks';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,8 +32,8 @@ export async function GET(req: NextRequest) {
       .eq('status', 'published').order('id').range(from, to)),
     // A published path grants its cohorts every item in it without the cohort appearing in the
     // item's own cohort_ids, so a cohort taught only through a path would otherwise count 0.
-    fetchAllRows<{ item_ids: string[] | null; cohort_ids: string[] | null }>((from, to) => supabase
-      .from('learning_paths').select('item_ids, cohort_ids', { count: 'exact' })
+    fetchAllRows<{ id: string; item_ids: string[] | null; tracks: unknown; cohort_ids: string[] | null }>((from, to) => supabase
+      .from('learning_paths').select('id, item_ids, tracks, cohort_ids', { count: 'exact' })
       .eq('status', 'published').order('id').range(from, to)),
   ]);
 
@@ -54,9 +55,13 @@ export async function GET(req: NextRequest) {
     (cohortItems[cohortId] ??= new Set()).add(itemId);
   };
   const publishedIds = new Set<string>();
+  const directKeys = new Set<string>();
   for (const c of [...courses, ...ves]) {
     publishedIds.add(c.id);
-    for (const cid of (c.cohort_ids ?? [])) addCohortItem(cid, c.id);
+    for (const cid of (c.cohort_ids ?? [])) {
+      addCohortItem(cid, c.id);
+      directKeys.add(`${cid}|${c.id}`);
+    }
   }
   for (const p of paths) {
     for (const itemId of (p.item_ids ?? [])) {
@@ -67,5 +72,32 @@ export async function GET(req: NextRequest) {
   const cohortContentCount: Record<string, number> = {};
   for (const [cohortId, items] of Object.entries(cohortItems)) cohortContentCount[cohortId] = items.size;
 
-  return NextResponse.json({ completedCount, cohortContentCount });
+  // On a path with tracks a learner takes the core plus their own track, so their total differs
+  // from the cohort's. Sent per student only where it differs; the table falls back to the cohort.
+  const studentContentCount: Record<string, number> = {};
+  const trackedPaths = paths.filter(p => pathTracks(p).length > 0);
+  if (trackedPaths.length) {
+    const trackedCohorts = [...new Set(trackedPaths.flatMap(p => p.cohort_ids ?? []))];
+    const [students, picks] = await Promise.all([
+      fetchAllRowsByIds<{ id: string; cohort_id: string | null }>(trackedCohorts, (chunk, from, to) => supabase
+        .from('students').select('id, cohort_id', { count: 'exact' }).in('cohort_id', chunk).order('id').range(from, to)),
+      fetchAllRowsByIds<{ student_id: string; learning_path_id: string; track_id: string | null }>(trackedPaths.map(p => p.id), (chunk, from, to) => supabase
+        .from('learning_path_progress').select('id, student_id, learning_path_id, track_id', { count: 'exact' })
+        .in('learning_path_id', chunk).order('id').range(from, to)),
+    ]);
+    const trackOf = new Map<string, string | null>(picks.map(r => [`${r.student_id}|${r.learning_path_id}`, r.track_id ?? null]));
+    const optOuts = trackOptOuts(paths, students, trackOf);
+    for (const s of students) {
+      if (!s.cohort_id) continue;
+      const items = cohortItems[s.cohort_id] ?? new Set<string>();
+      let total = 0;
+      for (const itemId of items) {
+        if (optOuts.has(`${s.id}|${itemId}`) && !directKeys.has(`${s.cohort_id}|${itemId}`)) continue;
+        total++;
+      }
+      if (total !== items.size) studentContentCount[s.id] = total;
+    }
+  }
+
+  return NextResponse.json({ completedCount, cohortContentCount, studentContentCount });
 }

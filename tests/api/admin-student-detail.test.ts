@@ -115,6 +115,44 @@ describe('GET /api/admin/student-detail course status', () => {
     expect((await get()).status).toBe(500);
   });
 
+  it("leaves out the other tracks' courses on a path with tracks", async () => {
+    const calls: { table: string; col: string; vals: unknown }[] = [];
+    const spy = (b: any, table: string): any => new Proxy(b, {
+      get(t, prop) {
+        const v = t[prop];
+        if (prop === 'then' || prop === 'catch' || prop === 'finally' || typeof v !== 'function') return v;
+        return (...args: any[]) => {
+          if (prop === 'in') calls.push({ table, col: args[0], vals: args[1] });
+          return spy(v(...args), table);
+        };
+      },
+    });
+    const stub = pathOnlyStub({ data: [{
+      id: 'lp', item_ids: ['path-course', 'fin1', 'hr1'], cohort_ids: ['cohort1'],
+      tracks: [{ id: 'fin', name: 'Finance', item_ids: ['fin1'] }, { id: 'hr', name: 'HR', item_ids: ['hr1'] }],
+    }], error: null });
+    const progress = makeSupabaseStub({ learning_path_progress: { data: [{ learning_path_id: 'lp', track_id: 'fin' }], error: null } });
+    const db = { ...stub, from: (table: string) => spy((table === 'learning_path_progress' ? progress : stub).from(table), table) };
+    mockRequireRole.mockResolvedValue({ user: { id: 'admin1' }, role: 'admin', token: 'test-token', serviceDb: db } as any);
+
+    expect((await get()).status).toBe(200);
+    const lookup = calls.find(c => c.table === 'courses' && c.col === 'id');
+    expect(lookup?.vals).toEqual(['path-course', 'fin1']);
+  });
+
+  it('fails instead of guessing when the track lookup errors', async () => {
+    const stub = pathOnlyStub({ data: [{
+      id: 'lp', item_ids: ['path-course', 'fin1'], cohort_ids: ['cohort1'],
+      tracks: [{ id: 'fin', name: 'Finance', item_ids: ['fin1'] }],
+    }], error: null });
+    const progress = makeSupabaseStub({ learning_path_progress: { data: null, error: { message: 'timeout' } } });
+    const db = { ...stub, from: (table: string) => (table === 'learning_path_progress' ? progress : stub).from(table) };
+    mockRequireRole.mockResolvedValue({ user: { id: 'admin1' }, role: 'admin', token: 'test-token', serviceDb: db } as any);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    expect((await get()).status).toBe(500);
+  });
+
   it('401 for an anonymous caller', async () => {
     mockRequireRole.mockResolvedValue({ error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) });
     expect((await get()).status).toBe(401);
