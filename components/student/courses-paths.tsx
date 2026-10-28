@@ -833,7 +833,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
             className="mt-4 rounded-xl p-4 sm:p-5" style={{ background: C.pill }}>
             <p className="text-sm font-bold" style={{ color: C.text }}>Switch to {confirming.name}?</p>
             <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
-              Your progress on {current.name} courses is kept, but only the core and {confirming.name} courses will count toward this path and its certificate.
+              Your {current.name} courses will be replaced with {confirming.name} courses. Anything you have already completed is saved.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button onClick={() => choose(confirming)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
