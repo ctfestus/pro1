@@ -2,7 +2,7 @@
 
 // Extracted verbatim from app/dashboard/page.tsx -- no behavior or styling changes.
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Download, ExternalLink, Eye, MoreVertical, Search, UserPlus, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reportExportCSV } from '@/lib/dashboard-export';
@@ -96,8 +96,8 @@ function accessInfo(student: any, C: typeof LIGHT_C) {
   return { label: 'Not started', at: null, color: C.faint, bg: C.pill };
 }
 
-function StudentDetailPanel({ student, cohortName, detail, loading, onClose, C }: {
-  student: any; cohortName: string; detail: any; loading: boolean; onClose: () => void; C: typeof LIGHT_C;
+function StudentDetailPanel({ student, cohortName, detail, loading, error, onRetry, onClose, C }: {
+  student: any; cohortName: string; detail: any; loading: boolean; error: boolean; onRetry: () => void; onClose: () => void; C: typeof LIGHT_C;
 }) {
   const statusColor = (s: string) => s === 'completed' ? C.green : s === 'in_progress' ? '#f59e0b' : C.faint;
   const statusLabel = (s: string) => s === 'completed' ? 'Completed' : s === 'in_progress' ? 'In Progress' : 'Not Started';
@@ -144,6 +144,13 @@ function StudentDetailPanel({ student, cohortName, detail, loading, onClose, C }
           </div>
 
           {loading && <p className="text-sm text-center py-8" style={{ color: C.muted }}>Loading...</p>}
+
+          {!loading && error && (
+            <div className="rounded-xl p-4 text-center" style={{ background: C.errorBg }}>
+              <p className="text-sm" style={{ color: C.errorText }}>Could not load this student&apos;s courses and progress.</p>
+              <button onClick={onRetry} className="mt-2 text-xs font-semibold" style={{ color: C.cta }}>Try again</button>
+            </div>
+          )}
 
           {!loading && detail && (
             <div className="space-y-5">
@@ -242,6 +249,11 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
   const [selected,     setSelected]     = useState<any>(null);
   const [detail,       setDetail]       = useState<any>(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError,  setDetailError]  = useState(false);
+  // Course totals come from the stats route. When it fails the totals are unknown, not zero.
+  const [statsError,   setStatsError]   = useState(false);
+  // The latest detail request; an older response for another student must not land in the panel.
+  const detailRequest = useRef(0);
   const [menuRow,      setMenuRow]      = useState<any | null>(null);
   const [menuPos,      setMenuPos]      = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
@@ -266,7 +278,11 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
       supabase.from('cohorts').select('id, name, cohort_kind'),
       fetch('/api/admin/students-stats', { headers: { Authorization: `Bearer ${session?.access_token}` } }),
     ]);
-    const stats = statsRes.ok ? await statsRes.json() : { completedCount: {}, cohortContentCount: {}, studentContentCount: {} };
+    let stats: any = null;
+    if (statsRes.ok) stats = await statsRes.json().catch(() => null);
+    else console.error('[StudentsSection] stats load failed', statsRes.status);
+    setStatsError(!stats);
+    stats ??= { completedCount: {}, cohortContentCount: {}, studentContentCount: {} };
     setStudents(stu);
     setCohorts(coh ?? []);
     setCourseCounts(stats.cohortContentCount ?? {});
@@ -289,16 +305,25 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
   });
 
   async function openDetail(student: any) {
+    const request = ++detailRequest.current;
     setSelected(student);
     setDetail(null);
+    setDetailError(false);
     setDetailLoading(true);
-    const { data: { session } } = await supabase.auth.getSession();
+    let loaded: any = null;
     try {
+      const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch(`/api/admin/student-detail?studentId=${student.id}`, {
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.ok) setDetail(await res.json());
-    } catch { /* ignore */ }
+      if (res.ok) loaded = await res.json();
+      else console.error('[StudentsSection] student detail failed', res.status);
+    } catch (err) {
+      console.error('[StudentsSection] student detail failed', err);
+    }
+    if (request !== detailRequest.current) return;
+    setDetail(loaded);
+    setDetailError(!loaded);
     setDetailLoading(false);
   }
 
@@ -331,8 +356,8 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
                   fullDate(s.password_set_at),
                   fullDate(s.onboarding_completed_at),
                   fullDate(s.last_login_at),
-                  s.cohort_id ? (studentCounts[s.id] ?? courseCounts[s.cohort_id] ?? 0) : '',
-                  completedCounts[s.id] ?? 0,
+                  statsError ? '' : s.cohort_id ? (studentCounts[s.id] ?? courseCounts[s.cohort_id] ?? 0) : '',
+                  statsError ? '' : completedCounts[s.id] ?? 0,
                 ];
               }),
               'students.csv',
@@ -377,6 +402,12 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
               <span></span>
             </div>
 
+            {!loading && statsError && (
+              <div className="flex items-center justify-between gap-3 px-4 py-3 text-sm" style={{ background: C.errorBg, color: C.errorText }}>
+                <span>Could not load course counts. The In Cohort and Completed columns are not shown.</span>
+                <button onClick={() => { void load(); }} className="text-xs font-semibold flex-shrink-0" style={{ color: C.cta }}>Try again</button>
+              </div>
+            )}
             {loading ? (
               <div className="py-12 text-center text-sm" style={{ color: C.muted }}>Loading students...</div>
             ) : visible.length === 0 ? (
@@ -395,8 +426,8 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
                     <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap" style={{ background: access.bg, color: access.color }}>{access.label}</span>
                     <span className="text-[10px]" style={{ color: C.faint }}>{access.at ? shortDate(access.at) : ''}</span>
                   </span>
-                  <span className="hidden sm:block text-sm tabular-nums text-center" style={{ color: C.text }}>{s.cohort_id ? (studentCounts[s.id] ?? courseCounts[s.cohort_id] ?? 0) : '--'}</span>
-                  <span className="hidden sm:block text-sm tabular-nums font-semibold text-center" style={{ color: C.green }}>{completedCounts[s.id] ?? 0}</span>
+                  <span className="hidden sm:block text-sm tabular-nums text-center" style={{ color: C.text }}>{statsError ? '' : s.cohort_id ? (studentCounts[s.id] ?? courseCounts[s.cohort_id] ?? 0) : '--'}</span>
+                  <span className="hidden sm:block text-sm tabular-nums font-semibold text-center" style={{ color: C.green }}>{statsError ? '' : completedCounts[s.id] ?? 0}</span>
                   <span className="hidden sm:block text-xs" style={{ color: C.faint }}>{shortDate(s.last_login_at)}</span>
                   <div className="flex justify-end">
                     <button
@@ -449,7 +480,9 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
           cohortName={cohortMap[selected.cohort_id] || ''}
           detail={detail}
           loading={detailLoading}
-          onClose={() => setSelected(null)}
+          error={detailError}
+          onRetry={() => { void openDetail(selected); }}
+          onClose={() => { detailRequest.current++; setSelected(null); }}
           C={C}
         />
       )}
