@@ -74,6 +74,8 @@ export async function GET(req: NextRequest) {
 
   // On a path with tracks a learner takes the core plus their own track, so their total differs
   // from the cohort's. Sent per student only where it differs; the table falls back to the cohort.
+  // Their Completed count follows the same rule: another track's course they finished anyway is
+  // not part of their programme, and counting it would show more completed than assigned.
   const studentContentCount: Record<string, number> = {};
   const trackedPaths = paths.filter(p => pathTracks(p).length > 0);
   if (trackedPaths.length) {
@@ -96,6 +98,15 @@ export async function GET(req: NextRequest) {
         total++;
       }
       if (total !== items.size) studentContentCount[s.id] = total;
+      const done = completedItems[s.id];
+      if (done) {
+        let completed = 0;
+        for (const itemId of done) {
+          if (optOuts.has(`${s.id}|${itemId}`) && !directKeys.has(`${s.cohort_id}|${itemId}`)) continue;
+          completed++;
+        }
+        completedCount[s.id] = completed;
+      }
     }
   }
 

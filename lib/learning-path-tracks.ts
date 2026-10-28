@@ -42,6 +42,31 @@ export function normalizeTracks(raw: unknown, itemIds: string[] = []): PathTrack
   return tracks;
 }
 
+/**
+ * Why a submitted tracks value cannot be saved, or null when it can. Checked at the API boundary
+ * because normalizeTracks would silently drop a bad track, which turns its items into core
+ * content required of everyone. Items no longer in the path are not an error: the editor keeps a
+ * removed item's tags, and normalizeTracks cleans them on save.
+ */
+export function tracksError(raw: unknown): string | null {
+  if (raw == null) return null;
+  if (!Array.isArray(raw)) return 'Tracks must be a list.';
+  const seen = new Set<string>();
+  for (const t of raw) {
+    if (!t || typeof t !== 'object') return 'Each track must be an object.';
+    const id = typeof (t as any).id === 'string' ? (t as any).id.trim() : '';
+    if (!id) return 'Each track needs an id.';
+    if (seen.has(id)) return 'Two tracks share the same id.';
+    seen.add(id);
+    if (typeof (t as any).name !== 'string' || !(t as any).name.trim()) return 'Give every track a name.';
+    const items = (t as any).item_ids;
+    if (items != null && (!Array.isArray(items) || items.some((i: unknown) => typeof i !== 'string'))) {
+      return 'A track lists its items as ids.';
+    }
+  }
+  return null;
+}
+
 export function pathTracks(path: TrackedPath): PathTrack[] {
   return normalizeTracks(path.tracks, path.item_ids ?? []);
 }
@@ -95,6 +120,26 @@ export function trackOptOuts(
     }
   }
   return out;
+}
+
+/**
+ * Whose requirements an edit from `prev` to `next` changes: the prev track ids whose required
+ * items differ (or that are gone), and `core` for a learner with no track (a path gaining its
+ * first tracks, or a plain path's sequence changing). A completer on one of these may not have
+ * the edit applied. A stored track id that `prev` no longer has protects nothing: that learner
+ * already had no valid track.
+ */
+export function changedRequirements(prev: TrackedPath, next: TrackedPath): { trackIds: string[]; core: boolean } {
+  const sameSet = (a: string[], b: string[]) => a.length === b.length && a.every(x => b.includes(x));
+  const changes = (trackId: string | null) => {
+    if (needsTrack(prev, trackId)) return false;
+    if (needsTrack(next, trackId)) return true;
+    return !sameSet(requiredItemIds(prev, trackId), requiredItemIds(next, trackId));
+  };
+  return {
+    trackIds: pathTracks(prev).map(t => t.id).filter(id => changes(id)),
+    core: changes(null),
+  };
 }
 
 /** True when every required item is done and no track choice is outstanding. */

@@ -27,6 +27,9 @@ export default async function CertificatePage({ params }: { params: Promise<{ id
   if (result.status === "notfound") {
     return <Notice heading="Certificate Not Found" body="This certificate ID does not exist." />;
   }
+  if (result.status === "unavailable") {
+    return <Notice heading="Certificate Unavailable" body="We could not load this certificate right now. Please refresh the page to try again." />;
+  }
 
   const { settings, ...rest } = result.data;
   return <CertificatePageClient {...rest} settings={(settings ?? DEFAULT_CERT_SETTINGS) as CertificateSettings} />;

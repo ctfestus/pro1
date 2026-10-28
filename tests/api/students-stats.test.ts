@@ -73,7 +73,8 @@ describe('GET /api/admin/students-stats', () => {
 
   it("counts core plus the learner's own track on a path with tracks", async () => {
     const supabase = makeSupabaseStub({
-      course_attempts: { data: [], error: null },
+      // sFin also finished hr1, another track's course: not part of their programme.
+      course_attempts: { data: [{ student_id: 'sFin', course_id: 'core' }, { student_id: 'sFin', course_id: 'hr1' }, { student_id: 'sHr', course_id: 'hr1' }], error: null },
       guided_project_attempts: { data: [], error: null },
       // hr2 is also assigned to the cohort directly, so it counts for everyone.
       courses: { data: ['core', 'fin1', 'hr1', 'hr2'].map(id => ({ id, cohort_ids: id === 'hr2' ? ['co1'] : [] })), error: null },
@@ -94,5 +95,6 @@ describe('GET /api/admin/students-stats', () => {
     expect(body.cohortContentCount).toEqual({ co1: 4 });
     // Finance: core + fin1 + hr2 (direct). HR: core + hr1 + hr2. No pick yet: core + hr2.
     expect(body.studentContentCount).toEqual({ sFin: 3, sHr: 3, sNone: 2 });
+    expect(body.completedCount).toEqual({ sFin: 1, sHr: 1 });
   });
 });

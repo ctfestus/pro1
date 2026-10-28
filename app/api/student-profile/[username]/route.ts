@@ -64,9 +64,14 @@ export async function GET(
     pathIds.length   ? supabase.from('learning_paths').select('id, title, item_ids, tracks').in('id', pathIds) : Promise.resolve({ data: [] }),
   ]);
   // On a path with tracks the certificate covers core + the learner's track, as lib/certificate does.
-  const { data: pathProgressRaw } = pathIds.length
+  const { data: pathProgressRaw, error: pathProgressError } = pathIds.length
     ? await supabase.from('learning_path_progress').select('learning_path_id, track_id').eq('student_id', student.id).in('learning_path_id', pathIds)
-    : { data: [] };
+    : { data: [], error: null };
+  // Read as no track, a failure would show a path credential without its specialization.
+  if (pathProgressError) {
+    console.error('[student-profile] track lookup error:', pathProgressError);
+    return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+  }
   const trackByPath = new Map<string, string | null>((pathProgressRaw ?? []).map((r: any) => [r.learning_path_id, r.track_id ?? null]));
 
   const courseMap: Record<string, any> = Object.fromEntries((coursesRaw ?? []).map((r: any) => [r.id, r]));

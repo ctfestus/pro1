@@ -33,6 +33,8 @@ export interface CertificateData {
 export type CertificateResult =
   | { status: 'notfound' }
   | { status: 'revoked' }
+  // A read it depends on failed. Shown as a retry, never as a certificate with content missing.
+  | { status: 'unavailable' }
   | { status: 'ready'; data: CertificateData };
 
 function mapSettings(raw: any): Record<string, any> | null {
@@ -145,7 +147,7 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
 
   // Learning path certificate
   if (!cert.course_id && cert.learning_path_id) {
-    const [{ data: pathRow }, { data: prog }] = await Promise.all([
+    const [{ data: pathRow }, { data: prog, error: progError }] = await Promise.all([
       svc.from('learning_paths')
         .select('title, instructor_id, item_ids, tracks, cover_image, badge_image_url')
         .eq('id', cert.learning_path_id)
@@ -153,8 +155,13 @@ export async function loadCertificate(id: string): Promise<CertificateResult> {
       cert.student_id
         ? svc.from('learning_path_progress').select('track_id')
             .eq('learning_path_id', cert.learning_path_id).eq('student_id', cert.student_id).maybeSingle()
-        : Promise.resolve({ data: null }),
+        : Promise.resolve({ data: null, error: null }),
     ]);
+    // Read as no track, a failure would issue a core-only certificate without the specialization.
+    if (progError) {
+      console.error('[certificate] track lookup error:', progError);
+      return { status: 'unavailable' };
+    }
     // On a path with tracks the certificate lists what this learner took (core + their track)
     // and names the track.
     const track = pathRow ? chosenTrack(pathRow, (prog as any)?.track_id) : null;

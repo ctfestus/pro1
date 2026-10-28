@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete, trackOptOuts } from '@/lib/learning-path-tracks';
+import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete, trackOptOuts, tracksError, changedRequirements } from '@/lib/learning-path-tracks';
 
 const path = {
   item_ids: ['core1', 'fin1', 'core2', 'hr1', 'hr2'],
@@ -45,6 +45,38 @@ describe('learning path tracks', () => {
       { id: 'b', name: '  ', item_ids: ['x'] },
       'junk',
     ], ['x'])).toEqual([{ id: 'a', name: 'Finance', item_ids: ['x'] }]);
+  });
+});
+
+describe('tracksError', () => {
+  it('accepts no tracks, and tracks naming items no longer in the path', () => {
+    expect(tracksError(undefined)).toBeNull();
+    expect(tracksError([])).toBeNull();
+    expect(tracksError([{ id: 'a', name: 'Finance', item_ids: ['removed'] }, { id: 'b', name: 'HR' }])).toBeNull();
+  });
+
+  it('rejects what normalizeTracks would silently drop', () => {
+    expect(tracksError('x')).toMatch(/list/);
+    expect(tracksError(['junk'])).toMatch(/object/);
+    expect(tracksError([{ name: 'Finance' }])).toMatch(/id/);
+    expect(tracksError([{ id: 'a', name: ' ' }])).toMatch(/name/);
+    expect(tracksError([{ id: 'a', name: 'A' }, { id: 'a', name: 'B' }])).toMatch(/same id/);
+    expect(tracksError([{ id: 'a', name: 'A', item_ids: [1] }])).toMatch(/ids/);
+  });
+});
+
+describe('changedRequirements', () => {
+  it('names the tracks whose required items change, and the core when tracks first appear', () => {
+    expect(changedRequirements(path, path)).toEqual({ trackIds: [], core: false });
+    // fin1 leaves Finance and becomes core: HR learners now need it; Finance learners already did.
+    const cleared = { ...path, tracks: [{ ...path.tracks[0], item_ids: [] }, path.tracks[1]] };
+    expect(changedRequirements(path, cleared)).toEqual({ trackIds: ['hr'], core: false });
+    // Renaming changes nobody's requirements.
+    const renamed = { ...path, tracks: [path.tracks[0], { ...path.tracks[1], name: 'People' }] };
+    expect(changedRequirements(path, renamed)).toEqual({ trackIds: [], core: false });
+    const plain = { item_ids: path.item_ids, tracks: [] };
+    expect(changedRequirements(plain, path)).toEqual({ trackIds: [], core: true });
+    expect(changedRequirements(path, plain)).toEqual({ trackIds: ['fin', 'hr'], core: false });
   });
 });
 
