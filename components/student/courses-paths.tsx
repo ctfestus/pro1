@@ -784,8 +784,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
           <p className="text-base font-bold" style={{ color: C.text }}>Change your specialization</p>
         ) : (
           <>
-            <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: C.faint }}>Choose your specialization</p>
-            <p className="mt-1 text-base font-bold" style={{ color: C.text }}>Before we dive into the learning path, where will you specialize?</p>
+            <p className="text-base font-bold" style={{ color: C.text }}>Before we dive into the learning path, where will you specialize?</p>
             <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
               You&apos;ll build essential skills through the core courses, then take your expertise further with specialized learning tailored to your chosen path.
             </p>
