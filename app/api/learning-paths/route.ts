@@ -196,36 +196,17 @@ export async function POST(req: NextRequest) {
     // asked for a track they can never pick), not removing their track (including the last one,
     // which makes every former specialization required), and not moving items into or out of
     // their track or the core while keeping the track's id. changedRequirements names whose
-    // required items differ; save_learning_path_shape (migration 226) locks the path row, checks
-    // for completers on those and writes in one step, so a learner finishing at the same moment
-    // cannot slip between the check and the write.
-    let shapeSaved = false;
+    // required items differ; the save below then goes through save_learning_path (migrations
+    // 226-227), which locks the path row, checks for completers on those and writes every field
+    // in one transaction, so a learner finishing at the same moment cannot slip between the check
+    // and the write, and a failed save changes nothing.
+    let guard: { trackIds: string[]; core: boolean } | null = null;
     if (tracks !== undefined || item_ids !== undefined) {
       const nextShape = {
         item_ids: (item_ids ?? prev.item_ids ?? []) as string[],
         tracks: tracks !== undefined ? tracks : prev.tracks,
       };
-      if (pathTracks(nextShape).length > 0 || pathTracks(prev).length > 0) {
-        const changed = changedRequirements(prev, nextShape);
-        const { data: outcome, error: shapeError } = await supabase.rpc('save_learning_path_shape', {
-          p_path_id:             id,
-          p_instructor_id:       user.id,
-          p_expected_updated_at: prev.updated_at,
-          p_item_ids:            nextShape.item_ids,
-          p_tracks:              normalizeTracks(nextShape.tracks, nextShape.item_ids),
-          p_changed_track_ids:   changed.trackIds,
-          p_core_changed:        changed.core,
-        });
-        if (shapeError) { console.error('[learning-paths] update shape error:', shapeError); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
-        if (outcome === 'stale') {
-          return NextResponse.json({ error: 'This path was changed elsewhere while you were saving. Reload it and try again.' }, { status: 409 });
-        }
-        if (outcome === 'completed') {
-          return NextResponse.json({ error: await completedConflictMessage(supabase, id, prev, changed) }, { status: 409 });
-        }
-        if (outcome !== 'ok') { console.error('[learning-paths] update shape outcome:', outcome); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
-        shapeSaved = true;
-      }
+      if (pathTracks(nextShape).length > 0 || pathTracks(prev).length > 0) guard = changedRequirements(prev, nextShape);
     }
 
     const updateData: any = { updated_at: new Date().toISOString() };
@@ -233,11 +214,10 @@ export async function POST(req: NextRequest) {
     if (description     !== undefined) updateData.description     = description;
     if (cover_image     !== undefined) updateData.cover_image     = cover_image;
     if (badge_image_url !== undefined) updateData.badge_image_url = badge_image_url ?? null;
-    // Already written under the path lock when the path has tracks (above).
-    if (!shapeSaved && item_ids !== undefined) updateData.item_ids = item_ids;
+    if (item_ids        !== undefined) updateData.item_ids        = item_ids;
     // Tracks may only name items in the path, so they are cleaned against the item list being
     // saved (or the stored one when the request leaves items alone).
-    if (!shapeSaved && tracks !== undefined) updateData.tracks = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
+    if (tracks          !== undefined) updateData.tracks          = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
     if (overview        !== undefined) updateData.overview        = overview ?? null;
     if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
     if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];
@@ -253,12 +233,32 @@ export async function POST(req: NextRequest) {
     if (status          !== undefined) updateData.status          = status;
     if (next_path_id    !== undefined) updateData.next_path_id    = next_path_id ?? null;
 
-    const { error } = await supabase.from('learning_paths')
-      .update(updateData)
-      .eq('id', id)
-      .eq('instructor_id', user.id);
-
-    if (error) { console.error('[learning-paths] update error:', error); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    if (guard) {
+      // updated_at is set by the table's trigger inside the same transaction.
+      const { updated_at: _ignored, ...patch } = updateData;
+      const { data: outcome, error } = await supabase.rpc('save_learning_path', {
+        p_path_id:             id,
+        p_instructor_id:       user.id,
+        p_expected_updated_at: prev.updated_at,
+        p_patch:               patch,
+        p_changed_track_ids:   guard.trackIds,
+        p_core_changed:        guard.core,
+      });
+      if (error) { console.error('[learning-paths] update error:', error); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+      if (outcome === 'stale') {
+        return NextResponse.json({ error: 'This path was changed elsewhere while you were saving. Reload it and try again.' }, { status: 409 });
+      }
+      if (outcome === 'completed') {
+        return NextResponse.json({ error: await completedConflictMessage(supabase, id, prev, guard) }, { status: 409 });
+      }
+      if (outcome !== 'ok') { console.error('[learning-paths] update outcome:', outcome); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    } else {
+      const { error } = await supabase.from('learning_paths')
+        .update(updateData)
+        .eq('id', id)
+        .eq('instructor_id', user.id);
+      if (error) { console.error('[learning-paths] update error:', error); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    }
 
     // Send assignment emails to cohorts that are newly added (or path just published).
     // As with create, the update remains successful when delivery is only partial.

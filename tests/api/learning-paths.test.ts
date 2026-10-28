@@ -382,7 +382,7 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
     expect((await post({ action: 'update', id: 'lp1', title: 'P' })).status).toBe(500);
   });
 
-  // save_learning_path_shape (migration 226) checks completers and writes under one lock. Modeled
+  // save_learning_path (migrations 226-227) checks completers and writes under one lock. Modeled
   // here as the database does it: 'completed' when a completer is on a track (or the core) the
   // route says changes. So these pin the route's decision of whose requirements change.
   function shapeDb(prev: any, completers: (string | null)[], outcome?: string) {
@@ -392,12 +392,13 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
       learning_path_progress: { data: completers.map((track_id, i) => ({ id: `p${i}`, track_id })), error: null },
     }, (fn, args) => {
       calls.push({ fn, args });
-      if (fn !== 'save_learning_path_shape') throw new Error(`unexpected rpc ${fn}`);
+      if (fn !== 'save_learning_path') throw new Error(`unexpected rpc ${fn}`);
       if (outcome) return { data: outcome, error: null };
       const hit = completers.some(t => (t ? args.p_changed_track_ids.includes(t) : args.p_core_changed));
       return { data: hit ? 'completed' : 'ok', error: null };
     });
-    return { db, calls };
+    const from = vi.fn(db.from.bind(db));
+    return { db: { ...db, from }, calls, reads: (table: string) => from.mock.calls.filter(c => c[0] === table).length };
   }
 
   it('500s when the locked save fails, instead of saving', async () => {
@@ -415,16 +416,21 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
     expect((await res.json()).error).toMatch(/reload/i);
   });
 
-  it('writes the sequence and tracks under the lock, checked against the version it read', async () => {
+  it('saves every submitted field in one locked call, checked against the version it read', async () => {
     mockRole.mockResolvedValue(instructor as any);
-    const { db, calls } = shapeDb({ ...tracked, updated_at: '2026-10-28T10:00:00.123456+00:00' }, []);
+    const { db, calls, reads } = shapeDb({ ...tracked, updated_at: '2026-10-28T10:00:00.123456+00:00' }, []);
     h.db = db;
-    expect((await post({ action: 'update', id: 'lp1', tracks: tracked.tracks })).status).toBe(200);
+    const res = await post({ action: 'update', id: 'lp1', title: ' Renamed ', overview: 'New', tracks: tracked.tracks });
+    expect(res.status).toBe(200);
     expect(calls).toHaveLength(1);
     expect(calls[0].args).toMatchObject({
       p_path_id: 'lp1', p_instructor_id: 'i1', p_expected_updated_at: '2026-10-28T10:00:00.123456+00:00',
-      p_item_ids: tracked.item_ids, p_changed_track_ids: [], p_core_changed: false,
+      p_changed_track_ids: [], p_core_changed: false,
+      p_patch: { title: 'Renamed', overview: 'New', tracks: tracked.tracks },
     });
+    expect(calls[0].args.p_patch).not.toHaveProperty('updated_at');
+    // The path is only read: no second, separate write that could fail after the locked save.
+    expect(reads('learning_paths')).toBe(1);
   });
 
   it('409s when adding the first tracks to a path someone completed without one', async () => {

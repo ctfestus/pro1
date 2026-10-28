@@ -1544,17 +1544,20 @@ BEGIN
   RETURN v_id;
 END $$;
 
-CREATE OR REPLACE FUNCTION public.save_learning_path_shape(
+-- migration 227: replaces 226's save_learning_path_shape; every field of a path save in one transaction.
+CREATE OR REPLACE FUNCTION public.save_learning_path(
   p_path_id             uuid,
   p_instructor_id       uuid,
   p_expected_updated_at timestamptz,
-  p_item_ids            uuid[],
-  p_tracks              jsonb,
+  p_patch               jsonb,
   p_changed_track_ids   text[],
   p_core_changed        boolean
 ) RETURNS text LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_row public.learning_paths;
+  v_new public.learning_paths;
 BEGIN
-  PERFORM 1 FROM public.learning_paths
+  SELECT * INTO v_row FROM public.learning_paths
     WHERE id = p_path_id AND instructor_id = p_instructor_id AND updated_at = p_expected_updated_at
     FOR UPDATE;
   IF NOT FOUND THEN RETURN 'stale'; END IF;
@@ -1568,16 +1571,31 @@ BEGIN
     RETURN 'completed';
   END IF;
 
-  UPDATE public.learning_paths
-    SET item_ids = p_item_ids, tracks = p_tracks
-    WHERE id = p_path_id;
+  v_new := jsonb_populate_record(v_row, COALESCE(p_patch, '{}'::jsonb));
+
+  UPDATE public.learning_paths SET
+    title                 = v_new.title,
+    description           = v_new.description,
+    cover_image           = v_new.cover_image,
+    badge_image_url       = v_new.badge_image_url,
+    item_ids              = v_new.item_ids,
+    tracks                = v_new.tracks,
+    overview              = v_new.overview,
+    skills                = v_new.skills,
+    who_should_take       = v_new.who_should_take,
+    tools                 = v_new.tools,
+    cohort_ids            = v_new.cohort_ids,
+    available_to_everyone = v_new.available_to_everyone,
+    status                = v_new.status,
+    next_path_id          = v_new.next_path_id
+  WHERE id = p_path_id;
   RETURN 'ok';
 END $$;
 
 REVOKE EXECUTE ON FUNCTION public.complete_learning_path_progress(uuid, uuid, text, timestamptz, uuid[]) FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.save_learning_path_shape(uuid, uuid, timestamptz, uuid[], jsonb, text[], boolean) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.save_learning_path(uuid, uuid, timestamptz, jsonb, text[], boolean) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.complete_learning_path_progress(uuid, uuid, text, timestamptz, uuid[]) TO service_role;
-GRANT  EXECUTE ON FUNCTION public.save_learning_path_shape(uuid, uuid, timestamptz, uuid[], jsonb, text[], boolean) TO service_role;
+GRANT  EXECUTE ON FUNCTION public.save_learning_path(uuid, uuid, timestamptz, jsonb, text[], boolean) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.trg_site_settings_updated_at()
 RETURNS trigger LANGUAGE plpgsql AS $$
