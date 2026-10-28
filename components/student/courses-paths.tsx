@@ -676,9 +676,11 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
 // one-line summary with a Change control, until the path is finished and the track is fixed.
 const BUILD_STEP_MS = 650;
 
-function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onRevealed }: {
+function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onRevealed, onBuilding }: {
   path: any; C: typeof LIGHT_C; onChoose: (trackId: string) => Promise<void>; onSaved: () => Promise<void>;
   finished: boolean; learnerName: string | null; onRevealed: () => void;
+  /** True while a pick is being saved, so the path hides its old content until the new one drops in. */
+  onBuilding: (building: boolean) => void;
 }) {
   const { appName } = useTenant();
   const reduceMotion = useReducedMotion();
@@ -710,6 +712,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
   const choose = async (track: { id: string; name: string }) => {
     if (track.id === current?.id) { setOpen(false); return; }
     setPicked(track);
+    onBuilding(true);
     setError('');
     try {
       // Save during the building steps, so the learner sees the path being put together. The path
@@ -723,6 +726,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
       setError(err instanceof Error ? err.message : 'Could not save your track. Please try again.');
     } finally {
       setPicked(null);
+      onBuilding(false);
     }
   };
 
@@ -822,7 +826,9 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
                   transition={{ duration: 0.4, delay: (current ? 0.1 : 0.6) + i * 0.1, ease }}
                   whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
                   className="text-left rounded-xl p-4"
-                  style={{ background: C.card, boxShadow: `inset 0 0 0 ${selected ? '2px' : '1.5px'} ${selected ? C.cta : C.cardBorder}` }}>
+                  // A filled card rather than an outline: on the dark theme C.card is the section's own
+                  // background and the border token is near invisible, so the options vanished.
+                  style={{ background: C.pill, boxShadow: selected ? `inset 0 0 0 2px ${C.cta}` : 'none' }}>
                   <span className="flex items-center justify-between gap-2">
                     <span className="text-sm font-bold" style={{ color: C.text }}>{track.name}</span>
                     {selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/>}
@@ -912,6 +918,16 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
 }) {
   // Set once the learner answers the track question, so their path drops in item by item.
   const [revealing, setRevealing] = useState(false);
+  // The "Your path is ready" moment: shown after each pick, then gone after a few seconds.
+  const [celebrate, setCelebrate] = useState(false);
+  // A pick (first or a change) is being saved: the old content is hidden, so the new path drops in
+  // fresh instead of appearing under the previous one.
+  const [building, setBuilding] = useState(false);
+  useEffect(() => {
+    if (!celebrate) return;
+    const timer = setTimeout(() => setCelebrate(false), 6000);
+    return () => clearTimeout(timer);
+  }, [celebrate]);
   const reduceMotion = useReducedMotion();
   const totalItems    = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
@@ -960,7 +976,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
                   <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
                 </span>
               )}
-              {!publicPreview && !path.locked && !awaitingTrack && currentIndex >= 0 && !allDone && (
+              {!publicPreview && !path.locked && !awaitingTrack && !building && currentIndex >= 0 && !allDone && (
                 <motion.span key={items[currentIndex]?.id ?? currentIndex}
                   initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                   className="flex items-center gap-1.5 min-w-0 max-w-full">
@@ -998,12 +1014,14 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
 
       {!publicPreview && !path.locked && onChooseTrack && (path.tracks ?? []).length > 0 && (
         <TrackPicker path={path} C={C} onChoose={onChooseTrack} onSaved={onTrackSaved ?? (async () => {})} finished={allDone || !!pathCertId}
-          learnerName={learnerName} onRevealed={() => setRevealing(true)}/>
+          learnerName={learnerName} onRevealed={() => { setRevealing(true); setCelebrate(true); }}
+          onBuilding={b => { setBuilding(b); if (b) setCelebrate(false); }}/>
       )}
 
-      {!awaitingTrack && (<>
-      {revealing && (
-        <motion.div role="status" className="mt-5 flex items-center gap-3 rounded-xl px-4 py-3"
+      {!awaitingTrack && !building && (<>
+      <AnimatePresence>
+      {celebrate && (
+        <motion.div key="ready" role="status" exit={{ opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }} className="mt-5 flex items-center gap-3 rounded-xl px-4 py-3"
           style={{ background: isLight ? '#f0fdf4' : 'rgba(34,197,94,0.10)' }}
           initial={reduceMotion ? false : { opacity: 0, scale: 0.9, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 320, damping: 18 }}>
@@ -1034,6 +1052,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
           </div>
         </motion.div>
       )}
+      </AnimatePresence>
       {!publicPreview && (
       <div className={hideHeader ? '' : 'mt-5'}>
         <div className="flex items-center justify-between text-[11px] mb-2">
