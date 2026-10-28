@@ -20,10 +20,14 @@ function StudentSubscriptionSummary({ studentId, C }: { studentId: string; C: ty
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Mounted with key={studentId}, so state starts fresh per student; this drops a response that
+    // arrives after the panel closed or moved on.
+    let cancelled = false;
     dashboardAuthFetch(`/api/payments?action=subscription-status&studentId=${studentId}`)
       .then(async res => ({ ok: res.ok, data: await res.json() }))
-      .then(({ ok, data }) => { if (!ok) throw new Error(data.error || 'Failed to load subscription'); setSubscription(data.subscription ?? null); })
-      .catch(err => setError(err.message));
+      .then(({ ok, data }) => { if (!ok) throw new Error(data.error || 'Failed to load subscription'); if (!cancelled) setSubscription(data.subscription ?? null); })
+      .catch(err => { if (!cancelled) setError(err.message); });
+    return () => { cancelled = true; };
   }, [studentId]);
 
   return <div className="rounded-xl p-3 mb-5" style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
@@ -124,7 +128,7 @@ function StudentDetailPanel({ student, cohortName, detail, loading, error, onRet
             Open Student Dashboard
           </a>
 
-          <StudentSubscriptionSummary studentId={student.id} C={C} />
+          <StudentSubscriptionSummary key={student.id} studentId={student.id} C={C} />
 
           <div className="rounded-xl p-3 mb-5" style={{ background: C.pill, border: `1px solid ${C.cardBorder}` }}>
             <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.faint }}>Account setup</p>
@@ -258,7 +262,12 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
   const [menuPos,      setMenuPos]      = useState<{ top?: number; bottom?: number; right: number } | null>(null);
 
   const load = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    let session: any = null;
+    try {
+      ({ data: { session } } = await supabase.auth.getSession());
+    } catch (err) {
+      console.error('[StudentsSection] session read failed', err);
+    }
     const [stu, { data: coh }, statsRes] = await Promise.all([
       // Paged. The roster grows with the tenant, and PostgREST caps a single response at the
       // project's row limit, which truncates SILENTLY -- past that point the list simply stops
@@ -276,11 +285,14 @@ export function StudentsSection({ C }: { C: typeof LIGHT_C }) {
         // the same way, so a failed roster load does not leave the section stuck on its spinner.
         .catch(err => { console.error('[StudentsSection] roster load failed', err); return []; }),
       supabase.from('cohorts').select('id, name, cohort_kind'),
-      fetch('/api/admin/students-stats', { headers: { Authorization: `Bearer ${session?.access_token}` } }),
+      // A network failure rejects instead of returning a response; caught so it shows as the
+      // counts error rather than leaving the section on its spinner.
+      fetch('/api/admin/students-stats', { headers: { Authorization: `Bearer ${session?.access_token}` } })
+        .catch(err => { console.error('[StudentsSection] stats load failed', err); return null; }),
     ]);
     let stats: any = null;
-    if (statsRes.ok) stats = await statsRes.json().catch(() => null);
-    else console.error('[StudentsSection] stats load failed', statsRes.status);
+    if (statsRes?.ok) stats = await statsRes.json().catch(() => null);
+    else if (statsRes) console.error('[StudentsSection] stats load failed', statsRes.status);
     setStatsError(!stats);
     stats ??= { completedCount: {}, cohortContentCount: {}, studentContentCount: {} };
     setStudents(stu);
