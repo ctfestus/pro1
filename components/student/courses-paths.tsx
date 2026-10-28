@@ -690,6 +690,8 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
   const [step, setStep] = useState(0);
   const [error, setError] = useState('');
+  // A change from an existing track waits for the learner to confirm it.
+  const [confirming, setConfirming] = useState<{ id: string; name: string } | null>(null);
   const firstName = (learnerName ?? '').trim().split(/\s+/)[0] ?? '';
   const ease = [0.16, 1, 0.3, 1] as const;
 
@@ -709,8 +711,14 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
     return () => clearInterval(timer);
   }, [picked]);
 
-  const choose = async (track: { id: string; name: string }) => {
+  const ask = (track: { id: string; name: string }) => {
     if (track.id === current?.id) { setOpen(false); return; }
+    if (current) { setConfirming(track); setError(''); return; }
+    choose(track);
+  };
+
+  const choose = async (track: { id: string; name: string }) => {
+    setConfirming(null);
     setPicked(track);
     onBuilding(true);
     setError('');
@@ -819,12 +827,29 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
               })}
             </ul>
           </motion.div>
+        ) : confirming && current ? (
+          <motion.div key="confirm" role="alertdialog" aria-label={`Switch to ${confirming.name}?`}
+            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25, ease }}
+            className="mt-4 rounded-xl p-4 sm:p-5" style={{ background: C.pill }}>
+            <p className="text-sm font-bold" style={{ color: C.text }}>Switch to {confirming.name}?</p>
+            <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
+              Your progress on {current.name} courses is kept, but only the core and {confirming.name} courses will count toward this path and its certificate.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <button onClick={() => choose(confirming)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
+                Switch to {confirming.name}
+              </button>
+              <button onClick={() => setConfirming(null)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ color: C.muted }}>
+                Cancel
+              </button>
+            </div>
+          </motion.div>
         ) : (
           <motion.div key="options" className="mt-4 grid gap-3 sm:grid-cols-2" exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
             {tracks.map((track, i) => {
               const selected = track.id === current?.id;
               return (
-                <motion.button key={track.id} onClick={() => choose(track)}
+                <motion.button key={track.id} onClick={() => ask(track)}
                   initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.4, delay: (current ? 0.1 : 0.6) + i * 0.1, ease }}
                   whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
@@ -844,7 +869,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
         )}
       </AnimatePresence>
       {error && <p role="alert" className="mt-3 text-xs" style={{ color: '#ef4444' }}>{error}</p>}
-      {current && !picked && (
+      {current && !picked && !confirming && (
         <button onClick={() => setOpen(false)} className="mt-3 text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
       )}
     </div>
@@ -1024,26 +1049,20 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
       {!awaitingTrack && !building && (<>
       <AnimatePresence>
       {celebrate && (
-        <motion.div key="ready" role="status" exit={{ opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0 }} className="mt-5 flex items-center gap-3 rounded-xl px-4 py-3"
+        <motion.div key="ready" role="status" exit={{ opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0, transition: { duration: 0.35, ease: 'easeInOut' } }} className="mt-5 flex items-center gap-3 rounded-xl px-4 py-3"
           style={{ background: isLight ? '#f0fdf4' : 'rgba(34,197,94,0.10)' }}
-          initial={reduceMotion ? false : { opacity: 0, scale: 0.9, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-          transition={{ type: 'spring', stiffness: 320, damping: 18 }}>
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
           <span className="relative grid h-9 w-9 flex-shrink-0 place-items-center">
-            <motion.span aria-hidden="true" className="absolute inset-0 rounded-full" style={{ background: '#22c55e' }}
-              initial={{ scale: 0.6, opacity: 0.5 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 1.1, repeat: 2, ease: 'easeOut' }}/>
-            {!reduceMotion && [0, 1, 2, 3, 4, 5].map(i => {
-              const angle = (i / 6) * Math.PI * 2;
-              return (
-                <motion.span key={i} aria-hidden="true" className="absolute left-1/2 top-1/2 h-1.5 w-1.5 rounded-full"
-                  style={{ background: i % 2 ? '#d4a017' : '#22c55e' }}
-                  initial={{ x: -3, y: -3, opacity: 1, scale: 1 }}
-                  animate={{ x: Math.cos(angle) * 26 - 3, y: Math.sin(angle) * 26 - 3, opacity: 0, scale: 0.4 }}
-                  transition={{ duration: 0.9, delay: 0.15, ease: 'easeOut' }}/>
-              );
-            })}
+            {/* One soft pulse behind the icon. Kept small and single: a larger repeating ring with a
+                particle burst read as an explosion. */}
+            {!reduceMotion && (
+              <motion.span aria-hidden="true" className="absolute inset-0 rounded-full" style={{ background: '#22c55e' }}
+                initial={{ scale: 1, opacity: 0.3 }} animate={{ scale: 1.35, opacity: 0 }} transition={{ duration: 1, delay: 0.2, ease: 'easeOut' }}/>
+            )}
             <motion.span className="relative grid h-9 w-9 place-items-center rounded-full" style={{ background: '#16a34a', color: '#ffffff' }}
-              initial={reduceMotion ? false : { rotate: -30, scale: 0.5 }} animate={{ rotate: 0, scale: 1 }}
-              transition={{ type: 'spring', stiffness: 400, damping: 12 }}>
+              initial={reduceMotion ? false : { scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 22 }}>
               <Sparkles className="h-4 w-4"/>
             </motion.span>
           </span>
