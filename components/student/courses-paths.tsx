@@ -711,6 +711,13 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
     return () => clearInterval(timer);
   }, [picked]);
 
+  useEffect(() => {
+    if (!confirming) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setConfirming(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirming]);
+
   const ask = (track: { id: string; name: string }) => {
     if (track.id === current?.id) { setOpen(false); return; }
     if (current) { setConfirming(track); setError(''); return; }
@@ -827,23 +834,6 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
               })}
             </ul>
           </motion.div>
-        ) : confirming && current ? (
-          <motion.div key="confirm" role="alertdialog" aria-label={`Switch to ${confirming.name}?`}
-            initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.25, ease }}
-            className="mt-4 rounded-xl p-4 sm:p-5" style={{ background: C.pill }}>
-            <p className="text-sm font-bold" style={{ color: C.text }}>Switch to {confirming.name}?</p>
-            <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
-              Your {current.name} courses will be replaced with {confirming.name} courses. Anything you have already completed is saved.
-            </p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button onClick={() => choose(confirming)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
-                Switch to {confirming.name}
-              </button>
-              <button onClick={() => setConfirming(null)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ color: C.muted }}>
-                Cancel
-              </button>
-            </div>
-          </motion.div>
         ) : (
           <motion.div key="options" className="mt-4 grid gap-3 sm:grid-cols-2" exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
             {tracks.map((track, i) => {
@@ -869,8 +859,43 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
         )}
       </AnimatePresence>
       {error && <p role="alert" className="mt-3 text-xs" style={{ color: '#ef4444' }}>{error}</p>}
-      {current && !picked && !confirming && (
+      {current && !picked && (
         <button onClick={() => setOpen(false)} className="mt-3 text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
+      )}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {confirming && current && (
+            <motion.div key="switch-confirm" className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+              style={{ background: 'rgba(0,0,0,0.45)' }}
+              onClick={() => setConfirming(null)}>
+              <motion.div role="alertdialog" aria-modal="true" aria-labelledby="switch-track-title"
+                initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.25, ease }}
+                className="relative w-full max-w-md rounded-2xl p-5 sm:p-6"
+                style={{ background: C.card, boxShadow: '0 20px 50px rgba(0,0,0,0.25)' }}
+                onClick={e => e.stopPropagation()}>
+                <button onClick={() => setConfirming(null)} aria-label="Close"
+                  className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full transition-opacity hover:opacity-70" style={{ color: C.muted }}>
+                  <X className="h-4 w-4"/>
+                </button>
+                <p id="switch-track-title" className="pr-8 text-base font-bold" style={{ color: C.text }}>Switch to {confirming.name}?</p>
+                <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>
+                  Your {current.name} courses will be replaced with {confirming.name} courses. Anything you have already completed is saved.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-end gap-2">
+                  <button onClick={() => setConfirming(null)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>
+                    Cancel
+                  </button>
+                  <button autoFocus onClick={() => choose(confirming)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
+                    Switch to {confirming.name}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
       )}
     </div>
   );
@@ -1054,11 +1079,9 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
           initial={reduceMotion ? false : { opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
           transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
           <span className="relative grid h-9 w-9 flex-shrink-0 place-items-center">
-            {/* One soft pulse behind the icon. Kept small and single: a larger repeating ring with a
-                particle burst read as an explosion. */}
             {!reduceMotion && (
               <motion.span aria-hidden="true" className="absolute inset-0 rounded-full" style={{ background: '#22c55e' }}
-                initial={{ scale: 1, opacity: 0.3 }} animate={{ scale: 1.35, opacity: 0 }} transition={{ duration: 1, delay: 0.2, ease: 'easeOut' }}/>
+                initial={{ scale: 0.6, opacity: 0.5 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 1.1, repeat: 2, ease: 'easeOut' }}/>
             )}
             <motion.span className="relative grid h-9 w-9 place-items-center rounded-full" style={{ background: '#16a34a', color: '#ffffff' }}
               initial={reduceMotion ? false : { scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
