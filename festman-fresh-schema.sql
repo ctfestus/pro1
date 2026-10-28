@@ -785,6 +785,10 @@ CREATE TABLE public.learning_paths (
   skills          text[]      NOT NULL DEFAULT '{}',
   who_should_take text[]      NOT NULL DEFAULT '{}',
   tools           text[]      NOT NULL DEFAULT '{}',
+  -- migration 225: [{ id, name, description?, item_ids[] }]. Items in no track are core; a
+  -- learner takes core + their chosen track (learning_path_progress.track_id).
+  tracks          jsonb       NOT NULL DEFAULT '[]'::jsonb
+    CONSTRAINT learning_paths_tracks_is_array CHECK (jsonb_typeof(tracks) = 'array'),
   -- migration 186, as for virtual_experiences above.
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
@@ -974,6 +978,8 @@ CREATE TABLE public.learning_path_progress (
   completed_item_ids uuid[]      NOT NULL DEFAULT '{}',
   completed_at       timestamptz,
   cert_id            uuid,
+  -- migration 225: the learning_paths.tracks[].id the learner picked; NULL until they pick.
+  track_id           text,
   updated_at         timestamptz NOT NULL DEFAULT now(),
   UNIQUE (student_id, learning_path_id),
   CONSTRAINT check_cert_requires_completion CHECK (cert_id IS NULL OR completed_at IS NOT NULL)
@@ -1507,6 +1513,89 @@ CREATE TRIGGER trg_meeting_integrations_updated_at
   BEFORE UPDATE ON public.meeting_integrations FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
 CREATE TRIGGER trg_learning_path_progress_updated_at
   BEFORE UPDATE ON public.learning_path_progress FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+
+-- migration 226: path completion and track/sequence edits take a shared lock on the path row, so
+-- a completion and an edit that would change that completer's requirements cannot interleave.
+-- See migrations/226_learning_path_track_locks.sql.
+CREATE OR REPLACE FUNCTION public.complete_learning_path_progress(
+  p_student_id         uuid,
+  p_path_id            uuid,
+  p_track_id           text,
+  p_path_updated_at    timestamptz,
+  p_completed_item_ids uuid[]
+) RETURNS uuid LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_id uuid;
+BEGIN
+  PERFORM 1 FROM public.learning_paths
+    WHERE id = p_path_id AND updated_at = p_path_updated_at
+    FOR SHARE;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+
+  INSERT INTO public.learning_path_progress AS lpp
+    (student_id, learning_path_id, track_id, completed_item_ids, completed_at)
+  VALUES (p_student_id, p_path_id, p_track_id, p_completed_item_ids, now())
+  ON CONFLICT (student_id, learning_path_id) DO UPDATE
+    SET completed_item_ids = EXCLUDED.completed_item_ids,
+        completed_at       = COALESCE(lpp.completed_at, EXCLUDED.completed_at)
+    WHERE lpp.track_id IS NOT DISTINCT FROM p_track_id
+  RETURNING lpp.id INTO v_id;
+
+  RETURN v_id;
+END $$;
+
+-- migration 227: replaces 226's save_learning_path_shape; every field of a path save in one transaction.
+CREATE OR REPLACE FUNCTION public.save_learning_path(
+  p_path_id             uuid,
+  p_instructor_id       uuid,
+  p_expected_updated_at timestamptz,
+  p_patch               jsonb,
+  p_changed_track_ids   text[],
+  p_core_changed        boolean
+) RETURNS text LANGUAGE plpgsql SET search_path = public AS $$
+DECLARE
+  v_row public.learning_paths;
+  v_new public.learning_paths;
+BEGIN
+  SELECT * INTO v_row FROM public.learning_paths
+    WHERE id = p_path_id AND instructor_id = p_instructor_id AND updated_at = p_expected_updated_at
+    FOR UPDATE;
+  IF NOT FOUND THEN RETURN 'stale'; END IF;
+
+  IF EXISTS (
+    SELECT 1 FROM public.learning_path_progress
+    WHERE learning_path_id = p_path_id
+      AND completed_at IS NOT NULL
+      AND (track_id = ANY (p_changed_track_ids) OR (p_core_changed AND track_id IS NULL))
+  ) THEN
+    RETURN 'completed';
+  END IF;
+
+  v_new := jsonb_populate_record(v_row, COALESCE(p_patch, '{}'::jsonb));
+
+  UPDATE public.learning_paths SET
+    title                 = v_new.title,
+    description           = v_new.description,
+    cover_image           = v_new.cover_image,
+    badge_image_url       = v_new.badge_image_url,
+    item_ids              = v_new.item_ids,
+    tracks                = v_new.tracks,
+    overview              = v_new.overview,
+    skills                = v_new.skills,
+    who_should_take       = v_new.who_should_take,
+    tools                 = v_new.tools,
+    cohort_ids            = v_new.cohort_ids,
+    available_to_everyone = v_new.available_to_everyone,
+    status                = v_new.status,
+    next_path_id          = v_new.next_path_id
+  WHERE id = p_path_id;
+  RETURN 'ok';
+END $$;
+
+REVOKE EXECUTE ON FUNCTION public.complete_learning_path_progress(uuid, uuid, text, timestamptz, uuid[]) FROM PUBLIC, anon, authenticated;
+REVOKE EXECUTE ON FUNCTION public.save_learning_path(uuid, uuid, timestamptz, jsonb, text[], boolean) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.complete_learning_path_progress(uuid, uuid, text, timestamptz, uuid[]) TO service_role;
+GRANT  EXECUTE ON FUNCTION public.save_learning_path(uuid, uuid, timestamptz, jsonb, text[], boolean) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.trg_site_settings_updated_at()
 RETURNS trigger LANGUAGE plpgsql AS $$

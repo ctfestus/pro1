@@ -68,5 +68,33 @@ describe('GET /api/admin/students-stats', () => {
     const body = await (await get()).json();
     expect(body.completedCount).toEqual({ s1: 3 });
     expect(body.cohortContentCount).toEqual({ co1: 4, co2: 4 });
+    expect(body.studentContentCount).toEqual({});
+  });
+
+  it("counts core plus the learner's own track on a path with tracks", async () => {
+    const supabase = makeSupabaseStub({
+      // sFin also finished hr1, another track's course: not part of their programme.
+      course_attempts: { data: [{ student_id: 'sFin', course_id: 'core' }, { student_id: 'sFin', course_id: 'hr1' }, { student_id: 'sHr', course_id: 'hr1' }], error: null },
+      guided_project_attempts: { data: [], error: null },
+      // hr2 is also assigned to the cohort directly, so it counts for everyone.
+      courses: { data: ['core', 'fin1', 'hr1', 'hr2'].map(id => ({ id, cohort_ids: id === 'hr2' ? ['co1'] : [] })), error: null },
+      virtual_experiences: { data: [], error: null },
+      learning_paths: { data: [{
+        id: 'lp', item_ids: ['core', 'fin1', 'hr1', 'hr2'], cohort_ids: ['co1'],
+        tracks: [{ id: 'fin', name: 'Finance', item_ids: ['fin1'] }, { id: 'hr', name: 'HR', item_ids: ['hr1', 'hr2'] }],
+      }], error: null },
+      students: { data: [{ id: 'sFin', cohort_id: 'co1' }, { id: 'sHr', cohort_id: 'co1' }, { id: 'sNone', cohort_id: 'co1' }], error: null },
+      learning_path_progress: { data: [
+        { id: 'p1', student_id: 'sFin', learning_path_id: 'lp', track_id: 'fin' },
+        { id: 'p2', student_id: 'sHr', learning_path_id: 'lp', track_id: 'hr' },
+      ], error: null },
+    });
+    mockRequireRole.mockResolvedValue({ user: { id: 'i1' }, serviceDb: supabase, role: 'admin', token: 't' } as any);
+
+    const body = await (await get()).json();
+    expect(body.cohortContentCount).toEqual({ co1: 4 });
+    // Finance: core + fin1 + hr2 (direct). HR: core + hr1 + hr2. No pick yet: core + hr2.
+    expect(body.studentContentCount).toEqual({ sFin: 3, sHr: 3, sNone: 2 });
+    expect(body.completedCount).toEqual({ sFin: 1, sHr: 1 });
   });
 });

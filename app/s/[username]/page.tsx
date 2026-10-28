@@ -589,6 +589,8 @@ export default function StudentPublicProfile() {
   const [data, setData]                   = useState<any>(null);
   const [loading, setLoading]             = useState(true);
   const [notFound, setNotFound]           = useState(false);
+  // The profile exists but could not be loaded (server or network): a retry, not a 404.
+  const [unavailable, setUnavailable]     = useState(false);
   const [copied, setCopied]               = useState(false);
   const [selectedProject, setSelectedProject] = useState<any>(null);
   const [showNav, setShowNav]             = useState(false);
@@ -597,9 +599,13 @@ export default function StudentPublicProfile() {
   useEffect(() => {
     if (!username) return;
     fetch(`/api/student-profile/${encodeURIComponent(username)}`)
-      .then(r => { if (r.status === 404) { setNotFound(true); setLoading(false); return null; } return r.json(); })
+      .then(r => {
+        if (r.status === 404) { setNotFound(true); setLoading(false); return null; }
+        if (!r.ok) { setUnavailable(true); setLoading(false); return null; }
+        return r.json();
+      })
       .then(d => { if (!d) return; setData(d); setLoading(false); })
-      .catch(() => { setNotFound(true); setLoading(false); });
+      .catch(() => { setUnavailable(true); setLoading(false); });
   }, [username]);
 
   useEffect(() => {
@@ -635,6 +641,12 @@ export default function StudentPublicProfile() {
       <p style={{ fontSize: 28, fontWeight: 800, color: t.text, margin: 0 }}>404</p>
       <p style={{ fontSize: 14, color: t.muted, margin: 0 }}>This profile doesn&apos;t exist.</p>
       <Link href="/" style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: t.accent }}>Go home</Link>
+    </div>
+  );
+  if (unavailable) return (
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, background: t.page, textAlign: 'center', padding: '0 24px' }}>
+      <p style={{ fontSize: 14, color: t.muted, margin: 0 }}>We could not load this profile right now.</p>
+      <button type="button" onClick={() => window.location.reload()} style={{ marginTop: 8, fontSize: 14, fontWeight: 600, color: t.accent, background: 'none', border: 'none', cursor: 'pointer' }}>Try again</button>
     </div>
   );
 

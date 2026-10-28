@@ -127,6 +127,9 @@ export async function POST(req: NextRequest) {
         // Authorization above already established that this content reaches this student; pairing
         // them here is what asks the classifier for their status.
         cohortIds: [recipient.cohort_id],
+        // Only the item's own cohorts are direct: a cohort reached through a path with tracks is
+        // subject to the learner's track, so another track's course is not theirs to be nudged on.
+        directCohortIds: contentCohortIds,
         status: content.status,
         veFormId: contentType === 'assignment' && content.type === 'virtual_experience'
           ? (content.config?.ve_form_id ?? null)
@@ -139,6 +142,9 @@ export async function POST(req: NextRequest) {
     if (row?.status === 'completed') {
       return NextResponse.json({ error: 'That student has already completed this.' }, { status: 409 });
     }
+    // Reached only through a path and classified as no row: another track's item. Never fall back
+    // to the browser's status for it.
+    if (!row && !contentCohortIds.includes(recipient.cohort_id)) return refuse();
     if (row) nudgeStatus = row.status;
   }
 

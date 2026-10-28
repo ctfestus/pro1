@@ -7,6 +7,7 @@ import {
   courseCompletedNextUpEmail,
   learningPathAssignedEmail,
 } from '@/lib/email-templates';
+import { isPathComplete, pathTracks, requiredItemIds } from '@/lib/learning-path-tracks';
 
 export async function updateLearningPathProgress(
   supabase: any,
@@ -19,7 +20,7 @@ export async function updateLearningPathProgress(
 
     const pathQuery = supabase
       .from('learning_paths')
-      .select('id, item_ids, title, next_path_id')
+      .select('id, item_ids, tracks, title, next_path_id, updated_at')
       .eq('status', 'published')
       .contains('item_ids', [completedItemId]);
     const { data: paths } = await (student.cohort_id
@@ -42,25 +43,37 @@ export async function updateLearningPathProgress(
       if (existingCompleted.includes(completedItemId)) continue;
 
       const updatedCompleted = [...existingCompleted, completedItemId];
-      const allDone = (path.item_ids ?? []).every((id: string) => updatedCompleted.includes(id));
+      // On a path with tracks only core + the learner's track count, and nothing completes the
+      // path before a track is chosen.
+      const trackId: string | null = prog?.track_id ?? null;
+      const allDone = isPathComplete(path, trackId, updatedCompleted);
 
-      const upsertData: any = {
-        student_id:         studentId,
-        learning_path_id:   path.id,
-        completed_item_ids: updatedCompleted,
-        updated_at:         new Date().toISOString(),
-      };
-      if (allDone) upsertData.completed_at = new Date().toISOString();
-
-      const { data: upserted } = await supabase
-        .from('learning_path_progress')
-        .upsert(upsertData, { onConflict: 'student_id,learning_path_id' })
-        .select('id')
-        .single();
+      // Completion is finalized under the path lock and only for the track it was computed for
+      // (complete_learning_path_progress, migration 226), so neither a track switch nor an author
+      // edit landing meanwhile can leave a certificate issued for requirements the row no longer
+      // has. When it declines, the progress is still saved below without completing, and the next
+      // get-student-paths reconciliation finalizes it against the current state.
+      let progressRowId = allDone
+        ? await finalizeCompletion(supabase, studentId, path, trackId, updatedCompleted)
+        : undefined;
+      const finalized = !!progressRowId;
+      if (!finalized) {
+        const { data: upserted } = await supabase
+          .from('learning_path_progress')
+          .upsert({
+            student_id:         studentId,
+            learning_path_id:   path.id,
+            completed_item_ids: updatedCompleted,
+            updated_at:         new Date().toISOString(),
+          }, { onConflict: 'student_id,learning_path_id' })
+          .select('id')
+          .single();
+        progressRowId = upserted?.id;
+      }
 
       // Send "next up" email when a non-final item is completed
       if (!allDone) {
-        const itemIds: string[] = path.item_ids ?? [];
+        const itemIds: string[] = requiredItemIds(path, trackId);
         const completedIdx = itemIds.indexOf(completedItemId);
         const nextItemId   = completedIdx >= 0 && completedIdx + 1 < itemIds.length ? itemIds[completedIdx + 1] : null;
         if (nextItemId) {
@@ -114,8 +127,8 @@ export async function updateLearningPathProgress(
         }
       }
 
-      if (allDone) {
-        await runPathCompletionEffects(supabase, studentId, student.cohort_id ?? null, path, upserted?.id, !!prog?.cert_id);
+      if (finalized) {
+        await runPathCompletionEffects(supabase, studentId, student.cohort_id ?? null, path, progressRowId, !!prog?.cert_id, trackId);
       }
     }
   } catch (err) {
@@ -131,8 +144,10 @@ export async function updateLearningPathProgress(
 export async function reconcilePathCompletion(
   supabase: any,
   studentId: string,
-  path: { id: string; title: string; item_ids?: string[]; next_path_id?: string | null },
+  path: { id: string; title: string; item_ids?: string[]; next_path_id?: string | null; updated_at?: string | null },
   completedItemIds: string[],
+  /** The track completion was computed for; a learner who has since switched is not finalized. */
+  trackId: string | null = null,
 ) {
   try {
     const [{ data: student }, { data: prog }] = await Promise.all([
@@ -143,25 +158,49 @@ export async function reconcilePathCompletion(
         .eq('learning_path_id', path.id)
         .maybeSingle(),
     ]);
-    // Fresh read: skip when another request already finalized this path.
+    // Fresh read: skip when another request already finalized this path, or when the learner
+    // switched track since completion was computed (the new track may not be finished).
     if (prog?.completed_at && prog?.cert_id) return;
+    if ((prog?.track_id ?? null) !== trackId) return;
 
-    const { data: upserted } = await supabase
-      .from('learning_path_progress')
-      .upsert({
-        student_id:         studentId,
-        learning_path_id:   path.id,
-        completed_item_ids: completedItemIds,
-        completed_at:       prog?.completed_at ?? new Date().toISOString(),
-        updated_at:         new Date().toISOString(),
-      }, { onConflict: 'student_id,learning_path_id' })
-      .select('id')
-      .single();
+    const progressRowId = await finalizeCompletion(supabase, studentId, path, trackId, completedItemIds);
+    if (!progressRowId) return;
 
-    await runPathCompletionEffects(supabase, studentId, student?.cohort_id ?? null, path, upserted?.id, !!prog?.cert_id);
+    await runPathCompletionEffects(supabase, studentId, student?.cohort_id ?? null, path, progressRowId, !!prog?.cert_id, trackId);
   } catch (err) {
     console.error('[reconcilePathCompletion]', err);
   }
+}
+
+/**
+ * Marks the path complete for this learner, or declines (undefined) when the path changed since
+ * `path` was read or the learner's row no longer holds `trackId`. Both are checked under a lock on
+ * the path row by complete_learning_path_progress (migration 226), so the decision and the write
+ * are one step. A path read without updated_at cannot be checked, so it is never finalized here.
+ */
+async function finalizeCompletion(
+  supabase: any,
+  studentId: string,
+  path: { id: string; updated_at?: string | null },
+  trackId: string | null,
+  completedItemIds: string[],
+): Promise<string | undefined> {
+  if (!path.updated_at) {
+    console.error('[learning-path-progress] path read without updated_at; completion not finalized', path.id);
+    return undefined;
+  }
+  const { data, error } = await supabase.rpc('complete_learning_path_progress', {
+    p_student_id:         studentId,
+    p_path_id:            path.id,
+    p_track_id:           trackId,
+    p_path_updated_at:    path.updated_at,
+    p_completed_item_ids: completedItemIds,
+  });
+  if (error) {
+    console.error('[learning-path-progress] complete error:', error);
+    return undefined;
+  }
+  return data ?? undefined;
 }
 
 // Completion side effects for a path the student has finished: auto-enroll the cohort into
@@ -177,6 +216,7 @@ async function runPathCompletionEffects(
   path: { id: string; title: string; next_path_id?: string | null },
   progressRowId: string | undefined,
   hadCertId: boolean,
+  trackId: string | null,
 ) {
   // Emails must be settled (sent / already sent) before the cert_id commit marker is
   // written; a provider failure or a lock held by a live sender leaves the row
@@ -188,7 +228,7 @@ async function runPathCompletionEffects(
     try {
       const { data: nextPath } = await supabase
         .from('learning_paths')
-        .select('id, cohort_ids, title, description, item_ids')
+        .select('id, cohort_ids, title, description, item_ids, tracks')
         .eq('id', path.next_path_id)
         .single();
       if (nextPath) {
@@ -211,7 +251,8 @@ async function runPathCompletionEffects(
             const t    = await getTenantSettings();
             const FROM = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
             const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
-            const itemIds: string[] = nextPath.item_ids ?? [];
+            // Track-neutral, as for the cohort assignment email: core only, plus the specializations.
+            const itemIds: string[] = requiredItemIds(nextPath, null);
             const [{ data: courseItems }, { data: veItems }, { data: certItems }] = itemIds.length
               ? await Promise.all([
                   supabase.from('courses').select('id, title, cover_image, description').in('id', itemIds),
@@ -235,6 +276,7 @@ async function runPathCompletionEffects(
             const fallbackHtml = learningPathAssignedEmail({
                 name: studentRow.full_name ?? 'there', pathTitle: nextPath.title,
                 pathDescription: nextPath.description ?? undefined, dashboardUrl, items, branding,
+                specializations: pathTracks(nextPath).map(t => t.name),
               });
             const rendered = await applyEmailTemplate({ key: 'learning_path_assigned', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: nextPath.title, app_name: t.appName }, branding });
             const settled = await sendCertificateEmailOnce(supabase, {
@@ -307,11 +349,12 @@ async function runPathCompletionEffects(
       try {
         const { data: fullPath } = await supabase
           .from('learning_paths')
-          .select('title, description, item_ids')
+          .select('title, description, item_ids, tracks')
           .eq('id', path.id)
           .single();
 
-        const itemIds: string[] = fullPath?.item_ids ?? [];
+        // The certificate email lists what this learner took: core + their track.
+        const itemIds: string[] = fullPath ? requiredItemIds(fullPath, trackId) : [];
         const [{ data: courseItems }, { data: veItems }, { data: certItems }] = await Promise.all([
           itemIds.length ? supabase.from('courses').select('id, title, cover_image, description').in('id', itemIds) : { data: [] },
           itemIds.length ? supabase.from('virtual_experiences').select('id, title, cover_image, description').in('id', itemIds) : { data: [] },

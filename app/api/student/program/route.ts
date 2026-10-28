@@ -18,6 +18,7 @@ import { passMarkOf } from '@/lib/assignment-scenarios';
 import { attachProgress, buildStatusRows, type TrackedItem } from '@/lib/tracking-report';
 import { contentPath } from '@/lib/content-link';
 import type { ProgramBaseStatus, ProgramGroup, ProgramItem, ProgramPayload } from '@/lib/student-program';
+import { pathTracks, trackOptOuts } from '@/lib/learning-path-tracks';
 
 export const dynamic = 'force-dynamic';
 
@@ -60,7 +61,7 @@ export async function GET(req: NextRequest) {
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
     db.from('virtual_experiences').select('id, title, slug, deadline_days, cover_image')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
-    db.from('learning_paths').select('id, item_ids')
+    db.from('learning_paths').select('id, item_ids, tracks, cohort_ids')
       .contains('cohort_ids', [cohortId]).eq('status', 'published'),
     db.from('assignments').select('id, title, deadline_date, type, config, group_ids, cover_image')
       .eq('status', 'published')
@@ -80,8 +81,22 @@ export async function GET(req: NextRequest) {
   const ves = [...(vesRes.data ?? [])];
   const certs = [...(certsRes.data ?? [])];
   const known = new Set([...courses, ...ves, ...certs].map(c => c.id));
+  // Other tracks' items on a path with tracks are not this student's to take (directly assigned
+  // content is in `known` and stays).
+  const trackedPaths = (pathsRes.data ?? []).filter((p: any) => pathTracks(p).length > 0);
+  let optOuts = new Set<string>();
+  if (trackedPaths.length) {
+    const { data: picks, error: picksError } = await db.from('learning_path_progress')
+      .select('learning_path_id, track_id').eq('student_id', user.id).in('learning_path_id', trackedPaths.map((p: any) => p.id));
+    if (picksError) {
+      console.error('[student/program]', picksError.message);
+      return NextResponse.json({ error: 'Could not load your program' }, { status: 500 });
+    }
+    const trackOf = new Map<string, string | null>((picks ?? []).map((r: any) => [`${user.id}|${r.learning_path_id}`, r.track_id ?? null]));
+    optOuts = trackOptOuts(pathsRes.data ?? [], [{ id: user.id, cohort_id: cohortId }], trackOf);
+  }
   const pathItemIds = [...new Set((pathsRes.data ?? []).flatMap((p: any) => p.item_ids ?? []))]
-    .filter((id: string) => !known.has(id));
+    .filter((id: string) => !known.has(id) && !optOuts.has(`${user.id}|${id}`));
   if (pathItemIds.length) {
     // A path grants only its published items: courses, VEs and certifications.
     const [pathCourses, pathVes, pathCerts] = await Promise.all([

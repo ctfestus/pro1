@@ -9,7 +9,7 @@ import { verifyQStashRequest } from '@/lib/qstash';
 import { nudgeEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
-import { loadPathGrantedPairs } from '@/lib/tracking-report';
+import { loadPathGrantedPairs, loadTrackOptOuts } from '@/lib/tracking-report';
 import { applyEmailTemplate } from '@/lib/email-template-service';
 
 export const dynamic = 'force-dynamic';
@@ -91,14 +91,22 @@ export async function POST(req: NextRequest) {
   // cohort (or in a cohort the content never reached) are never nudged. Reachability is direct
   // assignment OR a published learning path: a path writes no cohort_assignments row, so reading
   // that table alone made every path-taught cohort invisible here and they received nothing.
-  const assignedCohortsByContent = new Map<string, Set<string>>();
-  const allowReach = (contentId: string, cohortId: string) => {
-    const set = assignedCohortsByContent.get(contentId) ?? new Set<string>();
+  // Kept apart because a path grant is subject to the learner's track (another track's course is
+  // reachable but not theirs to be nudged on), while a direct assignment is not.
+  const directCohortsByContent = new Map<string, Set<string>>();
+  const pathCohortsByContent = new Map<string, Set<string>>();
+  const addTo = (map: Map<string, Set<string>>, contentId: string, cohortId: string) => {
+    const set = map.get(contentId) ?? new Set<string>();
     set.add(cohortId);
-    assignedCohortsByContent.set(contentId, set);
+    map.set(contentId, set);
   };
-  for (const a of cohortAssignments) allowReach(a.content_id, a.cohort_id);
-  for (const p of pathPairs) allowReach(p.content_id, p.cohort_id);
+  for (const a of cohortAssignments) addTo(directCohortsByContent, a.content_id, a.cohort_id);
+  for (const p of pathPairs) addTo(pathCohortsByContent, p.content_id, p.cohort_id);
+  const trackOptOuts = await loadTrackOptOuts(supabase, studentRows.map((s: any) => ({ id: s.id, cohort_id: s.cohort_id ?? null })));
+  const reaches = (contentId: string, student: any) => !!student.cohort_id && (
+    directCohortsByContent.get(contentId)?.has(student.cohort_id)
+    || (pathCohortsByContent.get(contentId)?.has(student.cohort_id) && !trackOptOuts.has(`${student.id}|${contentId}`))
+  );
 
   // Fetch related assignments for stalled courses (smart nudge)
   const relatedAssignments = await fetchAllRowsByIds<any>(courseIds, (idChunk, from, to) => supabase
@@ -127,7 +135,7 @@ export async function POST(req: NextRequest) {
     const content = contentMap.get(a.course_id);
     const student = studentMap.get(a.student_id);
     if (!content || !student?.email) continue;
-    if (!student.cohort_id || !assignedCohortsByContent.get(a.course_id)?.has(student.cohort_id)) { excludedUnassigned++; continue; }
+    if (!reaches(a.course_id, student)) { excludedUnassigned++; continue; }
     candidates.push({ studentId: a.student_id, email: student.email, name: student.full_name || 'there', contentId: a.course_id, contentType: 'course', title: content.title, slug: content.slug ?? a.course_id, coverImage: content.cover_image });
   }
 
@@ -138,7 +146,7 @@ export async function POST(req: NextRequest) {
     const content = contentMap.get(a.ve_id);
     const student = studentMap.get(a.student_id);
     if (!content || !student?.email) continue;
-    if (!student.cohort_id || !assignedCohortsByContent.get(a.ve_id)?.has(student.cohort_id)) { excludedUnassigned++; continue; }
+    if (!reaches(a.ve_id, student)) { excludedUnassigned++; continue; }
     candidates.push({ studentId: a.student_id, email: student.email, name: student.full_name || 'there', contentId: a.ve_id, contentType: 'virtual_experience', title: content.title, slug: content.slug ?? a.ve_id, coverImage: content.cover_image });
   }
 

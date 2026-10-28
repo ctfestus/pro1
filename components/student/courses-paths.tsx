@@ -2,15 +2,16 @@
 
 // Courses and learning-path journeys shared by the learner dashboard and public detail pages.
 
-import { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Fragment, useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase,
+  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase, Hand, Sparkles,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
+import { useTenant } from '@/components/TenantProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { computeAccess } from '@/lib/enrollment-access';
@@ -341,6 +342,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
   const [selectedPathId, setSelectedPathId] = useState<string | null>(null);
   const [lockedPath, setLockedPath] = useState<any>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [learnerName, setLearnerName] = useState<string | null>(null);
 
   useEffect(() => {
     const syncSelectedPath = () => setSelectedPathId(new URLSearchParams(window.location.search).get('path'));
@@ -351,29 +353,48 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
 
   // A dropped request on a phone must never leave the skeleton up forever, and it must never
   // read as "no paths assigned" -- the empty state below is only for a successful empty list.
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError('');
+  // silent: refresh in place (after a track choice) without swapping the path for the skeleton,
+  // which would unmount it and lose the drop-in reveal.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) { setLoading(true); setError(''); }
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) { setError(LOAD_ERROR_SERVER); return; }
+      if (!session?.access_token) { if (!silent) setError(LOAD_ERROR_SERVER); return; }
       const res = await fetch('/api/learning-paths', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({ action: 'get-student-paths' }),
       });
-      if (!res.ok) { setError(LOAD_ERROR_SERVER); return; }
-      const { paths: p } = await res.json();
+      if (!res.ok) { if (!silent) setError(LOAD_ERROR_SERVER); return; }
+      const { paths: p, student_name } = await res.json();
       setPaths(p ?? []);
+      setLearnerName(student_name ?? null);
     } catch {
       // fetch itself rejected: connection dropped, request cancelled, or timed out.
-      setError(LOAD_ERROR_NETWORK);
+      if (!silent) setError(LOAD_ERROR_NETWORK);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  const reloadInPlace = useCallback(() => load({ silent: true }), [load]);
+
+  // Saves only, and throws with a message the picker shows. The picker reloads (reloadInPlace)
+  // once its pause is over, so the path cannot appear under the typing indicator.
+  const chooseTrack = useCallback(async (pathId: string, trackId: string) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error(LOAD_ERROR_SERVER);
+    const res = await fetch('/api/learning-paths', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+      body: JSON.stringify({ action: 'choose-track', path_id: pathId, track_id: trackId }),
+    });
+    if (!res.ok) {
+      const json = await res.json().catch(() => ({}));
+      throw new Error(json.error ?? 'Could not save your track. Please try again.');
+    }
+  }, []);
 
   useEffect(() => {
     if (!selectedPathId) { setLockedPath(null); return; }
@@ -404,6 +425,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
               content_type: pathItem.type,
             })),
             locked: true,
+            specializations: item.specializations ?? [],
           });
         }
       } catch {
@@ -420,9 +442,19 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
   const selectedPath = paths.find((path: any) => path.id === selectedPathId)
     ?? (lockedPath?.id === selectedPathId ? lockedPath : null);
 
+  if (selectedPath?.locked && (selectedPath.specializations ?? []).length > 0) return (
+    <div className="space-y-4">
+      <PathRow path={pathCoreOnly(selectedPath)} C={C} hideCredential/>
+      <section className="rounded-[22px] p-5 sm:p-7" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+        <PathSpecializations path={selectedPath} C={C} textColor={C.text} mutedColor={C.muted} tabIdle={C.pill}/>
+      </section>
+    </div>
+  );
+
   if (selectedPath) return (
     <div>
-      <PathRow path={selectedPath} C={C}/>
+      <PathRow path={selectedPath} C={C} learnerName={learnerName}
+        onChooseTrack={trackId => chooseTrack(selectedPath.id, trackId)} onTrackSaved={reloadInPlace}/>
     </div>
   );
 
@@ -434,7 +466,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
         <AlertCircle className="w-7 h-7" style={{ color: C.faint }}/>
       </div>
       <p className="font-semibold text-base mb-1" style={{ color: C.text }}>{error}</p>
-      <button onClick={load} className="mt-5 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Retry</button>
+      <button onClick={() => load()} className="mt-5 px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>Retry</button>
     </div>
   );
 
@@ -508,7 +540,7 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
           const completedIds: string[] = path.progress?.completed_item_ids ?? [];
           const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
           const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
-          const complete = totalItems > 0 && completedCount === totalItems;
+          const complete = totalItems > 0 && completedCount === totalItems && !path.needs_track;
           const hasItemProgress = (path.items ?? []).some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
           const started = !complete && (completedCount > 0 || hasItemProgress);
           return (
@@ -526,7 +558,7 @@ function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LI
                 <p className="mt-0.5 line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{path.title}</p>
                 <ProgressBar value={pct} color="#22c55e"/>
                 <p className="mt-1 text-[11px]" style={{ color: C.faint }}>
-                  {complete ? 'Completed' : completedCount > 0 ? `${completedCount} of ${totalItems} complete` : started ? 'In progress' : 'Not started'}
+                  {complete ? 'Completed' : path.needs_track ? 'Choose your track' : completedCount > 0 ? `${completedCount} of ${totalItems} complete` : started ? 'In progress' : 'Not started'}
                 </p>
               </button>
             </div>
@@ -574,7 +606,7 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
   const completedCount = items.filter((item: any) => completedIds.includes(item.id)).length;
   const total = items.length;
   const pct = total ? Math.round((completedCount / total) * 100) : 0;
-  const allDone = total > 0 && completedCount === total;
+  const allDone = total > 0 && completedCount === total && !path.needs_track;
   const hasItemProgress = items.some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
   const started = !allDone && (completedCount > 0 || hasItemProgress);
   const shown = items.slice(0, PATH_PREVIEW_MAX_ITEMS);
@@ -638,14 +670,340 @@ function PathPreview({ path, C, onOpen }: { path: any; C: typeof LIGHT_C; onOpen
   );
 }
 
+// Track choice on a path with tracks: a welcome, the question, and the tracks as options. Until a
+// track is picked the path's content stays hidden (PathRow). Once one is picked, a short "building
+// your path" step runs while it saves, then the timeline drops in item by item. After that it is a
+// one-line summary with a Change control, until the path is finished and the track is fixed.
+const BUILD_STEP_MS = 650;
+
+function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onRevealed, onBuilding }: {
+  path: any; C: typeof LIGHT_C; onChoose: (trackId: string) => Promise<void>; onSaved: () => Promise<void>;
+  finished: boolean; learnerName: string | null; onRevealed: () => void;
+  /** True while a pick is being saved, so the path hides its old content until the new one drops in. */
+  onBuilding: (building: boolean) => void;
+}) {
+  const { appName } = useTenant();
+  const reduceMotion = useReducedMotion();
+  const tracks: { id: string; name: string; description: string | null; item_count: number }[] = path.tracks ?? [];
+  const current = tracks.find(t => t.id === path.track_id) ?? null;
+  const [open, setOpen] = useState(!current);
+  const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
+  const [step, setStep] = useState(0);
+  const [error, setError] = useState('');
+  // A change from an existing track waits for the learner to confirm it.
+  const [confirming, setConfirming] = useState<{ id: string; name: string } | null>(null);
+  const firstName = (learnerName ?? '').trim().split(/\s+/)[0] ?? '';
+  const ease = [0.16, 1, 0.3, 1] as const;
+
+  const steps = picked ? [
+    'Saving your choice',
+    'Gathering your core courses',
+    `Adding your ${picked.name} courses`,
+  ] : [];
+  const STEP_COUNT = 3;
+
+  // Walks the building steps while the choice saves. It stops on the last step, which stays up
+  // until the save and reload are done.
+  useEffect(() => {
+    if (!picked) return;
+    setStep(0);
+    const timer = setInterval(() => setStep(s => Math.min(s + 1, STEP_COUNT - 1)), BUILD_STEP_MS);
+    return () => clearInterval(timer);
+  }, [picked]);
+
+  useEffect(() => {
+    if (!confirming) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setConfirming(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirming]);
+
+  const ask = (track: { id: string; name: string }) => {
+    if (track.id === current?.id) { setOpen(false); return; }
+    if (current) { setConfirming(track); setError(''); return; }
+    choose(track);
+  };
+
+  const choose = async (track: { id: string; name: string }) => {
+    setConfirming(null);
+    setPicked(track);
+    onBuilding(true);
+    setError('');
+    try {
+      // Save during the building steps, so the learner sees the path being put together. The path
+      // is only reloaded once both are done, and the reveal is armed first, so the content mounts
+      // with its drop-in.
+      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, reduceMotion ? 300 : BUILD_STEP_MS * STEP_COUNT))]);
+      onRevealed();
+      await onSaved();
+      setOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save your track. Please try again.');
+    } finally {
+      setPicked(null);
+      onBuilding(false);
+    }
+  };
+
+  if (!open && current) return (
+    <div className="mt-5 flex flex-wrap items-center gap-2 text-sm" style={{ color: C.muted }}>
+      <span>Your specialization:</span>
+      <span className="inline-flex items-center rounded-full px-3 py-1 text-sm font-semibold"
+        style={{ color: C.text, border: `2px solid ${C.muted}` }}>
+        {current.name}
+      </span>
+      {!finished && (
+        <button onClick={() => setOpen(true)} className="text-xs font-semibold underline-offset-2 hover:underline" style={{ color: C.cta }}>Change</button>
+      )}
+    </div>
+  );
+
+  return (
+    <div className="mt-6 max-w-3xl">
+      {!current && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}>
+          <p className="flex items-center gap-2 text-lg font-bold" style={{ color: C.text }}>
+            {firstName ? `Welcome, ${firstName}!` : 'Welcome!'}
+            <motion.span aria-hidden="true" className="inline-flex origin-bottom-right"
+              animate={{ rotate: [0, 18, -8, 18, 0] }} transition={{ duration: 1.2, delay: 0.4 }}>
+              <Hand className="h-5 w-5" style={{ color: '#d4a017' }}/>
+            </motion.span>
+          </p>
+          <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
+            {appName
+              ? `So glad to have you here. The entire ${appName} team is excited to kick this off with you.`
+              : 'So glad to have you here. We are excited to kick this off with you.'}
+          </p>
+        </motion.div>
+      )}
+      <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: current ? 0 : 0.35, ease }}
+        className={current ? '' : 'mt-5'}>
+        {/* The introduction is for the first pick only. A learner changing track has read it, so
+            they get only the heading and their options. */}
+        {current ? (
+          <p className="text-base font-bold" style={{ color: C.text }}>Change your specialization</p>
+        ) : (
+          <>
+            <p className="text-base font-bold" style={{ color: C.text }}>Before we dive into the learning path, where will you specialize?</p>
+            <p className="mt-1 text-sm leading-relaxed" style={{ color: C.muted }}>
+              You&apos;ll build essential skills through the core courses, then take your expertise further with specialized learning tailored to your chosen path.
+            </p>
+          </>
+        )}
+      </motion.div>
+
+      <AnimatePresence mode="wait">
+        {picked ? (
+          <motion.div key="building" role="status" aria-live="polite"
+            initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={{ duration: 0.3, ease }}
+            className="mt-4 rounded-xl p-4 sm:p-5" style={{ background: C.pill }}>
+            <div className="flex items-center gap-3">
+              <motion.span className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-full" style={{ background: C.cta, color: C.ctaText }}
+                initial={{ scale: 0.4 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 420, damping: 16 }}>
+                <Check className="h-4 w-4" strokeWidth={3}/>
+              </motion.span>
+              <div className="min-w-0">
+                <p className="text-xs" style={{ color: C.faint }}>You chose</p>
+                <p className="text-sm font-bold" style={{ color: C.text }}>{picked.name}</p>
+              </div>
+            </div>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full" style={{ background: C.card }}>
+              <motion.div className="h-full rounded-full" style={{ background: '#22c55e' }}
+                initial={{ width: '4%' }} animate={{ width: `${((step + 1) / steps.length) * 100}%` }}
+                transition={{ duration: BUILD_STEP_MS / 1000, ease: 'easeOut' }}/>
+            </div>
+            <ul className="mt-3 space-y-1.5">
+              {steps.map((label, i) => {
+                const done = i < step;
+                const active = i === step;
+                return (
+                  <motion.li key={label} className="flex items-center gap-2 text-sm"
+                    initial={{ opacity: 0, x: -6 }} animate={{ opacity: i <= step ? 1 : 0.4, x: 0 }}
+                    transition={{ duration: 0.3, delay: i * 0.05, ease }}
+                    style={{ color: done || active ? C.text : C.faint }}>
+                    <span className="grid h-4 w-4 flex-shrink-0 place-items-center">
+                      {done ? (
+                        <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 500, damping: 18 }}>
+                          <CheckCircle className="h-4 w-4" style={{ color: '#16a34a' }}/>
+                        </motion.span>
+                      ) : active ? (
+                        <motion.span className="h-3.5 w-3.5 rounded-full" style={{ border: '2px solid #22c55e', borderTopColor: 'transparent' }}
+                          animate={{ rotate: 360 }} transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}/>
+                      ) : (
+                        <span className="h-1.5 w-1.5 rounded-full" style={{ background: C.faint }}/>
+                      )}
+                    </span>
+                    {label}
+                  </motion.li>
+                );
+              })}
+            </ul>
+          </motion.div>
+        ) : (
+          <motion.div key="options" className="mt-4 grid gap-3 sm:grid-cols-2" exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.2 }}>
+            {tracks.map((track, i) => {
+              const selected = track.id === current?.id;
+              return (
+                <motion.button key={track.id} onClick={() => ask(track)}
+                  initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, delay: (current ? 0.1 : 0.6) + i * 0.1, ease }}
+                  whileHover={{ y: -2 }} whileTap={{ scale: 0.98 }}
+                  className="text-left rounded-xl p-4"
+                  // A filled card rather than an outline: on the dark theme C.card is the section's own
+                  // background and the border token is near invisible, so the options vanished.
+                  style={{ background: C.pill, boxShadow: selected ? `inset 0 0 0 2px ${C.cta}` : 'none' }}>
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold" style={{ color: C.text }}>{track.name}</span>
+                    {selected && <Check className="w-4 h-4 flex-shrink-0" style={{ color: C.cta }}/>}
+                  </span>
+                  {track.description && <span className="block text-xs mt-1" style={{ color: C.muted }}>{track.description}</span>}
+                </motion.button>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {error && <p role="alert" className="mt-3 text-xs" style={{ color: '#ef4444' }}>{error}</p>}
+      {current && !picked && (
+        <button onClick={() => setOpen(false)} className="mt-3 text-xs font-semibold" style={{ color: C.muted }}>Keep {current.name}</button>
+      )}
+      {typeof document !== 'undefined' && createPortal(
+        <AnimatePresence>
+          {confirming && current && (
+            <motion.div key="switch-confirm" className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}
+              style={{ background: 'rgba(0,0,0,0.45)' }}
+              onClick={() => setConfirming(null)}>
+              <motion.div role="alertdialog" aria-modal="true" aria-labelledby="switch-track-title"
+                initial={{ opacity: 0, scale: 0.95, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.97 }}
+                transition={{ duration: 0.25, ease }}
+                className="relative w-full max-w-md rounded-2xl p-5 sm:p-6"
+                style={{ background: C.card, boxShadow: '0 20px 50px rgba(0,0,0,0.25)' }}
+                onClick={e => e.stopPropagation()}>
+                <button onClick={() => setConfirming(null)} aria-label="Close"
+                  className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-full transition-opacity hover:opacity-70" style={{ color: C.muted }}>
+                  <X className="h-4 w-4"/>
+                </button>
+                <p id="switch-track-title" className="pr-8 text-base font-bold" style={{ color: C.text }}>Switch to {confirming.name}?</p>
+                <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>
+                  Your {current.name} courses will be replaced with {confirming.name} courses. Anything you have already completed is saved.
+                </p>
+                <div className="mt-5 flex flex-wrap justify-end gap-2">
+                  <button onClick={() => setConfirming(null)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>
+                    Cancel
+                  </button>
+                  <button autoFocus onClick={() => choose(confirming)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.cta, color: C.ctaText }}>
+                    Switch to {confirming.name}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>,
+        document.body,
+      )}
+    </div>
+  );
+}
+
+// A path with tracks, as shown before anyone has picked one (the public overview, the locked
+// preview): the core everyone takes, then the specializations to choose from. Shared so the two
+// views cannot drift apart. `specializations` comes from pathOverviewFields.
+type PathSpecializationView = { name: string; description: string | null; itemIds: string[] };
+
+function pathWithItems(path: any, ids: string[]) {
+  const keep = new Set(ids);
+  const items = (path.items ?? []).filter((item: any) => keep.has(item.id));
+  return { ...path, items, item_ids: items.map((item: any) => item.id) };
+}
+
+/** The core part of a path with specializations; the path itself when it has none. */
+export function pathCoreOnly(path: any) {
+  const specs: PathSpecializationView[] = path.specializations ?? [];
+  if (!specs.length) return path;
+  const inSpecialization = new Set(specs.flatMap(s => s.itemIds));
+  return pathWithItems(path, (path.item_ids ?? []).filter((id: string) => !inSpecialization.has(id)));
+}
+
+/** "Then choose your specialization": one tab per specialization, showing what it adds. */
+export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }: {
+  path: any; C: typeof LIGHT_C; textColor: string; mutedColor: string; tabIdle: string;
+}) {
+  const specs: PathSpecializationView[] = path.specializations ?? [];
+  const [idx, setIdx] = useState(0);
+  const active = specs[Math.min(idx, specs.length - 1)];
+  if (!active) return null;
+  return (
+    <div className="mt-9">
+      <div className="mb-5 px-1">
+        <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: textColor }}>
+          Then choose your specialization
+        </h2>
+        <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: mutedColor }}>
+          Take your expertise further with learning tailored to your field. You pick one when you start the path.
+        </p>
+      </div>
+      <div role="tablist" aria-label="Specializations" className="mb-5 flex flex-wrap gap-2 px-1">
+        {specs.map((spec, i) => {
+          const selected = spec === active;
+          return (
+            <button key={i} role="tab" aria-selected={selected} onClick={() => setIdx(i)}
+              className="rounded-full px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90"
+              style={{ background: selected ? C.cta : tabIdle, color: selected ? C.ctaText : textColor }}>
+              {spec.name}
+            </button>
+          );
+        })}
+      </div>
+      {active.description && (
+        <p className="mb-4 px-1 text-sm" style={{ color: mutedColor }}>{active.description}</p>
+      )}
+      <PathRow key={Math.min(idx, specs.length - 1)} path={pathWithItems(path, active.itemIds)} C={C} publicPreview hideHeader />
+    </div>
+  );
+}
+
 // One learning path rendered as an ordered, open-access course timeline.
-export function PathRow({ path, C, publicPreview = false, hideHeader = false }: { path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean }) {
-  const totalItems     = (path.item_ids ?? []).length;
+export function PathRow({ path, C, publicPreview = false, hideHeader = false, onChooseTrack, onTrackSaved, learnerName = null, hideCredential = false }: {
+  path: any; C: typeof LIGHT_C; publicPreview?: boolean; hideHeader?: boolean;
+  /** A partial segment (the core of a path with specializations): the credential comes once, after the last segment. */
+  hideCredential?: boolean;
+  /** Learner view of a path with tracks: save the learner's track choice. */
+  onChooseTrack?: (trackId: string) => Promise<void>;
+  /** Reload the learner's paths after a track choice is saved. */
+  onTrackSaved?: () => Promise<void>;
+  learnerName?: string | null;
+}) {
+  // Set once the learner answers the track question, so their path drops in item by item.
+  const [revealing, setRevealing] = useState(false);
+  // The "Your path is ready" moment: shown after each pick, then gone after a few seconds.
+  const [celebrate, setCelebrate] = useState(false);
+  // A pick (first or a change) is being saved: the old content is hidden, so the new path drops in
+  // fresh instead of appearing under the previous one.
+  const [building, setBuilding] = useState(false);
+  useEffect(() => {
+    if (!celebrate) return;
+    const timer = setTimeout(() => setCelebrate(false), 6000);
+    return () => clearTimeout(timer);
+  }, [celebrate]);
+  const reduceMotion = useReducedMotion();
+  const totalItems    = (path.item_ids ?? []).length;
   const completedIds: string[] = path.progress?.completed_item_ids ?? [];
   const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
-  const allDone        = completedCount === totalItems && totalItems > 0;
+  // A path with tracks is not finished until the learner has picked one (the server sends the
+  // core only until then).
+  const allDone        = completedCount === totalItems && totalItems > 0 && !path.needs_track;
   const pathCertId     = path.progress?.cert_id ?? null;
-  const items: any[]   = path.items ?? [];
+  // A learner on a track sees the core first, then their specialization, as two sections (the
+  // server sends both as one list, with track_item_ids naming the track's own).
+  const trackItemSet   = new Set<string>(path.track_item_ids ?? []);
+  const rawItems: any[] = path.items ?? [];
+  const grouped        = !publicPreview && !path.locked && rawItems.some((item: any) => trackItemSet.has(item.id));
+  const items: any[]   = grouped
+    ? [...rawItems.filter((item: any) => !trackItemSet.has(item.id)), ...rawItems.filter((item: any) => trackItemSet.has(item.id))]
+    : rawItems;
+  const coreCount      = grouped ? items.filter((item: any) => !trackItemSet.has(item.id)).length : -1;
+  const trackName: string = (path.tracks ?? []).find((t: any) => t.id === path.track_id)?.name ?? 'Specialization';
   const progressPct    = totalItems > 0 ? Math.round((completedCount / totalItems) * 100) : 0;
   const currentIndex   = path.locked || publicPreview ? -1 : items.findIndex((item: any) => !completedIds.includes(item.id));
   const learnerCount: number = path.learner_count ?? 0;
@@ -653,6 +1011,9 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
   // joins the numbered steps, and a line too faint to see there left the steps floating.
   const connectorColor = C.page === LIGHT_C.page ? '#d7dde6' : 'rgba(148,163,184,0.32)';
   const isLight = C.page === LIGHT_C.page;
+  // Until a track is chosen no path content is shown, not even the current step: the question
+  // comes first.
+  const awaitingTrack = !publicPreview && !path.locked && !!onChooseTrack && path.needs_track === true;
 
   return (
     <section
@@ -673,7 +1034,7 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
                   <GraduationCap className="w-3.5 h-3.5 flex-shrink-0"/>{learnerCount} {learnerCount === 1 ? 'learner' : 'learners'}
                 </span>
               )}
-              {!publicPreview && !path.locked && currentIndex >= 0 && !allDone && (
+              {!publicPreview && !path.locked && !awaitingTrack && !building && currentIndex >= 0 && !allDone && (
                 <motion.span key={items[currentIndex]?.id ?? currentIndex}
                   initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
                   className="flex items-center gap-1.5 min-w-0 max-w-full">
@@ -709,6 +1070,39 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
         </div>
       )}
 
+      {!publicPreview && !path.locked && onChooseTrack && (path.tracks ?? []).length > 0 && (
+        <TrackPicker path={path} C={C} onChoose={onChooseTrack} onSaved={onTrackSaved ?? (async () => {})} finished={allDone || !!pathCertId}
+          learnerName={learnerName} onRevealed={() => { setRevealing(true); setCelebrate(true); }}
+          onBuilding={b => { setBuilding(b); if (b) setCelebrate(false); }}/>
+      )}
+
+      {!awaitingTrack && !building && (<>
+      <AnimatePresence>
+      {celebrate && (
+        <motion.div key="ready" role="status" exit={{ opacity: 0, height: 0, marginTop: 0, paddingTop: 0, paddingBottom: 0, transition: { duration: 0.35, ease: 'easeInOut' } }} className="mt-5 flex items-center gap-3 rounded-xl px-4 py-3"
+          style={{ background: isLight ? '#f0fdf4' : 'rgba(34,197,94,0.10)' }}
+          initial={reduceMotion ? false : { opacity: 0, scale: 0.97, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 260, damping: 24 }}>
+          <span className="relative grid h-9 w-9 flex-shrink-0 place-items-center">
+            {!reduceMotion && (
+              <motion.span aria-hidden="true" className="absolute inset-0 rounded-full" style={{ background: '#22c55e' }}
+                initial={{ scale: 0.6, opacity: 0.5 }} animate={{ scale: 1.8, opacity: 0 }} transition={{ duration: 1.1, repeat: 2, ease: 'easeOut' }}/>
+            )}
+            <motion.span className="relative grid h-9 w-9 place-items-center rounded-full" style={{ background: '#16a34a', color: '#ffffff' }}
+              initial={reduceMotion ? false : { scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+              transition={{ type: 'spring', stiffness: 300, damping: 22 }}>
+              <Sparkles className="h-4 w-4"/>
+            </motion.span>
+          </span>
+          <div className="min-w-0">
+            <p className="text-sm font-bold" style={{ color: C.text }}>Your path is ready!</p>
+            <p className="text-xs" style={{ color: C.muted }}>
+              {grouped ? `Start with the core, then dive into ${trackName}. Let's go!` : "Here is everything you will learn. Let's go!"}
+            </p>
+          </div>
+        </motion.div>
+      )}
+      </AnimatePresence>
       {!publicPreview && (
       <div className={hideHeader ? '' : 'mt-5'}>
         <div className="flex items-center justify-between text-[11px] mb-2">
@@ -760,8 +1154,36 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
           const TypeIcon = isCert ? Award : isVE ? Briefcase : Film;
           const typeAccent = isCert ? '#0891B2' : isVE ? '#00BF63' : C.cta;
 
+          // Section headings count as steps in the drop-in, so each lands before its courses.
+          const order = idx + (grouped ? (idx >= coreCount ? 2 : 1) : 0);
+          const dropDelay = 0.45 + order * 0.2;
+          const heading = grouped && (idx === 0 || idx === coreCount) ? (
+            <motion.div className="relative flex gap-3 sm:gap-4"
+              initial={revealing && !reduceMotion ? { opacity: 0, x: -12 } : false} animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, delay: revealing ? dropDelay - 0.2 : 0, ease: [0.16, 1, 0.3, 1] }}>
+              <div className="relative z-10 flex w-5 flex-shrink-0 justify-center sm:w-6">
+                {idx > 0 && <span aria-hidden="true" className="absolute -top-6 -bottom-6 left-1/2 w-0.5 -translate-x-1/2" style={{ background: connectorColor }}/>}
+              </div>
+              <div className="min-w-0 flex-1 pt-1">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: idx === 0 ? C.faint : '#16a34a' }}>
+                  {idx === 0 ? 'Core courses' : 'Your specialization'}
+                </p>
+                <p className="mt-0.5 text-base font-bold" style={{ color: C.text }}>
+                  {idx === 0 ? 'Essential skills for everyone on this path' : trackName}
+                </p>
+              </div>
+            </motion.div>
+          ) : null;
+
           return (
-            <div key={item.id} className="relative flex gap-3 sm:gap-4">
+            <Fragment key={item.id}>
+            {heading}
+            <motion.div className="relative flex gap-3 sm:gap-4"
+              initial={revealing && !reduceMotion ? { opacity: 0, y: -36, scale: 0.92, rotate: idx % 2 ? 1.5 : -1.5 } : false}
+              animate={{ opacity: 1, y: 0, scale: 1, rotate: 0 }}
+              transition={revealing
+                ? { type: 'spring', stiffness: 260, damping: 17, mass: 0.9, delay: dropDelay }
+                : { duration: 0 }}>
               <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
                 {items.length > 0 && (
                   // On the public overview the line stops short of each numbered step, above and
@@ -845,9 +1267,11 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
                   </div>
                 </div>
               </a>
-            </div>
+            </motion.div>
+            </Fragment>
           );
         })}
+        {!hideCredential && (
         <div className="relative flex gap-3 sm:gap-4">
           <div className={`relative z-10 flex flex-shrink-0 justify-center ${publicPreview ? 'w-6 sm:w-7' : 'w-5 sm:w-6'}`}>
             <span className="mt-4 flex h-5 w-5 items-center justify-center rounded-full sm:h-6 sm:w-6" style={{ background: 'transparent' }}>
@@ -884,8 +1308,10 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false }: 
             )}
           </div>
         </div>
+        )}
         </div>
       </div>
+      </>)}
       </div>
     </section>
   );

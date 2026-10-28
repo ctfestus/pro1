@@ -7,6 +7,7 @@ import {
   summarizeLearnerProgress, sourceForCohortKind,
   type PathReport, type PathReportItem, type PathReportLearner, type PathReportCohort, type EnrollmentSource,
 } from '@/lib/learning-path-report';
+import { pathTracks, chosenTrack, needsTrack, requiredItemIds } from '@/lib/learning-path-tracks';
 
 export const dynamic = 'force-dynamic';
 
@@ -43,7 +44,7 @@ export async function GET(req: NextRequest) {
 
   const { data: path, error: pathError } = await supabase
     .from('learning_paths')
-    .select('id, title, status, instructor_id, item_ids, cohort_ids, available_to_everyone')
+    .select('id, title, status, instructor_id, item_ids, tracks, cohort_ids, available_to_everyone')
     .eq('id', pathId)
     .maybeSingle();
   if (pathError) {
@@ -87,7 +88,7 @@ export async function GET(req: NextRequest) {
         .from('students').select(STUDENT_COLS, { count: 'exact' })
         .in('cohort_id', chunk).eq('role', 'student').order('id').range(from, to)),
       fetchAllRows<any>((from, to) => supabase
-        .from('learning_path_progress').select('id, student_id, completed_item_ids, completed_at, cert_id, updated_at', { count: 'exact' })
+        .from('learning_path_progress').select('id, student_id, completed_item_ids, completed_at, cert_id, track_id, updated_at', { count: 'exact' })
         .eq('learning_path_id', path.id).order('id').range(from, to)),
     ]);
 
@@ -223,8 +224,12 @@ export async function GET(req: NextRequest) {
       const enrolledAt = onPath
         ? later(assignedAt.get(s.cohort_id) ?? null, source === 'subscriber' ? sub?.created_at : null)
         : null;
+      // Each learner is measured on their own path: core + their track (matching their own view).
+      const trackId: string | null = prog?.track_id ?? null;
+      const mine = new Set(requiredItemIds(path, trackId));
       const summary = summarizeLearnerProgress({
-        items,
+        items: items.filter(i => mine.has(i.id)),
+        needsTrack: needsTrack(path, trackId),
         storedCompletedIds: prog?.completed_item_ids ?? [],
         courseAttempts: courseByStudent.get(s.id) ?? [],
         veAttempts: veByStudent.get(s.id) ?? [],
@@ -246,6 +251,7 @@ export async function GET(req: NextRequest) {
         // Expiry clears students.cohort_id, so this is what keeps a lapsed subscriber under their plan.
         former_plan_cohort_id: source === 'former' ? (sub?.cohort_id ?? null) : null,
         enrolled_at: enrolledAt,
+        track_name: chosenTrack(path, trackId)?.name ?? null,
         ...summary,
         completed_at: summary.status === 'completed' ? (prog?.completed_at ?? summary.last_active_at) : null,
         certificate_issued: !!prog?.cert_id,
@@ -263,7 +269,7 @@ export async function GET(req: NextRequest) {
     cohorts.sort((a, b) => a.name.localeCompare(b.name));
 
     const report: PathReport = {
-      path: { id: path.id, title: path.title, status: path.status, available_to_everyone: path.available_to_everyone === true },
+      path: { id: path.id, title: path.title, status: path.status, available_to_everyone: path.available_to_everyone === true, has_tracks: pathTracks(path).length > 0 },
       items,
       cohorts,
       learners,

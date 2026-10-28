@@ -20,7 +20,7 @@ import { getFontById } from '@/lib/fonts';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
-import { PathRow } from '@/components/student/courses-paths';
+import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
 import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/ve/guide';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
@@ -365,6 +365,7 @@ function cataloguePathToPathRow(item: any) {
     skills: item.skills ?? [],
     whoShouldTake: item.whoShouldTake ?? [],
     tools: item.tools ?? [],
+    specializations: item.specializations ?? [],
   };
 }
 
@@ -549,7 +550,11 @@ function ExploreMorePaths({ currentId, C }: { currentId: string; C: ReturnType<t
 function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any; C: ReturnType<typeof useC>; authHref: string; signedIn: boolean }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const cover = resolveCoverUrl(path.cover_image) || '';
-  const items = path.items ?? [];
+  // On a path with specializations no learner takes every item: count the core, and name the
+  // specializations separately, rather than advertising all branches as one learner's total.
+  const specializationCount: number = (path.specializations ?? []).length;
+  const items = (specializationCount > 0 ? pathCoreOnly(path).items : path.items) ?? [];
+  const coreWord = specializationCount > 0 ? 'core ' : '';
   const courseCount = items.filter((item: any) => item.content_type === 'course').length;
   const virtualExperienceCount = items.filter((item: any) => item.content_type === 'virtual_experience').length;
   // Locked content sends people to the pricing page to choose a length, rather than quoting a
@@ -571,6 +576,9 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   const skills: string[] = path.skills ?? [];
   const whoShouldTake: string[] = path.whoShouldTake ?? [];
   const tools: string[] = path.tools ?? [];
+  // A path with tracks is sold as core + one specialization the learner picks, so the outline
+  // shows the core, then the specializations to choose from, rather than every item as required.
+  const hasSpecializations = (path.specializations ?? []).length > 0;
   // Authored as rich text, so it is rendered rather than stripped. The plain-text flattening
   // that used to live here silently dropped every list and emphasis an author had added.
   const description: string = (path.description ?? '').trim();
@@ -660,7 +668,18 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                     >
                       <MonitorPlay className="h-4 w-4" strokeWidth={2.1} />
                     </span>
-                    {courseCount} course{courseCount !== 1 ? 's' : ''}
+                    {courseCount} {coreWord}course{courseCount !== 1 ? 's' : ''}
+                  </span>
+                )}
+                {specializationCount > 0 && (
+                  <span className={statPillClass} style={statPillStyle}>
+                    <span
+                      className="inline-flex h-6 w-6 items-center justify-center rounded-md"
+                      style={{ background: isDark ? 'rgba(62,147,255,0.18)' : '#eef4ff', color: isDark ? '#93c5fd' : '#344054' }}
+                    >
+                      <ListChecks className="h-4 w-4" strokeWidth={2.1} />
+                    </span>
+                    + {specializationCount} specialization{specializationCount !== 1 ? 's' : ''}
                   </span>
                 )}
                 {virtualExperienceCount > 0 && (
@@ -671,7 +690,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                     >
                       <Building2 className="h-4 w-4" strokeWidth={2.1} />
                     </span>
-                    {virtualExperienceCount} virtual experience{virtualExperienceCount !== 1 ? 's' : ''}
+                    {virtualExperienceCount} {coreWord}virtual experience{virtualExperienceCount !== 1 ? 's' : ''}
                   </span>
                 )}
               </div>
@@ -751,13 +770,17 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
           <div className="mx-4 border-t px-0 pb-7 pt-7 sm:mx-9 sm:pb-9" style={{ borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)' }}>
             <div className="mb-5 px-1 sm:mb-6">
               <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: panelText }}>
-                Content in this learning path
+                {hasSpecializations ? 'Core courses' : 'Content in this learning path'}
               </h2>
               <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: panelMuted }}>
-                Level up your skills with this curated, hands-on content.
+                {hasSpecializations
+                  ? 'Everyone builds essential skills through these core courses first.'
+                  : 'Level up your skills with this curated, hands-on content.'}
               </p>
             </div>
-            <PathRow path={path} C={C} publicPreview hideHeader />
+            <PathRow path={pathCoreOnly(path)} C={C} publicPreview hideHeader hideCredential={hasSpecializations} />
+            <PathSpecializations path={path} C={C} textColor={panelText} mutedColor={panelMuted}
+              tabIdle={isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.05)'}/>
           </div>
         </div>
       </div>

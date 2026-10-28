@@ -6,12 +6,41 @@ import { reconcilePathCompletion } from '@/lib/learning-path-progress';
 import { countPathLearners } from '@/lib/learning-path-learners';
 import { courseProgressPct } from '@/lib/course-progress';
 import { veProgressPct } from '@/lib/ve-completion';
+import { normalizeTracks, tracksError, changedRequirements, pathTracks, chosenTrack, needsTrack, requiredItemIds, isPathComplete } from '@/lib/learning-path-tracks';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 function adminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!,
   );
+}
+
+/**
+ * The 409 text when an edit would change what completers took. Names how many and which tracks.
+ * Paged: past the row cap an unpaged read would silently undercount.
+ */
+async function completedConflictMessage(
+  supabase: any,
+  pathId: string,
+  prev: { tracks?: unknown; item_ids?: string[] | null },
+  changed: { trackIds: string[]; core: boolean },
+): Promise<string> {
+  const fallback = 'This change alters content learners already completed. Undo that change, or create a new path.';
+  try {
+    const completers = await fetchAllRows<{ track_id: string | null }>((from, to) => supabase
+      .from('learning_path_progress').select('id, track_id', { count: 'exact' })
+      .eq('learning_path_id', pathId).not('completed_at', 'is', null).order('id').range(from, to));
+    const stranded = completers.filter(c => c.track_id ? changed.trackIds.includes(c.track_id) : changed.core);
+    if (!stranded.length) return fallback;
+    const prevNames = new Map(pathTracks(prev).map(t => [t.id, t.name] as [string, string]));
+    const names = [...new Set(stranded.map(c => (c.track_id && prevNames.get(c.track_id)) || 'the core'))];
+    const who = `${stranded.length} learner${stranded.length === 1 ? '' : 's'}`;
+    return `This change alters the content ${who} already completed (${names.join(', ')}). Undo that change, or create a new path.`;
+  } catch (err) {
+    console.error('[learning-paths] completers lookup error:', err);
+    return fallback;
+  }
 }
 
 async function getSessionUser(req: NextRequest): Promise<{ id: string; email: string } | null> {
@@ -67,12 +96,14 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone,
-            overview, skills, who_should_take, tools } = body;
+            overview, skills, who_should_take, tools, tracks } = body;
     // Open access replaces cohort targeting rather than adding to it -- the database enforces the
     // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
     const openAccess = available_to_everyone === true;
     const targetCohorts: string[] = openAccess ? [] : (cohort_ids ?? []);
     if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 });
+    const createTracksProblem = tracksError(tracks);
+    if (createTracksProblem) return NextResponse.json({ error: createTracksProblem }, { status: 400 });
     if (request_id !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(request_id)) {
       return NextResponse.json({ error: 'request_id must be a UUID' }, { status: 400 });
     }
@@ -91,6 +122,7 @@ export async function POST(req: NextRequest) {
       tools: Array.isArray(tools) ? tools : [],
       instructor_id: user.id,
       item_ids: item_ids ?? [],
+      tracks: normalizeTracks(tracks, item_ids ?? []),
       cohort_ids: targetCohorts,
       available_to_everyone: openAccess,
       status: status ?? 'draft',
@@ -141,11 +173,41 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone,
-            overview, skills, who_should_take, tools } = body;
+            overview, skills, who_should_take, tools, tracks } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
+    // Checked before saving: normalizeTracks would drop a bad track, silently making its items
+    // core content required of everyone.
+    const updateTracksProblem = tracksError(tracks);
+    if (updateTracksProblem) return NextResponse.json({ error: updateTracksProblem }, { status: 400 });
 
-    // Fetch previous state to detect newly published or newly added cohorts
-    const { data: prev } = await supabase.from('learning_paths').select('status, cohort_ids').eq('id', id).single();
+    // Fetch previous state to detect newly published or newly added cohorts. Scoped to the owner,
+    // like the write below: nothing about another instructor's path is read or revealed.
+    const { data: prev, error: prevError } = await supabase.from('learning_paths')
+      .select('status, cohort_ids, item_ids, tracks, updated_at')
+      .eq('id', id)
+      .eq('instructor_id', user.id)
+      .maybeSingle();
+    if (prevError) { console.error('[learning-paths] update lookup error:', prevError); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    if (!prev) return NextResponse.json({ error: 'Learning path not found' }, { status: 404 });
+
+    // A completed path keeps the track its certificate was issued for, and its learner can no
+    // longer change track. So on a path with tracks (before or after this save), no change may
+    // alter what a completer was required to take: not adding the first tracks (they would be
+    // asked for a track they can never pick), not removing their track (including the last one,
+    // which makes every former specialization required), and not moving items into or out of
+    // their track or the core while keeping the track's id. changedRequirements names whose
+    // required items differ; the save below then goes through save_learning_path (migrations
+    // 226-227), which locks the path row, checks for completers on those and writes every field
+    // in one transaction, so a learner finishing at the same moment cannot slip between the check
+    // and the write, and a failed save changes nothing.
+    let guard: { trackIds: string[]; core: boolean } | null = null;
+    if (tracks !== undefined || item_ids !== undefined) {
+      const nextShape = {
+        item_ids: (item_ids ?? prev.item_ids ?? []) as string[],
+        tracks: tracks !== undefined ? tracks : prev.tracks,
+      };
+      if (pathTracks(nextShape).length > 0 || pathTracks(prev).length > 0) guard = changedRequirements(prev, nextShape);
+    }
 
     const updateData: any = { updated_at: new Date().toISOString() };
     if (title           !== undefined) updateData.title           = title.trim();
@@ -153,6 +215,9 @@ export async function POST(req: NextRequest) {
     if (cover_image     !== undefined) updateData.cover_image     = cover_image;
     if (badge_image_url !== undefined) updateData.badge_image_url = badge_image_url ?? null;
     if (item_ids        !== undefined) updateData.item_ids        = item_ids;
+    // Tracks may only name items in the path, so they are cleaned against the item list being
+    // saved (or the stored one when the request leaves items alone).
+    if (tracks          !== undefined) updateData.tracks          = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
     if (overview        !== undefined) updateData.overview        = overview ?? null;
     if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
     if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];
@@ -168,12 +233,32 @@ export async function POST(req: NextRequest) {
     if (status          !== undefined) updateData.status          = status;
     if (next_path_id    !== undefined) updateData.next_path_id    = next_path_id ?? null;
 
-    const { error } = await supabase.from('learning_paths')
-      .update(updateData)
-      .eq('id', id)
-      .eq('instructor_id', user.id);
-
-    if (error) { console.error('[learning-paths] update error:', error); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    if (guard) {
+      // updated_at is set by the table's trigger inside the same transaction.
+      const { updated_at: _ignored, ...patch } = updateData;
+      const { data: outcome, error } = await supabase.rpc('save_learning_path', {
+        p_path_id:             id,
+        p_instructor_id:       user.id,
+        p_expected_updated_at: prev.updated_at,
+        p_patch:               patch,
+        p_changed_track_ids:   guard.trackIds,
+        p_core_changed:        guard.core,
+      });
+      if (error) { console.error('[learning-paths] update error:', error); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+      if (outcome === 'stale') {
+        return NextResponse.json({ error: 'This path was changed elsewhere while you were saving. Reload it and try again.' }, { status: 409 });
+      }
+      if (outcome === 'completed') {
+        return NextResponse.json({ error: await completedConflictMessage(supabase, id, prev, guard) }, { status: 409 });
+      }
+      if (outcome !== 'ok') { console.error('[learning-paths] update outcome:', outcome); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    } else {
+      const { error } = await supabase.from('learning_paths')
+        .update(updateData)
+        .eq('id', id)
+        .eq('instructor_id', user.id);
+      if (error) { console.error('[learning-paths] update error:', error); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
+    }
 
     // Send assignment emails to cohorts that are newly added (or path just published).
     // As with create, the update remains successful when delivery is only partial.
@@ -229,10 +314,10 @@ export async function POST(req: NextRequest) {
     const user = await getSessionUser(req);
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    // Get student's cohort
+    // Get student's cohort (and name, for the track welcome)
     const { data: student } = await supabase
       .from('students')
-      .select('cohort_id')
+      .select('cohort_id, full_name')
       .eq('id', user.id)
       .single();
 
@@ -243,19 +328,24 @@ export async function POST(req: NextRequest) {
       .from('learning_paths')
       .select('*')
       .eq('status', 'published');
-    const { data: paths } = await (cohortId
+    const { data: paths, error: pathsError } = await (cohortId
       ? publishedPaths.or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohortId}}`)
       : publishedPaths.eq('available_to_everyone', true));
+    if (pathsError) { console.error('[learning-paths] student paths error:', pathsError); return NextResponse.json({ error: 'Could not load your learning paths.' }, { status: 500 }); }
 
     if (!paths?.length) return NextResponse.json({ paths: [] });
+    const studentName: string | null = student?.full_name ?? null;
 
     // Fetch student's progress for those paths
     const pathIds = paths.map((p: any) => p.id);
-    const { data: progRows } = await supabase
+    const { data: progRows, error: progError } = await supabase
       .from('learning_path_progress')
       .select('*')
       .eq('student_id', user.id)
       .in('learning_path_id', pathIds);
+    // Read as empty, a failure looks like no track picked: the specialization disappears and the
+    // learner is asked to choose again. Fail instead, so the dashboard shows its retry state.
+    if (progError) { console.error('[learning-paths] student progress error:', progError); return NextResponse.json({ error: 'Could not load your learning paths.' }, { status: 500 }); }
 
     const progressMap: Record<string, any> = {};
     for (const p of progRows ?? []) progressMap[p.learning_path_id] = p;
@@ -357,13 +447,25 @@ export async function POST(req: NextRequest) {
         ...storedIds,
         ...(path.item_ids ?? []).filter((id: string) => actuallyCompleted.has(id)),
       ])];
+      // A path with tracks is sent as this learner's own path: core + their track, so every
+      // count and timeline on the client needs no track logic. Before a track is chosen that is
+      // the core, with needs_track telling the client to ask for one.
+      const trackId: string | null = chosenTrack(path, prog?.track_id) ? prog.track_id : null;
+      const myItemIds = requiredItemIds(path, trackId);
       return {
         ...path,
+        item_ids: myItemIds,
+        tracks: pathTracks(path).map(t => ({ id: t.id, name: t.name, description: t.description ?? null, item_count: t.item_ids.length })),
+        track_id: trackId,
+        // Which of item_ids are the track's own, so the timeline can show core and
+        // specialization as separate sections.
+        track_item_ids: chosenTrack(path, trackId)?.item_ids ?? [],
+        needs_track: needsTrack(path, trackId),
         learner_count: learnerCounts[path.id] ?? 0,
         progress: prog
           ? { ...prog, completed_item_ids: effectiveCompleted }
           : effectiveCompleted.length ? { completed_item_ids: effectiveCompleted, completed_at: null, cert_id: null } : null,
-        items: (path.item_ids ?? []).map((id: string) => {
+        items: myItemIds.map((id: string) => {
           const item = formMap[id] ?? { id, title: 'Unknown' };
           const pct = inProgressPct.get(id);
           return typeof pct === 'number' ? { ...item, in_progress_pct: pct } : item;
@@ -376,15 +478,81 @@ export async function POST(req: NextRequest) {
     // after the response is sent so those side effects run exactly once without slowing
     // the dashboard load.
     for (const p of result) {
-      const itemIds: string[] = p.item_ids ?? [];
       const done: string[] = p.progress?.completed_item_ids ?? [];
-      const finished = itemIds.length > 0 && itemIds.every((id: string) => done.includes(id));
+      const source = paths.find((x: any) => x.id === p.id);
+      const finished = isPathComplete(source, p.track_id, done);
       if (finished && (!p.progress?.completed_at || !p.progress?.cert_id)) {
-        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: itemIds, next_path_id: p.next_path_id }, done));
+        // The STORED track_id is the concurrency token: after a track is removed the response
+        // reads it as null, but the row still holds the old id until the learner picks again.
+        const storedTrackId: string | null = progressMap[p.id]?.track_id ?? null;
+        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: p.item_ids, next_path_id: p.next_path_id, updated_at: source?.updated_at ?? null }, done, storedTrackId));
       }
     }
 
-    return NextResponse.json({ paths: result });
+    return NextResponse.json({ paths: result, student_name: studentName });
+  }
+
+  // -- Student: pick (or switch) their track on a path with tracks ---
+  if (action === 'choose-track') {
+    const user = await getSessionUser(req);
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { path_id, track_id } = body;
+    if (typeof path_id !== 'string' || typeof track_id !== 'string') {
+      return NextResponse.json({ error: 'path_id and track_id are required' }, { status: 400 });
+    }
+
+    const [{ data: student }, { data: path }, { data: prog, error: progError }] = await Promise.all([
+      supabase.from('students').select('cohort_id').eq('id', user.id).single(),
+      supabase.from('learning_paths').select('id, item_ids, tracks, cohort_ids, available_to_everyone, status').eq('id', path_id).maybeSingle(),
+      supabase.from('learning_path_progress').select('completed_at, cert_id').eq('student_id', user.id).eq('learning_path_id', path_id).maybeSingle(),
+    ]);
+    if (progError) { console.error('[learning-paths] choose-track progress error:', progError); return NextResponse.json({ error: 'Could not save your track.' }, { status: 500 }); }
+    // Same reach rule as get-student-paths: published, and open or assigned to their cohort.
+    const reachable = path?.status === 'published'
+      && (path.available_to_everyone === true || (!!student?.cohort_id && (path.cohort_ids ?? []).includes(student.cohort_id)));
+    if (!path || !reachable) return NextResponse.json({ error: 'Learning path not found' }, { status: 404 });
+    if (!chosenTrack(path, track_id)) return NextResponse.json({ error: 'That track is not part of this path' }, { status: 400 });
+    // A finished path keeps the track its certificate was issued for.
+    if (prog?.completed_at || prog?.cert_id) {
+      return NextResponse.json({ error: 'You have completed this path, so its track can no longer be changed.' }, { status: 409 });
+    }
+
+    // Written only while the path is unfinished, in the same statement, so a completion landing
+    // between the check above and this write cannot be given a different track afterwards.
+    // Completion takes the other side (complete_learning_path_progress only finalizes the track it
+    // was computed for), so the two cannot interleave.
+    const completedNow = NextResponse.json({ error: 'You have completed this path, so its track can no longer be changed.' }, { status: 409 });
+    const saveFailed = (err: unknown) => {
+      console.error('[learning-paths] choose-track error:', err);
+      return NextResponse.json({ error: 'Could not save your track.' }, { status: 500 });
+    };
+    const switchTrack = () => supabase.from('learning_path_progress')
+      .update({ track_id, updated_at: new Date().toISOString() })
+      .eq('student_id', user.id).eq('learning_path_id', path_id)
+      .is('completed_at', null).is('cert_id', null)
+      .select('id');
+    if (prog) {
+      const { data: rows, error } = await switchTrack();
+      if (error) return saveFailed(error);
+      if (!rows?.length) return completedNow;
+    } else {
+      const { error } = await supabase.from('learning_path_progress')
+        .insert({ student_id: user.id, learning_path_id: path_id, track_id });
+      if (error?.code === '23505') {
+        // The row appeared since the read (another tab, or a completion): switch it under the
+        // same unfinished-only condition.
+        const { data: rows, error: retryError } = await switchTrack();
+        if (retryError) return saveFailed(retryError);
+        if (!rows?.length) return completedNow;
+      } else if (error) {
+        return saveFailed(error);
+      }
+    }
+
+    // Completion (when the core and the track's items are already done) is picked up by the
+    // reconciliation in get-student-paths, which the client reloads next.
+    return NextResponse.json({ ok: true });
   }
 
   return NextResponse.json({ error: 'Unknown action' }, { status: 400 });

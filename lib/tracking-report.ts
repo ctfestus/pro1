@@ -11,6 +11,7 @@
 import { veProgressPct } from '@/lib/ve-completion';
 import { courseProgressPct } from '@/lib/course-progress';
 import { fetchAllRows, fetchAllRowsByIds, fetchAllRowsByIdPairs } from '@/lib/fetch-all-rows';
+import { pathTracks, trackOptOuts } from '@/lib/learning-path-tracks';
 
 export const STALL_DAYS = 7;
 
@@ -29,6 +30,8 @@ export type TrackedItem = {
   deadlineDate?: string | null;
   /** Set when an assignment delegates its work to a virtual experience. */
   veFormId?: string | null;
+  /** The item's own cohort_ids, without path grants. Unset means cohortIds are all direct. */
+  directCohortIds?: string[];
 };
 
 export type TrackedStudent = { id: string; email: string; full_name: string | null; cohort_id: string | null };
@@ -144,10 +147,12 @@ export async function loadTrackedContent(
     ...courses.map((c: any): TrackedItem => ({
       id: c.id, title: c.title, slug: c.slug ?? null, contentType: 'course', status: c.status,
       cohortIds: cohortIdsFor(c), availableToEveryone: availableToEveryoneFor(c), deadlineDays: c.deadline_days ?? null,
+      directCohortIds: Array.isArray(c.cohort_ids) ? c.cohort_ids : [],
     })),
     ...ves.map((v: any): TrackedItem => ({
       id: v.id, title: v.title, slug: v.slug ?? null, contentType: 'virtual_experience', status: v.status,
       cohortIds: cohortIdsFor(v), availableToEveryone: availableToEveryoneFor(v), deadlineDays: v.deadline_days ?? null,
+      directCohortIds: Array.isArray(v.cohort_ids) ? v.cohort_ids : [],
     })),
     ...assignments.map((a: any): TrackedItem => ({
       id: a.id, title: a.title, slug: null, contentType: 'assignment', status: a.status,
@@ -307,6 +312,23 @@ export async function loadTrackedActivity(
  * output fetch it for the rows they are about to show via attachProgress. Everything status
  * classification needs is a timestamp, a score or a submission state.
  */
+/** Loads what trackOptOuts (lib/learning-path-tracks) needs for these students. */
+export async function loadTrackOptOuts(supabase: any, students: { id: string; cohort_id: string | null }[]): Promise<Set<string>> {
+  const cohorts = new Set(students.map(s => s.cohort_id).filter(Boolean) as string[]);
+  if (!cohorts.size) return new Set();
+  const paths = (await fetchAllRows<any>((from, to) => supabase
+    .from('learning_paths').select('id, item_ids, tracks, cohort_ids', { count: 'exact' })
+    .eq('status', 'published').order('id').range(from, to)))
+    .filter((p: any) => Array.isArray(p.cohort_ids) && p.cohort_ids.some((c: string) => cohorts.has(c)));
+  const tracked = paths.filter((p: any) => pathTracks(p).length > 0);
+  if (!tracked.length) return new Set();
+  const progress = await fetchAllRowsByIdPairs<any>(students.map(s => s.id), tracked.map((p: any) => p.id), (studentChunk, pathChunk, from, to) => supabase
+    .from('learning_path_progress').select('id, student_id, learning_path_id, track_id', { count: 'exact' })
+    .in('student_id', studentChunk).in('learning_path_id', pathChunk).order('id').range(from, to));
+  const trackOf = new Map<string, string | null>(progress.map((r: any) => [`${r.student_id}|${r.learning_path_id}`, r.track_id ?? null]));
+  return trackOptOuts(paths, students, trackOf);
+}
+
 export async function buildStatusRows(
   supabase: any,
   opts: {
@@ -412,6 +434,7 @@ export async function buildStatusRows(
   const rows: StatusRow[] = [];
 
   const activeCohortSet = new Set(activeCohortIds);
+  const trackOptOuts = await loadTrackOptOuts(supabase, students);
 
   for (const item of items) {
     const itemCohortIds = item.cohortIds.filter(id => activeCohortSet.has(id));
@@ -430,6 +453,8 @@ export async function buildStatusRows(
     for (const studentId of candidateIds) {
       const student = studentsById.get(studentId)!;
       const key = `${student.id}|${item.id}`;
+      // Another track's item, reached only through the path: not this student's to take.
+      if (trackOptOuts.has(key) && !(item.directCohortIds ?? item.cohortIds).includes(student.cohort_id ?? '')) continue;
 
       let status: RowStatus = 'not_started';
       let lastActive: string | null = null;

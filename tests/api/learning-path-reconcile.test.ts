@@ -25,17 +25,59 @@ vi.mock('@/lib/get-tenant-settings', () => ({
   }),
 }));
 
-import { reconcilePathCompletion } from '@/lib/learning-path-progress';
+import { reconcilePathCompletion, updateLearningPathProgress } from '@/lib/learning-path-progress';
 import { makeSupabaseStub } from '../helpers/supabaseStub';
+
+// Completion is finalized by complete_learning_path_progress (migration 226): the row id when it
+// finalized, as for an unchanged path and the same track.
+const completeRpc = (fn: string) => {
+  if (fn !== 'complete_learning_path_progress') throw new Error(`unexpected rpc ${fn}`);
+  return { data: 'prog1', error: null };
+};
 
 beforeEach(() => {
   sendSpy.mockClear();
   process.env.RESEND_API_KEY = 'test-key';
 });
 
+describe('reconcilePathCompletion declines', () => {
+  it('issues nothing when completion is declined (the path changed or the track switched)', async () => {
+    const path = { id: 'lp1', title: 'Data Path', item_ids: ['c1'], next_path_id: null, updated_at: '2026-10-01T00:00:00Z' };
+    const rpc = vi.fn(() => ({ data: null, error: null }));
+    const db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_path_progress: { data: null, error: null },
+    }, rpc);
+    await reconcilePathCompletion(db, 's1', path, ['c1']);
+    expect(rpc).toHaveBeenCalledWith('complete_learning_path_progress', expect.objectContaining({ p_path_updated_at: '2026-10-01T00:00:00Z', p_track_id: null }));
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+});
+
+describe('updateLearningPathProgress declines', () => {
+  it('saves the progress without completing when completion is declined', async () => {
+    const rpc = vi.fn(() => ({ data: null, error: null }));
+    const db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: [{ id: 'lp1', title: 'P', item_ids: ['c1', 'c2'], tracks: [], next_path_id: null, updated_at: '2026-10-01T00:00:00Z' }], error: null },
+      // The read (c2 already done), then the plain progress save.
+      learning_path_progress: [{ data: { completed_item_ids: ['c2'], track_id: null }, error: null }, { data: { id: 'prog1' }, error: null }],
+    }, rpc);
+    // c1 comes before c2, so a wrongly sent "next up" email would look up its items; the strict
+    // stub has no item tables, and that failure is logged.
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await updateLearningPathProgress(db, 's1', 'c1');
+    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(logged).not.toHaveBeenCalled();
+    logged.mockRestore();
+    // No certificate, no completion email, and no "next up" email for a path that is done.
+    expect(sendSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('reconcilePathCompletion concurrency', () => {
   it('issues one certificate and one email when two reconciliations race', async () => {
-    const path = { id: 'lp1', title: 'Data Path', item_ids: ['c1'], next_path_id: null };
+    const path = { id: 'lp1', title: 'Data Path', item_ids: ['c1'], next_path_id: null, updated_at: '2026-10-01T00:00:00Z' };
     const db = makeSupabaseStub({
       students: [
         { data: { cohort_id: 'co1' }, error: null },                                  // call1: reconcile
@@ -45,10 +87,8 @@ describe('reconcilePathCompletion concurrency', () => {
       ],
       learning_path_progress: [
         { data: null, error: null },              // call1: select -- not finalized
-        { data: { id: 'prog1' }, error: null },   // call1: upsert
         { data: null, error: null },              // call1: cert_id backfill (commit marker)
         { data: null, error: null },              // call2: select -- concurrent, still sees nothing
-        { data: { id: 'prog1' }, error: null },   // call2: upsert (same row via onConflict)
         { data: null, error: null },              // call2: cert_id backfill with the winner's id
       ],
       certificates: [
@@ -73,7 +113,7 @@ describe('reconcilePathCompletion concurrency', () => {
         { data: null, error: { code: '23505' } },        // call2: lock already taken
         { data: { status: 'sent' }, error: null },       // call2: winner already sent -- skip
       ],
-    });
+    }, completeRpc);
 
     await reconcilePathCompletion(db, 's1', path, ['c1']);
     await reconcilePathCompletion(db, 's1', path, ['c1']);
@@ -86,7 +126,7 @@ describe('reconcilePathCompletion concurrency', () => {
 
   it('sends the next-path enrollment email once when two completions race', async () => {
     // cert_id already set (hadCertId) isolates the next-path block.
-    const path = { id: 'lp1', title: 'Data Path', item_ids: ['c1'], next_path_id: 'lp2' };
+    const path = { id: 'lp1', title: 'Data Path', item_ids: ['c1'], next_path_id: 'lp2', updated_at: '2026-10-01T00:00:00Z' };
     const prog = { id: 'prog1', completed_at: null, cert_id: 'certX', completed_item_ids: ['c1'] };
     const db = makeSupabaseStub({
       students: [
@@ -97,9 +137,7 @@ describe('reconcilePathCompletion concurrency', () => {
       ],
       learning_path_progress: [
         { data: prog, error: null },              // call1: select
-        { data: { id: 'prog1' }, error: null },   // call1: upsert
         { data: prog, error: null },              // call2: select
-        { data: { id: 'prog1' }, error: null },   // call2: upsert
       ],
       learning_paths: [
         { data: { id: 'lp2', cohort_ids: [], title: 'Next Path', description: null, item_ids: [] }, error: null }, // call1: nextPath
@@ -113,7 +151,7 @@ describe('reconcilePathCompletion concurrency', () => {
         { data: null, error: { code: '23505' } },        // call2: lock already taken
         { data: { status: 'sent' }, error: null },       // call2: already sent -- skip
       ],
-    });
+    }, completeRpc);
 
     await reconcilePathCompletion(db, 's1', path, ['c1']);
     await reconcilePathCompletion(db, 's1', path, ['c1']);
@@ -125,7 +163,7 @@ describe('reconcilePathCompletion concurrency', () => {
   it('recovers a certificate email missed by a crash between insert and send', async () => {
     // State left by a run that died after inserting the certificate: cert exists,
     // progress finalized-in-part (completed_at set, cert_id still null), no email lock.
-    const path = { id: 'lp1', title: 'Data Path', item_ids: ['c1'], next_path_id: null };
+    const path = { id: 'lp1', title: 'Data Path', item_ids: ['c1'], next_path_id: null, updated_at: '2026-10-01T00:00:00Z' };
     const db = makeSupabaseStub({
       students: [
         { data: { cohort_id: 'co1' }, error: null },
@@ -133,7 +171,6 @@ describe('reconcilePathCompletion concurrency', () => {
       ],
       learning_path_progress: [
         { data: { id: 'prog1', completed_at: '2026-07-17T00:00:00Z', cert_id: null, completed_item_ids: ['c1'] }, error: null },
-        { data: { id: 'prog1' }, error: null },   // upsert
         { data: null, error: null },              // cert_id backfill
       ],
       certificates: [
@@ -150,7 +187,7 @@ describe('reconcilePathCompletion concurrency', () => {
         { data: null, error: null },   // lock free -- the crashed run never got here
         { data: null, error: null },   // mark sent
       ],
-    });
+    }, completeRpc);
 
     await reconcilePathCompletion(db, 's1', path, ['c1']);
 

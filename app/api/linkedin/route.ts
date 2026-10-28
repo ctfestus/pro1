@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requiredItemIds } from '@/lib/learning-path-tracks';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { parseReviewNotes } from '@/lib/reviewRecord';
 import { loadCertificate } from '@/lib/certificate';
@@ -121,12 +122,12 @@ export async function GET(req: NextRequest) {
 
     const { data: pathProgress } = await supabase
       .from('learning_path_progress')
-      .select('learning_path_id, completed_item_ids, completed_at, cert_id')
+      .select('learning_path_id, completed_item_ids, completed_at, cert_id, track_id')
       .eq('student_id', user.id);
 
     const pathIds = [...new Set((pathProgress ?? []).map((p: any) => p.learning_path_id).filter(Boolean))];
     const { data: pathRows } = pathIds.length
-      ? await supabase.from('learning_paths').select('id, title, description, item_ids').in('id', pathIds)
+      ? await supabase.from('learning_paths').select('id, title, description, item_ids, tracks').in('id', pathIds)
       : { data: [] };
     const pathMap = Object.fromEntries((pathRows ?? []).map((r: any) => [r.id, r]));
 
@@ -214,12 +215,14 @@ export async function GET(req: NextRequest) {
     const learningPaths = (pathProgress ?? []).map((p: any) => {
       const path = pathMap[p.learning_path_id];
       if (!path?.title) return null;
+      // Core + the learner's track on a path with tracks: the other tracks were never theirs.
+      const mine = requiredItemIds(path, p.track_id ?? null);
       return {
         title:          path.title,
         description:    path.description ?? '',
-        items:          (path.item_ids ?? []).map((id: string) => itemTitleMap[id]).filter(Boolean),
-        totalItems:     (path.item_ids ?? []).length,
-        completedItems: (p.completed_item_ids ?? []).length,
+        items:          mine.map((id: string) => itemTitleMap[id]).filter(Boolean),
+        totalItems:     mine.length,
+        completedItems: (p.completed_item_ids ?? []).filter((id: string) => mine.includes(id)).length,
         completed:      !!p.completed_at,
         completedAt:    p.completed_at ?? null,
         certificateId:  p.cert_id ?? null,

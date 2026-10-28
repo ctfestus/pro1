@@ -12,6 +12,7 @@ export async function GET(
 
   if (result.status === 'notfound') return NextResponse.json({ error: 'not_found' }, { status: 404 });
   if (result.status === 'revoked')  return NextResponse.json({ revoked: true }, { status: 200 });
+  if (result.status === 'unavailable') return NextResponse.json({ error: 'unavailable' }, { status: 503 });
 
   return NextResponse.json({ ...result.data, revoked: false });
 }

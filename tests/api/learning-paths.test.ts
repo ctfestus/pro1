@@ -170,6 +170,26 @@ describe('POST /api/learning-paths student read path', () => {
     expect(paths[0].id).toBe('lp-open');
   });
 
+  it('reconciles with the stored track id when that track was removed, so completion is not blocked', async () => {
+    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
+    h.db = makeSupabaseStub({
+      students: [{ data: { cohort_id: 'co1' }, error: null }, { count: 1, error: null }],
+      // Tracks were removed; the learner's row still holds the old track id.
+      learning_paths: { data: [{ id: 'lp1', title: 'Path', status: 'published', cohort_ids: ['co1'], item_ids: ['cert1'], tracks: [] }], error: null },
+      learning_path_progress: { data: [{ learning_path_id: 'lp1', completed_item_ids: ['cert1'], completed_at: null, cert_id: null, track_id: 'gone' }], error: null },
+      courses: { data: [], error: null },
+      virtual_experiences: { data: [], error: null },
+      certifications: { data: [{ id: 'cert1', title: 'SQL Associate', slug: 'sql-assoc', cover_image: null, description: null }], error: null },
+      course_attempts: { data: [], error: null },
+      guided_project_attempts: { data: [], error: null },
+      certification_attempts: { data: [], error: null },
+    });
+    const res = await post({ action: 'get-student-paths' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).paths[0].track_id).toBeNull();
+    expect(mockReconcile).toHaveBeenCalledWith(h.db, 's1', expect.objectContaining({ id: 'lp1' }), ['cert1'], 'gone');
+  });
+
   it('returns certification items and counts an earlier passing attempt as completed', async () => {
     mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
     h.db = makeSupabaseStub({
@@ -198,7 +218,7 @@ describe('POST /api/learning-paths student read path', () => {
     // Every item is complete but the stored progress was never finalized (no completed_at /
     // cert_id) -- the route must schedule the completion reconciliation for this path.
     expect(mockReconcile).toHaveBeenCalledWith(
-      h.db, 's1', expect.objectContaining({ id: 'lp1', item_ids: ['cert1'] }), ['cert1'],
+      h.db, 's1', expect.objectContaining({ id: 'lp1', item_ids: ['cert1'] }), ['cert1'], null,
     );
   });
 
@@ -339,5 +359,266 @@ describe('POST /api/learning-paths student read path', () => {
     const { paths } = await (await post({ action: 'get-student-paths' })).json();
     expect(paths[0].items[0]).toMatchObject({ id: 've1', content_type: 'virtual_experience', in_progress_pct: 50 });
     expect(stub.reads('virtual_experiences')).toBe(2);
+  });
+});
+
+describe('POST /api/learning-paths update: tracks and completed learners', () => {
+  const tracked = {
+    status: 'draft', cohort_ids: [], item_ids: ['core', 'fin', 'hr'],
+    tracks: [{ id: 'fin', name: 'Finance', item_ids: ['fin'] }, { id: 'hr', name: 'HR', item_ids: ['hr'] }],
+  };
+
+  it('404s for a path the instructor does not own, revealing nothing about it', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({ learning_paths: { data: null, error: null } });
+    const res = await post({ action: 'update', id: 'lp-other', tracks: [{ id: 'fin', name: 'Finance', item_ids: [] }] });
+    expect(res.status).toBe(404);
+    expect(JSON.stringify(await res.json())).not.toMatch(/learner/);
+  });
+
+  it('500s when the path lookup fails', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({ learning_paths: { data: null, error: { message: 'down' } } });
+    expect((await post({ action: 'update', id: 'lp1', title: 'P' })).status).toBe(500);
+  });
+
+  // save_learning_path (migrations 226-227) checks completers and writes under one lock. Modeled
+  // here as the database does it: 'completed' when a completer is on a track (or the core) the
+  // route says changes. So these pin the route's decision of whose requirements change.
+  function shapeDb(prev: any, completers: (string | null)[], outcome?: string) {
+    const calls: { fn: string; args: Record<string, any> }[] = [];
+    const db = makeSupabaseStub({
+      learning_paths: [{ data: prev, error: null }, { data: null, error: null }],
+      learning_path_progress: { data: completers.map((track_id, i) => ({ id: `p${i}`, track_id })), error: null },
+    }, (fn, args) => {
+      calls.push({ fn, args });
+      if (fn !== 'save_learning_path') throw new Error(`unexpected rpc ${fn}`);
+      if (outcome) return { data: outcome, error: null };
+      const hit = completers.some(t => (t ? args.p_changed_track_ids.includes(t) : args.p_core_changed));
+      return { data: hit ? 'completed' : 'ok', error: null };
+    });
+    const from = vi.fn(db.from.bind(db));
+    return { db: { ...db, from }, calls, reads: (table: string) => from.mock.calls.filter(c => c[0] === table).length };
+  }
+
+  it('500s when the locked save fails, instead of saving', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = makeSupabaseStub({ learning_paths: { data: tracked, error: null } },
+      () => ({ data: null, error: { message: 'down' } }));
+    expect((await post({ action: 'update', id: 'lp1', tracks: tracked.tracks })).status).toBe(500);
+  });
+
+  it('409s when the path changed since it was read, instead of overwriting it', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, [], 'stale').db;
+    const res = await post({ action: 'update', id: 'lp1', tracks: tracked.tracks });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/reload/i);
+  });
+
+  it('saves every submitted field in one locked call, checked against the version it read', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    const { db, calls, reads } = shapeDb({ ...tracked, updated_at: '2026-10-28T10:00:00.123456+00:00' }, []);
+    h.db = db;
+    const res = await post({ action: 'update', id: 'lp1', title: ' Renamed ', overview: 'New', tracks: tracked.tracks });
+    expect(res.status).toBe(200);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].args).toMatchObject({
+      p_path_id: 'lp1', p_instructor_id: 'i1', p_expected_updated_at: '2026-10-28T10:00:00.123456+00:00',
+      p_changed_track_ids: [], p_core_changed: false,
+      p_patch: { title: 'Renamed', overview: 'New', tracks: tracked.tracks },
+    });
+    expect(calls[0].args.p_patch).not.toHaveProperty('updated_at');
+    // The path is only read: no second, separate write that could fail after the locked save.
+    expect(reads('learning_paths')).toBe(1);
+  });
+
+  it('409s when adding the first tracks to a path someone completed without one', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb({ ...tracked, tracks: [] }, [null]).db;
+    const res = await post({ action: 'update', id: 'lp1', tracks: tracked.tracks });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/create a new path/i);
+  });
+
+  it('409s when removing a track a learner completed on', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['fin', 'hr']).db;
+    const res = await post({ action: 'update', id: 'lp1', tracks: [tracked.tracks[1]] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/2 learners .*Finance, HR/);
+  });
+
+  it('409s when removing the last track while someone completed on a track', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['hr']).db;
+    const res = await post({ action: 'update', id: 'lp1', tracks: [] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/HR/);
+  });
+
+  it('allows removing every track when nobody completed on one', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, []).db;
+    expect((await post({ action: 'update', id: 'lp1', tracks: [] })).status).toBe(200);
+  });
+
+  it("409s when a completer's track keeps its id but loses its items", async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['hr']).db;
+    // HR keeps its id, but its item moves to Finance: an HR completer would no longer have it required.
+    const res = await post({ action: 'update', id: 'lp1', tracks: [{ ...tracked.tracks[0], item_ids: ['fin', 'hr'] }, { ...tracked.tracks[1], item_ids: [] }] });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/HR/);
+  });
+
+  it("409s when another track's cleared item becomes core for a completer", async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['hr']).db;
+    // Finance's item leaves its track, so it is core and now required of an HR completer.
+    const res = await post({ action: 'update', id: 'lp1', tracks: [{ ...tracked.tracks[0], item_ids: [] }, tracked.tracks[1]] });
+    expect(res.status).toBe(409);
+  });
+
+  it('409s when an item moves out of the core a completer took', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['fin']).db;
+    // 'core' moves into HR: a Finance completer no longer had it required.
+    const res = await post({ action: 'update', id: 'lp1', tracks: [tracked.tracks[0], { ...tracked.tracks[1], item_ids: ['hr', 'core'] }] });
+    expect(res.status).toBe(409);
+  });
+
+  it("409s when an item list change alone alters a completer's requirements", async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['hr']).db;
+    expect((await post({ action: 'update', id: 'lp1', item_ids: ['core', 'fin', 'hr', 'new-core'] })).status).toBe(409);
+  });
+
+  it('allows adding an item to a track no completer is on', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['hr']).db;
+    const res = await post({
+      action: 'update', id: 'lp1', item_ids: ['core', 'fin', 'hr', 'fin2'],
+      tracks: [{ ...tracked.tracks[0], item_ids: ['fin', 'fin2'] }, tracked.tracks[1]],
+    });
+    expect(res.status).toBe(200);
+  });
+
+  it('never locks a path on a completer who has no track on a path with tracks', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, [null]).db;
+    expect((await post({ action: 'update', id: 'lp1', title: 'Renamed', item_ids: tracked.item_ids, tracks: tracked.tracks })).status).toBe(200);
+  });
+
+  it("allows a track change that keeps every completer's track", async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    h.db = shapeDb(tracked, ['hr']).db;
+    const res = await post({ action: 'update', id: 'lp1', tracks: [tracked.tracks[0], { ...tracked.tracks[1], name: 'People & HR' }] });
+    expect(res.status).toBe(200);
+  });
+
+  it('rejects an unnamed track instead of silently making its items core', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    // Rejected before any read: the strict stub would throw on one.
+    const update = await post({ action: 'update', id: 'lp1', tracks: [{ id: 'fin', name: '  ', item_ids: ['fin'] }] });
+    expect(update.status).toBe(400);
+    expect((await update.json()).error).toMatch(/name/i);
+    const create = await post({ action: 'create', title: 'P', item_ids: ['a'], tracks: [{ id: 'x', name: 'X' }, { id: 'x', name: 'Y' }] });
+    expect(create.status).toBe(400);
+  });
+});
+
+describe('POST /api/learning-paths choose-track', () => {
+  const student = { user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' };
+  const path = {
+    id: 'lp1', status: 'published', cohort_ids: ['co1'], available_to_everyone: false, item_ids: ['core', 'fin'],
+    tracks: [{ id: 'fin', name: 'Finance', item_ids: ['fin'] }],
+  };
+  const choose = (track_id = 'fin') => post({ action: 'choose-track', path_id: 'lp1', track_id });
+
+  it('switches the track only while the path is unfinished', async () => {
+    mockUser.mockResolvedValue(student as any);
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: path, error: null },
+      // The read, then the conditional switch returning the row it changed.
+      learning_path_progress: [{ data: { completed_at: null, cert_id: null }, error: null }, { data: [{ id: 'p1' }], error: null }],
+    });
+    expect((await choose()).status).toBe(200);
+  });
+
+  it('409s when the path was completed between the check and the switch', async () => {
+    mockUser.mockResolvedValue(student as any);
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: path, error: null },
+      // Unfinished when read, but the unfinished-only switch matched no row.
+      learning_path_progress: [{ data: { completed_at: null, cert_id: null }, error: null }, { data: [], error: null }],
+    });
+    expect((await choose()).status).toBe(409);
+  });
+
+  it('409s on a completed path without writing', async () => {
+    mockUser.mockResolvedValue(student as any);
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: path, error: null },
+      learning_path_progress: [{ data: { completed_at: '2026-10-01T00:00:00Z', cert_id: 'c1' }, error: null }, { data: null, error: { message: 'must not write' } }],
+    });
+    expect((await choose()).status).toBe(409);
+  });
+
+  it('creates the row on a first pick, and switches under the same condition if one appeared', async () => {
+    mockUser.mockResolvedValue(student as any);
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: path, error: null },
+      learning_path_progress: [
+        { data: null, error: null },
+        { data: null, error: { code: '23505', message: 'duplicate' } },
+        { data: [{ id: 'p1' }], error: null },
+      ],
+    });
+    expect((await choose()).status).toBe(200);
+  });
+
+  it("404s for a path outside the learner's cohort, and 400s for a track the path does not have", async () => {
+    mockUser.mockResolvedValue(student as any);
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'other' }, error: null },
+      learning_paths: { data: path, error: null },
+      learning_path_progress: { data: null, error: null },
+    });
+    expect((await choose()).status).toBe(404);
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: path, error: null },
+      learning_path_progress: { data: null, error: null },
+    });
+    expect((await choose('hr')).status).toBe(400);
+  });
+
+  it('500s when the progress read fails, instead of guessing the path is unfinished', async () => {
+    mockUser.mockResolvedValue(student as any);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: path, error: null },
+      learning_path_progress: { data: null, error: { message: 'down' } },
+    });
+    expect((await choose()).status).toBe(500);
+  });
+});
+
+describe('POST /api/learning-paths get-student-paths failures', () => {
+  it('500s when the progress read fails, instead of showing the learner as having no track', async () => {
+    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1', full_name: 'S' }, error: null },
+      learning_paths: { data: [{ id: 'lp1', title: 'P', status: 'published', cohort_ids: ['co1'], item_ids: ['core'], tracks: [] }], error: null },
+      learning_path_progress: { data: null, error: { message: 'down' } },
+    });
+    expect((await post({ action: 'get-student-paths' })).status).toBe(500);
   });
 });

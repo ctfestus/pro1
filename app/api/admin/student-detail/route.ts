@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { veProgressPct } from '@/lib/ve-completion';
 import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
+import { pathTracks, trackOptOuts } from '@/lib/learning-path-tracks';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,7 +43,7 @@ export async function GET(req: NextRequest) {
     cohortId ? supabase.from('virtual_experiences').select('id, title, slug, modules').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[] }),
     // A published path assigned to the cohort grants every item in it without the cohort appearing
     // in the item's own cohort_ids, so a cohort taught only through a path has no direct content.
-    cohortId ? supabase.from('learning_paths').select('item_ids').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[], error: null }),
+    cohortId ? supabase.from('learning_paths').select('id, item_ids, tracks, cohort_ids').contains('cohort_ids', [cohortId]).eq('status', 'published') : Promise.resolve({ data: [] as any[], error: null }),
   ]);
 
   // A failed path read must fail the panel. Treated as empty, it shows "No courses in cohort" for
@@ -51,9 +52,23 @@ export async function GET(req: NextRequest) {
     console.error('[admin/student-detail] learning path lookup error:', cohortPaths.error);
     return NextResponse.json({ error: 'Failed to load student detail.' }, { status: 500 });
   }
+  // On a path with tracks the other tracks' courses are not this learner's, so they must not show
+  // as Not started. Same rule as the tracking report; a direct assignment still counts.
+  const trackedPaths = (cohortPaths.data ?? []).filter((p: any) => pathTracks(p).length > 0);
+  let optOuts = new Set<string>();
+  if (trackedPaths.length) {
+    const { data: picks, error: picksError } = await supabase.from('learning_path_progress')
+      .select('learning_path_id, track_id').eq('student_id', studentId).in('learning_path_id', trackedPaths.map((p: any) => p.id));
+    if (picksError) {
+      console.error('[admin/student-detail] track lookup error:', picksError);
+      return NextResponse.json({ error: 'Failed to load student detail.' }, { status: 500 });
+    }
+    const trackOf = new Map<string, string | null>((picks ?? []).map((r: any) => [`${studentId}|${r.learning_path_id}`, r.track_id ?? null]));
+    optOuts = trackOptOuts(cohortPaths.data ?? [], [{ id: studentId, cohort_id: cohortId }], trackOf);
+  }
   const directIds = new Set([...(directCourses ?? []), ...(directVEs ?? [])].map((c: any) => c.id as string));
   const pathItemIds = [...new Set((cohortPaths.data ?? []).flatMap((p: any) => (p.item_ids ?? []) as string[]))]
-    .filter(id => !directIds.has(id));
+    .filter(id => !directIds.has(id) && !optOuts.has(`${studentId}|${id}`));
   let pathCourses: any[] = [];
   let pathVEs: any[] = [];
   try {

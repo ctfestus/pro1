@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { requiredItemIds } from '@/lib/learning-path-tracks';
 import { createClient } from '@supabase/supabase-js';
 
 function adminClient() {
@@ -60,8 +61,18 @@ export async function GET(
   const [{ data: coursesRaw }, { data: vesRaw }, { data: pathsRaw }] = await Promise.all([
     courseIds.length ? supabase.from('courses').select('id, title, cover_image').in('id', courseIds) : Promise.resolve({ data: [] }),
     veIds.length     ? supabase.from('virtual_experiences').select('id, title, cover_image').in('id', veIds) : Promise.resolve({ data: [] }),
-    pathIds.length   ? supabase.from('learning_paths').select('id, title, item_ids').in('id', pathIds) : Promise.resolve({ data: [] }),
+    pathIds.length   ? supabase.from('learning_paths').select('id, title, item_ids, tracks').in('id', pathIds) : Promise.resolve({ data: [] }),
   ]);
+  // On a path with tracks the certificate covers core + the learner's track, as lib/certificate does.
+  const { data: pathProgressRaw, error: pathProgressError } = pathIds.length
+    ? await supabase.from('learning_path_progress').select('learning_path_id, track_id').eq('student_id', student.id).in('learning_path_id', pathIds)
+    : { data: [], error: null };
+  // Read as no track, a failure would show a path credential without its specialization.
+  if (pathProgressError) {
+    console.error('[student-profile] track lookup error:', pathProgressError);
+    return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+  }
+  const trackByPath = new Map<string, string | null>((pathProgressRaw ?? []).map((r: any) => [r.learning_path_id, r.track_id ?? null]));
 
   const courseMap: Record<string, any> = Object.fromEntries((coursesRaw ?? []).map((r: any) => [r.id, r]));
   const veMap:     Record<string, any> = Object.fromEntries((vesRaw     ?? []).map((r: any) => [r.id, r]));
@@ -91,7 +102,7 @@ export async function GET(
     const content  = isCourse ? courseMap[c.course_id] : isVE ? veMap[c.ve_id] : isPath ? pathMap[c.learning_path_id] : isCertn ? certificationMap[c.certification_id] : null;
     const contentType = isCourse ? 'course' : isVE ? 'virtual_experience' : isPath ? 'learning_path' : isCertn ? 'certification' : 'course';
     const pathItems = isPath
-      ? (content?.item_ids ?? []).map((id: string) => itemMap[id]).filter(Boolean)
+      ? (content ? requiredItemIds(content, trackByPath.get(c.learning_path_id) ?? null) : []).map((id: string) => itemMap[id]).filter(Boolean)
       : undefined;
     return {
       id:          c.id,

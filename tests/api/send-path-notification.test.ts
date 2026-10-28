@@ -16,6 +16,7 @@ vi.mock('@/lib/get-tenant-settings', () => ({
 vi.mock('@/lib/email-templates', () => ({ learningPathAssignedEmail: vi.fn(() => '<p>assigned</p>') }));
 
 import { sendPathNotification } from '@/lib/send-path-notification';
+import { learningPathAssignedEmail } from '@/lib/email-templates';
 import { makeSupabaseStub } from '../helpers/supabaseStub';
 
 function studentRows(count: number) {
@@ -27,6 +28,8 @@ function studentRows(count: number) {
 }
 
 const path = { id: 'lp1', title: 'Path', description: 'Learn', item_ids: [] };
+// sendPathNotification reads the saved row for its tracks.
+const NO_TRACKS = { data: { item_ids: [], tracks: [] }, error: null };
 
 beforeEach(() => {
   vi.useRealTimers();
@@ -37,7 +40,7 @@ beforeEach(() => {
 
 describe('sendPathNotification', () => {
   it('uses Resend batches of at most 100 recipients with deterministic idempotency keys', async () => {
-    const db = makeSupabaseStub({ students: { data: studentRows(205), error: null } });
+    const db = makeSupabaseStub({ learning_paths: NO_TRACKS, students: { data: studentRows(205), error: null } });
 
     await expect(sendPathNotification(db as any, path, ['co1'])).resolves.toEqual({
       total: 205, sent: 205, failed: 0,
@@ -55,7 +58,7 @@ describe('sendPathNotification', () => {
     batchSend
       .mockResolvedValueOnce({ data: null, error: { statusCode: 429, name: 'rate_limit_exceeded', message: 'Too many requests' } })
       .mockResolvedValueOnce({ data: [{ id: 'email1' }], error: null });
-    const db = makeSupabaseStub({ students: { data: studentRows(2), error: null } });
+    const db = makeSupabaseStub({ learning_paths: NO_TRACKS, students: { data: studentRows(2), error: null } });
 
     const resultPromise = sendPathNotification(db as any, path, ['co1']);
     await vi.runAllTimersAsync();
@@ -70,10 +73,47 @@ describe('sendPathNotification', () => {
       data: null,
       error: { statusCode: 422, name: 'validation_error', message: 'Rejected' },
     });
-    const db = makeSupabaseStub({ students: { data: studentRows(3), error: null } });
+    const db = makeSupabaseStub({ learning_paths: NO_TRACKS, students: { data: studentRows(3), error: null } });
 
     await expect(sendPathNotification(db as any, path, ['co1'])).resolves.toEqual({
       total: 3, sent: 0, failed: 3,
     });
+  });
+
+  it('lists only the core on a path with tracks and names the specializations instead', async () => {
+    const db = makeSupabaseStub({
+      learning_paths: { data: {
+        item_ids: ['core1', 'fin1', 'hr1'],
+        tracks: [
+          { id: 't-fin', name: 'Finance', item_ids: ['fin1'] },
+          { id: 't-hr', name: 'HR', item_ids: ['hr1'] },
+        ],
+      }, error: null },
+      courses: { data: [
+        { id: 'core1', title: 'Core course', cover_image: null },
+        { id: 'fin1', title: 'Finance course', cover_image: null },
+        { id: 'hr1', title: 'HR course', cover_image: null },
+      ], error: null },
+      virtual_experiences: { data: [], error: null },
+      certifications: { data: [], error: null },
+      students: { data: studentRows(1), error: null },
+    });
+
+    await sendPathNotification(db as any, { ...path, item_ids: ['core1', 'fin1', 'hr1'] }, ['co1']);
+
+    const args = vi.mocked(learningPathAssignedEmail).mock.calls.at(-1)?.[0];
+    expect(args?.items.map(i => i.title)).toEqual(['Core course']);
+    expect(args?.specializations).toEqual(['Finance', 'HR']);
+  });
+});
+
+describe('sendPathNotification fails closed on the saved path', () => {
+  it('sends nothing when the saved path cannot be read', async () => {
+    const db = makeSupabaseStub({
+      learning_paths: { data: null, error: { message: 'down' } },
+      students: { data: studentRows(2), error: null },
+    });
+    await expect(sendPathNotification(db as any, { ...path, item_ids: ['a', 'b'] }, ['co1'])).rejects.toBeTruthy();
+    expect(batchSend).not.toHaveBeenCalled();
   });
 });

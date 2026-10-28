@@ -46,6 +46,8 @@ export type PathReportLearner = {
   /** For a learner with no current access: the cohort of the plan they held, so a plan filter still finds them. */
   former_plan_cohort_id: string | null;
   enrolled_at: string | null;
+  /** Name of the track the learner picked, on a path with tracks. Null before they pick. */
+  track_name: string | null;
   status: PathLearnerStatus;
   completed_count: number;
   total_items: number;
@@ -69,7 +71,7 @@ export type PathReportCohort = {
 };
 
 export type PathReport = {
-  path: { id: string; title: string; status: string; available_to_everyone: boolean };
+  path: { id: string; title: string; status: string; available_to_everyone: boolean; has_tracks: boolean };
   items: PathReportItem[];
   cohorts: PathReportCohort[];
   learners: PathReportLearner[];
@@ -122,6 +124,8 @@ export function summarizeLearnerProgress(args: {
   certAttempts: CertAttemptRow[];
   openPct?: Map<string, number>;
   progressUpdatedAt?: string | null;
+  /** A path with tracks whose learner has not picked one yet can never be completed. */
+  needsTrack?: boolean;
 }): Pick<PathReportLearner, 'status' | 'completed_count' | 'total_items' | 'progress_pct' | 'current_item_id' | 'last_active_at' | 'items'> {
   const stored = new Set(args.storedCompletedIds);
   const byItem = new Map<string, any[]>();
@@ -150,7 +154,7 @@ export function summarizeLearnerProgress(args: {
   }
 
   const total = args.items.length;
-  const status: PathLearnerStatus = total > 0 && completed === total ? 'completed' : started ? 'in_progress' : 'not_started';
+  const status: PathLearnerStatus = total > 0 && completed === total && !args.needsTrack ? 'completed' : started ? 'in_progress' : 'not_started';
   return {
     status,
     completed_count: completed,
