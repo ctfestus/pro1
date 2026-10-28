@@ -445,7 +445,10 @@ export async function POST(req: NextRequest) {
       const source = paths.find((x: any) => x.id === p.id);
       const finished = isPathComplete(source, p.track_id, done);
       if (finished && (!p.progress?.completed_at || !p.progress?.cert_id)) {
-        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: p.item_ids, next_path_id: p.next_path_id }, done, p.track_id));
+        // The STORED track_id is the concurrency token: after a track is removed the response
+        // reads it as null, but the row still holds the old id until the learner picks again.
+        const storedTrackId: string | null = progressMap[p.id]?.track_id ?? null;
+        after(() => reconcilePathCompletion(supabase, user.id, { id: p.id, title: p.title, item_ids: p.item_ids, next_path_id: p.next_path_id }, done, storedTrackId));
       }
     }
 

@@ -170,6 +170,26 @@ describe('POST /api/learning-paths student read path', () => {
     expect(paths[0].id).toBe('lp-open');
   });
 
+  it('reconciles with the stored track id when that track was removed, so completion is not blocked', async () => {
+    mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
+    h.db = makeSupabaseStub({
+      students: [{ data: { cohort_id: 'co1' }, error: null }, { count: 1, error: null }],
+      // Tracks were removed; the learner's row still holds the old track id.
+      learning_paths: { data: [{ id: 'lp1', title: 'Path', status: 'published', cohort_ids: ['co1'], item_ids: ['cert1'], tracks: [] }], error: null },
+      learning_path_progress: { data: [{ learning_path_id: 'lp1', completed_item_ids: ['cert1'], completed_at: null, cert_id: null, track_id: 'gone' }], error: null },
+      courses: { data: [], error: null },
+      virtual_experiences: { data: [], error: null },
+      certifications: { data: [{ id: 'cert1', title: 'SQL Associate', slug: 'sql-assoc', cover_image: null, description: null }], error: null },
+      course_attempts: { data: [], error: null },
+      guided_project_attempts: { data: [], error: null },
+      certification_attempts: { data: [], error: null },
+    });
+    const res = await post({ action: 'get-student-paths' });
+    expect(res.status).toBe(200);
+    expect((await res.json()).paths[0].track_id).toBeNull();
+    expect(mockReconcile).toHaveBeenCalledWith(h.db, 's1', expect.objectContaining({ id: 'lp1' }), ['cert1'], 'gone');
+  });
+
   it('returns certification items and counts an earlier passing attempt as completed', async () => {
     mockUser.mockResolvedValue({ user: { id: 's1', email: 's@x.co' }, serviceDb: {}, token: 't' } as any);
     h.db = makeSupabaseStub({
