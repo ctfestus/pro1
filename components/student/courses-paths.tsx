@@ -697,15 +697,15 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
     'Saving your choice',
     'Gathering your core courses',
     `Adding your ${picked.name} courses`,
-    'Setting up your certificate',
   ] : [];
+  const STEP_COUNT = 3;
 
   // Walks the building steps while the choice saves. It stops on the last step, which stays up
   // until the save and reload are done.
   useEffect(() => {
     if (!picked) return;
     setStep(0);
-    const timer = setInterval(() => setStep(s => Math.min(s + 1, 3)), BUILD_STEP_MS);
+    const timer = setInterval(() => setStep(s => Math.min(s + 1, STEP_COUNT - 1)), BUILD_STEP_MS);
     return () => clearInterval(timer);
   }, [picked]);
 
@@ -718,7 +718,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
       // Save during the building steps, so the learner sees the path being put together. The path
       // is only reloaded once both are done, and the reveal is armed first, so the content mounts
       // with its drop-in.
-      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, reduceMotion ? 300 : BUILD_STEP_MS * 4))]);
+      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, reduceMotion ? 300 : BUILD_STEP_MS * STEP_COUNT))]);
       onRevealed();
       await onSaved();
       setOpen(false);
