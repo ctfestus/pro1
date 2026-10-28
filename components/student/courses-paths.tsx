@@ -692,6 +692,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
   const [error, setError] = useState('');
   const firstName = (learnerName ?? '').trim().split(/\s+/)[0] ?? '';
   const ease = [0.16, 1, 0.3, 1] as const;
+  const isLightTheme = C.page === LIGHT_C.page;
 
   const steps = picked ? [
     'Saving your choice',
@@ -733,7 +734,10 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
   if (!open && current) return (
     <div className="mt-5 flex flex-wrap items-center gap-2 text-sm" style={{ color: C.muted }}>
       <span>Your specialization:</span>
-      <strong className="font-semibold" style={{ color: C.text }}>{current.name}</strong>
+      <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold"
+        style={{ color: isLightTheme ? '#15803d' : '#86efac', background: isLightTheme ? '#f0fdf4' : 'rgba(34,197,94,0.10)', border: `1px solid ${isLightTheme ? '#86efac' : 'rgba(134,239,172,0.45)'}` }}>
+        <Sparkles className="h-3.5 w-3.5 flex-shrink-0"/>{current.name}
+      </span>
       {!finished && (
         <button onClick={() => setOpen(true)} className="text-xs font-semibold underline-offset-2 hover:underline" style={{ color: C.cta }}>Change</button>
       )}
