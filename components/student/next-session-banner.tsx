@@ -13,6 +13,7 @@ import { Clock, Video, Repeat, X } from 'lucide-react';
 const AHEAD_MS = 24 * 60 * 60_000;
 // A session stays on the banner as "Live now" for this long after it starts.
 const LIVE_MS = 60 * 60_000;
+const URGENT_MS = 60 * 60_000;
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 type EventRow = {
@@ -76,7 +77,8 @@ function recurrenceLabel(ev: EventRow): string | null {
   return null;
 }
 
-const dismissKey = (id: string, start: Date) => `next-session-dismissed:${id}:${start.toISOString()}`;
+const dismissKey = (id: string, start: Date, urgent: boolean) =>
+  `next-session-dismissed:${id}:${start.toISOString()}:${urgent ? 'urgent' : 'ahead'}`;
 
 export function NextSessionBanner({ userId, C }: { userId: string; C: typeof LIGHT_C }) {
   const [events, setEvents] = useState<EventRow[]>([]);
@@ -110,21 +112,26 @@ export function NextSessionBanner({ userId, C }: { userId: string; C: typeof LIG
     .filter((x): x is { ev: EventRow; start: Date } => !!x.start)
     .sort((a, b) => a.start.getTime() - b.start.getTime())[0];
   const next = soonest && soonest.start.getTime() - now <= AHEAD_MS ? soonest : null;
-  const key = next ? dismissKey(next.ev.id, next.start) : null;
+  // Last hour before start, and while live: the banner turns solid so it is hard to miss.
+  const urgent = !!next && next.start.getTime() - now <= URGENT_MS;
+  // Dismissing is per stage, so a banner closed the day before comes back for the last hour.
+  const key = next ? dismissKey(next.ev.id, next.start, urgent) : null;
   let isDismissed = !!key && dismissed === key;
   if (key && !isDismissed) {
     try { isDismissed = sessionStorage.getItem(key) === '1'; } catch {}
   }
 
   // Tick every second only while the countdown is on screen. Otherwise sleep until
-  // the next change: the soonest session entering the 24h window, or a dismissed
-  // session ending. Capped at an hour so a sleeping laptop catches up on wake.
+  // the next change: the soonest session entering the 24h window, a dismissed banner
+  // reaching its last hour, or a dismissed session ending. Capped at an hour so a
+  // sleeping laptop catches up on wake.
   let wakeIn: number | null = null;
   if (soonest) {
     const startMs = soonest.start.getTime();
     wakeIn = !next ? startMs - AHEAD_MS - now
-      : isDismissed ? startMs + LIVE_MS - now
-      : 1000;
+      : !isDismissed ? 1000
+      : urgent ? startMs + LIVE_MS - now
+      : startMs - URGENT_MS - now;
     wakeIn = Math.min(Math.max(wakeIn, 1000), 60 * 60_000);
   }
   useEffect(() => {
@@ -178,40 +185,48 @@ export function NextSessionBanner({ userId, C }: { userId: string; C: typeof LIG
     setDismissed(key);
   };
 
+  // Up to the last hour: a green-tinted card, so it stands apart from the white cards.
+  // Last hour and live: solid CTA colour with white text. The tint is layered over the
+  // card colour so the sticky banner stays opaque over content scrolling beneath it.
+  const t = urgent
+    ? { bg: C.cta, label: C.ctaText, title: C.ctaText, body: C.ctaText, soft: C.ctaText, iconBg: 'rgba(255,255,255,0.18)', icon: C.ctaText }
+    : { bg: `linear-gradient(${C.green}1f, ${C.green}1f), ${C.card}`, label: C.green, title: C.text, body: C.muted, soft: C.faint, iconBg: `${C.green}26`, icon: C.green };
+  const stageLabel = live ? 'Live now' : urgent ? 'Starting soon' : 'Next live session';
+
   return (
-    <div className="rounded-2xl px-4 py-3 mb-6 flex flex-wrap items-center gap-x-4 gap-y-2" style={{ background: C.card }}>
-      <div className="w-9 h-9 rounded-xl grid place-items-center flex-shrink-0" style={{ background: `${C.green}15` }}>
-        {live ? <Video className="w-4 h-4" style={{ color: C.green }}/> : <Clock className="w-4 h-4" style={{ color: C.green }}/>}
+    // main is the scroll container, so sticky keeps the banner in view while scrolling.
+    <div className="sticky top-0 z-20 rounded-2xl px-4 py-3 mb-6 flex flex-wrap items-center gap-x-4 gap-y-2"
+      style={{ background: t.bg }}>
+      <div className={`w-9 h-9 rounded-xl grid place-items-center flex-shrink-0${urgent ? ' animate-pulse' : ''}`} style={{ background: t.iconBg }}>
+        {live ? <Video className="w-4 h-4" style={{ color: t.icon }}/> : <Clock className="w-4 h-4" style={{ color: t.icon }}/>}
       </div>
       <div className="flex-1 min-w-[180px]">
-        <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.green, margin: 0 }}>
-          {live ? 'Live now' : 'Next live session'}
-        </p>
-        <p className="text-sm font-bold leading-snug truncate" style={{ color: C.text, margin: 0 }}>{ev.title || 'Live session'}</p>
-        <p className="text-xs flex items-center gap-1.5 flex-wrap" style={{ color: C.muted, margin: 0 }}>
+        <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: t.label, margin: 0 }}>{stageLabel}</p>
+        <p className="text-sm font-bold leading-snug truncate" style={{ color: t.title, margin: 0 }}>{ev.title || 'Live session'}</p>
+        <p className="text-xs flex items-center gap-1.5 flex-wrap" style={{ color: t.body, margin: 0, opacity: urgent ? 0.9 : 1 }}>
           {whenLabel}
-          {repeat && <span className="inline-flex items-center gap-1" style={{ color: C.faint }}><Repeat className="w-3 h-3"/> {repeat}</span>}
+          {repeat && <span className="inline-flex items-center gap-1" style={{ color: t.soft, opacity: urgent ? 0.85 : 1 }}><Repeat className="w-3 h-3"/> {repeat}</span>}
         </p>
       </div>
       {!live && (
         <div className="text-right">
-          <p className="text-[10px] uppercase tracking-wider" style={{ color: C.faint, margin: 0 }}>Starts in</p>
-          <p className="text-lg font-bold tabular-nums" style={{ color: C.text, margin: 0 }}>{formatCountdown(msLeft)}</p>
+          <p className="text-[10px] uppercase tracking-wider" style={{ color: t.soft, margin: 0, opacity: urgent ? 0.85 : 1 }}>Starts in</p>
+          <p className="text-lg font-bold tabular-nums" style={{ color: t.title, margin: 0 }}>{formatCountdown(msLeft)}</p>
         </div>
       )}
       {canJoin && (
         <button type="button" onClick={join} disabled={joining}
-          className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg dashboard-cta"
-          style={{ background: C.cta, color: C.ctaText, border: 'none', cursor: 'pointer', opacity: joining ? 0.6 : 1 }}>
-          <Video className="w-3.5 h-3.5"/> {live ? 'Join now' : 'Meeting link'}
+          className={`inline-flex items-center gap-1.5 font-bold rounded-lg ${live ? 'text-sm px-4 py-2.5' : 'text-xs px-3 py-2'}${urgent ? '' : ' dashboard-cta'}`}
+          style={{ background: urgent ? C.ctaText : C.cta, color: urgent ? C.cta : C.ctaText, border: 'none', cursor: 'pointer', opacity: joining ? 0.6 : 1 }}>
+          <Video className={live ? 'w-4 h-4' : 'w-3.5 h-3.5'}/> {live ? 'Join now' : 'Meeting link'}
         </button>
       )}
       <button type="button" onClick={dismiss} aria-label="Dismiss"
         className="w-7 h-7 rounded-full grid place-items-center flex-shrink-0 hover:opacity-70"
-        style={{ color: C.faint }}>
+        style={{ color: t.soft }}>
         <X className="w-4 h-4"/>
       </button>
-      {joinErr && <p className="w-full text-xs" style={{ color: '#ef4444', margin: 0 }}>{joinErr}</p>}
+      {joinErr && <p className="w-full text-xs" style={{ color: urgent ? C.ctaText : '#ef4444', margin: 0 }}>{joinErr}</p>}
     </div>
   );
 }
