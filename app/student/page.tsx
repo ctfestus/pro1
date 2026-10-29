@@ -31,6 +31,7 @@ import {
   ProfileMenu,
 } from '@/components/student/header';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
+import { NextSessionBanner } from '@/components/student/next-session-banner';
 import { PromoCard } from '@/components/PromoCard';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import { rememberPurchaseIntent, takePurchaseIntent, purchaseIntentHref } from '@/lib/pending-purchase';
@@ -620,6 +621,7 @@ export default function StudentDashboard() {
 
         {/* -- Main content -- */}
         <main className="flex-1 min-w-0 overflow-y-auto px-5 md:px-8 py-7" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
+          {hasBootcampCohort && effectiveId && <NextSessionBanner userId={effectiveId} C={C}/>}
           <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
             {/* Section header -- hidden on overview (has its own greeting), my program (titled by the cohort) and assignments (manages its own title) */}
             {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'assignments' && activeSection !== 'certifications' && (
