@@ -427,6 +427,7 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
             })),
             locked: true,
             specializations: item.specializations ?? [],
+            specializationOptional: item.specializationOptional === true,
           });
         }
       } catch {
@@ -949,10 +950,12 @@ export function PathSpecializations({ path, C, textColor, mutedColor, tabIdle }:
     <div className="mt-9">
       <div className="mb-5 px-1">
         <h2 className="text-xl font-bold leading-tight sm:text-2xl" style={{ color: textColor }}>
-          Then choose your specialization
+          {path.specializationOptional ? 'Then choose a specialization, if you want one' : 'Then choose your specialization'}
         </h2>
         <p className="mt-1.5 text-[15px] leading-relaxed" style={{ color: mutedColor }}>
-          Take your expertise further with learning tailored to your field. You pick one when you start the path.
+          {path.specializationOptional
+            ? 'Take your expertise further with learning tailored to your field, or choose Core only and complete the path with the core.'
+            : 'Take your expertise further with learning tailored to your field. You pick one when you start the path.'}
         </p>
       </div>
       <div role="tablist" aria-label="Specializations" className="mb-5 flex flex-wrap gap-2 px-1">

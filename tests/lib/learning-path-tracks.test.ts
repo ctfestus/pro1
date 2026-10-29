@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete, trackOptOuts, tracksError, changedRequirements, validTrackId, trackLabel, CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
+import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete, trackOptOuts, tracksError, changedRequirements, validTrackId, trackLabel, coreOnlyAvailable, CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
 
 const path = {
   item_ids: ['core1', 'fin1', 'core2', 'hr1', 'hr2'],
@@ -17,8 +17,10 @@ describe('learning path tracks', () => {
     expect(isPathComplete(plain, null, ['a', 'b'])).toBe(true);
   });
 
-  it('requires core + the chosen track, in path order', () => {
-    expect(requiredItemIds(path, 'fin')).toEqual(['core1', 'fin1', 'core2']);
+  it('requires the core, then the chosen track, each in path order', () => {
+    // fin1 sits between the core items in the authored list, but the core comes first: the order
+    // the learner's timeline shows and "next up" emails follow.
+    expect(requiredItemIds(path, 'fin')).toEqual(['core1', 'core2', 'fin1']);
     expect(requiredItemIds(path, 'hr')).toEqual(['core1', 'core2', 'hr1', 'hr2']);
   });
 
@@ -105,6 +107,14 @@ describe('core only', () => {
     expect(trackLabel(path, CORE_ONLY_TRACK)).toBe('Core only');
     expect(trackLabel(path, 'hr')).toBe('HR');
     expect(trackLabel(path, null)).toBeNull();
+  });
+
+  it('is only available when allowed and there is a core to take', () => {
+    expect(coreOnlyAvailable(path)).toBe(false);
+    expect(coreOnlyAvailable({ ...path, tracks_optional: true })).toBe(true);
+    const allTracked = { item_ids: ['fin1', 'hr1'], tracks: [{ id: 'fin', name: 'Finance', item_ids: ['fin1'] }, { id: 'hr', name: 'HR', item_ids: ['hr1'] }], tracks_optional: true };
+    expect(coreOnlyAvailable(allTracked)).toBe(false);
+    expect(coreOnlyAvailable({ item_ids: ['a'], tracks: [], tracks_optional: true })).toBe(false);
   });
 
   it('can never be a real track id', () => {

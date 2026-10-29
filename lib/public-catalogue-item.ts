@@ -37,7 +37,7 @@ const HAS_SLUG: Record<PublicCatalogueType, boolean> = {
 // Pinned. Widening this is what would turn a sales page into a content leak.
 const COLUMNS: Record<PublicCatalogueType, string> = {
   course: 'id, title, slug, cover_image, description, category, available_to_everyone',
-  learning_path: 'id, title, cover_image, description, item_ids, tracks, badge_image_url, available_to_everyone, overview, skills, who_should_take, tools',
+  learning_path: 'id, title, cover_image, description, item_ids, tracks, tracks_optional, badge_image_url, available_to_everyone, overview, skills, who_should_take, tools',
   virtual_experience: 'id, title, slug, cover_image, description, available_to_everyone',
   certification: 'id, title, slug, cover_image, description, available_to_everyone',
 };

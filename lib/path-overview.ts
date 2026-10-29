@@ -10,7 +10,7 @@
  * apart.
  */
 
-import { pathTracks } from '@/lib/learning-path-tracks';
+import { pathTracks, coreOnlyAvailable } from '@/lib/learning-path-tracks';
 
 /** A specialization a visitor can pick on a path with tracks: its name and the items it adds. */
 export interface PathSpecialization {
@@ -27,6 +27,8 @@ export interface PathOverviewFields {
   tools: string[];
   /** Empty on a path without tracks. Items in no specialization are the core everyone takes. */
   specializations: PathSpecialization[];
+  /** Learners may skip specializing and complete on the core alone. */
+  specializationOptional: boolean;
 }
 
 const list = (value: unknown): string[] =>
@@ -40,5 +42,6 @@ export function pathOverviewFields(row: any): PathOverviewFields {
     tools: list(row?.tools),
     specializations: pathTracks({ item_ids: row?.item_ids ?? [], tracks: row?.tracks })
       .map(t => ({ name: t.name, description: t.description ?? null, itemIds: t.item_ids })),
+    specializationOptional: coreOnlyAvailable({ item_ids: row?.item_ids ?? [], tracks: row?.tracks, tracks_optional: row?.tracks_optional }),
   };
 }

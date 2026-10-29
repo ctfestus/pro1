@@ -62,6 +62,7 @@ type Row = {
 type PathRow = Row & {
   item_ids?: string[] | null;
   tracks?: unknown;
+  tracks_optional?: boolean | null;
   overview?: string | null;
   skills?: string[] | null;
   who_should_take?: string[] | null;
@@ -104,7 +105,7 @@ export async function GET(req: NextRequest) {
         .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
-        .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
+        .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
         .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })

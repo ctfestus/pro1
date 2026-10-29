@@ -366,6 +366,7 @@ function cataloguePathToPathRow(item: any) {
     whoShouldTake: item.whoShouldTake ?? [],
     tools: item.tools ?? [],
     specializations: item.specializations ?? [],
+    specializationOptional: item.specializationOptional === true,
   };
 }
 

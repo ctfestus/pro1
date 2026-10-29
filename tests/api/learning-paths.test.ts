@@ -527,6 +527,17 @@ describe('POST /api/learning-paths update: tracks and completed learners', () =>
     const create = await post({ action: 'create', title: 'P', item_ids: ['a'], tracks: [{ id: 'x', name: 'X' }, { id: 'x', name: 'Y' }] });
     expect(create.status).toBe(400);
   });
+
+  it('refuses optional specializing on a path with no core item', async () => {
+    mockRole.mockResolvedValue(instructor as any);
+    const allTracked = [{ id: 'fin', name: 'Finance', item_ids: ['a'] }];
+    const create = await post({ action: 'create', title: 'P', item_ids: ['a'], tracks: allTracked, tracks_optional: true });
+    expect(create.status).toBe(400);
+    expect((await create.json()).error).toMatch(/core item/);
+    // Turning it on later checks against the stored items and tracks.
+    h.db = makeSupabaseStub({ learning_paths: { data: { ...tracked, item_ids: ['fin'], tracks: [tracked.tracks[0]] }, error: null } });
+    expect((await post({ action: 'update', id: 'lp1', tracks_optional: true })).status).toBe(400);
+  });
 });
 
 describe('POST /api/learning-paths choose-track', () => {
@@ -612,6 +623,16 @@ describe('POST /api/learning-paths choose-track', () => {
     expect((await refused.json()).error).toMatch(/needs a specialization/);
     h.db = db({ ...path, tracks_optional: true });
     expect((await choose(CORE_ONLY_TRACK)).status).toBe(200);
+  });
+
+  it('refuses Core only when every item is in a track, so there would be nothing to complete', async () => {
+    mockUser.mockResolvedValue(student as any);
+    h.db = makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: { ...path, item_ids: ['fin'], tracks_optional: true }, error: null },
+      learning_path_progress: { data: null, error: null },
+    });
+    expect((await choose(CORE_ONLY_TRACK)).status).toBe(400);
   });
 
   it('500s when the progress read fails, instead of guessing the path is unfinished', async () => {

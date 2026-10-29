@@ -3048,18 +3048,8 @@ CREATE POLICY "students_read_own_progress"
   ON public.learning_path_progress FOR SELECT
   USING (student_id = (SELECT auth.uid()));
 
-CREATE POLICY "students_insert_own_progress"
-  ON public.learning_path_progress FOR INSERT
-  WITH CHECK (
-    student_id = (SELECT auth.uid())
-    AND EXISTS (
-      SELECT 1 FROM public.learning_paths lp
-      JOIN  public.students s ON s.id = (SELECT auth.uid())
-      WHERE lp.id = learning_path_id
-        AND lp.status = 'published'
-        AND s.cohort_id = ANY(lp.cohort_ids)
-    )
-  );
+-- No student INSERT policy (dropped in migration 229): every progress write goes through the
+-- service role, so a learner cannot set their own track, completed items or completion.
 
 CREATE POLICY "instructors_read_path_progress"
   ON public.learning_path_progress FOR SELECT

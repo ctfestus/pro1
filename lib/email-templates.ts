@@ -699,8 +699,11 @@ export function learningPathAssignedEmail(data: {
    * a track yet, so no track's content is listed or described as required.
    */
   specializations?: string[];
+  /** The path lets learners skip specializing and finish on the core alone. */
+  specializationOptional?: boolean;
 }) {
   const { name, pathTitle, pathDescription, dashboardUrl, items, branding, reason, appName } = data;
+  const optional = data.specializationOptional === true;
   const specializations = (data.specializations ?? []).filter(Boolean);
   const hasTracks = specializations.length > 0;
 
@@ -754,6 +757,8 @@ export function learningPathAssignedEmail(data: {
       // Added to a plan they already pay for, not assigned to them. "Enrolled" put a deadline
       // behind something nobody asked them to do.
       ? `We have added a new learning path to ${esc(appName || 'the platform')}:`
+      : hasTracks && optional
+        ? 'You have been enrolled in a new learning path. You will build essential skills through its core courses, and can go further with a specialization if you choose one. You earn a certificate when you complete the core and any specialization you pick.'
       : hasTracks
         ? 'You have been enrolled in a new learning path. You will build essential skills through its core courses, then go further with a specialization you choose, and earn a certificate when you complete both.'
         : 'You have been enrolled in a new learning path. This is a structured programme designed to build your skills step by step, and you will earn a certificate when you complete every item.'}</p>
@@ -772,17 +777,17 @@ export function learningPathAssignedEmail(data: {
 
     ${hasTracks ? `
     <div style="margin:20px 0;padding:16px;background:#f9fafb;border-radius:0;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111827;">Plus your specialization</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#111827;">${optional ? 'Plus an optional specialization' : 'Plus your specialization'}</p>
       <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">
         When you open the path you will choose where to specialize: ${specializations.map(s => `<b>${esc(s)}</b>`).join(', ')}.
-        Your specialization adds content tailored to your field.
+        ${optional ? 'A specialization adds content tailored to your field, or you can choose Core only and complete the path with the core courses.' : 'Your specialization adds content tailored to your field.'}
       </p>
     </div>` : ''}
 
     <div style="margin:20px 0;padding:16px;background:#fffbeb;border-left:4px solid #f59e0b;border-radius:0;">
       <p style="margin:0;font-size:14px;color:#92400e;line-height:1.6;">
         <b>Complete each item in order</b> to earn your individual course certificates along the way.
-        Once you finish ${hasTracks ? 'the core and your specialization' : 'the entire path'}, you will receive a <b>Learning Path Certificate</b> to add to your profile.
+        Once you finish ${hasTracks ? (optional ? 'the core, and your specialization if you choose one' : 'the core and your specialization') : 'the entire path'}, you will receive a <b>Learning Path Certificate</b> to add to your profile.
       </p>
     </div>
 

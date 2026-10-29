@@ -4,7 +4,8 @@
 // needs "what content does this path grant" (access, catalogue, tracking) keeps working as is.
 // A track names the subset of those items that only its learners take. An item in no track is
 // core and is taken by everyone. A learner picks one track (learning_path_progress.track_id) and
-// is required to complete core + that track's items, in item_ids order.
+// is required to complete the core, then that track's items, each in item_ids order. Core first is
+// the one order every surface uses (the learner's timeline, "next up" emails, certificates).
 //
 // A path with tracks cannot be completed before a track is chosen: otherwise finishing the core
 // alone would issue the certificate.
@@ -108,8 +109,8 @@ export function trackLabel(path: TrackedPath, trackId: string | null | undefined
 }
 
 /**
- * The items this learner must complete, in path order: core plus their track's items. Before a
- * track is chosen this is the core only (what they can already start on).
+ * The items this learner must complete: the core, then their track's items, each in path order.
+ * Before a track is chosen this is the core only (what they can already start on).
  */
 export function requiredItemIds(path: TrackedPath, trackId: string | null | undefined): string[] {
   const itemIds = path.item_ids ?? [];
@@ -117,7 +118,15 @@ export function requiredItemIds(path: TrackedPath, trackId: string | null | unde
   if (!tracks.length) return itemIds;
   const inAnyTrack = new Set(tracks.flatMap(t => t.item_ids));
   const mine = new Set(chosenTrack(path, trackId)?.item_ids ?? []);
-  return itemIds.filter(id => !inAnyTrack.has(id) || mine.has(id));
+  return [...itemIds.filter(id => !inAnyTrack.has(id)), ...itemIds.filter(id => mine.has(id))];
+}
+
+/**
+ * Whether learners may choose Core only: the instructor allowed it, and there is a core to take.
+ * A path whose every item is in a track would leave a Core only learner nothing to complete.
+ */
+export function coreOnlyAvailable(path: TrackedPath & { tracks_optional?: boolean | null }): boolean {
+  return path.tracks_optional === true && pathTracks(path).length > 0 && requiredItemIds(path, CORE_ONLY_TRACK).length > 0;
 }
 
 /**
