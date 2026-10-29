@@ -226,9 +226,11 @@ export async function GET(req: NextRequest) {
         : null;
       // Each learner is measured on their own path: core + their track (matching their own view).
       const trackId: string | null = prog?.track_id ?? null;
-      const mine = new Set(requiredItemIds(path, trackId));
+      // In requiredItemIds order (core, then track), the order the learner and their emails follow,
+      // so the report's current step and item list agree with them.
+      const itemById = new Map(items.map(i => [i.id, i] as const));
       const summary = summarizeLearnerProgress({
-        items: items.filter(i => mine.has(i.id)),
+        items: requiredItemIds(path, trackId).map(id => itemById.get(id)).filter((i): i is NonNullable<typeof i> => !!i),
         needsTrack: needsTrack(path, trackId),
         storedCompletedIds: prog?.completed_item_ids ?? [],
         courseAttempts: courseByStudent.get(s.id) ?? [],

@@ -489,7 +489,11 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                           <tr style={{ borderBottom: `1px solid ${C.divider}` }}>
                             <td colSpan={6} className="px-4 pb-4 pt-1">
                               <div className="pl-6">
-                                <ProgressList C={C} heading="Content" showStatus={false} rows={items.filter(item => !!l.items[item.id]).map((item, idx) => ({
+                                <ProgressList C={C} heading="Content" showStatus={false} rows={Object.keys(l.items)
+                                  // The learner's own order (core, then their track), as the server built l.items.
+                                  .map(id => items.find(item => item.id === id))
+                                  .filter((item): item is NonNullable<typeof item> => !!item)
+                                  .map((item, idx) => ({
                                   key: item.id,
                                   title: `${idx + 1}. ${item.title}`,
                                   progress: l.items[item.id] ?? EMPTY_PROGRESS,
