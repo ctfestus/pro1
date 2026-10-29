@@ -20,6 +20,7 @@ import { toPlainText } from '@/lib/plain-text';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { enrollLabel } from '@/lib/unlock-pricing';
+import { CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
 import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard, stripSqlSolutions } from '@/components/student/shared';
 
 // --- Course card ---
@@ -684,7 +685,13 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
 }) {
   const { appName } = useTenant();
   const reduceMotion = useReducedMotion();
-  const tracks: { id: string; name: string; description: string | null; item_count: number }[] = path.tracks ?? [];
+  // "Core only" is offered when the instructor made specializing optional, and kept for a learner
+  // who already chose it if that was turned off later.
+  const coreOnlyOffered = path.tracks_optional === true || path.track_id === CORE_ONLY_TRACK;
+  const tracks: { id: string; name: string; description: string | null; item_count?: number }[] = [
+    ...(path.tracks ?? []),
+    ...(coreOnlyOffered ? [{ id: CORE_ONLY_TRACK, name: 'Core only', description: 'No specialization. Take just the core courses.' }] : []),
+  ];
   const current = tracks.find(t => t.id === path.track_id) ?? null;
   const [open, setOpen] = useState(!current);
   const [picked, setPicked] = useState<{ id: string; name: string } | null>(null);
@@ -695,19 +702,20 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
   const firstName = (learnerName ?? '').trim().split(/\s+/)[0] ?? '';
   const ease = [0.16, 1, 0.3, 1] as const;
 
-  const steps = picked ? [
+  const stepsFor = (track: { id: string; name: string } | null) => !track ? [] : [
     'Saving your choice',
     'Gathering your core courses',
-    `Adding your ${picked.name} courses`,
-  ] : [];
-  const STEP_COUNT = 3;
+    ...(track.id === CORE_ONLY_TRACK ? [] : [`Adding your ${track.name} courses`]),
+  ];
+  const steps = stepsFor(picked);
 
   // Walks the building steps while the choice saves. It stops on the last step, which stays up
   // until the save and reload are done.
   useEffect(() => {
     if (!picked) return;
     setStep(0);
-    const timer = setInterval(() => setStep(s => Math.min(s + 1, STEP_COUNT - 1)), BUILD_STEP_MS);
+    const last = stepsFor(picked).length - 1;
+    const timer = setInterval(() => setStep(s => Math.min(s + 1, last)), BUILD_STEP_MS);
     return () => clearInterval(timer);
   }, [picked]);
 
@@ -733,7 +741,7 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
       // Save during the building steps, so the learner sees the path being put together. The path
       // is only reloaded once both are done, and the reveal is armed first, so the content mounts
       // with its drop-in.
-      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, reduceMotion ? 300 : BUILD_STEP_MS * STEP_COUNT))]);
+      await Promise.all([onChoose(track.id), new Promise(r => setTimeout(r, reduceMotion ? 300 : BUILD_STEP_MS * stepsFor(track).length))]);
       onRevealed();
       await onSaved();
       setOpen(false);
@@ -886,7 +894,11 @@ function TrackPicker({ path, C, onChoose, onSaved, finished, learnerName, onReve
                 </button>
                 <p id="switch-track-title" className="pr-8 text-base font-bold" style={{ color: C.text }}>Switch to {confirming.name}?</p>
                 <p className="mt-2 text-sm leading-relaxed" style={{ color: C.muted }}>
-                  Your {current.name} courses will be replaced with {confirming.name} courses. Anything you have already completed is saved.
+                  {current.id === CORE_ONLY_TRACK
+                    ? `${confirming.name} courses will be added to your path.`
+                    : confirming.id === CORE_ONLY_TRACK
+                      ? `Your ${current.name} courses will be removed from your path.`
+                      : `Your ${current.name} courses will be replaced with ${confirming.name} courses.`} Anything you have already completed is saved.
                 </p>
                 <div className="mt-5 flex flex-wrap justify-end gap-2">
                   <button onClick={() => setConfirming(null)} className="rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: C.pill, color: C.text }}>

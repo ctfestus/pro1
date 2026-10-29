@@ -7,7 +7,7 @@ import {
   summarizeLearnerProgress, sourceForCohortKind,
   type PathReport, type PathReportItem, type PathReportLearner, type PathReportCohort, type EnrollmentSource,
 } from '@/lib/learning-path-report';
-import { pathTracks, chosenTrack, needsTrack, requiredItemIds } from '@/lib/learning-path-tracks';
+import { pathTracks, needsTrack, requiredItemIds, trackLabel } from '@/lib/learning-path-tracks';
 
 export const dynamic = 'force-dynamic';
 
@@ -251,7 +251,7 @@ export async function GET(req: NextRequest) {
         // Expiry clears students.cohort_id, so this is what keeps a lapsed subscriber under their plan.
         former_plan_cohort_id: source === 'former' ? (sub?.cohort_id ?? null) : null,
         enrolled_at: enrolledAt,
-        track_name: chosenTrack(path, trackId)?.name ?? null,
+        track_name: trackLabel(path, trackId),
         ...summary,
         completed_at: summary.status === 'completed' ? (prog?.completed_at ?? summary.last_active_at) : null,
         certificate_issued: !!prog?.cert_id,

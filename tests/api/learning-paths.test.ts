@@ -1,3 +1,4 @@
+import { CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextResponse } from 'next/server';
 
@@ -596,6 +597,21 @@ describe('POST /api/learning-paths choose-track', () => {
       learning_path_progress: { data: null, error: null },
     });
     expect((await choose('hr')).status).toBe(400);
+  });
+
+  it('accepts Core only only on a path where specializing is optional', async () => {
+    mockUser.mockResolvedValue(student as any);
+    const db = (p: any) => makeSupabaseStub({
+      students: { data: { cohort_id: 'co1' }, error: null },
+      learning_paths: { data: p, error: null },
+      learning_path_progress: [{ data: { completed_at: null, cert_id: null }, error: null }, { data: [{ id: 'p1' }], error: null }],
+    });
+    h.db = db(path);
+    const refused = await choose(CORE_ONLY_TRACK);
+    expect(refused.status).toBe(400);
+    expect((await refused.json()).error).toMatch(/needs a specialization/);
+    h.db = db({ ...path, tracks_optional: true });
+    expect((await choose(CORE_ONLY_TRACK)).status).toBe(200);
   });
 
   it('500s when the progress read fails, instead of guessing the path is unfinished', async () => {

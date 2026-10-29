@@ -469,7 +469,7 @@ export function LearningPathReport({ C, pathId, onBack }: { C: Theme; pathId: st
                               <span className="text-xs font-semibold whitespace-nowrap" style={{ color: C.muted }}>{l.completed_count}/{l.total_items}</span>
                             </div>
                             {report?.path.has_tracks && (
-                              <p className="text-[11px] mt-1 truncate" style={{ color: C.faint }}>{l.track_name ? `${l.track_name} track` : 'No track chosen'}</p>
+                              <p className="text-[11px] mt-1 truncate" style={{ color: C.faint }}>{l.track_name === 'Core only' ? 'Core only' : l.track_name ? `${l.track_name} track` : 'No track chosen'}</p>
                             )}
                           </td>
                           <td className="px-4 py-3 whitespace-nowrap">

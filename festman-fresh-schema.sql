@@ -789,6 +789,9 @@ CREATE TABLE public.learning_paths (
   -- learner takes core + their chosen track (learning_path_progress.track_id).
   tracks          jsonb       NOT NULL DEFAULT '[]'::jsonb
     CONSTRAINT learning_paths_tracks_is_array CHECK (jsonb_typeof(tracks) = 'array'),
+  -- migration 228: learners may also choose no specialization (track_id '__core_only__') and
+  -- complete on the core alone.
+  tracks_optional boolean     NOT NULL DEFAULT false,
   -- migration 186, as for virtual_experiences above.
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
@@ -1580,6 +1583,7 @@ BEGIN
     badge_image_url       = v_new.badge_image_url,
     item_ids              = v_new.item_ids,
     tracks                = v_new.tracks,
+    tracks_optional       = v_new.tracks_optional,
     overview              = v_new.overview,
     skills                = v_new.skills,
     who_should_take       = v_new.who_should_take,

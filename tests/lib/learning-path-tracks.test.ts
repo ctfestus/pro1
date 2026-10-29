@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete, trackOptOuts, tracksError, changedRequirements } from '@/lib/learning-path-tracks';
+import { normalizeTracks, needsTrack, requiredItemIds, isPathComplete, trackOptOuts, tracksError, changedRequirements, validTrackId, trackLabel, CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
 
 const path = {
   item_ids: ['core1', 'fin1', 'core2', 'hr1', 'hr2'],
@@ -70,13 +70,46 @@ describe('changedRequirements', () => {
     expect(changedRequirements(path, path)).toEqual({ trackIds: [], core: false });
     // fin1 leaves Finance and becomes core: HR learners now need it; Finance learners already did.
     const cleared = { ...path, tracks: [{ ...path.tracks[0], item_ids: [] }, path.tracks[1]] };
-    expect(changedRequirements(path, cleared)).toEqual({ trackIds: ['hr'], core: false });
+    // It is also new core for a Core only learner.
+    expect(changedRequirements(path, cleared)).toEqual({ trackIds: ['hr', CORE_ONLY_TRACK], core: false });
     // Renaming changes nobody's requirements.
     const renamed = { ...path, tracks: [path.tracks[0], { ...path.tracks[1], name: 'People' }] };
     expect(changedRequirements(path, renamed)).toEqual({ trackIds: [], core: false });
     const plain = { item_ids: path.item_ids, tracks: [] };
     expect(changedRequirements(plain, path)).toEqual({ trackIds: [], core: true });
-    expect(changedRequirements(path, plain)).toEqual({ trackIds: ['fin', 'hr'], core: false });
+    expect(changedRequirements(path, plain)).toEqual({ trackIds: ['fin', 'hr', CORE_ONLY_TRACK], core: false });
+  });
+
+  it('leaves Core only learners alone when only a track changes', () => {
+    const grown = { item_ids: [...path.item_ids, 'hr3'], tracks: [path.tracks[0], { ...path.tracks[1], item_ids: ['hr1', 'hr2', 'hr3'] }] };
+    expect(changedRequirements(path, grown)).toEqual({ trackIds: ['hr'], core: false });
+  });
+});
+
+describe('core only', () => {
+  it('is a made choice that completes on the core alone', () => {
+    expect(needsTrack(path, CORE_ONLY_TRACK)).toBe(false);
+    expect(requiredItemIds(path, CORE_ONLY_TRACK)).toEqual(['core1', 'core2']);
+    expect(isPathComplete(path, CORE_ONLY_TRACK, ['core1', 'core2'])).toBe(true);
+  });
+
+  it('opts a Core only learner out of every track item', () => {
+    const out = trackOptOuts([{ ...path, id: 'lp1', cohort_ids: ['co1'] }], [{ id: 's1', cohort_id: 'co1' }],
+      new Map([['s1|lp1', CORE_ONLY_TRACK]]));
+    expect([...out].sort()).toEqual(['s1|fin1', 's1|hr1', 's1|hr2']);
+  });
+
+  it('keeps the choice and labels it, but treats a removed track as none', () => {
+    expect(validTrackId(path, CORE_ONLY_TRACK)).toBe(CORE_ONLY_TRACK);
+    expect(validTrackId(path, 'gone')).toBeNull();
+    expect(trackLabel(path, CORE_ONLY_TRACK)).toBe('Core only');
+    expect(trackLabel(path, 'hr')).toBe('HR');
+    expect(trackLabel(path, null)).toBeNull();
+  });
+
+  it('can never be a real track id', () => {
+    expect(tracksError([{ id: CORE_ONLY_TRACK, name: 'Sneaky' }])).toMatch(/reserved/);
+    expect(normalizeTracks([{ id: CORE_ONLY_TRACK, name: 'Sneaky' }], [])).toEqual([]);
   });
 });
 
