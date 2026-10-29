@@ -195,38 +195,43 @@ export function NextSessionBanner({ userId, C }: { userId: string; C: typeof LIG
 
   return (
     // main is the scroll container, so sticky keeps the banner in view while scrolling.
-    <div className="sticky top-0 z-20 rounded-2xl px-4 py-3 mb-6 flex flex-wrap items-center gap-x-4 gap-y-2"
+    // Phone: two rows (icon, title, close / countdown, button). sm and up: one row.
+    <div className="sticky top-0 z-20 rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 mb-4 sm:mb-6 flex flex-wrap items-center gap-x-3 sm:gap-x-4 gap-y-2"
       style={{ background: t.bg }}>
-      <div className={`w-9 h-9 rounded-xl grid place-items-center flex-shrink-0${urgent ? ' animate-pulse' : ''}`} style={{ background: t.iconBg }}>
+      <div className={`w-8 h-8 sm:w-9 sm:h-9 rounded-xl grid place-items-center flex-shrink-0${urgent ? ' animate-pulse' : ''}`} style={{ background: t.iconBg }}>
         {live ? <Video className="w-4 h-4" style={{ color: t.icon }}/> : <Clock className="w-4 h-4" style={{ color: t.icon }}/>}
       </div>
-      <div className="flex-1 min-w-[180px]">
-        <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: t.label, margin: 0 }}>{stageLabel}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-[10px] sm:text-[11px] font-semibold uppercase tracking-wider" style={{ color: t.label, margin: 0 }}>{stageLabel}</p>
         <p className="text-sm font-bold leading-snug truncate" style={{ color: t.title, margin: 0 }}>{ev.title || 'Live session'}</p>
-        <p className="text-xs flex items-center gap-1.5 flex-wrap" style={{ color: t.body, margin: 0, opacity: urgent ? 0.9 : 1 }}>
+        <p className="text-xs truncate" style={{ color: t.body, margin: 0, opacity: urgent ? 0.9 : 1 }}>
           {whenLabel}
-          {repeat && <span className="inline-flex items-center gap-1" style={{ color: t.soft, opacity: urgent ? 0.85 : 1 }}><Repeat className="w-3 h-3"/> {repeat}</span>}
+          {repeat && <span style={{ color: t.soft, opacity: urgent ? 0.85 : 1 }}> <Repeat className="w-3 h-3 inline-block align-[-2px] ml-1"/> {repeat}</span>}
         </p>
       </div>
-      {!live && (
-        <div className="text-right">
-          <p className="text-[10px] uppercase tracking-wider" style={{ color: t.soft, margin: 0, opacity: urgent ? 0.85 : 1 }}>Starts in</p>
-          <p className="text-lg font-bold tabular-nums" style={{ color: t.title, margin: 0 }}>{formatCountdown(msLeft)}</p>
-        </div>
-      )}
-      {canJoin && (
-        <button type="button" onClick={join} disabled={joining}
-          className={`inline-flex items-center gap-1.5 font-bold rounded-lg ${live ? 'text-sm px-4 py-2.5' : 'text-xs px-3 py-2'}${urgent ? '' : ' dashboard-cta'}`}
-          style={{ background: urgent ? C.ctaText : C.cta, color: urgent ? C.cta : C.ctaText, border: 'none', cursor: 'pointer', opacity: joining ? 0.6 : 1 }}>
-          <Video className={live ? 'w-4 h-4' : 'w-3.5 h-3.5'}/> {live ? 'Join now' : 'Meeting link'}
-        </button>
-      )}
       <button type="button" onClick={dismiss} aria-label="Dismiss"
-        className="w-7 h-7 rounded-full grid place-items-center flex-shrink-0 hover:opacity-70"
+        className="w-8 h-8 sm:w-7 sm:h-7 -mr-1 sm:mr-0 rounded-full grid place-items-center flex-shrink-0 self-start sm:self-center sm:order-last hover:opacity-70"
         style={{ color: t.soft }}>
         <X className="w-4 h-4"/>
       </button>
-      {joinErr && <p className="w-full text-xs" style={{ color: urgent ? C.ctaText : '#ef4444', margin: 0 }}>{joinErr}</p>}
+      {(!live || canJoin) && (
+        <div className="w-full sm:w-auto flex items-center justify-between sm:justify-end gap-3 sm:gap-4">
+          {!live && (
+            <div className="flex items-baseline gap-2 sm:block sm:text-right">
+              <p className="text-[10px] uppercase tracking-wider" style={{ color: t.soft, margin: 0, opacity: urgent ? 0.85 : 1 }}>Starts in</p>
+              <p className="text-base sm:text-lg font-bold tabular-nums" style={{ color: t.title, margin: 0 }}>{formatCountdown(msLeft)}</p>
+            </div>
+          )}
+          {canJoin && (
+            <button type="button" onClick={join} disabled={joining}
+              className={`inline-flex items-center justify-center gap-1.5 font-bold rounded-lg flex-shrink-0 ${live ? 'w-full sm:w-auto text-sm px-4 py-2.5' : 'text-xs px-3 py-2'}${urgent ? '' : ' dashboard-cta'}`}
+              style={{ background: urgent ? C.ctaText : C.cta, color: urgent ? C.cta : C.ctaText, border: 'none', cursor: 'pointer', opacity: joining ? 0.6 : 1 }}>
+              <Video className={live ? 'w-4 h-4' : 'w-3.5 h-3.5'}/> {live ? 'Join now' : 'Meeting link'}
+            </button>
+          )}
+        </div>
+      )}
+      {joinErr && <p className="w-full text-xs order-last" style={{ color: urgent ? C.ctaText : '#ef4444', margin: 0 }}>{joinErr}</p>}
     </div>
   );
 }
