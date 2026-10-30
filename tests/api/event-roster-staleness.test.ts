@@ -7,7 +7,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // tests/lib/cohort-roster.test.ts, and it was the wiring that shipped broken.
 
 const { batchSend, emailSend } = vi.hoisted(() => ({
-  batchSend: vi.fn((_payloads: any[], _options?: any) => Promise.resolve({ data: null, error: null })),
+  batchSend: vi.fn((_payloads: any[]) => Promise.resolve({ data: null, error: null })),
   emailSend: vi.fn((_payload: any) => Promise.resolve({ data: { id: 'e1' }, error: null })),
 }));
 vi.mock('resend', () => ({ Resend: class { emails = { send: emailSend }; batch = { send: batchSend }; } }));
@@ -32,8 +32,6 @@ const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
 // Reminder tests run on a pinned clock: the job sends by how far away a session is.
 const NOW = new Date('2026-06-01T12:00:00Z');
-// A claim an hour old belongs to a run that died.
-const STALE = '2026-06-01T11:00:00.000Z';
 const KEY = 'ev1:2026-06-02:s1';
 
 // s1 is still in the event's cohort. s2 was moved onto a subscription plan cohort and keeps a
@@ -58,11 +56,11 @@ const EVENT = {
 /**
  * Hand-rolled: these routes read `students` both as a roster lookup (filtered by id) and as the
  * cohort list (filtered by cohort_id), and the assertions turn on that difference. email_dedup is
- * modelled as a real table so the claim, reclaim, release and mark-sent steps can be checked.
+ * modelled as a real table so claiming, releasing and marking sent can be checked.
  */
 function db(opts: {
   event?: any; registrations?: any[]; attendance?: any[]; registrationsError?: string;
-  dedupe?: any[]; rpcError?: string; claimLoses?: boolean; markSentError?: boolean;
+  dedupe?: any[]; rpcError?: string; claimLoses?: boolean;
 } = {}) {
   const event = opts.event ?? EVENT;
   const registrations = [...(opts.registrations ?? [
@@ -75,7 +73,6 @@ function db(opts: {
 
   const matches = (r: any, c: any) =>
     Object.entries(c._eqs).every(([col, val]) => col === 'type' || r[col] === val)
-    && (!c._like || r.dedupe_key.startsWith(c._like.replace(/%$/, '')))
     && (!c._in?.dedupe_key || c._in.dedupe_key.includes(r.dedupe_key));
 
   return {
@@ -95,7 +92,6 @@ function db(opts: {
         _op: 'select',
         _eqs: {} as Record<string, any>,
         _in: {} as Record<string, any[]>,
-        _like: null as string | null,
         select() { return chain; },
         eq(col: string, val: any) {
           if (col === 'cohort_id') chain._byCohort = true;
@@ -104,7 +100,6 @@ function db(opts: {
           return chain;
         },
         in(col: string, vals: any[]) { if (col === 'cohort_id') chain._byCohort = true; chain._in[col] = vals; return chain; },
-        like(_col: string, pattern: string) { chain._like = pattern; return chain; },
         not() { return chain; },
         order() { return chain; },
         range() { pagedTables.push(table); return chain; },
@@ -129,7 +124,6 @@ function db(opts: {
             }
             const hit = dedupeRows.filter(r => matches(r, chain));
             if (chain._op === 'update') {
-              if (opts.markSentError && chain._vals.status === 'sent') return done({ data: null, error: { message: 'write failed' } });
               hit.forEach(r => Object.assign(r, chain._vals));
               return done({ data: hit.map(r => ({ dedupe_key: r.dedupe_key })), error: null });
             }
@@ -165,7 +159,6 @@ function recipients() {
 function sentEmails(): any[] {
   return batchSend.mock.calls.flatMap(([payloads]: any[]) => payloads ?? []);
 }
-const idempotencyKeys = () => batchSend.mock.calls.map(call => call[1]?.idempotencyKey);
 
 beforeEach(() => {
   batchSend.mockClear();
@@ -261,53 +254,22 @@ describe('event reminders', () => {
   });
 
   describe('sending each reminder once', () => {
-    it('does not send a reminder that was already sent', async () => {
-      adminClientMock.mockReturnValue(db({ dedupe: [{ dedupe_key: KEY, status: 'sent', sent_at: '2026-06-01T11:45:00Z' }] }));
+    it('does not send a reminder that is already claimed', async () => {
+      adminClientMock.mockReturnValue(db({ dedupe: [{ dedupe_key: KEY, status: 'sent' }] }));
       const res = await runReminders();
       expect(await res.json()).toMatchObject({ sent: 0, skipped: 1 });
       expect(recipients()).toEqual([]);
     });
 
-    it('leaves a reminder another run is sending right now to that run', async () => {
-      adminClientMock.mockReturnValue(db({ dedupe: [{ dedupe_key: KEY, status: 'pending', sent_at: '2026-06-01T11:58:00.000Z' }] }));
-      await runReminders();
-      expect(recipients()).toEqual([]);
-    });
-
-    it('does not take over a claim a rival run inserted first', async () => {
+    it('does not send when an overlapping run claimed it first', async () => {
       // Both runs saw no row; the rival's insert landed first, so ours comes back empty.
-      const stub = db({ claimLoses: true });
-      adminClientMock.mockReturnValue(stub);
+      adminClientMock.mockReturnValue(db({ claimLoses: true }));
       const res = await runReminders();
       expect(await res.json()).toMatchObject({ sent: 0, skipped: 1 });
       expect(recipients()).toEqual([]);
     });
 
-    it('retries a dead run under the same idempotency key, so Resend drops a batch it already delivered', async () => {
-      adminClientMock.mockReturnValue(db());
-      await runReminders();
-      const [first] = idempotencyKeys();
-      expect(first).toMatch(/^event_reminder_24h\//);
-
-      // The same batch, as a run that crashed after Resend accepted it would leave it.
-      batchSend.mockClear();
-      const stub = db({ dedupe: [{ dedupe_key: KEY, status: 'pending', sent_at: STALE }] });
-      adminClientMock.mockReturnValue(stub);
-      await runReminders();
-      expect(idempotencyKeys()).toEqual([first]);
-      expect(stub.dedupeRows).toMatchObject([{ dedupe_key: KEY, status: 'sent' }]);
-    });
-
-    it('leaves the claim pending when the send outcome is unknown', async () => {
-      const stub = db();
-      adminClientMock.mockReturnValue(stub);
-      batchSend.mockRejectedValueOnce(new Error('socket hang up'));
-      const res = await runReminders();
-      expect(await res.json()).toMatchObject({ sent: 0 });
-      expect(stub.dedupeRows).toMatchObject([{ dedupe_key: KEY, status: 'pending' }]);
-    });
-
-    it('releases the claim when Resend rejects the batch, so the next run retries', async () => {
+    it('drops the claim when Resend rejects the batch, so the next run retries', async () => {
       const stub = db();
       adminClientMock.mockReturnValue(stub);
       batchSend.mockResolvedValueOnce({ data: null, error: { name: 'rate_limit_exceeded', message: 'slow down' } } as any);
@@ -316,19 +278,11 @@ describe('event reminders', () => {
       expect(stub.dedupeRows).toEqual([]);
     });
 
-    it('settles a batch Resend says was already sent under its key', async () => {
-      const stub = db({ dedupe: [{ dedupe_key: KEY, status: 'pending', sent_at: STALE }] });
+    it('keeps the claim when the send throws, because the batch may have gone out', async () => {
+      const stub = db();
       adminClientMock.mockReturnValue(stub);
-      batchSend.mockResolvedValueOnce({ data: null, error: { name: 'invalid_idempotent_request', message: 'used' } } as any);
+      batchSend.mockRejectedValueOnce(new Error('socket hang up'));
       await runReminders();
-      expect(stub.dedupeRows).toMatchObject([{ dedupe_key: KEY, status: 'sent' }]);
-    });
-
-    it('keeps the claim pending when marking it sent fails, for an idempotent retry', async () => {
-      const stub = db({ markSentError: true });
-      adminClientMock.mockReturnValue(stub);
-      await runReminders();
-      expect(recipients()).toEqual(['ama@example.test']);
       expect(stub.dedupeRows).toMatchObject([{ dedupe_key: KEY, status: 'pending' }]);
     });
   });

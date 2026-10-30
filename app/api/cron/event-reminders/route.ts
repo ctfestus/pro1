@@ -23,15 +23,14 @@ import { studentsStillInCohorts } from '@/lib/cohort-roster';
 import { applyEmailTemplate } from '@/lib/email-template-service';
 import { eventLocalDate, getNextSessionStart } from '@/lib/event-sessions';
 import { chunkIds, fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
-import { createHash } from 'crypto';
 
 export const dynamic = 'force-dynamic';
 
-const BATCH_SIZE = 100;
+// Resend takes up to 100 per batch; 50 keeps the dedupe keys of one batch in a single
+// .in() filter short enough for the query string.
+const BATCH_SIZE = 50;
 const HOUR_MS = 60 * 60_000;
 const DAY_MS = 24 * HOUR_MS;
-// A pending dedupe row older than this belongs to a run that died before marking it sent.
-const STALE_PENDING_MS = 10 * 60_000;
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Kind = '24h' | '1h';
@@ -137,27 +136,6 @@ async function remindSession(
   const needsJoinLink = !!event.meeting_link;
   const tokens = needsJoinLink ? await joinTokens(supabase, event.id, students.map(s => s.id)) : new Map<string, string>();
 
-  // Where each student's reminder stands: sent, being sent by a live run (fresh pending), left
-  // pending by a run that died (stale, grouped by that run's lease), or never claimed.
-  const type = DEDUPE_TYPE[kind];
-  const prefix = `${event.id}:${sessionDate}:`;
-  const keyOf = (studentId: string) => `${prefix}${studentId}`;
-  const settled = new Set<string>();
-  const staleByLease = new Map<string, string[]>();
-  for (const keys of chunkIds(students.map(s => keyOf(s.id)), 50)) {
-    const { data: rows, error } = await supabase
-      .from('email_dedup').select('dedupe_key, status, sent_at').eq('type', type).in('dedupe_key', keys);
-    if (error) throw new Error(`dedupe lookup failed: ${error.message}`);
-    for (const r of rows ?? []) {
-      const stale = ctx.now.getTime() - new Date(r.sent_at).getTime() >= STALE_PENDING_MS;
-      if (r.status === 'pending' && stale) {
-        staleByLease.set(r.sent_at, [...(staleByLease.get(r.sent_at) ?? []), r.dedupe_key]);
-      } else {
-        settled.add(r.dedupe_key);
-      }
-    }
-  }
-
   const today = eventLocalDate(event.timezone, ctx.now);
   const day: 'today' | 'tomorrow' = sessionDate === today ? 'today' : 'tomorrow';
   const timing = kind === '1h' ? 'in 1 hour' : day;
@@ -165,140 +143,76 @@ async function remindSession(
   const eventTime = event.event_time ? String(event.event_time).slice(0, 5) : '';
   const formUrl = `${ctx.appUrl}/${event.slug ?? event.id}`;
 
-  const payloads = new Map<string, EmailPayload>();
+  const type = DEDUPE_TYPE[kind];
+  const keyOf = (studentId: string) => `${event.id}:${sessionDate}:${studentId}`;
+  let sent = 0;
   let skipped = 0;
 
-  for (const student of students) {
-    const key = keyOf(student.id);
-    if (settled.has(key)) { skipped++; continue; }
-    const token = tokens.get(student.id);
-    if (needsJoinLink && !token) {
-      console.error(`[cron/event-reminders] event=${event.id} student=${student.id} has no join token; not sending an untracked link`);
-      skipped++;
-      continue;
-    }
-    const joinUrl = token ? `${ctx.appUrl}/api/join?token=${token}` : undefined;
-    const name = student.full_name || 'there';
-    const fallbackHtml = reminderEmail({
-      name,
-      eventTitle:    event.title || '',
-      eventDate:     sessionDate,
-      eventTime,
-      eventTimezone: event.timezone || '',
-      eventLocation: event.location || '',
-      meetingLink:   event.meeting_link || '',
-      joinUrl,
-      formUrl,
-      isOneHour:     kind === '1h',
-      day,
-      branding:      ctx.branding,
-    });
-    const rendered = await applyEmailTemplate({
-      key: 'event_reminder', fallbackSubject: subject, fallbackHtml,
-      variables: {
-        student_name: name, event_title: event.title || '', reminder_timing: timing,
-        event_time_display: [sessionDate, eventTime, event.timezone].filter(Boolean).join(' '),
-        event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
-      },
-      branding: ctx.branding,
-    });
-    payloads.set(key, { from: ctx.FROM, to: (student.email ?? '').trim().toLowerCase(), subject: rendered.subject, html: rendered.html });
-  }
+  const recipients = students.filter(s => {
+    if (!needsJoinLink || tokens.has(s.id)) return true;
+    console.error(`[cron/event-reminders] event=${event.id} student=${s.id} has no join token; not sending an untracked link`);
+    skipped++;
+    return false;
+  });
 
-  const lock = { supabase, type, prefix };
-  let sent = 0;
-
-  // A dead run's batch is retried as the same batch -- the rows it claimed share its lease -- so the
-  // idempotency key matches and Resend drops it if the first attempt was in fact delivered.
-  for (const [oldLease, keys] of staleByLease) {
-    const lease = newLease();
-    const { data: reclaimed, error } = await supabase.from('email_dedup')
-      .update({ sent_at: lease })
-      .eq('type', type).eq('status', 'pending').eq('sent_at', oldLease).like('dedupe_key', `${prefix}%`)
-      .select('dedupe_key');
-    if (error) throw new Error(`dedupe reclaim failed: ${error.message}`);
-    // Empty when a rival run reclaimed it first: the conditional update matches nothing for the loser.
-    const owned = (reclaimed ?? []).map((r: any) => r.dedupe_key as string);
-    const orphaned = owned.filter(k => !payloads.has(k) || !keys.includes(k));
-    if (orphaned.length) await releaseLock(lock, lease, orphaned);
-    sent += await sendBatch(lock, lease, owned.filter(k => !orphaned.includes(k)), payloads);
-  }
-
-  // Never claimed: insert-only, so a key another run already holds is not taken over.
-  const staleKeys = new Set([...staleByLease.values()].flat());
-  const fresh = [...payloads.keys()].filter(k => !staleKeys.has(k)).sort();
-  for (const keys of chunkIds(fresh, BATCH_SIZE)) {
-    const lease = newLease();
-    const { data: inserted, error } = await supabase.from('email_dedup')
-      .upsert(keys.map(k => ({ dedupe_key: k, type, status: 'pending', sent_at: lease })),
+  for (const batch of chunkIds(recipients, BATCH_SIZE)) {
+    // Claim first. Insert-only: a reminder already claimed, by this run or any other, comes back
+    // missing and is not sent again. A run that dies after claiming leaves its claims in place, so
+    // at worst a reminder is missed, never sent twice.
+    const { data: claimed, error: claimError } = await supabase.from('email_dedup')
+      .upsert(batch.map(s => ({ dedupe_key: keyOf(s.id), type, status: 'pending' })),
         { onConflict: 'dedupe_key,type', ignoreDuplicates: true })
       .select('dedupe_key');
-    if (error) throw new Error(`dedupe claim failed: ${error.message}`);
-    const owned = (inserted ?? []).map((r: any) => r.dedupe_key as string);
-    skipped += keys.length - owned.length;
-    sent += await sendBatch(lock, lease, owned, payloads);
+    if (claimError) throw new Error(`dedupe claim failed: ${claimError.message}`);
+    const ownedKeys = new Set((claimed ?? []).map((r: any) => r.dedupe_key as string));
+    const owned = batch.filter(s => ownedKeys.has(keyOf(s.id)));
+    skipped += batch.length - owned.length;
+    if (!owned.length) continue;
+
+    const payloads = await Promise.all(owned.map(async student => {
+      const token = tokens.get(student.id);
+      const joinUrl = token ? `${ctx.appUrl}/api/join?token=${token}` : undefined;
+      const name = student.full_name || 'there';
+      const fallbackHtml = reminderEmail({
+        name,
+        eventTitle:    event.title || '',
+        eventDate:     sessionDate,
+        eventTime,
+        eventTimezone: event.timezone || '',
+        eventLocation: event.location || '',
+        meetingLink:   event.meeting_link || '',
+        joinUrl,
+        formUrl,
+        isOneHour:     kind === '1h',
+        day,
+        branding:      ctx.branding,
+      });
+      const rendered = await applyEmailTemplate({
+        key: 'event_reminder', fallbackSubject: subject, fallbackHtml,
+        variables: {
+          student_name: name, event_title: event.title || '', reminder_timing: timing,
+          event_time_display: [sessionDate, eventTime, event.timezone].filter(Boolean).join(' '),
+          event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
+        },
+        branding: ctx.branding,
+      });
+      return { from: ctx.FROM, to: (student.email ?? '').trim().toLowerCase(), subject: rendered.subject, html: rendered.html };
+    }));
+
+    const keys = owned.map(s => keyOf(s.id));
+    // Resend reports a rejected request in the result. Nothing went out, so drop the claims and let
+    // the next run retry. A thrown error is left claimed: the batch may have been accepted.
+    const { error: sendError } = await resend.batch.send(payloads);
+    if (sendError) {
+      console.error('[cron/event-reminders] batch send failed:', sendError);
+      await supabase.from('email_dedup').delete().eq('type', type).in('dedupe_key', keys);
+      continue;
+    }
+    sent += owned.length;
+    await supabase.from('email_dedup').update({ status: 'sent' }).eq('type', type).in('dedupe_key', keys);
   }
 
   return { sent, skipped };
-}
-
-type EmailPayload = Parameters<typeof resend.batch.send>[0][number];
-type Lock = { supabase: ReturnType<typeof adminClient>; type: string; prefix: string };
-
-// Lease token for one batch's claims, stored in sent_at. Strictly increasing within a process so
-// two batches never share one; release and mark-sent are scoped to it, so a run that outlived the
-// stale window cannot settle rows another run has since reclaimed.
-let lastLeaseMs = 0;
-function newLease(): string {
-  lastLeaseMs = Math.max(Date.now(), lastLeaseMs + 1);
-  return new Date(lastLeaseMs).toISOString();
-}
-
-async function releaseLock({ supabase, type, prefix }: Lock, lease: string, keys?: string[]) {
-  let q = supabase.from('email_dedup').delete()
-    .eq('type', type).eq('status', 'pending').eq('sent_at', lease).like('dedupe_key', `${prefix}%`);
-  if (keys) q = q.in('dedupe_key', keys);
-  const { error } = await q;
-  if (error) console.error('[cron/event-reminders] failed to release pending claims', error.message);
-}
-
-// Sends one claimed batch and settles its claims. Returns how many emails went out.
-async function sendBatch(lock: Lock, lease: string, keys: string[], payloads: Map<string, EmailPayload>): Promise<number> {
-  if (!keys.length) return 0;
-  const sorted = [...keys].sort();
-  // Deterministic for this exact set of reminders. Resend keeps keys about 24 hours, far longer
-  // than the stale window, so a retry of a batch it already accepted is a no-op there.
-  const idempotencyKey = `${lock.type}/${createHash('sha256').update(sorted.join('\n')).digest('hex')}`;
-
-  let sendError: { name?: string; message?: string } | null = null;
-  try {
-    ({ error: sendError } = await resend.batch.send(sorted.map(k => payloads.get(k)!), { idempotencyKey }));
-  } catch (err) {
-    // Unknown outcome: Resend may have accepted it. Leave the claims pending; they go stale and
-    // the retry reuses the idempotency key.
-    console.error('[cron/event-reminders] batch send threw:', err);
-    return 0;
-  }
-
-  if (sendError) {
-    if (sendError.name === 'concurrent_idempotent_requests') return 0; // the same batch is in flight elsewhere
-    if (sendError.name !== 'invalid_idempotent_request') {
-      // Rejected outright, so nothing went out: release now and let the next run retry.
-      console.error('[cron/event-reminders] batch send failed:', sendError);
-      await releaseLock(lock, lease);
-      return 0;
-    }
-    // The key was already used for this set of reminders with different content (the wording
-    // changed between attempts, e.g. tomorrow became today): it was delivered. Settle it.
-    console.log('[cron/event-reminders] batch already sent under its idempotency key; marking sent');
-  }
-
-  const { error: markError } = await lock.supabase.from('email_dedup')
-    .update({ status: 'sent' })
-    .eq('type', lock.type).eq('status', 'pending').eq('sent_at', lease).like('dedupe_key', `${lock.prefix}%`);
-  // Left pending, the claims go stale and the retry is dropped by Resend under the same key.
-  if (markError) console.error('[cron/event-reminders] mark-sent failed', markError.message);
-  return sendError ? 0 : sorted.length;
 }
 
 // Join token per student, registering anyone in the cohort who has no registration yet (they
