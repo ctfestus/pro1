@@ -11,6 +11,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { resolveConfig, type SiteConfig } from '@/lib/site-templates';
 import { ArrowRight, Check, LayoutDashboard, Pause, ChevronDown, ChevronLeft, ChevronRight, User, Settings, LogOut, BookOpen, Calendar, Briefcase, Award, TrendingUp, Users, Zap, BarChart3, GraduationCap, Play, Brain, Megaphone, Banknote, Palette, Code2, Globe, HeartPulse } from 'lucide-react';
 import { HoverPreviewCard } from '@/components/student/shared';
+import { useHoverPreview } from '@/lib/use-hover-preview';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
@@ -1336,23 +1337,12 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
     scrollRef.current?.scrollBy({ left: dir * 380, behavior: 'smooth' });
   };
 
-  const [hover, setHover] = useState<{ item: ProgrammeItem; left: number; top: number; originX: number; originY: number } | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setHover(null), 120); };
-  const openHover = (item: ProgrammeItem, el: HTMLElement) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-    cancelClose();
-    const r = el.getBoundingClientRect();
-    const pathW = item.type === 'path' ? Math.min(640, Math.max(360, (item.pathCourses?.length ?? 0) * 120 + 32)) : 320;
-    const W = pathW, H = 500;
-    const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
-    const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
-    const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
-    const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
-    setHover({ item, left, top, originX, originY });
-  };
-  useEffect(() => () => cancelClose(), []);
+  const { hover, open: openPreview, scheduleClose, cancelClose } = useHoverPreview<ProgrammeItem>();
+  // Path previews widen with the path's contents so their thumbnails lay out in rows.
+  const openHover = (item: ProgrammeItem, el: HTMLElement) => openPreview(item, el, {
+    width: item.type === 'path' ? Math.min(640, Math.max(360, (item.pathCourses?.length ?? 0) * 120 + 32)) : 320,
+    height: 500,
+  });
 
   const toolIcon = useToolIcons();
   const rowBg    = bg ?? (transparentBg ? 'transparent' : (isDark ? '#1E1F26' : 'white'));
@@ -1465,6 +1455,7 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
               top={hover.top}
               originX={hover.originX}
               originY={hover.originY}
+              width={hover.width}
               onEnter={cancelClose}
               onLeave={scheduleClose}
             >

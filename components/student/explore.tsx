@@ -17,13 +17,14 @@
  * courses and virtual_experiences), and /api/student/catalogue returns display fields only, so a
  * locked card carries no course content to leak.
  */
-import { useCallback, useEffect, useMemo, useRef, useState, type ElementType } from 'react';
+import { useEffect, useMemo, useState, type ElementType } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
 import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Play } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
+import { useHoverPreview } from '@/lib/use-hover-preview';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { SectionId } from '@/components/student/nav';
@@ -95,11 +96,6 @@ const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'certification',      label: 'Certifications' },
 ];
 
-type HoverState = {
-  item: CatalogueItem;
-  left: number; top: number; originX: number; originY: number;
-};
-
 function CategoryPill({ category }: { category: string }) {
   const color = categoryColor(category);
   return (
@@ -141,17 +137,8 @@ export function ExploreSection({ C }: {
   const [error,   setError]   = useState('');
   const [filter,  setFilter]  = useState<'all' | CatalogueType>('all');
   const [access,  setAccess]  = useState<ExploreAccess>('all');
-  const [hover,   setHover]   = useState<HoverState | null>(null);
 
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelClose = useCallback(() => {
-    if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; }
-  }, []);
-  const scheduleClose = useCallback(() => {
-    cancelClose();
-    closeTimer.current = setTimeout(() => setHover(null), 120);
-  }, [cancelClose]);
-  useEffect(() => () => cancelClose(), [cancelClose]);
+  const { hover, open: openPreview, scheduleClose, cancelClose, close: closeHover } = useHoverPreview<CatalogueItem>();
 
   useEffect(() => {
     (async () => {
@@ -186,27 +173,15 @@ export function ExploreSection({ C }: {
     : { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` };
 
   const open = (item: CatalogueItem) => {
-    setHover(null);
+    closeHover();
     window.location.href = directHref(item);
   };
 
-  // Desktop only. The popover is a hover affordance, and on touch there is no hover to close it.
-  const openHover = (item: CatalogueItem, el: HTMLElement) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-    cancelClose();
-    const r = el.getBoundingClientRect();
-    const W = item.type === 'learning_path'
-      ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32))
-      : 320;
-    const H = 500;
-    const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
-    const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
-    setHover({
-      item, left, top,
-      originX: Math.max(0, Math.min(r.left + r.width / 2 - left, W)),
-      originY: Math.max(0, Math.min(r.top + r.height / 2 - top, H)),
-    });
-  };
+  // Path previews widen with the path's contents so their thumbnails lay out in rows.
+  const openHover = (item: CatalogueItem, el: HTMLElement) => openPreview(item, el, {
+    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 320,
+    height: 500,
+  });
 
   return (
     <div className="space-y-6">
@@ -229,7 +204,7 @@ export function ExploreSection({ C }: {
                 key={f.value}
                 type="button"
                 aria-pressed={active}
-                onClick={() => { setFilter(f.value); setHover(null); }}
+                onClick={() => { setFilter(f.value); closeHover(); }}
                 className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
                 style={active
                   ? { background: C.cta, color: C.ctaText }
@@ -245,7 +220,7 @@ export function ExploreSection({ C }: {
           <span className="font-semibold">Show</span>
           <select
             value={access}
-            onChange={e => { setAccess(e.target.value as ExploreAccess); setHover(null); }}
+            onChange={e => { setAccess(e.target.value as ExploreAccess); closeHover(); }}
             className="rounded-full px-3.5 py-2 text-sm font-semibold outline-none cursor-pointer"
             // The same resting style as the pills beside it, so it follows the mode rather than
             // staying white on a dark page.
@@ -302,9 +277,7 @@ export function ExploreSection({ C }: {
               top={hover.top}
               originX={hover.originX}
               originY={hover.originY}
-              width={hover.item.type === 'learning_path'
-                ? Math.min(640, Math.max(360, (hover.item.pathItems?.length ?? 0) * 120 + 32))
-                : 320}
+              width={hover.width}
               onEnter={cancelClose}
               onLeave={scheduleClose}
             >
