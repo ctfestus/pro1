@@ -16,6 +16,7 @@ import PythonExercisePlayer from '@/components/sql-course/PythonExercisePlayer';
 import { CertificationPlayground } from '@/components/CertificationPlayground';
 import { ScoreGauge } from '@/components/ScoreGauge';
 import { HoverPreviewCard } from '@/components/student/shared';
+import { useHoverPreview } from '@/lib/use-hover-preview';
 import Link from 'next/link';
 import { useTenant } from '@/components/TenantProvider';
 import { supabase } from '@/lib/supabase';
@@ -1516,10 +1517,7 @@ function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, 
 }) {
   const [details, setDetails] = useState<PrepDetail[]>([]);
   const [loading, setLoading] = useState(true);
-  const [hover, setHover] = useState<{ item: PrepDetail; left: number; top: number; originX: number; originY: number } | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setHover(null), 120); };
+  const { hover, open: openPreview, scheduleClose, cancelClose } = useHoverPreview<PrepDetail>();
 
   useEffect(() => {
     let cancelled = false;
@@ -1546,26 +1544,17 @@ function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, 
     return () => { cancelled = true; };
   }, [prepItems]);
 
-  useEffect(() => () => cancelClose(), []);
-
   if (details.length === 0) return embedded ? (
     <div style={{ minHeight: 150, borderRadius: 16, padding: 22, display: 'grid', placeItems: 'center', textAlign: 'center', background: ov.surface, color: ov.muted, fontSize: 13.5 }}>
       {loading ? 'Loading required learning…' : prepItems.length > 0 ? 'The configured learning is not currently published.' : 'No required course or learning path has been configured for this certification.'}
     </div>
   ) : null;
 
-  const openHover = (item: PrepDetail, el: HTMLElement) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-    cancelClose();
-    const r = el.getBoundingClientRect();
-    const W = item.type === 'path' ? Math.min(640, Math.max(360, (item.pathCourses?.length ?? 0) * 120 + 32)) : 320;
-    const H = 460;
-    const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
-    const top = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
-    const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
-    const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
-    setHover({ item, left, top, originX, originY });
-  };
+  // Path previews widen with the path's contents so their thumbnails lay out in rows.
+  const openHover = (item: PrepDetail, el: HTMLElement) => openPreview(item, el, {
+    width: item.type === 'path' ? Math.min(640, Math.max(360, (item.pathCourses?.length ?? 0) * 120 + 32)) : 320,
+    height: 460,
+  });
   const isDarkRequired = ov.bg === '#17181E';
 
   return (
@@ -1605,7 +1594,7 @@ function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, 
       {typeof document !== 'undefined' && createPortal(
         <AnimatePresence>
           {hover && (
-            <HoverPreviewCard key={`${hover.item.type}:${hover.item.id}`} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
+            <HoverPreviewCard key={`${hover.item.type}:${hover.item.id}`} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} width={hover.width} onEnter={cancelClose} onLeave={scheduleClose}>
               <PrepPreview item={hover.item} brandColor={brandColor} actionColor={actionColor} ov={ov} />
             </HoverPreviewCard>
           )}

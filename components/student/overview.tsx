@@ -1,22 +1,19 @@
 'use client';
 
 // Overview (dashboard home) section, extracted verbatim from app/student/page.tsx.
-// OverviewSection is exported; inProgressProgress, InProgressPreview and InProgressRow
-// are file-internal.
+// OverviewSection is exported; inProgressProgress and InProgressRow are file-internal.
 
 import { useState, useEffect, useRef, useMemo } from 'react';
-import { createPortal } from 'react-dom';
-import { AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts, isVeComplete } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
-import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard, stripSqlSolutions } from '@/components/student/shared';
+import { CarouselSkeleton, EmptyState, ProgressBar, stripSqlSolutions } from '@/components/student/shared';
 import { isIndividualCohort } from '@/lib/cohort-kind';
 import type { SectionId } from '@/components/student/nav';
 import {
-  BookOpen, Briefcase, CheckCircle, ChevronLeft, ChevronRight, Play, TrendingUp,
+  BookOpen, Briefcase, CheckCircle, ChevronLeft, ChevronRight, TrendingUp,
   Zap, Award, Medal, ClipboardList, CalendarDays, RefreshCw,
 } from 'lucide-react';
 
@@ -36,58 +33,10 @@ function inProgressProgress(form: any, attempt: any, isProject: boolean) {
   return { done: counts.done, total: counts.total, pct: courseProgressPct(questions, answers) };
 }
 
-// Rich hover preview for an in-progress item
-function InProgressPreview({ form, isProject, pct, done, total, href, C }: {
-  form: any; isProject: boolean; pct: number; done: number; total: number; href: string; C: typeof LIGHT_C;
-}) {
-  const cover = form.config?.coverImage;
-  const desc = (form.config?.description ?? form.description ?? '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/\s+/g, ' ').trim();
-  return (
-    <div className="rounded-2xl overflow-hidden" style={{ background: C.card, boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)' }}>
-      <div className="relative w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
-        <div className="absolute inset-0 flex items-center justify-center">{isProject ? <Briefcase className="w-9 h-9" style={{ color: '#16a34a' }}/> : <BookOpen className="w-9 h-9" style={{ color: '#16a34a' }}/>}</div>
-        {cover && <img src={resolveCoverUrl(cover)} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover" onError={e => (e.currentTarget.style.display = 'none')}/>}
-        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: '#22c55e', color: '#ffffff' }}>In progress</span>
-      </div>
-      <div className="p-5">
-        <p className="text-xs mb-1" style={{ color: C.faint }}>{isProject ? 'Virtual Experience' : 'Course'}</p>
-        <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: C.text }}>{form.title}</h3>
-        {desc && <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: C.muted }}>{desc}</p>}
-        <div className="flex items-center justify-between gap-2 mb-1.5 text-[12px]" style={{ color: C.faint }}>
-          <span>{pct}% complete</span><span>{done}/{total}</span>
-        </div>
-        <ProgressBar value={pct} color="#22c55e"/>
-        <a href={href} target="_blank" rel="noreferrer"
-          className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90 mt-4"
-          style={{ background: '#16a34a', color: '#ffffff' }}>
-          <Play className="w-3.5 h-3.5"/> Continue
-        </a>
-      </div>
-    </div>
-  );
-}
-
-// "In Progress" carousel with the grow-from-card hover preview
+// "In Progress" carousel
 function InProgressRow({ items, C }: { items: any[]; C: typeof LIGHT_C }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
-
-  const [hover, setHover] = useState<{ data: any; left: number; top: number; originX: number; originY: number } | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setHover(null), 120); };
-  const openHover = (data: any, el: HTMLElement) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-    cancelClose();
-    const r = el.getBoundingClientRect();
-    const W = 320, H = 520;
-    const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
-    const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
-    const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
-    const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
-    setHover({ data, left, top, originX, originY });
-  };
-  useEffect(() => () => cancelClose(), []);
 
   return (
     <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
@@ -113,16 +62,14 @@ function InProgressRow({ items, C }: { items: any[]; C: typeof LIGHT_C }) {
       <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {items.map(({ form, attempt, isProject }: any, idx: number) => {
-          const { pct, done, total } = inProgressProgress(form, attempt, isProject);
+          const { pct } = inProgressProgress(form, attempt, isProject);
           const cover = form.config?.coverImage;
           const href  = `/${form.slug || form.id}`;
-          const data  = { form, isProject, pct, done, total, href };
           // The first card is the likely LCP element on the overview landing:
           // prioritize it and skip lazy-loading; lazy-load the rest of the row.
           const isLcp = idx === 0;
           return (
-            <div key={form.id} className="flex-shrink-0 w-[220px] snap-start"
-              onMouseEnter={(e) => openHover(data, e.currentTarget)} onMouseLeave={scheduleClose}>
+            <div key={form.id} className="flex-shrink-0 w-[220px] snap-start">
               <a href={href} target="_blank" rel="noreferrer" className="block transition-transform hover:-translate-y-0.5">
                 <div className="relative rounded-xl overflow-hidden w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
                   <div className="absolute inset-0 flex items-center justify-center">{isProject ? <Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/> : <BookOpen className="w-8 h-8" style={{ color: '#16a34a' }}/>}</div>
@@ -139,16 +86,6 @@ function InProgressRow({ items, C }: { items: any[]; C: typeof LIGHT_C }) {
         })}
       </div>
 
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {hover && (
-            <HoverPreviewCard key={hover.data.form.id} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
-              <InProgressPreview form={hover.data.form} isProject={hover.data.isProject} pct={hover.data.pct} done={hover.data.done} total={hover.data.total} href={hover.data.href} C={C} />
-            </HoverPreviewCard>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
     </section>
   );
 }

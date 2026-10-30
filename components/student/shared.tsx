@@ -5,7 +5,7 @@
 // sections import these instead of relying on definitions living in the route file.
 
 import React, { useCallback, type ReactNode } from 'react';
-import { motion } from 'motion/react';
+import { motion, useReducedMotion } from 'motion/react';
 import { Clock } from 'lucide-react';
 import { LIGHT_C, useC } from '@/lib/theme';
 
@@ -128,11 +128,15 @@ export function stripSqlSolutions(questions: any[] = []) {
 
 // Floating hover preview -- pops out of the hovered card, and back into it on close. The exit
 // half only plays where the caller keeps it inside an <AnimatePresence>; everywhere else it
-// still pops out on hover and simply unmounts.
+// still pops out on hover and simply unmounts. Open/close timing lives in useHoverPreview
+// (lib/use-hover-preview), which the callers drive this from.
 export function HoverPreviewCard({ left, top, originX, originY, onEnter, onLeave, width = 320, children }: {
   left: number; top: number; originX: number; originY: number;
   onEnter: () => void; onLeave: () => void; width?: number; children: ReactNode;
 }) {
+  // With reduced motion the preview fades in place instead of growing out of the card.
+  const reduceMotion = useReducedMotion();
+  const hidden = reduceMotion ? { opacity: 0 } : { opacity: 0, scale: 0.55 };
   // The caller places the popover from an ESTIMATED height, so a taller one -- a path with two
   // rows of path contents, a course with a long description -- ran off the bottom of the screen
   // with its call-to-action clipped. Only the mounted node knows its real height, so top and
@@ -157,12 +161,13 @@ export function HoverPreviewCard({ left, top, originX, originY, onEnter, onLeave
   return (
     <motion.div
       ref={place}
+      data-hover-preview=""
       onMouseEnter={onEnter}
       onMouseLeave={onLeave}
-      initial={{ opacity: 0, scale: 0.55 }}
+      initial={hidden}
       animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.55 }}
-      transition={{ duration: 0.34, ease: [0.16, 1, 0.3, 1] }}
+      exit={hidden}
+      transition={{ duration: reduceMotion ? 0.15 : 0.34, ease: [0.16, 1, 0.3, 1] }}
       style={{ position: 'fixed', left, width, zIndex: 200, willChange: 'opacity, transform' }}
     >
       {children}

@@ -12,6 +12,7 @@ import { LIGHT_C, DARK_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import type { CertificationType } from '@/lib/course-schema';
 import { EmptyState, HoverPreviewCard } from '@/components/student/shared';
+import { useHoverPreview } from '@/lib/use-hover-preview';
 import { CertificationQuestionView, CertificationResultSummary } from '@/components/CertificationTaker';
 import { ShieldCheck, Clock, CheckCircle, Award, Briefcase, Code2, ArrowUpRight, BookOpenCheck, BadgeCheck, Share2, FileCheck2, X, ChevronLeft, ChevronRight, BookOpen, ArrowRight } from 'lucide-react';
 import { toPlainText } from '@/lib/plain-text';
@@ -93,21 +94,7 @@ function ResultPreview({ C }: { C: typeof LIGHT_C }) {
 function LearningPathPreview({ paths, C }: { paths: any[]; C: typeof LIGHT_C }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollByCards = (direction: number) => scrollRef.current?.scrollBy({ left: direction * 380, behavior: 'smooth' });
-  const [hover, setHover] = useState<{ path: any; left: number; top: number; originX: number; originY: number } | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setHover(null), 120); };
-  const openHover = (path: any, element: HTMLElement) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-    cancelClose();
-    const rect = element.getBoundingClientRect();
-    const width = 320;
-    const height = 420;
-    const left = Math.max(12, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 12));
-    const top = Math.max(12, Math.min(rect.top - 20, window.innerHeight - height - 12));
-    setHover({ path, left, top, originX: Math.max(0, Math.min(rect.left + rect.width / 2 - left, width)), originY: Math.max(0, Math.min(rect.top + rect.height / 2 - top, height)) });
-  };
-  useEffect(() => () => cancelClose(), []);
+  const { hover, open: openHover, scheduleClose, cancelClose } = useHoverPreview<any>();
   const isDark = C.page === DARK_C.page;
   return (
     <>
@@ -125,7 +112,7 @@ function LearningPathPreview({ paths, C }: { paths: any[]; C: typeof LIGHT_C }) 
         </div>
         <div ref={scrollRef} className="flex snap-x flex-nowrap gap-4 overflow-x-auto pb-2 pt-5" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none', WebkitMaskImage: 'linear-gradient(90deg, #000 94%, transparent)', maskImage: 'linear-gradient(90deg, #000 94%, transparent)' }}>
           {paths.map((path) => (
-            <div key={path.id} className="group w-[220px] shrink-0 snap-start sm:w-[260px]" onMouseEnter={(event) => openHover(path, event.currentTarget)} onMouseLeave={scheduleClose}>
+            <div key={path.id} className="group w-[220px] shrink-0 snap-start sm:w-[260px]" onMouseEnter={(event) => openHover(path, event.currentTarget, { height: 420 })} onMouseLeave={scheduleClose}>
               <div className="relative aspect-video w-full overflow-hidden rounded-xl transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.65)]" style={{ background: path.imageUrl ? '#0b0b0d' : 'transparent' }}>
                 {path.imageUrl
                   ? <img src={path.imageUrl} alt={path.title} loading="lazy" className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
@@ -146,17 +133,17 @@ function LearningPathPreview({ paths, C }: { paths: any[]; C: typeof LIGHT_C }) 
     {typeof document !== 'undefined' && createPortal(
       <AnimatePresence>
       {hover && (
-      <HoverPreviewCard key={hover.path.id} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} onEnter={cancelClose} onLeave={scheduleClose}>
+      <HoverPreviewCard key={hover.item.id} left={hover.left} top={hover.top} originX={hover.originX} originY={hover.originY} width={hover.width} onEnter={cancelClose} onLeave={scheduleClose}>
         <div className="overflow-hidden rounded-2xl" style={{ background: C.card, boxShadow: isDark ? '0 18px 55px rgba(0,0,0,0.38)' : '0 16px 44px rgba(15,23,42,0.14)' }}>
           <div className="p-4 pb-0">
             <span className="mb-2 inline-block rounded-md bg-[#FF9933] px-2 py-0.5 text-[10px] font-bold text-white">Learning Path</span>
-            <h5 className="line-clamp-2 text-lg font-bold leading-snug" style={{ color: C.text }}>{hover.path.title}</h5>
-            {hover.path.description && <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed" style={{ color: C.muted }}>{hover.path.description}</p>}
+            <h5 className="line-clamp-2 text-lg font-bold leading-snug" style={{ color: C.text }}>{hover.item.title}</h5>
+            {hover.item.description && <p className="mt-1.5 line-clamp-2 text-sm leading-relaxed" style={{ color: C.muted }}>{hover.item.description}</p>}
           </div>
           <div className="p-4">
-            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>{hover.path.pathCourses.length} item{hover.path.pathCourses.length === 1 ? '' : 's'} in this path</p>
+            <p className="mb-3 text-[11px] font-semibold uppercase tracking-wider" style={{ color: C.faint }}>{hover.item.pathCourses.length} item{hover.item.pathCourses.length === 1 ? '' : 's'} in this path</p>
             <div className="flex flex-wrap gap-2.5">
-              {hover.path.pathCourses.slice(0, 4).map((item: any) => (
+              {hover.item.pathCourses.slice(0, 4).map((item: any) => (
                 <div key={`${item.type}-${item.id}`} className="w-[110px] shrink-0">
                   <div className="mb-1.5 flex aspect-video items-center justify-center overflow-hidden rounded-lg" style={{ background: isDark ? C.pill : '#F0F6FF' }}>
                     {item.imageUrl ? <img src={item.imageUrl} alt={item.title} loading="lazy" className="h-full w-full object-cover" /> : <BookOpen className="h-5 w-5 text-[#9CA3AF]" />}
