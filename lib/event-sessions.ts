@@ -174,3 +174,42 @@ export function getLastScheduledSessionDate(
 
   return null;
 }
+
+// Absolute start of the session on dateStr at timeStr (HH:MM, seconds ignored), read in the
+// event's stored GMT offset. Without a parseable offset the time is read as UTC, matching
+// eventLocalDate's fallback.
+export function sessionStartInstant(dateStr: string, timeStr: string, timezone?: string | null): Date | null {
+  const date = parseCalendarDate(dateStr);
+  const time = timeStr.match(/^(\d{1,2}):(\d{2})/);
+  if (!date || !time) return null;
+  const hours = Number(time[1]);
+  const mins = Number(time[2]);
+  if (hours > 23 || mins > 59) return null;
+  const offsetMin = parseGmtOffsetMinutes(timezone) ?? 0;
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), hours, mins) - offsetMin * 60_000,
+  );
+}
+
+// The next session that has not started yet: its calendar date and absolute start. An event with
+// no time is treated as starting at midnight in its timezone, and `timed` says so, because a
+// reminder keyed to the hour means nothing for it.
+export function getNextSessionStart(
+  event: (EventSchedule & { event_time?: string | null }) | null | undefined,
+  now: Date = new Date(),
+): { date: string; start: Date; timed: boolean } | null {
+  if (!event?.event_date) return null;
+  const timed = !!event.event_time;
+  const time = event.event_time || '00:00';
+  // Start a day back: the event-local "today" can lag a session that has not started yet.
+  let from = addCalendarDays(eventLocalDate(event.timezone, now), -1);
+  for (let i = 0; i < 4 && from; i += 1) {
+    const day = getNextScheduledSessionDate(event, from);
+    if (!day) return null;
+    const start = sessionStartInstant(day, time, event.timezone);
+    if (!start) return null;
+    if (start.getTime() > now.getTime()) return { date: day, start, timed };
+    from = addCalendarDays(day, 1);
+  }
+  return null;
+}

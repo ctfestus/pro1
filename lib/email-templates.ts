@@ -168,11 +168,12 @@ export function reminderEmail(data: {
   joinUrl?: string;
   formUrl: string;
   isOneHour?: boolean;
+  /** Day-before wording when not isOneHour. A session reminded late can already be today. */
+  day?: 'today' | 'tomorrow';
   bannerUrl?: string;
   branding?: EmailBranding;
 }) {
-  const { name, eventTitle, eventDate, eventTime, eventLocation, eventTimezone, meetingLink, joinUrl, formUrl, isOneHour, bannerUrl, branding } = data;
-  const timeLabel = isOneHour ? '1 hour' : 'tomorrow';
+  const { name, eventTitle, eventDate, eventTime, eventLocation, eventTimezone, meetingLink, joinUrl, formUrl, isOneHour, day, bannerUrl, branding } = data;
   const joinHref  = joinUrl || meetingLink;
 
   const meetingBlock = meetingLink ? `
@@ -183,10 +184,10 @@ export function reminderEmail(data: {
 
   const content = `
     <p><b>Hi ${esc(name || 'there')},</b></p>
-    <p>This is a friendly reminder that <b>${eventTitle}</b> is starting in <b>${timeLabel}</b>${isOneHour ? '. Get ready!' : '.'}</p>
+    <p>This is a friendly reminder that <b>${esc(eventTitle)}</b> ${isOneHour ? 'is starting in <b>1 hour</b>. Get ready!' : `is happening <b>${day ?? 'tomorrow'}</b>.`}</p>
 
     <p style="font-size:18px;font-weight:bold;margin-top:16px;">Event Reminder</p>
-    <p><b>${eventTitle}</b></p>
+    <p><b>${esc(eventTitle)}</b></p>
 
     ${eventDate ? detailBlock('Date', [eventDate, eventTime, eventTimezone].filter(Boolean).join(' · ')) : ''}
     ${eventLocation ? detailBlock('Location', eventLocation) : ''}
