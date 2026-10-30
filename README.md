@@ -22,6 +22,8 @@ View your app in AI Studio: https://ai.studio/apps/00125239-a7fa-44fb-bbe3-c1f8a
 
 Scheduled routes are registered outside the repository in the Upstash QStash console. The individual-subscription access model requires an hourly POST schedule (`0 * * * *`) targeting `/api/cron/subscription-expiry-sweep`. Without that schedule, expired subscriptions remain active. Verify the schedule in every deployed environment before enabling subscription sales.
 
+Event reminder emails need a POST schedule every 15 minutes (`*/15 * * * *`) targeting `/api/cron/event-reminders`. It sends each student a reminder once a session is less than 24 hours away and again in its last hour. A slower schedule delays both, and with no schedule no event reminders go out.
+
 ## Application form response storage
 
 Application form definitions, responses, review notes, status history, and email records are stored in Supabase. Applicant files upload directly to the private `application-uploads` Supabase Storage bucket through short-lived signed upload tokens. The bucket allows files up to 10 MB and only PDF, Word (.doc/.docx), JPG, and PNG files; each file question can narrow that list in the form builder. The Supabase project-wide upload limit must also allow 10 MB. The application validates file type, size, and ownership before accepting a response. File-upload sessions require the existing Upstash Redis configuration for rate limiting. Assigned reviewers open files through the authenticated review panel. Application submissions can be exported as CSV. Google Sheets and Google Drive credentials are not needed for applications (other platform features may still use them).

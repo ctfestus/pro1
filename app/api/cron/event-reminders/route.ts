@@ -1,8 +1,17 @@
 /**
- * Daily cron -- Event reminder emails.
- * Triggered by QStash at 08:00 every day.
- * Sends a day-before reminder to all enrolled students for events happening tomorrow.
- * Works for one-time and recurring events. Uses sent_nudges to avoid duplicate sends.
+ * Cron -- Event reminder emails.
+ * Triggered by QStash every 15 minutes (see README "Required scheduled jobs").
+ *
+ * Every session gets two reminders per student: one once it is less than 24 hours away, and one
+ * once it is less than an hour away. A session first seen inside its last hour (created late, or
+ * the schedule was down) gets only the one-hour reminder. Works for one-time and recurring events,
+ * in each event's own timezone.
+ *
+ * Every email carries the student's tracked /api/join link, so a click records attendance. A
+ * current cohort member with no registration yet is registered here first; a student who cannot
+ * be given a token is skipped rather than sent the raw meeting link.
+ *
+ * email_dedup, keyed per event + session date + student, makes each reminder go out once.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
@@ -12,16 +21,20 @@ import { reminderEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { studentsStillInCohorts } from '@/lib/cohort-roster';
 import { applyEmailTemplate } from '@/lib/email-template-service';
+import { eventLocalDate, getNextSessionStart } from '@/lib/event-sessions';
+import { chunkIds, fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 
 export const dynamic = 'force-dynamic';
 
-const BATCH_SIZE = 100;
+// Resend takes up to 100 per batch; 50 keeps the dedupe keys of one batch in a single
+// .in() filter short enough for the query string.
+const BATCH_SIZE = 50;
+const HOUR_MS = 60 * 60_000;
+const DAY_MS = 24 * HOUR_MS;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-function chunk<T>(arr: T[], size: number): T[][] {
-  const chunks: T[][] = [];
-  for (let i = 0; i < arr.length; i += size) chunks.push(arr.slice(i, i + size));
-  return chunks;
-}
+type Kind = '24h' | '1h';
+const DEDUPE_TYPE: Record<Kind, string> = { '24h': 'event_reminder_24h', '1h': 'event_reminder_1h' };
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -38,257 +51,199 @@ export async function POST(req: NextRequest) {
 
   const supabase = adminClient();
   const now      = new Date();
-  const today    = now.toISOString().slice(0, 10);
-
-  // Tomorrow's date string and day-of-week (0=Sun, 1=Mon ... 6=Sat)
-  const tomorrowDate = new Date(now.getTime() + 86400000);
-  const tomorrow     = tomorrowDate.toISOString().slice(0, 10);
-  const tomorrowDay  = tomorrowDate.getUTCDay();
 
   const t        = await getTenantSettings();
   const FROM     = process.env.RESEND_FROM_EMAIL || `${t.senderName} <${t.supportEmail}>`;
   const branding = { logoUrl: t.logoUrl, emailBannerUrl: t.emailBannerUrl, teamName: t.teamName, appName: t.appName, appUrl: t.appUrl };
 
-  type EmailPayload = Parameters<typeof resend.batch.send>[0][number];
-  const emailBatch:   EmailPayload[] = [];
-  const nudgeRecords: { student_id: string; form_id: string; nudge_type: string }[] = [];
-  let skipped  = 0;
-  let movedOut = 0;
-
-  // 1. All events that are assigned to at least one cohort
-  const { data: assignments } = await supabase
-    .from('cohort_assignments')
-    .select('content_id, cohort_id')
-    .eq('content_type', 'event');
-
-  if (!assignments?.length) {
-    console.log('[cron/event-reminders] No event cohort assignments found');
-    return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
+  // events.cohort_ids is the source of truth for who an event is assigned to. cohort_assignments is
+  // a synced copy that can lag behind a re-assignment, so it is not read here at all.
+  // Paged: past the PostgREST row cap a single read is silently truncated, not an error.
+  let events: any[];
+  try {
+    events = await fetchAllRows<any>((from, to) => supabase
+      .from('events')
+      .select('id, title, slug, event_date, event_time, timezone, location, meeting_link, event_type, recurrence, recurrence_end_date, recurrence_days, cohort_ids', { count: 'exact' })
+      .eq('status', 'published')
+      .order('id')
+      .range(from, to));
+  } catch (err) {
+    console.error('[cron/event-reminders] events lookup failed', err);
+    return NextResponse.json({ error: 'Events lookup failed' }, { status: 500 });
   }
 
-  const eventIds = [...new Set(assignments.map(a => a.content_id))];
+  let sent = 0;
+  let skipped = 0;
+  let sessions = 0;
 
-  const { data: events } = await supabase
-    .from('events')
-    .select('id, title, slug, event_date, event_time, timezone, location, meeting_link, event_type, recurrence, recurrence_end_date, recurrence_days, cohort_ids')
-    .in('id', eventIds);
+  for (const event of events) {
+    const next = getNextSessionStart(event, now);
+    if (!next) continue;
+    const msLeft = next.start.getTime() - now.getTime();
+    if (msLeft > DAY_MS) continue;
+    const kind: Kind = msLeft <= HOUR_MS ? '1h' : '24h';
+    // An untimed event "starts" at midnight, so an hour-before reminder would land at 11pm.
+    if (kind === '1h' && !next.timed) continue;
 
-  if (!events?.length) {
-    return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
-  }
-
-  // Filter events scheduled for tomorrow
-  const scheduledTomorrow = events.filter((e: any) => {
-    if (!e.event_date) return false;
-    if (e.recurrence === 'once' || !e.recurrence) {
-      return e.event_date === tomorrow;
-    }
-    // Recurring: started on or before tomorrow and not yet ended
-    const days: number[] = Array.isArray(e.recurrence_days) ? e.recurrence_days : [];
-    const onThisDay = days.length === 0 || days.includes(tomorrowDay);
-    return onThisDay && e.event_date <= tomorrow && (!e.recurrence_end_date || e.recurrence_end_date >= tomorrow);
-  });
-
-  if (!scheduledTomorrow.length) {
-    console.log('[cron/event-reminders] No events scheduled for tomorrow');
-    return NextResponse.json({ ok: true, sent: 0, skipped: 0 });
-  }
-
-  const scheduledIds = scheduledTomorrow.map((e: any) => e.id as string);
-
-  // Build a map: eventId -> cohortIds
-  const eventCohortMap = new Map<string, string[]>();
-  for (const a of assignments) {
-    if (!scheduledIds.includes(a.content_id)) continue;
-    if (!eventCohortMap.has(a.content_id)) eventCohortMap.set(a.content_id, []);
-    eventCohortMap.get(a.content_id)!.push(a.cohort_id);
-  }
-
-  // 2. Recent nudges to skip duplicates
-  const since1Day = new Date(now.getTime() - 86400000).toISOString();
-  const { data: recentNudges } = await supabase
-    .from('sent_nudges')
-    .select('student_id, form_id')
-    .eq('nudge_type', 'event_reminder')
-    .in('form_id', scheduledIds)
-    .gte('sent_at', since1Day);
-
-  const nudgedSet = new Set<string>();
-  for (const n of recentNudges ?? []) nudgedSet.add(`${n.student_id}|${n.form_id}`);
-
-  // 3. For each scheduled event, email all enrolled students (from event_registrations)
-  for (const event of scheduledTomorrow) {
-    const cohortIds = eventCohortMap.get(event.id) ?? [];
-    if (!cohortIds.length) continue;
-
-    // Enrolled students are those with event_registrations rows. A registration is written once,
-    // when the event is assigned to a cohort, and never removed, so it has to be checked against
-    // the student's current cohort -- otherwise someone moved onto a subscription months ago keeps
-    // getting reminders for their old cohort's session.
-    const { data: allRegistrations, error: registrationsError } = await supabase
-      .from('event_registrations')
-      .select('student_id, join_token, student:students(full_name, email)')
-      .eq('event_id', event.id);
-
-    // Reading the error matters more here than it looks: a failed query returns no rows, which is
-    // indistinguishable from "nobody was ever registered" and opens the fallback below that mails
-    // the entire current cohort. Skip the event instead.
-    if (registrationsError) {
-      console.error('[cron/event-reminders] registration lookup failed for event', event.id, registrationsError.message);
-      continue;
-    }
-
-    // events.cohort_ids is the source of truth for who an event is assigned to. cohort_assignments
-    // is a synced copy that can lag behind a re-assignment, so it only decides which events to look
-    // at -- never who hears about them. Falling back to it when the array is empty would have
-    // emailed the cohort an event had just been taken away from.
-    const eventCohortIds: string[] = Array.isArray((event as any).cohort_ids) ? (event as any).cohort_ids : [];
-    if (!eventCohortIds.length) {
+    const cohortIds: string[] = Array.isArray(event.cohort_ids) ? event.cohort_ids : [];
+    if (!cohortIds.length) {
       console.log(`[cron/event-reminders] event=${event.id} is assigned to no cohort; skipping`);
       continue;
     }
+    sessions++;
 
-    let stillEnrolled: Set<string>;
     try {
-      stillEnrolled = await studentsStillInCohorts(
-        supabase,
-        (allRegistrations ?? []).map((r: any) => r.student_id as string),
-        eventCohortIds,
-      );
+      const result = await remindSession(supabase, event, next.date, kind, cohortIds, { FROM, branding, appUrl: t.appUrl, now });
+      sent += result.sent;
+      skipped += result.skipped;
     } catch (err) {
-      // Skip this event rather than abort the run: sending to an unchecked list is the bug being
-      // fixed, and tomorrow is not the last chance -- sent_nudges keeps a retry from duplicating.
-      console.error('[cron/event-reminders] roster lookup failed for event', event.id, err);
-      continue;
+      // One event failing must not stop the rest. Reminders it had not claimed are picked up by the
+      // next run; any it claimed and could not settle are not resent (see remindSession).
+      console.error('[cron/event-reminders] event failed', event.id, err);
     }
-    const registrations = (allRegistrations ?? []).filter((r: any) => stillEnrolled.has(r.student_id));
-    const droppedThisEvent = (allRegistrations?.length ?? 0) - registrations.length;
-    if (droppedThisEvent > 0) {
-      movedOut += droppedThisEvent;
-      // A registration with nobody in the cohort behind it is not an error, but it is worth
-      // seeing: it means the cohort moved on and the registration row did not.
-      console.log(`[cron/event-reminders] event=${event.id} skipped ${droppedThisEvent} registration(s) no longer in an assigned cohort`);
-    }
+  }
 
-    if (!allRegistrations?.length) {
-      // Fall back to the students currently in the assigned cohorts. This path is for an event
-      // whose attendees were never auto-registered at all. It deliberately does NOT cover a list
-      // the filter emptied: if everybody registered has since left, the answer is to send nothing,
-      // not to mail current members who were never registered and would get no tracked join link.
-      const { data: cohortStudents } = await supabase
-        .from('students')
-        .select('id, full_name, email')
-        .in('cohort_id', eventCohortIds);
+  console.log(`[cron/event-reminders] sessions=${sessions} sent=${sent} skipped=${skipped}`);
+  return NextResponse.json({ ok: true, sessions, sent, skipped });
+}
 
-      let fallbackEligible: Set<string>;
-      try {
-        fallbackEligible = await studentsStillInCohorts(
-          supabase,
-          (cohortStudents ?? []).map((s: any) => s.id as string),
-          eventCohortIds,
-        );
-      } catch (err) {
-        console.error('[cron/event-reminders] fallback roster lookup failed for event', event.id, err);
-        continue;
-      }
+async function remindSession(
+  supabase: ReturnType<typeof adminClient>,
+  event: any,
+  sessionDate: string,
+  kind: Kind,
+  cohortIds: string[],
+  ctx: { FROM: string; branding: any; appUrl: string; now: Date },
+): Promise<{ sent: number; skipped: number }> {
+  // Recipients are the event's cohorts as they are now. Registrations are never removed when a
+  // student moves cohort, so they decide nobody's place on the list -- only their join token.
+  const cohortStudents = await fetchAllRowsByIds<{ id: string; full_name: string | null; email: string | null }>(
+    cohortIds,
+    (chunk, from, to) => supabase.from('students')
+      .select('id, full_name, email', { count: 'exact' })
+      .in('cohort_id', chunk)
+      .order('id')
+      .range(from, to),
+  );
 
-      for (const student of cohortStudents ?? []) {
-        if (!fallbackEligible.has(student.id)) { movedOut++; continue; }
-        const email = (student.email ?? '').trim().toLowerCase();
-        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
-        if (nudgedSet.has(`${student.id}|${event.id}`)) { skipped++; continue; }
+  const stillIn = await studentsStillInCohorts(supabase, cohortStudents.map(s => s.id), cohortIds);
+  const students = cohortStudents.filter(s =>
+    stillIn.has(s.id) && EMAIL_RE.test((s.email ?? '').trim().toLowerCase()));
+  if (!students.length) return { sent: 0, skipped: 0 };
 
-        const formUrl = `${t.appUrl}/${event.slug ?? event.id}`;
-        const fallbackSubject = `Reminder: "${event.title}" is tomorrow`;
-        const fallbackHtml = reminderEmail({
-            name:          student.full_name || 'there',
-            eventTitle:    event.title       || '',
-            eventDate:     tomorrow,
-            eventTime:     event.event_time  ? String(event.event_time) : '',
-            eventTimezone: event.timezone    || '',
-            eventLocation: event.location    || '',
-            meetingLink:   event.meeting_link || '',
-            formUrl,
-            branding,
-          });
-        const rendered = await applyEmailTemplate({
-          key: 'event_reminder', fallbackSubject, fallbackHtml,
-          variables: {
-            student_name: student.full_name || 'there', event_title: event.title || '', reminder_timing: 'tomorrow',
-            event_time_display: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' '),
-            event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
-          },
-          branding,
-        });
-        emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
-        nudgeRecords.push({ student_id: student.id, form_id: event.id, nudge_type: 'event_reminder' });
-      }
-      continue;
-    }
+  // Only an online session with a meeting link needs a token: the email's Join button is the
+  // tracked link. Without a meeting link the email links to the event page, as before.
+  const needsJoinLink = !!event.meeting_link;
+  const tokens = needsJoinLink ? await joinTokens(supabase, event.id, students.map(s => s.id)) : new Map<string, string>();
 
-    for (const reg of registrations) {
-      const studentData = reg.student as any;
-      const email = (studentData?.email ?? '').trim().toLowerCase();
-      if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) continue;
-      if (nudgedSet.has(`${reg.student_id}|${event.id}`)) { skipped++; continue; }
+  const today = eventLocalDate(event.timezone, ctx.now);
+  const day: 'today' | 'tomorrow' = sessionDate === today ? 'today' : 'tomorrow';
+  const timing = kind === '1h' ? 'in 1 hour' : day;
+  const subject = kind === '1h' ? `Starting in 1 hour: ${event.title}` : `Reminder: "${event.title}" is ${day}`;
+  const eventTime = event.event_time ? String(event.event_time).slice(0, 5) : '';
+  const formUrl = `${ctx.appUrl}/${event.slug ?? event.id}`;
 
-      const joinToken: string | null = reg.join_token ?? null;
-      const joinUrl  = joinToken ? `${t.appUrl}/api/join?token=${joinToken}` : undefined;
-      const formUrl  = `${t.appUrl}/${event.slug ?? event.id}`;
+  const type = DEDUPE_TYPE[kind];
+  const keyOf = (studentId: string) => `${event.id}:${sessionDate}:${studentId}`;
+  let sent = 0;
+  let skipped = 0;
 
-      const fallbackSubject = `Reminder: "${event.title}" is tomorrow`;
+  const recipients = students.filter(s => {
+    if (!needsJoinLink || tokens.has(s.id)) return true;
+    console.error(`[cron/event-reminders] event=${event.id} student=${s.id} has no join token; not sending an untracked link`);
+    skipped++;
+    return false;
+  });
+
+  for (const batch of chunkIds(recipients, BATCH_SIZE)) {
+    // Claim first. Insert-only: a reminder already claimed, by this run or any other, comes back
+    // missing and is not sent again. A run that dies after claiming leaves its claims in place, so
+    // at worst a reminder is missed, never sent twice.
+    const { data: claimed, error: claimError } = await supabase.from('email_dedup')
+      .upsert(batch.map(s => ({ dedupe_key: keyOf(s.id), type, status: 'pending' })),
+        { onConflict: 'dedupe_key,type', ignoreDuplicates: true })
+      .select('dedupe_key');
+    if (claimError) throw new Error(`dedupe claim failed: ${claimError.message}`);
+    const ownedKeys = new Set((claimed ?? []).map((r: any) => r.dedupe_key as string));
+    const owned = batch.filter(s => ownedKeys.has(keyOf(s.id)));
+    skipped += batch.length - owned.length;
+    if (!owned.length) continue;
+    const keys = owned.map(s => keyOf(s.id));
+    const release = async () => {
+      const { error } = await supabase.from('email_dedup').delete().eq('type', type).in('dedupe_key', keys);
+      // Left in place, these reminders will not be retried: make that visible.
+      if (error) console.error(`[cron/event-reminders] event=${event.id} could not release ${keys.length} claim(s); those reminders will not be retried`, error.message);
+    };
+
+    // Nothing has gone out if building the emails fails, so release the claims for the next run.
+    const payloads = await Promise.all(owned.map(async student => {
+      const token = tokens.get(student.id);
+      const joinUrl = token ? `${ctx.appUrl}/api/join?token=${token}` : undefined;
+      const name = student.full_name || 'there';
       const fallbackHtml = reminderEmail({
-          name:          studentData?.full_name || 'there',
-          eventTitle:    event.title            || '',
-          eventDate:     tomorrow,
-          eventTime:     event.event_time       ? String(event.event_time) : '',
-          eventTimezone: event.timezone         || '',
-          eventLocation: event.location         || '',
-          meetingLink:   event.meeting_link     || '',
-          joinUrl,
-          formUrl,
-          branding,
-        });
+        name,
+        eventTitle:    event.title || '',
+        eventDate:     sessionDate,
+        eventTime,
+        eventTimezone: event.timezone || '',
+        eventLocation: event.location || '',
+        meetingLink:   event.meeting_link || '',
+        joinUrl,
+        formUrl,
+        isOneHour:     kind === '1h',
+        day,
+        branding:      ctx.branding,
+      });
       const rendered = await applyEmailTemplate({
-        key: 'event_reminder', fallbackSubject, fallbackHtml,
+        key: 'event_reminder', fallbackSubject: subject, fallbackHtml,
         variables: {
-          student_name: studentData?.full_name || 'there', event_title: event.title || '', reminder_timing: 'tomorrow',
-          event_time_display: [tomorrow, event.event_time, event.timezone].filter(Boolean).join(' '),
+          student_name: name, event_title: event.title || '', reminder_timing: timing,
+          event_time_display: [sessionDate, eventTime, event.timezone].filter(Boolean).join(' '),
           event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
         },
-        branding,
+        branding: ctx.branding,
       });
-      emailBatch.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
-      nudgeRecords.push({ student_id: reg.student_id, form_id: event.id, nudge_type: 'event_reminder' });
+      return { from: ctx.FROM, to: (student.email ?? '').trim().toLowerCase(), subject: rendered.subject, html: rendered.html };
+    })).catch(async err => { await release(); throw err; });
+
+    // Resend reports a rejected request in the result. Nothing went out, so drop the claims and let
+    // the next run retry. A thrown error is left claimed: the batch may have been accepted.
+    const { error: sendError } = await resend.batch.send(payloads);
+    if (sendError) {
+      console.error('[cron/event-reminders] batch send failed:', sendError);
+      await release();
+      continue;
     }
+    sent += owned.length;
+    await supabase.from('email_dedup').update({ status: 'sent' }).eq('type', type).in('dedupe_key', keys);
   }
 
-  // 4. Send
-  if (!emailBatch.length) {
-    console.log(`[cron/event-reminders] sent=0 skipped=${skipped} movedOut=${movedOut}`);
-    return NextResponse.json({ ok: true, sent: 0, skipped, movedOut });
-  }
+  return { sent, skipped };
+}
 
-  const sentKeySet = new Set<string>();
-  const batches    = chunk(emailBatch, BATCH_SIZE);
-  let sent = 0;
-
-  for (let i = 0; i < batches.length; i++) {
-    const batchNudges = nudgeRecords.slice(i * BATCH_SIZE, (i + 1) * BATCH_SIZE);
-    try {
-      await resend.batch.send(batches[i]);
-      sent += batches[i].length;
-      for (const n of batchNudges) sentKeySet.add(`${n.student_id}|${n.form_id}`);
-    } catch (err) {
-      console.error('[cron/event-reminders] batch send failed:', err);
+// Join token per student, registering anyone in the cohort who has no registration yet (they
+// joined the cohort after the event was assigned). Same RPC as auto-registration and /api/event-register.
+async function joinTokens(supabase: ReturnType<typeof adminClient>, eventId: string, studentIds: string[]) {
+  const read = async (ids: string[]) => {
+    const tokens = new Map<string, string>();
+    for (const chunk of chunkIds(ids)) {
+      const { data, error } = await supabase
+        .from('event_registrations').select('student_id, join_token').eq('event_id', eventId).in('student_id', chunk);
+      // A failed read looks like "nobody registered"; fail the event instead of registering blind.
+      if (error) throw new Error(`registration lookup failed: ${error.message}`);
+      for (const r of data ?? []) if (r.join_token) tokens.set(r.student_id, r.join_token);
     }
-  }
+    return tokens;
+  };
 
-  if (sentKeySet.size) {
-    const toInsert = nudgeRecords.filter(n => sentKeySet.has(`${n.student_id}|${n.form_id}`));
-    if (toInsert.length) await supabase.from('sent_nudges').insert(toInsert);
-  }
+  const tokens = await read(studentIds);
+  const missing = studentIds.filter(id => !tokens.has(id));
+  if (!missing.length) return tokens;
 
-  console.log(`[cron/event-reminders] sent=${sent} skipped=${skipped} movedOut=${movedOut}`);
-  return NextResponse.json({ ok: true, sent, skipped, movedOut });
+  for (const studentId of missing) {
+    const { error } = await supabase.rpc('register_event_attendee', { p_event_id: eventId, p_student_id: studentId });
+    if (error) console.error('[cron/event-reminders] register failed', eventId, studentId, error.message);
+  }
+  for (const [id, token] of await read(missing)) tokens.set(id, token);
+  return tokens;
 }

@@ -761,7 +761,7 @@ Requirements:
 - Suggest useful registration fields for this event. Prioritize quality over quantity.
 - Include a short confirmation notice title and body for after registration.
 - Use realistic placeholders when exact details are unknown.
-- Timezone should be a short string like "UTC", "WAT", "PST", "GMT+1".
+- Timezone must be a GMT offset in the editor's format, like "GMT+0 (Accra)", "GMT+1 (Lagos)", "GMT+3 (Nairobi)", "GMT-5 (EST)" or "GMT+5:30 (IST)". Never an abbreviation alone like "WAT" or "PST": reminders and attendance read the offset.
 - Capacity can be omitted if not clearly implied.
 
 Field rules:

@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // What these guard: event_registrations rows are written once, when an event is assigned to a
 // cohort, and are never removed. Reading them raw meant a student moved onto a subscription months
@@ -30,6 +30,10 @@ import { POST as nudgeAbsent } from '@/app/api/events/nudge-absent/route';
 
 const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
 
+// Reminder tests run on a pinned clock: the job sends by how far away a session is.
+const NOW = new Date('2026-06-01T12:00:00Z');
+const KEY = 'ev1:2026-06-02:s1';
+
 // s1 is still in the event's cohort. s2 was moved onto a subscription plan cohort and keeps a
 // registration row for the old cohort's event.
 const STUDENTS = [
@@ -41,51 +45,103 @@ const COHORTS = [
   { id: 'plan1', cohort_kind: 'subscription_plan' },
 ];
 
+// 22 hours after NOW: inside the day-before window.
+const EVENT = {
+  id: 'ev1', title: 'Live Session', slug: 'live-session', user_id: 'owner1', status: 'published',
+  event_date: '2026-06-02', event_time: '10:00', timezone: 'GMT+0 (Accra)', location: '', meeting_link: 'https://meet.test',
+  event_type: 'virtual', recurrence: 'once', recurrence_end_date: null, recurrence_days: null,
+  cohort_ids: ['co1'],
+};
+
 /**
  * Hand-rolled: these routes read `students` both as a roster lookup (filtered by id) and as the
- * cohort fallback (filtered by cohort_id), and the assertions turn on that difference.
+ * cohort list (filtered by cohort_id), and the assertions turn on that difference. email_dedup is
+ * modelled as a real table so claiming, releasing and marking sent can be checked.
  */
-function db(opts: { event?: any; registrations?: any[]; attendance?: any[]; registrationsError?: string } = {}) {
-  const event = opts.event ?? {
-    id: 'ev1', title: 'Live Session', slug: 'live-session', user_id: 'owner1',
-    event_date: tomorrow, event_time: '10:00', timezone: 'UTC', location: '', meeting_link: 'https://meet.test',
-    event_type: 'virtual', recurrence: 'once', recurrence_end_date: null, recurrence_days: null,
-    cohort_ids: ['co1'],
-  };
-  const registrations = opts.registrations ?? [
+function db(opts: {
+  event?: any; registrations?: any[]; attendance?: any[]; registrationsError?: string;
+  dedupe?: any[]; rpcError?: string; claimLoses?: boolean;
+} = {}) {
+  const event = opts.event ?? EVENT;
+  const registrations = [...(opts.registrations ?? [
     { student_id: 's1', join_token: 't1', student: { full_name: 'Ama', email: 'ama@example.test' } },
     { student_id: 's2', join_token: 't2', student: { full_name: 'Kofi', email: 'kofi@example.test' } },
-  ];
+  ])];
+  const dedupeRows: any[] = (opts.dedupe ?? []).map(r => ({ ...r }));
+  const rpcCalls: any[] = [];
+  const pagedTables: string[] = [];
+
+  const matches = (r: any, c: any) =>
+    Object.entries(c._eqs).every(([col, val]) => col === 'type' || r[col] === val)
+    && (!c._in?.dedupe_key || c._in.dedupe_key.includes(r.dedupe_key));
 
   return {
+    rpcCalls,
+    dedupeRows,
+    pagedTables,
+    rpc(name: string, args: any) {
+      rpcCalls.push({ name, args });
+      if (opts.rpcError) return Promise.resolve({ data: null, error: { message: opts.rpcError } });
+      registrations.push({ student_id: args.p_student_id, join_token: `new-${args.p_student_id}` });
+      return Promise.resolve({ data: { ok: true }, error: null });
+    },
     from(table: string) {
       const chain: any = {
         _byCohort: false,
+        _status: null as string | null,
+        _op: 'select',
+        _eqs: {} as Record<string, any>,
+        _in: {} as Record<string, any[]>,
         select() { return chain; },
-        eq(col: string) { if (col === 'cohort_id') chain._byCohort = true; return chain; },
-        in(col: string) { if (col === 'cohort_id') chain._byCohort = true; return chain; },
+        eq(col: string, val: any) {
+          if (col === 'cohort_id') chain._byCohort = true;
+          if (col === 'status') chain._status = val;
+          chain._eqs[col] = val;
+          return chain;
+        },
+        in(col: string, vals: any[]) { if (col === 'cohort_id') chain._byCohort = true; chain._in[col] = vals; return chain; },
         not() { return chain; },
         order() { return chain; },
-        range() { return chain; },
+        range() { pagedTables.push(table); return chain; },
         gte() { return chain; },
+        update(vals: any) { chain._op = 'update'; chain._vals = vals; return chain; },
+        delete() { chain._op = 'delete'; return chain; },
+        upsert(rows: any[]) { chain._op = 'upsert'; chain._rows = rows; return chain; },
         insert() { return Promise.resolve({ error: null }); },
         maybeSingle() { return Promise.resolve({ data: table === 'events' ? event : null, error: null }); },
         then(onFulfilled: any, onRejected: any) {
+          const done = (result: any) => Promise.resolve(result).then(onFulfilled, onRejected);
           if (table === 'event_registrations' && opts.registrationsError) {
-            return Promise.resolve({ data: null, error: { message: opts.registrationsError } })
-              .then(onFulfilled, onRejected);
+            return done({ data: null, error: { message: opts.registrationsError } });
+          }
+          if (table === 'email_dedup') {
+            if (chain._op === 'upsert') {
+              // ignoreDuplicates: only rows that did not exist come back.
+              if (opts.claimLoses) return done({ data: [], error: null });
+              const inserted = chain._rows.filter((r: any) => !dedupeRows.some(d => d.dedupe_key === r.dedupe_key));
+              dedupeRows.push(...inserted.map((r: any) => ({ ...r })));
+              return done({ data: inserted.map((r: any) => ({ dedupe_key: r.dedupe_key })), error: null });
+            }
+            const hit = dedupeRows.filter(r => matches(r, chain));
+            if (chain._op === 'update') {
+              hit.forEach(r => Object.assign(r, chain._vals));
+              return done({ data: hit.map(r => ({ dedupe_key: r.dedupe_key })), error: null });
+            }
+            if (chain._op === 'delete') {
+              hit.forEach(r => dedupeRows.splice(dedupeRows.indexOf(r), 1));
+              return done({ data: null, error: null });
+            }
+            return done({ data: hit, count: hit.length, error: null });
           }
           const rows =
-            table === 'cohort_assignments'    ? [{ content_id: 'ev1', cohort_id: 'co1', content_type: 'event' }]
-            : table === 'events'              ? [event]
+            table === 'events'                ? [event].filter(e => !chain._status || e.status === chain._status)
             : table === 'event_registrations' ? registrations
             : table === 'live_attendance'     ? (opts.attendance ?? [])
-            : table === 'sent_nudges'         ? []
-            // The cohort fallback asks by cohort_id; the roster lookup asks by student id.
+            // The cohort list asks by cohort_id; the roster lookup asks by student id.
             : table === 'students'            ? (chain._byCohort ? STUDENTS.filter(s => s.cohort_id === 'co1') : STUDENTS)
             : table === 'cohorts'             ? COHORTS
             : [];
-          return Promise.resolve({ data: rows, count: rows.length, error: null }).then(onFulfilled, onRejected);
+          return done({ data: rows, count: rows.length, error: null });
         },
       };
       return chain;
@@ -100,6 +156,9 @@ function recipients() {
     ...emailSend.mock.calls.map(([payload]: any[]) => (payload as any).to),
   ];
 }
+function sentEmails(): any[] {
+  return batchSend.mock.calls.flatMap(([payloads]: any[]) => payloads ?? []);
+}
 
 beforeEach(() => {
   batchSend.mockClear();
@@ -107,56 +166,125 @@ beforeEach(() => {
   authState.requireUser.mockReset();
 });
 
+const runReminders = () => eventReminders(
+  new Request('http://localhost/api/cron/event-reminders', { method: 'POST', body: '{}' }) as any,
+);
+
 describe('event reminders', () => {
+  beforeEach(() => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(NOW); });
+  afterEach(() => { vi.useRealTimers(); });
+
   it('reminds a current cohort member and not one who moved onto a subscription', async () => {
-    adminClientMock.mockReturnValue(db());
-    const res = await eventReminders(
-      new Request('http://localhost/api/cron/event-reminders', { method: 'POST', body: '{}' }) as any,
-    );
+    const stub = db();
+    adminClientMock.mockReturnValue(stub);
+    const res = await runReminders();
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, movedOut: 1 });
+    expect(await res.json()).toMatchObject({ ok: true, sent: 1 });
     expect(recipients()).toEqual(['ama@example.test']);
+    expect(stub.dedupeRows).toMatchObject([{ dedupe_key: KEY, status: 'sent' }]);
   });
 
-  it('sends nothing when every registrant has moved on, rather than mailing the cohort', async () => {
-    // There is a fallback for an event whose attendees were never auto-registered. It must not be
-    // reachable by the filter emptying the list, or the fix would just divert the send to current
-    // members who were never registered and would get no tracked join link.
-    adminClientMock.mockReturnValue(db({
-      registrations: [{ student_id: 's2', join_token: 't2', student: { full_name: 'Kofi', email: 'kofi@example.test' } }],
-    }));
-    const res = await eventReminders(
-      new Request('http://localhost/api/cron/event-reminders', { method: 'POST', body: '{}' }) as any,
-    );
-    expect(res.status).toBe(200);
+  it('sends the day-before reminder with the tracked join link, never the raw meeting link', async () => {
+    adminClientMock.mockReturnValue(db());
+    await runReminders();
+    const [email] = sentEmails();
+    expect(email.subject).toBe('Reminder: "Live Session" is tomorrow');
+    expect(email.html).toContain('https://app.test/api/join?token=t1');
+    expect(email.html).not.toContain('href="https://meet.test"');
+  });
+
+  it('registers a current member who was never registered and sends their tracked link', async () => {
+    const stub = db({ registrations: [] });
+    adminClientMock.mockReturnValue(stub);
+    await runReminders();
+    expect(stub.rpcCalls).toEqual([{ name: 'register_event_attendee', args: { p_event_id: 'ev1', p_student_id: 's1' } }]);
+    expect(recipients()).toEqual(['ama@example.test']);
+    expect(sentEmails()[0].html).toContain('https://app.test/api/join?token=new-s1');
+  });
+
+  it('skips a student it cannot give a join token rather than sending an untracked link', async () => {
+    adminClientMock.mockReturnValue(db({ registrations: [], rpcError: 'boom' }));
+    await runReminders();
     expect(recipients()).toEqual([]);
   });
 
-  it('does not open the whole-cohort fallback when the registration read fails', async () => {
+  it('sends nothing for the event when the registration read fails', async () => {
     // A failed query returns no rows, which is indistinguishable from "nobody was ever
-    // registered" -- and that is the one condition the fallback fires on.
+    // registered" -- registering and mailing everyone on that basis would be guessing.
     adminClientMock.mockReturnValue(db({ registrationsError: 'connection reset' }));
-    const res = await eventReminders(
-      new Request('http://localhost/api/cron/event-reminders', { method: 'POST', body: '{}' }) as any,
-    );
+    const res = await runReminders();
     expect(res.status).toBe(200);
     expect(recipients()).toEqual([]);
   });
 
   it('skips an event the source of truth says is assigned to nobody', async () => {
-    // cohort_assignments can lag behind a re-assignment, so it decides which events to look at and
-    // never who hears about them. An event with an empty events.cohort_ids is assigned to nobody.
-    adminClientMock.mockReturnValue(db({ event: {
-      id: 'ev1', title: 'Live Session', slug: 'live-session', user_id: 'owner1',
-      event_date: tomorrow, event_time: '10:00', timezone: 'UTC', location: '', meeting_link: '',
-      event_type: 'virtual', recurrence: 'once', recurrence_end_date: null, recurrence_days: null,
-      cohort_ids: [],
-    } }));
-    const res = await eventReminders(
-      new Request('http://localhost/api/cron/event-reminders', { method: 'POST', body: '{}' }) as any,
-    );
-    expect(res.status).toBe(200);
+    adminClientMock.mockReturnValue(db({ event: { ...EVENT, cohort_ids: [] } }));
+    await runReminders();
     expect(recipients()).toEqual([]);
+  });
+
+  it('does not remind about a draft event', async () => {
+    adminClientMock.mockReturnValue(db({ event: { ...EVENT, status: 'draft' } }));
+    await runReminders();
+    expect(recipients()).toEqual([]);
+  });
+
+  it('waits until a session is inside the 24 hour window', async () => {
+    adminClientMock.mockReturnValue(db({ event: { ...EVENT, event_time: '14:00' } }));
+    await runReminders();
+    expect(recipients()).toEqual([]);
+  });
+
+  it('sends the one-hour reminder in the last hour, and says today for a same-day session', async () => {
+    adminClientMock.mockReturnValue(db({ event: { ...EVENT, event_date: '2026-06-01', event_time: '12:40' } }));
+    await runReminders();
+    expect(sentEmails()[0].subject).toBe('Starting in 1 hour: Live Session');
+
+    batchSend.mockClear();
+    adminClientMock.mockReturnValue(db({ event: { ...EVENT, event_date: '2026-06-01', event_time: '18:00' } }));
+    await runReminders();
+    expect(sentEmails()[0].subject).toBe('Reminder: "Live Session" is today');
+  });
+
+  it('pages the events and students reads instead of trusting one capped response', async () => {
+    const stub = db();
+    adminClientMock.mockReturnValue(stub);
+    await runReminders();
+    expect(stub.pagedTables).toEqual(expect.arrayContaining(['events', 'students']));
+  });
+
+  describe('sending each reminder once', () => {
+    it('does not send a reminder that is already claimed', async () => {
+      adminClientMock.mockReturnValue(db({ dedupe: [{ dedupe_key: KEY, status: 'sent' }] }));
+      const res = await runReminders();
+      expect(await res.json()).toMatchObject({ sent: 0, skipped: 1 });
+      expect(recipients()).toEqual([]);
+    });
+
+    it('does not send when an overlapping run claimed it first', async () => {
+      // Both runs saw no row; the rival's insert landed first, so ours comes back empty.
+      adminClientMock.mockReturnValue(db({ claimLoses: true }));
+      const res = await runReminders();
+      expect(await res.json()).toMatchObject({ sent: 0, skipped: 1 });
+      expect(recipients()).toEqual([]);
+    });
+
+    it('drops the claim when Resend rejects the batch, so the next run retries', async () => {
+      const stub = db();
+      adminClientMock.mockReturnValue(stub);
+      batchSend.mockResolvedValueOnce({ data: null, error: { name: 'rate_limit_exceeded', message: 'slow down' } } as any);
+      const res = await runReminders();
+      expect(await res.json()).toMatchObject({ sent: 0 });
+      expect(stub.dedupeRows).toEqual([]);
+    });
+
+    it('keeps the claim when the send throws, because the batch may have gone out', async () => {
+      const stub = db();
+      adminClientMock.mockReturnValue(stub);
+      batchSend.mockRejectedValueOnce(new Error('socket hang up'));
+      await runReminders();
+      expect(stub.dedupeRows).toMatchObject([{ dedupe_key: KEY, status: 'pending' }]);
+    });
   });
 });
 
