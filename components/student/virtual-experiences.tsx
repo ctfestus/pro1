@@ -1,160 +1,24 @@
 'use client';
 
 // Virtual Experiences section, extracted verbatim from app/student/page.tsx.
-// VirtualExperiencesSection is exported; VirtualExperienceCard,
-// VirtualExperienceDetailPane, groupVEsByIndustry and IndustryRow are file-internal.
+// VirtualExperiencesSection is exported; VirtualExperienceDetailPane, groupVEsByIndustry and
+// IndustryRow are file-internal.
 
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { createPortal } from 'react-dom';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
-import { CarouselSkeleton, EmptyState, ProgressBar, HoverPreviewCard } from '@/components/student/shared';
-import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
+import { CarouselSkeleton, EmptyState, ProgressBar, DeadlineNote } from '@/components/student/shared';
+import { publicGuide, GuideCard } from '@/components/ve/guide';
 import VeInstructorReview from '@/components/VeInstructorReview';
 import { takeVeReviewTarget } from '@/lib/pending-ve-review';
 import {
-  Briefcase, Check, CheckCircle, ChevronLeft, ChevronRight, FileText, Play, RefreshCw, Star, X, Zap,
+  Briefcase, Check, CheckCircle, ChevronLeft, ChevronRight, Play, RefreshCw, X, Zap,
 } from 'lucide-react';
-
-const DEADLINE_REFERENCE_MS = Date.now();
-
-// --- Virtual Experience Card ---
-function VirtualExperienceCard({ form, attempt, deadline, C, onDetails }: {
-  form: any; attempt: any; deadline?: Date | null; C: typeof LIGHT_C; onDetails: () => void;
-}) {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
-  const cfg = form.config || {};
-  const color = C.cta;
-  const slug  = form.slug || form.id;
-  // Shared rule, so a skipped optional LinkedIn share cannot hold this below 100% while the
-  // status beside it reads Completed.
-  const veCounts = veCompletionCounts(cfg.modules || [], attempt?.progress ?? {});
-  const totalReqs = veCounts.totalReqs;
-  const doneReqs = veCounts.doneReqs;
-  const pct = veProgressPct(cfg.modules || [], attempt?.progress ?? {});
-  const isCompleted = !!attempt?.completed_at;
-  const isStarted   = !!attempt && !isCompleted;
-  const actionLabel = isCompleted ? 'Review' : isStarted ? 'Continue' : 'Start';
-  const actionHref  = `/${slug}`;
-  const totalModules = (cfg.modules || []).length;
-  const totalLessons = (cfg.modules || []).reduce((a: number, m: any) => a + (m.lessons?.length || 0), 0);
-  const guide = publicGuide(cfg);
-
-  // Deadline display
-  const daysLeft = deadline && !isCompleted
-    ? Math.ceil((deadline.getTime() - DEADLINE_REFERENCE_MS) / 86400000)
-    : null;
-  const deadlineLabel = daysLeft === null ? null
-    : daysLeft < 0  ? 'Overdue'
-    : daysLeft === 0 ? 'Due today'
-    : `${daysLeft}d left`;
-  const deadlineColor = daysLeft === null ? null
-    : daysLeft < 0  ? '#ef4444'
-    : daysLeft <= 3 ? '#f59e0b'
-    : '#6b7280';
-
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -3 }}
-      className="rounded-2xl overflow-hidden flex flex-col"
-      style={{ background: C.card, boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.06)' : '0 10px 28px rgba(15,23,42,0.07)' }}>
-      {/* Cover */}
-      <div className="relative h-40 overflow-hidden cursor-pointer group flex-shrink-0"
-        style={{ background: `${color}14` }} onClick={onDetails}>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <Briefcase className="w-10 h-10 opacity-25" style={{ color }}/>
-        </div>
-        {cfg.coverImage && (
-          <img src={resolveCoverUrl(cfg.coverImage)} alt={form.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" onError={e => (e.currentTarget.style.display = 'none')}/>
-        )}
-        {/* Industry badge */}
-        <div className="absolute top-2 left-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full"
-            style={{ background: `${color}dd`, color: 'white', backdropFilter: 'blur(4px)' }}>
-            {cfg.industry}
-          </span>
-        </div>
-        {/* Status badge */}
-        {isCompleted && (
-          <div className="absolute top-2 right-2">
-            <span className="flex items-center justify-center w-5 h-5 rounded-full shadow-sm"
-              style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
-              <Check className="w-3 h-3" strokeWidth={3}/>
-            </span>
-          </div>
-        )}
-      </div>
-
-      {/* Body */}
-      <div className="p-4 flex flex-col flex-1">
-        <h3 className="text-sm font-semibold leading-snug mb-1 line-clamp-2 cursor-pointer hover:opacity-70 transition-opacity"
-          style={{ color: C.text }} onClick={onDetails}>
-          {form.title}
-        </h3>
-        {cfg.company && (
-          <p className="text-xs mb-2" style={{ color: C.faint }}>{cfg.company} · {cfg.role}</p>
-        )}
-        {guide && (
-          <div className="mb-2">
-            <GuideByline guide={guide} size={20}
-              theme={{ text: C.text, muted: C.muted, faint: C.faint, surface: C.card, border: C.cardBorder, accent: color }} />
-          </div>
-        )}
-        {deadlineLabel && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full mb-2"
-            style={{ background: `${deadlineColor ?? '#6b7280'}18`, color: deadlineColor ?? '#6b7280' }}>
-            ⏰ {deadlineLabel}
-          </span>
-        )}
-
-        {/* Progress */}
-        <div className="mb-4">
-          <div className="flex justify-between text-xs mb-1.5" style={{ color: C.faint }}>
-            <span>{isCompleted ? 'Completed' : isStarted ? 'In progress' : 'Not started'}</span>
-            <span>{pct}%</span>
-          </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)' }}>
-            <div className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${pct}%`, background: isCompleted ? '#10b981' : color }}/>
-          </div>
-        </div>
-
-        {/* Instructor score */}
-        {attempt?.review && (
-          <div className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-xl mb-3"
-            style={{ background: `${color}12`, color }}>
-            <Star className="w-3 h-3 flex-shrink-0"/> Instructor score: <strong>{attempt.review.score}/100</strong>
-          </div>
-        )}
-
-        {/* Actions */}
-        <div className="mt-auto flex items-center gap-2">
-          <button onClick={onDetails}
-            className="flex items-center gap-1.5 text-xs font-semibold px-3 py-2.5 rounded-xl transition-opacity hover:opacity-70"
-            style={{ background: C.pill, color: C.muted }}>
-            <FileText className="w-3 h-3"/> Details
-          </button>
-          <a href={actionHref}
-            className="flex-1 flex items-center justify-center gap-1.5 text-xs font-bold px-3 py-2.5 rounded-xl transition-opacity hover:opacity-80"
-            style={{
-              background: isCompleted ? C.pill : color,
-              color: isCompleted ? C.muted : 'white',
-              textDecoration: 'none',
-            }}>
-            <Play className="w-3 h-3"/> {actionLabel}
-          </a>
-        </div>
-      </div>
-    </motion.div>
-  );
-}
 
 // --- Virtual Experience Detail Pane ---
 function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = false }: {
@@ -371,7 +235,7 @@ function groupVEsByIndustry(items: any[]): [string, any[]][] {
   });
 }
 
-// One industry group rendered as a titled carousel of VE cards, with the grow-from-card hover preview
+// One industry group rendered as a titled carousel of VE cards
 function IndustryRow({ industry, items, attempts, deadlines, C, onDetails }: {
   industry: string; items: any[]; attempts: Record<string, any>; deadlines: Record<string, Date | null>;
   C: typeof LIGHT_C; onDetails: (f: any) => void;
@@ -379,22 +243,6 @@ function IndustryRow({ industry, items, attempts, deadlines, C, onDetails }: {
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
 
-  const [hover, setHover] = useState<{ form: any; left: number; top: number; originX: number; originY: number } | null>(null);
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
-  const scheduleClose = () => { cancelClose(); closeTimer.current = setTimeout(() => setHover(null), 120); };
-  const openHover = (form: any, el: HTMLElement) => {
-    if (typeof window === 'undefined' || !window.matchMedia('(hover: hover)').matches) return;
-    cancelClose();
-    const r = el.getBoundingClientRect();
-    const W = 320, H = 480;
-    const left = Math.max(12, Math.min(r.left + r.width / 2 - W / 2, window.innerWidth - W - 12));
-    const top  = Math.max(12, Math.min(r.top - 20, window.innerHeight - H - 12));
-    const originX = Math.max(0, Math.min(r.left + r.width / 2 - left, W));
-    const originY = Math.max(0, Math.min(r.top + r.height / 2 - top, H));
-    setHover({ form, left, top, originX, originY });
-  };
-  useEffect(() => () => cancelClose(), []);
 
   return (
     <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
@@ -424,9 +272,9 @@ function IndustryRow({ industry, items, attempts, deadlines, C, onDetails }: {
           const isStarted   = !!attempt && !isCompleted;
           const status      = isCompleted ? 'Completed' : isStarted ? 'In progress' : null;
           const cover       = form.config?.coverImage ?? form.cover_image;
+          const pct         = isCompleted ? 100 : veProgressPct(form.config?.modules || [], attempt?.progress ?? {});
           return (
-            <div key={form.id} className="flex-shrink-0 w-[220px] snap-start"
-              onMouseEnter={(e) => openHover(form, e.currentTarget)} onMouseLeave={scheduleClose}>
+            <div key={form.id} className="flex-shrink-0 w-[220px] snap-start">
               <button onClick={() => onDetails(form)} className="block w-full text-left transition-transform hover:-translate-y-0.5">
                 <div className="relative rounded-xl overflow-hidden w-full aspect-video" style={{ background: 'rgba(34,197,94,0.10)' }}>
                   <div className="absolute inset-0 flex items-center justify-center"><Briefcase className="w-8 h-8" style={{ color: '#16a34a' }}/></div>
@@ -444,38 +292,20 @@ function IndustryRow({ industry, items, attempts, deadlines, C, onDetails }: {
                   )}
                 </div>
                 <p className="text-xs mt-2" style={{ color: C.faint }}>Virtual Experience</p>
-                <p className="text-[15px] font-bold leading-snug mt-0.5 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
+                <p className="text-[15px] font-bold leading-snug mt-0.5 mb-2.5 line-clamp-2" style={{ color: C.text }}>{form.title}</p>
+                <ProgressBar value={pct} color="#22c55e"/>
+                <div className="mt-1 flex items-center justify-between gap-2">
+                  <p className="text-[11px]" style={{ color: C.faint }}>
+                    {isCompleted ? 'Completed' : isStarted ? `${pct}% complete` : 'Not started'}
+                  </p>
+                  <DeadlineNote deadline={deadlines[form.id]} done={isCompleted}/>
+                </div>
               </button>
             </div>
           );
         })}
       </div>
 
-      {/* Hover preview -- pops out of the hovered card, and back into it on close */}
-      {typeof document !== 'undefined' && createPortal(
-        <AnimatePresence>
-          {hover && (
-            <HoverPreviewCard
-              key={hover.form.id}
-              left={hover.left}
-              top={hover.top}
-              originX={hover.originX}
-              originY={hover.originY}
-              onEnter={cancelClose}
-              onLeave={scheduleClose}
-            >
-              <VirtualExperienceCard
-                form={hover.form}
-                attempt={attempts[hover.form.id]}
-                deadline={deadlines[hover.form.id]}
-                C={C}
-                onDetails={() => { setHover(null); onDetails(hover.form); }}
-              />
-            </HoverPreviewCard>
-          )}
-        </AnimatePresence>,
-        document.body,
-      )}
     </section>
   );
 }
