@@ -87,3 +87,9 @@ describe('session start instants', () => {
     expect(getNextSessionStart(event, new Date('2026-06-01T12:00:00Z'))?.timed).toBe(false);
   });
 });
+
+describe('timezone offsets', () => {
+  it('reads UTC-prefixed offsets the same as GMT ones', () => {
+    expect(sessionStartInstant('2026-06-02', '10:00', 'UTC+1')?.toISOString()).toBe('2026-06-02T09:00:00.000Z');
+  });
+});

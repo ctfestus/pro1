@@ -15,11 +15,11 @@ export interface EventSchedule {
 const DAY_MS = 86_400_000;
 const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
-// Timezones are stored as fixed GMT offsets like "GMT+0 (Accra)" or "GMT+5:30 (IST)".
-// Returns the offset in minutes, or null if it can't be parsed.
+// Timezones are stored as fixed GMT offsets like "GMT+0 (Accra)" or "GMT+5:30 (IST)"; "UTC+1"
+// reads the same. Returns the offset in minutes, or null if it can't be parsed.
 export function parseGmtOffsetMinutes(timezone?: string | null): number | null {
   if (!timezone) return null;
-  const m = timezone.match(/GMT\s*([+-])\s*(\d{1,2})(?::(\d{2}))?/i);
+  const m = timezone.match(/(?:GMT|UTC)\s*([+-])\s*(\d{1,2})(?::(\d{2}))?/i);
   if (!m) return null;
   const sign = m[1] === '-' ? -1 : 1;
   const hours = parseInt(m[2], 10);

@@ -169,7 +169,11 @@ async function remindSession(
     skipped += batch.length - owned.length;
     if (!owned.length) continue;
     const keys = owned.map(s => keyOf(s.id));
-    const release = () => supabase.from('email_dedup').delete().eq('type', type).in('dedupe_key', keys);
+    const release = async () => {
+      const { error } = await supabase.from('email_dedup').delete().eq('type', type).in('dedupe_key', keys);
+      // Left in place, these reminders will not be retried: make that visible.
+      if (error) console.error(`[cron/event-reminders] event=${event.id} could not release ${keys.length} claim(s); those reminders will not be retried`, error.message);
+    };
 
     // Nothing has gone out if building the emails fails, so release the claims for the next run.
     const payloads = await Promise.all(owned.map(async student => {
