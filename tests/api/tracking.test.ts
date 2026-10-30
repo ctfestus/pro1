@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { NextResponse } from 'next/server';
 
 // Role-tiering archetype: requireRole(['admin','instructor','staff']). The gate admits three
@@ -97,6 +97,16 @@ function openVeActivityDb(withAttempt = true) {
 }
 
 beforeEach(() => mockRequireRole.mockReset());
+afterEach(() => vi.useRealTimers());
+
+// The activity fixtures are dated 8 October 2026, and a row's status depends on the days since
+// that activity (STALL_DAYS in lib/tracking-report). Tests that assert a status pin "today", or
+// they flip from in_progress to stalled once the real calendar moves on. Only Date is faked, so
+// timers inside the route still run normally.
+function setToday(iso: string) {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(iso));
+}
 
 describe('GET /api/tracking', () => {
   it('401 for an anonymous caller', async () => {
@@ -193,6 +203,7 @@ describe('GET /api/tracking paging', () => {
   });
 
   it('reports real VE activity for a learner with no cohort', async () => {
+    setToday('2026-10-09T10:00:00.000Z');
     authed('admin', openVeActivityDb());
     const json = await (await get('?contentType=virtual_experience')).json();
     expect(json.total).toBe(1);
@@ -205,6 +216,14 @@ describe('GET /api/tracking paging', () => {
       status: 'in_progress',
       activityOnly: true,
     });
+  });
+
+  it('marks VE activity stalled once it is a week or more old', async () => {
+    setToday('2026-10-20T10:00:00.000Z');
+    authed('admin', openVeActivityDb());
+    const json = await (await get('?contentType=virtual_experience')).json();
+    expect(json.total).toBe(1);
+    expect(json.rows[0]).toMatchObject({ studentEmail: 'free@example.com', formId: 've1', status: 'stalled' });
   });
 
   it('does not turn a free account with no attempt into a not-started VE learner', async () => {
@@ -248,6 +267,7 @@ describe('GET /api/tracking paging', () => {
       assignment_submissions: { data: [], error: null },
       cohort_assignments: { data: [], error: null },
     });
+    setToday('2026-10-09T10:00:00.000Z');
     authed('instructor', db);
     const json = await (await get('?contentType=course')).json();
     expect(json.total).toBe(1);
