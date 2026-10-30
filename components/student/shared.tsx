@@ -6,6 +6,7 @@
 
 import React, { useCallback, type ReactNode } from 'react';
 import { motion } from 'motion/react';
+import { Clock } from 'lucide-react';
 import { LIGHT_C, useC } from '@/lib/theme';
 
 // --- Skeleton ---
@@ -91,6 +92,22 @@ export function ProgressBar({ value, max = 100, color }: { value: number; max?: 
     <div className="w-full rounded-full overflow-hidden" style={{ height: 6, background: C.pill }}>
       <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: color ?? C.green }}/>
     </div>
+  );
+}
+
+// --- Deadline note ---
+// The days-left countdown for a carousel card's status line, in the same colours the full
+// course and VE cards use. Renders nothing once the item is done or has no deadline.
+export function DeadlineNote({ deadline, done }: { deadline?: Date | null; done: boolean }) {
+  if (!deadline || done) return null;
+  // eslint-disable-next-line react-hooks/purity
+  const daysLeft = Math.ceil((deadline.getTime() - Date.now()) / 86400000);
+  const label = daysLeft < 0 ? 'Overdue' : daysLeft === 0 ? 'Due today' : `${daysLeft}d left`;
+  const color = daysLeft < 0 ? '#ef4444' : daysLeft <= 3 ? '#f59e0b' : '#6b7280';
+  return (
+    <span className="inline-flex flex-shrink-0 items-center gap-1 text-[11px] font-semibold" style={{ color }}>
+      <Clock className="h-3 w-3"/>{label}
+    </span>
   );
 }
 
