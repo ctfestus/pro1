@@ -97,8 +97,8 @@ export async function POST(req: NextRequest) {
       sent += result.sent;
       skipped += result.skipped;
     } catch (err) {
-      // One event failing must not stop the rest. Its dedupe rows stay unsent or go stale, so the
-      // next run retries it.
+      // One event failing must not stop the rest. Reminders it had not claimed are picked up by the
+      // next run; any it claimed and could not settle are not resent (see remindSession).
       console.error('[cron/event-reminders] event failed', event.id, err);
     }
   }
@@ -168,7 +168,10 @@ async function remindSession(
     const owned = batch.filter(s => ownedKeys.has(keyOf(s.id)));
     skipped += batch.length - owned.length;
     if (!owned.length) continue;
+    const keys = owned.map(s => keyOf(s.id));
+    const release = () => supabase.from('email_dedup').delete().eq('type', type).in('dedupe_key', keys);
 
+    // Nothing has gone out if building the emails fails, so release the claims for the next run.
     const payloads = await Promise.all(owned.map(async student => {
       const token = tokens.get(student.id);
       const joinUrl = token ? `${ctx.appUrl}/api/join?token=${token}` : undefined;
@@ -197,15 +200,14 @@ async function remindSession(
         branding: ctx.branding,
       });
       return { from: ctx.FROM, to: (student.email ?? '').trim().toLowerCase(), subject: rendered.subject, html: rendered.html };
-    }));
+    })).catch(async err => { await release(); throw err; });
 
-    const keys = owned.map(s => keyOf(s.id));
     // Resend reports a rejected request in the result. Nothing went out, so drop the claims and let
     // the next run retry. A thrown error is left claimed: the batch may have been accepted.
     const { error: sendError } = await resend.batch.send(payloads);
     if (sendError) {
       console.error('[cron/event-reminders] batch send failed:', sendError);
-      await supabase.from('email_dedup').delete().eq('type', type).in('dedupe_key', keys);
+      await release();
       continue;
     }
     sent += owned.length;
