@@ -104,6 +104,25 @@ describe('sendPathNotification', () => {
     const args = vi.mocked(learningPathAssignedEmail).mock.calls.at(-1)?.[0];
     expect(args?.items.map(i => i.title)).toEqual(['Core course']);
     expect(args?.specializations).toEqual(['Finance', 'HR']);
+    expect(args?.specializationOptional).toBe(false);
+  });
+
+  it('tells learners the specialization is optional when the path allows Core only', async () => {
+    const db = makeSupabaseStub({
+      learning_paths: { data: {
+        item_ids: ['core1', 'fin1'],
+        tracks: [{ id: 't-fin', name: 'Finance', item_ids: ['fin1'] }],
+        tracks_optional: true,
+      }, error: null },
+      courses: { data: [{ id: 'core1', title: 'Core course', cover_image: null }], error: null },
+      virtual_experiences: { data: [], error: null },
+      certifications: { data: [], error: null },
+      students: { data: studentRows(1), error: null },
+    });
+
+    await sendPathNotification(db as any, { ...path, item_ids: ['core1', 'fin1'] }, ['co1']);
+
+    expect(vi.mocked(learningPathAssignedEmail).mock.calls.at(-1)?.[0]?.specializationOptional).toBe(true);
   });
 });
 

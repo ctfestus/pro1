@@ -244,7 +244,7 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
   const openNewEditor = () => openEditor({
     request_id: crypto.randomUUID(), title: '', description: '', cover_image: '',
     item_ids: [], cohort_ids: [], available_to_everyone: false, status: 'draft', next_path_id: null,
-    overview: '', skills: [], who_should_take: [], tools: [], tracks: [],
+    overview: '', skills: [], who_should_take: [], tools: [], tracks: [], tracks_optional: false,
   });
 
   const closeEditor = () => {
@@ -732,12 +732,40 @@ export function LearningPathsSection({ C, forms }: { C: typeof LIGHT_C; forms: a
               ))}
             </div>
           )}
+          {tracks.length > 0 && (
+            <button
+              type="button"
+              role="switch"
+              aria-checked={editing.tracks_optional === true}
+              onClick={() => setEditing((prev: any) => ({ ...prev, tracks_optional: !(prev.tracks_optional === true) }))}
+              className="w-full flex items-start justify-between gap-4 p-4 rounded-2xl text-left transition-all"
+              style={{ background: editing.tracks_optional ? `${C.green}10` : C.pill, boxShadow: editing.tracks_optional ? `inset 0 0 0 1.5px ${C.green}` : 'none' }}
+            >
+              <span className="space-y-1">
+                <span className="block text-sm font-bold" style={{ color: C.text }}>Specializing is optional</span>
+                <span className="block text-xs leading-relaxed" style={{ color: C.faint }}>
+                  Learners can also choose no specialization and complete the path, and get its certificate, with the core
+                  items only. Turning this off later keeps the learners who already chose it.
+                </span>
+                {editing.tracks_optional === true && !selectedIds.some(id => !tracks.some(t => t.item_ids.includes(id))) && (
+                  <span className="block text-xs font-semibold" style={{ color: '#ef4444' }}>
+                    Every item is in a track, so there is no core to complete. Leave at least one item untagged.
+                  </span>
+                )}
+              </span>
+              <span className="relative flex-shrink-0 w-11 h-6 rounded-full transition-colors"
+                style={{ background: editing.tracks_optional ? C.green : C.card }}>
+                <span className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full transition-all"
+                  style={{ left: editing.tracks_optional ? 23 : 3, background: '#ffffff' }} />
+              </span>
+            </button>
+          )}
         </div>
 
         {/* Order selected items */}
         {selectedIds.length > 0 && (
           <div className="space-y-3 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>
-            <div><h3 className="text-sm font-bold" style={{ color: C.text }}>Path sequence</h3><p className="text-xs mt-1" style={{ color: C.faint }}>{selectedIds.length} ordered content{selectedIds.length === 1 ? '' : 's'}{tracks.length > 0 ? '. Tag an item with a track to make it track-only.' : ''}</p></div>
+            <div><h3 className="text-sm font-bold" style={{ color: C.text }}>Path sequence</h3><p className="text-xs mt-1" style={{ color: C.faint }}>{selectedIds.length} ordered content{selectedIds.length === 1 ? '' : 's'}{tracks.length > 0 ? '. Tag an item with a track to make it track-only. Learners take the core items first, then their track.' : ''}</p></div>
             <div className="space-y-1.5">
               {selectedIds.map((id, idx) => {
                 const f = allOptions.find((x: any) => x.id === id);

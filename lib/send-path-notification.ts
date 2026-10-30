@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 import { learningPathAssignedEmail } from '@/lib/email-templates';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { applyEmailTemplate } from '@/lib/email-template-service';
-import { pathTracks, requiredItemIds } from '@/lib/learning-path-tracks';
+import { pathTracks, requiredItemIds, coreOnlyAvailable } from '@/lib/learning-path-tracks';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100;
@@ -63,10 +63,11 @@ export async function sendPathNotification(
   // Fails closed: without the saved tracks the email cannot tell core from track content, so a
   // failed read throws (callers report it as a notification failure) instead of falling back to
   // the full item list.
-  const { data: saved, error: savedError } = await supabase.from('learning_paths').select('item_ids, tracks').eq('id', lp.id).maybeSingle();
+  const { data: saved, error: savedError } = await supabase.from('learning_paths').select('item_ids, tracks, tracks_optional').eq('id', lp.id).maybeSingle();
   if (savedError) throw savedError;
   if (!saved) throw new Error(`Learning path ${lp.id} not found`);
-  const pathShape = { item_ids: saved.item_ids ?? [], tracks: saved.tracks ?? [] };
+  const pathShape = { item_ids: saved.item_ids ?? [], tracks: saved.tracks ?? [], tracks_optional: saved.tracks_optional === true };
+  const specializationOptional = coreOnlyAvailable(pathShape);
   const specializations = pathTracks(pathShape).map(t => t.name);
   const itemIds: string[] = requiredItemIds(pathShape, null);
   const [{ data: coursesRaw }, { data: vesRaw }, { data: certsRaw }] = itemIds.length
@@ -129,6 +130,7 @@ export async function sendPathNotification(
         reason,
         appName: t.appName,
         specializations,
+        specializationOptional,
       });
       const rendered = await applyEmailTemplate({
         key: 'learning_path_assigned', fallbackSubject, fallbackHtml,

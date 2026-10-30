@@ -6,7 +6,7 @@ import { reconcilePathCompletion } from '@/lib/learning-path-progress';
 import { countPathLearners } from '@/lib/learning-path-learners';
 import { courseProgressPct } from '@/lib/course-progress';
 import { veProgressPct } from '@/lib/ve-completion';
-import { normalizeTracks, tracksError, changedRequirements, pathTracks, chosenTrack, needsTrack, requiredItemIds, isPathComplete } from '@/lib/learning-path-tracks';
+import { normalizeTracks, tracksError, changedRequirements, pathTracks, chosenTrack, needsTrack, requiredItemIds, isPathComplete, validTrackId, trackLabel, coreOnlyAvailable, CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 function adminClient() {
@@ -33,14 +33,20 @@ async function completedConflictMessage(
       .eq('learning_path_id', pathId).not('completed_at', 'is', null).order('id').range(from, to));
     const stranded = completers.filter(c => c.track_id ? changed.trackIds.includes(c.track_id) : changed.core);
     if (!stranded.length) return fallback;
-    const prevNames = new Map(pathTracks(prev).map(t => [t.id, t.name] as [string, string]));
-    const names = [...new Set(stranded.map(c => (c.track_id && prevNames.get(c.track_id)) || 'the core'))];
+    const names = [...new Set(stranded.map(c => trackLabel(prev, c.track_id) ?? 'the core'))];
     const who = `${stranded.length} learner${stranded.length === 1 ? '' : 's'}`;
     return `This change alters the content ${who} already completed (${names.join(', ')}). Undo that change, or create a new path.`;
   } catch (err) {
     console.error('[learning-paths] completers lookup error:', err);
     return fallback;
   }
+}
+
+const NO_CORE_FOR_OPTIONAL = 'Specializing can only be optional when the path has at least one core item. Add a core item, or turn the option off.';
+
+/** True when the path would offer Core only with nothing in the core to complete. */
+function optionalWithoutCore(shape: { item_ids?: string[] | null; tracks?: unknown; tracks_optional?: boolean | null }): boolean {
+  return shape.tracks_optional === true && pathTracks(shape).length > 0 && !coreOnlyAvailable(shape);
 }
 
 async function getSessionUser(req: NextRequest): Promise<{ id: string; email: string } | null> {
@@ -96,7 +102,7 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, request_id, available_to_everyone,
-            overview, skills, who_should_take, tools, tracks } = body;
+            overview, skills, who_should_take, tools, tracks, tracks_optional } = body;
     // Open access replaces cohort targeting rather than adding to it -- the database enforces the
     // exclusion, so normalise here instead of failing the author on a constraint they cannot see.
     const openAccess = available_to_everyone === true;
@@ -104,6 +110,9 @@ export async function POST(req: NextRequest) {
     if (!title?.trim()) return NextResponse.json({ error: 'title is required' }, { status: 400 });
     const createTracksProblem = tracksError(tracks);
     if (createTracksProblem) return NextResponse.json({ error: createTracksProblem }, { status: 400 });
+    if (optionalWithoutCore({ item_ids: item_ids ?? [], tracks, tracks_optional: tracks_optional === true })) {
+      return NextResponse.json({ error: NO_CORE_FOR_OPTIONAL }, { status: 400 });
+    }
     if (request_id !== undefined && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(request_id)) {
       return NextResponse.json({ error: 'request_id must be a UUID' }, { status: 400 });
     }
@@ -123,6 +132,7 @@ export async function POST(req: NextRequest) {
       instructor_id: user.id,
       item_ids: item_ids ?? [],
       tracks: normalizeTracks(tracks, item_ids ?? []),
+      tracks_optional: tracks_optional === true,
       cohort_ids: targetCohorts,
       available_to_everyone: openAccess,
       status: status ?? 'draft',
@@ -173,7 +183,7 @@ export async function POST(req: NextRequest) {
     if (user instanceof NextResponse) return user;
 
     const { id, title, description, cover_image, badge_image_url, item_ids, cohort_ids, status, next_path_id, available_to_everyone,
-            overview, skills, who_should_take, tools, tracks } = body;
+            overview, skills, who_should_take, tools, tracks, tracks_optional } = body;
     if (!id) return NextResponse.json({ error: 'id is required' }, { status: 400 });
     // Checked before saving: normalizeTracks would drop a bad track, silently making its items
     // core content required of everyone.
@@ -183,12 +193,19 @@ export async function POST(req: NextRequest) {
     // Fetch previous state to detect newly published or newly added cohorts. Scoped to the owner,
     // like the write below: nothing about another instructor's path is read or revealed.
     const { data: prev, error: prevError } = await supabase.from('learning_paths')
-      .select('status, cohort_ids, item_ids, tracks, updated_at')
+      .select('status, cohort_ids, item_ids, tracks, tracks_optional, updated_at')
       .eq('id', id)
       .eq('instructor_id', user.id)
       .maybeSingle();
     if (prevError) { console.error('[learning-paths] update lookup error:', prevError); return NextResponse.json({ error: 'Failed to update learning path.' }, { status: 500 }); }
     if (!prev) return NextResponse.json({ error: 'Learning path not found' }, { status: 404 });
+    if (optionalWithoutCore({
+      item_ids: (item_ids ?? prev.item_ids ?? []) as string[],
+      tracks: tracks !== undefined ? tracks : prev.tracks,
+      tracks_optional: tracks_optional !== undefined ? tracks_optional === true : prev.tracks_optional === true,
+    })) {
+      return NextResponse.json({ error: NO_CORE_FOR_OPTIONAL }, { status: 400 });
+    }
 
     // A completed path keeps the track its certificate was issued for, and its learner can no
     // longer change track. So on a path with tracks (before or after this save), no change may
@@ -218,6 +235,9 @@ export async function POST(req: NextRequest) {
     // Tracks may only name items in the path, so they are cleaned against the item list being
     // saved (or the stored one when the request leaves items alone).
     if (tracks          !== undefined) updateData.tracks          = normalizeTracks(tracks, item_ids ?? prev.item_ids ?? []);
+    // Only whether "no specialization" is offered. Learners who already chose it keep it, so
+    // turning it off changes no one's requirements and needs no completer guard.
+    if (tracks_optional !== undefined) updateData.tracks_optional = tracks_optional === true;
     if (overview        !== undefined) updateData.overview        = overview ?? null;
     if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
     if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];
@@ -450,13 +470,14 @@ export async function POST(req: NextRequest) {
       // A path with tracks is sent as this learner's own path: core + their track, so every
       // count and timeline on the client needs no track logic. Before a track is chosen that is
       // the core, with needs_track telling the client to ask for one.
-      const trackId: string | null = chosenTrack(path, prog?.track_id) ? prog.track_id : null;
+      const trackId = validTrackId(path, prog?.track_id);
       const myItemIds = requiredItemIds(path, trackId);
       return {
         ...path,
         item_ids: myItemIds,
         tracks: pathTracks(path).map(t => ({ id: t.id, name: t.name, description: t.description ?? null, item_count: t.item_ids.length })),
         track_id: trackId,
+        tracks_optional: coreOnlyAvailable(path),
         // Which of item_ids are the track's own, so the timeline can show core and
         // specialization as separate sections.
         track_item_ids: chosenTrack(path, trackId)?.item_ids ?? [],
@@ -504,7 +525,7 @@ export async function POST(req: NextRequest) {
 
     const [{ data: student }, { data: path }, { data: prog, error: progError }] = await Promise.all([
       supabase.from('students').select('cohort_id').eq('id', user.id).single(),
-      supabase.from('learning_paths').select('id, item_ids, tracks, cohort_ids, available_to_everyone, status').eq('id', path_id).maybeSingle(),
+      supabase.from('learning_paths').select('id, item_ids, tracks, tracks_optional, cohort_ids, available_to_everyone, status').eq('id', path_id).maybeSingle(),
       supabase.from('learning_path_progress').select('completed_at, cert_id').eq('student_id', user.id).eq('learning_path_id', path_id).maybeSingle(),
     ]);
     if (progError) { console.error('[learning-paths] choose-track progress error:', progError); return NextResponse.json({ error: 'Could not save your track.' }, { status: 500 }); }
@@ -512,7 +533,10 @@ export async function POST(req: NextRequest) {
     const reachable = path?.status === 'published'
       && (path.available_to_everyone === true || (!!student?.cohort_id && (path.cohort_ids ?? []).includes(student.cohort_id)));
     if (!path || !reachable) return NextResponse.json({ error: 'Learning path not found' }, { status: 404 });
-    if (!chosenTrack(path, track_id)) return NextResponse.json({ error: 'That track is not part of this path' }, { status: 400 });
+    const coreOnly = track_id === CORE_ONLY_TRACK;
+    if (coreOnly ? !coreOnlyAvailable(path) : !chosenTrack(path, track_id)) {
+      return NextResponse.json({ error: coreOnly ? 'This path needs a specialization' : 'That track is not part of this path' }, { status: 400 });
+    }
     // A finished path keeps the track its certificate was issued for.
     if (prog?.completed_at || prog?.cert_id) {
       return NextResponse.json({ error: 'You have completed this path, so its track can no longer be changed.' }, { status: 409 });

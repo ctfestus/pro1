@@ -4,10 +4,20 @@
 // needs "what content does this path grant" (access, catalogue, tracking) keeps working as is.
 // A track names the subset of those items that only its learners take. An item in no track is
 // core and is taken by everyone. A learner picks one track (learning_path_progress.track_id) and
-// is required to complete core + that track's items, in item_ids order.
+// is required to complete the core, then that track's items, each in item_ids order. Core first is
+// the one order every surface uses (the learner's timeline, "next up" emails, certificates).
 //
 // A path with tracks cannot be completed before a track is chosen: otherwise finishing the core
 // alone would issue the certificate.
+//
+// Core only: when the instructor makes specializing optional (learning_paths.tracks_optional), a
+// learner may answer "no specialization". That answer is stored as CORE_ONLY_TRACK in track_id, so
+// every reader treats it as a made choice whose required items are the core alone, without
+// having to load the path's setting. The setting only decides whether the choice is offered.
+// Turning it off later keeps the learners who already chose it on the core.
+
+/** track_id for a learner who chose no specialization. Never a real track's id (tracksError). */
+export const CORE_ONLY_TRACK = '__core_only__';
 
 export type PathTrack = {
   id: string;
@@ -28,7 +38,7 @@ export function normalizeTracks(raw: unknown, itemIds: string[] = []): PathTrack
     if (!t || typeof t !== 'object') continue;
     const id = String((t as any).id ?? '').trim();
     const name = String((t as any).name ?? '').trim();
-    if (!id || !name || seen.has(id)) continue;
+    if (!id || !name || seen.has(id) || id === CORE_ONLY_TRACK) continue;
     seen.add(id);
     const description = String((t as any).description ?? '').trim();
     const items = Array.isArray((t as any).item_ids) ? (t as any).item_ids.map(String) : [];
@@ -57,6 +67,7 @@ export function tracksError(raw: unknown): string | null {
     const id = typeof (t as any).id === 'string' ? (t as any).id.trim() : '';
     if (!id) return 'Each track needs an id.';
     if (seen.has(id)) return 'Two tracks share the same id.';
+    if (id === CORE_ONLY_TRACK) return 'That track id is reserved.';
     seen.add(id);
     if (typeof (t as any).name !== 'string' || !(t as any).name.trim()) return 'Give every track a name.';
     const items = (t as any).item_ids;
@@ -79,12 +90,27 @@ export function chosenTrack(path: TrackedPath, trackId: string | null | undefine
 
 /** Whether the learner still has to pick a track before the path can be completed. */
 export function needsTrack(path: TrackedPath, trackId: string | null | undefined): boolean {
-  return pathTracks(path).length > 0 && !chosenTrack(path, trackId);
+  return pathTracks(path).length > 0 && trackId !== CORE_ONLY_TRACK && !chosenTrack(path, trackId);
 }
 
 /**
- * The items this learner must complete, in path order: core plus their track's items. Before a
- * track is chosen this is the core only (what they can already start on).
+ * The learner's stored choice when it still stands (a track the path has, or core only), else
+ * null. What a learner-facing read should pass on as their track.
+ */
+export function validTrackId(path: TrackedPath, trackId: string | null | undefined): string | null {
+  if (trackId === CORE_ONLY_TRACK) return CORE_ONLY_TRACK;
+  return chosenTrack(path, trackId) ? trackId! : null;
+}
+
+/** Display name for a learner's track: the track's name, "Core only", or null for no choice. */
+export function trackLabel(path: TrackedPath, trackId: string | null | undefined): string | null {
+  if (trackId === CORE_ONLY_TRACK) return 'Core only';
+  return chosenTrack(path, trackId)?.name ?? null;
+}
+
+/**
+ * The items this learner must complete: the core, then their track's items, each in path order.
+ * Before a track is chosen this is the core only (what they can already start on).
  */
 export function requiredItemIds(path: TrackedPath, trackId: string | null | undefined): string[] {
   const itemIds = path.item_ids ?? [];
@@ -92,7 +118,15 @@ export function requiredItemIds(path: TrackedPath, trackId: string | null | unde
   if (!tracks.length) return itemIds;
   const inAnyTrack = new Set(tracks.flatMap(t => t.item_ids));
   const mine = new Set(chosenTrack(path, trackId)?.item_ids ?? []);
-  return itemIds.filter(id => !inAnyTrack.has(id) || mine.has(id));
+  return [...itemIds.filter(id => !inAnyTrack.has(id)), ...itemIds.filter(id => mine.has(id))];
+}
+
+/**
+ * Whether learners may choose Core only: the instructor allowed it, and there is a core to take.
+ * A path whose every item is in a track would leave a Core only learner nothing to complete.
+ */
+export function coreOnlyAvailable(path: TrackedPath & { tracks_optional?: boolean | null }): boolean {
+  return path.tracks_optional === true && pathTracks(path).length > 0 && requiredItemIds(path, CORE_ONLY_TRACK).length > 0;
 }
 
 /**
@@ -137,7 +171,8 @@ export function changedRequirements(prev: TrackedPath, next: TrackedPath): { tra
     return !sameSet(requiredItemIds(prev, trackId), requiredItemIds(next, trackId));
   };
   return {
-    trackIds: pathTracks(prev).map(t => t.id).filter(id => changes(id)),
+    // Core only learners are on the core alone, so they are protected like a track of their own.
+    trackIds: [...pathTracks(prev).map(t => t.id), ...(pathTracks(prev).length ? [CORE_ONLY_TRACK] : [])].filter(id => changes(id)),
     core: changes(null),
   };
 }

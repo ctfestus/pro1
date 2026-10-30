@@ -97,6 +97,21 @@ describe('GET /api/learning-paths/report', () => {
     expect(body.cohorts.map((c: any) => [c.name, c.source])).toEqual([['Cohort 7', 'cohort'], ['Pro Monthly', 'subscriber']]);
   });
 
+  it("orders a learner's items core first, then their track, as their own view and emails do", async () => {
+    mockRequireRole.mockResolvedValue({ user: { id: 'owner1' }, role: 'instructor', serviceDb: stub({
+      learning_paths: { data: { ...PATH, item_ids: ['course1', 've1', 'course2'], tracks: [{ id: 'fin', name: 'Finance', item_ids: ['ve1'] }] }, error: null },
+      courses: { data: [{ id: 'course1', title: 'Excel Basics' }, { id: 'course2', title: 'Pivot Tables' }], error: null },
+      learning_path_progress: { data: [{ id: 'p1', student_id: 'bootcamper', track_id: 'fin', completed_item_ids: ['course1'], completed_at: null, cert_id: null, updated_at: '2026-09-01T00:00:00Z' }], count: 1, error: null },
+      course_attempts: [{ data: [], count: 0, error: null }],
+      guided_project_attempts: [{ data: [], count: 0, error: null }],
+    }) } as any);
+    const body = await (await get()).json();
+    const learner = body.learners.find((l: any) => l.student_id === 'bootcamper');
+    // Authored: course1, ve1 (Finance), course2. The learner takes course2 before ve1.
+    expect(Object.keys(learner.items)).toEqual(['course1', 'course2', 've1']);
+    expect(learner.current_item_id).toBe('course2');
+  });
+
   it('finds a subscriber who lapsed mid-item with no stored progress, and drops lapsed ones who did nothing', async () => {
     const serviceDb = stub({
       learning_path_progress: { data: [], count: 0, error: null },

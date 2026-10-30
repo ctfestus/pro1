@@ -7,7 +7,7 @@ import {
   courseCompletedNextUpEmail,
   learningPathAssignedEmail,
 } from '@/lib/email-templates';
-import { isPathComplete, pathTracks, requiredItemIds } from '@/lib/learning-path-tracks';
+import { isPathComplete, pathTracks, requiredItemIds, coreOnlyAvailable } from '@/lib/learning-path-tracks';
 
 export async function updateLearningPathProgress(
   supabase: any,
@@ -228,7 +228,7 @@ async function runPathCompletionEffects(
     try {
       const { data: nextPath } = await supabase
         .from('learning_paths')
-        .select('id, cohort_ids, title, description, item_ids, tracks')
+        .select('id, cohort_ids, title, description, item_ids, tracks, tracks_optional')
         .eq('id', path.next_path_id)
         .single();
       if (nextPath) {
@@ -277,6 +277,7 @@ async function runPathCompletionEffects(
                 name: studentRow.full_name ?? 'there', pathTitle: nextPath.title,
                 pathDescription: nextPath.description ?? undefined, dashboardUrl, items, branding,
                 specializations: pathTracks(nextPath).map(t => t.name),
+                specializationOptional: coreOnlyAvailable(nextPath),
               });
             const rendered = await applyEmailTemplate({ key: 'learning_path_assigned', fallbackSubject, fallbackHtml, variables: { student_name: studentRow.full_name ?? 'there', path_title: nextPath.title, app_name: t.appName }, branding });
             const settled = await sendCertificateEmailOnce(supabase, {

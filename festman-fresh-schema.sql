@@ -789,6 +789,9 @@ CREATE TABLE public.learning_paths (
   -- learner takes core + their chosen track (learning_path_progress.track_id).
   tracks          jsonb       NOT NULL DEFAULT '[]'::jsonb
     CONSTRAINT learning_paths_tracks_is_array CHECK (jsonb_typeof(tracks) = 'array'),
+  -- migration 228: learners may also choose no specialization (track_id '__core_only__') and
+  -- complete on the core alone.
+  tracks_optional boolean     NOT NULL DEFAULT false,
   -- migration 186, as for virtual_experiences above.
   available_to_everyone boolean NOT NULL DEFAULT false
     CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
@@ -1580,6 +1583,7 @@ BEGIN
     badge_image_url       = v_new.badge_image_url,
     item_ids              = v_new.item_ids,
     tracks                = v_new.tracks,
+    tracks_optional       = v_new.tracks_optional,
     overview              = v_new.overview,
     skills                = v_new.skills,
     who_should_take       = v_new.who_should_take,
@@ -3044,18 +3048,8 @@ CREATE POLICY "students_read_own_progress"
   ON public.learning_path_progress FOR SELECT
   USING (student_id = (SELECT auth.uid()));
 
-CREATE POLICY "students_insert_own_progress"
-  ON public.learning_path_progress FOR INSERT
-  WITH CHECK (
-    student_id = (SELECT auth.uid())
-    AND EXISTS (
-      SELECT 1 FROM public.learning_paths lp
-      JOIN  public.students s ON s.id = (SELECT auth.uid())
-      WHERE lp.id = learning_path_id
-        AND lp.status = 'published'
-        AND s.cohort_id = ANY(lp.cohort_ids)
-    )
-  );
+-- No student INSERT policy (dropped in migration 229): every progress write goes through the
+-- service role, so a learner cannot set their own track, completed items or completion.
 
 CREATE POLICY "instructors_read_path_progress"
   ON public.learning_path_progress FOR SELECT
