@@ -16,6 +16,7 @@ export const CLAUDE_FEATURES: Record<string, { effort: 'low' | 'medium'; maxOutp
   've-instructor-review-draft': { effort: 'medium', maxOutputTokens: 8192 },
   'extract-rubric': { effort: 'medium', maxOutputTokens: 12288 },
   'ai-assist': { effort: 'low', maxOutputTokens: 8192 },
+  've-brief-chat': { effort: 'low', maxOutputTokens: 4096 },
   tutor: { effort: 'low' },
 };
 
