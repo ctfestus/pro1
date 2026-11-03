@@ -86,6 +86,16 @@ describe('provider selection and isolation', () => {
     vi.stubEnv('ANTHROPIC_TUTOR_API_KEY', '');
     expect(keyFor('anthropic', { feature: 'tutor' })).toBe('');
   });
+
+  it('routes the VE brief chat to Claude only when its override selects anthropic', () => {
+    expect(providerChain({ feature: 've-brief-chat' })).toEqual(['gemini', 'openai']);
+    vi.stubEnv('AI_PROVIDER_VE_BRIEF_CHAT', 'anthropic');
+    vi.stubEnv('AI_FALLBACK_PROVIDERS', 'gemini,openai');
+    expect(providerChain({ feature: 've-brief-chat' })).toEqual(['anthropic', 'gemini', 'openai']);
+    const params = anthropicParameters(request({ feature: 've-brief-chat', effort: 'medium' }));
+    expect(params.output_config.effort).toBe('low');
+    expect(params.max_tokens).toBe(4096);
+  });
 });
 
 describe('adapter parameter mapping', () => {
