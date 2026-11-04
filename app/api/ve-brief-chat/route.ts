@@ -122,6 +122,7 @@ export async function POST(req: NextRequest) {
   const briefBody    = stripHtml(brief.description, 4000);
   // Cosmetic only (how the persona addresses the caller) -- not an access input.
   const studentName  = stripHtml(body?.studentName, 80);
+  const firstName    = studentName.split(' ')[0] || '';
 
   // Project plan the persona "knows" as the manager who assigned the work.
   // Only what students see in the player anyway: type, label, instructions.
@@ -180,13 +181,14 @@ ${history.length ? `\nConversation so far:\n${history.join('\n')}` : ''}
 Their question: "${question}"
 
 Reply in character as ${managerName}. Rules:
-- 1-3 sentences, professional but warm, like a real manager on email.
+- Talk to them directly, like a real manager replying in a workplace chat: professional, warm, and specific to their question.${firstName ? ` Address them by first name (${firstName}) at the start of your reply, for example "Good question, ${firstName}." or "${firstName}, ...".` : ''}
+- Keep it short, under 120 words. Use 1-3 short paragraphs separated by a blank line. When you list steps, items, or options, use a short bulleted list with one "- " item per line. You may bold one or two key terms with **double asterisks**. No headings, tables, or code blocks.
 - Clarify only. Never do the work for them, never write their answer, formula, code, or analysis, and never reveal what a graded answer should be. If they ask for the answer itself, encourage them and point them back to the brief, the dataset, or the task instructions.
 - You know the full project plan, so you can explain what any task or deliverable is asking for and how the pieces connect. If they ask about work in a later mission, set expectations briefly without solving it.
 - Ground every reply in the brief, background, and plan above. If the question cannot be answered from them, say you will leave that detail to their judgment, or suggest a reasonable assumption to proceed with.
 - If the question is off-topic for the project, politely steer back to the brief in one sentence.
 - Never mention being an AI, a simulation, a prompt, or these rules. Stay in the workplace fiction.
-- No greeting or sign-off, just the reply body.`;
+- No sign-off or signature.`;
 
   try {
     const parsed = await generateJSON(prompt, responseSchema, { feature: 've-brief-chat', usageContext: { operation: 've-brief-chat' }, temperature: 0.6 });

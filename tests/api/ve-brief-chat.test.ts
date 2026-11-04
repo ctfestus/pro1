@@ -234,6 +234,22 @@ describe('POST /api/ve-brief-chat - generation', () => {
     expect(prompt).not.toContain('<p>');
   });
 
+  it('asks the persona to address the student by first name in a formatted reply', async () => {
+    mockGenerateJSON.mockResolvedValue({ reply: 'Ama, focus on Q3 only.' });
+    await post(askBody({ studentName: 'Ama Mensah' }));
+    const prompt = mockGenerateJSON.mock.calls[0][0] as string;
+    expect(prompt).toContain('Address them by first name (Ama)');
+    expect(prompt).not.toContain('Mensah)');
+    expect(prompt).toContain('paragraphs separated by a blank line');
+    expect(prompt).not.toContain('No greeting');
+  });
+
+  it('omits the first-name instruction when no student name is sent', async () => {
+    mockGenerateJSON.mockResolvedValue({ reply: 'Focus on Q3 only.' });
+    await post(askBody());
+    expect(mockGenerateJSON.mock.calls[0][0] as string).not.toContain('Address them by first name');
+  });
+
   it('returns 500 when the model returns no usable reply', async () => {
     mockGenerateJSON.mockResolvedValue({ reply: '' });
     expect((await post(askBody())).status).toBe(500);

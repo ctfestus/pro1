@@ -16,6 +16,47 @@ import { Person, PersonAvatar, TypingDots, WorkplaceKeyframes, firstNameOf } fro
 
 type Msg = { who: 'me' | 'manager'; text: string };
 
+// Manager replies arrive as plain text with blank-line paragraphs, "- " or "1. " list lines, and
+// occasional **bold**. Rendered through React only (no raw HTML), so there is no injection surface.
+function renderBold(text: string): React.ReactNode[] {
+  return text.split(/(\*\*[^*\n]+\*\*)/g).filter(Boolean).map((part, i) =>
+    part.startsWith('**') && part.endsWith('**') && part.length > 4
+      ? <strong key={i}>{part.slice(2, -2)}</strong>
+      : <React.Fragment key={i}>{part}</React.Fragment>);
+}
+
+const BULLET = /^[-*]\s+/;
+const NUMBERED = /^\d+[.)]\s+/;
+
+function ReplyText({ text }: { text: string }) {
+  // Runs of list lines become one list; any other run of lines is a paragraph. A blank line also
+  // ends a paragraph, so a reply that forgets blank lines around a list still gets spacing.
+  const lines = text.replace(/\r\n/g, '\n').split('\n').map(l => l.trim());
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (!lines[i]) { i++; continue; }
+    const kind = BULLET.test(lines[i]) ? 'ul' : NUMBERED.test(lines[i]) ? 'ol' : 'p';
+    const run: string[] = [];
+    if (kind === 'p') {
+      while (i < lines.length && lines[i] && !BULLET.test(lines[i]) && !NUMBERED.test(lines[i])) run.push(lines[i++]);
+      blocks.push(
+        <p key={blocks.length} style={{ margin: 0, whiteSpace: 'pre-wrap' }}>
+          {run.map((l, j) => <React.Fragment key={j}>{renderBold(l)}{j < run.length - 1 ? '\n' : ''}</React.Fragment>)}
+        </p>);
+    } else {
+      const re = kind === 'ul' ? BULLET : NUMBERED;
+      while (i < lines.length && re.test(lines[i])) run.push(lines[i++].replace(re, ''));
+      const ListTag = kind;
+      blocks.push(
+        <ListTag key={blocks.length} style={{ margin: 0, paddingLeft: 18, display: 'flex', flexDirection: 'column', gap: 4, listStyleType: kind === 'ul' ? 'disc' : 'decimal' }}>
+          {run.map((l, j) => <li key={j}>{renderBold(l)}</li>)}
+        </ListTag>);
+    }
+  }
+  return <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>{blocks}</div>;
+}
+
 export function BriefAskThread({ isDark, accent, manager, studentName, veId, reqId, open, onOpenChange }: {
   isDark: boolean;
   accent: string;
@@ -117,11 +158,11 @@ export function BriefAskThread({ isDark, accent, manager, studentName, veId, req
         )}
         {msgs.map((m, i) => (
           m.who === 'me' ? (
-            <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: '8px 12px', borderRadius: '14px 14px 4px 14px', background: accent, color: '#fff', fontSize: 13.5, lineHeight: 1.55, wordBreak: 'break-word' }}>
+            <div key={i} style={{ alignSelf: 'flex-end', maxWidth: '85%', padding: '8px 12px', borderRadius: '14px 14px 4px 14px', background: accent, color: '#fff', fontSize: 13.5, lineHeight: 1.55, wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}>
               {m.text}
             </div>
           ) : (
-            <React.Fragment key={i}>{managerBubble(m.text)}</React.Fragment>
+            <React.Fragment key={i}>{managerBubble(<ReplyText text={m.text} />)}</React.Fragment>
           )
         ))}
         {waiting && managerBubble(<TypingDots isDark={isDark} />)}
