@@ -464,32 +464,17 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
   });
   if (payErr) throw payErr;
 
-  const { data: installments, error: instErr } = await db
-    .from('payment_installments')
-    .select('id, due_date, amount_due, amount_paid, status')
-    .eq('enrollment_id', input.enrollmentId)
-    .in('status', ['unpaid', 'partial'])
-    .order('due_date', { ascending: true });
-  if (instErr) throw instErr;
-
-  let remaining = input.amount;
-  for (const inst of installments ?? []) {
-    if (remaining <= 0) break;
-    const owed = Number(inst.amount_due) - Number(inst.amount_paid);
-    const applying = Math.min(remaining, owed);
-    const newPaid = Number(inst.amount_paid) + applying;
-    const newStatus = newPaid >= Number(inst.amount_due) ? 'paid' : 'partial';
-    const { error: updErr } = await db
-      .from('payment_installments')
-      .update({ amount_paid: newPaid, status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', inst.id);
-    if (updErr) throw updErr;
-    remaining -= applying;
-  }
+  // Fill installments and raise paid_total in one transaction under the enrollment row lock,
+  // the same lock a cohort move takes (migrations 230, 231), so the two cannot interleave.
+  const { error: applyErr } = await db.rpc('apply_enrollment_payment', {
+    p_enrollment_id: input.enrollmentId,
+    p_amount:        input.amount,
+  });
+  if (applyErr) throw applyErr;
 
   const { data: enroll, error: enErr } = await db
     .from('bootcamp_enrollments')
-    .select('paid_total, cohort_id, currency')
+    .select('cohort_id, currency')
     .eq('id', input.enrollmentId)
     .single();
   if (enErr || !enroll) throw enErr ?? new Error('Enrollment not found');
@@ -499,15 +484,6 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
     .select('post_bootcamp_access_months')
     .eq('cohort_id', enroll.cohort_id)
     .maybeSingle();
-
-  const newPaidTotal = Number(enroll.paid_total) + input.amount;
-
-  // Write paid_total first so recomputeEnrollmentAccess reads the correct value
-  const { error: enrollUpdErr } = await db
-    .from('bootcamp_enrollments')
-    .update({ paid_total: newPaidTotal, updated_at: new Date().toISOString() })
-    .eq('id', input.enrollmentId);
-  if (enrollUpdErr) throw enrollUpdErr;
 
   // Recompute access_status, access_until, and sync cohort membership
   await recomputeEnrollmentAccess(db, input.enrollmentId, settings?.post_bootcamp_access_months ?? 3);
@@ -627,6 +603,9 @@ function addMonthsClamped(base: Date, months: number): Date {
 // and paid_total is applied to the new schedule, so only the unpaid part moves to the new dates.
 // The rebuild, the enrollment and the student's cohort pointer are written by one transactional
 // RPC (migration 230), so a failure leaves the old schedule and cohort exactly as they were.
+// Access is not recomputed here: the caller does it once its whole assignment is done, because
+// the recompute can move an unpaid student to the outstanding cohort and must not be undone by
+// a later step.
 // ---
 
 const MOVE_REFUSALS: Record<string, string> = {
@@ -643,7 +622,7 @@ export async function moveEnrollmentToCohort(
   const [enrollRes, cohortRes, settingsRes] = await Promise.all([
     db.from('bootcamp_enrollments').select('cohort_id, total_fee, deposit_required, paid_total').eq('id', enrollmentId).single(),
     db.from('cohorts').select('start_date').eq('id', cohortId).maybeSingle(),
-    db.from('cohort_payment_settings').select('installment_count, post_bootcamp_access_months').eq('cohort_id', cohortId).maybeSingle(),
+    db.from('cohort_payment_settings').select('installment_count').eq('cohort_id', cohortId).maybeSingle(),
   ]);
   if (enrollRes.error || !enrollRes.data) throw enrollRes.error ?? new Error(MOVE_REFUSALS.not_found);
   if (cohortRes.error) throw cohortRes.error;
@@ -670,14 +649,6 @@ export async function moveEnrollmentToCohort(
   });
   if (error) throw error;
   if (outcome !== 'ok') throw new Error(MOVE_REFUSALS[String(outcome)] ?? `Could not move the enrollment (${String(outcome)}).`);
-
-  // The move is committed. Access status is derived (the Payments page recomputes it on load),
-  // so a failure here is logged rather than reported as a failed move.
-  try {
-    await recomputeEnrollmentAccess(db, enrollmentId, settingsRes.data?.post_bootcamp_access_months ?? 3);
-  } catch (err) {
-    console.error('[db-payments] access recompute after cohort move failed', err);
-  }
 }
 
 // ---
@@ -803,8 +774,8 @@ export async function deletePayment(
 // Internal helpers
 // ---
 
-// Resets all installments to unpaid, then re-applies every payment in
-// paid_at order so paid_total and installment statuses are always consistent.
+// Resets all installments to unpaid, then re-applies every payment so paid_total and
+// installment statuses are always consistent.
 async function reapplyAllPayments(db: SupabaseClient, enrollmentId: string): Promise<void> {
   const { data: settings_enrollment, error: enErr } = await db
     .from('bootcamp_enrollments')
@@ -819,34 +790,10 @@ async function reapplyAllPayments(db: SupabaseClient, enrollmentId: string): Pro
     .eq('cohort_id', settings_enrollment.cohort_id)
     .maybeSingle();
 
-  // Reset all installments
-  const { error: resetErr } = await db
-    .from('payment_installments')
-    .update({ amount_paid: 0, status: 'unpaid', updated_at: new Date().toISOString() })
-    .eq('enrollment_id', enrollmentId);
-  if (resetErr) throw resetErr;
-
-  // Fetch all remaining payments in chronological order
-  const { data: allPayments, error: payErr } = await db
-    .from('payments')
-    .select('amount')
-    .eq('enrollment_id', enrollmentId)
-    .order('paid_at', { ascending: true });
-  if (payErr) throw payErr;
-
-  const newPaidTotal = (allPayments ?? []).reduce((sum, p) => sum + Number(p.amount), 0);
-
-  // Re-apply each payment to installments in order
-  for (const p of allPayments ?? []) {
-    await applyAmountToInstallments(db, enrollmentId, Number(p.amount));
-  }
-
-  // Update paid_total on enrollment
-  const { error: totErr } = await db
-    .from('bootcamp_enrollments')
-    .update({ paid_total: newPaidTotal, updated_at: new Date().toISOString() })
-    .eq('id', enrollmentId);
-  if (totErr) throw totErr;
+  // Reset, re-apply every payment and set paid_total in one transaction under the enrollment
+  // row lock shared with cohort moves (migration 231).
+  const { error: reapplyErr } = await db.rpc('reapply_enrollment_payments', { p_enrollment_id: enrollmentId });
+  if (reapplyErr) throw reapplyErr;
 
   await recomputeEnrollmentAccess(db, enrollmentId, settings?.post_bootcamp_access_months ?? 3);
 }

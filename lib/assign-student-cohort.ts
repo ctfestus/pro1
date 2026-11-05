@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { activateEnrollment, createAdmissionRecord, moveEnrollmentToCohort } from '@/lib/db-payments';
+import { activateEnrollment, createAdmissionRecord, moveEnrollmentToCohort, recomputeEnrollmentAccessPublic } from '@/lib/db-payments';
 
 /**
  * Put an existing student account into a bootcamp cohort without creating a duplicate
@@ -33,9 +33,11 @@ export async function assignStudentToCohort(
     .maybeSingle();
   if (enrollmentLookupError) throw enrollmentLookupError;
 
+  let moved = false;
+
   if (anyEnrollment) {
-    // Student already enrolled -- just move the enrollment to the new cohort.
-    // Payment history, installments, and paid amounts stay on the same row.
+    // Student already enrolled -- move the enrollment to the new cohort.
+    // Payment history and paid amounts stay on the same row.
     // A previously released enrollment is reattached here rather than replaced,
     // which is what keeps a re-added student off a second full-fee schedule.
     const { error: claimError } = await db.rpc('claim_student_enrollment_model', {
@@ -47,6 +49,7 @@ export async function assignStudentToCohort(
     // them, keeping the agreed fee. It repoints students.cohort_id in the same transaction.
     if (anyEnrollment.cohort_id !== cohortId) {
       await moveEnrollmentToCohort(db, { enrollmentId: anyEnrollment.id, studentId, cohortId });
+      moved = true;
     }
     if (anyEnrollment.released_at) {
       const { error: reattachError } = await db.rpc('reattach_released_enrollment', {
@@ -98,10 +101,26 @@ export async function assignStudentToCohort(
     }
   }
 
-  // Enrollment confirmed -- now safe to update the real cohort pointer.
-  const { error: assignErr } = await db
-    .from('students')
-    .update({ cohort_id: cohortId })
-    .eq('id', studentId);
-  if (assignErr) throw assignErr;
+  // Enrollment confirmed -- now safe to update the real cohort pointer. A move already set it
+  // in its own transaction.
+  if (!moved) {
+    const { error: assignErr } = await db
+      .from('students')
+      .update({ cohort_id: cohortId })
+      .eq('id', studentId);
+    if (assignErr) throw assignErr;
+  }
+
+  // Last, once the student's cohort and any reattachment are final: the recompute can move an
+  // unpaid student to the outstanding cohort, so nothing may run after it. New enrollments were
+  // already computed by activateEnrollment.
+  if (anyEnrollment) {
+    const { data: settings, error: settingsError } = await db
+      .from('cohort_payment_settings')
+      .select('post_bootcamp_access_months')
+      .eq('cohort_id', cohortId)
+      .maybeSingle();
+    if (settingsError) throw settingsError;
+    await recomputeEnrollmentAccessPublic(db, anyEnrollment.id, settings?.post_bootcamp_access_months ?? 3);
+  }
 }

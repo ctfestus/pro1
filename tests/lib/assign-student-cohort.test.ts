@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   createAdmissionRecord: vi.fn(),
   activateEnrollment: vi.fn(),
   moveEnrollmentToCohort: vi.fn(),
+  recomputeEnrollmentAccessPublic: vi.fn(),
   rpc: vi.fn(),
   calls: [] as Array<[string, string, unknown[]]>,
   rows: {} as Record<string, any>,
@@ -18,6 +19,7 @@ vi.mock('@/lib/db-payments', () => ({
   createAdmissionRecord: mocks.createAdmissionRecord,
   activateEnrollment: mocks.activateEnrollment,
   moveEnrollmentToCohort: mocks.moveEnrollmentToCohort,
+  recomputeEnrollmentAccessPublic: mocks.recomputeEnrollmentAccessPublic,
 }));
 
 import { assignStudentToCohort } from '@/lib/assign-student-cohort';
@@ -63,7 +65,10 @@ describe('assignStudentToCohort', () => {
     expect(mocks.moveEnrollmentToCohort).toHaveBeenCalledWith(expect.anything(), { enrollmentId: 'enr-1', studentId: 'stu-1', cohortId: 'new-cohort' });
     expect(mocks.rpc).not.toHaveBeenCalledWith('reattach_released_enrollment', expect.anything());
     expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
-    expect(updates('students')).toEqual([{ cohort_id: 'new-cohort' }]);
+    // The move repoints the student itself; a second update after it would undo an
+    // outstanding-cohort move made by the recompute.
+    expect(updates('students')).toEqual([]);
+    expect(mocks.recomputeEnrollmentAccessPublic).toHaveBeenCalledWith(expect.anything(), 'enr-1', 3);
   });
 
   it('reattaches a released enrollment', async () => {
@@ -72,6 +77,11 @@ describe('assignStudentToCohort', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('reattach_released_enrollment', { p_enrollment_id: 'enr-1' });
     expect(mocks.moveEnrollmentToCohort).not.toHaveBeenCalled();
     expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
+    // Recomputed after the reattach, so outstanding-cohort enforcement sees a live enrollment.
+    const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0];
+    expect(order(mocks.recomputeEnrollmentAccessPublic)).toBeGreaterThan(
+      mocks.rpc.mock.invocationCallOrder[mocks.rpc.mock.calls.findIndex(([name]) => name === 'reattach_released_enrollment')],
+    );
   });
 
   it('does not repoint the student when the schedule rebuild fails', async () => {
@@ -80,6 +90,7 @@ describe('assignStudentToCohort', () => {
     await expect(assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'a@example.com', cohortId: 'new-cohort' }))
       .rejects.toThrow('Set a start date');
     expect(updates('students')).toEqual([]);
+    expect(mocks.recomputeEnrollmentAccessPublic).not.toHaveBeenCalled();
   });
 
   it('creates an admission from the cohort settings only when there is no enrollment at all', async () => {
