@@ -5,6 +5,8 @@ const requireRole = vi.hoisted(() => vi.fn());
 const createClient = vi.hoisted(() => vi.fn());
 const createAdmissionRecord = vi.hoisted(() => vi.fn());
 const activateEnrollment = vi.hoisted(() => vi.fn());
+const moveEnrollmentToCohort = vi.hoisted(() => vi.fn());
+const recomputeEnrollmentAccessPublic = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api-auth', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api-auth')>()),
@@ -12,7 +14,7 @@ vi.mock('@/lib/api-auth', async importOriginal => ({
 }));
 vi.mock('@supabase/supabase-js', () => ({ createClient }));
 vi.mock('@/lib/provision-individual-student', () => ({ provisionIndividualStudent: vi.fn() }));
-vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord, activateEnrollment }));
+vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord, activateEnrollment, moveEnrollmentToCohort, recomputeEnrollmentAccessPublic }));
 
 import { POST } from '@/app/api/admissions/route';
 
@@ -29,6 +31,7 @@ beforeEach(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'http://supabase.test';
   process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-key';
   requireRole.mockResolvedValue({ user: { id: 'admin-1' }, role: 'admin' });
+  moveEnrollmentToCohort.mockResolvedValue({ postBootcampAccessMonths: 3 });
 });
 
 // Migration 167 detached the enrollment on removal by nulling student_id, so re-adding a
@@ -110,5 +113,6 @@ describe('re-adding a released bootcamp student', () => {
 
     expect(response.status).toBe(200);
     expect(rpc).not.toHaveBeenCalledWith('reattach_released_enrollment', expect.anything());
+    expect(moveEnrollmentToCohort).toHaveBeenCalledWith(expect.anything(), 'enrollment-1', 'cohort-new');
   });
 });

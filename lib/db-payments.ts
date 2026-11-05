@@ -565,11 +565,12 @@ export function generateInstallments(
   installmentCount: number,
   bootcampStartsAt: Date | null,
   depositRequired = 0,
+  asOf: Date = new Date(),
 ): { enrollment_id: string; due_date: string; amount_due: number; amount_paid: number; status: string }[] {
   const rows = [];
   if (!bootcampStartsAt) throw new Error('Cohort start date must be set before installments can be generated. Update the cohort start date in Payment Settings.');
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = asOf.toISOString().slice(0, 10);
 
   // The first installment, due today, is what was paid at admission. When nothing has been
   // paid yet it is the deposit instead: installments must be above zero, so a zero first row
@@ -590,14 +591,17 @@ export function generateInstallments(
   const remainder = totalFee - firstAmount;
   const count = installmentCount - 1;
   const perInstallment = Math.round((remainder / count) * 100) / 100;
-  const base = bootcampStartsAt;
+  // Count from the later of the cohort start and today. A student who joins after the cohort
+  // started would otherwise get later installments dated in the past, and the admission payment
+  // (applied oldest due date first) would fill those instead of the first installment, leaving
+  // the rest of the balance due on the join day.
+  const todayDate = new Date(`${today}T00:00:00Z`);
+  const base = bootcampStartsAt > todayDate ? bootcampStartsAt : todayDate;
 
   for (let i = 1; i <= count; i++) {
-    const d = new Date(base);
-    d.setMonth(d.getMonth() + i);
     rows.push({
       enrollment_id: enrollmentId,
-      due_date:      d.toISOString().slice(0, 10),
+      due_date:      addMonthsClamped(base, i).toISOString().slice(0, 10),
       amount_due:    i === count ? Math.round((remainder - perInstallment * (count - 1)) * 100) / 100 : perInstallment,
       amount_paid:   0,
       status:        'unpaid',
@@ -605,6 +609,76 @@ export function generateInstallments(
   }
 
   return rows;
+}
+
+// Adds whole months in UTC, keeping to the last day of a shorter month: 31 Oct + 1 month is
+// 30 Nov, not 1 Dec as Date.setMonth gives.
+function addMonthsClamped(base: Date, months: number): Date {
+  const year  = base.getUTCFullYear();
+  const month = base.getUTCMonth() + months;
+  const lastDay = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+  return new Date(Date.UTC(year, month, Math.min(base.getUTCDate(), lastDay)));
+}
+
+// ---
+// moveEnrollmentToCohort
+// Moves an enrollment to another cohort and rebuilds its schedule from that cohort's dates.
+// The agreed fee and deposit stay as they were; payments already made stay in `payments` and
+// are applied to the new schedule, so only the unpaid part moves to the new dates.
+// Access is not recomputed here: that can move an overdue student to the outstanding cohort
+// and reads students.cohort_id, so the caller recomputes after repointing the student.
+// ---
+
+export async function moveEnrollmentToCohort(
+  db: SupabaseClient,
+  enrollmentId: string,
+  cohortId: string,
+): Promise<{ postBootcampAccessMonths: number }> {
+  const [enrollRes, cohortRes, settingsRes] = await Promise.all([
+    db.from('bootcamp_enrollments').select('total_fee, deposit_required, paid_total').eq('id', enrollmentId).single(),
+    db.from('cohorts').select('start_date, end_date').eq('id', cohortId).maybeSingle(),
+    db.from('cohort_payment_settings').select('installment_count, post_bootcamp_access_months').eq('cohort_id', cohortId).maybeSingle(),
+  ]);
+  if (enrollRes.error || !enrollRes.data) throw enrollRes.error ?? new Error('Enrollment not found');
+  if (cohortRes.error) throw cohortRes.error;
+  if (settingsRes.error) throw settingsRes.error;
+  if (!cohortRes.data?.start_date) {
+    throw new Error('Set a start date for this cohort before moving students into it.');
+  }
+
+  const enroll   = enrollRes.data;
+  const paid     = Number(enroll.paid_total);
+  const schedule = generateInstallments(
+    enrollmentId,
+    Number(enroll.total_fee),
+    paid,
+    settingsRes.data?.installment_count ?? 3,
+    new Date(cohortRes.data.start_date),
+    Number(enroll.deposit_required),
+  );
+
+  // Rebuild the schedule before repointing the enrollment: if any step fails, cohort_id is
+  // unchanged, so retrying the move runs this again (the delete clears a partial rebuild).
+  const { error: delErr } = await db.from('payment_installments').delete().eq('enrollment_id', enrollmentId);
+  if (delErr) throw delErr;
+  if (schedule.length > 0) {
+    const { error: insErr } = await db.from('payment_installments').insert(schedule);
+    if (insErr) throw insErr;
+  }
+  if (paid > 0) await applyAmountToInstallments(db, enrollmentId, paid);
+
+  const { error: moveErr } = await db
+    .from('bootcamp_enrollments')
+    .update({
+      cohort_id:          cohortId,
+      bootcamp_starts_at: cohortRes.data.start_date,
+      bootcamp_ends_at:   cohortRes.data.end_date ?? null,
+      updated_at:         new Date().toISOString(),
+    })
+    .eq('id', enrollmentId);
+  if (moveErr) throw moveErr;
+
+  return { postBootcampAccessMonths: settingsRes.data?.post_bootcamp_access_months ?? 3 };
 }
 
 // ---
