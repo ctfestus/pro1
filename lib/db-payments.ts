@@ -622,63 +622,62 @@ function addMonthsClamped(base: Date, months: number): Date {
 
 // ---
 // moveEnrollmentToCohort
-// Moves an enrollment to another cohort and rebuilds its schedule from that cohort's dates.
-// The agreed fee and deposit stay as they were; payments already made stay in `payments` and
-// are applied to the new schedule, so only the unpaid part moves to the new dates.
-// Access is not recomputed here: that can move an overdue student to the outstanding cohort
-// and reads students.cohort_id, so the caller recomputes after repointing the student.
+// Moves a student's enrollment to another cohort and rebuilds its schedule from that cohort's
+// dates. The agreed fee and deposit stay as they were; payments already made stay in `payments`
+// and paid_total is applied to the new schedule, so only the unpaid part moves to the new dates.
+// The rebuild, the enrollment and the student's cohort pointer are written by one transactional
+// RPC (migration 230), so a failure leaves the old schedule and cohort exactly as they were.
 // ---
+
+const MOVE_REFUSALS: Record<string, string> = {
+  not_found:     'Enrollment not found for this student.',
+  stale:         'This enrollment changed while it was being moved. Try the move again.',
+  no_start_date: 'Set a start date for this cohort before moving students into it.',
+};
 
 export async function moveEnrollmentToCohort(
   db: SupabaseClient,
-  enrollmentId: string,
-  cohortId: string,
-): Promise<{ postBootcampAccessMonths: number }> {
+  input: { enrollmentId: string; studentId: string; cohortId: string },
+): Promise<void> {
+  const { enrollmentId, studentId, cohortId } = input;
   const [enrollRes, cohortRes, settingsRes] = await Promise.all([
-    db.from('bootcamp_enrollments').select('total_fee, deposit_required, paid_total').eq('id', enrollmentId).single(),
-    db.from('cohorts').select('start_date, end_date').eq('id', cohortId).maybeSingle(),
+    db.from('bootcamp_enrollments').select('cohort_id, total_fee, deposit_required, paid_total').eq('id', enrollmentId).single(),
+    db.from('cohorts').select('start_date').eq('id', cohortId).maybeSingle(),
     db.from('cohort_payment_settings').select('installment_count, post_bootcamp_access_months').eq('cohort_id', cohortId).maybeSingle(),
   ]);
-  if (enrollRes.error || !enrollRes.data) throw enrollRes.error ?? new Error('Enrollment not found');
+  if (enrollRes.error || !enrollRes.data) throw enrollRes.error ?? new Error(MOVE_REFUSALS.not_found);
   if (cohortRes.error) throw cohortRes.error;
   if (settingsRes.error) throw settingsRes.error;
-  if (!cohortRes.data?.start_date) {
-    throw new Error('Set a start date for this cohort before moving students into it.');
-  }
+  if (!cohortRes.data?.start_date) throw new Error(MOVE_REFUSALS.no_start_date);
 
   const enroll   = enrollRes.data;
-  const paid     = Number(enroll.paid_total);
   const schedule = generateInstallments(
     enrollmentId,
     Number(enroll.total_fee),
-    paid,
+    Number(enroll.paid_total),
     settingsRes.data?.installment_count ?? 3,
     new Date(cohortRes.data.start_date),
     Number(enroll.deposit_required),
   );
 
-  // Rebuild the schedule before repointing the enrollment: if any step fails, cohort_id is
-  // unchanged, so retrying the move runs this again (the delete clears a partial rebuild).
-  const { error: delErr } = await db.from('payment_installments').delete().eq('enrollment_id', enrollmentId);
-  if (delErr) throw delErr;
-  if (schedule.length > 0) {
-    const { error: insErr } = await db.from('payment_installments').insert(schedule);
-    if (insErr) throw insErr;
+  const { data: outcome, error } = await db.rpc('move_enrollment_to_cohort', {
+    p_enrollment_id:       enrollmentId,
+    p_student_id:          studentId,
+    p_cohort_id:           cohortId,
+    p_expected_cohort_id:  enroll.cohort_id,
+    p_expected_paid_total: enroll.paid_total,
+    p_installments:        schedule.map(row => ({ due_date: row.due_date, amount_due: row.amount_due })),
+  });
+  if (error) throw error;
+  if (outcome !== 'ok') throw new Error(MOVE_REFUSALS[String(outcome)] ?? `Could not move the enrollment (${String(outcome)}).`);
+
+  // The move is committed. Access status is derived (the Payments page recomputes it on load),
+  // so a failure here is logged rather than reported as a failed move.
+  try {
+    await recomputeEnrollmentAccess(db, enrollmentId, settingsRes.data?.post_bootcamp_access_months ?? 3);
+  } catch (err) {
+    console.error('[db-payments] access recompute after cohort move failed', err);
   }
-  if (paid > 0) await applyAmountToInstallments(db, enrollmentId, paid);
-
-  const { error: moveErr } = await db
-    .from('bootcamp_enrollments')
-    .update({
-      cohort_id:          cohortId,
-      bootcamp_starts_at: cohortRes.data.start_date,
-      bootcamp_ends_at:   cohortRes.data.end_date ?? null,
-      updated_at:         new Date().toISOString(),
-    })
-    .eq('id', enrollmentId);
-  if (moveErr) throw moveErr;
-
-  return { postBootcampAccessMonths: settingsRes.data?.post_bootcamp_access_months ?? 3 };
 }
 
 // ---

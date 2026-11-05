@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { activateEnrollment, createAdmissionRecord, moveEnrollmentToCohort, recomputeEnrollmentAccessPublic } from '@/lib/db-payments';
+import { activateEnrollment, createAdmissionRecord, moveEnrollmentToCohort } from '@/lib/db-payments';
 
 /**
  * Put an existing student account into a bootcamp cohort without creating a duplicate
@@ -33,8 +33,6 @@ export async function assignStudentToCohort(
     .maybeSingle();
   if (enrollmentLookupError) throw enrollmentLookupError;
 
-  let moved: { enrollmentId: string; postBootcampAccessMonths: number } | null = null;
-
   if (anyEnrollment) {
     // Student already enrolled -- just move the enrollment to the new cohort.
     // Payment history, installments, and paid amounts stay on the same row.
@@ -46,9 +44,9 @@ export async function assignStudentToCohort(
     });
     if (claimError) throw claimError;
     // The move also takes the new cohort's dates and rebuilds the unpaid installments from
-    // them, keeping the agreed fee.
+    // them, keeping the agreed fee. It repoints students.cohort_id in the same transaction.
     if (anyEnrollment.cohort_id !== cohortId) {
-      moved = { enrollmentId: anyEnrollment.id, ...(await moveEnrollmentToCohort(db, anyEnrollment.id, cohortId)) };
+      await moveEnrollmentToCohort(db, { enrollmentId: anyEnrollment.id, studentId, cohortId });
     }
     if (anyEnrollment.released_at) {
       const { error: reattachError } = await db.rpc('reattach_released_enrollment', {
@@ -106,7 +104,4 @@ export async function assignStudentToCohort(
     .update({ cohort_id: cohortId })
     .eq('id', studentId);
   if (assignErr) throw assignErr;
-
-  // Status for the rebuilt schedule, now that the student points at the new cohort.
-  if (moved) await recomputeEnrollmentAccessPublic(db, moved.enrollmentId, moved.postBootcampAccessMonths);
 }
