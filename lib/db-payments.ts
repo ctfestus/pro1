@@ -450,27 +450,23 @@ export async function activateEnrollment(
 // ---
 
 export async function recordPayment(db: SupabaseClient, input: RecordPaymentInput): Promise<void> {
-  const { error: payErr } = await db.from('payments').insert({
-    enrollment_id:   input.enrollmentId,
-    student_id:      input.studentId ?? null,
-    payer_email:     input.payerEmail,
-    cohort_id:       input.cohortId,
-    amount:          input.amount,
-    paid_at:         input.paidAt ?? new Date().toISOString().slice(0, 10),
-    method:          input.method ?? null,
-    reference:       input.reference ?? null,
-    notes:           input.notes ?? null,
-    confirmation_id: input.confirmationId ?? null,
+  // Insert the payment, fill installments and raise paid_total in one transaction under the
+  // enrollment row lock, the same lock cohort moves and payment edits take (migrations 230, 231).
+  const { error: payErr } = await db.rpc('record_enrollment_payment', {
+    p_payment: {
+      enrollment_id:   input.enrollmentId,
+      student_id:      input.studentId ?? null,
+      payer_email:     input.payerEmail,
+      cohort_id:       input.cohortId,
+      amount:          input.amount,
+      paid_at:         input.paidAt ?? new Date().toISOString().slice(0, 10),
+      method:          input.method ?? null,
+      reference:       input.reference ?? null,
+      notes:           input.notes ?? null,
+      confirmation_id: input.confirmationId ?? null,
+    },
   });
   if (payErr) throw payErr;
-
-  // Fill installments and raise paid_total in one transaction under the enrollment row lock,
-  // the same lock a cohort move takes (migrations 230, 231), so the two cannot interleave.
-  const { error: applyErr } = await db.rpc('apply_enrollment_payment', {
-    p_enrollment_id: input.enrollmentId,
-    p_amount:        input.amount,
-  });
-  if (applyErr) throw applyErr;
 
   const { data: enroll, error: enErr } = await db
     .from('bootcamp_enrollments')
@@ -732,20 +728,7 @@ export async function editPayment(
   paymentId: string,
   updates: { amount?: number; paid_at?: string; method?: string | null; reference?: string | null; notes?: string | null },
 ): Promise<void> {
-  const { data: existing, error: fetchErr } = await db
-    .from('payments')
-    .select('enrollment_id')
-    .eq('id', paymentId)
-    .single();
-  if (fetchErr || !existing) throw fetchErr ?? new Error('Payment not found');
-
-  const { error: updErr } = await db
-    .from('payments')
-    .update(updates)
-    .eq('id', paymentId);
-  if (updErr) throw updErr;
-
-  await reapplyAllPayments(db, existing.enrollment_id);
+  await changePayment(db, paymentId, updates);
 }
 
 // ---
@@ -757,45 +740,41 @@ export async function deletePayment(
   db: SupabaseClient,
   paymentId: string,
 ): Promise<void> {
-  const { data: existing, error: fetchErr } = await db
-    .from('payments')
-    .select('enrollment_id')
-    .eq('id', paymentId)
-    .single();
-  if (fetchErr || !existing) throw fetchErr ?? new Error('Payment not found');
-
-  const { error: delErr } = await db.from('payments').delete().eq('id', paymentId);
-  if (delErr) throw delErr;
-
-  await reapplyAllPayments(db, existing.enrollment_id);
+  await changePayment(db, paymentId, null);
 }
 
 // ---
 // Internal helpers
 // ---
 
-// Resets all installments to unpaid, then re-applies every payment so paid_total and
-// installment statuses are always consistent.
-async function reapplyAllPayments(db: SupabaseClient, enrollmentId: string): Promise<void> {
-  const { data: settings_enrollment, error: enErr } = await db
+// Edits (or, with null, deletes) a payment, resets the installments and re-applies every
+// payment, all in one transaction under the enrollment row lock (migration 231), then
+// recomputes access.
+async function changePayment(
+  db: SupabaseClient,
+  paymentId: string,
+  updates: Record<string, unknown> | null,
+): Promise<void> {
+  const { data: enrollmentId, error } = await db.rpc('change_enrollment_payment', {
+    p_payment_id: paymentId,
+    p_updates:    updates,
+  });
+  if (error) throw error;
+
+  const { data: enroll, error: enErr } = await db
     .from('bootcamp_enrollments')
     .select('cohort_id')
     .eq('id', enrollmentId)
     .single();
-  if (enErr || !settings_enrollment) throw enErr ?? new Error('Enrollment not found');
+  if (enErr || !enroll) throw enErr ?? new Error('Enrollment not found');
 
   const { data: settings } = await db
     .from('cohort_payment_settings')
     .select('post_bootcamp_access_months')
-    .eq('cohort_id', settings_enrollment.cohort_id)
+    .eq('cohort_id', enroll.cohort_id)
     .maybeSingle();
 
-  // Reset, re-apply every payment and set paid_total in one transaction under the enrollment
-  // row lock shared with cohort moves (migration 231).
-  const { error: reapplyErr } = await db.rpc('reapply_enrollment_payments', { p_enrollment_id: enrollmentId });
-  if (reapplyErr) throw reapplyErr;
-
-  await recomputeEnrollmentAccess(db, enrollmentId, settings?.post_bootcamp_access_months ?? 3);
+  await recomputeEnrollmentAccess(db, enrollmentId as string, settings?.post_bootcamp_access_months ?? 3);
 }
 
 async function applyAmountToInstallments(

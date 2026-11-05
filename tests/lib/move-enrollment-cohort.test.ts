@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { moveEnrollmentToCohort, recordPayment } from '@/lib/db-payments';
+import { deletePayment, editPayment, moveEnrollmentToCohort, recordPayment } from '@/lib/db-payments';
 
 // Moving a student keeps the agreed fee and what they paid, and rebuilds the installments from
 // the new cohort's dates. The case this was written for: admitted into an August cohort on
@@ -12,7 +12,11 @@ type Row = Record<string, any>;
 
 function fakeDb(tables: Record<string, Row[]>, rpcResult: { data: unknown; error: unknown } = { data: 'ok', error: null }) {
   const writes: Array<[string, string]> = [];
-  const rpc = vi.fn(async (name: string) => (name === 'move_enrollment_to_cohort' ? rpcResult : { data: null, error: null }));
+  const rpc = vi.fn(async (name: string) => {
+    if (name === 'move_enrollment_to_cohort') return rpcResult;
+    if (name === 'change_enrollment_payment') return { data: 'enr-1', error: null };
+    return { data: null, error: null };
+  });
   const db = {
     rpc,
     writes,
@@ -89,11 +93,27 @@ describe('moveEnrollmentToCohort', () => {
   });
 });
 
-describe('recordPayment', () => {
-  it('applies the payment through the locked RPC, not by writing installments directly', async () => {
+describe('payment writes', () => {
+  // The payment row itself is written inside the locked RPC too: inserted apart from its fill, a
+  // re-apply in between would count it once from the table and again when its fill ran.
+  const directPaymentWrites = (db: ReturnType<typeof fakeDb>) =>
+    db.writes.filter(([table]) => table === 'payments' || table === 'payment_installments');
+
+  it('records a payment through one locked RPC', async () => {
     const db = fakeDb(tables());
-    await recordPayment(db as any, { enrollmentId: 'enr-1', amount: 650, payerEmail: 'a@example.com', cohortId: 'aug', studentId: 'stu-1' });
-    expect(db.rpc).toHaveBeenCalledWith('apply_enrollment_payment', { p_enrollment_id: 'enr-1', p_amount: 650 });
-    expect(db.writes.filter(([table]) => table === 'payment_installments')).toEqual([]);
+    await recordPayment(db as any, { enrollmentId: 'enr-1', amount: 650, paidAt: '2026-11-05', payerEmail: 'a@example.com', cohortId: 'aug', studentId: 'stu-1' });
+    expect(db.rpc).toHaveBeenCalledWith('record_enrollment_payment', {
+      p_payment: expect.objectContaining({ enrollment_id: 'enr-1', amount: 650, paid_at: '2026-11-05', cohort_id: 'aug' }),
+    });
+    expect(directPaymentWrites(db)).toEqual([]);
+  });
+
+  it('edits and deletes a payment through one locked RPC', async () => {
+    const db = fakeDb(tables());
+    await editPayment(db as any, 'pay-1', { amount: 700 });
+    await deletePayment(db as any, 'pay-2');
+    expect(db.rpc).toHaveBeenCalledWith('change_enrollment_payment', { p_payment_id: 'pay-1', p_updates: { amount: 700 } });
+    expect(db.rpc).toHaveBeenCalledWith('change_enrollment_payment', { p_payment_id: 'pay-2', p_updates: null });
+    expect(directPaymentWrites(db)).toEqual([]);
   });
 });

@@ -4890,9 +4890,9 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.move_enrollment_to_cohort(uuid, uuid, uuid, uuid, numeric, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.move_enrollment_to_cohort(uuid, uuid, uuid, uuid, numeric, jsonb) TO service_role;
 
--- migration 231: payments applied under the enrollment row lock shared with cohort moves.
--- Fills unpaid and partial installments oldest due date first. Internal: only the two functions
--- below call it, and both hold the enrollment row lock.
+-- migration 231: every payment write runs under the enrollment row lock shared with cohort moves.
+-- Fills unpaid and partial installments oldest due date first. Internal: only the functions
+-- below call it, and they hold the enrollment row lock.
 CREATE OR REPLACE FUNCTION public.fill_enrollment_installments(p_enrollment_id uuid, p_amount numeric)
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
@@ -4920,52 +4920,85 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.fill_enrollment_installments(uuid, numeric) FROM PUBLIC, anon, authenticated, service_role;
 
--- A new payment: fill installments with it and add it to paid_total.
-CREATE OR REPLACE FUNCTION public.apply_enrollment_payment(p_enrollment_id uuid, p_amount numeric)
-RETURNS void
-LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
-AS $$
-BEGIN
-  PERFORM 1 FROM public.bootcamp_enrollments WHERE id = p_enrollment_id FOR UPDATE;
-  IF NOT FOUND THEN RAISE EXCEPTION 'Enrollment not found'; END IF;
-
-  PERFORM public.fill_enrollment_installments(p_enrollment_id, p_amount);
-
-  UPDATE public.bootcamp_enrollments
-    SET paid_total = paid_total + p_amount, updated_at = now()
-    WHERE id = p_enrollment_id;
-END;
-$$;
-REVOKE EXECUTE ON FUNCTION public.apply_enrollment_payment(uuid, numeric) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.apply_enrollment_payment(uuid, numeric) TO service_role;
-
--- After a payment is edited or deleted: reset every installment, re-apply all payments, and set
--- paid_total to their sum.
-CREATE OR REPLACE FUNCTION public.reapply_enrollment_payments(p_enrollment_id uuid)
+-- A new payment: insert it, fill installments with it and add it to paid_total.
+-- p_payment holds the payments columns: enrollment_id, student_id, payer_email, cohort_id,
+-- amount, paid_at, method, reference, notes, confirmation_id.
+CREATE OR REPLACE FUNCTION public.record_enrollment_payment(p_payment jsonb)
 RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
 AS $$
 DECLARE
-  v_total numeric;
+  v_pay public.payments;
 BEGIN
-  PERFORM 1 FROM public.bootcamp_enrollments WHERE id = p_enrollment_id FOR UPDATE;
+  v_pay := jsonb_populate_record(NULL::public.payments, p_payment);
+
+  PERFORM 1 FROM public.bootcamp_enrollments WHERE id = v_pay.enrollment_id FOR UPDATE;
   IF NOT FOUND THEN RAISE EXCEPTION 'Enrollment not found'; END IF;
+
+  INSERT INTO public.payments
+    (enrollment_id, student_id, payer_email, cohort_id, amount, paid_at, method, reference, notes, confirmation_id)
+  VALUES
+    (v_pay.enrollment_id, v_pay.student_id, v_pay.payer_email, v_pay.cohort_id, v_pay.amount,
+     COALESCE(v_pay.paid_at, current_date), v_pay.method, v_pay.reference, v_pay.notes, v_pay.confirmation_id);
+
+  PERFORM public.fill_enrollment_installments(v_pay.enrollment_id, v_pay.amount);
+
+  UPDATE public.bootcamp_enrollments
+    SET paid_total = paid_total + v_pay.amount, updated_at = now()
+    WHERE id = v_pay.enrollment_id;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.record_enrollment_payment(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.record_enrollment_payment(jsonb) TO service_role;
+
+-- Edit (p_updates holds the changed columns: amount, paid_at, method, reference, notes) or, with
+-- p_updates NULL, delete a payment. Then reset every installment, re-apply all payments and set
+-- paid_total to their sum. Returns the enrollment id.
+CREATE OR REPLACE FUNCTION public.change_enrollment_payment(p_payment_id uuid, p_updates jsonb)
+RETURNS uuid
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = ''
+AS $$
+DECLARE
+  v_enrollment_id uuid;
+  v_total         numeric;
+BEGIN
+  SELECT enrollment_id INTO v_enrollment_id FROM public.payments WHERE id = p_payment_id;
+  IF v_enrollment_id IS NULL THEN RAISE EXCEPTION 'Payment not found'; END IF;
+
+  PERFORM 1 FROM public.bootcamp_enrollments WHERE id = v_enrollment_id FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'Enrollment not found'; END IF;
+
+  IF p_updates IS NULL THEN
+    DELETE FROM public.payments WHERE id = p_payment_id;
+  ELSE
+    UPDATE public.payments SET
+      amount    = CASE WHEN p_updates ? 'amount'    THEN (p_updates->>'amount')::numeric ELSE amount END,
+      paid_at   = CASE WHEN p_updates ? 'paid_at'   THEN (p_updates->>'paid_at')::date   ELSE paid_at END,
+      method    = CASE WHEN p_updates ? 'method'    THEN p_updates->>'method'            ELSE method END,
+      reference = CASE WHEN p_updates ? 'reference' THEN p_updates->>'reference'         ELSE reference END,
+      notes     = CASE WHEN p_updates ? 'notes'     THEN p_updates->>'notes'             ELSE notes END
+    WHERE id = p_payment_id;
+  END IF;
+  -- Deleted by a concurrent request between the lookup and the lock.
+  IF NOT FOUND THEN RAISE EXCEPTION 'Payment not found'; END IF;
 
   UPDATE public.payment_installments
     SET amount_paid = 0, status = 'unpaid', updated_at = now()
-    WHERE enrollment_id = p_enrollment_id;
+    WHERE enrollment_id = v_enrollment_id;
 
-  SELECT COALESCE(SUM(amount), 0) INTO v_total FROM public.payments WHERE enrollment_id = p_enrollment_id;
+  SELECT COALESCE(SUM(amount), 0) INTO v_total FROM public.payments WHERE enrollment_id = v_enrollment_id;
 
-  PERFORM public.fill_enrollment_installments(p_enrollment_id, v_total);
+  PERFORM public.fill_enrollment_installments(v_enrollment_id, v_total);
 
   UPDATE public.bootcamp_enrollments
     SET paid_total = v_total, updated_at = now()
-    WHERE id = p_enrollment_id;
+    WHERE id = v_enrollment_id;
+
+  RETURN v_enrollment_id;
 END;
 $$;
-REVOKE EXECUTE ON FUNCTION public.reapply_enrollment_payments(uuid) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.reapply_enrollment_payments(uuid) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.change_enrollment_payment(uuid, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.change_enrollment_payment(uuid, jsonb) TO service_role;
 
 CREATE OR REPLACE FUNCTION public.enforce_student_cohort_model_claim()
 RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
