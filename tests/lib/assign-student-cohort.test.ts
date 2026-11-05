@@ -7,13 +7,20 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   createAdmissionRecord: vi.fn(),
   activateEnrollment: vi.fn(),
+  moveEnrollmentToCohort: vi.fn(),
+  refreshEnrollmentAccess: vi.fn(),
   rpc: vi.fn(),
   calls: [] as Array<[string, string, unknown[]]>,
   rows: {} as Record<string, any>,
   errors: {} as Record<string, any>,
 }));
 
-vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord: mocks.createAdmissionRecord, activateEnrollment: mocks.activateEnrollment }));
+vi.mock('@/lib/db-payments', () => ({
+  createAdmissionRecord: mocks.createAdmissionRecord,
+  activateEnrollment: mocks.activateEnrollment,
+  moveEnrollmentToCohort: mocks.moveEnrollmentToCohort,
+  refreshEnrollmentAccess: mocks.refreshEnrollmentAccess,
+}));
 
 import { assignStudentToCohort } from '@/lib/assign-student-cohort';
 
@@ -48,24 +55,42 @@ beforeEach(() => {
   mocks.rows = {};
   mocks.errors = {};
   mocks.rpc.mockResolvedValue({ error: null });
+  mocks.moveEnrollmentToCohort.mockResolvedValue(undefined);
 });
 
 describe('assignStudentToCohort', () => {
   it('moves an existing enrollment instead of creating another', async () => {
     mocks.rows.bootcamp_enrollments = { id: 'enr-1', cohort_id: 'old-cohort', released_at: null };
     await assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'A@example.com', cohortId: 'new-cohort' });
-    expect(updates('bootcamp_enrollments')).toEqual([expect.objectContaining({ cohort_id: 'new-cohort' })]);
+    expect(mocks.moveEnrollmentToCohort).toHaveBeenCalledWith(expect.anything(), { enrollmentId: 'enr-1', studentId: 'stu-1', cohortId: 'new-cohort' });
     expect(mocks.rpc).not.toHaveBeenCalledWith('reattach_released_enrollment', expect.anything());
     expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
-    expect(updates('students')).toEqual([{ cohort_id: 'new-cohort' }]);
+    // The move repoints the student itself; a second update after it would undo an
+    // outstanding-cohort move made by the recompute.
+    expect(updates('students')).toEqual([]);
+    expect(mocks.refreshEnrollmentAccess).toHaveBeenCalledWith(expect.anything(), 'enr-1');
   });
 
   it('reattaches a released enrollment', async () => {
     mocks.rows.bootcamp_enrollments = { id: 'enr-1', cohort_id: 'new-cohort', released_at: '2026-05-01T00:00:00Z' };
     await assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'a@example.com', cohortId: 'new-cohort' });
     expect(mocks.rpc).toHaveBeenCalledWith('reattach_released_enrollment', { p_enrollment_id: 'enr-1' });
-    expect(updates('bootcamp_enrollments')).toEqual([]);
+    expect(mocks.moveEnrollmentToCohort).not.toHaveBeenCalled();
     expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
+    // Recomputed after the reattach, so outstanding-cohort enforcement sees a live enrollment.
+    const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0];
+    expect(order(mocks.refreshEnrollmentAccess)).toBeGreaterThan(
+      mocks.rpc.mock.invocationCallOrder[mocks.rpc.mock.calls.findIndex(([name]) => name === 'reattach_released_enrollment')],
+    );
+  });
+
+  it('does not repoint the student when the schedule rebuild fails', async () => {
+    mocks.rows.bootcamp_enrollments = { id: 'enr-1', cohort_id: 'old-cohort', released_at: null };
+    mocks.moveEnrollmentToCohort.mockRejectedValueOnce(new Error('Set a start date for this cohort before moving students into it.'));
+    await expect(assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'a@example.com', cohortId: 'new-cohort' }))
+      .rejects.toThrow('Set a start date');
+    expect(updates('students')).toEqual([]);
+    expect(mocks.refreshEnrollmentAccess).not.toHaveBeenCalled();
   });
 
   it('creates an admission from the cohort settings only when there is no enrollment at all', async () => {

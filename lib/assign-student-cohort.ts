@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { activateEnrollment, createAdmissionRecord } from '@/lib/db-payments';
+import { activateEnrollment, createAdmissionRecord, moveEnrollmentToCohort, refreshEnrollmentAccess } from '@/lib/db-payments';
 
 /**
  * Put an existing student account into a bootcamp cohort without creating a duplicate
@@ -7,7 +7,8 @@ import { activateEnrollment, createAdmissionRecord } from '@/lib/db-payments';
  * application form applicants who already have an account.
  *
  * - A student with an enrollment anywhere keeps that one row: it is moved to the new cohort
- *   (payment history, installments, and paid amounts stay on it), and a released row is
+ *   (payment history, paid amounts and the agreed fee stay on it; the installments are rebuilt
+ *   from the new cohort's dates), and a released row is
  *   reattached rather than replaced, so a re-added student is never put on a second
  *   full-fee schedule.
  * - Otherwise a pre-signup row for the cohort is activated, or a fresh one is created from
@@ -32,9 +33,11 @@ export async function assignStudentToCohort(
     .maybeSingle();
   if (enrollmentLookupError) throw enrollmentLookupError;
 
+  let moved = false;
+
   if (anyEnrollment) {
-    // Student already enrolled -- just move the enrollment to the new cohort.
-    // Payment history, installments, and paid amounts stay on the same row.
+    // Student already enrolled -- move the enrollment to the new cohort.
+    // Payment history and paid amounts stay on the same row.
     // A previously released enrollment is reattached here rather than replaced,
     // which is what keeps a re-added student off a second full-fee schedule.
     const { error: claimError } = await db.rpc('claim_student_enrollment_model', {
@@ -42,12 +45,11 @@ export async function assignStudentToCohort(
       p_requested_model: 'bootcamp',
     });
     if (claimError) throw claimError;
+    // The move also takes the new cohort's dates and rebuilds the unpaid installments from
+    // them, keeping the agreed fee. It repoints students.cohort_id in the same transaction.
     if (anyEnrollment.cohort_id !== cohortId) {
-      const { error: moveError } = await db
-        .from('bootcamp_enrollments')
-        .update({ cohort_id: cohortId, updated_at: new Date().toISOString() })
-        .eq('id', anyEnrollment.id);
-      if (moveError) throw moveError;
+      await moveEnrollmentToCohort(db, { enrollmentId: anyEnrollment.id, studentId, cohortId });
+      moved = true;
     }
     if (anyEnrollment.released_at) {
       const { error: reattachError } = await db.rpc('reattach_released_enrollment', {
@@ -99,10 +101,18 @@ export async function assignStudentToCohort(
     }
   }
 
-  // Enrollment confirmed -- now safe to update the real cohort pointer.
-  const { error: assignErr } = await db
-    .from('students')
-    .update({ cohort_id: cohortId })
-    .eq('id', studentId);
-  if (assignErr) throw assignErr;
+  // Enrollment confirmed -- now safe to update the real cohort pointer. A move already set it
+  // in its own transaction.
+  if (!moved) {
+    const { error: assignErr } = await db
+      .from('students')
+      .update({ cohort_id: cohortId })
+      .eq('id', studentId);
+    if (assignErr) throw assignErr;
+  }
+
+  // Last, once the student's cohort and any reattachment are final: the recompute can move an
+  // unpaid student to the outstanding cohort, so nothing may run after it. New enrollments were
+  // already computed by activateEnrollment.
+  if (anyEnrollment) await refreshEnrollmentAccess(db, anyEnrollment.id);
 }

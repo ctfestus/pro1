@@ -31,4 +31,19 @@ describe('generateInstallments', () => {
     expect(amounts(generateInstallments('e1', 3000, 0, 3, start, 3000))).toEqual([3000]);
     expect(amounts(generateInstallments('e1', 3000, 3500, 3, start, 1500))).toEqual([3000]);
   });
+
+  it('dates later installments from today when the student joins after the cohort started', () => {
+    // Cohort started 29 Aug; student admitted 31 Oct having paid 1,500 of 2,800.
+    const rows = generateInstallments('e1', 2800, 1500, 3, new Date('2026-08-29T00:00:00Z'), 1680, new Date('2026-10-31T10:00:00Z'));
+    expect(rows.map(r => [r.due_date, r.amount_due])).toEqual([
+      ['2026-10-31', 1500],
+      ['2026-11-30', 650],
+      ['2026-12-31', 650],
+    ]);
+  });
+
+  it('dates later installments from the cohort start when it is still ahead', () => {
+    const rows = generateInstallments('e1', 3000, 1000, 3, new Date('2026-01-31T00:00:00Z'), 1500, new Date('2026-01-10T00:00:00Z'));
+    expect(rows.map(r => r.due_date)).toEqual(['2026-01-10', '2026-02-28', '2026-03-31']);
+  });
 });
