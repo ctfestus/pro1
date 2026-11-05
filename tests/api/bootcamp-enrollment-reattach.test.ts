@@ -6,7 +6,7 @@ const createClient = vi.hoisted(() => vi.fn());
 const createAdmissionRecord = vi.hoisted(() => vi.fn());
 const activateEnrollment = vi.hoisted(() => vi.fn());
 const moveEnrollmentToCohort = vi.hoisted(() => vi.fn());
-const recomputeEnrollmentAccessPublic = vi.hoisted(() => vi.fn());
+const refreshEnrollmentAccess = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/api-auth', async importOriginal => ({
   ...(await importOriginal<typeof import('@/lib/api-auth')>()),
@@ -14,7 +14,7 @@ vi.mock('@/lib/api-auth', async importOriginal => ({
 }));
 vi.mock('@supabase/supabase-js', () => ({ createClient }));
 vi.mock('@/lib/provision-individual-student', () => ({ provisionIndividualStudent: vi.fn() }));
-vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord, activateEnrollment, moveEnrollmentToCohort, recomputeEnrollmentAccessPublic }));
+vi.mock('@/lib/db-payments', () => ({ createAdmissionRecord, activateEnrollment, moveEnrollmentToCohort, refreshEnrollmentAccess }));
 
 import { POST } from '@/app/api/admissions/route';
 
@@ -51,7 +51,6 @@ describe('re-adding a released bootcamp student', () => {
         { data: { id: 'enrollment-1', cohort_id: enrollmentCohort, released_at: releasedAt }, error: null },
         { data: null, error: null },
       ],
-      cohort_payment_settings: [{ data: null, error: null }],
     };
     const cursors: Record<string, number> = {};
     function builder(table: string) {

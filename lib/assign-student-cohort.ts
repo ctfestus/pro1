@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { activateEnrollment, createAdmissionRecord, moveEnrollmentToCohort, recomputeEnrollmentAccessPublic } from '@/lib/db-payments';
+import { activateEnrollment, createAdmissionRecord, moveEnrollmentToCohort, refreshEnrollmentAccess } from '@/lib/db-payments';
 
 /**
  * Put an existing student account into a bootcamp cohort without creating a duplicate
@@ -114,13 +114,5 @@ export async function assignStudentToCohort(
   // Last, once the student's cohort and any reattachment are final: the recompute can move an
   // unpaid student to the outstanding cohort, so nothing may run after it. New enrollments were
   // already computed by activateEnrollment.
-  if (anyEnrollment) {
-    const { data: settings, error: settingsError } = await db
-      .from('cohort_payment_settings')
-      .select('post_bootcamp_access_months')
-      .eq('cohort_id', cohortId)
-      .maybeSingle();
-    if (settingsError) throw settingsError;
-    await recomputeEnrollmentAccessPublic(db, anyEnrollment.id, settings?.post_bootcamp_access_months ?? 3);
-  }
+  if (anyEnrollment) await refreshEnrollmentAccess(db, anyEnrollment.id);
 }

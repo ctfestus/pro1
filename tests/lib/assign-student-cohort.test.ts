@@ -8,7 +8,7 @@ const mocks = vi.hoisted(() => ({
   createAdmissionRecord: vi.fn(),
   activateEnrollment: vi.fn(),
   moveEnrollmentToCohort: vi.fn(),
-  recomputeEnrollmentAccessPublic: vi.fn(),
+  refreshEnrollmentAccess: vi.fn(),
   rpc: vi.fn(),
   calls: [] as Array<[string, string, unknown[]]>,
   rows: {} as Record<string, any>,
@@ -19,7 +19,7 @@ vi.mock('@/lib/db-payments', () => ({
   createAdmissionRecord: mocks.createAdmissionRecord,
   activateEnrollment: mocks.activateEnrollment,
   moveEnrollmentToCohort: mocks.moveEnrollmentToCohort,
-  recomputeEnrollmentAccessPublic: mocks.recomputeEnrollmentAccessPublic,
+  refreshEnrollmentAccess: mocks.refreshEnrollmentAccess,
 }));
 
 import { assignStudentToCohort } from '@/lib/assign-student-cohort';
@@ -68,7 +68,7 @@ describe('assignStudentToCohort', () => {
     // The move repoints the student itself; a second update after it would undo an
     // outstanding-cohort move made by the recompute.
     expect(updates('students')).toEqual([]);
-    expect(mocks.recomputeEnrollmentAccessPublic).toHaveBeenCalledWith(expect.anything(), 'enr-1', 3);
+    expect(mocks.refreshEnrollmentAccess).toHaveBeenCalledWith(expect.anything(), 'enr-1');
   });
 
   it('reattaches a released enrollment', async () => {
@@ -79,7 +79,7 @@ describe('assignStudentToCohort', () => {
     expect(mocks.createAdmissionRecord).not.toHaveBeenCalled();
     // Recomputed after the reattach, so outstanding-cohort enforcement sees a live enrollment.
     const order = (fn: { mock: { invocationCallOrder: number[] } }) => fn.mock.invocationCallOrder[0];
-    expect(order(mocks.recomputeEnrollmentAccessPublic)).toBeGreaterThan(
+    expect(order(mocks.refreshEnrollmentAccess)).toBeGreaterThan(
       mocks.rpc.mock.invocationCallOrder[mocks.rpc.mock.calls.findIndex(([name]) => name === 'reattach_released_enrollment')],
     );
   });
@@ -90,7 +90,7 @@ describe('assignStudentToCohort', () => {
     await expect(assignStudentToCohort(fakeDb(), { studentId: 'stu-1', email: 'a@example.com', cohortId: 'new-cohort' }))
       .rejects.toThrow('Set a start date');
     expect(updates('students')).toEqual([]);
-    expect(mocks.recomputeEnrollmentAccessPublic).not.toHaveBeenCalled();
+    expect(mocks.refreshEnrollmentAccess).not.toHaveBeenCalled();
   });
 
   it('creates an admission from the cohort settings only when there is no enrollment at all', async () => {

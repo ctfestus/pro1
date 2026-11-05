@@ -468,26 +468,13 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
   });
   if (payErr) throw payErr;
 
-  const { data: enroll, error: enErr } = await db
-    .from('bootcamp_enrollments')
-    .select('cohort_id, currency')
-    .eq('id', input.enrollmentId)
-    .single();
-  if (enErr || !enroll) throw enErr ?? new Error('Enrollment not found');
-
-  const { data: settings } = await db
-    .from('cohort_payment_settings')
-    .select('post_bootcamp_access_months')
-    .eq('cohort_id', enroll.cohort_id)
-    .maybeSingle();
-
-  // Recompute access_status, access_until, and sync cohort membership
-  await recomputeEnrollmentAccess(db, input.enrollmentId, settings?.post_bootcamp_access_months ?? 3);
+  await refreshEnrollmentAccess(db, input.enrollmentId);
 
   // Fire-and-forget payment receipt to student
   if (process.env.RESEND_API_KEY) {
     ;(async () => {
       try {
+        const { data: enroll } = await db.from('bootcamp_enrollments').select('currency').eq('id', input.enrollmentId).maybeSingle();
         let studentName = 'there';
         if (input.studentId) {
           const { data: s } = await db.from('students').select('full_name').eq('id', input.studentId).maybeSingle();
@@ -503,7 +490,7 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
         const fallbackHtml = paymentReceiptEmail({
             name:      studentName,
             amount:    input.amount,
-            currency:  enroll.currency ?? 'GHS',
+            currency:  enroll?.currency ?? 'GHS',
             paidAt:    input.paidAt ?? new Date().toISOString().slice(0, 10),
             method:    input.method ?? null,
             reference: input.reference ?? null,
@@ -514,7 +501,7 @@ export async function recordPayment(db: SupabaseClient, input: RecordPaymentInpu
         const rendered = await applyEmailTemplate({
           key: 'payment_receipt', fallbackSubject, fallbackHtml,
           variables: {
-            student_name: studentName, amount: input.amount.toFixed(2), currency: enroll.currency ?? 'GHS',
+            student_name: studentName, amount: input.amount.toFixed(2), currency: enroll?.currency ?? 'GHS',
             reference: input.reference ?? '', payment_date: paymentDate, payment_method: input.method ?? '',
           },
           branding,
@@ -761,20 +748,37 @@ async function changePayment(
   });
   if (error) throw error;
 
-  const { data: enroll, error: enErr } = await db
-    .from('bootcamp_enrollments')
-    .select('cohort_id')
-    .eq('id', enrollmentId)
-    .single();
-  if (enErr || !enroll) throw enErr ?? new Error('Enrollment not found');
+  await refreshEnrollmentAccess(db, enrollmentId as string);
+}
 
-  const { data: settings } = await db
-    .from('cohort_payment_settings')
-    .select('post_bootcamp_access_months')
-    .eq('cohort_id', enroll.cohort_id)
-    .maybeSingle();
+// ---
+// refreshEnrollmentAccess
+// Recomputes access for an enrollment after a committed change (payment, edit, cohort move).
+// Access is derived and the Payments page and daily sweep recompute it anyway, so a failure here
+// is logged, never thrown: reporting the committed change as failed invites a retry that would
+// record a payment twice or be refused for an already-used confirmation.
+// ---
 
-  await recomputeEnrollmentAccess(db, enrollmentId as string, settings?.post_bootcamp_access_months ?? 3);
+export async function refreshEnrollmentAccess(db: SupabaseClient, enrollmentId: string): Promise<void> {
+  try {
+    const { data: enroll, error } = await db
+      .from('bootcamp_enrollments')
+      .select('cohort_id')
+      .eq('id', enrollmentId)
+      .single();
+    if (error || !enroll) throw error ?? new Error('Enrollment not found');
+
+    const { data: settings, error: settingsErr } = await db
+      .from('cohort_payment_settings')
+      .select('post_bootcamp_access_months')
+      .eq('cohort_id', enroll.cohort_id)
+      .maybeSingle();
+    if (settingsErr) throw settingsErr;
+
+    await recomputeEnrollmentAccess(db, enrollmentId, settings?.post_bootcamp_access_months ?? 3);
+  } catch (err) {
+    console.error('[db-payments] access recompute after a committed change failed', enrollmentId, err);
+  }
 }
 
 async function applyAmountToInstallments(

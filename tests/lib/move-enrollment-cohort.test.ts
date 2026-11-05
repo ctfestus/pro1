@@ -116,4 +116,15 @@ describe('payment writes', () => {
     expect(db.rpc).toHaveBeenCalledWith('change_enrollment_payment', { p_payment_id: 'pay-2', p_updates: null });
     expect(directPaymentWrites(db)).toEqual([]);
   });
+
+  it('reports a committed payment as recorded even when the access recompute fails', async () => {
+    // No enrollment row to read back: the recompute fails after the RPC has committed. Throwing
+    // would invite a retry that records the payment twice.
+    const db = fakeDb({});
+    const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+    await expect(recordPayment(db as any, { enrollmentId: 'enr-1', amount: 650, payerEmail: 'a@example.com', cohortId: 'aug' })).resolves.toBeUndefined();
+    await expect(deletePayment(db as any, 'pay-1')).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalledTimes(2);
+    log.mockRestore();
+  });
 });
