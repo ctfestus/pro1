@@ -1,5 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
-import { CLAUDE_FEATURES, keyFor, modelFor } from '../config';
+import { CLAUDE_ASSET_TYPES, CLAUDE_FEATURES, keyFor, modelFor } from '../config';
 import { toAnthropicSchema } from '../schema';
 import type { AiAdapter, AiRequest, AiResult } from '../types';
 
@@ -11,7 +11,7 @@ export function anthropicParameters(request: AiRequest) {
   const content: any[] = [{ type: 'text', text: prompt }];
   if (asset) {
     const type = asset.mimeType === 'application/pdf' ? 'document' : 'image';
-    if (type === 'image' && !['image/png', 'image/jpeg', 'image/gif', 'image/webp'].includes(asset.mimeType)) {
+    if (!CLAUDE_ASSET_TYPES.has(asset.mimeType)) {
       throw new Error('Claude does not support this document input');
     }
     content.push({ type, source: { type: 'base64', media_type: asset.mimeType, data: asset.data } });

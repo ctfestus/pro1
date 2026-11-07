@@ -96,6 +96,19 @@ describe('provider selection and isolation', () => {
     expect(params.output_config.effort).toBe('low');
     expect(params.max_tokens).toBe(4096);
   });
+
+  it('keeps the SQL helper on Claude when Anthropic is the primary provider', () => {
+    vi.stubEnv('AI_PRIMARY_PROVIDER', 'anthropic');
+    vi.stubEnv('AI_FALLBACK_PROVIDERS', 'gemini');
+    expect(providerChain({ feature: 'sql-ai' })).toEqual(['anthropic', 'gemini']);
+    for (const feature of ['ai-course', 'ai-guided-project', 'generate', 'doc-course-extract', 'data-center-generate-metadata', 'announcement-subtitle', 'application-forms-suggest-options']) {
+      expect(providerChain({ feature })[0]).toBe('anthropic');
+    }
+    expect(anthropicParameters(request({ feature: 'ai-course' })).max_tokens).toBe(20000);
+    const params = anthropicParameters(request({ feature: 'sql-ai', effort: 'low' }));
+    expect(params.output_config.effort).toBe('medium');
+    expect(params.max_tokens).toBe(4096);
+  });
 });
 
 describe('adapter parameter mapping', () => {
