@@ -59,6 +59,19 @@ describe('neutral gateway', () => {
     expect(mocks.openai).not.toHaveBeenCalled();
     expect(JSON.parse(String(log.mock.calls[0][1]))).toMatchObject({ provider: 'gemini', fallbackReason: 'legacy_doc_compatibility' });
   });
+  it('routes Office uploads for the course document import to Gemini, not Claude', async () => {
+    vi.stubEnv('AI_PRIMARY_PROVIDER', 'anthropic');
+    vi.spyOn(console, 'info').mockImplementation(() => undefined);
+    mocks.gemini.mockResolvedValue(ok(['one', 'two']));
+    for (const mimeType of [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    ]) {
+      await generateVisionJSON('prompt', { data: 'office-bytes', mimeType }, schema, { feature: 'doc-course-extract', noFallback: true });
+    }
+    expect(mocks.claude).not.toHaveBeenCalled();
+    expect(mocks.gemini).toHaveBeenCalledTimes(2);
+  });
   it('validates primary and fallback results against the original schema', async () => {
     mocks.gemini.mockResolvedValue(ok(['one']));
     mocks.openai.mockResolvedValue({ choices: [{ message: { content: '{"values":["one","two"]}' } }] });

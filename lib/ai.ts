@@ -2,7 +2,7 @@ import { logAiUsage } from '@/lib/ai-usage';
 import { geminiAdapter } from './ai/adapters/gemini';
 import { openaiAdapter } from './ai/adapters/openai';
 import { anthropicAdapter } from './ai/adapters/anthropic';
-import { keyFor, modelFor, providerChain } from './ai/config';
+import { CLAUDE_ASSET_TYPES, keyFor, modelFor, providerChain } from './ai/config';
 import { AiValidationError, validateAiResult } from './ai/schema';
 import type { AiAdapter, AiProvider, AiRequest, AiResult, GenerateJSONOpts, JsonSchema } from './ai/types';
 
@@ -83,8 +83,8 @@ async function generate(raw: AiRequest): Promise<any> {
   let request = normalized(raw);
   let chain = providerChain(request.opts);
   // Compatibility routing happens before any model call, not after a refusal.
-  const legacyDoc = request.asset?.mimeType === 'application/msword' &&
-    ['document-review', 'extract-rubric'].includes(request.opts.feature ?? '') && chain[0] !== 'gemini';
+  // Claude reads only PDFs and images, so any other attachment (.doc, .docx, .pptx) goes to Gemini.
+  const legacyDoc = !!request.asset && !CLAUDE_ASSET_TYPES.has(request.asset.mimeType) && chain[0] !== 'gemini';
   if (legacyDoc) {
     chain = ['gemini'];
     request = { ...request, opts: { ...request.opts, apiKey: undefined } };

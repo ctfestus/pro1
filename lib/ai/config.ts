@@ -3,6 +3,8 @@ import type { AiProvider, GenerateJSONOpts } from './types';
 export const GEMINI_MODEL = process.env.GEMINI_MODEL ?? 'gemini-3.5-flash';
 export const OPENAI_MODEL = process.env.OPENAI_MODEL ?? 'gpt-4o-mini';
 export const ANTHROPIC_MODEL = 'claude-sonnet-5-5';
+// The only attachment types Claude reads. Anything else (Word, PowerPoint) is routed to Gemini.
+export const CLAUDE_ASSET_TYPES = new Set(['application/pdf', 'image/png', 'image/jpeg', 'image/gif', 'image/webp']);
 const PROVIDERS = new Set<AiProvider>(['gemini', 'openai', 'anthropic']);
 
 // Only these features are qualified for Claude. Limits include thinking tokens.
@@ -17,6 +19,16 @@ export const CLAUDE_FEATURES: Record<string, { effort: 'low' | 'medium'; maxOutp
   'extract-rubric': { effort: 'medium', maxOutputTokens: 12288 },
   'ai-assist': { effort: 'low', maxOutputTokens: 8192 },
   've-brief-chat': { effort: 'low', maxOutputTokens: 4096 },
+  'sql-ai': { effort: 'medium', maxOutputTokens: 4096 },
+  // Course and guided-project generation return whole modules (and datasets) as JSON. Kept under
+  // ~21k so the non-streaming SDK call is not refused as a likely >10 minute request.
+  'ai-course': { effort: 'medium', maxOutputTokens: 20000 },
+  'ai-guided-project': { effort: 'medium', maxOutputTokens: 20000 },
+  generate: { effort: 'medium', maxOutputTokens: 8192 },
+  'doc-course-extract': { effort: 'medium', maxOutputTokens: 16384 },
+  'data-center-generate-metadata': { effort: 'medium', maxOutputTokens: 4096 },
+  'announcement-subtitle': { effort: 'medium', maxOutputTokens: 4096 },
+  'application-forms-suggest-options': { effort: 'medium', maxOutputTokens: 4096 },
   tutor: { effort: 'low' },
 };
 
