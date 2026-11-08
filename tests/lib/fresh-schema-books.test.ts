@@ -16,9 +16,10 @@ describe('fresh schema books (migration 232)', () => {
     }
   });
 
-  it('keeps the books block identical to the migration', () => {
-    const block = migration.slice(migration.indexOf('-- Books ----'), migration.indexOf('-- Shared content plumbing')).trim();
-    expect(schema).toContain(block);
+  it('keeps the books tables identical to migration 232', () => {
+    // The tables are unchanged since 232; later migrations change policies and functions only.
+    const tables = migration.slice(migration.indexOf('-- Books ----'), migration.indexOf('-- RLS ----')).trim();
+    expect(schema).toContain(tables);
   });
 
   it('allows one live entitlement per reader per book', () => {
@@ -61,11 +62,12 @@ describe('fresh schema books (migration 232)', () => {
     expect(fn.indexOf('FROM public.book_entitlements e')).toBeGreaterThan(published);
   });
 
-  it('reserves sale terms and prices for admins', () => {
-    expect(schema).toContain('BEFORE INSERT OR UPDATE ON public.books');
-    expect(schema).toContain('EXECUTE FUNCTION public.guard_book_commercial_terms()');
-    expect(schema).toMatch(/book_prices: admin manage"[\s\S]{0,120}USING\s+\(\(SELECT public\.is_admin\(\)\)\)/);
-    expect(schema).not.toContain('book_prices: instructor manage');
+  it('lets the owning instructor or any admin set sale terms (migration 234)', () => {
+    const m234 = readFileSync(join(process.cwd(), 'migrations/234_book_sale_terms_for_instructors.sql'), 'utf8');
+    expect(m234).toContain('DROP TRIGGER IF EXISTS trg_guard_book_commercial_terms ON public.books;');
+    expect(schema).not.toContain('guard_book_commercial_terms');
+    expect(schema).not.toContain('book_prices: admin manage');
+    expect(schema).toMatch(/book_prices: instructor manage"[\s\S]{0,160}USING\s+\(\(SELECT public\.is_instructor_or_admin\(\)\) AND EXISTS \(SELECT 1 FROM public\.books b WHERE b\.id = book_id AND \(b\.user_id = \(SELECT auth\.uid\(\)\) OR \(SELECT public\.is_admin\(\)\)\)\)\)/);
   });
 
   it('strips a deleted bootcamp cohort from books too', () => {
@@ -82,5 +84,44 @@ describe('fresh schema books (migration 232)', () => {
     expect(schema).toContain("'learning_path','assignment','book'))");
     expect(schema).toContain("CHECK (content_table IN ('courses','virtual_experiences','certifications','learning_paths','books'))");
     expect(schema.match(/IF p_content_table NOT IN \('courses','virtual_experiences','certifications','learning_paths','books'\)/g)?.length).toBe(2);
+  });
+});
+
+describe('fresh schema book chapters save (migration 233)', () => {
+  const schema = readFileSync(join(process.cwd(), 'festman-fresh-schema.sql'), 'utf8');
+  const migration = readFileSync(join(process.cwd(), 'migrations/233_book_saves.sql'), 'utf8');
+
+  it('matches the migration and is service-role only', () => {
+    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book_chapters')).trim();
+    expect(schema).toContain(fn);
+    expect(fn).toContain('FROM PUBLIC, anon, authenticated');
+    expect(fn).toContain('TO service_role');
+  });
+
+  it('saves a book in one locked transaction, checking the version under the lock', () => {
+    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    expect(schema).toContain(fn.trim());
+    const lock = fn.indexOf('FROM public.books WHERE id = p_book_id FOR UPDATE');
+    const version = fn.indexOf('v_old.updated_at IS DISTINCT FROM p_expected_updated_at');
+    const update = fn.indexOf('UPDATE public.books SET');
+    expect(lock).toBeGreaterThan(0);
+    expect(version).toBeGreaterThan(lock);
+    expect(update).toBeGreaterThan(version);
+    expect(fn).toContain("USING ERRCODE = 'BK409'");
+    expect(fn).toContain('TO service_role');
+  });
+
+  it('writes only editable columns, never the owner, id or slug', () => {
+    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    const set = fn.slice(fn.indexOf('UPDATE public.books SET'), fn.indexOf('RETURNING * INTO v_new'));
+    for (const col of ['user_id', 'slug', 'created_at']) expect(set).not.toMatch(new RegExp(`\\b${col}\\s*=`));
+    expect(set).not.toMatch(/\bid\s*=\s*v_new/);
+    expect(fn).toContain('PERFORM public.save_book_chapters(p_book_id, p_chapters)');
+  });
+
+  it("refuses chapter ids from another book and keeps ids rather than recreating rows", () => {
+    expect(migration).toContain("'chapter does not belong to this book'");
+    expect(migration).toContain('UPDATE public.book_chapters SET position = position + 1000000');
+    expect(migration).not.toMatch(/DELETE FROM public\.book_chapters WHERE book_id = p_book_id;/);
   });
 });
