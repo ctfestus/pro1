@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
-import { BOOK_ACCESS_COLUMNS, canReadBook, type BookAccessRow } from '@/lib/books/access';
+import { BOOK_ACCESS_COLUMNS, canReadBook, isPublicSampleAvailable, type BookAccessRow } from '@/lib/books/access';
 import { verifyHtmlTicket } from '@/lib/books/html-ticket';
 import { BOOK_HTML_MAX_BYTES, isBookObjectPath } from '@/lib/books/schema';
 import { limitBodyStream } from '@/lib/read-body-with-limit';
@@ -49,12 +49,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!book) return plain(404, 'Book not found.');
 
     const row = book as unknown as BookAccessRow & { format: string | null; file_path: string | null };
-    const access = await canReadBook(db, claims.userId, row);
-    if (access.level === 'none') return plain(access.status, access.error);
+    if (claims.variant === 'public-sample') {
+      // The store's open sample: nobody signed in, so the public rule decides, re-checked here so
+      // unpublishing (or a licence ending) inside the ticket's few minutes still takes effect.
+      if (!isPublicSampleAvailable(row)) return plain(404, 'Book not found.');
+    } else {
+      const access = await canReadBook(db, claims.userId as string, row);
+      if (access.level === 'none') return plain(access.status, access.error);
+      // A ticket for the full book is only honoured while the reader still has full access.
+      if (claims.variant === 'full' && access.level !== 'full') return plain(403, 'You do not have access to this book.');
+    }
     if (row.format !== 'html') return plain(400, 'This book is not an HTML book.');
-    // A ticket for the full book is only honoured while the reader still has full access.
-    if (claims.variant === 'full' && access.level !== 'full') return plain(403, 'You do not have access to this book.');
 
+    // Only a 'full' ticket ever reaches the full file; 'preview' and 'public-sample' get the sample.
     const kind = claims.variant === 'full' ? 'file' : 'preview';
     const path = kind === 'file' ? row.file_path : row.preview_file_path;
     // Only an object this book's own upload issued -- never a path copied from another book.

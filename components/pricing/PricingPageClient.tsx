@@ -22,7 +22,7 @@ import { featuredOffer, featuredOfferForDuration } from '@/lib/pricing-offer';
 import type { PricingPageData } from '@/lib/pricing-contract';
 import type { AdCard } from '@/lib/mid-ads';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
-import { buildNavGroups } from '@/lib/landing-nav';
+import { buildNavGroups, type NavBook } from '@/lib/landing-nav';
 import { FONTS } from '@/lib/fonts';
 
 function fontStylesheetUrl(fontName?: string): string | null {
@@ -46,11 +46,13 @@ export interface PricingPageClientProps extends PricingPageData {
   paystackEnabled: boolean;
   /** Only for the shared nav's Learn menu, so it matches the landing page's. */
   programmes: ProgrammeItem[];
+  /** The store's books, for the Learn menu's Books entry. */
+  navBooks?: NavBook[];
 }
 
 export function PricingPageClient(props: PricingPageClientProps) {
   const { siteConfig, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds,
-    paystackEnabled, programmes } = props;
+    paystackEnabled, programmes, navBooks } = props;
   // The same source the landing page reads, so the chrome cannot say one thing here and another
   // there.
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
@@ -60,7 +62,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
   // Same builder the landing page uses. Its section anchors do not exist here, which is what
   // navLinkHref is for: they become links home instead of scroll targets.
-  const navGroups = useMemo(() => buildNavGroups(programmes, user), [programmes, user]);
+  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks), [programmes, user, navBooks]);
 
   const durations = useMemo(() => {
     const all = new Set<number>();

@@ -29,7 +29,7 @@ import { LandingNav, LandingFooter } from '@/components/landing/LandingChrome';
 import type { SiteConfig } from '@/lib/site-templates';
 import type { LegalDocument } from '@/lib/legal-content';
 import type { ProgrammeItem } from '@/lib/get-landing-page-data';
-import { buildNavGroups } from '@/lib/landing-nav';
+import { buildNavGroups, type NavBook } from '@/lib/landing-nav';
 import { FONTS } from '@/lib/fonts';
 
 /**
@@ -75,10 +75,12 @@ export interface LegalPageClientProps {
   bodyFont?: string;
   /** Only for the shared nav's Learn menu, so it matches the landing page's. */
   programmes: ProgrammeItem[];
+  /** The store's books, for the Learn menu's Books entry. */
+  navBooks?: NavBook[];
 }
 
 export function LegalPageClient({
-  doc, siteConfig, primaryColor, accentColor, headingFont, bodyFont, programmes,
+  doc, siteConfig, primaryColor, accentColor, headingFont, bodyFont, programmes, navBooks,
 }: LegalPageClientProps) {
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
   const { theme } = useTheme();
@@ -100,7 +102,7 @@ export function LegalPageClient({
 
   // Same builder the landing page uses. Its section anchors do not exist here, which is what
   // navLinkHref is for: they become links home instead of scroll targets.
-  const navGroups = useMemo(() => buildNavGroups(programmes, user), [programmes, user]);
+  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks), [programmes, user, navBooks]);
   const sections = useMemo(
     () => doc.sections.map(section => ({ ...section, id: slugify(section.heading) })),
     [doc.sections],

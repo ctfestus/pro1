@@ -7,17 +7,22 @@
  * (book, user, variant, expiry): it opens exactly one book, for one person, for a few minutes,
  * and cannot be edited to open another book or the full file instead of the sample.
  *
+ * The store's open sample uses a 'public-sample' ticket with no user: issued by the unauthenticated
+ * /api/books/[id]/sample, honoured only while the sample is public (isPublicSampleAvailable), and
+ * only ever for the sample object.
+ *
  * Server-only (node:crypto).
  */
 import { createHmac, timingSafeEqual } from 'crypto';
 
 export const HTML_TICKET_TTL_SECONDS = 5 * 60;
 
-export type HtmlTicketVariant = 'full' | 'preview';
+export type HtmlTicketVariant = 'full' | 'preview' | 'public-sample';
 
 export interface HtmlTicketClaims {
   bookId: string;
-  userId: string;
+  /** Null exactly when the variant is 'public-sample'. */
+  userId: string | null;
   variant: HtmlTicketVariant;
   /** Unix seconds. */
   exp: number;
@@ -67,8 +72,9 @@ export function verifyHtmlTicket(
   if (
     !claims
     || claims.bookId !== bookId
-    || typeof claims.userId !== 'string'
-    || (claims.variant !== 'full' && claims.variant !== 'preview')
+    || (claims.variant !== 'full' && claims.variant !== 'preview' && claims.variant !== 'public-sample')
+    // A public ticket names nobody; every other ticket names its reader.
+    || (claims.variant === 'public-sample' ? claims.userId !== null : typeof claims.userId !== 'string')
     || typeof claims.exp !== 'number'
     || claims.exp * 1000 <= nowMs
   ) {

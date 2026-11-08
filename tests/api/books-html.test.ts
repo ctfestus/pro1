@@ -27,7 +27,7 @@ vi.mock('@/lib/admin-client', async () => {
 });
 
 import { GET } from '@/app/api/books/[id]/html/route';
-import { issueHtmlTicket } from '@/lib/books/html-ticket';
+import { issueHtmlTicket, verifyHtmlTicket } from '@/lib/books/html-ticket';
 
 const BOOK = {
   id: BOOK_ID,
@@ -192,5 +192,37 @@ describe('GET /api/books/[id]/html', () => {
     const res = await call(ticketFor());
     expect(res.status).toBe(200);
     await expect(res.arrayBuffer()).rejects.toThrow();
+  });
+});
+
+describe('GET /api/books/[id]/html with a public-sample ticket (the store)', () => {
+  const publicTicket = (bookId = BOOK_ID) => issueHtmlTicket({ bookId, userId: null, variant: 'public-sample' }).ticket;
+  const forSale = (extra: Record<string, unknown> = {}) => {
+    state.tables.books = { data: { ...BOOK, purchasable: true, cohort_ids: [], ...extra } };
+  };
+
+  it('serves the sample, never the full file, to nobody in particular', async () => {
+    forSale();
+    const res = await call(publicTicket());
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    expect(state.signed).toEqual([PREVIEW]);
+  });
+
+  it('stops once the book is no longer public, inside the ticket window', async () => {
+    forSale({ status: 'draft' });
+    expect((await call(publicTicket())).status).toBe(404);
+    forSale({ purchasable: false });
+    expect((await call(publicTicket())).status).toBe(404);
+    forSale({ license_expires_at: '2020-01-01T00:00:00Z' });
+    expect((await call(publicTicket())).status).toBe(404);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('a public ticket must name nobody, and a reader ticket must name someone', () => {
+    const forged = issueHtmlTicket({ bookId: BOOK_ID, userId: 'u1', variant: 'public-sample' }).ticket;
+    expect(verifyHtmlTicket(forged, BOOK_ID)).toBeNull();
+    const anonymousFull = issueHtmlTicket({ bookId: BOOK_ID, userId: null, variant: 'full' }).ticket;
+    expect(verifyHtmlTicket(anonymousFull, BOOK_ID)).toBeNull();
   });
 });

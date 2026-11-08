@@ -12,6 +12,7 @@ import {
 } from '@/lib/books/admin';
 import { normalizeBook, validateBookForPublish, type BookFormat, type BookPrice } from '@/lib/books/schema';
 import { BOOK_BUCKET } from '@/lib/books/storage';
+import { refreshBookStore } from '@/lib/books/store-cache';
 
 // /api/books -- the admin editor's save path for books.
 //
@@ -242,6 +243,7 @@ export async function PUT(req: NextRequest) {
 
     await cleanUpBookFiles(db, book.id, [(saved as any)?.file_path ?? null, (saved as any)?.preview_file_path ?? null], replaced);
 
+    refreshBookStore();
     return NextResponse.json({ ok: true, book: saved });
   } catch (e: any) {
     console.error('[books] save failed', e?.message ?? e);
@@ -287,6 +289,7 @@ export async function DELETE(req: NextRequest) {
       const { error: rmError } = await bucket.remove(paths);
       if (rmError) console.error('[books] could not remove files of deleted book', rmError.message);
     }
+    refreshBookStore();
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error('[books] delete failed', e?.message ?? e);

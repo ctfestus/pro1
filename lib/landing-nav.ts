@@ -74,7 +74,32 @@ function subGroupsFor(items: ProgrammeItem[], user: unknown): NavSubGroup[] {
  * The Learn menu's contents. A type with nothing published is left out rather than offered as an
  * empty row, which also keeps the nav from linking to a section the page will not render.
  */
-export function buildNavGroups(programmes: ProgrammeItem[], user: unknown): NavGroup[] {
+/** A store book, as the Learn menu lists it (lib/books/store.ts toNavBook). */
+export type NavBook = { id: string; slug: string; title: string; coverImage: string | null };
+
+/**
+ * The store's Books entry. Its anchor is a path, not a section id: books live on their own pages,
+ * so the shared nav links to /books instead of scrolling (NavSectionLink treats a leading slash as
+ * a link on every page).
+ */
+function booksGroup(books: NavBook[]): NavGroup | null {
+  if (!books.length) return null;
+  return {
+    label: 'Books',
+    anchor: '/books',
+    subGroups: [{
+      label: '',
+      items: books.slice(0, ITEMS_PER_GROUP).map(book => ({
+        id: book.id,
+        title: book.title,
+        imageUrl: book.coverImage ?? undefined,
+        href: `/books/${book.slug}`,
+      })),
+    }],
+  };
+}
+
+export function buildNavGroups(programmes: ProgrammeItem[], user: unknown, books: NavBook[] = []): NavGroup[] {
   const byType = (type: ProgrammeItem['type']) => programmes.filter(item => item.type === type);
   const groups: Array<NavGroup | null> = [
     { label: 'Courses',             anchor: 'section-courses',        items: byType('course') },
@@ -84,5 +109,5 @@ export function buildNavGroups(programmes: ProgrammeItem[], user: unknown): NavG
   ].map(({ label, anchor, items }) => (
     items.length ? { label, anchor, subGroups: subGroupsFor(items, user) } : null
   ));
-  return groups.filter((group): group is NavGroup => group !== null);
+  return [...groups, booksGroup(books)].filter((group): group is NavGroup => group !== null);
 }
