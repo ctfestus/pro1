@@ -31,8 +31,9 @@ import type { SectionId } from '@/components/student/nav';
 import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
 import type { CataloguePathItem } from '@/lib/catalogue-path-items';
 import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
+import { formatMoney } from '@/lib/books/format';
 
-type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification';
+type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification' | 'book';
 
 interface CatalogueItem {
   id: string;
@@ -44,6 +45,10 @@ interface CatalogueItem {
   category: string | null;
   locked: boolean;
   pathItems?: CataloguePathItem[];
+  /** Books only: the price of a locked book, bought on its own. */
+  prices?: { currency: string; amount: number }[];
+  /** Books only: listed in the public store; otherwise the learner's copy is in My Books. */
+  inStore?: boolean;
 }
 
 const TYPE_LABEL: Record<CatalogueType, string> = {
@@ -51,6 +56,7 @@ const TYPE_LABEL: Record<CatalogueType, string> = {
   learning_path:      'Learning Path',
   virtual_experience: 'Virtual Experience',
   certification:      'Certification',
+  book:               'Book',
 };
 
 const ROW_TITLE: Record<CatalogueType, string> = {
@@ -58,6 +64,7 @@ const ROW_TITLE: Record<CatalogueType, string> = {
   learning_path:      'Learning Paths',
   virtual_experience: 'Virtual Experiences',
   certification:      'Certifications',
+  book:               'Books',
 };
 
 // Image-less fallbacks, mirroring the landing page's per-type gradients so a card with no cover
@@ -67,9 +74,10 @@ const TYPE_GRAD: Record<CatalogueType, string> = {
   learning_path:      'linear-gradient(135deg,#92400E 0%,#F59E0B 100%)',
   virtual_experience: 'linear-gradient(135deg,#064E3B 0%,#10B981 100%)',
   certification:      'linear-gradient(135deg,#155E75 0%,#06B6D4 100%)',
+  book:               'linear-gradient(135deg,#7C2D12 0%,#EA580C 100%)',
 };
 
-const TYPE_ORDER: CatalogueType[] = ['course', 'learning_path', 'virtual_experience', 'certification'];
+const TYPE_ORDER: CatalogueType[] = ['course', 'learning_path', 'virtual_experience', 'certification', 'book'];
 const INITIAL_VISIBLE = 8;
 const LOAD_MORE_STEP = 8;
 
@@ -78,6 +86,7 @@ const TYPE_ICON: Record<CatalogueType, ElementType> = {
   learning_path:      Layers,
   virtual_experience: Briefcase,
   certification:      Award,
+  book:               BookOpen,
 };
 
 // What a learner can open now, versus what a plan would open. Two different questions from the
@@ -94,6 +103,7 @@ const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'learning_path',      label: 'Learning Paths' },
   { value: 'virtual_experience', label: 'Virtual Experiences' },
   { value: 'certification',      label: 'Certifications' },
+  { value: 'book',               label: 'Books' },
 ];
 
 function CategoryPill({ category }: { category: string }) {
@@ -112,10 +122,19 @@ const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage)
 // Every card is a real link, so middle-click, open-in-new-tab and copy-link work everywhere.
 // Every type opens its detail page, the same one the landing page links to. A learning path links
 // by id, as the landing page does; starting it from there opens it in My Learning.
+// Books open their store page (/books/[slug]), where the learner can buy, read the sample, or
+// download one they already have. A book they have only through their program is not in the
+// store, so it opens My Books, where it is listed for download.
 const directHref = (item: CatalogueItem) =>
-  item.type === 'learning_path'
-    ? `/${encodeURIComponent(item.id)}?catalogueType=learning_path`
-    : `/${item.slug || item.id}?catalogueType=${encodeURIComponent(item.type)}`;
+  item.type === 'book'
+    ? (item.inStore === false ? '/student#books' : `/books/${encodeURIComponent(item.slug || item.id)}`)
+    : item.type === 'learning_path'
+      ? `/${encodeURIComponent(item.id)}?catalogueType=learning_path`
+      : `/${item.slug || item.id}?catalogueType=${encodeURIComponent(item.type)}`;
+
+/** "GHS 120", or each currency's price when there are several. */
+const bookPrice = (item: CatalogueItem) =>
+  (item.prices ?? []).map(p => formatMoney(p.amount, p.currency)).join(' / ');
 
 export function ExploreSection({ C }: {
   C: typeof LIGHT_C;
@@ -130,6 +149,7 @@ export function ExploreSection({ C }: {
     learning_path:      accentColor  || '#FF9933',
     virtual_experience: '#00BF63',
     certification:      '#0891B2',
+    book:               '#C2410C',
   };
 
   const [items,   setItems]   = useState<CatalogueItem[]>([]);
@@ -372,6 +392,9 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                   <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: C.text }}>
                     {item.title}
                   </p>
+                  {item.locked && item.prices?.length ? (
+                    <p className="text-sm font-bold mt-1" style={{ color: C.text }}>{bookPrice(item)}</p>
+                  ) : null}
                   {item.category && (
                     <div className="mt-2">
                       <CategoryPill category={item.category} />
@@ -579,10 +602,15 @@ function CataloguePreview({ item, accent, onOpen, C }: {
             style={{ background: C.cta, color: C.ctaText }}
           >
             <ArrowRight className="w-3.5 h-3.5" />
-            View details
+            {item.type === 'book' ? `View book${item.prices?.length ? ` - ${bookPrice(item)}` : ''}` : 'View details'}
           </button>
         ) : (() => {
-          const label = (
+          const label = item.type === 'book' ? (
+            <>
+              <BookOpen className="w-3.5 h-3.5" />
+              Get your copy
+            </>
+          ) : (
             <>
               <Play className="w-3.5 h-3.5" />
               {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}

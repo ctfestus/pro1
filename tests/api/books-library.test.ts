@@ -37,6 +37,7 @@ describe('GET /api/books/library', () => {
   it('lists bought and granted books with display columns only', async () => {
     authAs({
       students: { data: { cohort_id: null } },
+      learning_paths: { data: [] },
       book_entitlements: { data: [
         { book_id: 'b1', source: 'purchase', granted_at: '2026-11-01T00:00:00Z' },
         { book_id: 'b2', source: 'grant', granted_at: '2026-11-05T00:00:00Z' },
@@ -73,9 +74,22 @@ describe('GET /api/books/library', () => {
     ]);
   });
 
+  it('adds a book inside a learning path open to everyone, even with no cohort', async () => {
+    authAs({
+      students: { data: { cohort_id: null } },
+      book_entitlements: { data: [] },
+      book_purchases: { data: [] },
+      learning_paths: { data: [{ item_ids: ['course-x', 'b5'] }] },
+      books: { data: [book('b5')] },
+    });
+    const { books } = await (await call()).json();
+    expect(books.map((b: any) => [b.id, b.source])).toEqual([['b5', 'cohort']]);
+  });
+
   it('keeps a book whose licence has ended, marked unavailable', async () => {
     authAs({
       students: { data: { cohort_id: null } },
+      learning_paths: { data: [] },
       book_entitlements: { data: [{ book_id: 'b1', source: 'purchase', granted_at: '2026-11-01T00:00:00Z' }] },
       book_purchases: { data: [] },
       books: { data: [book('b1', { license_expires_at: '2020-01-01T00:00:00Z' })] },
@@ -88,6 +102,7 @@ describe('GET /api/books/library', () => {
   it('returns every book payment, including ones still processing or under review', async () => {
     authAs({
       students: { data: { cohort_id: null } },
+      learning_paths: { data: [] },
       book_entitlements: { data: [] },
       book_purchases: { data: [
         { id: 'p1', book_id: 'b1', book_title: 'Book b1', amount: '120.00', currency: 'GHS', status: 'paid', paid_at: '2026-11-01', created_at: '2026-11-01' },
