@@ -10,6 +10,8 @@ import { SESSION_LOOKUP_FREE_API_PATH_SET } from '@/lib/middleware-session-polic
 
 // App routes that must never be iframed
 const APP_ROUTE = /^\/(dashboard|settings|create|admin|auth|onboarding|student)/;
+// Exactly the sandboxed HTML book route (app/api/books/[id]/html), not its siblings.
+const BOOK_HTML_ROUTE = /^\/api\/books\/[^/]+\/html$/;
 
 function hasSupabaseSessionCookie(req: NextRequest): boolean {
   return req.cookies.getAll().some(({ name }) =>
@@ -135,10 +137,10 @@ export async function middleware(req: NextRequest) {
     }
   }
 
-  // The HTML-embed proxy sets its own CSP (sandbox) on instructor-uploaded
-  // pages; the app CSP's nonce-based script-src would block their inline
+  // The HTML-embed proxy and the HTML book route set their own CSP (sandbox) on
+  // uploaded pages; the app CSP's nonce-based script-src would block their inline
   // scripts, and two CSP headers enforce the intersection of both.
-  if (req.nextUrl.pathname !== '/api/html-embed') {
+  if (req.nextUrl.pathname !== '/api/html-embed' && !BOOK_HTML_ROUTE.test(req.nextUrl.pathname)) {
     res.headers.set('Content-Security-Policy', nonce ? csp : '');
   }
   return res;
