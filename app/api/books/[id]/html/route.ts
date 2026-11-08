@@ -3,7 +3,7 @@ import { adminClient } from '@/lib/admin-client';
 import { BOOK_ACCESS_COLUMNS, canReadBook, type BookAccessRow } from '@/lib/books/access';
 import { verifyHtmlTicket } from '@/lib/books/html-ticket';
 import { BOOK_HTML_MAX_BYTES, isBookObjectPath } from '@/lib/books/schema';
-import { limitBodyStream, readBodyWithLimit } from '@/lib/read-body-with-limit';
+import { limitBodyStream } from '@/lib/read-body-with-limit';
 import { BOOK_BUCKET } from '@/lib/books/storage';
 
 // GET /api/books/[id]/html?t=<ticket>
@@ -84,18 +84,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return plain(413, 'This book file is too large to open.');
     }
 
-    // Streamed, not buffered: a buffered serverless response is capped (about 4.5 MB on Vercel),
-    // well under the 10 MB HTML limit. Only a body whose size storage declared is streamed, and the
-    // guard still cuts it off if more bytes arrive than the cap allows. Without a declared size the
-    // body is read up front so an oversized file gets a clean 413 instead of a truncated page.
-    let body: ReadableStream<Uint8Array> | ArrayBuffer;
-    if (Number.isFinite(declared) && upstream.body) {
-      body = limitBodyStream(upstream.body, BOOK_HTML_MAX_BYTES);
-    } else {
-      const bytes = await readBodyWithLimit(upstream, BOOK_HTML_MAX_BYTES);
-      if (!bytes) return plain(413, 'This book file is too large to open.');
-      body = bytes;
-    }
+    // Always streamed, never buffered: a buffered serverless response is capped (about 4.5 MB on
+    // Vercel), well under the 10 MB HTML limit, and storage may answer chunked with no length. The
+    // guard cuts the stream off once more bytes arrive than the cap allows. An undeclared oversized
+    // body therefore ends as a truncated page rather than a 413; that is acceptable because the
+    // save route already checked the stored object's real size, so this is only a backstop.
+    const body = upstream.body ? limitBodyStream(upstream.body, BOOK_HTML_MAX_BYTES) : new Uint8Array(0);
 
     return new NextResponse(body, {
       status: 200,
