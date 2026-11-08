@@ -751,12 +751,12 @@ CREATE TABLE public.schedule_resources (
 
 -- ── cohort_assignments (polymorphic: tracks content-to-cohort assignments) ──
 -- content_type is 'course' | 'event' | 'virtual_experience' | 'form' | 'certification'
--- | 'learning_path' | 'assignment' (migration 224; those two are kept by trg_*_cohort_dates)
+-- | 'learning_path' | 'assignment' (migration 224; those two are kept by trg_*_cohort_dates) | 'book' (migration 232)
 -- content_id references the corresponding table's primary key
 CREATE TABLE public.cohort_assignments (
   id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
   cohort_id    uuid        NOT NULL REFERENCES public.cohorts(id) ON DELETE CASCADE,
-  content_type text        NOT NULL CHECK (content_type IN ('course','event','virtual_experience','form','certification','learning_path','assignment')),
+  content_type text        NOT NULL CHECK (content_type IN ('course','event','virtual_experience','form','certification','learning_path','assignment','book')),
   content_id   uuid        NOT NULL,
   assigned_at  timestamptz NOT NULL DEFAULT now(),
   UNIQUE (content_id, cohort_id)
@@ -4711,7 +4711,7 @@ CREATE INDEX idx_subscription_payments_activation_email_pending
 CREATE TABLE public.subscription_plan_content (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   plan_id uuid NOT NULL REFERENCES public.subscription_plans(id) ON DELETE CASCADE,
-  content_table text NOT NULL CHECK (content_table IN ('courses','virtual_experiences','certifications','learning_paths')),
+  content_table text NOT NULL CHECK (content_table IN ('courses','virtual_experiences','certifications','learning_paths','books')),
   content_id uuid NOT NULL,
   added_at timestamptz NOT NULL DEFAULT now(),
   added_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -5785,7 +5785,7 @@ CREATE OR REPLACE FUNCTION public.set_subscription_plan_content(
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE v_cohort_id uuid;
 BEGIN
-  IF p_content_table NOT IN ('courses','virtual_experiences','certifications','learning_paths') THEN
+  IF p_content_table NOT IN ('courses','virtual_experiences','certifications','learning_paths','books') THEN
     RAISE EXCEPTION 'invalid content table: %', p_content_table;
   END IF;
 
@@ -5836,7 +5836,7 @@ GRANT EXECUTE ON FUNCTION public.set_subscription_plan_content(uuid, text, uuid,
 CREATE OR REPLACE FUNCTION public.toggle_content_cohort_tag(p_content_table text,p_content_id uuid,p_cohort_id uuid,p_add boolean)
 RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 BEGIN
-  IF p_content_table NOT IN ('courses','virtual_experiences','certifications','learning_paths') THEN RAISE EXCEPTION 'invalid content table: %', p_content_table; END IF;
+  IF p_content_table NOT IN ('courses','virtual_experiences','certifications','learning_paths','books') THEN RAISE EXCEPTION 'invalid content table: %', p_content_table; END IF;
   IF p_add THEN
     EXECUTE format('UPDATE public.%I SET cohort_ids=array_append(cohort_ids,$1) WHERE id=$2 AND NOT ($1=ANY(cohort_ids))',p_content_table) USING p_cohort_id,p_content_id;
   ELSE
@@ -7401,7 +7401,7 @@ DECLARE
   -- it is the whole correction.
   v_content_tables  text[] := ARRAY[
     'forms', 'courses', 'events', 'virtual_experiences', 'certifications', 'assignments',
-    'communities', 'announcements', 'recordings', 'schedules', 'learning_paths'
+    'communities', 'announcements', 'recordings', 'schedules', 'learning_paths', 'books'
   ];
 BEGIN
   SELECT cohort_kind INTO v_kind FROM public.cohorts WHERE id = p_cohort_id FOR UPDATE;
@@ -7707,3 +7707,366 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.get_live_promotion(text, uuid, uuid[], timestamptz[], date) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.get_live_promotion(text, uuid, uuid[], timestamptz[], date) TO service_role;
+
+-- ============================================================================
+-- Books (migration 232): catalogue, single-book purchases, reading progress, annotations.
+-- The content-type CHECKs and plan-content RPCs above already list 'book' / 'books'.
+-- ============================================================================
+-- Books --------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.books (
+  id                    uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- SET NULL, not CASCADE as courses use: a book can have buyers, and deleting the uploading
+  -- account must not take purchased books (and their purchase history) with it. An ownerless book
+  -- is managed by admins. Not RESTRICT either: that would make the author's account undeletable.
+  user_id               uuid        REFERENCES auth.users(id) ON DELETE SET NULL,
+  slug                  text        NOT NULL UNIQUE,
+  title                 text        NOT NULL DEFAULT 'Untitled',
+  subtitle              text,
+  description           text,
+  cover_image           text,
+  authors               text[]      NOT NULL DEFAULT '{}',
+  category              text,
+  topics                text[]      NOT NULL DEFAULT '{}',
+  skills                text[]      NOT NULL DEFAULT '{}',
+  difficulty            text        CHECK (difficulty IN ('beginner','intermediate','advanced')),
+  estimated_minutes     integer     CHECK (estimated_minutes IS NULL OR estimated_minutes > 0),
+  status                text        NOT NULL DEFAULT 'draft'
+                                      CHECK (status IN ('draft','published','archived')),
+  cohort_ids            uuid[]      NOT NULL DEFAULT '{}',
+  available_to_everyone boolean     NOT NULL DEFAULT false
+                                      CHECK (NOT available_to_everyone OR cardinality(cohort_ids) = 0),
+  -- Sold one at a time through /api/books/checkout. A purchasable book is visible to every
+  -- signed-in account so it can be found and bought; reading it still needs an entitlement.
+  purchasable           boolean     NOT NULL DEFAULT false,
+  royalty_pct           numeric(5,2) NOT NULL DEFAULT 0 CHECK (royalty_pct >= 0 AND royalty_pct <= 100),
+  format                text        CHECK (format IN ('epub','pdf','html')),
+  file_path             text,
+  file_size             bigint      CHECK (file_size IS NULL OR file_size > 0),
+  -- Optional free sample, a separate object so the full file is never sent to a non-owner.
+  preview_file_path     text,
+  -- Rights. Own / openly licensed titles first; the columns cover third-party licences too.
+  rights_holder         text,
+  license_type          text        CHECK (license_type IN ('own','cc_by','cc_by_sa','cc_by_nc','public_domain','licensed','other')),
+  license_url           text,
+  license_expires_at    timestamptz,
+  ai_allowed            boolean     NOT NULL DEFAULT true,
+  endorsement_permitted boolean     NOT NULL DEFAULT false,
+  created_at            timestamptz NOT NULL DEFAULT now(),
+  updated_at            timestamptz NOT NULL DEFAULT now(),
+  -- Object paths are author-writable, and the delivery routes sign them with the service role. So
+  -- a path may only name an object under THIS book's own folder, of the matching kind and format
+  -- (the shape bookObjectPath issues) -- an author cannot point a draft at another book's file.
+  -- lib/books/schema.ts isBookObjectPath applies the same rule in the routes.
+  CONSTRAINT books_file_path_scoped CHECK (
+    file_path IS NULL
+    OR file_path ~ ('^' || id::text || '/file-[0-9a-f-]{36}\.' || COALESCE(format, '-') || '$')
+  ),
+  CONSTRAINT books_preview_path_scoped CHECK (
+    preview_file_path IS NULL
+    OR preview_file_path ~ ('^' || id::text || '/preview-[0-9a-f-]{36}\.' || COALESCE(format, '-') || '$')
+  ),
+  -- A published book has a file and a licence. "Reaches somebody" (open, a cohort, or for sale) is
+  -- deliberately NOT here but in validateBookForPublish: a CHECK is evaluated per statement, and the
+  -- shared plan/cohort functions (set_subscription_plan_content with p_clear_public, untagging a
+  -- book's last cohort, delete_bootcamp_cohort) legitimately pass through a state with no audience.
+  -- A published book that reaches nobody is merely invisible, never exposed.
+  CONSTRAINT books_published_ready CHECK (
+    status <> 'published'
+    OR (format IS NOT NULL AND file_path IS NOT NULL AND license_type IS NOT NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_books_status ON public.books(status);
+CREATE INDEX IF NOT EXISTS idx_books_user ON public.books(user_id);
+CREATE INDEX IF NOT EXISTS idx_books_cohort_ids ON public.books USING gin (cohort_ids);
+
+CREATE TABLE IF NOT EXISTS public.book_prices (
+  id         uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  book_id    uuid          NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+  currency   text          NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+  amount     numeric(10,2) NOT NULL CHECK (amount > 0),
+  created_at timestamptz   NOT NULL DEFAULT now(),
+  UNIQUE (book_id, currency)
+);
+
+CREATE TABLE IF NOT EXISTS public.book_chapters (
+  id                uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  book_id           uuid        NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+  position          integer     NOT NULL CHECK (position >= 0),
+  title             text        NOT NULL,
+  -- EPUB: {"href": "..."}; PDF: {"pageStart": n, "pageEnd": n}; HTML: {"anchor": "..."}.
+  locator           jsonb       NOT NULL DEFAULT '{}'::jsonb,
+  estimated_minutes integer     CHECK (estimated_minutes IS NULL OR estimated_minutes > 0),
+  required          boolean     NOT NULL DEFAULT true,
+  is_preview        boolean     NOT NULL DEFAULT false,
+  created_at        timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (book_id, position)
+);
+
+-- Ownership ----------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.book_purchases (
+  id                 uuid          PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- SET NULL, as subscription_payments: the money record outlives the account.
+  student_id         uuid          REFERENCES public.students(id) ON DELETE SET NULL,
+  book_id            uuid          NOT NULL REFERENCES public.books(id) ON DELETE RESTRICT,
+  book_title         text          NOT NULL,
+  currency           text          NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
+  amount             numeric(10,2) NOT NULL CHECK (amount > 0),
+  paystack_reference text          NOT NULL UNIQUE CHECK (length(btrim(paystack_reference)) > 0),
+  status             text          NOT NULL DEFAULT 'pending'
+                                     CHECK (status IN ('pending','paid','failed','refunded')),
+  -- Snapshot at sale time, so a later change to books.royalty_pct never rewrites past royalties.
+  royalty_pct        numeric(5,2)  NOT NULL DEFAULT 0 CHECK (royalty_pct >= 0 AND royalty_pct <= 100),
+  paid_at            timestamptz,
+  refunded_at        timestamptz,
+  created_at         timestamptz   NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_book_purchases_student ON public.book_purchases(student_id);
+CREATE INDEX IF NOT EXISTS idx_book_purchases_book ON public.book_purchases(book_id);
+
+CREATE TABLE IF NOT EXISTS public.book_entitlements (
+  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid        NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  book_id    uuid        NOT NULL REFERENCES public.books(id) ON DELETE RESTRICT,
+  source     text        NOT NULL CHECK (source IN ('purchase','grant')),
+  -- book_purchases.id for a purchase; free text (who granted it, why) for a grant.
+  source_ref text,
+  granted_at timestamptz NOT NULL DEFAULT now(),
+  revoked_at timestamptz
+);
+
+-- One live entitlement per reader per book. A refund revokes; a re-purchase grants afresh.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_book_entitlements_one_active
+  ON public.book_entitlements(student_id, book_id) WHERE revoked_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_book_entitlements_book ON public.book_entitlements(book_id);
+
+-- Reading ------------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.user_books (
+  id            uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id    uuid         NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  book_id       uuid         NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+  shelf         text         NOT NULL DEFAULT 'want_to_read'
+                               CHECK (shelf IN ('want_to_read','reading','completed')),
+  -- EPUB CFI, PDF page, or HTML anchor + scroll; shape owned by lib/books/schema.ts BookLocation.
+  last_location jsonb,
+  progress_pct  numeric(5,2) NOT NULL DEFAULT 0 CHECK (progress_pct >= 0 AND progress_pct <= 100),
+  started_at    timestamptz,
+  last_read_at  timestamptz,
+  completed_at  timestamptz,
+  created_at    timestamptz  NOT NULL DEFAULT now(),
+  UNIQUE (student_id, book_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_books_recent ON public.user_books(student_id, last_read_at DESC);
+
+CREATE TABLE IF NOT EXISTS public.book_chapter_progress (
+  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id   uuid        NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  book_id      uuid        NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+  chapter_id   uuid        NOT NULL REFERENCES public.book_chapters(id) ON DELETE CASCADE,
+  seconds_read integer     NOT NULL DEFAULT 0 CHECK (seconds_read >= 0),
+  completed_at timestamptz,
+  updated_at   timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (student_id, chapter_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_book_chapter_progress_book ON public.book_chapter_progress(student_id, book_id);
+
+CREATE TABLE IF NOT EXISTS public.book_annotations (
+  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id uuid        NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
+  book_id    uuid        NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
+  chapter_id uuid        REFERENCES public.book_chapters(id) ON DELETE SET NULL,
+  kind       text        NOT NULL CHECK (kind IN ('highlight','bookmark','note')),
+  locator    jsonb       NOT NULL,
+  quote      text        CHECK (quote IS NULL OR length(quote) <= 5000),
+  note       text        CHECK (note IS NULL OR length(note) <= 10000),
+  color      text        CHECK (color IS NULL OR color ~ '^[a-z]{1,16}$'),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_book_annotations_owner ON public.book_annotations(student_id, book_id);
+
+-- RLS ----------------------------------------------------------------------------------------
+ALTER TABLE public.books                 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.book_prices           ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.book_chapters         ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.book_purchases        ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.book_entitlements     ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_books            ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.book_chapter_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.book_annotations      ENABLE ROW LEVEL SECURITY;
+
+-- Who may see a book row. Signed-in accounts only (as migration 215 set for courses). Cohort-only
+-- books that are not for sale stay invisible to everyone outside the cohort -- a client's private
+-- title must not leak by appearing in a stranger's catalogue. lib/books/access.ts canReadBook
+-- applies the same visibility before it serves any file, so the two must change together.
+CREATE OR REPLACE FUNCTION public.can_see_book(p_book public.books)
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+  SELECT
+    p_book.user_id = (SELECT auth.uid())
+    OR (SELECT public.is_admin())
+    OR (
+      p_book.status = 'published'
+      AND (
+        p_book.available_to_everyone
+        OR p_book.purchasable
+        OR (SELECT s.cohort_id FROM public.students s WHERE s.id = (SELECT auth.uid())) = ANY(p_book.cohort_ids)
+        -- Same path rule as "courses: participants select" and hasPublishedStudentContentAccess:
+        -- a published path reaching the reader grants its items.
+        OR EXISTS (
+          SELECT 1 FROM public.learning_paths lp
+          WHERE lp.status = 'published'
+            AND p_book.id = ANY(lp.item_ids)
+            AND (
+              lp.available_to_everyone
+              OR (SELECT s.cohort_id FROM public.students s WHERE s.id = (SELECT auth.uid())) = ANY(lp.cohort_ids)
+            )
+        )
+        -- Inside the published branch, so a withdrawn book is hidden from buyers too, as
+        -- canReadBook does.
+        OR EXISTS (
+          SELECT 1 FROM public.book_entitlements e
+          WHERE e.book_id = p_book.id
+            AND e.student_id = (SELECT auth.uid())
+            AND e.revoked_at IS NULL
+        )
+      )
+    );
+$$;
+REVOKE EXECUTE ON FUNCTION public.can_see_book(public.books) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.can_see_book(public.books) TO authenticated, service_role;
+
+DROP POLICY IF EXISTS "books: visible select" ON public.books;
+CREATE POLICY "books: visible select"
+  ON public.books FOR SELECT TO authenticated
+  USING (public.can_see_book(books));
+
+DROP POLICY IF EXISTS "books: instructor insert" ON public.books;
+CREATE POLICY "books: instructor insert"
+  ON public.books FOR INSERT TO authenticated
+  WITH CHECK ((SELECT public.is_instructor_or_admin()) AND (user_id = (SELECT auth.uid()) OR (SELECT public.is_admin())));
+
+DROP POLICY IF EXISTS "books: instructor update" ON public.books;
+CREATE POLICY "books: instructor update"
+  ON public.books FOR UPDATE TO authenticated
+  USING      ((SELECT public.is_instructor_or_admin()) AND (user_id = (SELECT auth.uid()) OR (SELECT public.is_admin())))
+  WITH CHECK ((SELECT public.is_instructor_or_admin()) AND (user_id = (SELECT auth.uid()) OR (SELECT public.is_admin())));
+
+DROP POLICY IF EXISTS "books: instructor delete" ON public.books;
+CREATE POLICY "books: instructor delete"
+  ON public.books FOR DELETE TO authenticated
+  USING ((SELECT public.is_instructor_or_admin()) AND (user_id = (SELECT auth.uid()) OR (SELECT public.is_admin())));
+
+-- Prices and chapters follow their book: visible when it is, written by whoever may write it.
+DROP POLICY IF EXISTS "book_prices: visible select" ON public.book_prices;
+CREATE POLICY "book_prices: visible select"
+  ON public.book_prices FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.books b WHERE b.id = book_id AND public.can_see_book(b)));
+
+-- Prices are commercial terms: admins only (see guard_book_commercial_terms below).
+DROP POLICY IF EXISTS "book_prices: admin manage" ON public.book_prices;
+CREATE POLICY "book_prices: admin manage"
+  ON public.book_prices FOR ALL TO authenticated
+  USING      ((SELECT public.is_admin()))
+  WITH CHECK ((SELECT public.is_admin()));
+
+DROP POLICY IF EXISTS "book_chapters: visible select" ON public.book_chapters;
+CREATE POLICY "book_chapters: visible select"
+  ON public.book_chapters FOR SELECT TO authenticated
+  USING (EXISTS (SELECT 1 FROM public.books b WHERE b.id = book_id AND public.can_see_book(b)));
+
+DROP POLICY IF EXISTS "book_chapters: instructor manage" ON public.book_chapters;
+CREATE POLICY "book_chapters: instructor manage"
+  ON public.book_chapters FOR ALL TO authenticated
+  USING      ((SELECT public.is_instructor_or_admin()) AND EXISTS (SELECT 1 FROM public.books b WHERE b.id = book_id AND (b.user_id = (SELECT auth.uid()) OR (SELECT public.is_admin()))))
+  WITH CHECK ((SELECT public.is_instructor_or_admin()) AND EXISTS (SELECT 1 FROM public.books b WHERE b.id = book_id AND (b.user_id = (SELECT auth.uid()) OR (SELECT public.is_admin()))));
+
+-- Commercial terms. An author may edit their book's content and metadata under the owner policy,
+-- but whether it is sold and what royalty it pays are an admin's decision: book_purchases snapshots
+-- royalty_pct at sale time, so an author-set value would become the payout record. Service-role
+-- callers (auth.uid() IS NULL) pass; the admin save route must enforce the same rule itself.
+CREATE OR REPLACE FUNCTION public.guard_book_commercial_terms()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+BEGIN
+  IF (SELECT auth.uid()) IS NULL OR (SELECT public.is_admin()) THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'INSERT' THEN
+    IF NEW.purchasable OR NEW.royalty_pct <> 0 THEN
+      RAISE EXCEPTION 'permission denied: only an admin may set a book''s sale terms'
+        USING ERRCODE = 'insufficient_privilege';
+    END IF;
+  ELSIF NEW.purchasable IS DISTINCT FROM OLD.purchasable
+     OR NEW.royalty_pct IS DISTINCT FROM OLD.royalty_pct THEN
+    RAISE EXCEPTION 'permission denied: only an admin may change a book''s sale terms'
+      USING ERRCODE = 'insufficient_privilege';
+  END IF;
+  RETURN NEW;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.guard_book_commercial_terms() FROM PUBLIC, anon, authenticated;
+
+DROP TRIGGER IF EXISTS trg_guard_book_commercial_terms ON public.books;
+CREATE TRIGGER trg_guard_book_commercial_terms
+  BEFORE INSERT OR UPDATE ON public.books
+  FOR EACH ROW EXECUTE FUNCTION public.guard_book_commercial_terms();
+
+-- Purchases, entitlements, library and progress: the reader sees their own rows, an admin sees
+-- all. No INSERT/UPDATE/DELETE policy, so RLS denies every client write; the service role writes.
+DROP POLICY IF EXISTS "book_purchases: own or admin select" ON public.book_purchases;
+CREATE POLICY "book_purchases: own or admin select"
+  ON public.book_purchases FOR SELECT TO authenticated
+  USING (student_id = (SELECT auth.uid()) OR (SELECT public.is_admin()));
+
+DROP POLICY IF EXISTS "book_entitlements: own or admin select" ON public.book_entitlements;
+CREATE POLICY "book_entitlements: own or admin select"
+  ON public.book_entitlements FOR SELECT TO authenticated
+  USING (student_id = (SELECT auth.uid()) OR (SELECT public.is_admin()));
+
+DROP POLICY IF EXISTS "user_books: own or admin select" ON public.user_books;
+CREATE POLICY "user_books: own or admin select"
+  ON public.user_books FOR SELECT TO authenticated
+  USING (student_id = (SELECT auth.uid()) OR (SELECT public.is_admin()));
+
+DROP POLICY IF EXISTS "book_chapter_progress: own or admin select" ON public.book_chapter_progress;
+CREATE POLICY "book_chapter_progress: own or admin select"
+  ON public.book_chapter_progress FOR SELECT TO authenticated
+  USING (student_id = (SELECT auth.uid()) OR (SELECT public.is_admin()));
+
+-- Personal notes are private: owner only, not even admins read them through the API key.
+DROP POLICY IF EXISTS "book_annotations: owner all" ON public.book_annotations;
+CREATE POLICY "book_annotations: owner all"
+  ON public.book_annotations FOR ALL TO authenticated
+  USING      (student_id = (SELECT auth.uid()))
+  WITH CHECK (student_id = (SELECT auth.uid()));
+
+REVOKE ALL ON public.book_purchases, public.book_entitlements, public.user_books,
+  public.book_chapter_progress FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.book_purchases, public.book_entitlements, public.user_books,
+  public.book_chapter_progress FROM authenticated;
+REVOKE ALL ON public.books, public.book_prices, public.book_chapters, public.book_annotations FROM anon;
+GRANT SELECT ON public.book_purchases, public.book_entitlements, public.user_books,
+  public.book_chapter_progress TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.books, public.book_prices, public.book_chapters,
+  public.book_annotations TO authenticated;
+GRANT ALL ON public.books, public.book_prices, public.book_chapters, public.book_purchases,
+  public.book_entitlements, public.user_books, public.book_chapter_progress, public.book_annotations
+  TO service_role;
+
+-- Storage ------------------------------------------------------------------------------------
+-- Private, no storage.objects policy: uploads use signed upload URLs minted after a role check,
+-- reads use short-lived signed URLs (EPUB/PDF) or the ticketed HTML route, all on the service role.
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+VALUES ('book-files', 'book-files', false, 104857600, ARRAY[
+  'application/epub+zip', 'application/pdf', 'text/html'
+])
+ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 104857600,
+  allowed_mime_types = ARRAY['application/epub+zip', 'application/pdf', 'text/html'];
