@@ -6,6 +6,7 @@ import { resolveConfig } from '@/lib/site-templates';
 import { PricingPageClient } from '@/components/pricing/PricingPageClient';
 import { hasMidAds, midAdCardsFrom } from '@/lib/mid-ads';
 import { paystackIsConfigured } from '@/lib/paystack';
+import { listNavBooks } from '@/lib/books/store';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getTenantSettings();
@@ -23,13 +24,14 @@ export async function generateMetadata(): Promise<Metadata> {
  * that page, and every number on it comes from what an admin configured.
  */
 export default async function PricingPage() {
-  const [data, site, tenant, programmes] = await Promise.all([
+  const [data, site, tenant, programmes, navBooks] = await Promise.all([
     getPricingPageData(),
     getLandingSiteSettingsOrDefault(),
     getTenantSettings(),
     // Only for the shared nav's Learn menu. Without it this page fell back to a flat list of
     // section links, so the two public pages disagreed about their own navigation.
     getLandingProgrammesOrEmpty(),
+    listNavBooks(),
   ]);
   const config = resolveConfig(site.template, site.config);
 
@@ -46,6 +48,7 @@ export default async function PricingPage() {
       midAds={hasMidAds(config) ? midAdCardsFrom(config) : undefined}
       paystackEnabled={paystackIsConfigured()}
       programmes={programmes}
+      navBooks={navBooks}
     />
   );
 }

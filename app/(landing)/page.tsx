@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import LandingPageClient from '@/components/LandingPageClient';
 import { getLandingPageData, getLandingSiteSettingsOrDefault } from '@/lib/get-landing-page-data';
+import { listNavBooks } from '@/lib/books/store';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { normalizeAbsoluteBaseUrl } from '@/lib/public-url';
 import { resolveConfig } from '@/lib/site-templates';
@@ -56,9 +57,10 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function LandingPage({ searchParams }: LandingPageProps) {
-  const [params, data] = await Promise.all([
+  const [params, data, navBooks] = await Promise.all([
     searchParams,
     getLandingPageData(),
+    listNavBooks(),
   ]);
 
   return (
@@ -67,6 +69,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
       initialSiteConfig={data.config}
       initialProgrammes={data.programmes}
       programmesError={data.programmesError}
+      navBooks={navBooks}
       isPreview={'_preview' in params}
     />
   );

@@ -64,3 +64,41 @@ export function takeBookReturnHref(): string | null {
     return null;
   }
 }
+
+// --- The book a visitor was about to buy -----------------------------------------------------
+//
+// The store's Buy button sends a signed-out visitor to sign in (which returns them through
+// ?next=) or to create an account, which goes through email confirmation and onboarding and ends
+// on the student dashboard. So the book page also remembers its slug before sending them, and the
+// student page sends them back to the book. Only a slug is stored, matched against the slug shape
+// (lib/books/admin.ts bookSlug); the path is rebuilt here.
+
+const PAGE_KEY = 'pending-book-page';
+const SLUG = /^[a-z0-9][a-z0-9-]{0,120}$/;
+
+/** Call from the book page before sending a visitor to sign in or sign up. */
+export function rememberBookPage(slug: string): void {
+  if (!SLUG.test(slug)) return;
+  try {
+    window.localStorage.setItem(PAGE_KEY, JSON.stringify({ slug, at: Date.now() }));
+  } catch { /* storage unavailable: they find the book again from the store */ }
+}
+
+/** They are back on the book page: nothing left to restore. */
+export function clearBookPage(): void {
+  try { window.localStorage.removeItem(PAGE_KEY); } catch { /* nothing stored */ }
+}
+
+/** Reads and clears the remembered book, as its store path. Single use; null when none. */
+export function takeBookPageHref(): string | null {
+  try {
+    const raw = window.localStorage.getItem(PAGE_KEY);
+    if (!raw) return null;
+    window.localStorage.removeItem(PAGE_KEY);
+    const stored = JSON.parse(raw) as { slug?: unknown; at?: unknown };
+    if (typeof stored?.at !== 'number' || Date.now() - stored.at > TTL_MS) return null;
+    return typeof stored.slug === 'string' && SLUG.test(stored.slug) ? `/books/${stored.slug}` : null;
+  } catch {
+    return null;
+  }
+}

@@ -60,3 +60,23 @@ describe('book payment return across sign-in and onboarding', () => {
     expect(takeBookReturnHref()).toBeNull();
   });
 });
+
+describe('the book a visitor was buying, across sign-up', () => {
+  it('is restored once, as its store page', async () => {
+    const { rememberBookPage, takeBookPageHref } = await import('@/lib/books/pending-return');
+    rememberBookPage('field-guide');
+    expect(takeBookPageHref()).toBe('/books/field-guide');
+    expect(takeBookPageHref()).toBeNull();
+  });
+
+  it('stores only a slug-shaped value, and is cleared on return', async () => {
+    const { clearBookPage, rememberBookPage, takeBookPageHref } = await import('@/lib/books/pending-return');
+    for (const bad of ['../x', '//evil.example', 'Field Guide', '']) rememberBookPage(bad);
+    expect(store.size).toBe(0);
+    rememberBookPage('field-guide');
+    clearBookPage();
+    expect(takeBookPageHref()).toBeNull();
+    store.set('pending-book-page', JSON.stringify({ slug: '/evil', at: Date.now() }));
+    expect(takeBookPageHref()).toBeNull();
+  });
+});

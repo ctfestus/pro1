@@ -15,7 +15,7 @@
  * service-role routes never reveal more than the books RLS does.
  */
 import { hasPublishedStudentContentAccess } from '@/lib/student-content-access';
-import { isLicenseExpired } from '@/lib/books/schema';
+import { isBookObjectPath, isLicenseExpired, type BookFormat } from '@/lib/books/schema';
 
 export type BookAccess =
   | { level: 'full'; reason: 'owner' | 'admin' | 'cohort' | 'entitlement' }
@@ -98,4 +98,20 @@ export async function canReadBook(
   // For sale, not owned: the sample if there is one.
   if (book.preview_file_path) return { level: 'preview' };
   return { level: 'none', status: 403, error: 'Buy this book to read it.' };
+}
+
+/**
+ * Whether anyone, signed in or not, may read this book's free sample: the store shows it to every
+ * visitor (/api/books/[id]/sample, and the sandboxed HTML route for a public-sample ticket). Only a
+ * published book that is for sale, whose licence is current, and whose sample is an object this
+ * book's own upload issued. Never the full file: callers serve preview_file_path and nothing else.
+ */
+export function isPublicSampleAvailable(
+  row: Pick<BookAccessRow, 'id' | 'status' | 'purchasable' | 'license_expires_at' | 'preview_file_path'> & { format: string | null },
+  now: Date = new Date(),
+): boolean {
+  return row.status === 'published'
+    && row.purchasable === true
+    && !isLicenseExpired(row.license_expires_at, now)
+    && isBookObjectPath(row.id, row.preview_file_path, 'preview', row.format as BookFormat);
 }

@@ -35,7 +35,7 @@ import { NextSessionBanner } from '@/components/student/next-session-banner';
 import { PromoCard } from '@/components/PromoCard';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import { rememberPurchaseIntent, takePurchaseIntent, purchaseIntentHref } from '@/lib/pending-purchase';
-import { rememberBookReturn, takeBookReturnHref } from '@/lib/books/pending-return';
+import { rememberBookReturn, takeBookPageHref, takeBookReturnHref } from '@/lib/books/pending-return';
 import { hasPendingVeReview, rememberVeReviewTarget } from '@/lib/pending-ve-review';
 import {
   clearStudentMode,
@@ -287,6 +287,12 @@ export default function StudentDashboard() {
             return;
           }
         }
+      }
+      // They pressed Buy on a store book page and had to sign up first (email confirmation and
+      // onboarding end here, not on the book): back to the book they were buying.
+      if (!currentParams.get('book_reference') && !currentParams.get('viewAs')) {
+        const bookPage = takeBookPageHref();
+        if (bookPage) { window.location.replace(bookPage); return; }
       }
       if (!currentParams.get('contentTable') && !currentParams.get('priceId') && !currentParams.get('viewAs')) {
         const intent = takePurchaseIntent();

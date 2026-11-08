@@ -44,8 +44,9 @@ function NavSectionLink({ anchor, hrefFor, className, style, onNavigate, tabInde
   /** The megamenu rovs this so Tab leaves its type list instead of walking every row. */
   tabIndex?: number;
 }) {
-  if (hrefFor) {
-    return <Link href={hrefFor(anchor)} className={className} style={style} tabIndex={tabIndex} onClick={onNavigate}>{children}</Link>;
+  // An anchor that is already a path (the store's /books) is a page of its own, never a section.
+  if (anchor.startsWith('/') || hrefFor) {
+    return <Link href={anchor.startsWith('/') ? anchor : hrefFor!(anchor)} className={className} style={style} tabIndex={tabIndex} onClick={onNavigate}>{children}</Link>;
   }
   return (
     <button
