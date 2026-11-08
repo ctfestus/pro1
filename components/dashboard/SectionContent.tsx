@@ -30,6 +30,7 @@ import { PartnersSection } from '@/components/dashboard/PartnersSection';
 import { DataCenterAdminSection } from '@/components/dashboard/DataCenterAdminSection';
 import { ApplicationsSection } from '@/components/dashboard/ApplicationsSection';
 import { EmailTemplatesSection } from '@/components/dashboard/EmailTemplatesSection';
+import { BooksManageSection } from '@/components/dashboard/books/BooksManageSection';
 
 export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen, setFormToDelete, onDuplicated, C }: {
   section: SectionId; forms: any[]; shareMenuOpen: string | null;
@@ -46,6 +47,7 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
   if (section === 'branding')     return <BrandingSection C={C} />;
   if (section === 'site')         return <SiteSettingsSection C={C} />;
   if (section === 'learning_paths') return <LearningPathsSection C={C} forms={forms} />;
+  if (section === 'books')          return <BooksManageSection C={C} />;
   if (section === 'data_center')    return <DataCenterAdminSection C={C} />;
   if (section === 'partners')       return <PartnersSection C={C} />;
   if (section === 'applications')   return <ApplicationsSection C={C} />;
