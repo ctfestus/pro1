@@ -15,6 +15,11 @@ import { BOOK_BUCKET, BOOK_SIGNED_URL_TTL_SECONDS } from '@/lib/books/storage';
 //   sample, PDF  -> opens in the browser's own PDF viewer
 //   sample, EPUB -> a download (browsers cannot show EPUB)
 //   sample, HTML -> refused here; it is shown through the sandboxed /api/books/[id]/html route
+//
+// Query options, used by the editor's preview buttons:
+//   ?variant=sample -> someone with full access (the owner, an admin) gets the sample instead, to
+//                      check what non-buyers will see
+//   ?view=1         -> a PDF opens in the browser instead of downloading
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -38,7 +43,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (access.level === 'none') {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
-    const kind = access.level === 'full' ? 'file' : 'preview';
+    const wantsSample = req.nextUrl.searchParams.get('variant') === 'sample';
+    const kind = access.level === 'full' && !wantsSample ? 'file' : 'preview';
     if (kind === 'preview' && row.format === 'html') {
       return NextResponse.json({ error: 'HTML samples open in the preview.' }, { status: 400 });
     }
@@ -49,7 +55,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'This book has no file yet.' }, { status: 404 });
     }
 
-    const inline = kind === 'preview' && row.format === 'pdf';
+    const inline = row.format === 'pdf' && (kind === 'preview' || req.nextUrl.searchParams.get('view') === '1');
     const filename = `${row.slug || 'book'}${kind === 'preview' ? '-sample' : ''}.${row.format}`;
     const { data: signed, error: signError } = await db.storage
       .from(BOOK_BUCKET)

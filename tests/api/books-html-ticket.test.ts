@@ -40,8 +40,8 @@ function authAs(userId: string, tables: Record<string, any>) {
   mockRequireUser.mockResolvedValue({ user: { id: userId }, serviceDb: makeSupabaseStub(tables) } as any);
 }
 
-const call = () =>
-  POST(new NextRequest(`http://localhost/api/books/${BOOK_ID}/html-ticket`, { method: 'POST' }),
+const call = (body?: unknown) =>
+  POST(new NextRequest(`http://localhost/api/books/${BOOK_ID}/html-ticket`, { method: 'POST', body: body === undefined ? undefined : JSON.stringify(body) }),
     { params: Promise.resolve({ id: BOOK_ID }) });
 
 /** Pull the ticket back out of the returned URL and check what it actually grants. */
@@ -81,6 +81,13 @@ describe('POST /api/books/[id]/html-ticket', () => {
     const { variant, claims } = await grantedVariant(res);
     expect(variant).toBe('full');
     expect(claims).toMatchObject({ bookId: BOOK_ID, userId: 'u1', variant: 'full' });
+  });
+
+  it('gives the owner a sample ticket when they ask to check the sample', async () => {
+    authAs('owner-1', { books: { data: BOOK }, students: { data: { role: 'instructor', cohort_id: null } } });
+    expect((await grantedVariant(await call())).claims?.variant).toBe('full');
+    authAs('owner-1', { books: { data: BOOK }, students: { data: { role: 'instructor', cohort_id: null } } });
+    expect((await grantedVariant(await call({ variant: 'sample' }))).claims?.variant).toBe('preview');
   });
 
   it('issues only a sample ticket to a non-owner of a for-sale book', async () => {
