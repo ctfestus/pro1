@@ -35,6 +35,7 @@ import { NextSessionBanner } from '@/components/student/next-session-banner';
 import { PromoCard } from '@/components/PromoCard';
 import { COHORT_KIND_BOOTCAMP } from '@/lib/cohort-kind';
 import { rememberPurchaseIntent, takePurchaseIntent, purchaseIntentHref } from '@/lib/pending-purchase';
+import { rememberBookReturn, takeBookReturnHref } from '@/lib/books/pending-return';
 import { hasPendingVeReview, rememberVeReviewTarget } from '@/lib/pending-ve-review';
 import {
   clearStudentMode,
@@ -84,6 +85,7 @@ const CertificatesSection       = dynamic(() => import('@/components/student/bad
 const AiCareerToolkitSection    = dynamic(() => import('@/components/student/ai-career-toolkit').then(m => m.AiCareerToolkitSection), { ssr: false, loading: sectionLoading });
 const MyProgramSection          = dynamic(() => import('@/components/student/my-program').then(m => m.MyProgramSection), { ssr: false, loading: sectionLoading });
 const ExploreSection            = dynamic(() => import('@/components/student/explore').then(m => m.ExploreSection), { ssr: false, loading: sectionLoading });
+const BooksSection              = dynamic(() => import('@/components/student/books').then(m => m.BooksSection), { ssr: false, loading: sectionLoading });
 
 const ACTIVITY_POLL_MIN_GAP_MS = 30_000;
 const MY_LEARNING_SECTIONS: SectionId[] = ['learning_paths', 'courses', 'virtual_experiences'];
@@ -249,7 +251,7 @@ export default function StudentDashboard() {
   useEffect(() => {
     const init = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) { rememberPurchaseIntent(window.location.search); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
+      if (!session?.user) { rememberPurchaseIntent(window.location.search); rememberBookReturn(window.location.search, window.location.hash); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
 
       const [{ data: { user: authUser } }, { data: studentData }] = await Promise.all([
         supabase.auth.getUser(),
@@ -260,14 +262,32 @@ export default function StudentDashboard() {
           .single(),
       ]);
 
-      if (!authUser) { rememberPurchaseIntent(window.location.search); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
-      if (!studentData?.onboarding_done) { rememberPurchaseIntent(window.location.search); rememberVeReviewTarget(window.location.search); router.replace('/onboarding'); return; }
+      if (!authUser) { rememberPurchaseIntent(window.location.search); rememberBookReturn(window.location.search, window.location.hash); rememberVeReviewTarget(window.location.search); router.replace('/auth'); return; }
+      if (!studentData?.onboarding_done) { rememberPurchaseIntent(window.location.search); rememberBookReturn(window.location.search, window.location.hash); rememberVeReviewTarget(window.location.search); router.replace('/onboarding'); return; }
 
       // They asked to buy something before signing in. Put them back where they were going.
       // Single use, and an explicit target in the URL always wins over a remembered one.
       // Skipped while an admin is viewing as a student: redirecting would drop the viewAs
       // parameter and silently end their session as that learner.
       const currentParams = new URLSearchParams(window.location.search);
+      // My Books was where they were going (a Paystack book return, or the receipt's download
+      // link) before sign-in or onboarding took them away: go back there, so the payment is
+      // confirmed or the download is in reach. Same single-use, URL-wins rules.
+      if (!currentParams.get('book_reference') && !currentParams.get('viewAs')) {
+        const href = takeBookReturnHref();
+        if (href) {
+          const [pathAndSearch, hash = ''] = href.split('#');
+          if (pathAndSearch === `${window.location.pathname}${window.location.search}`) {
+            // Only the section differs (the receipt's /student#books): switching the hash does not
+            // reload the page, so carry on loading rather than returning, or the dashboard would
+            // stay on its loading screen. The hashchange listener opens My Books.
+            if (`#${hash}` !== window.location.hash) window.location.hash = hash;
+          } else {
+            window.location.replace(href);
+            return;
+          }
+        }
+      }
       if (!currentParams.get('contentTable') && !currentParams.get('priceId') && !currentParams.get('viewAs')) {
         const intent = takePurchaseIntent();
         if (intent) { window.location.replace(purchaseIntentHref(intent)); return; }
@@ -790,6 +810,9 @@ export default function StudentDashboard() {
             )}
             {activeSection === 'data_center' && user && (
               <DataCenterSection C={C} />
+            )}
+            {activeSection === 'books' && user && (
+              <BooksSection C={C} readOnly={!!viewingAs} />
             )}
             {activeSection === 'recordings' && user && (
               <RecordingsSection userId={effectiveId} C={C}/>

@@ -40,3 +40,15 @@ export async function openBookPreview(bookId: string, format: BookFormat, varian
     throw e;
   }
 }
+
+// Downloads the full book for someone who owns it (or has it through their cohort). The file route
+// re-checks access and signs a short-lived link with a download disposition, so following it in
+// this tab saves the file without leaving the page.
+export async function downloadBook(bookId: string): Promise<void> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const headers: Record<string, string> = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+  const res = await fetch(`/api/books/${encodeURIComponent(bookId)}/file`, { headers });
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok || !d.url) throw new Error(d.error || 'Could not download the book.');
+  window.location.href = d.url;
+}
