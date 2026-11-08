@@ -14,6 +14,7 @@ import { retryPaystackIncidentNotifications, retryStoredPaystackWebhookEvents } 
 import { sendPaystackCartReminders } from '@/lib/notify-paystack-cart';
 import { reconcileStalePaystackTransactions } from '@/lib/paystack-subscriptions';
 import { verifyQStashRequest } from '@/lib/qstash';
+import { sweepBookPurchases } from '@/lib/books/purchases';
 
 export const dynamic = 'force-dynamic';
 // Every send is a network round trip, so a backlog can outlast the default serverless
@@ -50,6 +51,8 @@ export async function POST(req: NextRequest) {
   let paystackTransactionFailures = 0;
   let cartRemindersSent = 0;
   let paystackRecoverySkipped = false;
+  let bookPurchasesSettled = 0;
+  let bookReceiptsSent = 0;
   // Paystack recovery runs AFTER the expiry pass, further down. Expiring access is the reason
   // this job exists and it is the only thing that ever revokes it, so cleanup must never get to
   // spend the budget first: 25 webhook retries each calling out to Paystack, plus 50 emails, can
@@ -236,6 +239,21 @@ export async function POST(req: NextRequest) {
       } else {
         paystackRecoverySkipped = true;
       }
+      // Book purchases: grant any whose webhook was lost, and resend receipts that failed. Its own
+      // try so a book problem never stops the subscription cleanup that follows.
+      if (!outOfTime()) {
+        try {
+          const books = await sweepBookPurchases(db, outOfTime);
+          bookPurchasesSettled = books.settled;
+          bookReceiptsSent = books.receipts;
+          paystackTransactionFailures += books.failed;
+        } catch (err) {
+          paystackTransactionFailures++;
+          console.error('[cron/subscription-expiry-sweep] book purchases', err);
+        }
+      } else {
+        paystackRecoverySkipped = true;
+      }
       // Last of the recovery work and the least urgent: a nudge that waits an hour costs nothing.
       if (!outOfTime()) {
         const reminders = await sendPaystackCartReminders(db, REQUEST_EMAIL_RETRY_BATCH, outOfTime);
@@ -287,6 +305,8 @@ export async function POST(req: NextRequest) {
     reconciliationAlertsSent,
     paystackEventsPurged,
     cartRemindersSent,
+    bookPurchasesSettled,
+    bookReceiptsSent,
     emailRetryError,
   }, { status: sweepSucceeded ? 200 : 500 });
 }

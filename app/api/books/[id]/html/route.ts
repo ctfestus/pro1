@@ -2,17 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { BOOK_ACCESS_COLUMNS, canReadBook, type BookAccessRow } from '@/lib/books/access';
 import { verifyHtmlTicket } from '@/lib/books/html-ticket';
-import { injectHtmlBridge } from '@/lib/books/html-bridge';
 import { BOOK_HTML_MAX_BYTES, isBookObjectPath } from '@/lib/books/schema';
 import { readBodyWithLimit } from '@/lib/read-body-with-limit';
 import { BOOK_BUCKET } from '@/lib/books/storage';
 
 // GET /api/books/[id]/html?t=<ticket>
 //
-// Serves a self-contained HTML book into the reader's iframe. Modelled on /api/html-embed, with
-// two differences: the file is private (read with the service role, after a ticket check instead of
-// a public-URL allowlist), and the reader bridge is injected so the reader can follow position,
-// selections and themes across the sandbox boundary.
+// Shows a self-contained HTML book (usually its free sample) in a sandboxed iframe, so people can
+// preview it before buying. Modelled on /api/html-embed, except the file is private: it is read
+// with the service role after a ticket check instead of a public-URL allowlist. The page is served
+// exactly as uploaded; nothing is injected.
 //
 // The CSP sandbox gives the document an opaque origin -- the book's scripts run, but it cannot read
 // this app's cookies, storage, or DOM. allow-same-origin must never be added: with allow-scripts
@@ -37,7 +36,7 @@ function plain(status: number, message: string) {
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const claims = verifyHtmlTicket(req.nextUrl.searchParams.get('t'), id);
-  if (!claims) return plain(401, 'This reading link has expired. Reopen the book.');
+  if (!claims) return plain(401, 'This preview link has expired. Open the preview again.');
 
   const db = adminClient();
   try {
@@ -75,8 +74,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const bytes = await readBodyWithLimit(upstream, BOOK_HTML_MAX_BYTES);
     if (!bytes) return plain(413, 'This book file is too large to open.');
 
-    const html = injectHtmlBridge(new TextDecoder().decode(bytes));
-    return new NextResponse(html, {
+    return new NextResponse(bytes, {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',

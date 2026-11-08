@@ -2,7 +2,6 @@
  * The Books content contract: row shapes, locators, and the boundary normalizer.
  *
  * Books are not course content, so these types live here rather than in lib/course-schema.ts.
- * Phase 2 book assessments will reuse CourseQuestion from there; nothing here redefines it.
  *
  * This module has no runtime imports, so client components may import it freely.
  */
@@ -10,14 +9,11 @@
 export type BookFormat = 'epub' | 'pdf' | 'html';
 export type BookStatus = 'draft' | 'published' | 'archived';
 export type BookDifficulty = 'beginner' | 'intermediate' | 'advanced';
-export type BookShelf = 'want_to_read' | 'reading' | 'completed';
 export type BookLicenseType =
   | 'own' | 'cc_by' | 'cc_by_sa' | 'cc_by_nc' | 'public_domain' | 'licensed' | 'other';
-export type BookAnnotationKind = 'highlight' | 'bookmark' | 'note';
 
 export const BOOK_FORMATS: readonly BookFormat[] = ['epub', 'pdf', 'html'];
 export const BOOK_DIFFICULTIES: readonly BookDifficulty[] = ['beginner', 'intermediate', 'advanced'];
-export const BOOK_SHELVES: readonly BookShelf[] = ['want_to_read', 'reading', 'completed'];
 export const BOOK_LICENSE_TYPES: readonly BookLicenseType[] = [
   'own', 'cc_by', 'cc_by_sa', 'cc_by_nc', 'public_domain', 'licensed', 'other',
 ];
@@ -38,12 +34,6 @@ export type BookChapterLocator =
   | { href: string }                          // EPUB spine item / nav target
   | { pageStart: number; pageEnd?: number }   // PDF, 1-based
   | { anchor: string };                       // HTML element id
-
-/** A reading position, saved continuously and used to resume. */
-export type BookLocation =
-  | { format: 'epub'; cfi: string }
-  | { format: 'pdf'; page: number }
-  | { format: 'html'; anchor: string | null; scroll: number };
 
 export interface Book {
   id: string;
@@ -91,19 +81,6 @@ export interface BookChapter {
 export interface BookPrice {
   currency: string;
   amount: number;
-}
-
-export interface BookAnnotation {
-  id: string;
-  bookId: string;
-  chapterId: string | null;
-  kind: BookAnnotationKind;
-  locator: Record<string, unknown>;
-  quote: string | null;
-  note: string | null;
-  color: string | null;
-  createdAt: string;
-  updatedAt: string;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);

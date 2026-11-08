@@ -1,12 +1,13 @@
 'use client';
 
 // Dashboard list of books: an author's own books, or every book for an admin. Reads through
-// /api/books (service role) because reader counts come from other learners' library rows, which
-// RLS rightly keeps private. Creating and editing happen in the editor at /create/book.
+// /api/books (service role) because sales counts come from other people's purchases, which RLS
+// rightly keeps private. Creating and editing happen in the editor at /create/book. Book payments
+// that need a person (wrong amount, double payment, deleted account) are listed above the books.
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { Edit2, Library, Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Edit2, Library, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
@@ -25,11 +26,28 @@ type BookListItem = {
   purchasable: boolean;
   available_to_everyone: boolean;
   cohort_ids: string[] | null;
-  readers: number;
-  completed: number;
+  sold: number;
 };
 
 type StatusFilter = 'all' | 'published' | 'draft' | 'archived';
+
+type AttentionItem = {
+  id: string;
+  bookTitle: string;
+  amount: number;
+  currency: string;
+  reason: string;
+  reference: string;
+  paidAt: string | null;
+  buyerEmail: string | null;
+  buyerName: string | null;
+};
+
+const REASON_LABELS: Record<string, string> = {
+  amount_mismatch: 'Paid a different amount or currency than the order. No access was given.',
+  already_owned: 'Paid for a book they already had. Refund the extra payment.',
+  account_deleted: 'Paid, but the account was deleted before access could be given.',
+};
 
 async function authHeaders(): Promise<Record<string, string>> {
   const { data: { session } } = await supabase.auth.getSession();
@@ -51,6 +69,8 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [attention, setAttention] = useState<AttentionItem[]>([]);
+  const [resolvingId, setResolvingId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -60,6 +80,10 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
         const d = await res.json();
         if (!res.ok) throw new Error(d.error || 'Could not load books.');
         if (!cancelled) setBooks(d.books ?? []);
+        // Secondary: a failure here must not hide the books themselves.
+        const pr = await fetch('/api/books/purchases', { headers: await authHeaders() }).catch(() => null);
+        const pd = pr?.ok ? await pr.json().catch(() => null) : null;
+        if (!cancelled && pd?.attention) setAttention(pd.attention);
       } catch (e: any) {
         if (!cancelled) setError(e?.message || 'Could not load books.');
       } finally {
@@ -91,6 +115,22 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
     }
   }
 
+  async function resolve(item: AttentionItem) {
+    setResolvingId(item.id);
+    try {
+      const res = await fetch('/api/books/purchases', {
+        method: 'PATCH',
+        headers: { ...(await authHeaders()), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: item.id }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { window.alert(d.error || 'Could not update the payment.'); return; }
+      setAttention(prev => prev.filter(a => a.id !== item.id));
+    } finally {
+      setResolvingId(null);
+    }
+  }
+
   if (loading) return <div className="py-24 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.green }} /></div>;
   if (error) return <div className="text-sm px-4 py-3 rounded-xl" style={{ background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>{error}</div>;
   if (!books.length) return <SectionEmptyState Icon={Library} label="book" createHref="/create/book" createLabel="New book" C={C} />;
@@ -107,6 +147,39 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
           <Plus className="w-4 h-4" /> New book
         </Link>
       </div>
+
+      {attention.length > 0 && (
+        <div className="p-4 rounded-2xl space-y-3" style={{ ...cardStyle(C) }}>
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-4 h-4" style={{ color: '#d97706' }} />
+            <p className="text-sm font-semibold" style={{ color: C.text }}>
+              {attention.length} book payment{attention.length === 1 ? '' : 's'} need{attention.length === 1 ? 's' : ''} attention
+            </p>
+          </div>
+          {attention.map(a => (
+            <div key={a.id} className="flex flex-col sm:flex-row sm:items-center gap-3 p-3 rounded-xl" style={{ background: C.pill }}>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate" style={{ color: C.text }}>
+                  {a.bookTitle} / {a.currency} {a.amount.toFixed(2)}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: C.faint }}>
+                  {REASON_LABELS[a.reason] ?? a.reason}
+                </p>
+                <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>
+                  {[a.buyerName, a.buyerEmail].filter(Boolean).join(' / ') || 'Deleted account'} / Paystack ref {a.reference}
+                  {a.paidAt ? ` / ${new Date(a.paidAt).toLocaleDateString()}` : ''}
+                </p>
+              </div>
+              <button onClick={() => resolve(a)} disabled={resolvingId === a.id}
+                className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 disabled:opacity-50 shrink-0"
+                style={{ background: C.card, color: C.text }}>
+                {resolvingId === a.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+                Mark resolved
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-col sm:flex-row gap-3 p-3 rounded-2xl" style={{ ...cardStyle(C) }}>
         <div className="relative flex-1">
@@ -145,7 +218,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                   {[(b.authors ?? []).join(', '), b.category].filter(Boolean).join(' / ') || 'No author yet'}
                 </p>
                 <p className="text-xs mt-1" style={{ color: C.faint }}>
-                  {audienceLabel(b)} / {b.readers} reader{b.readers === 1 ? '' : 's'}, {b.completed} finished
+                  {audienceLabel(b)}{b.purchasable || b.sold > 0 ? ` / ${b.sold} sold` : ''}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">

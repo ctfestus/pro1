@@ -7813,8 +7813,16 @@ CREATE TABLE IF NOT EXISTS public.book_purchases (
   currency           text          NOT NULL CHECK (currency ~ '^[A-Z]{3}$'),
   amount             numeric(10,2) NOT NULL CHECK (amount > 0),
   paystack_reference text          NOT NULL UNIQUE CHECK (length(btrim(paystack_reference)) > 0),
+  -- needs_review (migration 235): money arrived but access could not be granted automatically.
   status             text          NOT NULL DEFAULT 'pending'
-                                     CHECK (status IN ('pending','paid','failed','refunded')),
+                                     CONSTRAINT book_purchases_status_check
+                                     CHECK (status IN ('pending','paid','failed','refunded','needs_review')),
+  authorization_url       text,
+  paystack_transaction_id bigint,
+  review_reason           text,
+  review_resolved_at      timestamptz,
+  receipt_email_sent_at   timestamptz,
+  last_checked_at         timestamptz,
   -- Snapshot at sale time, so a later change to books.royalty_pct never rewrites past royalties.
   royalty_pct        numeric(5,2)  NOT NULL DEFAULT 0 CHECK (royalty_pct >= 0 AND royalty_pct <= 100),
   paid_at            timestamptz,
@@ -7824,6 +7832,11 @@ CREATE TABLE IF NOT EXISTS public.book_purchases (
 
 CREATE INDEX IF NOT EXISTS idx_book_purchases_student ON public.book_purchases(student_id);
 CREATE INDEX IF NOT EXISTS idx_book_purchases_book ON public.book_purchases(book_id);
+-- One open checkout per buyer per book (migration 235).
+CREATE UNIQUE INDEX IF NOT EXISTS idx_book_purchases_one_pending
+  ON public.book_purchases(student_id, book_id) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_book_purchases_attention
+  ON public.book_purchases(created_at) WHERE review_reason IS NOT NULL AND review_resolved_at IS NULL;
 
 CREATE TABLE IF NOT EXISTS public.book_entitlements (
   id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -7841,63 +7854,12 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_book_entitlements_one_active
   ON public.book_entitlements(student_id, book_id) WHERE revoked_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_book_entitlements_book ON public.book_entitlements(book_id);
 
--- Reading ------------------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS public.user_books (
-  id            uuid         PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id    uuid         NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
-  book_id       uuid         NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
-  shelf         text         NOT NULL DEFAULT 'want_to_read'
-                               CHECK (shelf IN ('want_to_read','reading','completed')),
-  -- EPUB CFI, PDF page, or HTML anchor + scroll; shape owned by lib/books/schema.ts BookLocation.
-  last_location jsonb,
-  progress_pct  numeric(5,2) NOT NULL DEFAULT 0 CHECK (progress_pct >= 0 AND progress_pct <= 100),
-  started_at    timestamptz,
-  last_read_at  timestamptz,
-  completed_at  timestamptz,
-  created_at    timestamptz  NOT NULL DEFAULT now(),
-  UNIQUE (student_id, book_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_user_books_recent ON public.user_books(student_id, last_read_at DESC);
-
-CREATE TABLE IF NOT EXISTS public.book_chapter_progress (
-  id           uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id   uuid        NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
-  book_id      uuid        NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
-  chapter_id   uuid        NOT NULL REFERENCES public.book_chapters(id) ON DELETE CASCADE,
-  seconds_read integer     NOT NULL DEFAULT 0 CHECK (seconds_read >= 0),
-  completed_at timestamptz,
-  updated_at   timestamptz NOT NULL DEFAULT now(),
-  UNIQUE (student_id, chapter_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_book_chapter_progress_book ON public.book_chapter_progress(student_id, book_id);
-
-CREATE TABLE IF NOT EXISTS public.book_annotations (
-  id         uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id uuid        NOT NULL REFERENCES public.students(id) ON DELETE CASCADE,
-  book_id    uuid        NOT NULL REFERENCES public.books(id) ON DELETE CASCADE,
-  chapter_id uuid        REFERENCES public.book_chapters(id) ON DELETE SET NULL,
-  kind       text        NOT NULL CHECK (kind IN ('highlight','bookmark','note')),
-  locator    jsonb       NOT NULL,
-  quote      text        CHECK (quote IS NULL OR length(quote) <= 5000),
-  note       text        CHECK (note IS NULL OR length(note) <= 10000),
-  color      text        CHECK (color IS NULL OR color ~ '^[a-z]{1,16}$'),
-  created_at timestamptz NOT NULL DEFAULT now(),
-  updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-CREATE INDEX IF NOT EXISTS idx_book_annotations_owner ON public.book_annotations(student_id, book_id);
-
 -- RLS ----------------------------------------------------------------------------------------
 ALTER TABLE public.books                 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.book_prices           ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.book_chapters         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.book_purchases        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.book_entitlements     ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.user_books            ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.book_chapter_progress ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.book_annotations      ENABLE ROW LEVEL SECURITY;
 
 -- Who may see a book row. Signed-in accounts only (as migration 215 set for courses). Cohort-only
 -- books that are not for sale stay invisible to everyone outside the cohort -- a client's private
@@ -7930,14 +7892,16 @@ AS $$
               OR (SELECT s.cohort_id FROM public.students s WHERE s.id = (SELECT auth.uid())) = ANY(lp.cohort_ids)
             )
         )
-        -- Inside the published branch, so a withdrawn book is hidden from buyers too, as
-        -- canReadBook does.
-        OR EXISTS (
-          SELECT 1 FROM public.book_entitlements e
-          WHERE e.book_id = p_book.id
-            AND e.student_id = (SELECT auth.uid())
-            AND e.revoked_at IS NULL
-        )
+      )
+    )
+    -- Owners keep a book after it is archived (migration 235), as canReadBook does. Drafts stay hidden.
+    OR (
+      p_book.status IN ('published', 'archived')
+      AND EXISTS (
+        SELECT 1 FROM public.book_entitlements e
+        WHERE e.book_id = p_book.id
+          AND e.student_id = (SELECT auth.uid())
+          AND e.revoked_at IS NULL
       )
     );
 $$;
@@ -8002,35 +7966,13 @@ CREATE POLICY "book_entitlements: own or admin select"
   ON public.book_entitlements FOR SELECT TO authenticated
   USING (student_id = (SELECT auth.uid()) OR (SELECT public.is_admin()));
 
-DROP POLICY IF EXISTS "user_books: own or admin select" ON public.user_books;
-CREATE POLICY "user_books: own or admin select"
-  ON public.user_books FOR SELECT TO authenticated
-  USING (student_id = (SELECT auth.uid()) OR (SELECT public.is_admin()));
-
-DROP POLICY IF EXISTS "book_chapter_progress: own or admin select" ON public.book_chapter_progress;
-CREATE POLICY "book_chapter_progress: own or admin select"
-  ON public.book_chapter_progress FOR SELECT TO authenticated
-  USING (student_id = (SELECT auth.uid()) OR (SELECT public.is_admin()));
-
--- Personal notes are private: owner only, not even admins read them through the API key.
-DROP POLICY IF EXISTS "book_annotations: owner all" ON public.book_annotations;
-CREATE POLICY "book_annotations: owner all"
-  ON public.book_annotations FOR ALL TO authenticated
-  USING      (student_id = (SELECT auth.uid()))
-  WITH CHECK (student_id = (SELECT auth.uid()));
-
-REVOKE ALL ON public.book_purchases, public.book_entitlements, public.user_books,
-  public.book_chapter_progress FROM anon;
-REVOKE INSERT, UPDATE, DELETE ON public.book_purchases, public.book_entitlements, public.user_books,
-  public.book_chapter_progress FROM authenticated;
-REVOKE ALL ON public.books, public.book_prices, public.book_chapters, public.book_annotations FROM anon;
-GRANT SELECT ON public.book_purchases, public.book_entitlements, public.user_books,
-  public.book_chapter_progress TO authenticated;
-GRANT SELECT, INSERT, UPDATE, DELETE ON public.books, public.book_prices, public.book_chapters,
-  public.book_annotations TO authenticated;
+REVOKE ALL ON public.book_purchases, public.book_entitlements FROM anon;
+REVOKE INSERT, UPDATE, DELETE ON public.book_purchases, public.book_entitlements FROM authenticated;
+REVOKE ALL ON public.books, public.book_prices, public.book_chapters FROM anon;
+GRANT SELECT ON public.book_purchases, public.book_entitlements TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.books, public.book_prices, public.book_chapters TO authenticated;
 GRANT ALL ON public.books, public.book_prices, public.book_chapters, public.book_purchases,
-  public.book_entitlements, public.user_books, public.book_chapter_progress, public.book_annotations
-  TO service_role;
+  public.book_entitlements TO service_role;
 
 -- Storage ------------------------------------------------------------------------------------
 -- Private, no storage.objects policy: uploads use signed upload URLs minted after a role check,
@@ -8213,3 +8155,72 @@ $$;
 
 REVOKE EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb) TO service_role;
+
+-- Books store (migration 235): purchase fulfilment.
+-- Fulfilment -----------------------------------------------------------------------------------
+-- Called once Paystack has said the charge succeeded (webhook or the buyer's return page, often
+-- both at once). The row lock makes it run once: the second caller sees 'paid' and stops. A
+-- purchase marked failed (an abandoned checkout replaced by a newer one) is still fulfilled if its
+-- money turns up later -- the buyer paid, so they own it.
+--
+-- Refunds are handled outside the platform (in Paystack, by staff), so nothing here reacts to them.
+CREATE OR REPLACE FUNCTION public.fulfil_book_purchase(
+  p_reference      text,
+  p_amount         numeric,
+  p_currency       text,
+  p_transaction_id bigint DEFAULT NULL
+) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v public.book_purchases%ROWTYPE;
+  v_reason text;
+BEGIN
+  SELECT * INTO v FROM public.book_purchases WHERE paystack_reference = p_reference FOR UPDATE;
+  IF NOT FOUND THEN RETURN jsonb_build_object('status', 'unknown'); END IF;
+
+  IF p_transaction_id IS NOT NULL AND v.paystack_transaction_id IS NULL THEN
+    UPDATE public.book_purchases SET paystack_transaction_id = p_transaction_id WHERE id = v.id;
+  END IF;
+
+  IF v.status IN ('paid', 'refunded', 'needs_review') THEN
+    RETURN jsonb_build_object('status', v.status, 'purchaseId', v.id, 'bookId', v.book_id, 'alreadyProcessed', true);
+  END IF;
+
+  IF round(p_amount * 100) <> round(v.amount * 100) OR upper(coalesce(p_currency, '')) <> v.currency THEN
+    v_reason := 'amount_mismatch';
+  ELSIF v.student_id IS NULL THEN
+    v_reason := 'account_deleted';
+  ELSIF EXISTS (
+    SELECT 1 FROM public.book_entitlements
+    WHERE student_id = v.student_id AND book_id = v.book_id AND revoked_at IS NULL
+  ) THEN
+    v_reason := 'already_owned';
+  END IF;
+
+  IF v_reason IS NOT NULL THEN
+    UPDATE public.book_purchases
+    SET status = 'needs_review', review_reason = v_reason, paid_at = now()
+    WHERE id = v.id;
+    RETURN jsonb_build_object('status', 'needs_review', 'reason', v_reason, 'purchaseId', v.id, 'bookId', v.book_id);
+  END IF;
+
+  -- Two of the buyer's checkouts paid at the same moment both pass the check above (each locks only
+  -- its own row); the unique index decides, and the loser goes to review instead of erroring.
+  INSERT INTO public.book_entitlements (student_id, book_id, source, source_ref)
+  VALUES (v.student_id, v.book_id, 'purchase', v.id::text)
+  ON CONFLICT (student_id, book_id) WHERE revoked_at IS NULL DO NOTHING;
+  IF NOT FOUND THEN
+    UPDATE public.book_purchases
+    SET status = 'needs_review', review_reason = 'already_owned', paid_at = now()
+    WHERE id = v.id;
+    RETURN jsonb_build_object('status', 'needs_review', 'reason', 'already_owned', 'purchaseId', v.id, 'bookId', v.book_id);
+  END IF;
+  UPDATE public.book_purchases SET status = 'paid', paid_at = now() WHERE id = v.id;
+  -- Any other checkout the buyer still has open for this book is now pointless.
+  UPDATE public.book_purchases SET status = 'failed'
+  WHERE student_id = v.student_id AND book_id = v.book_id AND status = 'pending' AND id <> v.id;
+  RETURN jsonb_build_object('status', 'paid', 'purchaseId', v.id, 'bookId', v.book_id, 'alreadyProcessed', false);
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) TO service_role;

@@ -9,16 +9,15 @@ describe('fresh schema books (migration 232)', () => {
   it('declares every books table', () => {
     for (const table of [
       'books', 'book_prices', 'book_chapters', 'book_purchases', 'book_entitlements',
-      'user_books', 'book_chapter_progress', 'book_annotations',
     ]) {
       expect(schema).toContain(`CREATE TABLE IF NOT EXISTS public.${table} (`);
       expect(schema).toContain(`ALTER TABLE public.${table}`);
     }
   });
 
-  it('keeps the books tables identical to migration 232', () => {
-    // The tables are unchanged since 232; later migrations change policies and functions only.
-    const tables = migration.slice(migration.indexOf('-- Books ----'), migration.indexOf('-- RLS ----')).trim();
+  it('keeps the catalogue tables identical to migration 232', () => {
+    // books, prices and chapters are unchanged since 232; purchases changed in 235 (tested below).
+    const tables = migration.slice(migration.indexOf('-- Books ----'), migration.indexOf('-- Ownership ----')).trim();
     expect(schema).toContain(tables);
   });
 
@@ -26,17 +25,12 @@ describe('fresh schema books (migration 232)', () => {
     expect(schema).toMatch(/idx_book_entitlements_one_active\s+ON public\.book_entitlements\(student_id, book_id\) WHERE revoked_at IS NULL/);
   });
 
-  it('gives clients no write policy on purchases, entitlements or progress', () => {
-    for (const table of ['book_purchases', 'book_entitlements', 'user_books', 'book_chapter_progress']) {
+  it('gives clients no write policy on purchases or entitlements', () => {
+    for (const table of ['book_purchases', 'book_entitlements']) {
       const policies = schema.match(new RegExp(`ON public\\.${table} FOR (\\w+)`, 'g')) ?? [];
       expect(policies.length).toBeGreaterThan(0);
       expect(policies.every(p => p.endsWith('FOR SELECT'))).toBe(true);
     }
-  });
-
-  it('keeps annotations owner-only', () => {
-    expect(schema).toContain('ON public.book_annotations FOR ALL TO authenticated');
-    expect(schema).toMatch(/book_annotations: owner all"[\s\S]{0,200}USING\s+\(student_id = \(SELECT auth\.uid\(\)\)\)/);
   });
 
   it("scopes both object paths to the book's own folder, kind and format", () => {
@@ -54,12 +48,17 @@ describe('fresh schema books (migration 232)', () => {
     expect(schema).toMatch(/user_id\s+uuid\s+REFERENCES auth\.users\(id\) ON DELETE SET NULL,/);
   });
 
-  it('shows books through learning paths and to buyers only while published, like canReadBook', () => {
+  it('shows books through learning paths while published, and to buyers after archiving too, like canReadBook', () => {
     const fn = schema.slice(schema.indexOf('FUNCTION public.can_see_book'), schema.indexOf('REVOKE EXECUTE ON FUNCTION public.can_see_book'));
     const published = fn.indexOf("p_book.status = 'published'");
     expect(published).toBeGreaterThan(0);
     expect(fn.indexOf('FROM public.learning_paths lp')).toBeGreaterThan(published);
-    expect(fn.indexOf('FROM public.book_entitlements e')).toBeGreaterThan(published);
+    // Entitlements: published or archived, never a draft (migration 235).
+    const owned = fn.indexOf("p_book.status IN ('published', 'archived')");
+    expect(owned).toBeGreaterThan(fn.indexOf('FROM public.learning_paths lp'));
+    expect(fn.indexOf('FROM public.book_entitlements e')).toBeGreaterThan(owned);
+    const m235 = readFileSync(join(process.cwd(), 'migrations/235_book_store.sql'), 'utf8');
+    expect(schema).toContain(m235.slice(m235.indexOf('CREATE OR REPLACE FUNCTION public.can_see_book'), m235.indexOf('-- Fulfilment ----')).trim());
   });
 
   it('lets the owning instructor or any admin set sale terms (migration 234)', () => {
@@ -123,5 +122,57 @@ describe('fresh schema book chapters save (migration 233)', () => {
     expect(migration).toContain("'chapter does not belong to this book'");
     expect(migration).toContain('UPDATE public.book_chapters SET position = position + 1000000');
     expect(migration).not.toMatch(/DELETE FROM public\.book_chapters WHERE book_id = p_book_id;/);
+  });
+});
+
+describe('fresh schema books store (migration 235)', () => {
+  const schema = readFileSync(join(process.cwd(), 'festman-fresh-schema.sql'), 'utf8');
+  const migration = readFileSync(join(process.cwd(), 'migrations/235_book_store.sql'), 'utf8');
+
+  it('drops the reading tables', () => {
+    for (const table of ['user_books', 'book_chapter_progress', 'book_annotations']) {
+      expect(migration).toContain(`DROP TABLE IF EXISTS public.${table};`);
+      expect(schema).not.toContain(`public.${table}`);
+    }
+  });
+
+  it('carries the purchase columns, review status and one-open-checkout index', () => {
+    for (const col of ['authorization_url', 'paystack_transaction_id', 'review_reason', 'review_resolved_at', 'receipt_email_sent_at', 'last_checked_at']) {
+      expect(migration).toContain(`ADD COLUMN IF NOT EXISTS ${col}`);
+      expect(schema).toMatch(new RegExp(`\\n  ${col}\\s+(text|bigint|timestamptz),`));
+    }
+    expect(migration).toContain("CHECK (status IN ('pending','paid','failed','refunded','needs_review'))");
+    expect(schema).toContain("CHECK (status IN ('pending','paid','failed','refunded','needs_review'))");
+    const pending = "ON public.book_purchases(student_id, book_id) WHERE status = 'pending';";
+    expect(migration).toContain(pending);
+    expect(schema).toContain(pending);
+  });
+
+  it('mirrors the fulfilment function, service role only, and has no refund automation', () => {
+    const fn = migration.slice(migration.indexOf('-- Fulfilment ----')).trim();
+    expect(schema).toContain(fn);
+    expect(fn).toContain('REVOKE EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) FROM PUBLIC, anon, authenticated;');
+    expect(fn).toContain('GRANT  EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) TO service_role;');
+    // Refunds are handled outside the platform.
+    expect(migration).not.toContain('refund_book_purchase');
+    expect(schema).not.toContain('refund_book_purchase');
+  });
+
+  it('fulfils under a row lock and grants access only on an exact match', () => {
+    const fn = migration.slice(migration.indexOf('FUNCTION public.fulfil_book_purchase'));
+    const lock = fn.indexOf('WHERE paystack_reference = p_reference FOR UPDATE');
+    const done = fn.indexOf("IF v.status IN ('paid', 'refunded', 'needs_review')");
+    const amount = fn.indexOf('round(p_amount * 100) <> round(v.amount * 100)');
+    const grant = fn.indexOf('INSERT INTO public.book_entitlements');
+    expect(lock).toBeGreaterThan(0);
+    expect(done).toBeGreaterThan(lock);
+    expect(amount).toBeGreaterThan(done);
+    expect(grant).toBeGreaterThan(amount);
+    expect(fn).toContain("v_reason := 'already_owned'");
+    // Two checkouts paid at once: the unique index decides, the loser goes to review.
+    expect(fn).toContain('ON CONFLICT (student_id, book_id) WHERE revoked_at IS NULL DO NOTHING;');
+    expect(fn.lastIndexOf('IF NOT FOUND THEN')).toBeGreaterThan(fn.indexOf('DO NOTHING;'));
+    // Once paid, the buyer's other open checkouts for the book are closed.
+    expect(fn).toContain("WHERE student_id = v.student_id AND book_id = v.book_id AND status = 'pending' AND id <> v.id;");
   });
 });

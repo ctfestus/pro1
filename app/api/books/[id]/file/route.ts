@@ -6,10 +6,15 @@ import { BOOK_BUCKET, BOOK_SIGNED_URL_TTL_SECONDS } from '@/lib/books/storage';
 
 // GET /api/books/[id]/file
 //
-// The only way to read an EPUB or PDF book. Access is decided by canReadBook on the service role;
-// the answer is a short-lived signed URL to the full file, or to the sample when the reader has no
-// access but the book has one. HTML books are refused here: they render through the sandboxed,
-// ticketed /api/books/[id]/html route instead, never from a raw storage URL.
+// How a buyer (or a cohort reader, or the owner) downloads a book, and how anyone browsing a for-sale
+// book gets its free sample. Access is decided by canReadBook on the service role; the answer is a
+// short-lived signed storage URL.
+//
+//   full access  -> the whole file, as a download (any format, including HTML: it is saved to disk,
+//                   never rendered on this app's origin)
+//   sample, PDF  -> opens in the browser's own PDF viewer
+//   sample, EPUB -> a download (browsers cannot show EPUB)
+//   sample, HTML -> refused here; it is shown through the sandboxed /api/books/[id]/html route
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -21,23 +26,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     const { data: book, error } = await db
       .from('books')
-      .select(`${BOOK_ACCESS_COLUMNS}, format, file_path`)
+      .select(`${BOOK_ACCESS_COLUMNS}, format, file_path, slug`)
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
     if (!book) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
 
-    const row = book as unknown as BookAccessRow & { format: string | null; file_path: string | null };
+    const row = book as unknown as BookAccessRow & { format: string | null; file_path: string | null; slug: string | null };
     // Access first: a reader who may not see this book learns nothing about it, not even its format.
     const access = await canReadBook(db, auth.user.id, row);
     if (access.level === 'none') {
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
-    if (row.format === 'html') {
-      return NextResponse.json({ error: 'HTML books open through the reader.' }, { status: 400 });
-    }
-
     const kind = access.level === 'full' ? 'file' : 'preview';
+    if (kind === 'preview' && row.format === 'html') {
+      return NextResponse.json({ error: 'HTML samples open in the preview.' }, { status: 400 });
+    }
     const path = kind === 'file' ? row.file_path : row.preview_file_path;
     // Only ever sign an object this book's own upload issued -- never a path copied from another
     // book (file_path is author-writable; the service role would sign anything).
@@ -45,17 +49,19 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       return NextResponse.json({ error: 'This book has no file yet.' }, { status: 404 });
     }
 
+    const inline = kind === 'preview' && row.format === 'pdf';
+    const filename = `${row.slug || 'book'}${kind === 'preview' ? '-sample' : ''}.${row.format}`;
     const { data: signed, error: signError } = await db.storage
       .from(BOOK_BUCKET)
-      .createSignedUrl(path, BOOK_SIGNED_URL_TTL_SECONDS);
+      .createSignedUrl(path, BOOK_SIGNED_URL_TTL_SECONDS, inline ? undefined : { download: filename });
     if (signError || !signed?.signedUrl) throw signError ?? new Error('No signed URL returned.');
 
     return NextResponse.json(
-      { url: signed.signedUrl, variant: access.level, format: row.format },
+      { url: signed.signedUrl, variant: access.level, format: row.format, download: !inline },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e: any) {
     console.error('[books/file]', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not open the book.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not get the book file.' }, { status: 500 });
   }
 }

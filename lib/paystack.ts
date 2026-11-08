@@ -61,6 +61,13 @@ export function paystackCallbackUrl(reference: string) {
   return `${base}/student?paystack_reference=${encodeURIComponent(reference)}#payments`;
 }
 
+/** Where Paystack returns a book buyer. The student dashboard's Books section confirms the purchase. */
+export function paystackBookCallbackUrl(reference: string) {
+  const base = publicBaseUrl();
+  if (!base) throw new PaymentError('configuration_error', 'Online payment return URL is not configured.', 503);
+  return `${base}/student?book_reference=${encodeURIComponent(reference)}#books`;
+}
+
 export function makePaystackReference(prefix = 'sub') {
   return `${prefix}-${crypto.randomUUID()}`;
 }

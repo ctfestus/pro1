@@ -29,6 +29,7 @@ const BOOK = {
   preview_file_path: PREVIEW,
   format: 'pdf',
   file_path: FILE,
+  slug: 'sql-basics',
 };
 
 let createSignedUrl: ReturnType<typeof vi.fn>;
@@ -64,9 +65,19 @@ describe('GET /api/books/[id]/file', () => {
     expect((await call()).status).toBe(404);
   });
 
-  it('refuses HTML books, which only open through the sandboxed route', async () => {
-    authAs('u1', { books: { data: { ...BOOK, format: 'html' } }, students: { data: { role: 'student', cohort_id: 'cohort-a' } } });
+  it('lets a reader with access download an HTML book as a file', async () => {
+    const html = { ...BOOK, format: 'html', file_path: FILE.replace('.pdf', '.html') };
+    authAs('u1', { books: { data: html }, students: { data: { role: 'student', cohort_id: 'cohort-a' } } });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(createSignedUrl).toHaveBeenCalledWith(html.file_path, 300, { download: 'sql-basics.html' });
+  });
+
+  it('refuses an HTML sample here, which only opens through the sandboxed route', async () => {
+    const html = { ...BOOK, format: 'html', purchasable: true, preview_file_path: PREVIEW.replace('.pdf', '.html') };
+    authAs('u1', { books: { data: html }, ...outsider });
     expect((await call()).status).toBe(400);
+    expect(createSignedUrl).not.toHaveBeenCalled();
   });
 
   it("does not reveal a hidden book's format to an outsider (404 before any format check)", async () => {
@@ -78,8 +89,8 @@ describe('GET /api/books/[id]/file', () => {
     authAs('u1', { books: { data: BOOK }, students: { data: { role: 'student', cohort_id: 'cohort-a' } } });
     const res = await call();
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ variant: 'full', url: `https://storage.test/${FILE}` });
-    expect(createSignedUrl).toHaveBeenCalledWith(FILE, 300);
+    expect(await res.json()).toMatchObject({ variant: 'full', url: `https://storage.test/${FILE}`, download: true });
+    expect(createSignedUrl).toHaveBeenCalledWith(FILE, 300, { download: 'sql-basics.pdf' });
   });
 
   it('signs only the sample for a non-owner of a for-sale book', async () => {
@@ -88,7 +99,25 @@ describe('GET /api/books/[id]/file', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ variant: 'preview', url: `https://storage.test/${PREVIEW}` });
     expect(createSignedUrl).toHaveBeenCalledTimes(1);
-    expect(createSignedUrl).toHaveBeenCalledWith(PREVIEW, 300);
+    expect(createSignedUrl).toHaveBeenCalledWith(PREVIEW, 300, undefined);
+  });
+
+  it('downloads an EPUB sample, which browsers cannot display', async () => {
+    const epub = { ...BOOK, format: 'epub', purchasable: true, preview_file_path: PREVIEW.replace('.pdf', '.epub') };
+    authAs('u1', { books: { data: epub }, ...outsider });
+    expect((await call()).status).toBe(200);
+    expect(createSignedUrl).toHaveBeenCalledWith(epub.preview_file_path, 300, { download: 'sql-basics-sample.epub' });
+  });
+
+  it('lets a buyer download a book after it was archived', async () => {
+    authAs('u1', {
+      books: { data: { ...BOOK, status: 'archived', purchasable: true } },
+      ...outsider,
+      book_entitlements: { data: { id: 'ent-1' } },
+    });
+    const res = await call();
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ variant: 'full' });
   });
 
   it('returns 404, not the sample, for a cohort-only book outside the cohort', async () => {
