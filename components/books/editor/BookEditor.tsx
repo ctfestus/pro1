@@ -21,11 +21,20 @@ import {
   BOOK_FILE_MAX_BYTES,
   BOOK_HTML_MAX_BYTES,
   BOOK_LICENSE_TYPES,
+  DEFAULT_SAMPLE_CHAPTERS,
+  DEFAULT_SAMPLE_PAGES,
+  parseSampleSpec,
   type BookFormat,
   type BookLicenseType,
+  type BookSampleSpec,
   type BookStatus,
 } from '@/lib/books/schema';
-import { chaptersFromEpub, chaptersFromHtml, externalReferencesInHtml } from '@/lib/books/chapters';
+import {
+  chaptersFromEpub, chaptersFromHtml, epubOutline, externalReferencesInHtml, htmlOutline,
+  type OutlineEntry, type SuggestedChapter,
+} from '@/lib/books/chapters';
+import { chaptersFromPicks, cutPdfSample, pdfChapters, pdfOutline } from '@/lib/books/pdf';
+import { cutEpubSample, cutHtmlSample } from '@/lib/books/sample';
 import { openBookPreview } from '@/lib/books/open-preview';
 
 const LICENSE_LABELS: Record<BookLicenseType, string> = {
@@ -86,7 +95,10 @@ const EMPTY: EditorState = {
   purchasable: false, royaltyPct: '0', prices: [],
 };
 
+type SampleSource = 'cut' | 'upload';
+
 const splitList = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean);
+const wholeNumber = (v: string) => (/^\d+$/.test(v) && Number(v) >= 1 ? Number(v) : null);
 const newKey = () => Math.random().toString(36).slice(2, 10);
 
 async function authHeaders(): Promise<Record<string, string>> {
@@ -156,9 +168,18 @@ export function BookEditor() {
   const [coverOpen, setCoverOpen] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
+  const [findingChapters, setFindingChapters] = useState(false);
+  // The free sample: cut from the book on save (the default), or a file the author uploads.
+  const [sampleSource, setSampleSource] = useState<SampleSource>('cut');
+  const [samplePages, setSamplePages] = useState({ from: String(DEFAULT_SAMPLE_PAGES.from), to: String(DEFAULT_SAMPLE_PAGES.to) });
+  const [sampleChapters, setSampleChapters] = useState(String(DEFAULT_SAMPLE_CHAPTERS));
+  // True when the next save must cut the sample again (settings or the book file changed).
+  const [sampleDirty, setSampleDirty] = useState(false);
+  const [pageCount, setPageCount] = useState<number | null>(null);
+  // The book's bytes, kept after an upload (or fetched once) for finding chapters and cutting samples.
+  const bookData = useRef<{ blob: Blob; format: BookFormat } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const previewInput = useRef<HTMLInputElement>(null);
-  const importInput = useRef<HTMLInputElement>(null);
 
   const update = useCallback((patch: Partial<EditorState>) => setState(prev => ({ ...prev, ...patch })), []);
   const updatePrices = useCallback((prices: EditorState['prices']) => {
@@ -207,6 +228,13 @@ export function BookEditor() {
       setChaptersRaw((chapterRows ?? []).map(chapterFromRow));
       setChaptersDirty(false);
       setPricesDirty(false);
+      // A sample cut from the book records how; an uploaded one does not. A book with a file but no
+      // sample at all gets the default cut on its next save.
+      const spec = parseSampleSpec(book.sample_spec);
+      if (spec && 'pages' in spec) setSamplePages({ from: String(spec.pages.from), to: String(spec.pages.to) });
+      if (spec && 'chapters' in spec) setSampleChapters(String(spec.chapters));
+      setSampleSource(spec || !book.preview_file_path ? 'cut' : 'upload');
+      setSampleDirty(!spec && !book.preview_file_path && !!book.file_path);
       setLoadedAt(book.updated_at ?? null);
       setLoading(false);
     })();
@@ -246,6 +274,21 @@ export function BookEditor() {
     }
   }
 
+  // Upload bytes through the book's signed upload, as the sample or the book file.
+  async function putObject(kind: 'file' | 'preview', fmt: BookFormat, blob: Blob, name: string): Promise<UploadedFile> {
+    const res = await fetch('/api/books/upload-url', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify({ bookId: editId, kind, format: fmt, size: blob.size }),
+    });
+    const d = await res.json();
+    if (!res.ok) throw new Error(d.error || 'Could not prepare the upload.');
+    const typed = new File([blob], name, { type: d.contentType });
+    const up = await supabase.storage.from(d.bucket).uploadToSignedUrl(d.path, d.uploadToken, typed);
+    if (up.error) throw new Error(up.error.message || 'Upload failed.');
+    return { path: d.path, name, size: blob.size };
+  }
+
   async function upload(kind: 'file' | 'preview', file: File) {
     if (!editId) return;
     setError(''); setNotice('');
@@ -255,10 +298,8 @@ export function BookEditor() {
     const max = fmt === 'html' ? BOOK_HTML_MAX_BYTES : BOOK_FILE_MAX_BYTES;
     if (file.size > max) { setError(`The file must be under ${Math.round(max / (1024 * 1024))} MB.`); return; }
 
-    let html: string | null = null;
     if (fmt === 'html') {
-      html = await file.text();
-      const external = externalReferencesInHtml(html);
+      const external = externalReferencesInHtml(await file.text());
       if (external.length) {
         const ok = window.confirm(`This HTML book loads ${external.length} file(s) from other sites, for example ${external[0]}. A book should be self-contained, so it keeps working and cannot change after you publish it. Upload anyway?`);
         if (!ok) return;
@@ -267,27 +308,22 @@ export function BookEditor() {
 
     setUploading(kind);
     try {
-      const res = await fetch('/api/books/upload-url', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify({ bookId: editId, kind, format: fmt, size: file.size }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || 'Could not prepare the upload.');
-      const typed = new File([file], file.name, { type: d.contentType });
-      const up = await supabase.storage.from(d.bucket).uploadToSignedUrl(d.path, d.uploadToken, typed);
-      if (up.error) throw new Error(up.error.message || 'Upload failed.');
-
-      const uploaded = { path: d.path, name: file.name, size: file.size };
+      const uploaded = await putObject(kind, fmt, file, file.name);
       if (kind === 'preview') {
         setPreview(uploaded);
+        setSampleSource('upload');
+        setSampleDirty(false);
+        setNotice('Uploaded. Save to keep it.');
       } else {
         setNewFile(uploaded);
         setNewFormat(fmt);
+        bookData.current = { blob: file, format: fmt };
+        setPageCount(null);
         if (fmt !== format && (storedPreview || preview)) setPreview('remove');
-        if (!chapters.length) await importChapters(file, fmt, html);
+        if (sampleSource === 'cut') setSampleDirty(true);
+        setNotice('Uploaded. Save to keep it.');
+        if (!chapters.length || fmt !== format) await findChapters(fmt, true);
       }
-      setNotice('Uploaded. Save to keep it.');
     } catch (e: any) {
       setError(e?.message || 'Upload failed.');
     } finally {
@@ -295,32 +331,150 @@ export function BookEditor() {
     }
   }
 
-  async function importChapters(file: File, fmt: BookFormat | null = formatOf(file), html: string | null = null) {
-    setError('');
+  /** The book's bytes: the file just uploaded, else the saved one (fetched once). */
+  async function bookBlob(fmt: BookFormat): Promise<Blob> {
+    if (bookData.current?.format === fmt) return bookData.current.blob;
+    const res = await fetch(`/api/books/${encodeURIComponent(editId ?? '')}/file`, { headers: await authHeaders() });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.url) throw new Error(d.error || 'Could not load the book file.');
+    const file = await fetch(d.url);
+    if (!file.ok) throw new Error('Could not load the book file.');
+    const blob = await file.blob();
+    bookData.current = { blob, format: fmt };
+    return blob;
+  }
+
+  /** AI picks the chapter starts from the book's outline; each maps back to a real location. */
+  async function suggestWithAi(fmt: BookFormat, outline: OutlineEntry[], pages: number | null): Promise<SuggestedChapter[]> {
+    const res = await fetch('/api/books/suggest-chapters', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+      body: JSON.stringify({ bookId: editId, format: fmt, outline: outline.map(o => (o.level ? { text: o.text, level: o.level } : { text: o.text })) }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || 'Could not suggest chapters.');
+    return chaptersFromPicks(fmt, Array.isArray(d.chapters) ? d.chapters : [], outline, pages);
+  }
+
+  /**
+   * Fill the chapter list from the book: its own table of contents, sections or bookmarks first;
+   * when it has none (or only one chapter), AI suggests them from the headings or page text, if the
+   * book's rights allow AI. `auto` is the run after an upload, which never asks before replacing.
+   */
+  async function findChapters(fmt: BookFormat | null = effectiveFormat, auto = false) {
+    if (!fmt) return;
+    setError(''); setFindingChapters(true);
     try {
-      let found;
-      if (fmt === 'epub') found = await chaptersFromEpub(file);
-      else if (fmt === 'html') found = chaptersFromHtml(html ?? await file.text());
-      else { setNotice('PDF chapters are added by page range below.'); return; }
-      if (!found.length) { setNotice('No table of contents was found in that file. Add chapters below.'); return; }
-      if (chapters.length && !window.confirm(`Replace the ${chapters.length} chapter(s) in the editor with ${found.length} from the file? Chapters found again keep their readers' progress. Chapters no longer in the file lose it when you save.`)) return;
-      // Match by location so a re-import keeps each surviving chapter's id, and with it the
-      // reading progress and notes attached to it.
-      const byLocation = new Map(chapters.map(c => [c.href || c.anchor, c]));
-      setChapters(found.map(c => {
-        const href = 'href' in c.locator ? c.locator.href : '';
-        const anchor = 'anchor' in c.locator ? c.locator.anchor : '';
-        const match = byLocation.get(href || anchor);
-        return {
-          key: newKey(), id: match?.id, title: c.title, href, anchor,
-          pageStart: '', pageEnd: '', estimatedMinutes: match?.estimatedMinutes ?? null,
-          required: match?.required ?? true, isPreview: match?.isPreview ?? false,
-        };
-      }));
-      setNotice(`Found ${found.length} chapter(s). Review them, then save.`);
+      const blob = await bookBlob(fmt);
+      let found: SuggestedChapter[] = [];
+      let outline: () => Promise<OutlineEntry[]>;
+      let pages: number | null = null;
+      let weak: boolean;
+      if (fmt === 'epub') {
+        const r = await chaptersFromEpub(blob);
+        found = r.chapters;
+        weak = !r.fromToc;
+        outline = () => epubOutline(blob);
+      } else if (fmt === 'html') {
+        const html = await blob.text();
+        found = chaptersFromHtml(html);
+        weak = found.length < 2;
+        // Only headings that can be linked to: a chapter needs a place in the file to start (and
+        // for the sample to stop) at.
+        outline = async () => htmlOutline(html).filter(e => e.locator);
+      } else {
+        const buffer = await blob.arrayBuffer();
+        const r = await pdfChapters(buffer);
+        pages = r.pageCount;
+        setPageCount(r.pageCount);
+        found = r.chapters;
+        weak = found.length < 2;
+        outline = async () => (await pdfOutline(buffer)).outline;
+      }
+
+      let viaAi = false;
+      let aiProblem = '';
+      if (weak && state.aiAllowed) {
+        try {
+          const items = await outline();
+          if (items.some(i => i.text)) {
+            const suggested = await suggestWithAi(fmt, items, pages);
+            // An EPUB without a table of contents only had "Section 1, 2..." titles, so AI wins there
+            // whenever it found anything; elsewhere it must find more than the structure did.
+            if (suggested.length && (fmt === 'epub' || suggested.length > found.length)) { found = suggested; viaAi = true; }
+          }
+        } catch (e: any) {
+          aiProblem = e?.message || 'AI could not suggest chapters.';
+        }
+      }
+
+      if (!found.length) {
+        const why = aiProblem || (!state.aiAllowed ? 'This book\'s rights do not allow AI to read it.' : '');
+        setNotice(`No chapters were found in the book.${why ? ` ${why}` : ''} Add them below.`);
+        return;
+      }
+      if (!auto && chapters.length && !window.confirm(`Replace the ${chapters.length} chapter(s) in the editor with the ${found.length} found in the book?`)) return;
+      applyChapters(found);
+      setNotice(`Found ${found.length} chapter(s)${viaAi ? ' with AI' : ''}. Review them, then save.${aiProblem ? ` (${aiProblem})` : ''}`);
     } catch (e: any) {
-      setError(e?.message || 'Could not read chapters from that file.');
+      setError(e?.message || 'Could not read chapters from the book.');
+    } finally {
+      setFindingChapters(false);
     }
+  }
+
+  function applyChapters(found: SuggestedChapter[]) {
+    // Match by location so a chapter found again keeps its id (and settings).
+    const where = (c: { href?: string; anchor?: string; pageStart?: string | number }) => c.href || c.anchor || (c.pageStart ? `p${c.pageStart}` : '');
+    const byLocation = new Map(chapters.map(c => [where(c), c]));
+    const cutCount = wholeNumber(sampleChapters) ?? 0;
+    setChapters(found.map((c, i) => {
+      const loc = c.locator as { href?: string; anchor?: string; pageStart?: number; pageEnd?: number };
+      const match = byLocation.get(where(loc));
+      return {
+        key: newKey(), id: match?.id, title: c.title,
+        href: loc.href ?? '', anchor: loc.anchor ?? '',
+        pageStart: loc.pageStart ? String(loc.pageStart) : '', pageEnd: loc.pageEnd ? String(loc.pageEnd) : '',
+        estimatedMinutes: match?.estimatedMinutes ?? null, required: match?.required ?? true,
+        isPreview: sampleSource === 'cut' ? i < cutCount : match?.isPreview ?? false,
+      };
+    }));
+  }
+
+  /** The sample spec the editor's settings describe, for the book's format. */
+  function currentSampleSpec(fmt: BookFormat): BookSampleSpec | null {
+    if (fmt === 'pdf') {
+      const from = wholeNumber(samplePages.from);
+      const to = wholeNumber(samplePages.to);
+      return from && to && to >= from ? { pages: { from, to } } : null;
+    }
+    const n = wholeNumber(sampleChapters);
+    return n ? { chapters: n } : null;
+  }
+
+  /** Cut the free sample out of the book and upload it. Throws a sentence the author can act on. */
+  async function makeSample(fmt: BookFormat, spec: BookSampleSpec): Promise<UploadedFile> {
+    const blob = await bookBlob(fmt);
+    let out: Blob;
+    if ('pages' in spec) {
+      out = await cutPdfSample(await blob.arrayBuffer(), spec.pages.from, spec.pages.to);
+    } else {
+      const n = spec.chapters;
+      if (chapters.length <= n) {
+        throw new Error(chapters.length
+          ? `The book has ${chapters.length} chapter(s), so a sample of ${n} would be the whole book. Choose fewer chapters.`
+          : 'The book has no chapters yet. Find or add chapters first.');
+      }
+      const stop = chapters[n];
+      if (fmt === 'html') {
+        if (!stop.anchor) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
+        out = new Blob([cutHtmlSample(await blob.text(), stop.anchor)], { type: 'text/html' });
+      } else {
+        if (!stop.href) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
+        out = await cutEpubSample(blob, stop.href);
+      }
+    }
+    return putObject('preview', fmt, out, `sample.${fmt}`);
   }
 
   function moveChapter(i: number, dir: -1 | 1) {
@@ -363,22 +517,51 @@ export function BookEditor() {
         cohortIds: state.cohortIds,
         expectedUpdatedAt: loadedAt,
       };
-      if (chaptersDirty) {
-        body.chapters = chapters.map(c => ({
+      if (newFile && newFormat) body.file = { path: newFile.path, format: newFormat };
+      if (preview === 'remove') body.preview = null;
+      else if (preview) body.preview = { path: preview.path };
+
+      // The free sample is cut from the book here, before the save, when its settings, the book
+      // file or (for a chapter-based cut) the chapter list changed. A failed cut does not stop the
+      // rest of the save; the author is told and the next save tries again.
+      const fmt = effectiveFormat;
+      let sampleProblem = '';
+      let cutSpec: BookSampleSpec | null = null;
+      if (sampleSource === 'upload') {
+        body.sampleSpec = null;
+      } else if (fmt && (newFile || storedFile.path) && (sampleDirty || (fmt !== 'pdf' && chaptersDirty))) {
+        const spec = currentSampleSpec(fmt);
+        if (!spec) {
+          sampleProblem = fmt === 'pdf' ? 'Enter the sample pages, for example 1 to 10.' : 'Enter how many chapters the sample has.';
+        } else {
+          setNotice('Making the free sample...');
+          try {
+            const made = await makeSample(fmt, spec);
+            body.preview = { path: made.path };
+            body.sampleSpec = spec;
+            cutSpec = spec;
+          } catch (e: any) {
+            sampleProblem = e?.message || 'The sample could not be made.';
+          }
+          setNotice('');
+        }
+      }
+
+      // A chapter-based sample marks its chapters, so the store can show what the sample covers.
+      const sampleCount = cutSpec && 'chapters' in cutSpec ? cutSpec.chapters : null;
+      if (chaptersDirty || sampleCount !== null) {
+        body.chapters = chapters.map((c, i) => ({
           id: c.id,
           title: c.title,
           estimatedMinutes: c.estimatedMinutes,
           required: c.required,
-          isPreview: c.isPreview,
+          isPreview: sampleCount !== null ? i < sampleCount : c.isPreview,
           locator: effectiveFormat === 'epub' ? { href: c.href }
             : effectiveFormat === 'html' ? { anchor: c.anchor }
             : { pageStart: c.pageStart, pageEnd: c.pageEnd },
         }));
         if (chapters.length === 0) body.clearChapters = true;
       }
-      if (newFile && newFormat) body.file = { path: newFile.path, format: newFormat };
-      if (preview === 'remove') body.preview = null;
-      else if (preview) body.preview = { path: preview.path };
       body.purchasable = state.purchasable;
       body.royaltyPct = Number(state.royaltyPct) || 0;
       if (pricesDirty) {
@@ -409,7 +592,13 @@ export function BookEditor() {
       }
       setChaptersRaw((chapterRows ?? []).map(chapterFromRow));
       setChaptersDirty(false);
-      setNotice(nextStatus === 'published' ? 'Published.' : nextStatus === 'archived' ? 'Archived.' : 'Saved.');
+      // A failed cut stays owed: the save cleared chaptersDirty, so without this a cut triggered by
+      // a chapter edit would never be retried and the old sample would stay.
+      if (cutSpec) setSampleDirty(false);
+      else if (sampleProblem) setSampleDirty(true);
+      const done = nextStatus === 'published' ? 'Published' : nextStatus === 'archived' ? 'Archived' : 'Saved';
+      if (sampleProblem) setError(`${done}, but the free sample was not made: ${sampleProblem}`);
+      else setNotice(`${done}.${cutSpec ? ' The free sample was made from the book.' : ''}`);
     } catch (e: any) {
       setError(e?.message || 'Could not save the book.');
     } finally {
@@ -549,25 +738,67 @@ export function BookEditor() {
             )}
           </div>
           <div className="pt-4 space-y-3" style={{ borderTop: `1px solid ${C.divider}` }}>
-            <p className="text-sm font-medium" style={{ color: C.text }}>Free sample (optional)</p>
-            <p className="text-xs" style={{ color: C.faint }}>A separate, shorter file in the same format. People who have not bought the book read this instead, so the full file never reaches them.</p>
-            <div className="flex flex-wrap items-center gap-3">
-              <button onClick={() => previewInput.current?.click()} disabled={!!uploading || !effectiveFormat} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
-                style={{ background: C.pill, color: C.muted }}>
-                {uploading === 'preview' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
-                {previewName ? 'Replace sample' : 'Upload sample'}
-              </button>
-              {previewName && <>
-                <span className="text-xs" style={{ color: C.muted }}>{previewName}{preview && preview !== 'remove' ? ' (not saved yet)' : ''}</span>
-                {storedPreview && !preview && format && (
+            <p className="text-sm font-medium" style={{ color: C.text }}>Free sample</p>
+            <p className="text-xs" style={{ color: C.faint }}>People who have not bought the book get only this part, as a separate file, so the full book never reaches them.</p>
+            <div className="inline-flex rounded-xl p-1 gap-1" style={{ background: C.input }} role="radiogroup" aria-label="Sample source">
+              {([['cut', 'Cut from the book'], ['upload', 'Upload a sample file']] as const).map(([value, label]) => (
+                <button key={value} role="radio" aria-checked={sampleSource === value}
+                  onClick={() => { if (sampleSource === value) return; setSampleSource(value); setSampleDirty(value === 'cut'); }}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                  style={sampleSource === value ? { background: C.cta, color: C.ctaText } : { color: C.muted }}>
+                  {label}
+                </button>
+              ))}
+            </div>
+            {sampleSource === 'cut' ? (
+              <div className="space-y-2">
+                {effectiveFormat === 'pdf' ? (
+                  <label className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>Pages
+                    <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" aria-label="First sample page" value={samplePages.from}
+                      onChange={e => { setSamplePages(p => ({ ...p, from: e.target.value.replace(/\D/g, '') })); setSampleDirty(true); }} />
+                    to
+                    <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" aria-label="Last sample page" value={samplePages.to}
+                      onChange={e => { setSamplePages(p => ({ ...p, to: e.target.value.replace(/\D/g, '') })); setSampleDirty(true); }} />
+                    {pageCount ? <span style={{ color: C.faint }}>of {pageCount}</span> : null}
+                  </label>
+                ) : (
+                  <label className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>The first
+                    <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" aria-label="Chapters in the sample" value={sampleChapters}
+                      onChange={e => { setSampleChapters(e.target.value.replace(/\D/g, '')); setSampleDirty(true); }} />
+                    chapters{chapters.length ? <span style={{ color: C.faint }}>of {chapters.length}</span> : null}
+                  </label>
+                )}
+                <p className="text-xs" style={{ color: C.faint }}>
+                  {!effectiveFormat ? 'Upload the book first.'
+                    : sampleDirty ? 'The sample is made from the book when you save.'
+                    : storedPreview ? 'The current sample matches these settings.' : 'The sample is made from the book when you save.'}
+                </p>
+                {storedPreview && !sampleDirty && !preview && format && (
                   <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
                     {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
                     {format === 'epub' ? 'Download sample' : 'Preview sample'}
                   </button>
                 )}
-                <button onClick={() => setPreview('remove')} className="text-xs" style={{ color: '#dc2626' }}>Remove</button>
-              </>}
-            </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-3">
+                <button onClick={() => previewInput.current?.click()} disabled={!!uploading || !effectiveFormat} className="inline-flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
+                  style={{ background: C.pill, color: C.muted }}>
+                  {uploading === 'preview' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
+                  {previewName ? 'Replace sample' : 'Upload sample'}
+                </button>
+                {previewName && <>
+                  <span className="text-xs" style={{ color: C.muted }}>{previewName}{preview && preview !== 'remove' ? ' (not saved yet)' : ''}</span>
+                  {storedPreview && !preview && format && (
+                    <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
+                      {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                      {format === 'epub' ? 'Download sample' : 'Preview sample'}
+                    </button>
+                  )}
+                  <button onClick={() => setPreview('remove')} className="text-xs" style={{ color: '#dc2626' }}>Remove</button>
+                </>}
+              </div>
+            )}
           </div>
         </div>
 
@@ -576,11 +807,11 @@ export function BookEditor() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             {sectionTitle('Chapters')}
             <div className="flex gap-2">
-              <input ref={importInput} type="file" accept=".epub,.html,.htm" className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) importChapters(f); }} />
-              {effectiveFormat !== 'pdf' && (
-                <button onClick={() => importInput.current?.click()} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
-                  style={{ background: C.pill, color: C.muted }}><ListOrdered className="w-3.5 h-3.5" /> Read from file</button>
+              {effectiveFormat && (newFile || storedFile.path) && (
+                <button onClick={() => findChapters()} disabled={findingChapters || !!uploading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
+                  style={{ background: C.pill, color: C.muted }}>
+                  {findingChapters ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ListOrdered className="w-3.5 h-3.5" />} Find chapters
+                </button>
               )}
               <button onClick={() => setChapters(prev => [...prev, { key: newKey(), title: '', href: '', anchor: '', pageStart: '', pageEnd: '', estimatedMinutes: null, required: true, isPreview: false }])}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold" style={{ background: C.pill, color: C.muted }}>
@@ -589,9 +820,10 @@ export function BookEditor() {
             </div>
           </div>
           <p className="text-xs" style={{ color: C.faint }}>
-            {effectiveFormat === 'pdf'
-              ? 'Give each chapter the page it starts on. Reading progress is tracked per chapter.'
-              : 'Read the chapters from the book\'s own table of contents, then rename or remove any you do not want tracked.'}
+            {findingChapters ? 'Reading the chapters from the book...'
+              : effectiveFormat === 'pdf'
+                ? 'Chapters are read from the PDF\'s bookmarks when you upload it. If it has none, AI suggests them from the page text. Check the start pages, then save.'
+                : 'Chapters are read from the book\'s table of contents or headings when you upload it. If it has none, AI suggests them. Rename or remove any you do not want, then save.'}
           </p>
           {chapters.length === 0 && <p className="text-sm py-4 text-center" style={{ color: C.faint }}>No chapters yet.</p>}
           <div className="space-y-2">
@@ -621,9 +853,11 @@ export function BookEditor() {
                   <label className="flex items-center gap-2">Counts toward completion
                     <Toggle checked={ch.required} accentColor={C.cta} onChange={() => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, required: !c.required } : c))} />
                   </label>
-                  <label className="flex items-center gap-2">In the sample
-                    <Toggle checked={ch.isPreview} accentColor={C.cta} onChange={() => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, isPreview: !c.isPreview } : c))} />
-                  </label>
+                  {sampleSource === 'upload' && (
+                    <label className="flex items-center gap-2">In the sample
+                      <Toggle checked={ch.isPreview} accentColor={C.cta} onChange={() => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, isPreview: !c.isPreview } : c))} />
+                    </label>
+                  )}
                 </div>
               </div>
             ))}

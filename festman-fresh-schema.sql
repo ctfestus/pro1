@@ -7751,6 +7751,8 @@ CREATE TABLE IF NOT EXISTS public.books (
   license_expires_at    timestamptz,
   ai_allowed            boolean     NOT NULL DEFAULT true,
   endorsement_permitted boolean     NOT NULL DEFAULT false,
+  -- How the free sample was cut from the book (migration 236); NULL for an uploaded sample or none.
+  sample_spec           jsonb       CHECK (sample_spec IS NULL OR jsonb_typeof(sample_spec) = 'object'),
   created_at            timestamptz NOT NULL DEFAULT now(),
   updated_at            timestamptz NOT NULL DEFAULT now(),
   -- Object paths are author-writable, and the delivery routes sign them with the service role. So
@@ -8116,6 +8118,7 @@ BEGIN
     license_expires_at    = v_new.license_expires_at,
     ai_allowed            = v_new.ai_allowed,
     endorsement_permitted = v_new.endorsement_permitted,
+    sample_spec           = v_new.sample_spec,
     updated_at            = clock_timestamp()
   WHERE id = p_book_id
   RETURNING * INTO v_new;

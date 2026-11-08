@@ -29,6 +29,7 @@ export const CLAUDE_FEATURES: Record<string, { effort: 'low' | 'medium'; maxOutp
   'data-center-generate-metadata': { effort: 'medium', maxOutputTokens: 4096 },
   'announcement-subtitle': { effort: 'medium', maxOutputTokens: 4096 },
   'application-forms-suggest-options': { effort: 'medium', maxOutputTokens: 4096 },
+  'books-suggest-chapters': { effort: 'low', maxOutputTokens: 8192 },
   tutor: { effort: 'low' },
 };
 

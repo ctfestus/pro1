@@ -14,6 +14,7 @@ import {
   BOOK_LICENSE_TYPES,
   BOOK_MIME_BY_FORMAT,
   isBookObjectPath,
+  parseSampleSpec,
   type BookFormat,
   type BookPrice,
 } from '@/lib/books/schema';
@@ -92,6 +93,8 @@ export function bookColumnsFromInput(input: any): Record<string, unknown> {
   if (has('licenseExpiresAt')) out.license_expires_at = isoDate(input.licenseExpiresAt);
   if (has('aiAllowed')) out.ai_allowed = input.aiAllowed !== false;
   if (has('endorsementPermitted')) out.endorsement_permitted = input.endorsementPermitted === true;
+  // Anything that is not a valid spec clears it: the sample is then treated as uploaded.
+  if (has('sampleSpec')) out.sample_spec = parseSampleSpec(input.sampleSpec);
   if (has('availableToEveryone') || has('cohortIds')) {
     const everyone = input.availableToEveryone === true;
     const cohorts = Array.isArray(input.cohortIds)
