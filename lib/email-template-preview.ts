@@ -26,6 +26,7 @@ import {
   paymentConfirmationApprovedEmail,
   paymentConfirmationRejectedEmail,
   paymentReceiptEmail,
+  bookPurchaseEmail,
   recordingPublishedEmail,
   reminderEmail,
   studentAccountCreatedEmail,
@@ -88,6 +89,7 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
     recording_title: 'Data Analytics Live Sessions',
     weeks: 'Weeks 3 and 4',
     program_name: 'Data Analytics Programme',
+    book_title: 'SQL for Data Analysts',
     currency: 'GHS',
     amount: '450.00',
     reference: 'PAY-1024',
@@ -164,6 +166,8 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
       return { subject: 'Your Data Analytics Programme Certificate', html: openCertificateEmail({ recipientName: name, programName: 'Data Analytics Programme', issuedDate: '4 October 2026', certUrl: certificateUrl, branding }), variables };
     case 'payment_receipt':
       return { subject: 'Payment received on your account', html: paymentReceiptEmail({ name, amount: 450, currency: 'GHS', paidAt: '4 October 2026', method: 'Mobile Money', reference: 'PAY-1024', dashboardUrl: paymentsUrl, branding }), variables };
+    case 'book_purchase':
+      return { subject: 'Your book: SQL for Data Analysts', html: bookPurchaseEmail({ name, bookTitle: 'SQL for Data Analysts', amount: 120, currency: 'GHS', paidAt: '4 October 2026', reference: 'book-1024', libraryUrl: `${studentUrl}#books`, branding }), variables };
     case 'payment_confirmation_received':
       return { subject: 'We received your payment confirmation', html: paymentConfirmationAcknowledgedEmail({ name, amount: 450, currency: 'GHS', dashboardUrl: paymentsUrl, branding }), variables };
     case 'payment_confirmation_approved':

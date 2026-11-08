@@ -2,6 +2,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { processPaystackSubscriptionReference, type PaystackProcessResult } from '@/lib/paystack-subscriptions';
 import { notifySubscriptionActivated } from '@/lib/notify-subscription-activated';
 import { notifyPaystackIncident } from '@/lib/notify-paystack-incident';
+import { isBookReference, settleBookPurchase } from '@/lib/books/purchases';
+import { sendBookPurchaseReceipt } from '@/lib/books/receipt-email';
 
 const MAX_PROCESSING_ATTEMPTS = 10;
 const MAX_NOTIFICATION_ATTEMPTS = 10;
@@ -38,6 +40,38 @@ async function deadLetterEvent(db: SupabaseClient, eventHash: string, processing
   await notifyIncident(db, incident?.id);
 }
 
+async function markProcessed(db: SupabaseClient, eventHash: string) {
+  const { error } = await db.from('paystack_webhook_events').update({
+    processed_at: new Date().toISOString(),
+    processing_error: null,
+  }).eq('event_hash', eventHash);
+  if (error) throw error;
+}
+
+/**
+ * Book purchases (lib/books/purchases.ts): a successful charge on a "book-" reference. Returns null
+ * for anything else, so the subscription path handles it as before. Refunds and disputes on books
+ * are handled outside the platform, so those events are left to the existing path, which ignores
+ * references it does not own.
+ */
+async function processBookEvent(
+  db: SupabaseClient,
+  event: { event_hash: string; event_name: string; reference?: string | null },
+): Promise<{ ok: true; status: string; reference?: string } | null> {
+  if (event.event_name !== 'charge.success' || !isBookReference(event.reference)) return null;
+  const result = await settleBookPurchase(db, event.reference);
+  await markProcessed(db, event.event_hash);
+  if (result.status === 'unknown') {
+    console.error('[paystack-webhook] payment for an unknown book reference', event.reference);
+  }
+  if (result.status === 'paid') {
+    try { await sendBookPurchaseReceipt(db, result.purchaseId); } catch (e: any) {
+      console.error('[paystack-webhook] book receipt failed', result.purchaseId, e?.message ?? e);
+    }
+  }
+  return { ok: true, status: result.status, reference: event.reference };
+}
+
 export async function processStoredPaystackWebhookEvent(
   db: SupabaseClient,
   eventHash: string,
@@ -56,6 +90,22 @@ export async function processStoredPaystackWebhookEvent(
     'charge.dispute.remind',
     'charge.dispute.resolve',
   ]);
+
+  try {
+    const book = await processBookEvent(db, event);
+    if (book) return book;
+  } catch (processingError) {
+    const message = processingError instanceof Error ? processingError.message : String(processingError);
+    const { error: updateError } = await db.from('paystack_webhook_events')
+      .update({ processing_error: message })
+      .eq('event_hash', eventHash);
+    if (updateError) console.error('[paystack-webhook] could not store book processing error', updateError);
+    if (Number(event.processing_attempts || 0) >= MAX_PROCESSING_ATTEMPTS) {
+      await deadLetterEvent(db, eventHash, message);
+      return { ok: true, status: 'dead_lettered', reference: event.reference ?? undefined };
+    }
+    throw processingError;
+  }
 
   if (lifecycleEvents.has(event.event_name)) {
     try {

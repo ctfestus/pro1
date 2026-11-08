@@ -102,7 +102,7 @@ describe('GET /api/books/[id]/html', () => {
     expect((await call(ticketFor('full', BOOK_ID, Date.now() - 10 * 60 * 1000))).status).toBe(401);
   });
 
-  it('serves the book sandboxed, without same-origin, with the bridge injected', async () => {
+  it('serves the book sandboxed, without same-origin, exactly as uploaded', async () => {
     const res = await call(ticketFor());
     expect(res.status).toBe(200);
     expect(res.headers.get('content-type')).toContain('text/html');
@@ -113,7 +113,7 @@ describe('GET /api/books/[id]/html', () => {
     expect(res.headers.get('cache-control')).toContain('no-store');
     expect(res.headers.get('referrer-policy')).toBe('no-referrer');
     const body = await res.text();
-    expect(body).toContain('data-book-bridge');
+    expect(body).not.toContain('<script data-book-bridge');
     expect(body).toContain('<h1>One</h1>');
     expect(state.signed).toEqual([FILE]);
   });

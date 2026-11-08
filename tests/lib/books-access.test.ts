@@ -32,10 +32,22 @@ describe('canReadBook', () => {
     expect(r).toEqual({ level: 'full', reason: 'admin' });
   });
 
-  it('hides an unpublished book from a buyer', async () => {
-    const r = await canReadBook(db({ entitled: true }), 'u1', { ...BOOK, status: 'archived' });
+  it('hides a draft from a buyer', async () => {
+    const r = await canReadBook(db({ entitled: true }), 'u1', { ...BOOK, status: 'draft' });
     expect(r.level).toBe('none');
     expect(r.level === 'none' && r.status).toBe(404);
+  });
+
+  it('lets a buyer keep downloading a book after it is archived', async () => {
+    const r = await canReadBook(db({ entitled: true }), 'u1', { ...BOOK, status: 'archived' });
+    expect(r).toEqual({ level: 'full', reason: 'entitlement' });
+  });
+
+  it('withdraws an archived book from its cohort and from sale', async () => {
+    const cohort = await canReadBook(db({ cohortId: 'cohort-a' }), 'u1', { ...BOOK, status: 'archived' });
+    expect(cohort.level === 'none' && cohort.status).toBe(404);
+    const browsing = await canReadBook(db(), 'u1', { ...BOOK, status: 'archived', purchasable: true, preview_file_path: 'x' });
+    expect(browsing.level === 'none' && browsing.status).toBe(404);
   });
 
   it('refuses a granted reader once the licence has expired', async () => {

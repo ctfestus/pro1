@@ -274,21 +274,20 @@ describe('POST /api/books', () => {
 
 describe('DELETE /api/books', () => {
   const del = (id = BOOK_ID) => DELETE(new NextRequest(`http://localhost/api/books?id=${id}`, { method: 'DELETE' }));
-  const counts = (purchases: number, owners: number, readers: number) => ({
+  const counts = (purchases: number, owners: number) => ({
     book_purchases: { data: null, count: purchases },
     book_entitlements: { data: null, count: owners },
-    user_books: { data: null, count: readers },
     cohort_assignments: { data: null },
   });
 
   it('refuses to delete a book someone bought; it must be archived', async () => {
-    authAs('author-1', 'instructor', BOOK, counts(1, 1, 0));
+    authAs('author-1', 'instructor', BOOK, counts(1, 1));
     expect((await del()).status).toBe(409);
     expect(callsTo('books', 'delete')).toHaveLength(0);
   });
 
-  it('refuses to delete a book people are reading; it must be archived', async () => {
-    authAs('author-1', 'instructor', BOOK, counts(0, 0, 4));
+  it('refuses to delete a book with an unfinished order', async () => {
+    authAs('author-1', 'instructor', BOOK, counts(1, 0));
     expect((await del()).status).toBe(409);
     expect(callsTo('books', 'delete')).toHaveLength(0);
   });
@@ -299,7 +298,7 @@ describe('DELETE /api/books', () => {
   });
 
   it('deletes an unowned book and its files, using the stored id', async () => {
-    authAs('author-1', 'instructor', BOOK, counts(0, 0, 0));
+    authAs('author-1', 'instructor', BOOK, counts(0, 0));
     storage.list.mockResolvedValue({ data: [{ name: `file-${U}.epub` }], error: null });
     expect((await del(BOOK_ID.toUpperCase())).status).toBe(200);
     expect(storage.list).toHaveBeenCalledWith(BOOK_ID, { limit: 1000 });
@@ -317,12 +316,13 @@ describe('GET /api/books', () => {
     expect(callsTo('books', 'eq')).toEqual([]);
   });
 
-  it('lists books with reader counts', async () => {
+  it('lists books with paid sales counts', async () => {
     authAs('author-1', 'instructor', [{ id: BOOK_ID, title: 'SQL' }], {
-      user_books: { data: [{ book_id: BOOK_ID, completed_at: null }, { book_id: BOOK_ID, completed_at: '2026-11-01' }], count: 2 },
+      book_purchases: { data: [{ book_id: BOOK_ID }, { book_id: BOOK_ID }], count: 2 },
     });
     const res = await GET(new NextRequest('http://localhost/api/books'));
     expect(res.status).toBe(200);
-    expect((await res.json()).books[0]).toMatchObject({ id: BOOK_ID, readers: 2, completed: 1 });
+    expect((await res.json()).books[0]).toMatchObject({ id: BOOK_ID, sold: 2 });
+    expect(callsTo('book_purchases', 'eq')).toContainEqual({ table: 'book_purchases', method: 'eq', args: ['status', 'paid'] });
   });
 });

@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { HTML_TICKET_TTL_SECONDS, issueHtmlTicket, verifyHtmlTicket } from '@/lib/books/html-ticket';
-import { injectHtmlBridge } from '@/lib/books/html-bridge';
 import { isBookObjectPath, isLicenseExpired } from '@/lib/books/schema';
 
 const ORIGINAL = process.env.BOOK_HTML_TICKET_SECRET;
@@ -43,18 +42,6 @@ describe('HTML book tickets', () => {
     expect(verifyHtmlTicket(null, 'b1')).toBeNull();
     expect(verifyHtmlTicket('nodot', 'b1')).toBeNull();
     expect(verifyHtmlTicket('a.b', 'b1')).toBeNull();
-  });
-});
-
-describe('injectHtmlBridge', () => {
-  it('puts the bridge before the closing body tag', () => {
-    const out = injectHtmlBridge('<html><body><p>Hi</p></BODY></html>');
-    expect(out.indexOf('data-book-bridge')).toBeGreaterThan(out.indexOf('<p>Hi</p>'));
-    expect(out.indexOf('data-book-bridge')).toBeLessThan(out.indexOf('</BODY>'));
-  });
-
-  it('appends when the file has no body tag', () => {
-    expect(injectHtmlBridge('<p>Hi</p>').startsWith('<p>Hi</p><script data-book-bridge>')).toBe(true);
   });
 });
 

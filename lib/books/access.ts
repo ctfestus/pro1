@@ -8,7 +8,8 @@
  * Grants, in order:
  *   1. the owner, or an admin -- always, even for a draft or an expired licence, so they can fix it
  *   2. the shared cohort rule (lib/student-content-access.ts), which also covers subscription plans
- *   3. an active book_entitlements row (single-book purchase or manual grant)
+ *   3. an active book_entitlements row (single-book purchase or manual grant) -- this one also
+ *      survives archiving: a buyer keeps re-downloading what they paid for after the book is withdrawn
  * A reader with none of these gets the free sample -- but only for a book that is for sale. A book
  * the reader cannot even see in the catalogue (cohort-only, not for sale) is a 404, so these
  * service-role routes never reveal more than the books RLS does.
@@ -54,11 +55,12 @@ export async function canReadBook(
   if (book.user_id === userId) return { level: 'full', reason: 'owner' };
   if (me?.role === 'admin') return { level: 'full', reason: 'admin' };
 
-  // Unpublished books do not exist to anyone else, whatever they once bought. Archiving a book
-  // is how an admin withdraws it; an entitlement does not override that.
-  if (book.status !== 'published') return NOT_FOUND;
+  // Drafts do not exist to anyone else. An archived book is withdrawn from sale and from cohorts,
+  // but people who own it keep it: they paid for a download, not for a listing.
+  if (book.status !== 'published' && book.status !== 'archived') return NOT_FOUND;
+  const archived = book.status === 'archived';
 
-  const viaCohort = await hasPublishedStudentContentAccess(db, {
+  const viaCohort = !archived && await hasPublishedStudentContentAccess(db, {
     contentId: book.id,
     status: book.status,
     cohortId: me?.cohort_id ?? null,
@@ -79,6 +81,7 @@ export async function canReadBook(
     if (entError) throw entError;
     entitled = !!ent;
   }
+  if (archived && !entitled) return NOT_FOUND;
 
   // These routes run on the service role, so the catalogue RLS does not hide anything here. A
   // reader with no grant may only learn a book exists when it is for sale -- exactly the rows the

@@ -97,23 +97,19 @@ export async function GET(req: NextRequest) {
     if (error) throw error;
 
     const ids = (books ?? []).map((b: any) => b.id);
-    const readerRows = await fetchAllRowsByIds<{ book_id: string; completed_at: string | null }>(
+    // Sales per book, for the list. Refunded and review cases are not counted as sold.
+    const sales = await fetchAllRowsByIds<{ book_id: string }>(
       ids,
-      (chunk, from, to) => db.from('user_books')
-        .select('book_id, completed_at', { count: 'exact' })
-        .in('book_id', chunk).order('id').range(from, to),
+      (chunk, from, to) => db.from('book_purchases')
+        .select('book_id', { count: 'exact' })
+        .in('book_id', chunk).eq('status', 'paid').order('id').range(from, to),
     );
-    const stats = new Map<string, { readers: number; completed: number }>();
-    for (const r of readerRows) {
-      const s = stats.get(r.book_id) ?? { readers: 0, completed: 0 };
-      s.readers += 1;
-      if (r.completed_at) s.completed += 1;
-      stats.set(r.book_id, s);
-    }
+    const sold = new Map<string, number>();
+    for (const r of sales) sold.set(r.book_id, (sold.get(r.book_id) ?? 0) + 1);
 
     return NextResponse.json({
       role: auth.role,
-      books: (books ?? []).map((b: any) => ({ ...b, ...(stats.get(b.id) ?? { readers: 0, completed: 0 }) })),
+      books: (books ?? []).map((b: any) => ({ ...b, sold: sold.get(b.id) ?? 0 })),
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     console.error('[books] list failed', e?.message ?? e);
@@ -269,18 +265,14 @@ export async function DELETE(req: NextRequest) {
     // The stored id from here on: storage folders are named by it, in lowercase.
     const id = book.id;
 
-    // A book someone paid for, was given, or is reading is archived, never deleted: purchases,
-    // access, progress and notes all hang off it.
-    const [{ count: purchases }, { count: owners }, { count: readers }] = await Promise.all([
+    // A book anyone tried to buy, bought, or was given is archived, never deleted: the money
+    // records and buyers' downloads hang off it.
+    const [{ count: purchases }, { count: owners }] = await Promise.all([
       db.from('book_purchases').select('id', { count: 'exact', head: true }).eq('book_id', id),
       db.from('book_entitlements').select('id', { count: 'exact', head: true }).eq('book_id', id),
-      db.from('user_books').select('id', { count: 'exact', head: true }).eq('book_id', id),
     ]);
     if ((purchases ?? 0) > 0 || (owners ?? 0) > 0) {
-      return NextResponse.json({ error: 'People own this book. Archive it instead of deleting it.' }, { status: 409 });
-    }
-    if ((readers ?? 0) > 0) {
-      return NextResponse.json({ error: 'People are reading this book. Archive it instead of deleting it.' }, { status: 409 });
+      return NextResponse.json({ error: 'This book has orders or owners. Archive it instead of deleting it.' }, { status: 409 });
     }
 
     const { error: delError } = await db.from('books').delete().eq('id', id);

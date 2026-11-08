@@ -1193,6 +1193,39 @@ export function paymentReceiptEmail(data: {
   return shell(content, branding);
 }
 
+// -- Book purchase receipt ---
+export function bookPurchaseEmail(data: {
+  name: string;
+  bookTitle: string;
+  amount: number;
+  currency: string;
+  paidAt: string;
+  reference: string;
+  libraryUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, bookTitle, amount, currency, paidAt, reference, libraryUrl, branding } = data;
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p>Thank you for buying <b>${esc(bookTitle)}</b>. It is now in your library, where you can download it at any time.</p>
+
+    <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0;">
+      <table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;color:#374151;">
+        <tr><td style="padding:4px 0;font-weight:700;width:140px;">Book</td><td>${esc(bookTitle)}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:700;">Amount</td><td>${esc(currency)} ${Number(amount).toFixed(2)}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:700;">Date</td><td>${esc(paidAt)}</td></tr>
+        <tr><td style="padding:4px 0;font-weight:700;">Reference</td><td>${esc(reference)}</td></tr>
+      </table>
+    </div>
+
+    ${cta('Download your book', libraryUrl)}
+
+    <p style="color:#6b7280;font-size:13px;">If you did not make this purchase, please contact our support team.</p>
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
+
 // -- Payment Confirmation Acknowledged (student submitted) ---
 export function subscriptionPaymentAssignedEmail(data: {
   name: string;

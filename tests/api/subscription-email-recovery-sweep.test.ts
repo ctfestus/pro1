@@ -8,6 +8,8 @@ const notifySubscriptionActivatedBatch = vi.hoisted(() => vi.fn());
 const notifySubscriptionPaymentRequest = vi.hoisted(() => vi.fn());
 
 vi.mock('@/lib/qstash', () => ({ verifyQStashRequest }));
+const sweepBookPurchases = vi.hoisted(() => vi.fn(async () => ({ settled: 0, receipts: 0, failed: 0 })));
+vi.mock('@/lib/books/purchases', () => ({ sweepBookPurchases }));
 vi.mock('@/lib/admin-client', () => ({ adminClient }));
 vi.mock('@/lib/db-subscriptions', () => ({ expireSubscription }));
 vi.mock('@/lib/notify-subscription-activated', () => ({ notifySubscriptionActivatedBatch }));

@@ -8,6 +8,12 @@ const notifyPaystackIncident = vi.hoisted(() => vi.fn());
 vi.mock('@/lib/paystack-subscriptions', () => ({ processPaystackSubscriptionReference }));
 vi.mock('@/lib/notify-subscription-activated', () => ({ notifySubscriptionActivated }));
 vi.mock('@/lib/notify-paystack-incident', () => ({ notifyPaystackIncident }));
+const books = vi.hoisted(() => ({ settleBookPurchase: vi.fn(), sendBookPurchaseReceipt: vi.fn() }));
+vi.mock('@/lib/books/purchases', async (orig) => ({
+  ...(await orig<typeof import('@/lib/books/purchases')>()),
+  settleBookPurchase: books.settleBookPurchase,
+}));
+vi.mock('@/lib/books/receipt-email', () => ({ sendBookPurchaseReceipt: books.sendBookPurchaseReceipt }));
 
 import {
   processStoredPaystackWebhookEvent,
@@ -132,5 +138,46 @@ describe('stored Paystack webhook processing', () => {
 
     await expect(retryStoredPaystackWebhookEvents(db)).resolves.toEqual({ processed: 1, failed: 0 });
     expect(notifySubscriptionActivated).toHaveBeenCalledWith(db, { paymentId: 'payment-1' });
+  });
+});
+
+describe('book purchases in the shared webhook', () => {
+  const claimed = (event: Record<string, unknown>) => vi.fn((fn: string) => {
+    if (fn === 'claim_paystack_webhook_event') return { data: { event_hash: 'e', processing_attempts: 1, ...event }, error: null };
+    throw new Error(`unexpected RPC ${fn}`);
+  });
+
+  it('settles a book charge and sends the receipt, never touching subscriptions', async () => {
+    books.settleBookPurchase.mockResolvedValue({ status: 'paid', purchaseId: 'p1', bookId: 'b1', alreadyProcessed: false });
+    books.sendBookPurchaseReceipt.mockResolvedValue({ sent: true });
+    const db = makeSupabaseStub({ paystack_webhook_events: { data: null, error: null } }, claimed({ event_name: 'charge.success', reference: 'book-1' })) as any;
+    await expect(processStoredPaystackWebhookEvent(db, 'e')).resolves.toMatchObject({ status: 'paid', reference: 'book-1' });
+    expect(books.settleBookPurchase).toHaveBeenCalledWith(db, 'book-1');
+    expect(books.sendBookPurchaseReceipt).toHaveBeenCalledWith(db, 'p1');
+    expect(processPaystackSubscriptionReference).not.toHaveBeenCalled();
+  });
+
+  it('still marks the event processed when only the receipt email fails', async () => {
+    books.settleBookPurchase.mockResolvedValue({ status: 'paid', purchaseId: 'p1', bookId: 'b1', alreadyProcessed: false });
+    books.sendBookPurchaseReceipt.mockRejectedValue(new Error('resend down'));
+    const db = makeSupabaseStub({ paystack_webhook_events: { data: null, error: null } }, claimed({ event_name: 'charge.success', reference: 'book-1' })) as any;
+    await expect(processStoredPaystackWebhookEvent(db, 'e')).resolves.toMatchObject({ status: 'paid' });
+  });
+
+  it('leaves a failed settlement for retry', async () => {
+    books.settleBookPurchase.mockRejectedValue(new Error('paystack down'));
+    const db = makeSupabaseStub({ paystack_webhook_events: { data: null, error: null } }, claimed({ event_name: 'charge.success', reference: 'book-1' })) as any;
+    await expect(processStoredPaystackWebhookEvent(db, 'e')).rejects.toThrow('paystack down');
+  });
+
+  it('leaves refunds and disputes on books to the existing path (refunds are handled in Paystack)', async () => {
+    const rpc = vi.fn((fn: string) => {
+      if (fn === 'claim_paystack_webhook_event') return { data: { event_hash: 'e', event_name: 'refund.processed', reference: 'book-1', transaction_id: 9, processing_attempts: 1 }, error: null };
+      if (fn === 'record_paystack_webhook_incident') return { data: { status: 'ignored', reason: 'not_platform_payment' }, error: null };
+      throw new Error(`unexpected RPC ${fn}`);
+    });
+    const db = makeSupabaseStub({ paystack_webhook_events: { data: null, error: null } }, rpc) as any;
+    await expect(processStoredPaystackWebhookEvent(db, 'e')).resolves.toMatchObject({ status: 'ignored' });
+    expect(books.settleBookPurchase).not.toHaveBeenCalled();
   });
 });
