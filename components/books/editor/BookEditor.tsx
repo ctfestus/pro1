@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, Trash2, Upload,
+  ArrowDown, ArrowLeft, ArrowUp, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw, Trash2, Upload,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/components/create/theme';
@@ -142,6 +142,8 @@ export function BookEditor() {
   const [state, setState] = useState<EditorState>(EMPTY);
   const [status, setStatus] = useState<BookStatus>('draft');
   const [format, setFormat] = useState<BookFormat | null>(null);
+  // For the sample's links back to the book's store page.
+  const [slug, setSlug] = useState('');
   const [storedFile, setStoredFile] = useState<{ path: string | null; size: number | null }>({ path: null, size: null });
   const [storedPreview, setStoredPreview] = useState<string | null>(null);
   const [newFile, setNewFile] = useState<UploadedFile | null>(null);
@@ -223,6 +225,7 @@ export function BookEditor() {
       });
       setStatus(book.status);
       setFormat(book.format ?? null);
+      setSlug(book.slug ?? '');
       setStoredFile({ path: book.file_path ?? null, size: book.file_size ?? null });
       setStoredPreview(book.preview_file_path ?? null);
       setChaptersRaw((chapterRows ?? []).map(chapterFromRow));
@@ -466,12 +469,14 @@ export function BookEditor() {
           : 'The book has no chapters yet. Find or add chapters first.');
       }
       const stop = chapters[n];
+      // Links into the left-out chapters, and the closing note, lead to the book's store page.
+      const links = slug ? { storeUrl: `${window.location.origin}/books/${slug}`, nextChapterTitle: stop.title } : undefined;
       if (fmt === 'html') {
         if (!stop.anchor) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
-        out = new Blob([cutHtmlSample(await blob.text(), stop.anchor)], { type: 'text/html' });
+        out = new Blob([cutHtmlSample(await blob.text(), stop.anchor, links)], { type: 'text/html' });
       } else {
         if (!stop.href) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
-        out = await cutEpubSample(blob, stop.href);
+        out = await cutEpubSample(blob, stop.href, links);
       }
     }
     return putObject('preview', fmt, out, `sample.${fmt}`);
@@ -773,6 +778,14 @@ export function BookEditor() {
                     : sampleDirty ? 'The sample is made from the book when you save.'
                     : storedPreview ? 'The current sample matches these settings.' : 'The sample is made from the book when you save.'}
                 </p>
+                {/* A sample made before the cutter changed (or one to redo for any reason) is not
+                    remade by a plain save, since nothing it depends on changed. This marks it. */}
+                {storedPreview && !sampleDirty && (newFile || storedFile.path) && (
+                  <button onClick={() => { setSampleDirty(true); setNotice('The sample will be made again from the book when you save.'); }}
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
+                    <RefreshCw className="w-3.5 h-3.5" /> Remake sample
+                  </button>
+                )}
                 {storedPreview && !sampleDirty && !preview && format && (
                   <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
                     {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
