@@ -7,11 +7,12 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, Edit2, Library, Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, Edit2, Eye, Library, Loader2, Plus, Search, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { openBookPreview } from '@/lib/books/open-preview';
 
 type BookListItem = {
   id: string;
@@ -71,6 +72,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [attention, setAttention] = useState<AttentionItem[]>([]);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
+  const [openingId, setOpeningId] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -112,6 +114,18 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
       setBooks(prev => prev.filter(b => b.id !== book.id));
     } finally {
       setDeletingId(null);
+    }
+  }
+
+  async function preview(book: BookListItem) {
+    if (!book.format) return;
+    setOpeningId(book.id);
+    try {
+      await openBookPreview(book.id, book.format, 'full');
+    } catch (e: any) {
+      window.alert(e?.message || 'Could not open the preview.');
+    } finally {
+      setOpeningId(null);
     }
   }
 
@@ -222,6 +236,12 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                {b.format && (
+                  <button onClick={() => preview(b)} disabled={openingId === b.id} className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"
+                    aria-label={`Preview ${b.title}`} title={b.format === 'epub' ? 'Download to check' : 'Preview'} style={{ color: C.muted }}>
+                    {openingId === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                )}
                 <Link href={`/create/book?id=${b.id}`} className="p-2 rounded-lg transition-opacity hover:opacity-70" aria-label={`Edit ${b.title}`}
                   style={{ color: C.muted }}><Edit2 className="w-4 h-4" /></Link>
                 <button onClick={() => remove(b)} disabled={deletingId === b.id} className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"

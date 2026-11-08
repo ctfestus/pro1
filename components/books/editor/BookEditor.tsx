@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ArrowDown, ArrowLeft, ArrowUp, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, Trash2, Upload,
+  ArrowDown, ArrowLeft, ArrowUp, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, Trash2, Upload,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/components/create/theme';
@@ -26,6 +26,7 @@ import {
   type BookStatus,
 } from '@/lib/books/schema';
 import { chaptersFromEpub, chaptersFromHtml, externalReferencesInHtml } from '@/lib/books/chapters';
+import { openBookPreview } from '@/lib/books/open-preview';
 
 const LICENSE_LABELS: Record<BookLicenseType, string> = {
   own: 'Our own work',
@@ -149,6 +150,7 @@ export function BookEditor() {
   const [loading, setLoading] = useState(!!editId);
   const [saving, setSaving] = useState<null | BookStatus>(null);
   const [uploading, setUploading] = useState<null | 'file' | 'preview'>(null);
+  const [opening, setOpening] = useState<null | 'full' | 'sample'>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [coverOpen, setCoverOpen] = useState(false);
@@ -227,6 +229,20 @@ export function BookEditor() {
     } catch (e: any) {
       setError(e?.message || 'Could not create the book.');
       setCreating(false);
+    }
+  }
+
+  // Opens the saved file (or sample) in a new tab, as the server stores it. Unsaved uploads are not
+  // previewable: the routes only serve the paths saved on the book.
+  async function previewSaved(variant: 'full' | 'sample') {
+    if (!editId || !format) return;
+    setError(''); setOpening(variant);
+    try {
+      await openBookPreview(editId, format, variant);
+    } catch (e: any) {
+      setError(e?.message || 'Could not open the preview.');
+    } finally {
+      setOpening(null);
     }
   }
 
@@ -524,6 +540,13 @@ export function BookEditor() {
             {fileName && <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
               <FileText className="w-3.5 h-3.5" /> {fileName} {sizeLabel(newFile?.size ?? storedFile.size)}{newFile ? ' (not saved yet)' : ''}
             </span>}
+            {storedFile.path && !newFile && format && (
+              <button onClick={() => previewSaved('full')} disabled={!!opening} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
+                style={{ background: C.pill, color: C.muted }}>
+                {opening === 'full' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                {format === 'epub' ? 'Download to check' : 'Preview book'}
+              </button>
+            )}
           </div>
           <div className="pt-4 space-y-3" style={{ borderTop: `1px solid ${C.divider}` }}>
             <p className="text-sm font-medium" style={{ color: C.text }}>Free sample (optional)</p>
@@ -536,6 +559,12 @@ export function BookEditor() {
               </button>
               {previewName && <>
                 <span className="text-xs" style={{ color: C.muted }}>{previewName}{preview && preview !== 'remove' ? ' (not saved yet)' : ''}</span>
+                {storedPreview && !preview && format && (
+                  <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
+                    {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
+                    {format === 'epub' ? 'Download sample' : 'Preview sample'}
+                  </button>
+                )}
                 <button onClick={() => setPreview('remove')} className="text-xs" style={{ color: '#dc2626' }}>Remove</button>
               </>}
             </div>

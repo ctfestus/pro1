@@ -148,8 +148,49 @@ describe('GET /api/books/[id]/html', () => {
   it('stops reading an undeclared oversize file at the cap, not at the end', async () => {
     const { response, pulls } = streamed(50 * 1024 * 1024);
     fetchMock.mockResolvedValue(response);
-    expect((await call(ticketFor())).status).toBe(413);
+    const res = await call(ticketFor());
+    // Streamed without a declared size, so it cannot be refused up front; the stream errors instead.
+    await expect(res.arrayBuffer()).rejects.toThrow();
     // 10 MB cap in 1 MB chunks: it gives up around chunk 11, far short of 50.
     expect(pulls.count).toBeLessThan(15);
+  });
+
+  it('streams a large chunked file with no Content-Length instead of buffering it', async () => {
+    const size = Math.round(8.2 * 1024 * 1024);
+    const { response, pulls } = streamed(size);
+    fetchMock.mockResolvedValue(response);
+    const res = await call(ticketFor());
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    // Passed through, not buffered: only stream read-ahead has happened when the response returns.
+    expect(pulls.count).toBeLessThanOrEqual(3);
+    expect((await res.arrayBuffer()).byteLength).toBe(size);
+  });
+
+  it('streams a declared file under the cap instead of buffering it (serverless response cap)', async () => {
+    const size = 9 * 1024 * 1024;
+    const { response, pulls } = streamed(size, { declare: true });
+    fetchMock.mockResolvedValue(response);
+    const res = await call(ticketFor());
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    // Passed through, not buffered: only stream read-ahead (a chunk or two of nine) has happened.
+    expect(pulls.count).toBeLessThanOrEqual(3);
+    expect((await res.arrayBuffer()).byteLength).toBe(size);
+  });
+
+  it('asks storage for an uncompressed body so the declared size is the real size', async () => {
+    await call(ticketFor());
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect((init.headers as Record<string, string>)['Accept-Encoding']).toBe('identity');
+  });
+
+  it('cuts off a streamed body that runs past the cap despite a small declared size', async () => {
+    const { response } = streamed(50 * 1024 * 1024);
+    response.headers.set('content-length', '1000');
+    fetchMock.mockResolvedValue(response);
+    const res = await call(ticketFor());
+    expect(res.status).toBe(200);
+    await expect(res.arrayBuffer()).rejects.toThrow();
   });
 });

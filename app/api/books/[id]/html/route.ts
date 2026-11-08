@@ -3,7 +3,7 @@ import { adminClient } from '@/lib/admin-client';
 import { BOOK_ACCESS_COLUMNS, canReadBook, type BookAccessRow } from '@/lib/books/access';
 import { verifyHtmlTicket } from '@/lib/books/html-ticket';
 import { BOOK_HTML_MAX_BYTES, isBookObjectPath } from '@/lib/books/schema';
-import { readBodyWithLimit } from '@/lib/read-body-with-limit';
+import { limitBodyStream } from '@/lib/read-body-with-limit';
 import { BOOK_BUCKET } from '@/lib/books/storage';
 
 // GET /api/books/[id]/html?t=<ticket>
@@ -64,17 +64,34 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // whole object: the bucket allows 100 MB, so the 10 MB HTML cap is enforced while streaming.
     const { data: signed, error: signError } = await db.storage.from(BOOK_BUCKET).createSignedUrl(path, 60);
     if (signError || !signed?.signedUrl) throw signError ?? new Error('No signed URL returned.');
-    const upstream = await fetch(signed.signedUrl, { redirect: 'error', signal: AbortSignal.timeout(15_000) });
+    // The timeout covers getting a response from storage; once it answers, the body streams to the
+    // reader at their pace (a slow connection must not cut a large book off half way).
+    const abort = new AbortController();
+    const headerTimer = setTimeout(() => abort.abort(new Error('Storage did not respond in time')), 15_000);
+    let upstream: Response;
+    try {
+      // identity: a compressed transfer would make Content-Length the compressed size, not the
+      // size of the body we read.
+      upstream = await fetch(signed.signedUrl, { redirect: 'error', signal: abort.signal, headers: { 'Accept-Encoding': 'identity' } });
+    } finally {
+      clearTimeout(headerTimer);
+    }
     if (!upstream.ok) throw new Error(`Storage returned ${upstream.status}`);
-    const declared = Number(upstream.headers.get('content-length'));
+    const rawLength = upstream.headers.get('content-length');
+    const declared = rawLength === null ? NaN : Number(rawLength);
     if (Number.isFinite(declared) && declared > BOOK_HTML_MAX_BYTES) {
       await upstream.body?.cancel('Book exceeds size limit');
       return plain(413, 'This book file is too large to open.');
     }
-    const bytes = await readBodyWithLimit(upstream, BOOK_HTML_MAX_BYTES);
-    if (!bytes) return plain(413, 'This book file is too large to open.');
 
-    return new NextResponse(bytes, {
+    // Always streamed, never buffered: a buffered serverless response is capped (about 4.5 MB on
+    // Vercel), well under the 10 MB HTML limit, and storage may answer chunked with no length. The
+    // guard cuts the stream off once more bytes arrive than the cap allows. An undeclared oversized
+    // body therefore ends as a truncated page rather than a 413; that is acceptable because the
+    // save route already checked the stored object's real size, so this is only a backstop.
+    const body = upstream.body ? limitBodyStream(upstream.body, BOOK_HTML_MAX_BYTES) : new Uint8Array(0);
+
+    return new NextResponse(body, {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',

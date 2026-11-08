@@ -49,8 +49,8 @@ const outsider = {
   book_entitlements: { data: null },
 };
 
-const call = (id = BOOK_ID) =>
-  GET(new NextRequest(`http://localhost/api/books/${id}/file`), { params: Promise.resolve({ id }) });
+const call = (id = BOOK_ID, qs = '') =>
+  GET(new NextRequest(`http://localhost/api/books/${id}/file${qs}`), { params: Promise.resolve({ id }) });
 
 describe('GET /api/books/[id]/file', () => {
   beforeEach(() => { vi.clearAllMocks(); });
@@ -91,6 +91,21 @@ describe('GET /api/books/[id]/file', () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ variant: 'full', url: `https://storage.test/${FILE}`, download: true });
     expect(createSignedUrl).toHaveBeenCalledWith(FILE, 300, { download: 'sql-basics.pdf' });
+  });
+
+  it('lets the owner open the full PDF in the browser, or check the sample', async () => {
+    authAs('owner-1', { books: { data: BOOK }, students: { data: { role: 'instructor', cohort_id: null } } });
+    expect(await (await call(BOOK_ID, '?view=1')).json()).toMatchObject({ variant: 'full', url: `https://storage.test/${FILE}`, download: false });
+    expect(createSignedUrl).toHaveBeenLastCalledWith(FILE, 300, undefined);
+    authAs('owner-1', { books: { data: BOOK }, students: { data: { role: 'instructor', cohort_id: null } } });
+    expect(await (await call(BOOK_ID, '?variant=sample&view=1')).json()).toMatchObject({ variant: 'full', url: `https://storage.test/${PREVIEW}` });
+    expect(createSignedUrl).toHaveBeenLastCalledWith(PREVIEW, 300, undefined);
+  });
+
+  it('never turns a sample request into the full file for a non-owner', async () => {
+    authAs('u1', { books: { data: { ...BOOK, purchasable: true } }, ...outsider });
+    await call(BOOK_ID, '?variant=full&view=1');
+    expect(createSignedUrl).toHaveBeenCalledWith(PREVIEW, 300, undefined);
   });
 
   it('signs only the sample for a non-owner of a for-sale book', async () => {
