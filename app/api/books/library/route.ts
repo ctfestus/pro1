@@ -7,8 +7,9 @@ import { isLicenseExpired } from '@/lib/books/schema';
 // The buyer's "My Books": every book they can download, and their book payments.
 //   * books they bought or were granted (an active book_entitlements row) -- kept after a book is
 //     archived, as lib/books/access.ts canReadBook does; drafts stay hidden
-//   * published books assigned to their cohort, directly or through a published learning path
-//     assigned to it (books open to everyone are on the store, not listed here)
+//   * published books given through their program: assigned to their cohort directly, or inside a
+//     published learning path that reaches them (assigned to the cohort, or open to everyone)
+//     (books simply open to everyone are on the store, not listed here)
 // A book whose licence has ended is still listed, marked unavailable, so it does not silently
 // disappear. Display columns only: no file paths -- downloads go through /api/books/[id]/file,
 // which re-checks access. Student Mode lists the viewed student's books (requireStudentUser).
@@ -97,11 +98,18 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // Assigned to the cohort: directly, or through a published path assigned to the cohort.
-    if (cohortId) {
+    // Given through their program: assigned to the cohort directly, or inside a published learning
+    // path that reaches them (assigned to the cohort, or open to everyone) -- the same path rule
+    // canReadBook applies, so Explore never shows a book as theirs that is missing from here.
+    {
+      const pathQuery = db.from('learning_paths').select('item_ids').eq('status', 'published');
       const [direct, paths] = await Promise.all([
-        db.from('books').select(BOOK_COLUMNS).eq('status', 'published').contains('cohort_ids', [cohortId]),
-        db.from('learning_paths').select('item_ids').eq('status', 'published').contains('cohort_ids', [cohortId]),
+        cohortId
+          ? db.from('books').select(BOOK_COLUMNS).eq('status', 'published').contains('cohort_ids', [cohortId])
+          : Promise.resolve({ data: [], error: null }),
+        cohortId
+          ? pathQuery.or(`available_to_everyone.eq.true,cohort_ids.cs.{${cohortId}}`)
+          : pathQuery.eq('available_to_everyone', true),
       ]);
       if (direct.error) throw direct.error;
       if (paths.error) throw paths.error;

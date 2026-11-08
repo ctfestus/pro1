@@ -14,7 +14,9 @@ const h = vi.hoisted(() => {
   const cohortId = vi.fn<() => string | null>(() => null);
   const requireStudentUser = vi.fn();
   const loadPlansForContent = vi.fn(async () => [] as any[]);
-  return { rows, cohortId, requireStudentUser, loadPlansForContent };
+  const selects: string[] = [];
+  const inCalls: { table: string; size: number }[] = [];
+  return { rows, cohortId, requireStudentUser, loadPlansForContent, selects, inCalls };
 });
 
 // The price lookup is shared with the payments route and tested there. What matters here is
@@ -35,12 +37,16 @@ vi.mock('@/lib/admin-client', () => ({
       if (table === 'students') {
         return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { cohort_id: h.cohortId() }, error: null }) }) }) };
       }
-      const data = h.rows(table);
-      const result = { data, count: data.length, error: null };
-      const page = {
+      let data = h.rows(table);
+      h.selects.push(table);
+      // .in() and .range() are honoured, so chunked and paged reads behave as they do for real.
+      const page: any = {
         eq: () => page,
+        not: () => page,
+        is: () => page,
+        in: (column: string, ids: string[]) => { h.inCalls.push({ table, size: ids.length }); data = data.filter(r => ids.includes(r[column])); return page; },
         order: () => page,
-        range: async () => result,
+        range: async (from: number, to: number) => ({ data: data.slice(from, to + 1), count: data.length, error: null }),
         maybeSingle: async () => ({ data: data[0] ?? null, error: null }),
       };
       return { select: () => page };
@@ -65,6 +71,8 @@ beforeEach(() => {
   h.cohortId.mockReturnValue(null);
   h.loadPlansForContent.mockResolvedValue([]);
   h.rows.mockReturnValue([]);
+  h.selects.length = 0;
+  h.inCalls.length = 0;
 });
 
 describe('GET /api/student/catalogue', () => {
@@ -356,5 +364,100 @@ describe('GET /api/student/catalogue', () => {
     const res = await GET(request());
 
     expect(res.status).toBe(401);
+  });
+
+  describe('books', () => {
+    const book = (id: string, title: string, extra: Record<string, unknown> = {}) => ({
+      id, title, slug: `${id}-slug`, cover_image: null, description: null, category: null,
+      cohort_ids: [], available_to_everyone: false, purchasable: true, license_expires_at: null, ...extra,
+    });
+
+    it('locks a book for sale, with its price, and opens one the learner bought', async () => {
+      h.rows.mockImplementation((table) => {
+        if (table === 'books') return [book('b1', 'For sale'), book('b2', 'Bought')];
+        if (table === 'book_entitlements') return [{ book_id: 'b2' }];
+        if (table === 'book_prices') return [{ book_id: 'b1', currency: 'GHS', amount: '120.00' }, { book_id: 'b2', currency: 'GHS', amount: '50' }];
+        return [];
+      });
+      const list = await items();
+      expect(byTitle(list, 'For sale')).toMatchObject({ type: 'book', locked: true, prices: [{ currency: 'GHS', amount: 120 }], slug: 'b1-slug' });
+      expect(byTitle(list, 'Bought').locked).toBe(false);
+      expect(byTitle(list, 'Bought').prices).toBeUndefined();
+    });
+
+    it('opens books through the cohort, a path, or open-to-everyone, like other content', async () => {
+      h.cohortId.mockReturnValue('cohort-9');
+      h.rows.mockImplementation((table) => {
+        if (table === 'books') return [
+          book('b3', 'Cohort book', { cohort_ids: ['cohort-9'], purchasable: false }),
+          book('b4', 'Path book', { purchasable: false }),
+          book('b5', 'Free book', { available_to_everyone: true, purchasable: false }),
+        ];
+        if (table === 'learning_paths') return [{ id: 'p9', title: 'Path', cover_image: null, description: null, cohort_ids: ['cohort-9'], item_ids: ['b4'] }];
+        return [];
+      });
+      const list = await items();
+      for (const title of ['Cohort book', 'Path book', 'Free book']) expect(byTitle(list, title).locked).toBe(false);
+      // Only the free one is in the public store; the program's books are in My Books.
+      expect(byTitle(list, 'Free book').inStore).toBe(true);
+      expect(byTitle(list, 'Cohort book').inStore).toBe(false);
+      expect(byTitle(list, 'Path book').inStore).toBe(false);
+    });
+
+    it('hides a locked book nobody can buy, one with no price, and one whose licence ended', async () => {
+      h.rows.mockImplementation((table) => {
+        if (table === 'books') return [
+          book('b6', 'Other cohort only', { cohort_ids: ['cohort-3'], purchasable: false }),
+          book('b7', 'No price yet'),
+          book('b8', 'Expired', { license_expires_at: '2020-01-01T00:00:00Z' }),
+        ];
+        if (table === 'book_prices') return [{ book_id: 'b8', currency: 'GHS', amount: 10 }];
+        return [];
+      });
+      const list = await items();
+      expect(list.filter(i => i.type === 'book')).toEqual([]);
+    });
+
+    it('returns display fields only for a book, never a file path', async () => {
+      h.rows.mockImplementation((table) => {
+        if (table === 'books') return [{ ...book('b9', 'Book'), file_path: 'b9/file-x.pdf', preview_file_path: 'b9/preview-x.pdf' }];
+        if (table === 'book_prices') return [{ book_id: 'b9', currency: 'GHS', amount: 5 }];
+        return [];
+      });
+      const list = await items();
+      expect(Object.keys(byTitle(list, 'Book')).sort()).toEqual(
+        ['category', 'coverImage', 'description', 'id', 'inStore', 'locked', 'prices', 'slug', 'title', 'type'],
+      );
+      expect(JSON.stringify(list)).not.toContain('file-x');
+    });
+
+    it('reads prices in chunks, so a large store neither truncates nor overflows the URL', async () => {
+      const many = Array.from({ length: 250 }, (_, i) => book(`b${String(i).padStart(3, '0')}`, `Book ${i}`));
+      h.rows.mockImplementation((table) => {
+        if (table === 'books') return many;
+        if (table === 'book_prices') return many.flatMap(b => [{ book_id: b.id, currency: 'GHS', amount: 10 }, { book_id: b.id, currency: 'USD', amount: 1 }]);
+        return [];
+      });
+      const list = await items();
+      const booksListed = list.filter(i => i.type === 'book');
+      expect(booksListed).toHaveLength(250);
+      expect(booksListed.every(b => b.prices.length === 2)).toBe(true);
+      const priceChunks = h.inCalls.filter(c => c.table === 'book_prices');
+      expect(priceChunks.length).toBeGreaterThan(1);
+      expect(Math.max(...priceChunks.map(c => c.size))).toBeLessThanOrEqual(100);
+    });
+
+    it('looks a book up by slug without asking for plan prices', async () => {
+      h.rows.mockImplementation((table) => {
+        if (table === 'books') return [book('b1', 'For sale')];
+        if (table === 'book_prices') return [{ book_id: 'b1', currency: 'GHS', amount: 120 }];
+        return [];
+      });
+      const res = await GET(request('?ref=b1-slug&type=book'));
+      const { item } = await res.json();
+      expect(item).toMatchObject({ id: 'b1', type: 'book', locked: true });
+      expect(item.unlock).toBeUndefined();
+      expect(h.loadPlansForContent).not.toHaveBeenCalled();
+    });
   });
 });

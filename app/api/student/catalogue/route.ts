@@ -17,12 +17,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
-import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { fetchAllRows, fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 import { courseContentCounts, courseXpOnOffer } from '@/lib/course-progress';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
 import { pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
 import { pathOverviewFields } from '@/lib/path-overview';
+import { isLicenseExpired } from '@/lib/books/schema';
 import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 import {
   loadPlansForContent,
@@ -32,7 +33,7 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-export type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification';
+export type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification' | 'book';
 
 export interface CatalogueItem {
   id: string;
@@ -46,6 +47,14 @@ export interface CatalogueItem {
   pathItems?: CataloguePathItem[];
   /** Only ever set on a single-item lookup of a locked item. */
   unlock?: { plans: PlanWithPrices[] };
+  /** Books only: what a locked book costs to buy on its own (book_prices). */
+  prices?: { currency: string; amount: number }[];
+  /**
+   * Books only: whether the public store lists it (for sale with a price, or open to everyone).
+   * A book the learner has only through their cohort is not in the store, so Explore sends them
+   * to My Books for it instead of to a store page that would not find it.
+   */
+  inStore?: boolean;
 }
 
 type Row = {
@@ -59,6 +68,11 @@ type Row = {
   available_to_everyone?: boolean | null;
 };
 
+type BookRow = Row & {
+  purchasable?: boolean | null;
+  license_expires_at?: string | null;
+};
+
 type PathRow = Row & {
   item_ids?: string[] | null;
   tracks?: unknown;
@@ -69,7 +83,8 @@ type PathRow = Row & {
   tools?: string[] | null;
 };
 
-const CONTENT_TABLE_BY_TYPE: Record<CatalogueType, PurchasableContentTable> = {
+// Books are not sold through plans (they are bought one at a time), so they have no entry here.
+const CONTENT_TABLE_BY_TYPE: Partial<Record<CatalogueType, PurchasableContentTable>> = {
   course: 'courses',
   learning_path: 'learning_paths',
   virtual_experience: 'virtual_experiences',
@@ -100,7 +115,7 @@ export async function GET(req: NextRequest) {
   // the client's row-type inference and the whole point of this route is that its projection is
   // pinned to display fields.
   try {
-    const [courses, paths, ves, certifications] = await Promise.all([
+    const [courses, paths, ves, certifications, books, entitlements] = await Promise.all([
       fetchAllRows<Row>((from, to) => db.from('courses')
         .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
@@ -113,6 +128,15 @@ export async function GET(req: NextRequest) {
       fetchAllRows<Row>((from, to) => db.from('certifications')
         .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
+      // Books with a file only. The file path itself is a filter, never selected: it must not
+      // reach the browser (downloads go through /api/books/[id]/file, which re-checks access).
+      fetchAllRows<BookRow>((from, to) => db.from('books')
+        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, purchasable, license_expires_at', { count: 'exact' })
+        .eq('status', 'published').not('file_path', 'is', null).order('id').range(from, to)),
+      // Books the learner bought or was given open like anything else they have access to.
+      fetchAllRows<{ book_id: string }>((from, to) => db.from('book_entitlements')
+        .select('book_id', { count: 'exact' })
+        .eq('student_id', auth.user.id).is('revoked_at', null).order('book_id').range(from, to)),
     ]);
 
     // A course or VE inside a learning path assigned to the student's cohort is reachable through
@@ -161,6 +185,38 @@ export async function GET(req: NextRequest) {
           : {}),
       }));
 
+    // Books follow lib/books/access.ts canReadBook: open through the same cohort, path and
+    // open-to-everyone rules, or a purchase. A locked book is listed only when it can actually be
+    // bought (for sale, with a price, licence current); a locked book nobody can buy is not shown,
+    // as the store does not show it either.
+    const owned = new Set(entitlements.map(e => e.book_id));
+    const sellable = books.filter(b => b.purchasable === true).map(b => b.id);
+    const pricesByBook = new Map<string, { currency: string; amount: number }[]>();
+    if (sellable.length) {
+      // Chunked and paged like every other catalogue read: a truncated or oversized price query
+      // would silently drop books from Explore or send them to the wrong page. (book_id, currency)
+      // is unique, so ordering by both keeps page boundaries stable.
+      const priceRows = await fetchAllRowsByIds<{ book_id: string; currency: string; amount: unknown }>(sellable, (ids, from, to) =>
+        db.from('book_prices').select('book_id, currency, amount', { count: 'exact' })
+          .in('book_id', ids).order('book_id').order('currency').range(from, to));
+      for (const p of priceRows) {
+        const amount = Number(p.amount);
+        if (!Number.isFinite(amount) || amount <= 0) continue;
+        pricesByBook.set(p.book_id, [...(pricesByBook.get(p.book_id) ?? []), { currency: String(p.currency), amount }]);
+      }
+    }
+    const bookItems: CatalogueItem[] = [];
+    for (const item of map(books, 'book', true)) {
+      const row = books.find(b => b.id === item.id)!;
+      const open = !item.locked || owned.has(item.id);
+      if (isLicenseExpired(row.license_expires_at)) continue;
+      const prices = pricesByBook.get(item.id) ?? [];
+      const forSale = row.purchasable === true && prices.length > 0;
+      const inStore = forSale || row.available_to_everyone === true;
+      if (open) bookItems.push({ ...item, locked: false, inStore });
+      else if (forSale) bookItems.push({ ...item, prices, inStore });
+    }
+
     const items: CatalogueItem[] = [
       // All four catalogue types can be offered to everyone. Otherwise direct access comes from
       // the learner's cohort, while courses, virtual experiences, and certifications can also
@@ -169,6 +225,7 @@ export async function GET(req: NextRequest) {
       ...map(paths, 'learning_path', false),
       ...map(ves, 'virtual_experience', true),
       ...map(certifications, 'certification', true),
+      ...bookItems,
     ];
 
     const ref = req.nextUrl.searchParams.get('ref')?.trim();
@@ -188,12 +245,13 @@ export async function GET(req: NextRequest) {
       //
       // Sellable plans only. No renewal exemption belongs here: a locked item is by definition
       // one the learner's own plan does not open, so their plan is never the answer.
-      if (item.locked) {
+      const contentTable = CONTENT_TABLE_BY_TYPE[item.type];
+      if (item.locked && contentTable) {
         item.unlock = {
           plans: await loadPlansForContent(
             db,
             {
-              contentTable: CONTENT_TABLE_BY_TYPE[item.type],
+              contentTable,
               contentId: item.id,
             },
             { sellableOnly: true },
