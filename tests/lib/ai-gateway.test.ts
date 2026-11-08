@@ -107,10 +107,10 @@ describe('neutral gateway', () => {
     expect(JSON.stringify(events)).not.toContain('private');
   });
 
-  it('keeps course generation on Gemini when Claude is primary', async () => {
+  it('keeps a feature not approved for Claude on Gemini when Claude is primary', async () => {
     vi.stubEnv('AI_PRIMARY_PROVIDER', 'anthropic');
     mocks.gemini.mockResolvedValue(ok(['one', 'two']));
-    await expect(generateJSON('prompt', schema, { feature: 'ai-course' })).resolves.toEqual({ values: ['one', 'two'] });
+    await expect(generateJSON('prompt', schema, { feature: 'not-an-approved-feature' })).resolves.toEqual({ values: ['one', 'two'] });
     expect(mocks.gemini).toHaveBeenCalledTimes(1);
     expect(mocks.claude).not.toHaveBeenCalled();
     expect(mocks.openai).not.toHaveBeenCalled();

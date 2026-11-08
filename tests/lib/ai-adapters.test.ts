@@ -75,9 +75,15 @@ describe('provider selection and isolation', () => {
 
   it('limits Claude to approved features and keeps tutor fallback isolated', () => {
     vi.stubEnv('AI_PRIMARY_PROVIDER', 'anthropic');
-    for (const feature of ['ai-course', 'ai-guided-project', 'doc-course-extract', 'generate']) {
+    // Every feature the app names is approved today (3a7d64c moved the authoring features over),
+    // so the rule is pinned with a feature that is not on the list.
+    for (const feature of ['not-an-approved-feature', undefined]) {
       expect(providerChain({ feature })).toEqual(['gemini', 'openai']);
       expect(providerChain({ feature, noFallback: true })).toEqual(['gemini']);
+    }
+    for (const feature of ['ai-course', 'ai-guided-project', 'doc-course-extract', 'generate']) {
+      expect(providerChain({ feature })).toEqual(['anthropic', 'openai']);
+      expect(providerChain({ feature, noFallback: true })).toEqual(['anthropic']);
     }
     expect(providerChain({ feature: 'excel-review' })).toEqual(['anthropic', 'openai']);
     vi.stubEnv('AI_PROVIDER_TUTOR', 'anthropic');
@@ -143,13 +149,20 @@ describe('adapter parameter mapping', () => {
   });
 
   it('drops Sonnet temperature, explicitly maps effort, and always sets max_tokens', () => {
-    const params = anthropicParameters(request());
+    // A feature with no CLAUDE_FEATURES entry, so the request's own effort and limit apply.
+    const params = anthropicParameters(request({ feature: 'not-an-approved-feature' }));
     expect(params).not.toHaveProperty('temperature');
     expect(params).not.toHaveProperty('thinking');
     expect(params).toMatchObject({ max_tokens: 8192, output_config: { effort: 'low' } });
-    expect(anthropicParameters(request({ maxOutputTokens: 900, effort: 'minimal' }))).toMatchObject({
+    expect(anthropicParameters(request({ feature: 'not-an-approved-feature', maxOutputTokens: 900, effort: 'minimal' }))).toMatchObject({
       max_tokens: 900, output_config: { effort: 'low' },
     });
+  });
+
+  it('gives the authoring features medium effort and their output headroom', () => {
+    expect(anthropicParameters(request())).toMatchObject({ max_tokens: 20000, output_config: { effort: 'medium' } });
+    expect(anthropicParameters(request({ feature: 'ai-guided-project' })).max_tokens).toBe(20000);
+    expect(anthropicParameters(request({ feature: 'doc-course-extract' })).max_tokens).toBe(16384);
   });
 
   it('retains Haiku temperature and omits its unsupported effort control', () => {
