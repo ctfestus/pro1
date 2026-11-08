@@ -16,8 +16,14 @@ describe('fresh schema books (migration 232)', () => {
   });
 
   it('keeps the catalogue tables identical to migration 232', () => {
-    // books, prices and chapters are unchanged since 232; purchases changed in 235 (tested below).
-    const tables = migration.slice(migration.indexOf('-- Books ----'), migration.indexOf('-- Ownership ----')).trim();
+    // Prices and chapters are unchanged since 232; purchases changed in 235 (tested below) and
+    // books gained sample_spec in 236, which is the only difference allowed here.
+    const endorsement = '  endorsement_permitted boolean     NOT NULL DEFAULT false,\n';
+    const tables = migration.slice(migration.indexOf('-- Books ----'), migration.indexOf('-- Ownership ----')).trim()
+      .replace(endorsement, endorsement
+        + '  -- How the free sample was cut from the book (migration 236); NULL for an uploaded sample or none.\n'
+        + "  sample_spec           jsonb       CHECK (sample_spec IS NULL OR jsonb_typeof(sample_spec) = 'object'),\n");
+    expect(tables).toContain('sample_spec');
     expect(schema).toContain(tables);
   });
 
@@ -91,14 +97,21 @@ describe('fresh schema book chapters save (migration 233)', () => {
   const migration = readFileSync(join(process.cwd(), 'migrations/233_book_saves.sql'), 'utf8');
 
   it('matches the migration and is service-role only', () => {
-    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book_chapters')).trim();
+    // Up to save_book, which migration 236 redefined (tested below).
+    const fn = migration.slice(
+      migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book_chapters'),
+      migration.indexOf('-- Save a book in one transaction'),
+    ).trim();
     expect(schema).toContain(fn);
     expect(fn).toContain('FROM PUBLIC, anon, authenticated');
     expect(fn).toContain('TO service_role');
   });
 
+  // save_book was redefined by migration 236 (sample_spec); the fresh schema carries that version.
+  const latest = readFileSync(join(process.cwd(), 'migrations/236_book_sample_spec.sql'), 'utf8');
+
   it('saves a book in one locked transaction, checking the version under the lock', () => {
-    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    const fn = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
     expect(schema).toContain(fn.trim());
     const lock = fn.indexOf('FROM public.books WHERE id = p_book_id FOR UPDATE');
     const version = fn.indexOf('v_old.updated_at IS DISTINCT FROM p_expected_updated_at');
@@ -111,11 +124,18 @@ describe('fresh schema book chapters save (migration 233)', () => {
   });
 
   it('writes only editable columns, never the owner, id or slug', () => {
-    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    const fn = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
     const set = fn.slice(fn.indexOf('UPDATE public.books SET'), fn.indexOf('RETURNING * INTO v_new'));
     for (const col of ['user_id', 'slug', 'created_at']) expect(set).not.toMatch(new RegExp(`\\b${col}\\s*=`));
     expect(set).not.toMatch(/\bid\s*=\s*v_new/);
     expect(fn).toContain('PERFORM public.save_book_chapters(p_book_id, p_chapters)');
+  });
+
+  it('migration 236 only adds sample_spec to save_book', () => {
+    const before = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    const after = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    expect(after.replace('    sample_spec           = v_new.sample_spec,\n', '').trim()).toBe(before.trim());
+    expect(schema).toContain("sample_spec           jsonb       CHECK (sample_spec IS NULL OR jsonb_typeof(sample_spec) = 'object')");
   });
 
   it("refuses chapter ids from another book and keeps ids rather than recreating rows", () => {

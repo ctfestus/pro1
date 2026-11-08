@@ -35,6 +35,32 @@ export type BookChapterLocator =
   | { pageStart: number; pageEnd?: number }   // PDF, 1-based
   | { anchor: string };                       // HTML element id
 
+/**
+ * How a free sample was cut from the book (migration 236): a PDF page range, or the first N
+ * chapters of an EPUB or HTML book. Null when the sample was uploaded as its own file, or none.
+ */
+export type BookSampleSpec =
+  | { pages: { from: number; to: number } }
+  | { chapters: number };
+
+/** Defaults offered for a new sample: the first ten pages, or the first two chapters. */
+export const DEFAULT_SAMPLE_PAGES = { from: 1, to: 10 } as const;
+export const DEFAULT_SAMPLE_CHAPTERS = 2;
+
+/** A sample spec from untrusted JSON, or null when it is not one. */
+export function parseSampleSpec(v: unknown): BookSampleSpec | null {
+  if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+  const o = v as Record<string, any>;
+  const int = (n: unknown, max: number) => (typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= max ? n : null);
+  if (o.pages && typeof o.pages === 'object') {
+    const from = int(o.pages.from, 100000);
+    const to = int(o.pages.to, 100000);
+    return from && to && to >= from ? { pages: { from, to } } : null;
+  }
+  const chapters = int(o.chapters, 1000);
+  return chapters ? { chapters } : null;
+}
+
 export interface Book {
   id: string;
   /** Null once the author's account is deleted; admins manage the book from then on. */
@@ -65,6 +91,7 @@ export interface Book {
   licenseExpiresAt: string | null;
   aiAllowed: boolean;
   endorsementPermitted: boolean;
+  sampleSpec: BookSampleSpec | null;
 }
 
 export interface BookChapter {
@@ -124,6 +151,7 @@ export function normalizeBook(row: any): Book {
     licenseExpiresAt: str(row?.license_expires_at),
     aiAllowed: row?.ai_allowed !== false,
     endorsementPermitted: row?.endorsement_permitted === true,
+    sampleSpec: parseSampleSpec(row?.sample_spec),
   };
 }
 

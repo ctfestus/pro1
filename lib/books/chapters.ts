@@ -4,8 +4,12 @@
  * re-validates every chapter (lib/books/admin.ts chaptersFromInput).
  *
  *   EPUB  the EPUB 3 navigation document, else the EPUB 2 NCX, else the reading order
- *   HTML  <section data-chapter id>, else h1/h2 with ids -- the rule the reader bridge uses
- *   PDF   not read here; chapters are entered as page ranges (pdf.js arrives with the reader)
+ *   HTML  <section data-chapter id>, else h1/h2 headings located by their own id or the id of the
+ *         section that opens with them
+ *   PDF   lib/books/pdf.ts (the PDF's bookmarks)
+ *
+ * When a file has no usable structure the editor asks AI instead (lib/books/chapter-suggestions.ts),
+ * sending the outline built by htmlOutline / epubOutline here.
  *
  * EPUB hrefs are returned relative to the package document (the OPF), which is how epub.js
  * addresses sections.
@@ -14,10 +18,20 @@ import JSZip from 'jszip';
 
 export interface SuggestedChapter {
   title: string;
-  locator: { href: string } | { anchor: string };
+  locator: { href: string } | { anchor: string } | { pageStart: number; pageEnd?: number };
+}
+
+/** One outline item for the AI fallback, with the locator its index maps back to. */
+export interface OutlineEntry {
+  text: string;
+  level?: number;
+  locator: SuggestedChapter['locator'] | null;
 }
 
 const MAX_CHAPTERS = 500;
+const MAX_OUTLINE = 1000;
+const VALID_ID = /^[A-Za-z][\w:.-]*$/;
+const CONTENTS_TITLE = /^(table of )?contents$/i;
 
 function dirOf(path: string): string {
   const i = path.lastIndexOf('/');
@@ -73,7 +87,11 @@ function topLevelItems(list: Element): Element[] {
   return items;
 }
 
-export async function chaptersFromEpub(data: ArrayBuffer | Blob): Promise<SuggestedChapter[]> {
+/**
+ * The EPUB's chapters. fromToc is false when the book had no table of contents and the list is
+ * just its reading order ("Section 1", "Section 2"...), which the editor treats as a weak result.
+ */
+export async function chaptersFromEpub(data: ArrayBuffer | Blob): Promise<{ chapters: SuggestedChapter[]; fromToc: boolean }> {
   const zip = await JSZip.loadAsync(data);
   const container = await readText(zip, 'META-INF/container.xml');
   if (!container) throw new Error('This file is not a valid EPUB.');
@@ -116,7 +134,7 @@ export async function chaptersFromEpub(data: ArrayBuffer | Blob): Promise<Sugges
           chapters.push({ title, locator: { href: relativeTo(packageDir, resolvePath(dirOf(navPath), href)) } });
           if (chapters.length >= MAX_CHAPTERS) break;
         }
-        if (chapters.length) return chapters;
+        if (chapters.length) return { chapters, fromToc: true };
       }
     }
   }
@@ -138,7 +156,7 @@ export async function chaptersFromEpub(data: ArrayBuffer | Blob): Promise<Sugges
         chapters.push({ title, locator: { href: relativeTo(packageDir, resolvePath(dirOf(ncxPath), src)) } });
         if (chapters.length >= MAX_CHAPTERS) break;
       }
-      if (chapters.length) return chapters;
+      if (chapters.length) return { chapters, fromToc: true };
     }
   }
 
@@ -150,22 +168,107 @@ export async function chaptersFromEpub(data: ArrayBuffer | Blob): Promise<Sugges
     chapters.push({ title: `Section ${chapters.length + 1}`, locator: { href: item.href } });
     if (chapters.length >= MAX_CHAPTERS) break;
   }
-  return chapters;
+  return { chapters, fromToc: false };
+}
+
+/**
+ * Where a heading can be linked to: its own id, else the id of the nearest enclosing element that
+ * opens with it (a <section id="intro"> whose first heading it is). A wrapper around many headings
+ * belongs to its first one only, so it cannot turn every heading into the same chapter.
+ */
+function anchorFor(h: Element): string | null {
+  if (h.id && VALID_ID.test(h.id)) return h.id;
+  for (let el = h.parentElement; el && el.localName !== 'body' && el.localName !== 'html'; el = el.parentElement) {
+    if (el.id && VALID_ID.test(el.id)) return el.querySelector('h1, h2, h3, h4, h5, h6') === h ? el.id : null;
+  }
+  return null;
+}
+
+/** Inside a cover or title page (<section class="cover">, <div id="bookcover">...). */
+function inCover(el: Element): boolean {
+  for (let n: Element | null = el; n && n.localName !== 'body'; n = n.parentElement) {
+    if (/cover|title-?page/i.test(`${n.id} ${n.getAttribute('class') ?? ''}`)) return true;
+  }
+  return false;
 }
 
 export function chaptersFromHtml(source: string): SuggestedChapter[] {
   const doc = parseXml(source, 'text/html');
-  const sections = Array.from(doc.querySelectorAll('section[data-chapter][id]'));
-  const els = sections.length ? sections : Array.from(doc.querySelectorAll('h1[id], h2[id]'));
   const chapters: SuggestedChapter[] = [];
-  for (const el of els) {
-    const heading = el.matches('section') ? el.querySelector('h1, h2, h3') : el;
-    const title = clean(el.getAttribute('data-chapter') || heading?.textContent || el.id);
-    if (!title || !/^[A-Za-z][\w:.-]*$/.test(el.id)) continue;
-    chapters.push({ title, locator: { anchor: el.id } });
+  const sections = Array.from(doc.querySelectorAll('section[data-chapter][id]'));
+  if (sections.length) {
+    for (const el of sections) {
+      const title = clean(el.getAttribute('data-chapter') || el.querySelector('h1, h2, h3')?.textContent || el.id);
+      if (!title || !VALID_ID.test(el.id)) continue;
+      chapters.push({ title, locator: { anchor: el.id } });
+      if (chapters.length >= MAX_CHAPTERS) break;
+    }
+    return chapters;
+  }
+  // h1 chapters when the book has several; else h1 and h2 together (one h1 is usually the title).
+  // The cover is not a chapter: headings inside an element named like a cover, and a heading that
+  // only repeats the book's title, are left out.
+  const bookTitle = clean(doc.title).toLowerCase();
+  const located = (selector: string) => Array.from(doc.querySelectorAll(selector))
+    .filter(h => !inCover(h) && !(bookTitle && clean(h.textContent).toLowerCase() === bookTitle))
+    .map(h => ({ title: clean(h.textContent), anchor: anchorFor(h) }))
+    .filter((c): c is { title: string; anchor: string } => !!c.title && !!c.anchor && !CONTENTS_TITLE.test(c.title));
+  const h1s = located('h1');
+  const picked = h1s.length >= 2 ? h1s : located('h1, h2');
+  const seen = new Set<string>();
+  for (const c of picked) {
+    if (seen.has(c.anchor)) continue;
+    seen.add(c.anchor);
+    chapters.push({ title: c.title, locator: { anchor: c.anchor } });
     if (chapters.length >= MAX_CHAPTERS) break;
   }
   return chapters;
+}
+
+/** Every heading of an HTML book, for the AI fallback. Headings that cannot be linked carry no locator. */
+export function htmlOutline(source: string): OutlineEntry[] {
+  const doc = parseXml(source, 'text/html');
+  return Array.from(doc.querySelectorAll('h1, h2, h3, h4'))
+    .map(h => {
+      const anchor = anchorFor(h);
+      return { text: clean(h.textContent).slice(0, 200), level: Number(h.localName.slice(1)), locator: anchor ? { anchor } : null };
+    })
+    .filter(e => e.text)
+    .slice(0, MAX_OUTLINE);
+}
+
+/** One entry per reading-order document of an EPUB, shown by its first heading or opening words. */
+export async function epubOutline(data: ArrayBuffer | Blob): Promise<OutlineEntry[]> {
+  const zip = await JSZip.loadAsync(data);
+  const container = await readText(zip, 'META-INF/container.xml');
+  const opfPath = container ? byLocalName(parseXml(container), 'rootfile')[0]?.getAttribute('full-path') : null;
+  const opfSource = opfPath ? await readText(zip, opfPath) : null;
+  if (!opfPath || !opfSource) throw new Error('This EPUB has no package document.');
+  const opf = parseXml(opfSource);
+  const packageDir = dirOf(opfPath);
+  const hrefs = new Map<string, string>();
+  for (const item of byLocalName(opf, 'item')) {
+    const id = item.getAttribute('id');
+    const href = item.getAttribute('href');
+    if (id && href) hrefs.set(id, href);
+  }
+  const out: OutlineEntry[] = [];
+  const spine = byLocalName(opf, 'spine')[0];
+  for (const ref of spine ? childrenByLocalName(spine, 'itemref') : []) {
+    const href = hrefs.get(ref.getAttribute('idref') ?? '');
+    if (!href) continue;
+    const source = await readText(zip, resolvePath(packageDir, href));
+    let text = '';
+    if (source) {
+      const doc = parseXml(source, 'application/xhtml+xml');
+      const heading = byLocalName(doc, 'h1')[0] ?? byLocalName(doc, 'h2')[0] ?? byLocalName(doc, 'h3')[0];
+      const body = byLocalName(doc, 'body')[0];
+      text = clean(heading?.textContent) || clean(body?.textContent).slice(0, 160) || clean(byLocalName(doc, 'title')[0]?.textContent);
+    }
+    out.push({ text: text.slice(0, 200), locator: { href } });
+    if (out.length >= MAX_OUTLINE) break;
+  }
+  return out;
 }
 
 /**
