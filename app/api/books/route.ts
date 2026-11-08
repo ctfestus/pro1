@@ -24,8 +24,9 @@ import { BOOK_BUCKET } from '@/lib/books/storage';
 // any admin -- the same people may set sale terms, migration 234), uploaded files (real size and
 // type read back from storage, never the browser's word), and publish readiness. The database
 // writes of a save then happen in one transaction, in save_book (migration 233), which also
-// refuses a save made from an outdated version of the book. Student
-// notification emails are deliberately not sent yet: they link to the reader, which ships later.
+// refuses a save made from an outdated version of the book. Assigning a book to a cohort does not
+// email students yet (lib/send-assignment-notification.ts has no book type); assigned books show
+// up in the student's My Books (/student#books, components/student/books.tsx).
 export const dynamic = 'force-dynamic';
 
 const ROLES = ['admin', 'instructor'];
