@@ -11,18 +11,24 @@
  * /api/books/[id]/sample, honoured only while the sample is public (isPublicSampleAvailable), and
  * only ever for the sample object.
  *
+ * A guest buyer (no account) opens an HTML product with a 'guest' ticket naming their purchase,
+ * issued by /api/books/guest-access/open and honoured only while that purchase is paid and inside
+ * its seven days (lib/books/guest-purchase.ts).
+ *
  * Server-only (node:crypto).
  */
 import { createHmac, timingSafeEqual } from 'crypto';
 
 export const HTML_TICKET_TTL_SECONDS = 5 * 60;
 
-export type HtmlTicketVariant = 'full' | 'preview' | 'public-sample';
+export type HtmlTicketVariant = 'full' | 'preview' | 'public-sample' | 'guest';
 
 export interface HtmlTicketClaims {
   bookId: string;
-  /** Null exactly when the variant is 'public-sample'. */
+  /** Null exactly when the variant is 'public-sample' or 'guest'. */
   userId: string | null;
+  /** Only on a 'guest' ticket: the paid guest purchase it opens (lib/books/guest-access.ts). */
+  purchaseId?: string;
   variant: HtmlTicketVariant;
   /** Unix seconds. */
   exp: number;
@@ -72,9 +78,13 @@ export function verifyHtmlTicket(
   if (
     !claims
     || claims.bookId !== bookId
-    || (claims.variant !== 'full' && claims.variant !== 'preview' && claims.variant !== 'public-sample')
-    // A public ticket names nobody; every other ticket names its reader.
-    || (claims.variant === 'public-sample' ? claims.userId !== null : typeof claims.userId !== 'string')
+    || (claims.variant !== 'full' && claims.variant !== 'preview' && claims.variant !== 'public-sample' && claims.variant !== 'guest')
+    // A public or guest ticket names nobody; every other ticket names its reader.
+    || (claims.variant === 'public-sample' || claims.variant === 'guest' ? claims.userId !== null : typeof claims.userId !== 'string')
+    // Only a guest ticket names a purchase, and it must.
+    || (claims.variant === 'guest'
+      ? typeof claims.purchaseId !== 'string' || !/^[0-9a-f-]{36}$/.test(claims.purchaseId)
+      : claims.purchaseId !== undefined)
     || typeof claims.exp !== 'number'
     || claims.exp * 1000 <= nowMs
   ) {

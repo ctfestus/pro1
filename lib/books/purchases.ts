@@ -17,11 +17,13 @@ import {
   makePaystackReference,
   PaystackApiError,
   paystackBookCallbackUrl,
+  paystackGuestBookCallbackUrl,
   type PaystackVerification,
   verifyPaystackTransaction,
 } from '@/lib/paystack';
 import { PaymentError } from '@/lib/payment-errors';
 import { sendBookPurchaseReceipt } from '@/lib/books/receipt-email';
+import { newReturnCode, returnCodeMatches } from '@/lib/books/guest-access';
 
 export const BOOK_REFERENCE_PREFIX = 'book-';
 
@@ -31,6 +33,8 @@ const CHECKOUT_REUSE_MS = 30 * 60 * 1000;
 const INITIALIZING_GRACE_MS = 2 * 60 * 1000;
 /** Paystack statuses after which an open checkout may be replaced. Anything else may still charge. */
 const CLOSABLE_PROVIDER_STATUSES = ['failed', 'abandoned', 'reversed'];
+/** Open guest checkouts one email may have for one product at a time (no account index to rely on). */
+const GUEST_OPEN_CHECKOUT_LIMIT = 3;
 
 export function isBookReference(reference: string | null | undefined): reference is string {
   return typeof reference === 'string' && reference.startsWith(BOOK_REFERENCE_PREFIX);
@@ -205,6 +209,126 @@ export async function startBookCheckout(
   return { kind: 'checkout', reference, authorizationUrl };
 }
 
+export type GuestCheckoutOutcome =
+  | { kind: 'checkout'; reference: string; authorizationUrl: string; returnCode: string }
+  | { kind: 'settled'; reference: string; returnCode: string; status: 'paid' | 'needs_review' | 'refunded' };
+
+/**
+ * Open a guest checkout: one product, one price, paid for with only an email (migration 238).
+ *
+ * Every guest checkout belongs to the browser that started it, through its return code. A retry
+ * from that browser (`resume`, with the code it holds) gets its own open checkout back while it is
+ * fresh and at the same price; anything else -- another browser, the same email typed elsewhere, a
+ * wrong code -- opens a new, separate checkout and never sees an existing one.
+ */
+export async function startGuestBookCheckout(
+  db: SupabaseClient,
+  input: {
+    email: string;
+    book: BookCheckoutBook & { slug: string };
+    amount: number;
+    currency: string;
+    resume?: { reference: string; code: string } | null;
+  },
+): Promise<GuestCheckoutOutcome> {
+  if (input.resume && isBookReference(input.resume.reference) && input.resume.reference.length <= 100) {
+    const { data: open, error } = await db
+      .from('book_purchases')
+      .select('id, paystack_reference, authorization_url, amount, currency, created_at, status, is_guest, guest_email, guest_return_hash, book_id')
+      .eq('paystack_reference', input.resume.reference)
+      .maybeSingle();
+    if (error) throw error;
+    if (open && open.is_guest && open.book_id === input.book.id && open.guest_email === input.email
+      && returnCodeMatches(input.resume.code, open.guest_return_hash)) {
+      if (open.status === 'paid' || open.status === 'needs_review' || open.status === 'refunded') {
+        return { kind: 'settled', reference: open.paystack_reference, returnCode: input.resume.code, status: open.status };
+      }
+      const age = Date.now() - new Date(open.created_at).getTime();
+      const samePrice = open.currency === input.currency && Math.round(Number(open.amount) * 100) === Math.round(input.amount * 100);
+      if (open.status === 'pending' && open.authorization_url && samePrice && age < CHECKOUT_REUSE_MS) {
+        return { kind: 'checkout', reference: open.paystack_reference, authorizationUrl: open.authorization_url, returnCode: input.resume.code };
+      }
+      if (open.status === 'pending') {
+        // Stale or repriced, as in startBookCheckout: the old link may have been paid after all (a
+        // slow mobile money approval), and opening a new one now could charge twice. Paystack decides.
+        let settled: BookSettleResult | null = null;
+        try {
+          settled = await settleBookPurchase(db, open.paystack_reference);
+        } catch (e) {
+          const notCreated = e instanceof PaystackApiError
+            && (e.status === 404 || (!open.authorization_url && e.status >= 400 && e.status < 500));
+          if (!notCreated) throw e;
+        }
+        if (settled && settled.status !== 'unpaid' && settled.status !== 'unknown') {
+          return { kind: 'settled', reference: open.paystack_reference, returnCode: input.resume.code, status: settled.status };
+        }
+        if (settled?.status === 'unpaid' && !CLOSABLE_PROVIDER_STATUSES.includes(settled.providerStatus)) {
+          throw new PaymentError('conflict', 'Your earlier payment for this product is still being processed. Wait for it to finish, then try again.', 409);
+        }
+        const { error: closeError } = await db.from('book_purchases')
+          .update({ status: 'failed' }).eq('id', open.id).eq('status', 'pending');
+        if (closeError) throw closeError;
+      }
+    }
+  }
+
+  // Guests have no one-open-checkout index (no account to key it on), so new checkouts per email and
+  // product are capped here, to keep junk out of the hourly sweep.
+  const { count: openCount, error: countError } = await db
+    .from('book_purchases')
+    .select('id', { count: 'exact', head: true })
+    .eq('is_guest', true)
+    .eq('guest_email', input.email)
+    .eq('book_id', input.book.id)
+    .eq('status', 'pending')
+    // Only checkouts from the last half hour: abandoned ones stay pending for days, and counting
+    // those would let anyone who knows a buyer's email lock them out of buying.
+    .gt('created_at', new Date(Date.now() - CHECKOUT_REUSE_MS).toISOString());
+  if (countError) throw countError;
+  if ((openCount ?? 0) >= GUEST_OPEN_CHECKOUT_LIMIT) {
+    throw new PaymentError('conflict', 'You have just started several checkouts for this product. Wait a few minutes, then try again.', 429);
+  }
+
+  const { code, hash } = newReturnCode();
+  const reference = makePaystackReference('book');
+  const { data: created, error: insertError } = await db.from('book_purchases').insert({
+    student_id: null,
+    is_guest: true,
+    guest_email: input.email,
+    guest_return_hash: hash,
+    book_id: input.book.id,
+    book_title: input.book.title,
+    amount: input.amount,
+    currency: input.currency,
+    paystack_reference: reference,
+    royalty_pct: Number(input.book.royalty_pct ?? 0) || 0,
+  }).select('id').single();
+  if (insertError) throw insertError;
+
+  let authorizationUrl: string;
+  try {
+    const initialized = await initializePaystackTransaction({
+      email: input.email,
+      amount: input.amount,
+      currency: input.currency,
+      reference,
+      callbackUrl: paystackGuestBookCallbackUrl(input.book.slug, reference),
+      metadata: { kind: 'book_purchase', purchase_id: created.id, book_id: input.book.id, guest: true },
+    });
+    authorizationUrl = initialized.authorizationUrl;
+  } catch (e) {
+    if (e instanceof PaystackApiError && e.status >= 400 && e.status < 500) {
+      await db.from('book_purchases').update({ status: 'failed' }).eq('id', created.id).eq('status', 'pending');
+    }
+    throw e;
+  }
+
+  const { error: urlError } = await db.from('book_purchases')
+    .update({ authorization_url: authorizationUrl }).eq('id', created.id);
+  if (urlError) throw urlError;
+  return { kind: 'checkout', reference, authorizationUrl, returnCode: code };
+}
+
 /**
  * Hourly recovery, run by the subscription sweep cron:
  *   1. open checkouts with a link, 10 minutes to 3 days old, are checked with Paystack, least
@@ -221,20 +345,27 @@ export async function sweepBookPurchases(
   let failed = 0;
   const now = Date.now();
 
-  const { data: open, error: openError } = await db
-    .from('book_purchases')
-    .select('id, paystack_reference')
-    .eq('status', 'pending')
-    .not('authorization_url', 'is', null)
-    .lt('created_at', new Date(now - 10 * 60 * 1000).toISOString())
-    .gt('created_at', new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString())
-    // Least recently checked first: abandoned checkouts stay pending, and ordering by age alone
-    // would let the same oldest 25 hold every run while a newer paid one waits.
-    .order('last_checked_at', { ascending: true, nullsFirst: true })
-    .order('created_at', { ascending: true })
-    .limit(25);
-  if (openError) throw openError;
-  for (const row of open ?? []) {
+  // Two queues of 25: guest checkouts (migration 238) need no account, so abandoned or junk ones can
+  // outnumber the rest; kept apart, they can never crowd out signed-in buyers' checkouts.
+  const queue = async (guest: boolean) => {
+    const { data, error } = await db
+      .from('book_purchases')
+      .select('id, paystack_reference')
+      .eq('status', 'pending')
+      .eq('is_guest', guest)
+      .not('authorization_url', 'is', null)
+      .lt('created_at', new Date(now - 10 * 60 * 1000).toISOString())
+      .gt('created_at', new Date(now - 3 * 24 * 60 * 60 * 1000).toISOString())
+      // Least recently checked first: abandoned checkouts stay pending, and ordering by age alone
+      // would let the same oldest 25 hold every run while a newer paid one waits.
+      .order('last_checked_at', { ascending: true, nullsFirst: true })
+      .order('created_at', { ascending: true })
+      .limit(25);
+    if (error) throw error;
+    return (data ?? []) as { id: string; paystack_reference: string }[];
+  };
+  const open = [...await queue(false), ...await queue(true)];
+  for (const row of open) {
     if (outOfTime()) break;
     const { error: stampError } = await db.from('book_purchases')
       .update({ last_checked_at: new Date().toISOString() }).eq('id', row.id);

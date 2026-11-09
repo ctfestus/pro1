@@ -48,6 +48,7 @@ const REASON_LABELS: Record<string, string> = {
   amount_mismatch: 'Paid a different amount or currency than the order. No access was given.',
   already_owned: 'Paid for a product they already had. Refund the extra payment.',
   account_deleted: 'Paid, but the account was deleted before access could be given.',
+  guest_previously_paid: 'A guest purchase that was paid and later changed by hand was paid for again. Access was not restored.',
 };
 
 async function authHeaders(): Promise<Record<string, string>> {

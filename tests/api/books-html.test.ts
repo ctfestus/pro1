@@ -7,6 +7,8 @@ const U = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
 const FILE = `${BOOK_ID}/file-${U}.html`;
 const PREVIEW = `${BOOK_ID}/preview-${U}.html`;
 
+vi.mock('server-only', () => ({}));
+
 const state: { tables: Record<string, any>; signed: string[] } = { tables: {}, signed: [] };
 
 vi.mock('@/lib/admin-client', async () => {
@@ -235,5 +237,48 @@ describe('pages opened from a book', () => {
     expect(csp.startsWith('sandbox ')).toBe(true);
     expect(csp).not.toContain('allow-same-origin');
     expect(csp).not.toContain('allow-top-navigation');
+  });
+});
+
+describe('guest tickets (bought without an account, migration 238)', () => {
+  const PURCHASE = '33333333-3333-4333-8333-333333333333';
+  const purchase = (extra: Record<string, unknown> = {}) => ({
+    id: PURCHASE, book_id: BOOK_ID, status: 'paid', is_guest: true,
+    guest_access_expires_at: new Date(Date.now() + 86_400_000).toISOString(), guest_downloads_used: 0, ...extra,
+  });
+  const guestTicket = (purchaseId = PURCHASE) => issueHtmlTicket({ bookId: BOOK_ID, userId: null, variant: 'guest', purchaseId }).ticket;
+
+  it('serves the full product while the purchase is paid and inside its seven days', async () => {
+    state.tables.book_purchases = { data: purchase() };
+    const res = await call(guestTicket());
+    expect(res.status).toBe(200);
+    expect(state.signed).toEqual([FILE]);
+  });
+
+  it.each([
+    ['refunded', { status: 'refunded' }],
+    ['under review', { status: 'needs_review' }],
+    ['past its seven days', { guest_access_expires_at: new Date(Date.now() - 1000).toISOString() }],
+    ['for another product', { book_id: OTHER_ID }],
+    ['not a guest purchase', { is_guest: false }],
+  ])('refuses a purchase that is %s, and signs nothing', async (_label, extra) => {
+    state.tables.book_purchases = { data: purchase(extra) };
+    expect((await call(guestTicket())).status).toBe(403);
+    expect(state.signed).toEqual([]);
+  });
+
+  it('refuses a guest when the product was pulled back to draft or its licence ended', async () => {
+    for (const extra of [{ status: 'draft' }, { license_expires_at: '2020-01-01T00:00:00Z' }]) {
+      state.tables.books = { data: { ...BOOK, ...extra } };
+      state.tables.book_purchases = { data: purchase() };
+      expect((await call(guestTicket())).status).toBe(403);
+    }
+    expect(state.signed).toEqual([]);
+  });
+
+  it('a guest ticket must name a purchase and nobody, and no other ticket may name a purchase', () => {
+    expect(verifyHtmlTicket(issueHtmlTicket({ bookId: BOOK_ID, userId: 'u1', variant: 'guest', purchaseId: PURCHASE }).ticket, BOOK_ID)).toBeNull();
+    expect(verifyHtmlTicket(issueHtmlTicket({ bookId: BOOK_ID, userId: null, variant: 'guest' }).ticket, BOOK_ID)).toBeNull();
+    expect(verifyHtmlTicket(issueHtmlTicket({ bookId: BOOK_ID, userId: 'u1', variant: 'full', purchaseId: PURCHASE }).ticket, BOOK_ID)).toBeNull();
   });
 });

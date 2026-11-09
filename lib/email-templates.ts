@@ -1202,12 +1202,17 @@ export function bookPurchaseEmail(data: {
   paidAt: string;
   reference: string;
   libraryUrl: string;
+  /** A guest purchase (no account): the button opens its download page, open until this date. */
+  guestUntil?: string;
   branding?: EmailBranding;
 }) {
-  const { name, bookTitle, amount, currency, paidAt, reference, libraryUrl, branding } = data;
+  const { name, bookTitle, amount, currency, paidAt, reference, libraryUrl, guestUntil, branding } = data;
+  const intro = guestUntil
+    ? `Thank you for buying <b>${esc(bookTitle)}</b>. Use the button below to download it. The link works until ${esc(guestUntil)}, for up to 5 downloads, so save a copy to keep.`
+    : `Thank you for buying <b>${esc(bookTitle)}</b>. It is now in My Products, where you can download it at any time.`;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>Thank you for buying <b>${esc(bookTitle)}</b>. It is now in My Products, where you can download it at any time.</p>
+    <p>${intro}</p>
 
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0;">
       <table cellpadding="0" cellspacing="0" style="width:100%;font-size:14px;color:#374151;">

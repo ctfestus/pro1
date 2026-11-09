@@ -68,6 +68,13 @@ export function paystackBookCallbackUrl(reference: string) {
   return `${base}/student?book_reference=${encodeURIComponent(reference)}#products`;
 }
 
+/** Where Paystack sends a guest buyer back: the product's own page, which collects the download. */
+export function paystackGuestBookCallbackUrl(slug: string, reference: string) {
+  const base = publicBaseUrl();
+  if (!base) throw new PaymentError('configuration_error', 'Online payment return URL is not configured.', 503);
+  return `${base}/products/${encodeURIComponent(slug)}?guest_reference=${encodeURIComponent(reference)}`;
+}
+
 export function makePaystackReference(prefix = 'sub') {
   return `${prefix}-${crypto.randomUUID()}`;
 }

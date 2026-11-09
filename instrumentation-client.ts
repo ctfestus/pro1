@@ -5,6 +5,8 @@ import {
   SENTRY_ENVIRONMENT,
   SENTRY_TRACES_SAMPLE_RATE,
   SENTRY_DENY_URLS,
+  scrubSentryBreadcrumb,
+  scrubSentryEvent,
 } from './sentry.shared';
 
 Sentry.init({
@@ -18,6 +20,12 @@ Sentry.init({
   // The SDK's own default is false; setting it explicitly stops a future
   // dependency bump or copied snippet from flipping it.
   sendDefaultPii: false,
+
+  // Page and request URLs can hold a working credential (an auth token_hash, a guest download
+  // link); they are redacted before anything leaves the browser.
+  beforeSend: (event) => scrubSentryEvent(event as any),
+  beforeSendTransaction: (event) => scrubSentryEvent(event as any),
+  beforeBreadcrumb: (crumb) => scrubSentryBreadcrumb(crumb as any),
 
   // Session Replay is deliberately NOT enabled. It records the DOM of whatever
   // the student was looking at, which here includes submitted work, grades, and

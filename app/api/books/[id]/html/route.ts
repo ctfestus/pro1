@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { BOOK_ACCESS_COLUMNS, canReadBook, isPublicSampleAvailable, type BookAccessRow } from '@/lib/books/access';
 import { verifyHtmlTicket } from '@/lib/books/html-ticket';
+import { guestAccessState, guestBookAvailable, loadGuestPurchase } from '@/lib/books/guest-purchase';
 import { BOOK_HTML_MAX_BYTES, isBookObjectPath } from '@/lib/books/schema';
 import { limitBodyStream } from '@/lib/read-body-with-limit';
 import { BOOK_BUCKET } from '@/lib/books/storage';
@@ -55,7 +56,14 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (!book) return plain(404, 'Product not found.');
 
     const row = book as unknown as BookAccessRow & { format: string | null; file_path: string | null };
-    if (claims.variant === 'public-sample') {
+    if (claims.variant === 'guest') {
+      // A guest buyer (no account): only while their purchase of this product is paid and inside its
+      // seven days, re-checked here so a refund inside the ticket's few minutes still takes effect.
+      const purchase = await loadGuestPurchase(db, claims.purchaseId as string);
+      if (!purchase || purchase.book_id !== row.id || guestAccessState(purchase) !== 'ready' || !guestBookAvailable(row)) {
+        return plain(403, 'This link is no longer active.');
+      }
+    } else if (claims.variant === 'public-sample') {
       // The store's open sample: nobody signed in, so the public rule decides, re-checked here so
       // unpublishing (or a licence ending) inside the ticket's few minutes still takes effect.
       if (!isPublicSampleAvailable(row)) return plain(404, 'Product not found.');
@@ -67,8 +75,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     if (row.format !== 'html') return plain(400, 'This product is not an HTML file.');
 
-    // Only a 'full' ticket ever reaches the full file; 'preview' and 'public-sample' get the sample.
-    const kind = claims.variant === 'full' ? 'file' : 'preview';
+    // Only a 'full' or 'guest' ticket ever reaches the full file; 'preview' and 'public-sample' get the sample.
+    const kind = claims.variant === 'full' || claims.variant === 'guest' ? 'file' : 'preview';
     const path = kind === 'file' ? row.file_path : row.preview_file_path;
     // Only an object this book's own upload issued -- never a path copied from another book.
     if (!isBookObjectPath(row.id, path, kind, 'html')) return plain(404, 'This product has no file yet.');
