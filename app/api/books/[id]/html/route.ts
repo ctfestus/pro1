@@ -19,12 +19,18 @@ import { BOOK_BUCKET } from '@/lib/books/storage';
 // the sandbox policy is the only one (two CSP headers enforce the intersection, and the app's
 // nonce-based script-src would block the book's inline scripts).
 //
+// allow-popups-to-escape-sandbox: a new tab the book opens (the sample's "Get the full book" and
+// "in the full book" links to its store page) is an ordinary page, not one that inherits this
+// sandbox. Without it the store page opened sandboxed, with an opaque origin, and crashed on its
+// first storage access. The book itself stays sandboxed; the escape only applies to new tabs, which
+// are separate pages that cannot reach this one.
+//
 // Unauthenticated by header on purpose: iframe navigations cannot send Bearer tokens. The ticket is
 // the credential, and access is re-checked here so a refund or archive inside the ticket's few
 // minutes still takes effect.
 export const dynamic = 'force-dynamic';
 
-const SANDBOX_CSP = 'sandbox allow-scripts allow-popups';
+const SANDBOX_CSP = 'sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox';
 
 function plain(status: number, message: string) {
   return new NextResponse(message, {

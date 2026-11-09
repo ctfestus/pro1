@@ -161,7 +161,7 @@ describe('GET /api/books/[id]/html', () => {
     fetchMock.mockResolvedValue(response);
     const res = await call(ticketFor());
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox');
     // Passed through, not buffered: only stream read-ahead has happened when the response returns.
     expect(pulls.count).toBeLessThanOrEqual(3);
     expect((await res.arrayBuffer()).byteLength).toBe(size);
@@ -173,7 +173,7 @@ describe('GET /api/books/[id]/html', () => {
     fetchMock.mockResolvedValue(response);
     const res = await call(ticketFor());
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox');
     // Passed through, not buffered: only stream read-ahead (a chunk or two of nine) has happened.
     expect(pulls.count).toBeLessThanOrEqual(3);
     expect((await res.arrayBuffer()).byteLength).toBe(size);
@@ -205,7 +205,7 @@ describe('GET /api/books/[id]/html with a public-sample ticket (the store)', () 
     forSale();
     const res = await call(publicTicket());
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox');
     expect(state.signed).toEqual([PREVIEW]);
   });
 
@@ -224,5 +224,16 @@ describe('GET /api/books/[id]/html with a public-sample ticket (the store)', () 
     expect(verifyHtmlTicket(forged, BOOK_ID)).toBeNull();
     const anonymousFull = issueHtmlTicket({ bookId: BOOK_ID, userId: null, variant: 'full' }).ticket;
     expect(verifyHtmlTicket(anonymousFull, BOOK_ID)).toBeNull();
+  });
+});
+
+describe('pages opened from a book', () => {
+  it('open as ordinary pages, while the book stays sandboxed without same-origin', async () => {
+    const csp = (await call(ticketFor())).headers.get('content-security-policy') ?? '';
+    // The store page a sample links to must not inherit the sandbox (it crashed on storage access).
+    expect(csp.split(' ')).toContain('allow-popups-to-escape-sandbox');
+    expect(csp.startsWith('sandbox ')).toBe(true);
+    expect(csp).not.toContain('allow-same-origin');
+    expect(csp).not.toContain('allow-top-navigation');
   });
 });
