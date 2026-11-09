@@ -1,8 +1,8 @@
 'use client';
 
 /**
- * The book page's buy box: the price, and what the visitor can do from where they stand.
- *   signed out          -> Sign in to buy / Create an account (the book is remembered across sign-up)
+ * The product page's price and actions, shown in the hero under the tags.
+ *   signed out          -> Sign in to buy (the product is remembered across sign-in and sign-up)
  *   owns it             -> Download, and a link to My Books
  *   signed in, for sale -> Buy, through /api/books/checkout and Paystack
  *   free book           -> Download once signed in
@@ -14,12 +14,12 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { BookOpen, Download, Eye, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { useTenant } from '@/components/TenantProvider';
 import { signInHref } from '@/lib/auth-redirect';
 import { downloadBook } from '@/lib/books/open-preview';
 import { clearBookPage, rememberBookPage } from '@/lib/books/pending-return';
 import { formatMoney } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
+import { PRICE_CHANGED_EVENT, useCurrentPrices } from '@/lib/books/use-current-prices';
 
 export interface BuyPanelBook {
   id: string;
@@ -41,7 +41,6 @@ async function currentToken(): Promise<string | null> {
 }
 
 export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryColor: string }) {
-  const { publicSignupEnabled } = useTenant();
   const [viewer, setViewer] = useState<Viewer>({ phase: 'loading' });
   const [currency, setCurrency] = useState(book.prices[0]?.currency ?? '');
   const [busy, setBusy] = useState<null | 'buy' | 'download' | 'sample'>(null);
@@ -75,23 +74,8 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
     return () => { cancelled = true; subscription.unsubscribe(); };
   }, [checkOwned]);
 
-  // Prices as shown now. A sale that ends while the page is open drops back to the regular price
-  // at that moment, and a price checkout reports as changed replaces the one the page loaded with.
-  const [prices, setPrices] = useState(book.prices);
-  useEffect(() => {
-    const ends = prices
-      .map(p => (p.original !== undefined && p.saleEndsAt ? Date.parse(p.saleEndsAt) : NaN))
-      .filter(Number.isFinite);
-    if (!ends.length) return;
-    const endSales = () => setPrices(list => list.map(p =>
-      p.original !== undefined && p.saleEndsAt && Date.parse(p.saleEndsAt) <= Date.now()
-        ? { currency: p.currency, amount: p.original } : p));
-    // setTimeout holds at most about 24 days; a later end is picked up when the timer fires again.
-    const wait = Math.min(Math.max(0, Math.min(...ends) - Date.now()), 2 ** 31 - 1);
-    const t = window.setTimeout(endSales, wait);
-    return () => window.clearTimeout(t);
-  }, [prices]);
-
+  // Prices as shown now, shared with the phone price bar (lib/books/use-current-prices.ts).
+  const prices = useCurrentPrices(book.prices);
   const price = prices.find(p => p.currency === currency) ?? prices[0];
   const backHere = `/products/${book.slug}`;
 
@@ -111,8 +95,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
       if (res.ok && d.status === 'paid') { setViewer({ phase: 'signedIn', owned: true }); setNote('You already paid for this product. It is in My Products.'); return; }
       if (res.ok && d.status) { setNote('A payment for this product is already being checked. See My Products for its status.'); return; }
       if (res.status === 409 && d.priceChanged && d.price && typeof d.price.amount === 'number') {
-        const now = d.price as BuyPanelBook['prices'][number];
-        setPrices(list => list.map(p => (p.currency === now.currency ? now : p)));
+        window.dispatchEvent(new CustomEvent(PRICE_CHANGED_EVENT, { detail: d.price }));
         setNote('The price has changed. Check the new price and press Buy again.');
         return;
       }
@@ -156,83 +139,74 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
     }
   }
 
-  const primaryBtn = 'w-full inline-flex items-center justify-center gap-2 px-5 py-3.5 rounded-2xl text-sm font-semibold disabled:opacity-60';
-  const secondaryBtn = 'w-full inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold disabled:opacity-60';
+  const primaryBtn = 'inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-[15px] font-semibold disabled:opacity-60 transition-transform active:scale-[0.98]';
+  const secondaryBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-[15px] font-semibold disabled:opacity-60 transition-transform active:scale-[0.98]';
+  const secondaryStyle = { background: '#ffffff', color: '#0f172a', boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 8px 20px -12px rgba(15,23,42,0.2)' };
   const owned = viewer.phase === 'signedIn' && viewer.owned;
+  const saleEnds = price?.saleEndsAt ? new Date(price.saleEndsAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
 
   return (
-    <div className="rounded-3xl bg-white p-5 sm:p-6 space-y-4">
+    <div>
       {book.free ? (
-        <p className="text-2xl font-bold" style={{ color: '#16a34a' }}>Free</p>
+        <p className="text-3xl font-extrabold tracking-tight" style={{ color: '#16a34a' }}>Free</p>
       ) : price ? (
-        <div className="flex items-end justify-between gap-3">
-          <div>
-            <PriceTag prices={[price]} className="text-2xl font-bold" style={{ color: '#0f172a' }} />
-            {price.original !== undefined && (
-              <p className="text-xs mt-1 font-semibold" style={{ color: '#16a34a' }}>
-                Save {formatMoney(price.original - price.amount, price.currency)}
-                {price.saleEndsAt ? ` until ${new Date(price.saleEndsAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
-              </p>
-            )}
-          </div>
+        <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2">
+          <PriceTag prices={[price]} className="text-3xl font-extrabold tracking-tight" style={{ color: '#0f172a' }} />
+          {price.original !== undefined && (
+            <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#ffffff', color: '#16a34a' }}>
+              Save {formatMoney(price.original - price.amount, price.currency)}{saleEnds ? ` until ${saleEnds}` : ''}
+            </span>
+          )}
           {prices.length > 1 && (
             <select value={currency} onChange={e => setCurrency(e.target.value)} aria-label="Currency"
-              className="rounded-xl px-3 py-2 text-sm outline-none" style={{ background: '#F3F6F5', color: '#334155' }}>
+              className="rounded-xl px-3 py-2 text-sm outline-none" style={{ background: '#ffffff', color: '#334155' }}>
               {prices.map(p => <option key={p.currency} value={p.currency}>{p.currency}</option>)}
             </select>
           )}
         </div>
       ) : null}
 
-      {viewer.phase === 'loading' ? (
-        <div className={primaryBtn} style={{ background: '#F3F6F5', color: '#94a3b8' }}><Loader2 className="w-4 h-4 animate-spin" /></div>
-      ) : owned ? (
-        <>
-          <button onClick={download} disabled={busy === 'download'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
-            {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
-          </button>
-          <Link href="/student#products" className={secondaryBtn} style={{ background: '#F3F6F5', color: '#334155' }}>
-            <BookOpen className="w-4 h-4" /> Open My Products
-          </Link>
-          {!book.free && <p className="text-xs text-center" style={{ color: '#16a34a' }}>You own this product.</p>}
-        </>
-      ) : viewer.phase === 'signedOut' ? (
-        <>
+      <div className="mt-5 flex flex-col sm:flex-row flex-wrap gap-3">
+        {viewer.phase === 'loading' ? (
+          <div className={`${primaryBtn} min-w-[200px]`} style={{ background: '#E8EBEF', color: '#94a3b8' }}><Loader2 className="w-4 h-4 animate-spin" /></div>
+        ) : owned ? (
+          <>
+            <button onClick={download} disabled={busy === 'download'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
+              {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
+            </button>
+            <Link href="/student#products" className={secondaryBtn} style={secondaryStyle}>
+              <BookOpen className="w-4 h-4" /> Open My Products
+            </Link>
+          </>
+        ) : viewer.phase === 'signedOut' ? (
           <Link href={signInHref(backHere)} onClick={() => rememberBookPage(book.slug)} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
             {book.free ? 'Sign in to download' : 'Sign in to buy'}
           </Link>
-          {publicSignupEnabled && (
-            <Link href="/auth?mode=signup" onClick={() => rememberBookPage(book.slug)} className={secondaryBtn} style={{ background: '#F3F6F5', color: '#334155' }}>
-              New here? Create an account
-            </Link>
-          )}
-        </>
-      ) : book.free ? (
-        // Free for everyone signed in; the access check said otherwise only if it failed.
-        <button onClick={download} disabled={busy === 'download'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
-          {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
-        </button>
-      ) : price ? (
-        <button onClick={buy} disabled={busy === 'buy'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
-          {busy === 'buy' && <Loader2 className="w-4 h-4 animate-spin" />} Buy for {formatMoney(price.amount, price.currency)}
-        </button>
-      ) : null}
+        ) : book.free ? (
+          // Free for everyone signed in; the access check said otherwise only if it failed.
+          <button onClick={download} disabled={busy === 'download'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
+            {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
+          </button>
+        ) : price ? (
+          <button onClick={buy} disabled={busy === 'buy'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
+            {busy === 'buy' && <Loader2 className="w-4 h-4 animate-spin" />} Buy for {formatMoney(price.amount, price.currency)}
+          </button>
+        ) : null}
 
-      {book.hasSample && !owned && (
-        <button onClick={openSample} disabled={busy === 'sample'} className={secondaryBtn} style={{ background: '#F3F6F5', color: '#334155' }}>
-          {busy === 'sample' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-          {book.format === 'epub' ? 'Download free sample' : 'Read free sample'}
-        </button>
-      )}
+        {book.hasSample && !owned && (
+          <button onClick={openSample} disabled={busy === 'sample'} className={secondaryBtn} style={secondaryStyle}>
+            {busy === 'sample' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
+            {book.format === 'epub' ? 'Download free sample' : 'Read free sample'}
+          </button>
+        )}
+      </div>
+
+      {owned && !book.free && <p className="mt-3 text-sm" style={{ color: '#16a34a' }}>You own this product.</p>}
       {book.hasSample && !owned && book.format === 'epub' && (
-        <p className="text-xs text-center" style={{ color: '#94a3b8' }}>Open the sample in an ebook app such as Apple Books or Google Play Books.</p>
+        <p className="mt-3 text-xs" style={{ color: '#64748b' }}>Open the sample in an ebook app such as Apple Books or Google Play Books.</p>
       )}
-
-      {note && <p className="text-xs text-center" style={{ color: '#475569' }}>{note}</p>}
-      {error && <p className="text-xs text-center" style={{ color: '#dc2626' }}>{error}</p>}
-      {!book.free && !owned && viewer.phase !== 'loading' && (
-        <p className="text-[11px] text-center" style={{ color: '#94a3b8' }}>Secure payment with Paystack. Download straight after paying.</p>
-      )}
+      {note && <p className="mt-3 text-sm" style={{ color: '#475569' }}>{note}</p>}
+      {error && <p className="mt-3 text-sm" style={{ color: '#dc2626' }}>{error}</p>}
     </div>
   );
 }

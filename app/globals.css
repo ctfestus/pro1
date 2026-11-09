@@ -663,3 +663,30 @@ html .landing-scope .text-white { color: #fff !important; }
   opacity: 0.75;
   font-style: italic;
 }
+
+/* Product descriptions on the public product page (/products/[slug]). The store is always light, so
+   colours are fixed rather than following the app theme. */
+.product-richtext { color: #334155; font-size: 1rem; line-height: 1.75; }
+.product-richtext > :first-child { margin-top: 0; }
+.product-richtext > :last-child { margin-bottom: 0; }
+.product-richtext p { margin: 0 0 0.9rem; }
+.product-richtext h1, .product-richtext h2 { color: #0f172a; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; margin: 1.5rem 0 0.5rem; }
+.product-richtext h3, .product-richtext h4 { color: #0f172a; font-size: 1.05rem; font-weight: 700; margin: 1.25rem 0 0.4rem; }
+.product-richtext ul, .product-richtext ol { padding-left: 1.4rem; margin: 0.5rem 0 1rem; }
+.product-richtext ul { list-style: disc; }
+.product-richtext ol { list-style: decimal; }
+.product-richtext li { margin: 0.3rem 0; padding-left: 0.2rem; }
+.product-richtext li::marker { color: #94a3b8; }
+.product-richtext b, .product-richtext strong { color: #0f172a; font-weight: 700; }
+.product-richtext i, .product-richtext em { font-style: italic; }
+.product-richtext u { text-decoration: underline; }
+.product-richtext s { text-decoration: line-through; }
+.product-richtext a { color: #0f172a; text-decoration: underline; text-underline-offset: 3px; }
+.product-richtext blockquote { margin: 1rem 0; padding: 0.75rem 1rem; border-radius: 14px; background: #F4F5F7; color: #475569; }
+.product-richtext code { font-size: 0.875em; padding: 0.1rem 0.35rem; border-radius: 6px; background: #F4F5F7; }
+.product-richtext pre { margin: 1rem 0; padding: 0.875rem 1rem; border-radius: 14px; background: #F4F5F7; overflow-x: auto; }
+.product-richtext pre code { padding: 0; background: none; }
+.product-richtext hr { margin: 1.5rem 0; border: 0; height: 1px; background: #E2E8F0; }
+.product-richtext table { width: 100%; border-collapse: collapse; margin: 1rem 0; font-size: 0.9rem; display: block; overflow-x: auto; }
+.product-richtext th, .product-richtext td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid #E2E8F0; }
+.product-richtext th { color: #0f172a; font-weight: 600; }

@@ -63,6 +63,50 @@ export interface StoreChapter {
 
 export interface StoreBookDetail extends StoreBook {
   chapters: StoreChapter[];
+  /** The instructor who publishes the product, from their own profile (Settings). */
+  instructor: StoreInstructor | null;
+}
+
+export type SocialKey = 'linkedin' | 'twitter' | 'instagram' | 'github' | 'youtube' | 'website';
+
+export interface StoreInstructor {
+  name: string;
+  /** An https URL or an image reference; null when there is no photo. */
+  avatar: string | null;
+  bio: string | null;
+  /** Only well-formed http(s) links, in a fixed order. */
+  links: { key: SocialKey; url: string }[];
+}
+
+const SOCIAL_KEYS: SocialKey[] = ['linkedin', 'twitter', 'instagram', 'github', 'youtube', 'website'];
+
+function webUrl(v: unknown): string | null {
+  if (typeof v !== 'string' || !v.trim() || v.length > 500) return null;
+  const raw = v.trim();
+  try {
+    const u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(raw) ? raw : `https://${raw}`);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The public part of a profile row, built field by field like toStoreBook: name, photo, bio and
+ * the social links set in Settings. Null without a name. Exported for tests.
+ */
+export function toStoreInstructor(row: any): StoreInstructor | null {
+  const name = typeof row?.full_name === 'string' ? row.full_name.trim().slice(0, 200) : '';
+  if (!name) return null;
+  const avatarRaw = typeof row.avatar_url === 'string' ? row.avatar_url.trim() : '';
+  const avatar = avatarRaw.startsWith('https://') || /^[\w./-]{1,300}$/.test(avatarRaw) ? avatarRaw : null;
+  const bio = typeof row.bio === 'string' ? row.bio.replace(/<[^>]*>/g, ' ').replace(/[ \t]+/g, ' ').trim().slice(0, 800) || null : null;
+  const social = row.social_links && typeof row.social_links === 'object' && !Array.isArray(row.social_links) ? row.social_links : {};
+  const links = SOCIAL_KEYS.flatMap(key => {
+    const url = webUrl(social[key]);
+    return url ? [{ key, url }] : [];
+  });
+  return { name, avatar, bio, links };
 }
 
 const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && !!x.trim()) : []);
@@ -137,12 +181,13 @@ export async function loadStoreBooks(db: any = adminClient(), now: Date = new Da
 /** One book by slug with its table of contents, or null when the public may not see it. */
 export async function loadStoreBook(slug: string, db: any = adminClient(), now: Date = new Date()): Promise<StoreBookDetail | null> {
   if (!/^[a-z0-9][a-z0-9-]{0,120}$/.test(slug)) return null;
-  const { data, error } = await db.from('books').select(`${COLUMNS}, status`).eq('slug', slug).eq('status', 'published').maybeSingle();
+  const { data, error } = await db.from('books').select(`${COLUMNS}, status, user_id`).eq('slug', slug).eq('status', 'published').maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const prices = (data as any).purchasable === true ? (await pricesFor(db, [(data as any).id])).get((data as any).id) ?? [] : [];
   const book = toStoreBook(data, prices, now);
   if (!book) return null;
+  const instructor = await loadInstructor(db, (data as any).user_id);
   const { data: chapters, error: chapterError } = await db
     .from('book_chapters')
     .select('title, is_preview, position')
@@ -151,10 +196,28 @@ export async function loadStoreBook(slug: string, db: any = adminClient(), now: 
   if (chapterError) throw chapterError;
   return {
     ...book,
+    instructor,
     chapters: ((chapters as any[]) ?? [])
       .filter(c => typeof c.title === 'string' && c.title.trim())
       .map(c => ({ title: c.title, inSample: book.hasSample && c.is_preview === true })),
   };
+}
+
+/** The publishing instructor's public profile. A failure only hides the section. */
+async function loadInstructor(db: any, userId: unknown): Promise<StoreInstructor | null> {
+  if (typeof userId !== 'string' || !userId) return null; // the author's account was deleted
+  try {
+    const { data: profile } = await db
+      .from('students')
+      .select('full_name, avatar_url, bio, social_links')
+      .eq('id', userId)
+      .in('role', ['instructor', 'admin'])
+      .maybeSingle();
+    return toStoreInstructor(profile);
+  } catch (e: any) {
+    console.error('[books/store] instructor lookup failed', e?.message ?? e);
+    return null;
+  }
 }
 
 export const listStoreBooks = unstable_cache(() => loadStoreBooks(), ['books-store-list'], { tags: [BOOKS_STORE_TAG], revalidate: 60 });

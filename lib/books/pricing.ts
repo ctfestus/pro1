@@ -47,3 +47,20 @@ export function shownPrice(row: PriceRow, now: Date = new Date()): ShownPrice {
     ...(row.sale_ends_at ? { saleEndsAt: row.sale_ends_at } : {}),
   };
 }
+
+/** A shown price as the browser holds it (ShownPrice from the server, or a later update). */
+export type ClientPrice = { currency: string; amount: number; original?: number; saleEndsAt?: string };
+
+/** Prices with every sale that has ended by `now` back at its regular price. */
+export function endEndedSales<P extends ClientPrice>(list: P[], now: number = Date.now()): ClientPrice[] {
+  return list.map(p => (p.original !== undefined && p.saleEndsAt && Date.parse(p.saleEndsAt) <= now
+    ? { currency: p.currency, amount: p.original } : p));
+}
+
+/** Milliseconds until the next sale in `list` ends, or null when none has an end. */
+export function msUntilNextSaleEnd(list: ClientPrice[], now: number = Date.now()): number | null {
+  const ends = list
+    .map(p => (p.original !== undefined && p.saleEndsAt ? Date.parse(p.saleEndsAt) : NaN))
+    .filter(Number.isFinite);
+  return ends.length ? Math.max(0, Math.min(...ends) - now) : null;
+}

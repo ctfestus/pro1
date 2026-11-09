@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/cache', () => ({ unstable_cache: (fn: any) => fn, revalidateTag: vi.fn() }));
 vi.mock('@/lib/admin-client', () => ({ adminClient: () => { throw new Error('tests pass a db'); } }));
 
-import { loadStoreBook, loadStoreBooks, toStoreBook } from '@/lib/books/store';
+import { loadStoreBook, loadStoreBooks, toStoreBook, toStoreInstructor } from '@/lib/books/store';
 import { makeSupabaseStub } from '../helpers/supabaseStub';
 
 const ID = '11111111-1111-4111-8111-111111111111';
@@ -94,5 +94,40 @@ describe('loadStoreBooks / loadStoreBook', () => {
     const db = makeSupabaseStub({});
     expect(await loadStoreBook('../etc', db)).toBeNull();
     expect(await loadStoreBook('Field Guide', db)).toBeNull();
+  });
+});
+
+describe('the instructor shown on a product page', () => {
+  it('keeps name, photo, bio and well-formed social links only', () => {
+    expect(toStoreInstructor({
+      full_name: ' Ama Mensah ', avatar_url: 'https://res.cloudinary.com/x/a.jpg', bio: '<b>Data</b> coach',
+      social_links: { linkedin: 'https://linkedin.com/in/ama', twitter: 'javascript:alert(1)', website: 'ama.dev', github: '', youtube: 5, evil: 'https://x.test' },
+      email: 'ama@example.test', role: 'instructor',
+    })).toEqual({
+      name: 'Ama Mensah', avatar: 'https://res.cloudinary.com/x/a.jpg', bio: 'Data coach',
+      links: [{ key: 'linkedin', url: 'https://linkedin.com/in/ama' }, { key: 'website', url: 'https://ama.dev/' }],
+    });
+  });
+
+  it('drops an unsafe photo and needs a name', () => {
+    expect(toStoreInstructor({ full_name: 'Ama', avatar_url: 'javascript:alert(1)' })!.avatar).toBeNull();
+    expect(toStoreInstructor({ full_name: 'Ama', avatar_url: 'data:image/png;base64,xx' })!.avatar).toBeNull();
+    expect(toStoreInstructor({ full_name: '  ' })).toBeNull();
+    expect(toStoreInstructor(null)).toBeNull();
+  });
+
+  it('is loaded with the product, and is simply absent without a profile', async () => {
+    const db = makeSupabaseStub({
+      books: { data: row({ user_id: 'owner-1' }) },
+      book_prices: { data: [{ book_id: ID, currency: 'GHS', amount: 120 }] },
+      book_chapters: { data: [] },
+      students: { data: { full_name: 'Ama Mensah', avatar_url: null, bio: null, social_links: {} } },
+    });
+    const book = await loadStoreBook('field-guide', db);
+    expect(book!.instructor).toEqual({ name: 'Ama Mensah', avatar: null, bio: null, links: [] });
+    expect(JSON.stringify(book)).not.toContain('owner-1');
+
+    const none = makeSupabaseStub({ books: { data: row() }, book_prices: { data: [{ book_id: ID, currency: 'GHS', amount: 120 }] }, book_chapters: { data: [] } });
+    expect((await loadStoreBook('field-guide', none))!.instructor).toBeNull();
   });
 });
