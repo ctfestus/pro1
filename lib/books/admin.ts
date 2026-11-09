@@ -19,6 +19,7 @@ import {
   type BookPrice,
 } from '@/lib/books/schema';
 import { BOOK_BUCKET } from '@/lib/books/storage';
+import { descriptionForSave } from '@/lib/books/description';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -75,7 +76,7 @@ export function bookColumnsFromInput(input: any): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   if (has('title')) out.title = text(input.title, 300) ?? 'Untitled';
   if (has('subtitle')) out.subtitle = text(input.subtitle, 300);
-  if (has('description')) out.description = text(input.description, 20000);
+  if (has('description')) out.description = descriptionForSave(text(input.description, 20000));
   if (has('coverImage')) out.cover_image = text(input.coverImage, 2000);
   if (has('authors')) out.authors = textList(input.authors, 20, 200);
   if (has('category')) out.category = text(input.category, 120);

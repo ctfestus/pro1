@@ -45,7 +45,7 @@ export function StoreChrome({ siteConfig, primaryColor, accentColor, bodyFont, p
   }, []);
 
   return (
-    <main className="min-h-screen pt-16" style={{ background: '#F3F6F5', fontFamily: bFont }}>
+    <main className="min-h-screen pt-16" style={{ background: '#F4F5F7', fontFamily: bFont }}>
       <LandingNav
         appName={appName}
         logoUrl={logoUrl}

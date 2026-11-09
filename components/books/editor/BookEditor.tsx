@@ -16,6 +16,8 @@ import { useC } from '@/components/create/theme';
 import { useC as useLibC } from '@/lib/theme';
 import { Toggle, inputCls, labelCls } from '@/components/create/shared';
 import { ImageLibrary } from '@/components/ImageLibrary';
+import { RichTextEditor } from '@/components/RichTextEditor';
+import { descriptionHtml } from '@/lib/books/description';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import {
   BOOK_DIFFICULTIES,
@@ -247,7 +249,7 @@ export function BookEditor() {
         return;
       }
       setState({
-        title: book.title ?? '', subtitle: book.subtitle ?? '', description: book.description ?? '',
+        title: book.title ?? '', subtitle: book.subtitle ?? '', description: descriptionHtml(book.description),
         coverImage: book.cover_image ?? '', authors: (book.authors ?? []).join(', '), category: book.category ?? '',
         topics: (book.topics ?? []).join(', '), skills: (book.skills ?? []).join(', '),
         difficulty: book.difficulty ?? '', estimatedMinutes: book.estimated_minutes ? String(book.estimated_minutes) : '',
@@ -790,7 +792,8 @@ export function BookEditor() {
           {sectionTitle('Details')}
           {field('Title', <input className={inputCls} style={inputStyle} value={state.title} onChange={e => update({ title: e.target.value })} />)}
           {field('Subtitle', <input className={inputCls} style={inputStyle} value={state.subtitle} onChange={e => update({ subtitle: e.target.value })} />)}
-          {field('Description', <textarea className={inputCls} style={inputStyle} rows={5} value={state.description} onChange={e => update({ description: e.target.value })} />)}
+          {field('Description', <RichTextEditor value={state.description} onChange={html => update({ description: html })} placeholder="What the product is, who it is for and what they get" enableAiAssist />,
+            'Use bold, italics, lists and headings. This shows on the product page.')}
           <div className="grid sm:grid-cols-2 gap-5">
             {field('Authors', <input className={inputCls} style={inputStyle} value={state.authors} onChange={e => update({ authors: e.target.value })} />, 'Separate names with commas.')}
             {field('Category', <input className={inputCls} style={inputStyle} value={state.category} onChange={e => update({ category: e.target.value })} placeholder="Data Engineering" />)}

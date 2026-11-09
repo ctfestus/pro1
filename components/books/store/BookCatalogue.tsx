@@ -68,7 +68,7 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {shown.map(book => (
-            <Link key={book.id} href={`/products/${book.slug}`} className="group rounded-3xl bg-white p-3 sm:p-4 flex flex-col transition-shadow hover:shadow-lg">
+            <Link key={book.id} href={`/products/${book.slug}`} className="group rounded-3xl bg-white p-3 sm:p-4 flex flex-col transition-transform hover:-translate-y-0.5" style={{ boxShadow: '0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -14px rgba(15,23,42,0.14)' }}>
               <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: '#E8EEF0', aspectRatio: '3 / 4' }}>
                 {book.coverImage
                   ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-[1.02]" />
