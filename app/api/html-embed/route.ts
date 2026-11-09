@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { isStorageHtmlEmbedUrl } from '@/lib/safe-embed-url';
+import { isStorageHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { readBodyWithLimit } from '@/lib/read-body-with-limit';
 
 // Matches the 10 MB cap the editor upload buttons enforce.
@@ -49,7 +49,7 @@ export async function GET(req: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Content-Security-Policy': 'sandbox allow-scripts allow-popups',
+        'Content-Security-Policy': `sandbox ${HTML_EMBED_SANDBOX}`,
         'X-Content-Type-Options': 'nosniff',
         'Cache-Control': 'public, max-age=300',
       },

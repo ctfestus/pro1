@@ -20,6 +20,19 @@
 export const HTML_EMBED_PROXY_PATH = '/api/html-embed';
 
 /**
+ * The sandbox for instructor HTML embeds, used both as the iframe's sandbox attribute and (as
+ * `sandbox ...`) in the proxy's CSP -- a browser applies both, so they must agree.
+ *   allow-scripts  the embed's own interactivity runs
+ *   allow-popups   its links can open a new tab
+ *   allow-popups-to-escape-sandbox  that new tab is an ordinary page: a tab opened from a
+ *                  sandboxed frame otherwise inherits the sandbox, and a page that needs storage,
+ *                  cookies or forms (this app included) breaks in it
+ * Never allow-same-origin: with allow-scripts the embed could remove its own sandbox and reach the
+ * app's session. A link that navigates inside the frame itself stays sandboxed (by design).
+ */
+export const HTML_EMBED_SANDBOX = 'allow-scripts allow-popups allow-popups-to-escape-sandbox';
+
+/**
  * True for self-contained interactive HTML pages hosted on this project's own
  * Supabase Storage public form-assets bucket (uploaded via lib/uploadToStorage).
  * Strict protocol + exact-hostname + path-prefix + extension check.
