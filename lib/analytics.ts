@@ -24,8 +24,11 @@ export function normalizeGaMeasurementId(value: unknown): string | null {
  * so while that page is on screen the token_hash in the address bar is live, and a default GA
  * page view reports the whole URL. For a recovery link that is a password reset. The same goes
  * for the PKCE `code` on /auth/callback and the root fallback in middleware.
+ *
+ * `access` is a guest buyer's download link (/products/download?access=..., lib/books/guest-access.ts):
+ * anyone holding that URL can download the product they paid for.
  */
-export const SENSITIVE_URL_PARAMS = ['token_hash', 'code', 'access_token', 'refresh_token', 'token'] as const;
+export const SENSITIVE_URL_PARAMS = ['token_hash', 'code', 'access_token', 'refresh_token', 'token', 'access'] as const;
 
 const REDACTED = 'redacted';
 

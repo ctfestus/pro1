@@ -9,6 +9,8 @@
  * tenant's project. With no DSN set the SDK initialises disabled and sends
  * nothing, which is what local development and any unconfigured deploy get.
  */
+import { redactSensitiveUrl } from './lib/analytics';
+
 export const SENTRY_DSN = process.env.NEXT_PUBLIC_SENTRY_DSN ?? '';
 
 // Vercel distinguishes production from preview; NODE_ENV cannot. SENTRY_DEPLOY_ENV is
@@ -47,3 +49,63 @@ export const SENTRY_DENY_URLS = [
   /^moz-extension:\/\//i,
   /^safari-(web-)?extension:\/\//i,
 ];
+
+/**
+ * Error reports carry the page URL and the URLs of recent navigations and requests. Some of those
+ * hold a working credential: an auth confirmation token_hash, or a guest buyer's download link
+ * (?access=..., lib/books/guest-access.ts). Each is redacted with the same list analytics uses.
+ */
+type UrlBag = { url?: unknown; from?: unknown; to?: unknown };
+
+function redactBag(bag: UrlBag | undefined) {
+  if (!bag) return;
+  for (const key of ['url', 'from', 'to'] as const) {
+    if (typeof bag[key] === 'string') bag[key] = absoluteRedact(bag[key] as string);
+  }
+}
+
+/** Redacts a full or path-only URL (navigation breadcrumbs record paths like /products/download?access=...). */
+function absoluteRedact(value: string): string {
+  if (value.startsWith('/')) {
+    const out = redactSensitiveUrl(`https://placeholder.invalid${value}`);
+    return out ? out.replace('https://placeholder.invalid', '') : '';
+  }
+  return redactSensitiveUrl(value);
+}
+
+/** Span attributes that hold a request URL or its query (tracing, when it is switched on). */
+const SPAN_URL_KEYS = ['url', 'http.url', 'url.full', 'http.target', 'url.query', 'http.query'];
+
+function redactSpanData(data: Record<string, unknown> | undefined) {
+  if (!data) return;
+  for (const key of SPAN_URL_KEYS) {
+    const v = data[key];
+    if (typeof v !== 'string') continue;
+    data[key] = key === 'url.query' || key === 'http.query'
+      ? absoluteRedact(`/?${v.replace(/^\?/, '')}`).replace(/^\/\??/, '')
+      : absoluteRedact(v);
+  }
+}
+
+/**
+ * For beforeSend and beforeSendTransaction in every runtime (browser, Node, Edge): the request URL
+ * and query, breadcrumb URLs and span URLs, with credentials replaced.
+ */
+export function scrubSentryEvent<E extends {
+  request?: UrlBag & { query_string?: unknown };
+  breadcrumbs?: { data?: UrlBag }[];
+  spans?: { data?: Record<string, unknown> }[];
+  contexts?: { trace?: { data?: Record<string, unknown> } };
+}>(event: E): E {
+  redactBag(event.request);
+  if (event.request && event.request.query_string !== undefined) delete event.request.query_string;
+  for (const crumb of event.breadcrumbs ?? []) redactBag(crumb.data);
+  for (const span of event.spans ?? []) redactSpanData(span.data);
+  redactSpanData(event.contexts?.trace?.data);
+  return event;
+}
+
+export function scrubSentryBreadcrumb<B extends { data?: UrlBag }>(crumb: B): B {
+  redactBag(crumb.data);
+  return crumb;
+}

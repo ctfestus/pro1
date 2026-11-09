@@ -2,7 +2,8 @@
 
 /**
  * The product page's price and actions, shown in the hero under the tags.
- *   signed out          -> Sign in to buy (the product is remembered across sign-in and sign-up)
+ *   signed out, for sale -> Buy now with only an email (GuestBuy), or sign in
+ *   signed out, free     -> Sign in to download (the product is remembered across sign-in and sign-up)
  *   owns it             -> Download, and a link to My Books
  *   signed in, for sale -> Buy, through /api/books/checkout and Paystack
  *   free book           -> Download once signed in
@@ -19,6 +20,8 @@ import { downloadBook } from '@/lib/books/open-preview';
 import { clearBookPage, rememberBookPage } from '@/lib/books/pending-return';
 import { formatMoney } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
+import { GuestBuy } from '@/components/books/store/GuestBuy';
+import { GuestReturn } from '@/components/books/store/GuestReturn';
 import { PRICE_CHANGED_EVENT, useCurrentPrices } from '@/lib/books/use-current-prices';
 
 export interface BuyPanelBook {
@@ -46,6 +49,14 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
   const [busy, setBusy] = useState<null | 'buy' | 'download' | 'sample'>(null);
   const [error, setError] = useState('');
   const [note, setNote] = useState('');
+  // Paystack sent a guest buyer back here (lib/paystack.ts paystackGuestBookCallbackUrl).
+  const [guestReference, setGuestReference] = useState<string | null>(null);
+  const [retryAllowed, setRetryAllowed] = useState(false);
+  const allowRetry = useCallback(() => setRetryAllowed(true), []);
+  useEffect(() => {
+    const ref = new URLSearchParams(window.location.search).get('guest_reference');
+    if (ref && ref.startsWith('book-') && ref.length <= 100) setGuestReference(ref);
+  }, []);
 
   const checkOwned = useCallback(async (token: string) => {
     try {
@@ -147,6 +158,9 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
 
   return (
     <div>
+      {guestReference && (
+        <div className="mb-5"><GuestReturn reference={guestReference} primaryColor={primaryColor} onRetryAllowed={allowRetry} /></div>
+      )}
       {book.free ? (
         <p className="text-3xl font-extrabold tracking-tight" style={{ color: '#16a34a' }}>Free</p>
       ) : price ? (
@@ -178,7 +192,15 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
               <BookOpen className="w-4 h-4" /> Open My Products
             </Link>
           </>
+        ) : viewer.phase === 'signedOut' && !book.free && price && guestReference && !retryAllowed ? (
+          // Back from Paystack: the return panel above handles it; no second Buy while it confirms.
+          null
+        ) : viewer.phase === 'signedOut' && !book.free && price ? (
+          // No account needed to buy (lib/books/guest-access.ts); signing in stays one click away.
+          <GuestBuy bookId={book.id} price={price} signInLink={signInHref(backHere)} onSignIn={() => rememberBookPage(book.slug)}
+            primaryColor={primaryColor} primaryBtn={primaryBtn} />
         ) : viewer.phase === 'signedOut' ? (
+          // Free products stay sign-in only: a download without an account would make the file public.
           <Link href={signInHref(backHere)} onClick={() => rememberBookPage(book.slug)} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
             {book.free ? 'Sign in to download' : 'Sign in to buy'}
           </Link>

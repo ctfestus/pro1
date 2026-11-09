@@ -8169,14 +8169,31 @@ $$;
 REVOKE EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb) TO service_role;
 
--- Books store (migration 235): purchase fulfilment.
--- Fulfilment -----------------------------------------------------------------------------------
--- Called once Paystack has said the charge succeeded (webhook or the buyer's return page, often
--- both at once). The row lock makes it run once: the second caller sees 'paid' and stops. A
--- purchase marked failed (an abandoned checkout replaced by a newer one) is still fulfilled if its
--- money turns up later -- the buyer paid, so they own it.
---
--- Refunds are handled outside the platform (in Paystack, by staff), so nothing here reacts to them.
+-- Books store (migrations 235 and 238): purchase fulfilment, guest purchases and their download allowance.
+ALTER TABLE public.book_purchases
+  ADD COLUMN IF NOT EXISTS is_guest                boolean     NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS guest_email             text,
+  ADD COLUMN IF NOT EXISTS guest_return_hash       text,
+  ADD COLUMN IF NOT EXISTS guest_access_expires_at timestamptz,
+  ADD COLUMN IF NOT EXISTS guest_downloads_used    integer     NOT NULL DEFAULT 0;
+
+ALTER TABLE public.book_purchases DROP CONSTRAINT IF EXISTS book_purchases_guest_check;
+ALTER TABLE public.book_purchases ADD CONSTRAINT book_purchases_guest_check CHECK (
+  (is_guest AND student_id IS NULL AND guest_email IS NOT NULL
+     AND guest_email = lower(guest_email) AND length(guest_email) BETWEEN 3 AND 254
+     AND guest_return_hash ~ '^[0-9a-f]{64}$')
+  OR (NOT is_guest AND guest_email IS NULL AND guest_return_hash IS NULL AND guest_access_expires_at IS NULL)
+);
+ALTER TABLE public.book_purchases DROP CONSTRAINT IF EXISTS book_purchases_guest_downloads_check;
+ALTER TABLE public.book_purchases ADD CONSTRAINT book_purchases_guest_downloads_check
+  CHECK (guest_downloads_used >= 0 AND guest_downloads_used <= 5);
+
+CREATE INDEX IF NOT EXISTS idx_book_purchases_guest_email
+  ON public.book_purchases(guest_email) WHERE is_guest;
+
+-- Fulfilment ----------------------------------------------------------------------------------
+-- As in 235, with a guest branch: a guest purchase is paid without an entitlement and gets its
+-- download allowance. A signed-in purchase whose account was deleted still goes to review.
 CREATE OR REPLACE FUNCTION public.fulfil_book_purchase(
   p_reference      text,
   p_amount         numeric,
@@ -8201,6 +8218,12 @@ BEGIN
 
   IF round(p_amount * 100) <> round(v.amount * 100) OR upper(coalesce(p_currency, '')) <> v.currency THEN
     v_reason := 'amount_mismatch';
+  ELSIF v.is_guest AND v.guest_access_expires_at IS NOT NULL THEN
+    -- Paid before, then moved off 'paid' by hand (a refund recorded as failed, say): a webhook replay
+    -- or the buyer's return page must not quietly restore access. Staff decide.
+    v_reason := 'guest_previously_paid';
+  ELSIF v.is_guest THEN
+    v_reason := NULL;
   ELSIF v.student_id IS NULL THEN
     v_reason := 'account_deleted';
   ELSIF EXISTS (
@@ -8215,6 +8238,17 @@ BEGIN
     SET status = 'needs_review', review_reason = v_reason, paid_at = now()
     WHERE id = v.id;
     RETURN jsonb_build_object('status', 'needs_review', 'reason', v_reason, 'purchaseId', v.id, 'bookId', v.book_id);
+  END IF;
+
+  IF v.is_guest THEN
+    -- The one allowance this purchase ever gets, starting at verified payment. Set once: a row moved
+    -- back to failed or pending by hand (record refunds as 'refunded', which stops here above) and
+    -- then fulfilled again keeps its original seven days.
+    UPDATE public.book_purchases
+    SET status = 'paid', paid_at = coalesce(paid_at, now()),
+        guest_access_expires_at = coalesce(guest_access_expires_at, now() + interval '7 days')
+    WHERE id = v.id;
+    RETURN jsonb_build_object('status', 'paid', 'purchaseId', v.id, 'bookId', v.book_id, 'alreadyProcessed', false);
   END IF;
 
   -- Two of the buyer's checkouts paid at the same moment both pass the check above (each locks only
@@ -8237,3 +8271,36 @@ END;
 $$;
 REVOKE EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) FROM PUBLIC, anon, authenticated;
 GRANT  EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) TO service_role;
+
+-- Download allowance ---------------------------------------------------------------------------
+-- Takes one of a paid guest purchase's five downloads, under a row lock so parallel clicks cannot
+-- take more than five. Counted when a download link is handed out; release_guest_book_download
+-- gives it back when handing it out failed. Opening an HTML product in the browser does not count.
+CREATE OR REPLACE FUNCTION public.take_guest_book_download(p_purchase_id uuid)
+RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v public.book_purchases%ROWTYPE;
+BEGIN
+  SELECT * INTO v FROM public.book_purchases WHERE id = p_purchase_id FOR UPDATE;
+  IF NOT FOUND OR NOT v.is_guest THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_found'); END IF;
+  IF v.status <> 'paid' THEN RETURN jsonb_build_object('ok', false, 'reason', 'not_paid'); END IF;
+  IF v.guest_access_expires_at IS NULL OR v.guest_access_expires_at <= now() THEN
+    RETURN jsonb_build_object('ok', false, 'reason', 'expired');
+  END IF;
+  IF v.guest_downloads_used >= 5 THEN RETURN jsonb_build_object('ok', false, 'reason', 'used_up'); END IF;
+  UPDATE public.book_purchases SET guest_downloads_used = guest_downloads_used + 1 WHERE id = v.id;
+  RETURN jsonb_build_object('ok', true, 'remaining', 5 - (v.guest_downloads_used + 1));
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.take_guest_book_download(uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.take_guest_book_download(uuid) TO service_role;
+
+CREATE OR REPLACE FUNCTION public.release_guest_book_download(p_purchase_id uuid)
+RETURNS void
+LANGUAGE sql SECURITY DEFINER SET search_path = '' AS $$
+  UPDATE public.book_purchases SET guest_downloads_used = guest_downloads_used - 1
+  WHERE id = p_purchase_id AND is_guest AND guest_downloads_used > 0;
+$$;
+REVOKE EXECUTE ON FUNCTION public.release_guest_book_download(uuid) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.release_guest_book_download(uuid) TO service_role;

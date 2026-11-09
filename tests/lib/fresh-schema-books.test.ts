@@ -180,7 +180,9 @@ describe('fresh schema books store (migration 235)', () => {
 
   it('mirrors the fulfilment function, service role only, and has no refund automation', () => {
     const fn = migration.slice(migration.indexOf('-- Fulfilment ----')).trim();
-    expect(schema).toContain(fn);
+    // Redefined in 238 (guest purchases); the schema carries that version, tested below.
+    const m238 = readFileSync(join(process.cwd(), 'migrations/238_book_guest_purchases.sql'), 'utf8');
+    expect(schema).toContain(m238.slice(m238.indexOf('-- Fulfilment ----')).trim());
     expect(fn).toContain('REVOKE EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) FROM PUBLIC, anon, authenticated;');
     expect(fn).toContain('GRANT  EXECUTE ON FUNCTION public.fulfil_book_purchase(text, numeric, text, bigint) TO service_role;');
     // Refunds are handled outside the platform.
@@ -204,5 +206,61 @@ describe('fresh schema books store (migration 235)', () => {
     expect(fn.lastIndexOf('IF NOT FOUND THEN')).toBeGreaterThan(fn.indexOf('DO NOTHING;'));
     // Once paid, the buyer's other open checkouts for the book are closed.
     expect(fn).toContain("WHERE student_id = v.student_id AND book_id = v.book_id AND status = 'pending' AND id <> v.id;");
+  });
+});
+
+describe('fresh schema guest purchases (migration 238)', () => {
+  const schema = readFileSync(join(process.cwd(), 'festman-fresh-schema.sql'), 'utf8');
+  const m235 = readFileSync(join(process.cwd(), 'migrations/235_book_store.sql'), 'utf8');
+  const migration = readFileSync(join(process.cwd(), 'migrations/238_book_guest_purchases.sql'), 'utf8');
+  const fulfil = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.fulfil_book_purchase'), migration.indexOf('-- Download allowance'));
+  const take = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.take_guest_book_download'), migration.indexOf('CREATE OR REPLACE FUNCTION public.release_guest_book_download'));
+
+  it('is mirrored whole into the fresh schema', () => {
+    expect(schema).toContain(migration.slice(migration.indexOf('ALTER TABLE public.book_purchases')).trim());
+  });
+
+  it('keeps a guest purchase apart from accounts, and a signed-in one free of guest fields', () => {
+    expect(migration).toContain('(is_guest AND student_id IS NULL AND guest_email IS NOT NULL');
+    expect(migration).toContain('OR (NOT is_guest AND guest_email IS NULL AND guest_return_hash IS NULL AND guest_access_expires_at IS NULL)');
+    expect(migration).toContain("guest_return_hash ~ '^[0-9a-f]{64}$'");
+    expect(migration).toContain('CHECK (guest_downloads_used >= 0 AND guest_downloads_used <= 5)');
+  });
+
+  it('changes fulfilment only by the guest branch: same lock, same amount check, allowance set once at payment', () => {
+    const before = m235.slice(m235.indexOf('CREATE OR REPLACE FUNCTION public.fulfil_book_purchase'), m235.indexOf('REVOKE EXECUTE ON FUNCTION public.fulfil_book_purchase'));
+    for (const line of before.split('\n').map(l => l.trim()).filter(Boolean)) expect(fulfil).toContain(line);
+    const done = fulfil.indexOf("IF v.status IN ('paid', 'refunded', 'needs_review')");
+    const amount = fulfil.indexOf('round(p_amount * 100) <> round(v.amount * 100)');
+    const guest = fulfil.indexOf("guest_access_expires_at = coalesce(guest_access_expires_at, now() + interval '7 days')");
+    expect(done).toBeGreaterThan(0);
+    expect(amount).toBeGreaterThan(done);
+    // An already-processed purchase returns before the allowance is ever set: confirming again
+    // cannot restart the seven days.
+    expect(guest).toBeGreaterThan(amount);
+    // A guest purchase never creates an account entitlement.
+    expect(fulfil.slice(fulfil.indexOf('IF v.is_guest THEN', amount), fulfil.indexOf('INSERT INTO public.book_entitlements'))).toContain('RETURN');
+    expect(fulfil).toContain("ELSIF v.student_id IS NULL THEN\n    v_reason := 'account_deleted';");
+    // Paid before and moved off 'paid' by hand (a refund recorded as failed): never quietly restored.
+    const revived = fulfil.indexOf("ELSIF v.is_guest AND v.guest_access_expires_at IS NOT NULL THEN\n    -- Paid before");
+    expect(revived).toBeGreaterThan(amount);
+    expect(fulfil.indexOf("v_reason := 'guest_previously_paid';")).toBeGreaterThan(revived);
+    expect(revived).toBeLessThan(fulfil.indexOf('  ELSIF v.is_guest THEN\n    v_reason := NULL;'));
+  });
+
+  it('takes a download under a lock, only while paid, inside the seven days and under five', () => {
+    const lock = take.indexOf('WHERE id = p_purchase_id FOR UPDATE');
+    expect(lock).toBeGreaterThan(0);
+    for (const check of ["IF v.status <> 'paid'", 'v.guest_access_expires_at <= now()', 'IF v.guest_downloads_used >= 5']) {
+      expect(take.indexOf(check)).toBeGreaterThan(lock);
+      expect(take.indexOf(check)).toBeLessThan(take.indexOf('UPDATE public.book_purchases'));
+    }
+  });
+
+  it('lets only the service role run the guest functions', () => {
+    for (const fn of ['take_guest_book_download(uuid)', 'release_guest_book_download(uuid)']) {
+      expect(migration).toContain(`REVOKE EXECUTE ON FUNCTION public.${fn} FROM PUBLIC, anon, authenticated;`);
+      expect(migration).toContain(`GRANT  EXECUTE ON FUNCTION public.${fn} TO service_role;`);
+    }
   });
 });
