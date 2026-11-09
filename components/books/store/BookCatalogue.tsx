@@ -7,7 +7,8 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { BookOpen, Search } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
-import { formatLabel, priceLabel } from '@/lib/books/format';
+import { formatLabel } from '@/lib/books/format';
+import { PriceTag } from '@/components/books/store/PriceTag';
 import type { StoreBook } from '@/lib/books/store';
 
 const ALL = 'All';
@@ -35,8 +36,8 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
     return (
       <div className="rounded-3xl bg-white px-6 py-16 text-center">
         <BookOpen className="w-8 h-8 mx-auto" style={{ color: '#94a3b8' }} />
-        <p className="mt-3 text-base font-semibold" style={{ color: '#0f172a' }}>No books yet</p>
-        <p className="mt-1 text-sm" style={{ color: '#64748b' }}>New books will appear here as soon as they are published.</p>
+        <p className="mt-3 text-base font-semibold" style={{ color: '#0f172a' }}>No products yet</p>
+        <p className="mt-1 text-sm" style={{ color: '#64748b' }}>New digital products will appear here as soon as they are published.</p>
       </div>
     );
   }
@@ -46,7 +47,7 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
         <label className="relative flex-1 max-w-md">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2" style={{ color: '#94a3b8' }} />
-          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by title, author or topic" aria-label="Search books"
+          <input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search by title, author or topic" aria-label="Search products"
             className="w-full rounded-2xl bg-white pl-10 pr-4 py-3 text-sm outline-none" style={{ color: '#0f172a' }} />
         </label>
         {categories.length > 0 && (
@@ -63,11 +64,11 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
       </div>
 
       {shown.length === 0 ? (
-        <p className="text-sm py-10 text-center" style={{ color: '#64748b' }}>No books match your search.</p>
+        <p className="text-sm py-10 text-center" style={{ color: '#64748b' }}>No products match your search.</p>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
           {shown.map(book => (
-            <Link key={book.id} href={`/books/${book.slug}`} className="group rounded-3xl bg-white p-3 sm:p-4 flex flex-col transition-shadow hover:shadow-lg">
+            <Link key={book.id} href={`/products/${book.slug}`} className="group rounded-3xl bg-white p-3 sm:p-4 flex flex-col transition-shadow hover:shadow-lg">
               <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: '#E8EEF0', aspectRatio: '3 / 4' }}>
                 {book.coverImage
                   ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-[1.02]" />
@@ -76,7 +77,9 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
               <p className="mt-3 text-sm sm:text-base font-semibold leading-snug line-clamp-2" style={{ color: '#0f172a' }}>{book.title}</p>
               {book.authors.length > 0 && <p className="text-xs mt-1 truncate" style={{ color: '#64748b' }}>{book.authors.join(', ')}</p>}
               <div className="mt-auto pt-3 flex items-center justify-between gap-2">
-                <span className="text-sm font-bold" style={{ color: book.free ? '#16a34a' : '#0f172a' }}>{priceLabel(book)}</span>
+                {book.free
+                  ? <span className="text-sm font-bold" style={{ color: '#16a34a' }}>Free</span>
+                  : <PriceTag prices={book.prices} className="text-sm font-bold" style={{ color: '#0f172a' }} />}
                 <span className="text-[11px]" style={{ color: '#94a3b8' }}>{formatLabel(book.format).split(' ')[0]}</span>
               </div>
             </Link>

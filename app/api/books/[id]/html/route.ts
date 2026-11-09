@@ -52,26 +52,26 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
-    if (!book) return plain(404, 'Book not found.');
+    if (!book) return plain(404, 'Product not found.');
 
     const row = book as unknown as BookAccessRow & { format: string | null; file_path: string | null };
     if (claims.variant === 'public-sample') {
       // The store's open sample: nobody signed in, so the public rule decides, re-checked here so
       // unpublishing (or a licence ending) inside the ticket's few minutes still takes effect.
-      if (!isPublicSampleAvailable(row)) return plain(404, 'Book not found.');
+      if (!isPublicSampleAvailable(row)) return plain(404, 'Product not found.');
     } else {
       const access = await canReadBook(db, claims.userId as string, row);
       if (access.level === 'none') return plain(access.status, access.error);
       // A ticket for the full book is only honoured while the reader still has full access.
-      if (claims.variant === 'full' && access.level !== 'full') return plain(403, 'You do not have access to this book.');
+      if (claims.variant === 'full' && access.level !== 'full') return plain(403, 'You do not have access to this product.');
     }
-    if (row.format !== 'html') return plain(400, 'This book is not an HTML book.');
+    if (row.format !== 'html') return plain(400, 'This product is not an HTML file.');
 
     // Only a 'full' ticket ever reaches the full file; 'preview' and 'public-sample' get the sample.
     const kind = claims.variant === 'full' ? 'file' : 'preview';
     const path = kind === 'file' ? row.file_path : row.preview_file_path;
     // Only an object this book's own upload issued -- never a path copied from another book.
-    if (!isBookObjectPath(row.id, path, kind, 'html')) return plain(404, 'This book has no file yet.');
+    if (!isBookObjectPath(row.id, path, kind, 'html')) return plain(404, 'This product has no file yet.');
 
     // Fetched through a short-lived signed URL rather than storage.download(), which buffers the
     // whole object: the bucket allows 100 MB, so the 10 MB HTML cap is enforced while streaming.
@@ -94,7 +94,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     const declared = rawLength === null ? NaN : Number(rawLength);
     if (Number.isFinite(declared) && declared > BOOK_HTML_MAX_BYTES) {
       await upstream.body?.cancel('Book exceeds size limit');
-      return plain(413, 'This book file is too large to open.');
+      return plain(413, 'This product file is too large to open.');
     }
 
     // Always streamed, never buffered: a buffered serverless response is capped (about 4.5 MB on
@@ -116,6 +116,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
   } catch (e: any) {
     console.error('[books/html]', e?.message ?? e);
-    return plain(500, 'Could not open the book.');
+    return plain(500, 'Could not open the product.');
   }
 }

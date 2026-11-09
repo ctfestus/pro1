@@ -2,6 +2,7 @@ import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { adminClient } from '@/lib/admin-client';
 import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
+import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
 import { isBookObjectPath, isLicenseExpired, type BookFormat } from '@/lib/books/schema';
 import { BOOKS_STORE_TAG } from '@/lib/books/store-cache';
 import type { NavBook } from '@/lib/landing-nav';
@@ -29,10 +30,8 @@ const COLUMNS = [
   'file_path', 'preview_file_path',
 ].join(', ');
 
-export interface StorePrice {
-  currency: string;
-  amount: number;
-}
+/** A price as shown and charged now: the sale price while a sale is on (lib/books/pricing.ts). */
+export type StorePrice = ShownPrice;
 
 export interface StoreBook {
   id: string;
@@ -106,14 +105,14 @@ async function pricesFor(db: any, ids: string[]): Promise<Map<string, StorePrice
   if (!ids.length) return out;
   // Chunked and paged: a truncated or oversized price query would silently hide books from the
   // store. (book_id, currency) is unique, so ordering by both keeps page boundaries stable.
-  const rows = await fetchAllRowsByIds<{ book_id: string; currency: string; amount: unknown }>(ids, (chunk, from, to) =>
-    db.from('book_prices').select('book_id, currency, amount', { count: 'exact' })
+  const rows = await fetchAllRowsByIds<PriceRow & { book_id: string }>(ids, (chunk, from, to) =>
+    db.from('book_prices').select('book_id, currency, amount, sale_amount, sale_ends_at', { count: 'exact' })
       .in('book_id', chunk).order('book_id').order('currency').range(from, to));
   for (const p of rows) {
     const amount = Number(p.amount);
     if (!Number.isFinite(amount) || amount <= 0) continue;
     const entry = out.get(p.book_id) ?? [];
-    entry.push({ currency: String(p.currency), amount });
+    entry.push(shownPrice(p));
     out.set(p.book_id, entry);
   }
   return out;

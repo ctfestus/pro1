@@ -7986,6 +7986,14 @@ VALUES ('book-files', 'book-files', false, 104857600, ARRAY[
 ON CONFLICT (id) DO UPDATE SET public = false, file_size_limit = 104857600,
   allowed_mime_types = ARRAY['application/epub+zip', 'application/pdf', 'text/html'];
 
+-- A sale price, lower than the regular one, until an optional end (migration 237).
+ALTER TABLE public.book_prices
+  ADD COLUMN IF NOT EXISTS sale_amount  numeric(10,2),
+  ADD COLUMN IF NOT EXISTS sale_ends_at timestamptz;
+ALTER TABLE public.book_prices DROP CONSTRAINT IF EXISTS book_prices_sale_check;
+ALTER TABLE public.book_prices ADD CONSTRAINT book_prices_sale_check
+  CHECK (sale_amount IS NULL OR (sale_amount > 0 AND sale_amount < amount));
+
 -- Books (migration 233): save a book and its chapters atomically. Chapter ids are kept so reading
 -- progress and notes survive edits and reorders.
 CREATE OR REPLACE FUNCTION public.save_book_chapters(p_book_id uuid, p_chapters jsonb)
@@ -8133,10 +8141,12 @@ BEGIN
   END IF;
 
   IF p_prices IS NOT NULL THEN
-    INSERT INTO public.book_prices (book_id, currency, amount)
-    SELECT p_book_id, p->>'currency', (p->>'amount')::numeric
+    INSERT INTO public.book_prices (book_id, currency, amount, sale_amount, sale_ends_at)
+    SELECT p_book_id, p->>'currency', (p->>'amount')::numeric,
+           NULLIF(p->>'sale_amount', '')::numeric, NULLIF(p->>'sale_ends_at', '')::timestamptz
       FROM jsonb_array_elements(p_prices) AS p
-    ON CONFLICT (book_id, currency) DO UPDATE SET amount = EXCLUDED.amount;
+    ON CONFLICT (book_id, currency) DO UPDATE
+      SET amount = EXCLUDED.amount, sale_amount = EXCLUDED.sale_amount, sale_ends_at = EXCLUDED.sale_ends_at;
     DELETE FROM public.book_prices
      WHERE book_id = p_book_id
        AND currency NOT IN (SELECT p->>'currency' FROM jsonb_array_elements(p_prices) AS p);

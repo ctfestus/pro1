@@ -19,13 +19,15 @@ import { signInHref } from '@/lib/auth-redirect';
 import { downloadBook } from '@/lib/books/open-preview';
 import { clearBookPage, rememberBookPage } from '@/lib/books/pending-return';
 import { formatMoney } from '@/lib/books/format';
+import { PriceTag } from '@/components/books/store/PriceTag';
 
 export interface BuyPanelBook {
   id: string;
   slug: string;
   format: string;
   free: boolean;
-  prices: { currency: string; amount: number }[];
+  /** As shown now: the sale price while a sale is on, with the regular price as `original`. */
+  prices: { currency: string; amount: number; original?: number; saleEndsAt?: string }[];
   hasSample: boolean;
 }
 
@@ -73,8 +75,25 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
     return () => { cancelled = true; subscription.unsubscribe(); };
   }, [checkOwned]);
 
-  const price = book.prices.find(p => p.currency === currency) ?? book.prices[0];
-  const backHere = `/books/${book.slug}`;
+  // Prices as shown now. A sale that ends while the page is open drops back to the regular price
+  // at that moment, and a price checkout reports as changed replaces the one the page loaded with.
+  const [prices, setPrices] = useState(book.prices);
+  useEffect(() => {
+    const ends = prices
+      .map(p => (p.original !== undefined && p.saleEndsAt ? Date.parse(p.saleEndsAt) : NaN))
+      .filter(Number.isFinite);
+    if (!ends.length) return;
+    const endSales = () => setPrices(list => list.map(p =>
+      p.original !== undefined && p.saleEndsAt && Date.parse(p.saleEndsAt) <= Date.now()
+        ? { currency: p.currency, amount: p.original } : p));
+    // setTimeout holds at most about 24 days; a later end is picked up when the timer fires again.
+    const wait = Math.min(Math.max(0, Math.min(...ends) - Date.now()), 2 ** 31 - 1);
+    const t = window.setTimeout(endSales, wait);
+    return () => window.clearTimeout(t);
+  }, [prices]);
+
+  const price = prices.find(p => p.currency === currency) ?? prices[0];
+  const backHere = `/products/${book.slug}`;
 
   async function buy() {
     if (viewer.phase !== 'signedIn' || !price) return;
@@ -85,12 +104,18 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
       const res = await fetch('/api/books/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ bookId: book.id, currency: price.currency }),
+        body: JSON.stringify({ bookId: book.id, currency: price.currency, expectedAmount: price.amount }),
       });
       const d = await res.json().catch(() => ({}));
       if (res.ok && d.authorizationUrl) { window.location.href = d.authorizationUrl; return; }
-      if (res.ok && d.status === 'paid') { setViewer({ phase: 'signedIn', owned: true }); setNote('You already paid for this book. It is in My Books.'); return; }
-      if (res.ok && d.status) { setNote('A payment for this book is already being checked. See My Books for its status.'); return; }
+      if (res.ok && d.status === 'paid') { setViewer({ phase: 'signedIn', owned: true }); setNote('You already paid for this product. It is in My Products.'); return; }
+      if (res.ok && d.status) { setNote('A payment for this product is already being checked. See My Products for its status.'); return; }
+      if (res.status === 409 && d.priceChanged && d.price && typeof d.price.amount === 'number') {
+        const now = d.price as BuyPanelBook['prices'][number];
+        setPrices(list => list.map(p => (p.currency === now.currency ? now : p)));
+        setNote('The price has changed. Check the new price and press Buy again.');
+        return;
+      }
       if (res.status === 409 && /already have/i.test(d.error ?? '')) { setViewer({ phase: 'signedIn', owned: true }); return; }
       if (res.status === 401) { setViewer({ phase: 'signedOut' }); throw new Error('Your session ended. Sign in again to buy.'); }
       throw new Error(d.error || 'Could not start the checkout.');
@@ -106,7 +131,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
     try {
       await downloadBook(book.id);
     } catch (e: any) {
-      setError(e?.message || 'Could not download the book.');
+      setError(e?.message || 'Could not download the product.');
     } finally {
       setBusy(null);
     }
@@ -141,11 +166,19 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
         <p className="text-2xl font-bold" style={{ color: '#16a34a' }}>Free</p>
       ) : price ? (
         <div className="flex items-end justify-between gap-3">
-          <p className="text-2xl font-bold" style={{ color: '#0f172a' }}>{formatMoney(price.amount, price.currency)}</p>
-          {book.prices.length > 1 && (
+          <div>
+            <PriceTag prices={[price]} className="text-2xl font-bold" style={{ color: '#0f172a' }} />
+            {price.original !== undefined && (
+              <p className="text-xs mt-1 font-semibold" style={{ color: '#16a34a' }}>
+                Save {formatMoney(price.original - price.amount, price.currency)}
+                {price.saleEndsAt ? ` until ${new Date(price.saleEndsAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' })}` : ''}
+              </p>
+            )}
+          </div>
+          {prices.length > 1 && (
             <select value={currency} onChange={e => setCurrency(e.target.value)} aria-label="Currency"
               className="rounded-xl px-3 py-2 text-sm outline-none" style={{ background: '#F3F6F5', color: '#334155' }}>
-              {book.prices.map(p => <option key={p.currency} value={p.currency}>{p.currency}</option>)}
+              {prices.map(p => <option key={p.currency} value={p.currency}>{p.currency}</option>)}
             </select>
           )}
         </div>
@@ -158,10 +191,10 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
           <button onClick={download} disabled={busy === 'download'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
             {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
           </button>
-          <Link href="/student#books" className={secondaryBtn} style={{ background: '#F3F6F5', color: '#334155' }}>
-            <BookOpen className="w-4 h-4" /> Open My Books
+          <Link href="/student#products" className={secondaryBtn} style={{ background: '#F3F6F5', color: '#334155' }}>
+            <BookOpen className="w-4 h-4" /> Open My Products
           </Link>
-          {!book.free && <p className="text-xs text-center" style={{ color: '#16a34a' }}>You own this book.</p>}
+          {!book.free && <p className="text-xs text-center" style={{ color: '#16a34a' }}>You own this product.</p>}
         </>
       ) : viewer.phase === 'signedOut' ? (
         <>

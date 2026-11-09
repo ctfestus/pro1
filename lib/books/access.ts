@@ -37,7 +37,7 @@ export interface BookAccessRow {
   preview_file_path: string | null;
 }
 
-const NOT_FOUND: BookAccess = { level: 'none', status: 404, error: 'Book not found.' };
+const NOT_FOUND: BookAccess = { level: 'none', status: 404, error: 'Product not found.' };
 
 export async function canReadBook(
   db: any,
@@ -90,14 +90,14 @@ export async function canReadBook(
   if (!visible) return NOT_FOUND;
 
   if (isLicenseExpired(book.license_expires_at, now)) {
-    return { level: 'none', status: 403, error: 'This book is no longer available.' };
+    return { level: 'none', status: 403, error: 'This product is no longer available.' };
   }
   if (viaCohort) return { level: 'full', reason: 'cohort' };
   if (entitled) return { level: 'full', reason: 'entitlement' };
 
   // For sale, not owned: the sample if there is one.
   if (book.preview_file_path) return { level: 'preview' };
-  return { level: 'none', status: 403, error: 'Buy this book to read it.' };
+  return { level: 'none', status: 403, error: 'Buy this product to read it.' };
 }
 
 /**

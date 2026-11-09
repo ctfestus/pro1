@@ -27,7 +27,7 @@ import { refreshBookStore } from '@/lib/books/store-cache';
 // writes of a save then happen in one transaction, in save_book (migration 233), which also
 // refuses a save made from an outdated version of the book. Assigning a book to a cohort does not
 // email students yet (lib/send-assignment-notification.ts has no book type); assigned books show
-// up in the student's My Books (/student#books, components/student/books.tsx).
+// up in the student's My Books (/student#products, components/student/books.tsx).
 export const dynamic = 'force-dynamic';
 
 const ROLES = ['admin', 'instructor'];
@@ -77,11 +77,11 @@ async function cleanUpBookFiles(db: any, bookId: string, current: (string | null
 
 /** save_book raises these codes; anything else is a server error. */
 const SAVE_ERRORS: Record<string, { status: number; error: string }> = {
-  BK404: { status: 404, error: 'Book not found.' },
-  BK409: { status: 409, error: 'This book was changed since you opened it. Reload to see the latest version.' },
+  BK404: { status: 404, error: 'Product not found.' },
+  BK409: { status: 409, error: 'This product was changed since you opened it. Reload to see the latest version.' },
   BK400: { status: 400, error: 'Saving would remove every chapter. Remove them on purpose to do that.' },
-  '42501': { status: 400, error: 'A chapter in this save belongs to another book. Reload and try again.' },
-  '23514': { status: 400, error: 'The book could not be saved as given. Check its file, licence and paths.' },
+  '42501': { status: 400, error: 'A chapter in this save belongs to another product. Reload and try again.' },
+  '23514': { status: 400, error: 'The product could not be saved as given. Check its file, licence and paths.' },
 };
 
 export async function GET(req: NextRequest) {
@@ -115,7 +115,7 @@ export async function GET(req: NextRequest) {
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     console.error('[books] list failed', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not load books.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not load products.' }, { status: 500 });
   }
 }
 
@@ -139,10 +139,10 @@ export async function POST(req: NextRequest) {
     if (!error) return NextResponse.json({ id: data.id, slug: data.slug });
     if (error.code !== '23505') {
       console.error('[books] create failed', error.message);
-      return NextResponse.json({ error: 'Could not create the book.' }, { status: 500 });
+      return NextResponse.json({ error: 'Could not create the product.' }, { status: 500 });
     }
   }
-  return NextResponse.json({ error: 'Could not create the book. Try again.' }, { status: 409 });
+  return NextResponse.json({ error: 'Could not create the product. Try again.' }, { status: 409 });
 }
 
 export async function PUT(req: NextRequest) {
@@ -153,12 +153,12 @@ export async function PUT(req: NextRequest) {
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid request.' }, { status: 400 }); }
   const id = typeof body?.id === 'string' ? body.id : '';
-  if (!UUID.test(id)) return NextResponse.json({ error: 'A valid book id is required.' }, { status: 400 });
+  if (!UUID.test(id)) return NextResponse.json({ error: 'A valid product id is required.' }, { status: 400 });
 
   try {
     const { data: existing, error: loadError } = await db.from('books').select('*').eq('id', id).maybeSingle();
     if (loadError) throw loadError;
-    if (!existing) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+    if (!existing) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     const book = existing as BookRow;
     if (!canEdit(book, auth.user.id, auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
 
@@ -166,7 +166,7 @@ export async function PUT(req: NextRequest) {
     // silently undo what was saved since it was loaded.
     if (body.expectedUpdatedAt !== undefined
       && Date.parse(String(body.expectedUpdatedAt)) !== Date.parse(String(book.updated_at))) {
-      return NextResponse.json({ error: 'This book was changed since you opened it. Reload to see the latest version.' }, { status: 409 });
+      return NextResponse.json({ error: 'This product was changed since you opened it. Reload to see the latest version.' }, { status: 409 });
     }
 
     const commercial = commercialFromInput(body);
@@ -183,7 +183,7 @@ export async function PUT(req: NextRequest) {
       const path = body.file?.path;
       const nextFormat = body.file?.format;
       if (path !== book.file_path) {
-        if (!isBookFormat(nextFormat)) return NextResponse.json({ error: 'Unknown book format.' }, { status: 400 });
+        if (!isBookFormat(nextFormat)) return NextResponse.json({ error: 'Unknown product format.' }, { status: 400 });
         const checked = await verifyUploadedObject(db, book.id, path, 'file', nextFormat);
         if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
         if (book.file_path) replaced.push(book.file_path);
@@ -204,7 +204,7 @@ export async function PUT(req: NextRequest) {
         if (book.preview_file_path) replaced.push(book.preview_file_path);
         patch.preview_file_path = null;
       } else if (path !== book.preview_file_path) {
-        if (!format) return NextResponse.json({ error: 'Upload the book file before its sample.' }, { status: 400 });
+        if (!format) return NextResponse.json({ error: 'Upload the product file before its sample.' }, { status: 400 });
         const checked = await verifyUploadedObject(db, book.id, path, 'preview', format);
         if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
         if (book.preview_file_path) replaced.push(book.preview_file_path);
@@ -233,7 +233,9 @@ export async function PUT(req: NextRequest) {
       p_patch: patch,
       p_chapters: chapters,
       p_clear_chapters: body.clearChapters === true,
-      p_prices: commercial.prices ?? null,
+      p_prices: commercial.prices
+        ? commercial.prices.map(p => ({ currency: p.currency, amount: p.amount, sale_amount: p.saleAmount ?? null, sale_ends_at: p.saleEndsAt ?? null }))
+        : null,
     });
     if (saveError) {
       const known = SAVE_ERRORS[String(saveError.code)];
@@ -247,7 +249,7 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ ok: true, book: saved });
   } catch (e: any) {
     console.error('[books] save failed', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not save the book.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not save the product.' }, { status: 500 });
   }
 }
 
@@ -257,12 +259,12 @@ export async function DELETE(req: NextRequest) {
   const db = auth.serviceDb;
 
   const requested = req.nextUrl.searchParams.get('id') ?? '';
-  if (!UUID.test(requested)) return NextResponse.json({ error: 'A valid book id is required.' }, { status: 400 });
+  if (!UUID.test(requested)) return NextResponse.json({ error: 'A valid product id is required.' }, { status: 400 });
 
   try {
     const { data: found, error } = await db.from('books').select('id, user_id').eq('id', requested).maybeSingle();
     if (error) throw error;
-    if (!found) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+    if (!found) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     const book = found as BookRow;
     if (!canEdit(book, auth.user.id, auth.role)) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
     // The stored id from here on: storage folders are named by it, in lowercase.
@@ -275,7 +277,7 @@ export async function DELETE(req: NextRequest) {
       db.from('book_entitlements').select('id', { count: 'exact', head: true }).eq('book_id', id),
     ]);
     if ((purchases ?? 0) > 0 || (owners ?? 0) > 0) {
-      return NextResponse.json({ error: 'This book has orders or owners. Archive it instead of deleting it.' }, { status: 409 });
+      return NextResponse.json({ error: 'This product has orders or owners. Archive it instead of deleting it.' }, { status: 409 });
     }
 
     const { error: delError } = await db.from('books').delete().eq('id', id);
@@ -293,6 +295,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (e: any) {
     console.error('[books] delete failed', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not delete the book.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not delete the product.' }, { status: 500 });
   }
 }

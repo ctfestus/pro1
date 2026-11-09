@@ -2,7 +2,7 @@
 
 // My Books: the books a learner can download (bought, given to them, or assigned to their program)
 // and their book payments. It is also where Paystack returns a book buyer
-// (/student?book_reference=...#books, lib/paystack.ts) and where the receipt email links, so it
+// (/student?book_reference=...#products, lib/paystack.ts) and where the receipt email links, so it
 // confirms a returning payment without waiting for the webhook.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -102,11 +102,11 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
     try {
       const res = await fetch('/api/books/library', { headers: await authHeaders() });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(d.error || 'Could not load your books.');
+      if (!res.ok) throw new Error(d.error || 'Could not load your products.');
       setBooks(d.books ?? []);
       setPurchases(d.purchases ?? []);
     } catch (e: any) {
-      setLoadError(e?.message || 'Could not load your books.');
+      setLoadError(e?.message || 'Could not load your products.');
       setBooks(prev => prev ?? []);
     }
   }, []);
@@ -177,7 +177,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
     try {
       await downloadBook(bookId);
     } catch (e: any) {
-      setDownloadError(e?.message || 'Could not download the book.');
+      setDownloadError(e?.message || 'Could not download the product.');
     } finally {
       setDownloading(null);
     }
@@ -212,7 +212,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
       case 'checking':
         return box('wait', <Loader2 className="w-5 h-5 animate-spin" />, 'Confirming your payment', 'This only takes a moment.');
       case 'paid':
-        return box('ok', <CheckCircle2 className="w-5 h-5" />, 'Payment received. Your book is ready.',
+        return box('ok', <CheckCircle2 className="w-5 h-5" />, 'Payment received. Your product is ready.',
           paidBook ? `${paidBook.title} is in your library below. A receipt is on its way to your email.` : 'It is in your library below. A receipt is on its way to your email.',
           paidBook && paidBook.available ? (
             <button onClick={() => download(paidBook.id)} disabled={downloading === paidBook.id}
@@ -223,16 +223,16 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
           ) : undefined);
       case 'review':
         return box('wait', <Clock className="w-5 h-5" />, 'We received your payment and are checking it',
-          'Something about this payment needs a person to look at it, for example you already owned the book. The team will sort it out; there is no need to pay again.');
+          'Something about this payment needs a person to look at it, for example you already owned the product. The team will sort it out; there is no need to pay again.');
       case 'refunded':
         return box('wait', <Clock className="w-5 h-5" />, 'This payment was refunded',
-          'The money for this checkout was returned to you, so it does not include the book. If you have a question about the refund, contact support.');
+          'The money for this checkout was returned to you, so it does not include the product. If you have a question about the refund, contact support.');
       case 'pending':
         return box('wait', <Clock className="w-5 h-5" />, 'Your payment is still being processed',
           'Bank transfers and mobile money can take a few minutes. Check again shortly; there is no need to pay again.', again);
       case 'failed':
         return box('bad', <Clock className="w-5 h-5" />, 'The payment was not completed',
-          'No charge went through for this checkout. You can try buying the book again.');
+          'No charge went through for this checkout. You can try buying it again.');
       case 'error':
         return box('bad', <Clock className="w-5 h-5" />, 'We could not confirm your payment', returned.message, again);
     }
@@ -241,8 +241,8 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-xl sm:text-2xl font-bold" style={{ color: C.text }}>My Books</h1>
-        <p className="text-sm mt-1" style={{ color: C.muted }}>Books you have bought, or that your program gives you. Download them any time.</p>
+        <h1 className="text-xl sm:text-2xl font-bold" style={{ color: C.text }}>My Products</h1>
+        <p className="text-sm mt-1" style={{ color: C.muted }}>Digital products you have bought, or that your program gives you. Download them any time.</p>
       </div>
 
       {banner}
@@ -260,7 +260,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
         </div>
       ) : books.length === 0 ? (
         <div className="rounded-2xl" style={card}>
-          <EmptyState icon={BookOpen} title="No books yet" body="Books you buy, or that your program gives you, will appear here for download." />
+          <EmptyState icon={BookOpen} title="No products yet" body="Digital products you buy, or that your program gives you, will appear here for download." />
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -295,7 +295,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
 
       {purchases.length > 0 && (
         <div className="rounded-2xl p-4 sm:p-5" style={card}>
-          <p className="text-sm font-semibold" style={{ color: C.text }}>Book payments</p>
+          <p className="text-sm font-semibold" style={{ color: C.text }}>Product payments</p>
           <div className="mt-3 divide-y" style={{ borderColor: C.divider }}>
             {purchases.map(p => (
               <div key={p.id} className="py-2.5 flex items-center gap-3 text-sm" style={{ borderColor: C.divider }}>

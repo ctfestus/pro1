@@ -18,14 +18,14 @@ afterEach(() => { vi.unstubAllGlobals(); });
 
 describe('book payment return across sign-in and onboarding', () => {
   it('survives the round trip once, and rebuilds the My Books return page', () => {
-    rememberBookReturn(`?book_reference=${REF}&trxref=${REF}`, '#books');
-    expect(takeBookReturnHref()).toBe(`/student?book_reference=${REF}#books`);
+    rememberBookReturn(`?book_reference=${REF}&trxref=${REF}`, '#products');
+    expect(takeBookReturnHref()).toBe(`/student?book_reference=${REF}#products`);
     expect(takeBookReturnHref()).toBeNull(); // single use
   });
 
   it('remembers My Books itself for the receipt link, which carries no reference', () => {
-    rememberBookReturn('', '#books');
-    expect(takeBookReturnHref()).toBe('/student#books');
+    rememberBookReturn('', '#products');
+    expect(takeBookReturnHref()).toBe('/student#products');
   });
 
   it('remembers nothing for other sections', () => {
@@ -56,7 +56,7 @@ describe('book payment return across sign-in and onboarding', () => {
 
   it('never throws when storage is unavailable', () => {
     vi.stubGlobal('window', { localStorage: { getItem: () => { throw new Error('blocked'); }, setItem: () => { throw new Error('blocked'); }, removeItem: () => {} } });
-    expect(() => rememberBookReturn(`?book_reference=${REF}`, '#books')).not.toThrow();
+    expect(() => rememberBookReturn(`?book_reference=${REF}`, '#products')).not.toThrow();
     expect(takeBookReturnHref()).toBeNull();
   });
 });
@@ -65,7 +65,7 @@ describe('the book a visitor was buying, across sign-up', () => {
   it('is restored once, as its store page', async () => {
     const { rememberBookPage, takeBookPageHref } = await import('@/lib/books/pending-return');
     rememberBookPage('field-guide');
-    expect(takeBookPageHref()).toBe('/books/field-guide');
+    expect(takeBookPageHref()).toBe('/products/field-guide');
     expect(takeBookPageHref()).toBeNull();
   });
 

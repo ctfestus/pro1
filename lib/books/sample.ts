@@ -241,7 +241,7 @@ function pointToStore(doc: Document, a: Element, storeUrl: string): void {
   a.setAttribute('rel', 'noopener');
   const label = doc.createElementNS(a.namespaceURI || XHTML_NS, 'span');
   label.setAttribute('style', 'opacity:0.7;font-size:0.85em;white-space:nowrap');
-  label.textContent = ' (in the full book)';
+  label.textContent = ' (in the full version)';
   a.appendChild(label);
 }
 
@@ -256,13 +256,13 @@ function endNote(doc: Document, storeUrl: string, nextChapterTitle: string | und
   const next = doc.createElementNS(ns, 'p');
   next.setAttribute('style', 'margin:0.5em 0 0');
   const title = nextChapterTitle?.replace(/\s+/g, ' ').trim().slice(0, 300);
-  next.textContent = title ? `The full book continues with ${title}.` : 'The full book continues from here.';
+  next.textContent = title ? `The full version continues with ${title}.` : 'The full version continues from here.';
   const cta = doc.createElementNS(ns, 'a');
   cta.setAttribute('href', storeUrl);
   cta.setAttribute('target', '_blank');
   cta.setAttribute('rel', 'noopener');
   cta.setAttribute('style', 'display:inline-block;margin-top:1em;padding:0.7em 1.4em;border-radius:999px;background:#0f172a;color:#ffffff;text-decoration:none;font-weight:600');
-  cta.textContent = 'Get the full book';
+  cta.textContent = 'Get the full version';
   box.append(lead, next, cta);
   return box;
 }
@@ -342,7 +342,7 @@ function checkSubstantialCopy(excluded: string, sample: string): SampleFinding[]
     // hides nothing.
     const fontFace = FONT_FACE_DATA.test(before) && isFontFaceData(sample, m.index ?? 0);
     if (!new RegExp(`${EMBEDDED_ASSET.source}$`, 'i').test(before) && !INLINED_TEXT_PREFIX.test(before) && !fontFace) {
-      addFinding(findings, 'encoded data in the book that a reader cannot see', `${m[0].slice(0, 60)}...`);
+      addFinding(findings, 'encoded data in the product that a reader cannot see', `${m[0].slice(0, 60)}...`);
     }
   }
   return findings;
@@ -648,7 +648,7 @@ export interface HtmlSample {
 export function cutHtmlSample(source: string, stopAnchor: string, links?: SampleLinks): HtmlSample {
   const doc = new DOMParser().parseFromString(source, 'text/html');
   const stop = doc.getElementById(stopAnchor);
-  if (!stop) throw new Error('The chapter the sample stops at was not found in the book. Find the chapters again, then save.');
+  if (!stop) throw new Error('The chapter the sample stops at was not found in the product. Find the chapters again, then save.');
   const excluded = textFrom(stop, true);
   const paidCode = codeLinesOf(removedRoots(stop, true));
   const titles = chapterTitlesText(doc, links);
@@ -658,7 +658,7 @@ export function cutHtmlSample(source: string, stopAnchor: string, links?: Sample
   stripPayloads(doc, true);
   if (normalize(doc.body?.textContent ?? '').length < 200) {
     throw new Error(hasScripts
-      ? `This book builds its pages with scripts, so a readable sample cannot be cut from it. ${UPLOAD_INSTEAD}`
+      ? `This product builds its pages with scripts, so a readable sample cannot be cut from it. ${UPLOAD_INSTEAD}`
       : 'The sample would be almost empty. Include more chapters.');
   }
   // Checked before the store links and the closing note go in: they are ours, not the book's.
@@ -775,7 +775,7 @@ export async function cutEpubSample(data: ArrayBuffer | Blob, stopHref: string, 
   const [stopFile, fragment] = stopHref.split('#');
   const stopPath = resolvePath(packageDir, stopFile);
   const stopIndex = refs.findIndex(r => pathOf(items.get(r.getAttribute('idref') ?? '')) === stopPath);
-  if (stopIndex < 0) throw new Error('The chapter the sample stops at was not found in the book. Find the chapters again, then save.');
+  if (stopIndex < 0) throw new Error('The chapter the sample stops at was not found in the product. Find the chapters again, then save.');
   if (stopIndex === 0 && !fragment) throw new Error('The sample would be empty. Include at least one chapter.');
 
   // Text of everything cut, for the isolation check at the end.

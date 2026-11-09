@@ -278,7 +278,7 @@ export default function StudentDashboard() {
         if (href) {
           const [pathAndSearch, hash = ''] = href.split('#');
           if (pathAndSearch === `${window.location.pathname}${window.location.search}`) {
-            // Only the section differs (the receipt's /student#books): switching the hash does not
+            // Only the section differs (the receipt's /student#products): switching the hash does not
             // reload the page, so carry on loading rather than returning, or the dashboard would
             // stay on its loading screen. The hashchange listener opens My Books.
             if (`#${hash}` !== window.location.hash) window.location.hash = hash;
@@ -817,7 +817,7 @@ export default function StudentDashboard() {
             {activeSection === 'data_center' && user && (
               <DataCenterSection C={C} />
             )}
-            {activeSection === 'books' && user && (
+            {activeSection === 'products' && user && (
               <BooksSection C={C} readOnly={!!viewingAs} />
             )}
             {activeSection === 'recordings' && user && (

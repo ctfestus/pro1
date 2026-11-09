@@ -128,9 +128,9 @@ export async function cutPdfSample(data: ArrayBuffer, from: number, to: number):
     throw new Error('This PDF could not be read to cut a sample. Upload a sample file instead.');
   }
   const count = source.getPageCount();
-  if (from > count) throw new Error(`The book has ${count} pages, so the sample cannot start on page ${from}.`);
+  if (from > count) throw new Error(`The product has ${count} pages, so the sample cannot start on page ${from}.`);
   const last = Math.min(to, count);
-  if (from === 1 && last === count) throw new Error('That range is the whole book. Choose fewer pages for the sample.');
+  if (from === 1 && last === count) throw new Error('That range is the whole file. Choose fewer pages for the sample.');
   const sample = await PDFDocument.create();
   const pages = await sample.copyPages(source, Array.from({ length: last - from + 1 }, (_, i) => from - 1 + i));
   pages.forEach(p => sample.addPage(p));

@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
     console.error('[books/upload-url] book lookup failed', error.message);
     return NextResponse.json({ error: 'Could not prepare the upload.' }, { status: 500 });
   }
-  if (!book) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+  if (!book) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
   if (book.user_id !== auth.user.id && auth.role !== 'admin') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }

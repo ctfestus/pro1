@@ -18,7 +18,7 @@ export const NAV_ITEMS = [
   { id: 'certifications',    label: 'Certifications',       Icon: ShieldCheck     },
   { id: 'explore',           label: 'Explore',             Icon: Compass         },
   { id: 'data_center',       label: 'Data Playground',      Icon: Database        },
-  { id: 'books',             label: 'My Books',            Icon: BookOpen        },
+  { id: 'products',          label: 'My Products',            Icon: BookOpen        },
   { id: 'events',            label: 'Live Sessions',        Icon: CalendarDays    },
   { id: 'assignments',       label: 'Assignments',         Icon: ClipboardList   },
   { id: 'calendar',          label: 'Calendar',            Icon: CalendarCheck   },
@@ -41,7 +41,7 @@ export const NAV_GROUPS: { label: string; items: SectionId[] }[] = [
   // app/student/page.tsx). An empty label is the signal to render items without a heading -- see the nav
   // in app/student/page.tsx.
   { label: '',            items: ['overview', 'my_program', 'courses'] },
-  { label: 'Learn',       items: ['explore', 'certifications', 'books', 'data_center'] },
+  { label: 'Learn',       items: ['explore', 'certifications', 'products', 'data_center'] },
   { label: 'Activities',  items: ['events', 'assignments', 'calendar', 'schedule', 'recordings'] },
   { label: 'Community',   items: ['community', 'announcements'] },
   { label: 'Achievements', items: ['leaderboard', 'certificates', 'badges', 'ai_toolkit'] },

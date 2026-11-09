@@ -376,11 +376,11 @@ describe('GET /api/student/catalogue', () => {
       h.rows.mockImplementation((table) => {
         if (table === 'books') return [book('b1', 'For sale'), book('b2', 'Bought')];
         if (table === 'book_entitlements') return [{ book_id: 'b2' }];
-        if (table === 'book_prices') return [{ book_id: 'b1', currency: 'GHS', amount: '120.00' }, { book_id: 'b2', currency: 'GHS', amount: '50' }];
+        if (table === 'book_prices') return [{ book_id: 'b1', currency: 'GHS', amount: '120.00', sale_amount: '100.00', sale_ends_at: null }, { book_id: 'b2', currency: 'GHS', amount: '50' }];
         return [];
       });
       const list = await items();
-      expect(byTitle(list, 'For sale')).toMatchObject({ type: 'book', locked: true, prices: [{ currency: 'GHS', amount: 120 }], slug: 'b1-slug' });
+      expect(byTitle(list, 'For sale')).toMatchObject({ type: 'book', locked: true, prices: [{ currency: 'GHS', amount: 100, original: 120 }], slug: 'b1-slug' });
       expect(byTitle(list, 'Bought').locked).toBe(false);
       expect(byTitle(list, 'Bought').prices).toBeUndefined();
     });

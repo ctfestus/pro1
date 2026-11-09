@@ -50,10 +50,10 @@ export async function sendBookPurchaseReceipt(db: SupabaseClient, purchaseId: st
 
   const rendered = await applyEmailTemplate({
     key: 'book_purchase',
-    fallbackSubject: `Your book: ${purchase.book_title}`,
+    fallbackSubject: `Your purchase: ${purchase.book_title}`,
     fallbackHtml: bookPurchaseEmail({
       name, bookTitle: purchase.book_title, amount, currency: purchase.currency, paidAt,
-      reference: purchase.paystack_reference, libraryUrl: `${appUrl}/student#books`, branding,
+      reference: purchase.paystack_reference, libraryUrl: `${appUrl}/student#products`, branding,
     }),
     variables: {
       student_name: name, book_title: purchase.book_title, currency: purchase.currency,

@@ -198,11 +198,11 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
           {/* The book store, once it has something in it (lib/books/store.ts). */}
           {navBooks.length > 0 && (
             <Link
-              href="/books"
+              href="/products"
               className="text-sm font-medium transition-opacity hover:opacity-60"
               style={{ color: nav_text }}
             >
-              Books
+              Digital Products
             </Link>
           )}
           <Link
