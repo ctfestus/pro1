@@ -8,7 +8,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  ArrowDown, ArrowLeft, ArrowUp, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw, Trash2, Upload,
+  AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Download, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw,
+  Trash2, Upload, X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useC } from '@/components/create/theme';
@@ -34,7 +35,7 @@ import {
   type OutlineEntry, type SuggestedChapter,
 } from '@/lib/books/chapters';
 import { chaptersFromPicks, cutPdfSample, pdfChapters, pdfOutline } from '@/lib/books/pdf';
-import { cutEpubSample, cutHtmlSample } from '@/lib/books/sample';
+import { cutEpubSample, cutHtmlSample, type SampleFinding } from '@/lib/books/sample';
 import { openBookPreview } from '@/lib/books/open-preview';
 
 const LICENSE_LABELS: Record<BookLicenseType, string> = {
@@ -96,6 +97,15 @@ const EMPTY: EditorState = {
 };
 
 type SampleSource = 'cut' | 'upload';
+
+/** A sample cut in the browser, before upload: its bytes, what to review, and what it was cut from. */
+type CutSample = {
+  blob: Blob;
+  html?: string;
+  findings: SampleFinding[];
+  /** Format, settings and stopping point it was cut with: a review only applies to the same cut. */
+  key: string;
+};
 
 const splitList = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean);
 const wholeNumber = (v: string) => (/^\d+$/.test(v) && Number(v) >= 1 ? Number(v) : null);
@@ -171,6 +181,21 @@ export function BookEditor() {
   const [newTitle, setNewTitle] = useState('');
   const [creating, setCreating] = useState(false);
   const [findingChapters, setFindingChapters] = useState(false);
+  // A cut sample with findings waits here for the author's review instead of being used. The
+  // author previews it and confirms; then exactly this sample is uploaded on the next save.
+  const [sampleReview, setSampleReview] = useState<CutSample | null>(null);
+  const [reviewAck, setReviewAck] = useState(false);
+  const [reviewPreview, setReviewPreview] = useState(false);
+  const acceptedSample = useRef<CutSample | null>(null);
+  // Anything that changes what the sample is cut from or how: the next save cuts afresh, and a
+  // review waiting for a different cut no longer applies.
+  const sampleChanged = useCallback(() => {
+    setSampleDirty(true);
+    setSampleReview(null);
+    setReviewAck(false);
+    setReviewPreview(false);
+    acceptedSample.current = null;
+  }, []);
   // The free sample: cut from the book on save (the default), or a file the author uploads.
   const [sampleSource, setSampleSource] = useState<SampleSource>('cut');
   const [samplePages, setSamplePages] = useState({ from: String(DEFAULT_SAMPLE_PAGES.from), to: String(DEFAULT_SAMPLE_PAGES.to) });
@@ -323,7 +348,8 @@ export function BookEditor() {
         bookData.current = { blob: file, format: fmt };
         setPageCount(null);
         if (fmt !== format && (storedPreview || preview)) setPreview('remove');
-        if (sampleSource === 'cut') setSampleDirty(true);
+        if (sampleSource === 'cut') sampleChanged();
+        else setSampleReview(null);
         setNotice('Uploaded. Save to keep it.');
         if (!chapters.length || fmt !== format) await findChapters(fmt, true);
       }
@@ -455,31 +481,63 @@ export function BookEditor() {
     return n ? { chapters: n } : null;
   }
 
-  /** Cut the free sample out of the book and upload it. Throws a sentence the author can act on. */
-  async function makeSample(fmt: BookFormat, spec: BookSampleSpec): Promise<UploadedFile> {
+  /** Identifies a cut: format, settings and where it stops. A review applies to that cut only. */
+  function sampleKey(fmt: BookFormat, spec: BookSampleSpec): string {
+    const stop = 'chapters' in spec ? chapters[spec.chapters] : undefined;
+    return JSON.stringify([fmt, spec, stop?.anchor ?? stop?.href ?? '', newFile?.path ?? storedFile.path]);
+  }
+
+  /**
+   * Cut the free sample out of the book (not uploaded yet). Throws a sentence the author can act on,
+   * including SampleRefusedError when the sample would plainly give away the paid chapters.
+   */
+  async function makeSample(fmt: BookFormat, spec: BookSampleSpec): Promise<CutSample> {
     const blob = await bookBlob(fmt);
-    let out: Blob;
+    const key = sampleKey(fmt, spec);
     if ('pages' in spec) {
-      out = await cutPdfSample(await blob.arrayBuffer(), spec.pages.from, spec.pages.to);
-    } else {
-      const n = spec.chapters;
-      if (chapters.length <= n) {
-        throw new Error(chapters.length
-          ? `The book has ${chapters.length} chapter(s), so a sample of ${n} would be the whole book. Choose fewer chapters.`
-          : 'The book has no chapters yet. Find or add chapters first.');
-      }
-      const stop = chapters[n];
-      // Links into the left-out chapters, and the closing note, lead to the book's store page.
-      const links = slug ? { storeUrl: `${window.location.origin}/books/${slug}`, nextChapterTitle: stop.title } : undefined;
-      if (fmt === 'html') {
-        if (!stop.anchor) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
-        out = new Blob([cutHtmlSample(await blob.text(), stop.anchor, links)], { type: 'text/html' });
-      } else {
-        if (!stop.href) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
-        out = await cutEpubSample(blob, stop.href, links);
-      }
+      return { blob: await cutPdfSample(await blob.arrayBuffer(), spec.pages.from, spec.pages.to), findings: [], key };
     }
-    return putObject('preview', fmt, out, `sample.${fmt}`);
+    const n = spec.chapters;
+    if (chapters.length <= n) {
+      throw new Error(chapters.length
+        ? `The book has ${chapters.length} chapter(s), so a sample of ${n} would be the whole book. Choose fewer chapters.`
+        : 'The book has no chapters yet. Find or add chapters first.');
+    }
+    const stop = chapters[n];
+    // Links into the left-out chapters, and the closing note, lead to the book's store page. The
+    // chapter titles tell the check which text is public (a contents list naming them).
+    const links = {
+      storeUrl: slug ? `${window.location.origin}/books/${slug}` : '',
+      nextChapterTitle: stop.title,
+      chapterTitles: chapters.map(c => c.title),
+    };
+    if (fmt === 'html') {
+      if (!stop.anchor) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
+      const cut = cutHtmlSample(await blob.text(), stop.anchor, links);
+      return { blob: new Blob([cut.html], { type: 'text/html' }), html: cut.html, findings: cut.findings, key };
+    }
+    if (!stop.href) throw new Error(`Chapter ${n + 1} has no position in the file, so the sample cannot stop there. Upload a sample file instead.`);
+    const cut = await cutEpubSample(blob, stop.href, links);
+    return { blob: cut.blob, findings: cut.findings, key };
+  }
+
+  /** Save the cut sample the author reviewed and confirmed. */
+  function createReviewedSample() {
+    if (!sampleReview || !reviewAck) return;
+    acceptedSample.current = sampleReview;
+    setSampleReview(null);
+    setReviewPreview(false);
+    void save(status);
+  }
+
+  function downloadReviewSample() {
+    if (!sampleReview) return;
+    const url = URL.createObjectURL(sampleReview.blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sample.${effectiveFormat ?? 'epub'}`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 10_000);
   }
 
   function moveChapter(i: number, dir: -1 | 1) {
@@ -531,6 +589,7 @@ export function BookEditor() {
       // rest of the save; the author is told and the next save tries again.
       const fmt = effectiveFormat;
       let sampleProblem = '';
+      let sampleNeedsReview = false;
       let cutSpec: BookSampleSpec | null = null;
       if (sampleSource === 'upload') {
         body.sampleSpec = null;
@@ -541,12 +600,27 @@ export function BookEditor() {
         } else {
           setNotice('Making the free sample...');
           try {
-            const made = await makeSample(fmt, spec);
-            body.preview = { path: made.path };
-            body.sampleSpec = spec;
-            cutSpec = spec;
+            // The sample the author reviewed and confirmed, if it is still the same cut.
+            const accepted = acceptedSample.current?.key === sampleKey(fmt, spec) ? acceptedSample.current : null;
+            acceptedSample.current = null;
+            const made = accepted ?? await makeSample(fmt, spec);
+            if (!accepted && made.findings.length) {
+              // Possible paid text in the sample: hold it for review instead of using it.
+              setSampleReview(made);
+              setReviewAck(false);
+              sampleNeedsReview = true;
+            } else {
+              const uploaded = await putObject('preview', fmt, made.blob, `sample.${fmt}`);
+              body.preview = { path: uploaded.path };
+              body.sampleSpec = spec;
+              cutSpec = spec;
+              setSampleReview(null);
+            }
           } catch (e: any) {
+            // Includes SampleRefusedError: a sample that would plainly give away the paid chapters.
             sampleProblem = e?.message || 'The sample could not be made.';
+            setSampleReview(null);
+            setReviewAck(false);
           }
           setNotice('');
         }
@@ -600,9 +674,12 @@ export function BookEditor() {
       // A failed cut stays owed: the save cleared chaptersDirty, so without this a cut triggered by
       // a chapter edit would never be retried and the old sample would stay.
       if (cutSpec) setSampleDirty(false);
-      else if (sampleProblem) setSampleDirty(true);
+      else if (sampleProblem || sampleNeedsReview) setSampleDirty(true);
       const done = nextStatus === 'published' ? 'Published' : nextStatus === 'archived' ? 'Archived' : 'Saved';
       if (sampleProblem) setError(`${done}, but the free sample was not made: ${sampleProblem}`);
+      else if (sampleNeedsReview) {
+        setNotice(`${done}. The new free sample is waiting for your review below, under Free sample.${storedPreview ? ' Until you confirm it, the previous sample stays in use.' : ''}`);
+      }
       else setNotice(`${done}.${cutSpec ? ' The free sample was made from the book.' : ''}`);
     } catch (e: any) {
       setError(e?.message || 'Could not save the book.');
@@ -748,7 +825,7 @@ export function BookEditor() {
             <div className="inline-flex rounded-xl p-1 gap-1" style={{ background: C.input }} role="radiogroup" aria-label="Sample source">
               {([['cut', 'Cut from the book'], ['upload', 'Upload a sample file']] as const).map(([value, label]) => (
                 <button key={value} role="radio" aria-checked={sampleSource === value}
-                  onClick={() => { if (sampleSource === value) return; setSampleSource(value); setSampleDirty(value === 'cut'); }}
+                  onClick={() => { if (sampleSource === value) return; setSampleSource(value); if (value === 'cut') sampleChanged(); else { setSampleDirty(false); setSampleReview(null); setReviewAck(false); } }}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold"
                   style={sampleSource === value ? { background: C.cta, color: C.ctaText } : { color: C.muted }}>
                   {label}
@@ -760,16 +837,16 @@ export function BookEditor() {
                 {effectiveFormat === 'pdf' ? (
                   <label className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>Pages
                     <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" aria-label="First sample page" value={samplePages.from}
-                      onChange={e => { setSamplePages(p => ({ ...p, from: e.target.value.replace(/\D/g, '') })); setSampleDirty(true); }} />
+                      onChange={e => { setSamplePages(p => ({ ...p, from: e.target.value.replace(/\D/g, '') })); sampleChanged(); }} />
                     to
                     <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" aria-label="Last sample page" value={samplePages.to}
-                      onChange={e => { setSamplePages(p => ({ ...p, to: e.target.value.replace(/\D/g, '') })); setSampleDirty(true); }} />
+                      onChange={e => { setSamplePages(p => ({ ...p, to: e.target.value.replace(/\D/g, '') })); sampleChanged(); }} />
                     {pageCount ? <span style={{ color: C.faint }}>of {pageCount}</span> : null}
                   </label>
                 ) : (
                   <label className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>The first
                     <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" aria-label="Chapters in the sample" value={sampleChapters}
-                      onChange={e => { setSampleChapters(e.target.value.replace(/\D/g, '')); setSampleDirty(true); }} />
+                      onChange={e => { setSampleChapters(e.target.value.replace(/\D/g, '')); sampleChanged(); }} />
                     chapters{chapters.length ? <span style={{ color: C.faint }}>of {chapters.length}</span> : null}
                   </label>
                 )}
@@ -778,10 +855,62 @@ export function BookEditor() {
                     : sampleDirty ? 'The sample is made from the book when you save.'
                     : storedPreview ? 'The current sample matches these settings.' : 'The sample is made from the book when you save.'}
                 </p>
+                {sampleReview && (
+                  <div className="rounded-xl p-4 space-y-3" style={{ background: C.input }}>
+                    <p className="flex items-center gap-2 text-sm font-semibold" style={{ color: C.text }}>
+                      <AlertTriangle className="w-4 h-4" style={{ color: '#d97706' }} /> Check this sample before it is used
+                    </p>
+                    <p className="text-xs" style={{ color: C.muted }}>
+                      We looked for text from the paid chapters in parts of the sample a reader does not normally see. What we found is listed below. It may be fine, for example text your book repeats on purpose, but please check it. This is a check for possible exposure of paid content; it cannot guarantee that a sample contains none.
+                    </p>
+                    <ul className="space-y-1.5">
+                      {sampleReview.findings.map((f, i) => (
+                        <li key={i} className="text-xs" style={{ color: C.muted }}>
+                          <span className="font-semibold" style={{ color: C.text }}>{f.where}:</span> {'"'}{f.excerpt}{'"'}
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {sampleReview.html ? (
+                        <button onClick={() => setReviewPreview(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                          style={{ background: C.pill, color: C.muted }}>
+                          <Eye className="w-3.5 h-3.5" /> Preview the sample
+                        </button>
+                      ) : (
+                        <button onClick={downloadReviewSample} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold"
+                          style={{ background: C.pill, color: C.muted }}>
+                          <Download className="w-3.5 h-3.5" /> Download the sample to check
+                        </button>
+                      )}
+                    </div>
+                    <label className="flex items-start gap-2 text-xs" style={{ color: C.text }}>
+                      <input type="checkbox" checked={reviewAck} onChange={e => setReviewAck(e.target.checked)} className="mt-0.5" />
+                      I have reviewed this sample, and it only contains what I want to give away for free.
+                    </label>
+                    <button onClick={createReviewedSample} disabled={!reviewAck || !!saving}
+                      className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
+                      style={{ background: C.cta, color: C.ctaText }}>
+                      {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null} Create sample anyway
+                    </button>
+                  </div>
+                )}
+                {reviewPreview && sampleReview?.html && (
+                  // The sample shown in a sandboxed frame without same-origin: the book's own scripts
+                  // cannot reach this page or its session.
+                  <div className="fixed inset-0 z-50 flex flex-col p-3 sm:p-6" style={{ background: 'rgba(15,23,42,0.6)' }} role="dialog" aria-label="Sample preview">
+                    <div className="flex items-center justify-between rounded-t-2xl px-4 py-3" style={{ background: C.card }}>
+                      <p className="text-sm font-semibold" style={{ color: C.text }}>Sample preview</p>
+                      <button onClick={() => setReviewPreview(false)} aria-label="Close preview" className="p-1.5 rounded-lg" style={{ color: C.muted }}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                    <iframe title="Sample preview" sandbox="allow-scripts" srcDoc={sampleReview.html} className="flex-1 w-full rounded-b-2xl bg-white" />
+                  </div>
+                )}
                 {/* A sample made before the cutter changed (or one to redo for any reason) is not
                     remade by a plain save, since nothing it depends on changed. This marks it. */}
                 {storedPreview && !sampleDirty && (newFile || storedFile.path) && (
-                  <button onClick={() => { setSampleDirty(true); setNotice('The sample will be made again from the book when you save.'); }}
+                  <button onClick={() => { sampleChanged(); setNotice('The sample will be made again from the book when you save.'); }}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
                     <RefreshCw className="w-3.5 h-3.5" /> Remake sample
                   </button>
