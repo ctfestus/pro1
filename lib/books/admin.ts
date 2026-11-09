@@ -122,14 +122,23 @@ export function commercialFromInput(input: any): CommercialInput {
     out.royaltyPct = Number.isFinite(n) ? Math.round(Math.min(100, Math.max(0, n)) * 100) / 100 : 0;
   }
   if (input && Array.isArray(input.prices)) {
-    const byCurrency = new Map<string, number>();
+    const byCurrency = new Map<string, BookPrice>();
     for (const p of input.prices) {
       const currency = typeof p?.currency === 'string' ? p.currency.trim().toUpperCase() : '';
       const amount = Number(p?.amount);
       if (!/^[A-Z]{3}$/.test(currency) || !Number.isFinite(amount) || amount <= 0 || amount >= 1e8) continue;
-      byCurrency.set(currency, Math.round(amount * 100) / 100);
+      const price: BookPrice = { currency, amount: Math.round(amount * 100) / 100 };
+      // A sale needs a price lower than the regular one (the database refuses anything else);
+      // anything that is not one is dropped rather than failing the whole save.
+      const sale = p?.saleAmount === '' || p?.saleAmount == null ? NaN : Number(p.saleAmount);
+      if (Number.isFinite(sale) && sale > 0 && Math.round(sale * 100) / 100 < price.amount) {
+        price.saleAmount = Math.round(sale * 100) / 100;
+        const ends = typeof p?.saleEndsAt === 'string' && p.saleEndsAt ? Date.parse(p.saleEndsAt) : NaN;
+        price.saleEndsAt = Number.isFinite(ends) ? new Date(ends).toISOString() : null;
+      }
+      byCurrency.set(currency, price);
     }
-    out.prices = [...byCurrency].map(([currency, amount]) => ({ currency, amount }));
+    out.prices = [...byCurrency.values()];
   }
   return out;
 }
@@ -150,7 +159,7 @@ export interface ChapterInput {
  */
 export function chaptersFromInput(input: unknown, format: BookFormat | null): ChapterInput[] | { error: string } {
   if (!Array.isArray(input)) return { error: 'Chapters must be a list.' };
-  if (input.length > 1000) return { error: 'A book can have at most 1000 chapters.' };
+  if (input.length > 1000) return { error: 'A product can have at most 1000 chapters.' };
   const out: ChapterInput[] = [];
   const seenIds = new Set<string>();
   for (const [i, raw] of input.entries()) {
@@ -197,7 +206,7 @@ export async function verifyUploadedObject(
   kind: 'file' | 'preview',
   format: BookFormat,
 ): Promise<{ size: number } | { error: string }> {
-  if (!isBookObjectPath(bookId, path, kind, format)) return { error: 'That upload does not belong to this book.' };
+  if (!isBookObjectPath(bookId, path, kind, format)) return { error: 'That upload does not belong to this product.' };
   const bucket = db.storage.from(BOOK_BUCKET);
   const { data, error } = await bucket.info(path);
   if (error || !data) return { error: 'The uploaded file was not found. Upload it again.' };

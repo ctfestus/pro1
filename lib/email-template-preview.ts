@@ -167,7 +167,7 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
     case 'payment_receipt':
       return { subject: 'Payment received on your account', html: paymentReceiptEmail({ name, amount: 450, currency: 'GHS', paidAt: '4 October 2026', method: 'Mobile Money', reference: 'PAY-1024', dashboardUrl: paymentsUrl, branding }), variables };
     case 'book_purchase':
-      return { subject: 'Your book: SQL for Data Analysts', html: bookPurchaseEmail({ name, bookTitle: 'SQL for Data Analysts', amount: 120, currency: 'GHS', paidAt: '4 October 2026', reference: 'book-1024', libraryUrl: `${studentUrl}#books`, branding }), variables };
+      return { subject: 'Your purchase: SQL for Data Analysts', html: bookPurchaseEmail({ name, bookTitle: 'SQL for Data Analysts', amount: 120, currency: 'GHS', paidAt: '4 October 2026', reference: 'book-1024', libraryUrl: `${studentUrl}#products`, branding }), variables };
     case 'payment_confirmation_received':
       return { subject: 'We received your payment confirmation', html: paymentConfirmationAcknowledgedEmail({ name, amount: 450, currency: 'GHS', dashboardUrl: paymentsUrl, branding }), variables };
     case 'payment_confirmation_approved':

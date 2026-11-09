@@ -114,6 +114,55 @@ describe('POST /api/books/checkout', () => {
   });
 });
 
+describe('POST /api/books/checkout on sale', () => {
+  const FUTURE = new Date(Date.now() + 7 * 86_400_000).toISOString();
+  const PAST = new Date(Date.now() - 86_400_000).toISOString();
+
+  it('charges the sale price while the sale is on', async () => {
+    authAs('u1', { books: { data: BOOK }, ...buyer, book_prices: { data: [{ currency: 'GHS', amount: '200.00', sale_amount: '150.00', sale_ends_at: FUTURE }] } });
+    lib.startBookCheckout.mockResolvedValue({ kind: 'checkout', reference: 'book-1', authorizationUrl: 'u' });
+    expect((await buy({ bookId: BOOK_ID })).status).toBe(200);
+    expect(lib.startBookCheckout.mock.calls[0][1]).toMatchObject({ amount: 150, currency: 'GHS' });
+  });
+
+  it('charges the regular price once the sale has ended', async () => {
+    authAs('u1', { books: { data: BOOK }, ...buyer, book_prices: { data: [{ currency: 'GHS', amount: 200, sale_amount: 150, sale_ends_at: PAST }] } });
+    lib.startBookCheckout.mockResolvedValue({ kind: 'checkout', reference: 'book-1', authorizationUrl: 'u' });
+    await buy({ bookId: BOOK_ID });
+    expect(lib.startBookCheckout.mock.calls[0][1]).toMatchObject({ amount: 200 });
+  });
+
+  it('charges the sale price with no end date, and ignores a sale that is not lower', async () => {
+    authAs('u1', { books: { data: BOOK }, ...buyer, book_prices: { data: [{ currency: 'GHS', amount: 200, sale_amount: 120, sale_ends_at: null }] } });
+    lib.startBookCheckout.mockResolvedValue({ kind: 'checkout', reference: 'book-1', authorizationUrl: 'u' });
+    await buy({ bookId: BOOK_ID });
+    expect(lib.startBookCheckout.mock.calls[0][1]).toMatchObject({ amount: 120 });
+    lib.startBookCheckout.mockClear();
+    authAs('u1', { books: { data: BOOK }, ...buyer, book_prices: { data: [{ currency: 'GHS', amount: 200, sale_amount: 250, sale_ends_at: null }] } });
+    await buy({ bookId: BOOK_ID });
+    expect(lib.startBookCheckout.mock.calls[0][1]).toMatchObject({ amount: 200 });
+  });
+});
+
+describe('POST /api/books/checkout when the price changed', () => {
+  const sale = { book_prices: { data: [{ currency: 'GHS', amount: 200, sale_amount: 150, sale_ends_at: '2020-01-01T00:00:00Z' }] } };
+
+  it('charges nothing when the shown price is no longer the price, and returns the current one', async () => {
+    authAs('u1', { books: { data: BOOK }, ...buyer, ...sale });
+    const res = await buy({ bookId: BOOK_ID, currency: 'GHS', expectedAmount: 150 });
+    expect(res.status).toBe(409);
+    expect(await res.json()).toMatchObject({ priceChanged: true, price: { currency: 'GHS', amount: 200 } });
+    expect(lib.startBookCheckout).not.toHaveBeenCalled();
+  });
+
+  it('goes ahead when the shown price is the price', async () => {
+    authAs('u1', { books: { data: BOOK }, ...buyer, ...sale });
+    lib.startBookCheckout.mockResolvedValue({ kind: 'checkout', reference: 'book-1', authorizationUrl: 'u' });
+    expect((await buy({ bookId: BOOK_ID, currency: 'GHS', expectedAmount: 200 })).status).toBe(200);
+    expect(lib.startBookCheckout.mock.calls[0][1]).toMatchObject({ amount: 200 });
+  });
+});
+
 describe('GET /api/books/checkout', () => {
   it('confirms a paid purchase and sends the receipt after responding', async () => {
     authAs('u1', { book_purchases: { data: { id: 'p1', book_id: BOOK_ID } } });

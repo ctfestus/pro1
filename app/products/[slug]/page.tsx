@@ -35,7 +35,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const appUrl = normalizeAbsoluteBaseUrl(tenant.appUrl, process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL);
   const cover = book.coverImage && !book.coverImage.startsWith('data:') ? socialImageUrl(book.coverImage) : '';
   const image = cover || (appUrl ? `${appUrl}/api/og/brand` : '');
-  const description = plainText(book.subtitle || book.description, 200) || `${book.title}, a book from ${tenant.appName}.`;
+  const description = plainText(book.subtitle || book.description, 200) || `${book.title}, a digital product from ${tenant.appName}.`;
   const title = `${book.title} - ${tenant.appName}`;
   return {
     title,
@@ -76,8 +76,8 @@ export default async function BookStorePage({ params }: Params) {
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={config.accentColor || tenant.accentColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks}>
       <section className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-8 sm:pt-12 pb-16">
-        <Link href="/books" className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: '#475569' }}>
-          <ArrowLeft className="w-4 h-4" /> All books
+        <Link href="/products" className="inline-flex items-center gap-1.5 text-sm font-medium" style={{ color: '#475569' }}>
+          <ArrowLeft className="w-4 h-4" /> All products
         </Link>
 
         <div className="mt-6 grid gap-8 lg:gap-12 lg:grid-cols-[minmax(0,340px)_minmax(0,1fr)_minmax(0,320px)] items-start">

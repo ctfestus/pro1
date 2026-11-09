@@ -6,8 +6,11 @@ import { sendBookPurchaseReceipt } from '@/lib/books/receipt-email';
 import { isBookObjectPath, isLicenseExpired } from '@/lib/books/schema';
 import { PaystackApiError, paystackIsConfigured } from '@/lib/paystack';
 import { paymentErrorResponse } from '@/lib/payment-errors';
+import { shownPrice, type PriceRow } from '@/lib/books/pricing';
 
-// POST /api/books/checkout  { bookId, currency? }  -> { authorizationUrl, reference } | { status }
+// POST /api/books/checkout  { bookId, currency?, expectedAmount? }  -> { authorizationUrl, reference } | { status }
+//   expectedAmount is the price the buyer was shown; when it no longer matches (a sale started or
+//   ended) nothing is charged and the reply is 409 { priceChanged: true, price }.
 // GET  /api/books/checkout?reference=book-...      -> { status, bookId }
 //
 // Buying one book. POST opens (or reuses) a Paystack checkout; GET is called from the page Paystack
@@ -30,7 +33,7 @@ export async function POST(req: NextRequest) {
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
   const email = auth.user.email?.trim().toLowerCase();
-  if (!email) return NextResponse.json({ error: 'Your account needs an email address to buy a book.' }, { status: 400 });
+  if (!email) return NextResponse.json({ error: 'Your account needs an email address to buy a product.' }, { status: 400 });
   if (!paystackIsConfigured()) {
     return NextResponse.json({ error: 'Online payment is temporarily unavailable.' }, { status: 503 });
   }
@@ -38,8 +41,9 @@ export async function POST(req: NextRequest) {
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid request.' }, { status: 400 }); }
   const bookId = typeof body?.bookId === 'string' && UUID.test(body.bookId) ? body.bookId : null;
-  if (!bookId) return NextResponse.json({ error: 'A valid book id is required.' }, { status: 400 });
+  if (!bookId) return NextResponse.json({ error: 'A valid product id is required.' }, { status: 400 });
   const wanted = typeof body?.currency === 'string' ? body.currency.trim().toUpperCase() : null;
+  const expected = typeof body?.expectedAmount === 'number' && Number.isFinite(body.expectedAmount) ? body.expectedAmount : null;
 
   const db = auth.serviceDb;
   try {
@@ -49,31 +53,31 @@ export async function POST(req: NextRequest) {
       .eq('id', bookId)
       .maybeSingle();
     if (error) throw error;
-    if (!found) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+    if (!found) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     const book = found as unknown as BookAccessRow & {
       title: string; royalty_pct: number | null; format: string | null; file_path: string | null;
     };
 
     const access = await canReadBook(db, auth.user.id, book);
     if (access.level === 'full') {
-      return NextResponse.json({ error: 'You already have this book.' }, { status: 409 });
+      return NextResponse.json({ error: 'You already have this product.' }, { status: 409 });
     }
     if (access.level === 'none' && access.status === 404) {
       return NextResponse.json({ error: access.error }, { status: 404 });
     }
-    if (book.purchasable !== true) return NextResponse.json({ error: 'This book is not for sale.' }, { status: 400 });
+    if (book.purchasable !== true) return NextResponse.json({ error: 'This product is not for sale.' }, { status: 400 });
     if (isLicenseExpired(book.license_expires_at)) {
-      return NextResponse.json({ error: 'This book is no longer available.' }, { status: 403 });
+      return NextResponse.json({ error: 'This product is no longer available.' }, { status: 403 });
     }
     if (!isBookObjectPath(book.id, book.file_path, 'file', book.format)) {
-      return NextResponse.json({ error: 'This book is not ready for sale yet.' }, { status: 409 });
+      return NextResponse.json({ error: 'This product is not ready for sale yet.' }, { status: 409 });
     }
 
     const { data: prices, error: priceError } = await db
-      .from('book_prices').select('currency, amount').eq('book_id', book.id).order('currency');
+      .from('book_prices').select('currency, amount, sale_amount, sale_ends_at').eq('book_id', book.id).order('currency');
     if (priceError) throw priceError;
-    const list = (prices ?? []) as { currency: string; amount: number | string }[];
-    if (!list.length) return NextResponse.json({ error: 'This book has no price yet.' }, { status: 409 });
+    const list = (prices ?? []) as PriceRow[];
+    if (!list.length) return NextResponse.json({ error: 'This product has no price yet.' }, { status: 409 });
     const price = wanted ? list.find(p => p.currency === wanted) : list.length === 1 ? list[0] : null;
     if (!price) {
       return NextResponse.json(
@@ -82,11 +86,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const charge = shownPrice(price);
+    if (expected !== null && Math.round(expected * 100) !== Math.round(charge.amount * 100)) {
+      return NextResponse.json(
+        { error: 'The price has changed. Check the new price and press Buy again.', priceChanged: true, price: charge },
+        { status: 409, headers: NO_STORE },
+      );
+    }
+
     const outcome = await startBookCheckout(db, {
       studentId: auth.user.id,
       email,
       book: { id: book.id, title: book.title, royalty_pct: book.royalty_pct },
-      amount: Number(price.amount),
+      // The sale price while a sale is on, the regular price otherwise (lib/books/pricing.ts).
+      amount: charge.amount,
       currency: price.currency,
     });
     if (outcome.kind === 'settled') {

@@ -49,6 +49,6 @@ export async function downloadBook(bookId: string): Promise<void> {
   const headers: Record<string, string> = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
   const res = await fetch(`/api/books/${encodeURIComponent(bookId)}/file`, { headers });
   const d = await res.json().catch(() => ({}));
-  if (!res.ok || !d.url) throw new Error(d.error || 'Could not download the book.');
+  if (!res.ok || !d.url) throw new Error(d.error || 'Could not download the product.');
   window.location.href = d.url;
 }

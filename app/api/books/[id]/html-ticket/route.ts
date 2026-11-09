@@ -26,7 +26,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
-    if (!book) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+    if (!book) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
 
     const row = book as unknown as BookAccessRow & { format: string | null; file_path: string | null };
     // Access first: a reader who may not see this book learns nothing about it, not even its format.
@@ -35,14 +35,14 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       return NextResponse.json({ error: access.error }, { status: access.status });
     }
     if (row.format !== 'html') {
-      return NextResponse.json({ error: 'This book is not an HTML book.' }, { status: 400 });
+      return NextResponse.json({ error: 'This product is not an HTML book.' }, { status: 400 });
     }
     const body = await req.json().catch(() => null);
     const wantsSample = body?.variant === 'sample';
     const variant = access.level === 'full' && !wantsSample ? 'full' : 'preview';
     const path = variant === 'full' ? row.file_path : row.preview_file_path;
     if (!isBookObjectPath(row.id, path, variant === 'full' ? 'file' : 'preview', 'html')) {
-      return NextResponse.json({ error: 'This book has no file yet.' }, { status: 404 });
+      return NextResponse.json({ error: 'This product has no file yet.' }, { status: 404 });
     }
 
     const { ticket, expiresAt } = issueHtmlTicket({ bookId: id, userId: auth.user.id, variant });
@@ -56,6 +56,6 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     );
   } catch (e: any) {
     console.error('[books/html-ticket]', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not open the book.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not open the product.' }, { status: 500 });
   }
 }

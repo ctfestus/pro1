@@ -41,7 +41,15 @@ export type BookChapterLocator =
  */
 export type BookSampleSpec =
   | { pages: { from: number; to: number } }
-  | { chapters: number };
+  | { chapters: number; storePath?: string };
+
+/**
+ * Where a chapter cut's links lead (its "get the full version" links). Recorded with the cut, so a
+ * sample made for an older store address is noticed and made again.
+ */
+export function sampleStorePath(slug: string): string {
+  return `/products/${slug}`;
+}
 
 /** Defaults offered for a new sample: the first ten pages, or the first two chapters. */
 export const DEFAULT_SAMPLE_PAGES = { from: 1, to: 10 } as const;
@@ -58,7 +66,9 @@ export function parseSampleSpec(v: unknown): BookSampleSpec | null {
     return from && to && to >= from ? { pages: { from, to } } : null;
   }
   const chapters = int(o.chapters, 1000);
-  return chapters ? { chapters } : null;
+  if (!chapters) return null;
+  const storePath = typeof o.storePath === 'string' && /^\/[a-z0-9/-]{1,200}$/.test(o.storePath) ? o.storePath : null;
+  return storePath ? { chapters, storePath } : { chapters };
 }
 
 export interface Book {
@@ -108,6 +118,9 @@ export interface BookChapter {
 export interface BookPrice {
   currency: string;
   amount: number;
+  /** A lower sale price, and when the sale ends (migration 237; lib/books/pricing.ts). */
+  saleAmount?: number | null;
+  saleEndsAt?: string | null;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null);
@@ -183,12 +196,12 @@ export function isLicenseExpired(licenseExpiresAt: string | null | undefined, no
 export function validateBookForPublish(book: Book, prices: BookPrice[] = []): string[] {
   const problems: string[] = [];
   if (!book.title || book.title === 'Untitled') problems.push('Add a title.');
-  if (!book.format || !book.filePath) problems.push('Upload the book file.');
+  if (!book.format || !book.filePath) problems.push('Upload the product file.');
   if (!book.licenseType) problems.push('Choose a licence type.');
   if (!book.availableToEveryone && !book.purchasable && book.cohortIds.length === 0) {
     problems.push('Choose who can read it: everyone, a cohort, or sell it.');
   }
-  if (book.purchasable && prices.length === 0) problems.push('Set at least one price to sell this book.');
+  if (book.purchasable && prices.length === 0) problems.push('Set at least one price to sell this product.');
   if (isLicenseExpired(book.licenseExpiresAt)) problems.push('The licence end date has already passed.');
   return problems;
 }

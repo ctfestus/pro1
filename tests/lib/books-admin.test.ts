@@ -105,7 +105,7 @@ describe('verifyUploadedObject', () => {
   it('refuses a path from another book without touching storage', async () => {
     const { db, remove } = storage({ data: { size: 1 }, error: null });
     const other = `22222222-2222-4222-8222-222222222222/file-${U}.html`;
-    expect(await verifyUploadedObject(db, BOOK_ID, other, 'file', 'html')).toEqual({ error: 'That upload does not belong to this book.' });
+    expect(await verifyUploadedObject(db, BOOK_ID, other, 'file', 'html')).toEqual({ error: 'That upload does not belong to this product.' });
     expect(remove).not.toHaveBeenCalled();
   });
 

@@ -28,7 +28,7 @@ describe('cutPdfSample', () => {
   });
 
   it('refuses a range that is the whole book or starts past the end', async () => {
-    await expect(cutPdfSample(await pdfWithPages(8), 1, 10)).rejects.toThrow('whole book');
+    await expect(cutPdfSample(await pdfWithPages(8), 1, 10)).rejects.toThrow('whole file');
     await expect(cutPdfSample(await pdfWithPages(8), 9, 10)).rejects.toThrow('has 8 pages');
   });
 

@@ -29,7 +29,7 @@ function ipKey(req: NextRequest): string {
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  if (!UUID.test(id)) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+  if (!UUID.test(id)) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
 
   const redis = getRedis();
   if (redis) {
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     if (error) throw error;
     const row = book as { id: string; slug: string | null; status: string | null; purchasable: boolean | null; license_expires_at: string | null; format: string | null; preview_file_path: string | null } | null;
     if (!row || !isPublicSampleAvailable(row)) {
-      return NextResponse.json({ error: 'This book has no free sample.' }, { status: 404, headers: NO_STORE });
+      return NextResponse.json({ error: 'This product has no free sample.' }, { status: 404, headers: NO_STORE });
     }
 
     if (row.format === 'html') {

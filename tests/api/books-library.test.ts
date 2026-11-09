@@ -123,6 +123,6 @@ describe('GET /api/books/library', () => {
     });
     const res = await call();
     expect(res.status).toBe(500);
-    expect((await res.json()).error).toBe('Could not load your books.');
+    expect((await res.json()).error).toBe('Could not load your products.');
   });
 });

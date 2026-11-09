@@ -169,7 +169,7 @@ describe('PUT /api/books', () => {
     authAs('author-1', 'instructor', BOOK);
     const res = await put({ id: BOOK_ID, status: 'published', purchasable: true, prices: [] });
     expect(res.status).toBe(400);
-    expect((await res.json()).problems).toContain('Set at least one price to sell this book.');
+    expect((await res.json()).problems).toContain('Set at least one price to sell this product.');
     expect(saveArgs()).toBeUndefined();
   });
 

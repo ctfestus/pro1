@@ -2,7 +2,7 @@
 
 // Dashboard list of books: an author's own books, or every book for an admin. Reads through
 // /api/books (service role) because sales counts come from other people's purchases, which RLS
-// rightly keeps private. Creating and editing happen in the editor at /create/book. Book payments
+// rightly keeps private. Creating and editing happen in the editor at /create/product. Book payments
 // that need a person (wrong amount, double payment, deleted account) are listed above the books.
 
 import { useEffect, useMemo, useState } from 'react';
@@ -46,7 +46,7 @@ type AttentionItem = {
 
 const REASON_LABELS: Record<string, string> = {
   amount_mismatch: 'Paid a different amount or currency than the order. No access was given.',
-  already_owned: 'Paid for a book they already had. Refund the extra payment.',
+  already_owned: 'Paid for a product they already had. Refund the extra payment.',
   account_deleted: 'Paid, but the account was deleted before access could be given.',
 };
 
@@ -80,14 +80,14 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
       try {
         const res = await fetch('/api/books', { headers: await authHeaders() });
         const d = await res.json();
-        if (!res.ok) throw new Error(d.error || 'Could not load books.');
+        if (!res.ok) throw new Error(d.error || 'Could not load products.');
         if (!cancelled) setBooks(d.books ?? []);
         // Secondary: a failure here must not hide the books themselves.
         const pr = await fetch('/api/books/purchases', { headers: await authHeaders() }).catch(() => null);
         const pd = pr?.ok ? await pr.json().catch(() => null) : null;
         if (!cancelled && pd?.attention) setAttention(pd.attention);
       } catch (e: any) {
-        if (!cancelled) setError(e?.message || 'Could not load books.');
+        if (!cancelled) setError(e?.message || 'Could not load products.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -110,7 +110,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
     try {
       const res = await fetch(`/api/books?id=${encodeURIComponent(book.id)}`, { method: 'DELETE', headers: await authHeaders() });
       const d = await res.json().catch(() => ({}));
-      if (!res.ok) { window.alert(d.error || 'Could not delete the book.'); return; }
+      if (!res.ok) { window.alert(d.error || 'Could not delete the product.'); return; }
       setBooks(prev => prev.filter(b => b.id !== book.id));
     } finally {
       setDeletingId(null);
@@ -147,16 +147,16 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
 
   if (loading) return <div className="py-24 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.green }} /></div>;
   if (error) return <div className="text-sm px-4 py-3 rounded-xl" style={{ background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>{error}</div>;
-  if (!books.length) return <SectionEmptyState Icon={Library} label="book" createHref="/create/book" createLabel="New book" C={C} />;
+  if (!books.length) return <SectionEmptyState Icon={Library} label="product" createHref="/create/product" createLabel="New product" C={C} />;
 
   return (
     <div className="space-y-5">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <p className="text-sm" style={{ color: C.faint }}>Publish books for your cohorts, open them to everyone, or sell them.</p>
+          <p className="text-sm" style={{ color: C.faint }}>Publish digital products for your cohorts, open them to everyone, or sell them.</p>
           <p className="text-xs mt-1" style={{ color: C.faint }}>{books.length} book{books.length === 1 ? '' : 's'}</p>
         </div>
-        <Link href="/create/book" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+        <Link href="/create/product" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
           style={{ background: C.cta, color: C.ctaText }}>
           <Plus className="w-4 h-4" /> New book
         </Link>
@@ -242,7 +242,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                     {openingId === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                   </button>
                 )}
-                <Link href={`/create/book?id=${b.id}`} className="p-2 rounded-lg transition-opacity hover:opacity-70" aria-label={`Edit ${b.title}`}
+                <Link href={`/create/product?id=${b.id}`} className="p-2 rounded-lg transition-opacity hover:opacity-70" aria-label={`Edit ${b.title}`}
                   style={{ color: C.muted }}><Edit2 className="w-4 h-4" /></Link>
                 <button onClick={() => remove(b)} disabled={deletingId === b.id} className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"
                   aria-label={`Delete ${b.title}`} style={{ color: '#dc2626' }}>
@@ -255,7 +255,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
         {visible.length === 0 && (
           <div className="py-16 text-center rounded-2xl" style={{ ...cardStyle(C) }}>
             <Search className="w-6 h-6 mx-auto mb-2" style={{ color: C.faint }} />
-            <p className="text-sm font-semibold" style={{ color: C.text }}>No matching books</p>
+            <p className="text-sm font-semibold" style={{ color: C.text }}>No matching products</p>
             <p className="text-xs mt-1" style={{ color: C.faint }}>Try another search or status filter.</p>
           </div>
         )}

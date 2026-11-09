@@ -149,7 +149,7 @@ export async function startBookCheckout(
     if (settled?.status === 'unpaid' && !CLOSABLE_PROVIDER_STATUSES.includes(settled.providerStatus)) {
       throw new PaymentError(
         'conflict',
-        'Your earlier payment for this book is still being processed. Wait for it to finish, then try again.',
+        'Your earlier payment for this product is still being processed. Wait for it to finish, then try again.',
         409,
       );
     }

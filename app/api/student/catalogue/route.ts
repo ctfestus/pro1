@@ -24,6 +24,7 @@ import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
 import { pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
 import { pathOverviewFields } from '@/lib/path-overview';
 import { isLicenseExpired } from '@/lib/books/schema';
+import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
 import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 import {
   loadPlansForContent,
@@ -48,7 +49,7 @@ export interface CatalogueItem {
   /** Only ever set on a single-item lookup of a locked item. */
   unlock?: { plans: PlanWithPrices[] };
   /** Books only: what a locked book costs to buy on its own (book_prices). */
-  prices?: { currency: string; amount: number }[];
+  prices?: ShownPrice[];
   /**
    * Books only: whether the public store lists it (for sale with a price, or open to everyone).
    * A book the learner has only through their cohort is not in the store, so Explore sends them
@@ -191,18 +192,18 @@ export async function GET(req: NextRequest) {
     // as the store does not show it either.
     const owned = new Set(entitlements.map(e => e.book_id));
     const sellable = books.filter(b => b.purchasable === true).map(b => b.id);
-    const pricesByBook = new Map<string, { currency: string; amount: number }[]>();
+    const pricesByBook = new Map<string, ShownPrice[]>();
     if (sellable.length) {
       // Chunked and paged like every other catalogue read: a truncated or oversized price query
       // would silently drop books from Explore or send them to the wrong page. (book_id, currency)
       // is unique, so ordering by both keeps page boundaries stable.
-      const priceRows = await fetchAllRowsByIds<{ book_id: string; currency: string; amount: unknown }>(sellable, (ids, from, to) =>
-        db.from('book_prices').select('book_id, currency, amount', { count: 'exact' })
+      const priceRows = await fetchAllRowsByIds<PriceRow & { book_id: string }>(sellable, (ids, from, to) =>
+        db.from('book_prices').select('book_id, currency, amount, sale_amount, sale_ends_at', { count: 'exact' })
           .in('book_id', ids).order('book_id').order('currency').range(from, to));
       for (const p of priceRows) {
         const amount = Number(p.amount);
         if (!Number.isFinite(amount) || amount <= 0) continue;
-        pricesByBook.set(p.book_id, [...(pricesByBook.get(p.book_id) ?? []), { currency: String(p.currency), amount }]);
+        pricesByBook.set(p.book_id, [...(pricesByBook.get(p.book_id) ?? []), shownPrice(p)]);
       }
     }
     const bookItems: CatalogueItem[] = [];

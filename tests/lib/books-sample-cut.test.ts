@@ -209,7 +209,7 @@ describe('HTML samples keep the book working', () => {
     expect(one.getAttribute('href')).toBe('#one');
     expect(two.getAttribute('href')).toBe(STORE);
     expect(two.getAttribute('target')).toBe('_blank');
-    expect(two.textContent).toContain('(in the full book)');
+    expect(two.textContent).toContain('(in the full version)');
     expect(elsewhere.getAttribute('href')).toBe('https://elsewhere.example');
   });
 
@@ -217,7 +217,7 @@ describe('HTML samples keep the book working', () => {
     const doc = new DOMParser().parseFromString(cutHtmlSample(page, 'two', { storeUrl: STORE, nextChapterTitle: 'Two <b>x</b>' }).html, 'text/html');
     const note = doc.querySelector('[data-sample-end]')!;
     expect(note.textContent).toContain('This is the end of the free sample.');
-    expect(note.textContent).toContain('The full book continues with Two <b>x</b>.');
+    expect(note.textContent).toContain('The full version continues with Two <b>x</b>.');
     expect(note.querySelector('b')).toBeNull(); // a title is text, never markup
     expect(note.querySelector('a')!.getAttribute('href')).toBe(STORE);
     expect(note.parentElement!.localName).toBe('main');
@@ -238,10 +238,10 @@ describe('EPUB samples link to the full book', () => {
     const navDoc = new DOMParser().parseFromString(nav, 'application/xhtml+xml');
     const hrefs = Array.from(navDoc.getElementsByTagName('a')).map(a => a.getAttribute('href'));
     expect(hrefs).toEqual(['c1.xhtml', 'c2.xhtml#two', STORE, STORE]);
-    expect(nav).toContain('(in the full book)');
+    expect(nav).toContain('(in the full version)');
     const last = await z.file('OEBPS/c2.xhtml')!.async('string');
     expect(last).toContain('This is the end of the free sample.');
-    expect(last).toContain('The full book continues with Three.');
+    expect(last).toContain('The full version continues with Three.');
     expect(last).not.toContain('SECRET');
   });
 });

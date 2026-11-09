@@ -66,6 +66,19 @@ describe('loadStoreBooks / loadStoreBook', () => {
     expect(books[0].prices).toEqual([{ currency: 'GHS', amount: 120 }, { currency: 'USD', amount: 10 }]);
   });
 
+  it('shows a running sale with the regular price as the original, and drops an ended one', async () => {
+    const future = new Date(Date.now() + 86_400_000).toISOString();
+    const db = makeSupabaseStub({
+      books: { data: [row()] },
+      book_prices: { data: [
+        { book_id: ID, currency: 'GHS', amount: '120.00', sale_amount: '90.00', sale_ends_at: future },
+        { book_id: ID, currency: 'USD', amount: '10', sale_amount: '8', sale_ends_at: '2020-01-01T00:00:00Z' },
+      ] },
+    });
+    const [book] = await loadStoreBooks(db);
+    expect(book.prices).toEqual([{ currency: 'GHS', amount: 90, original: 120, saleEndsAt: future }, { currency: 'USD', amount: 10 }]);
+  });
+
   it('returns a book with its contents, marking sample chapters only when there is a sample', async () => {
     const db = makeSupabaseStub({
       books: { data: row() },

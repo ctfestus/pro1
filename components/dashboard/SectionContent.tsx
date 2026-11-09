@@ -47,7 +47,7 @@ export function SectionContent({ section, forms, shareMenuOpen, setShareMenuOpen
   if (section === 'branding')     return <BrandingSection C={C} />;
   if (section === 'site')         return <SiteSettingsSection C={C} />;
   if (section === 'learning_paths') return <LearningPathsSection C={C} forms={forms} />;
-  if (section === 'books')          return <BooksManageSection C={C} />;
+  if (section === 'products')          return <BooksManageSection C={C} />;
   if (section === 'data_center')    return <DataCenterAdminSection C={C} />;
   if (section === 'partners')       return <PartnersSection C={C} />;
   if (section === 'applications')   return <ApplicationsSection C={C} />;

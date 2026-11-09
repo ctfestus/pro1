@@ -32,6 +32,7 @@ import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
 import type { CataloguePathItem } from '@/lib/catalogue-path-items';
 import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 import { formatMoney } from '@/lib/books/format';
+import { PriceTag } from '@/components/books/store/PriceTag';
 
 type CatalogueType = 'course' | 'learning_path' | 'virtual_experience' | 'certification' | 'book';
 
@@ -46,7 +47,7 @@ interface CatalogueItem {
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
-  prices?: { currency: string; amount: number }[];
+  prices?: { currency: string; amount: number; original?: number }[];
   /** Books only: listed in the public store; otherwise the learner's copy is in My Books. */
   inStore?: boolean;
 }
@@ -56,7 +57,7 @@ const TYPE_LABEL: Record<CatalogueType, string> = {
   learning_path:      'Learning Path',
   virtual_experience: 'Virtual Experience',
   certification:      'Certification',
-  book:               'Book',
+  book:               'Digital Product',
 };
 
 const ROW_TITLE: Record<CatalogueType, string> = {
@@ -64,7 +65,7 @@ const ROW_TITLE: Record<CatalogueType, string> = {
   learning_path:      'Learning Paths',
   virtual_experience: 'Virtual Experiences',
   certification:      'Certifications',
-  book:               'Books',
+  book:               'Digital Products',
 };
 
 // Image-less fallbacks, mirroring the landing page's per-type gradients so a card with no cover
@@ -103,7 +104,7 @@ const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'learning_path',      label: 'Learning Paths' },
   { value: 'virtual_experience', label: 'Virtual Experiences' },
   { value: 'certification',      label: 'Certifications' },
-  { value: 'book',               label: 'Books' },
+  { value: 'book',               label: 'Digital Products' },
 ];
 
 function CategoryPill({ category }: { category: string }) {
@@ -127,7 +128,7 @@ const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage)
 // store, so it opens My Books, where it is listed for download.
 const directHref = (item: CatalogueItem) =>
   item.type === 'book'
-    ? (item.inStore === false ? '/student#books' : `/books/${encodeURIComponent(item.slug || item.id)}`)
+    ? (item.inStore === false ? '/student#products' : `/products/${encodeURIComponent(item.slug || item.id)}`)
     : item.type === 'learning_path'
       ? `/${encodeURIComponent(item.id)}?catalogueType=learning_path`
       : `/${item.slug || item.id}?catalogueType=${encodeURIComponent(item.type)}`;
@@ -393,7 +394,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                     {item.title}
                   </p>
                   {item.locked && item.prices?.length ? (
-                    <p className="text-sm font-bold mt-1" style={{ color: C.text }}>{bookPrice(item)}</p>
+                    <PriceTag prices={item.prices} className="block text-sm font-bold mt-1" style={{ color: C.text }} />
                   ) : null}
                   {item.category && (
                     <div className="mt-2">
@@ -602,7 +603,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
             style={{ background: C.cta, color: C.ctaText }}
           >
             <ArrowRight className="w-3.5 h-3.5" />
-            {item.type === 'book' ? `View book${item.prices?.length ? ` - ${bookPrice(item)}` : ''}` : 'View details'}
+            {item.type === 'book' ? `View product${item.prices?.length ? ` - ${bookPrice(item)}` : ''}` : 'View details'}
           </button>
         ) : (() => {
           const label = item.type === 'book' ? (

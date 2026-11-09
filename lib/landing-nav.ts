@@ -85,15 +85,15 @@ export type NavBook = { id: string; slug: string; title: string; coverImage: str
 function booksGroup(books: NavBook[]): NavGroup | null {
   if (!books.length) return null;
   return {
-    label: 'Books',
-    anchor: '/books',
+    label: 'Digital Products',
+    anchor: '/products',
     subGroups: [{
       label: '',
       items: books.slice(0, ITEMS_PER_GROUP).map(book => ({
         id: book.id,
         title: book.title,
         imageUrl: book.coverImage ?? undefined,
-        href: `/books/${book.slug}`,
+        href: `/products/${book.slug}`,
       })),
     }],
   };

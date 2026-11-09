@@ -35,7 +35,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .eq('id', id)
       .maybeSingle();
     if (error) throw error;
-    if (!book) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+    if (!book) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
 
     const row = book as unknown as BookAccessRow & { format: string | null; file_path: string | null; slug: string | null };
     // Access first: a reader who may not see this book learns nothing about it, not even its format.
@@ -52,7 +52,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     // Only ever sign an object this book's own upload issued -- never a path copied from another
     // book (file_path is author-writable; the service role would sign anything).
     if (!isBookObjectPath(row.id, path, kind, row.format)) {
-      return NextResponse.json({ error: 'This book has no file yet.' }, { status: 404 });
+      return NextResponse.json({ error: 'This product has no file yet.' }, { status: 404 });
     }
 
     const inline = row.format === 'pdf' && (kind === 'preview' || req.nextUrl.searchParams.get('view') === '1');
@@ -68,6 +68,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     );
   } catch (e: any) {
     console.error('[books/file]', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not get the book file.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not get the product file.' }, { status: 500 });
   }
 }

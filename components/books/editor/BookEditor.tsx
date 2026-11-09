@@ -1,6 +1,6 @@
 'use client';
 
-// The book editor at /create/book (new) and /create/book?id= (edit). Uses the create editor's
+// The book editor at /create/product (new) and /create/product?id= (edit). Uses the create editor's
 // local theme, as the other /create pages do. Every save goes through /api/books, which re-checks
 // ownership, uploaded files and publish readiness; this page only helps
 // the author get there.
@@ -25,6 +25,7 @@ import {
   DEFAULT_SAMPLE_CHAPTERS,
   DEFAULT_SAMPLE_PAGES,
   parseSampleSpec,
+  sampleStorePath,
   type BookFormat,
   type BookLicenseType,
   type BookSampleSpec,
@@ -86,7 +87,9 @@ type EditorState = {
   cohortIds: string[];
   purchasable: boolean;
   royaltyPct: string;
-  prices: { currency: string; amount: string }[];
+  // saleAmount and saleEndsAt (a date, yyyy-mm-dd) are optional: a sale price shown with the
+  // regular price crossed out, until the end of that day.
+  prices: { currency: string; amount: string; saleAmount: string; saleEndsAt: string }[];
 };
 
 const EMPTY: EditorState = {
@@ -108,6 +111,13 @@ type CutSample = {
 };
 
 const splitList = (v: string) => v.split(',').map(s => s.trim()).filter(Boolean);
+/** A timestamp as the author's local date (yyyy-mm-dd), for a date input. */
+function localDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const wholeNumber = (v: string) => (/^\d+$/.test(v) && Number(v) >= 1 ? Number(v) : null);
 const newKey = () => Math.random().toString(36).slice(2, 10);
 
@@ -227,11 +237,11 @@ export function BookEditor() {
       const [{ data: book, error: bookError }, { data: chapterRows, error: chapterError }, { data: priceRows, error: priceError }] = await Promise.all([
         supabase.from('books').select('*').eq('id', editId).maybeSingle(),
         supabase.from('book_chapters').select('*').eq('book_id', editId).order('position'),
-        supabase.from('book_prices').select('currency, amount').eq('book_id', editId).order('currency'),
+        supabase.from('book_prices').select('currency, amount, sale_amount, sale_ends_at').eq('book_id', editId).order('currency'),
       ]);
       if (cancelled) return;
       if (bookError || !book || chapterError || priceError) {
-        setError('This book could not be loaded completely. Reload the page before editing.');
+        setError('This product could not be loaded completely. Reload the page before editing.');
         setBlocked(true);
         setLoading(false);
         return;
@@ -246,7 +256,12 @@ export function BookEditor() {
         aiAllowed: book.ai_allowed !== false, endorsementPermitted: book.endorsement_permitted === true,
         availableToEveryone: book.available_to_everyone === true, cohortIds: book.cohort_ids ?? [],
         purchasable: book.purchasable === true, royaltyPct: String(book.royalty_pct ?? 0),
-        prices: (priceRows ?? []).map((p: any) => ({ currency: p.currency, amount: String(p.amount) })),
+        prices: (priceRows ?? []).map((p: any) => ({
+          currency: p.currency,
+          amount: String(p.amount),
+          saleAmount: p.sale_amount == null ? '' : String(p.sale_amount),
+          saleEndsAt: p.sale_ends_at ? localDate(p.sale_ends_at) : '',
+        })),
       });
       setStatus(book.status);
       setFormat(book.format ?? null);
@@ -262,7 +277,10 @@ export function BookEditor() {
       if (spec && 'pages' in spec) setSamplePages({ from: String(spec.pages.from), to: String(spec.pages.to) });
       if (spec && 'chapters' in spec) setSampleChapters(String(spec.chapters));
       setSampleSource(spec || !book.preview_file_path ? 'cut' : 'upload');
-      setSampleDirty(!spec && !book.preview_file_path && !!book.file_path);
+      // A chapter cut whose links lead to an older store address (or none recorded) is made again
+      // on the next save, so its links reach the product page.
+      const staleLinks = !!spec && 'chapters' in spec && !!book.file_path && !!book.slug && spec.storePath !== sampleStorePath(book.slug);
+      setSampleDirty((!spec && !book.preview_file_path && !!book.file_path) || staleLinks);
       setLoadedAt(book.updated_at ?? null);
       setLoading(false);
     })();
@@ -280,10 +298,10 @@ export function BookEditor() {
         body: JSON.stringify({ title: newTitle.trim() }),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || 'Could not create the book.');
-      router.replace(`/create/book?id=${d.id}`);
+      if (!res.ok) throw new Error(d.error || 'Could not create the product.');
+      router.replace(`/create/product?id=${d.id}`);
     } catch (e: any) {
-      setError(e?.message || 'Could not create the book.');
+      setError(e?.message || 'Could not create the product.');
       setCreating(false);
     }
   }
@@ -322,14 +340,14 @@ export function BookEditor() {
     setError(''); setNotice('');
     const fmt = formatOf(file);
     if (!fmt) { setError('Choose an EPUB, PDF or HTML file.'); return; }
-    if (kind === 'preview' && fmt !== effectiveFormat) { setError(`The sample must be the same format as the book (${effectiveFormat?.toUpperCase()}).`); return; }
+    if (kind === 'preview' && fmt !== effectiveFormat) { setError(`The sample must be the same format as the product file (${effectiveFormat?.toUpperCase()}).`); return; }
     const max = fmt === 'html' ? BOOK_HTML_MAX_BYTES : BOOK_FILE_MAX_BYTES;
     if (file.size > max) { setError(`The file must be under ${Math.round(max / (1024 * 1024))} MB.`); return; }
 
     if (fmt === 'html') {
       const external = externalReferencesInHtml(await file.text());
       if (external.length) {
-        const ok = window.confirm(`This HTML book loads ${external.length} file(s) from other sites, for example ${external[0]}. A book should be self-contained, so it keeps working and cannot change after you publish it. Upload anyway?`);
+        const ok = window.confirm(`This HTML file loads ${external.length} file(s) from other sites, for example ${external[0]}. A product file should be self-contained, so it keeps working and cannot change after you publish it. Upload anyway?`);
         if (!ok) return;
       }
     }
@@ -365,9 +383,9 @@ export function BookEditor() {
     if (bookData.current?.format === fmt) return bookData.current.blob;
     const res = await fetch(`/api/books/${encodeURIComponent(editId ?? '')}/file`, { headers: await authHeaders() });
     const d = await res.json().catch(() => ({}));
-    if (!res.ok || !d.url) throw new Error(d.error || 'Could not load the book file.');
+    if (!res.ok || !d.url) throw new Error(d.error || 'Could not load the product file.');
     const file = await fetch(d.url);
-    if (!file.ok) throw new Error('Could not load the book file.');
+    if (!file.ok) throw new Error('Could not load the product file.');
     const blob = await file.blob();
     bookData.current = { blob, format: fmt };
     return blob;
@@ -438,15 +456,15 @@ export function BookEditor() {
       }
 
       if (!found.length) {
-        const why = aiProblem || (!state.aiAllowed ? 'This book\'s rights do not allow AI to read it.' : '');
-        setNotice(`No chapters were found in the book.${why ? ` ${why}` : ''} Add them below.`);
+        const why = aiProblem || (!state.aiAllowed ? 'This product\'s rights do not allow AI to read it.' : '');
+        setNotice(`No chapters were found in the file.${why ? ` ${why}` : ''} Add them below.`);
         return;
       }
-      if (!auto && chapters.length && !window.confirm(`Replace the ${chapters.length} chapter(s) in the editor with the ${found.length} found in the book?`)) return;
+      if (!auto && chapters.length && !window.confirm(`Replace the ${chapters.length} chapter(s) in the editor with the ${found.length} found in the file?`)) return;
       applyChapters(found);
       setNotice(`Found ${found.length} chapter(s)${viaAi ? ' with AI' : ''}. Review them, then save.${aiProblem ? ` (${aiProblem})` : ''}`);
     } catch (e: any) {
-      setError(e?.message || 'Could not read chapters from the book.');
+      setError(e?.message || 'Could not read chapters from the file.');
     } finally {
       setFindingChapters(false);
     }
@@ -478,7 +496,7 @@ export function BookEditor() {
       return from && to && to >= from ? { pages: { from, to } } : null;
     }
     const n = wholeNumber(sampleChapters);
-    return n ? { chapters: n } : null;
+    return n ? (slug ? { chapters: n, storePath: sampleStorePath(slug) } : { chapters: n }) : null;
   }
 
   /** Identifies a cut: format, settings and where it stops. A review applies to that cut only. */
@@ -500,14 +518,14 @@ export function BookEditor() {
     const n = spec.chapters;
     if (chapters.length <= n) {
       throw new Error(chapters.length
-        ? `The book has ${chapters.length} chapter(s), so a sample of ${n} would be the whole book. Choose fewer chapters.`
-        : 'The book has no chapters yet. Find or add chapters first.');
+        ? `The product has ${chapters.length} chapter(s), so a sample of ${n} would be all of it. Choose fewer chapters.`
+        : 'The product has no chapters yet. Find or add chapters first.');
     }
     const stop = chapters[n];
     // Links into the left-out chapters, and the closing note, lead to the book's store page. The
     // chapter titles tell the check which text is public (a contents list naming them).
     const links = {
-      storeUrl: slug ? `${window.location.origin}/books/${slug}` : '',
+      storeUrl: 'storePath' in spec && spec.storePath ? `${window.location.origin}${spec.storePath}` : '',
       nextChapterTitle: stop.title,
       chapterTitles: chapters.map(c => c.title),
     };
@@ -554,7 +572,7 @@ export function BookEditor() {
     if (!editId || blocked) return;
     setError(''); setNotice('');
     if (!state.title.trim()) { setError('Add a title.'); return; }
-    if (chaptersDirty && chapters.length === 0 && !window.confirm('Remove every chapter? Readers lose their progress in this book.')) return;
+    if (chaptersDirty && chapters.length === 0 && !window.confirm('Remove every chapter from this product?')) return;
     setSaving(nextStatus);
     try {
       const body: Record<string, unknown> = {
@@ -644,7 +662,13 @@ export function BookEditor() {
       body.purchasable = state.purchasable;
       body.royaltyPct = Number(state.royaltyPct) || 0;
       if (pricesDirty) {
-        body.prices = state.prices.filter(p => p.currency && p.amount).map(p => ({ currency: p.currency, amount: Number(p.amount) }));
+        body.prices = state.prices.filter(p => p.currency && p.amount).map(p => ({
+          currency: p.currency,
+          amount: Number(p.amount),
+          saleAmount: p.saleAmount ? Number(p.saleAmount) : null,
+          // The sale runs to the end of the chosen day, in the author's time zone.
+          saleEndsAt: p.saleAmount && p.saleEndsAt ? new Date(`${p.saleEndsAt}T23:59:59`).toISOString() : null,
+        }));
       }
 
       const res = await fetch('/api/books', {
@@ -653,7 +677,7 @@ export function BookEditor() {
         body: JSON.stringify(body),
       });
       const d = await res.json();
-      if (!res.ok) throw new Error(d.error || 'Could not save the book.');
+      if (!res.ok) throw new Error(d.error || 'Could not save the product.');
 
       const saved = d.book;
       setStatus(saved.status);
@@ -680,9 +704,9 @@ export function BookEditor() {
       else if (sampleNeedsReview) {
         setNotice(`${done}. The new free sample is waiting for your review below, under Free sample.${storedPreview ? ' Until you confirm it, the previous sample stays in use.' : ''}`);
       }
-      else setNotice(`${done}.${cutSpec ? ' The free sample was made from the book.' : ''}`);
+      else setNotice(`${done}.${cutSpec ? ' The free sample was made from the product file.' : ''}`);
     } catch (e: any) {
-      setError(e?.message || 'Could not save the book.');
+      setError(e?.message || 'Could not save the product.');
     } finally {
       setSaving(null);
     }
@@ -708,16 +732,16 @@ export function BookEditor() {
       <div className="rounded-2xl px-5 sm:px-7 py-6 flex items-start justify-between gap-4" style={{ ...card, boxShadow: C.cardShadow }}>
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em]" style={{ color: C.cta }}>
-            <Library className="w-4 h-4" /> Book Studio
+            <Library className="w-4 h-4" /> Product Studio
           </div>
           <h1 className="mt-2 truncate text-xl sm:text-2xl font-bold" style={{ color: C.text }}>
-            {editId ? (state.title.trim() || 'Edit book') : 'New book'}
+            {editId ? (state.title.trim() || 'Edit product') : 'New product'}
           </h1>
           {editId && <p className="text-xs mt-1 capitalize" style={{ color: C.faint }}>{status}{effectiveFormat ? ` / ${effectiveFormat.toUpperCase()}` : ''}</p>}
         </div>
-        <button onClick={() => router.push('/dashboard#books')} className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"
+        <button onClick={() => router.push('/dashboard#products')} className="shrink-0 flex items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium"
           style={{ background: C.pill, color: C.muted }}>
-          <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Books</span>
+          <ArrowLeft className="w-4 h-4" /> <span className="hidden sm:inline">Digital Products</span>
         </button>
       </div>
     </div>
@@ -738,10 +762,10 @@ export function BookEditor() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 space-y-6">
           {banner}
           <div className="rounded-2xl p-5 sm:p-7 space-y-4" style={card}>
-            {sectionTitle('Start a book')}
+            {sectionTitle('Start a product')}
             {field('Title', <input className={inputCls} style={inputStyle} value={newTitle} onChange={e => setNewTitle(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') createDraft(); }} placeholder="SQL for Data Analysts" autoFocus />,
-              'The book is created as a draft. You can upload the file and fill in the rest next.')}
+              'The product is created as a draft. You can upload the file and fill in the rest next.')}
             <button onClick={createDraft} disabled={creating} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
               style={{ background: C.cta, color: C.ctaText }}>
               {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />} Create draft
@@ -796,8 +820,8 @@ export function BookEditor() {
 
         {/* Files */}
         <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>
-          {sectionTitle('Book file')}
-          <p className="text-sm" style={{ color: C.faint }}>EPUB or PDF up to 100 MB, or a self-contained HTML book up to 10 MB. Files are private: readers only ever get a short-lived link.</p>
+          {sectionTitle('Product file')}
+          <p className="text-sm" style={{ color: C.faint }}>EPUB or PDF up to 100 MB, or a self-contained HTML file up to 10 MB. Files are private: readers only ever get a short-lived link.</p>
           <input ref={fileInput} type="file" accept=".epub,.pdf,.html,.htm" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload('file', f); }} />
           <input ref={previewInput} type="file" accept=".epub,.pdf,.html,.htm" className="hidden"
@@ -815,15 +839,15 @@ export function BookEditor() {
               <button onClick={() => previewSaved('full')} disabled={!!opening} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
                 style={{ background: C.pill, color: C.muted }}>
                 {opening === 'full' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-                {format === 'epub' ? 'Download to check' : 'Preview book'}
+                {format === 'epub' ? 'Download to check' : 'Preview product'}
               </button>
             )}
           </div>
           <div className="pt-4 space-y-3" style={{ borderTop: `1px solid ${C.divider}` }}>
             <p className="text-sm font-medium" style={{ color: C.text }}>Free sample</p>
-            <p className="text-xs" style={{ color: C.faint }}>People who have not bought the book get only this part, as a separate file, so the full book never reaches them.</p>
+            <p className="text-xs" style={{ color: C.faint }}>People who have not bought the product get only this part, as a separate file, so the full product never reaches them.</p>
             <div className="inline-flex rounded-xl p-1 gap-1" style={{ background: C.input }} role="radiogroup" aria-label="Sample source">
-              {([['cut', 'Cut from the book'], ['upload', 'Upload a sample file']] as const).map(([value, label]) => (
+              {([['cut', 'Cut from the file'], ['upload', 'Upload a sample file']] as const).map(([value, label]) => (
                 <button key={value} role="radio" aria-checked={sampleSource === value}
                   onClick={() => { if (sampleSource === value) return; setSampleSource(value); if (value === 'cut') sampleChanged(); else { setSampleDirty(false); setSampleReview(null); setReviewAck(false); } }}
                   className="px-3 py-1.5 rounded-lg text-xs font-semibold"
@@ -851,9 +875,9 @@ export function BookEditor() {
                   </label>
                 )}
                 <p className="text-xs" style={{ color: C.faint }}>
-                  {!effectiveFormat ? 'Upload the book first.'
-                    : sampleDirty ? 'The sample is made from the book when you save.'
-                    : storedPreview ? 'The current sample matches these settings.' : 'The sample is made from the book when you save.'}
+                  {!effectiveFormat ? 'Upload the product file first.'
+                    : sampleDirty ? 'The sample is made from the file when you save.'
+                    : storedPreview ? 'The current sample matches these settings.' : 'The sample is made from the file when you save.'}
                 </p>
                 {sampleReview && (
                   <div className="rounded-xl p-4 space-y-3" style={{ background: C.input }}>
@@ -910,7 +934,7 @@ export function BookEditor() {
                 {/* A sample made before the cutter changed (or one to redo for any reason) is not
                     remade by a plain save, since nothing it depends on changed. This marks it. */}
                 {storedPreview && !sampleDirty && (newFile || storedFile.path) && (
-                  <button onClick={() => { sampleChanged(); setNotice('The sample will be made again from the book when you save.'); }}
+                  <button onClick={() => { sampleChanged(); setNotice('The sample will be made again from the file when you save.'); }}
                     className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.muted }}>
                     <RefreshCw className="w-3.5 h-3.5" /> Remake sample
                   </button>
@@ -962,10 +986,10 @@ export function BookEditor() {
             </div>
           </div>
           <p className="text-xs" style={{ color: C.faint }}>
-            {findingChapters ? 'Reading the chapters from the book...'
+            {findingChapters ? 'Reading the chapters from the file...'
               : effectiveFormat === 'pdf'
                 ? 'Chapters are read from the PDF\'s bookmarks when you upload it. If it has none, AI suggests them from the page text. Check the start pages, then save.'
-                : 'Chapters are read from the book\'s table of contents or headings when you upload it. If it has none, AI suggests them. Rename or remove any you do not want, then save.'}
+                : 'Chapters are read from the file\'s table of contents or headings when you upload it. If it has none, AI suggests them. Rename or remove any you do not want, then save.'}
           </p>
           {chapters.length === 0 && <p className="text-sm py-4 text-center" style={{ color: C.faint }}>No chapters yet.</p>}
           <div className="space-y-2">
@@ -1021,7 +1045,7 @@ export function BookEditor() {
             {field('Licence ends', <input type="date" className={inputCls} style={inputStyle} value={state.licenseExpiresAt} onChange={e => update({ licenseExpiresAt: e.target.value })} />, 'Readers lose access on this date. Leave empty if it never ends.')}
           </div>
           <div className="flex items-center justify-between gap-4">
-            <span className="text-sm" style={{ color: C.text }}>AI may read this book to explain it and write practice questions</span>
+            <span className="text-sm" style={{ color: C.text }}>AI may read this product to explain it and write practice questions</span>
             <Toggle checked={state.aiAllowed} accentColor={C.cta} onChange={() => update({ aiAllowed: !state.aiAllowed })} />
           </div>
           <div className="flex items-center justify-between gap-4">
@@ -1062,22 +1086,42 @@ export function BookEditor() {
         <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>
             {sectionTitle('Selling')}
             <div className="flex items-center justify-between gap-4">
-              <span className="text-sm" style={{ color: C.text }}>Sell this book on its own</span>
+              <span className="text-sm" style={{ color: C.text }}>Sell this product on its own</span>
               <Toggle checked={state.purchasable} accentColor={C.cta} onChange={() => update({ purchasable: !state.purchasable })} />
             </div>
             {state.purchasable && <>
               <div className="space-y-2">
                 <label className={labelCls} style={{ color: C.faint }}>Prices</label>
-                {state.prices.map((p, i) => (
-                  <div key={i} className="flex items-center gap-2">
-                    <input className="w-24 rounded-lg px-3 py-2 text-sm outline-none uppercase" style={inputStyle} maxLength={3} placeholder="GHS" value={p.currency}
-                      onChange={e => updatePrices(state.prices.map((q, j) => j === i ? { ...q, currency: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') } : q))} />
-                    <input className="w-36 rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} inputMode="decimal" placeholder="0.00" value={p.amount}
-                      onChange={e => updatePrices(state.prices.map((q, j) => j === i ? { ...q, amount: e.target.value.replace(/[^0-9.]/g, '') } : q))} />
-                    <button onClick={() => updatePrices(state.prices.filter((_, j) => j !== i))} aria-label="Remove price" className="p-1.5" style={{ color: '#dc2626' }}><Trash2 className="w-4 h-4" /></button>
-                  </div>
-                ))}
-                <button onClick={() => updatePrices([...state.prices, { currency: '', amount: '' }])} className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.cta }}>
+                {state.prices.map((p, i) => {
+                  const set = (patch: Partial<EditorState['prices'][number]>) => updatePrices(state.prices.map((q, j) => j === i ? { ...q, ...patch } : q));
+                  const saleTooHigh = !!p.saleAmount && !!p.amount && !(Number(p.saleAmount) < Number(p.amount));
+                  return (
+                    <div key={i} className="rounded-xl p-3 space-y-2" style={{ background: C.input }}>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <input className="w-24 rounded-lg px-3 py-2 text-sm outline-none uppercase" style={inputStyle} maxLength={3} placeholder="GHS" aria-label="Currency" value={p.currency}
+                          onChange={e => set({ currency: e.target.value.toUpperCase().replace(/[^A-Z]/g, '') })} />
+                        <input className="w-32 rounded-lg px-3 py-2 text-sm outline-none" style={inputStyle} inputMode="decimal" placeholder="0.00" aria-label="Price" value={p.amount}
+                          onChange={e => set({ amount: e.target.value.replace(/[^0-9.]/g, '') })} />
+                        <button onClick={() => updatePrices(state.prices.filter((_, j) => j !== i))} aria-label="Remove price" className="p-1.5 ml-auto" style={{ color: '#dc2626' }}><Trash2 className="w-4 h-4" /></button>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.faint }}>
+                        <label className="flex items-center gap-2">Sale price
+                          <input className="w-28 rounded-lg px-3 py-1.5 text-sm outline-none" style={inputStyle} inputMode="decimal" placeholder="Optional" value={p.saleAmount}
+                            onChange={e => set({ saleAmount: e.target.value.replace(/[^0-9.]/g, '') })} />
+                        </label>
+                        {p.saleAmount && (
+                          <label className="flex items-center gap-2">until
+                            <input type="date" className="rounded-lg px-3 py-1.5 text-sm outline-none" style={inputStyle} value={p.saleEndsAt}
+                              onChange={e => set({ saleEndsAt: e.target.value })} />
+                          </label>
+                        )}
+                        {p.saleAmount && !p.saleEndsAt && <span>No end date: the sale runs until you remove it.</span>}
+                      </div>
+                      {saleTooHigh && <p className="text-xs" style={{ color: '#dc2626' }}>The sale price must be lower than the regular price, or it is ignored.</p>}
+                    </div>
+                  );
+                })}
+                <button onClick={() => updatePrices([...state.prices, { currency: '', amount: '', saleAmount: '', saleEndsAt: '' }])} className="inline-flex items-center gap-1.5 text-xs font-semibold" style={{ color: C.cta }}>
                   <Plus className="w-3.5 h-3.5" /> Add a price
                 </button>
               </div>

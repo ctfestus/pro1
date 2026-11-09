@@ -16,7 +16,7 @@ describe('fresh schema books (migration 232)', () => {
   });
 
   it('keeps the catalogue tables identical to migration 232', () => {
-    // Prices and chapters are unchanged since 232; purchases changed in 235 (tested below) and
+    // Chapters are unchanged since 232 and prices only gained sale columns in 237 (added after the tables); purchases changed in 235 (tested below) and
     // books gained sample_spec in 236, which is the only difference allowed here.
     const endorsement = '  endorsement_permitted boolean     NOT NULL DEFAULT false,\n';
     const tables = migration.slice(migration.indexOf('-- Books ----'), migration.indexOf('-- Ownership ----')).trim()
@@ -108,7 +108,8 @@ describe('fresh schema book chapters save (migration 233)', () => {
   });
 
   // save_book was redefined by migration 236 (sample_spec); the fresh schema carries that version.
-  const latest = readFileSync(join(process.cwd(), 'migrations/236_book_sample_spec.sql'), 'utf8');
+  const latest = readFileSync(join(process.cwd(), 'migrations/237_book_price_sales.sql'), 'utf8');
+  const m236 = readFileSync(join(process.cwd(), 'migrations/236_book_sample_spec.sql'), 'utf8');
 
   it('saves a book in one locked transaction, checking the version under the lock', () => {
     const fn = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
@@ -131,9 +132,18 @@ describe('fresh schema book chapters save (migration 233)', () => {
     expect(fn).toContain('PERFORM public.save_book_chapters(p_book_id, p_chapters)');
   });
 
+  it('migration 237 only adds the sale columns to the price write', () => {
+    const before = m236.slice(m236.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    const after = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    expect(after).toContain('INSERT INTO public.book_prices (book_id, currency, amount, sale_amount, sale_ends_at)');
+    expect(after).toContain('sale_amount = EXCLUDED.sale_amount, sale_ends_at = EXCLUDED.sale_ends_at');
+    expect(after.length - before.length).toBeLessThan(400);
+    expect(schema).toContain('CHECK (sale_amount IS NULL OR (sale_amount > 0 AND sale_amount < amount))');
+  });
+
   it('migration 236 only adds sample_spec to save_book', () => {
     const before = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
-    const after = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
+    const after = m236.slice(m236.indexOf('CREATE OR REPLACE FUNCTION public.save_book('));
     expect(after.replace('    sample_spec           = v_new.sample_spec,\n', '').trim()).toBe(before.trim());
     expect(schema).toContain("sample_spec           jsonb       CHECK (sample_spec IS NULL OR jsonb_typeof(sample_spec) = 'object')");
   });

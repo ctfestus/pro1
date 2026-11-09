@@ -142,6 +142,6 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ books: list, purchases }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     console.error('[books/library]', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not load your books.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not load your products.' }, { status: 500 });
   }
 }

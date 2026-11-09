@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json().catch(() => null);
   const bookId = typeof body?.bookId === 'string' && UUID.test(body.bookId) ? body.bookId : null;
   const format = isBookFormat(body?.format) ? body.format : null;
-  if (!bookId || !format) return NextResponse.json({ error: 'A book and its format are required.' }, { status: 400 });
+  if (!bookId || !format) return NextResponse.json({ error: 'A product and its format are required.' }, { status: 400 });
   const outline = outlineFromInput(body?.outline);
   if ('error' in outline) return NextResponse.json({ error: outline.error }, { status: 400 });
 
@@ -35,12 +35,12 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   if (error) {
     console.error('[books/suggest-chapters] load failed', error.message);
-    return NextResponse.json({ error: 'Could not load the book.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not load the product.' }, { status: 500 });
   }
-  if (!book) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+  if (!book) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
   if (auth.role !== 'admin' && book.user_id !== auth.user.id) return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   if (book.ai_allowed === false) {
-    return NextResponse.json({ error: 'This book\'s rights do not allow AI to read it. Add the chapters by hand.' }, { status: 403 });
+    return NextResponse.json({ error: 'This product\'s rights do not allow AI to read it. Add the chapters by hand.' }, { status: 403 });
   }
 
   if (!isAiFeatureConfigured(FEATURE)) return NextResponse.json({ error: 'AI is not set up on this platform.' }, { status: 503 });
@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       { feature: FEATURE, temperature: 0.2, maxOutputTokens: 8192, usageContext: { operation: 'book-chapter-suggestions', metadata: { format, items: outline.length } } },
     );
     const chapters = normalizeSuggestions(result, outline.length);
-    if (!chapters.length) return NextResponse.json({ error: 'No chapters could be found in this book. Add them by hand.' }, { status: 422 });
+    if (!chapters.length) return NextResponse.json({ error: 'No chapters could be found in this product. Add them by hand.' }, { status: 422 });
     return NextResponse.json({ chapters });
   } catch (e) {
     console.warn('[books/suggest-chapters] failed:', (e as Error).message);

@@ -2,8 +2,8 @@
  * Keeps a book buyer's way back to My Books across signing in and onboarding.
  *
  * Two links bring a buyer to My Books:
- *   * Paystack's return, /student?book_reference=...#books, where the payment is confirmed;
- *   * the receipt email's "Download your book", /student#books.
+ *   * Paystack's return, /student?book_reference=...#products, where the payment is confirmed;
+ *   * the receipt email's "Download your book", /student#products.
  * If their session expired, or they are new and still have to finish onboarding, the student page
  * redirects them away first, and those redirects go to fixed places (sign-in, then the dashboard;
  * onboarding, then Learning Paths). The payment confirmation or the download was lost. So the
@@ -18,7 +18,7 @@
 const KEY = 'pending-book-return';
 const TTL_MS = 24 * 60 * 60 * 1000;
 const REFERENCE = /^book-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const BOOKS_HASH = '#books';
+const PRODUCTS_HASH = '#products';
 
 /** The book payment reference in a query string, or null. */
 export function readBookReturn(search: string): string | null {
@@ -36,7 +36,7 @@ export function readBookReturn(search: string): string | null {
  */
 export function rememberBookReturn(search: string, hash: string): void {
   const reference = readBookReturn(search);
-  if (!reference && hash !== BOOKS_HASH) return;
+  if (!reference && hash !== PRODUCTS_HASH) return;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(reference ? { reference, at: Date.now() } : { books: true, at: Date.now() }));
   } catch { /* storage unavailable: My Books and the webhook still work without it */ }
@@ -44,7 +44,7 @@ export function rememberBookReturn(search: string, hash: string): void {
 
 /** The return page, built from a validated reference only. */
 export function bookReturnHref(reference: string): string | null {
-  return REFERENCE.test(reference) ? `/student?book_reference=${encodeURIComponent(reference)}#books` : null;
+  return REFERENCE.test(reference) ? `/student?book_reference=${encodeURIComponent(reference)}#products` : null;
 }
 
 /**
@@ -59,7 +59,7 @@ export function takeBookReturnHref(): string | null {
     const stored = JSON.parse(raw) as { reference?: unknown; books?: unknown; at?: unknown };
     if (typeof stored?.at !== 'number' || Date.now() - stored.at > TTL_MS) return null;
     if (typeof stored.reference === 'string') return bookReturnHref(stored.reference);
-    return stored.books === true ? `/student${BOOKS_HASH}` : null;
+    return stored.books === true ? `/student${PRODUCTS_HASH}` : null;
   } catch {
     return null;
   }
@@ -97,7 +97,7 @@ export function takeBookPageHref(): string | null {
     window.localStorage.removeItem(PAGE_KEY);
     const stored = JSON.parse(raw) as { slug?: unknown; at?: unknown };
     if (typeof stored?.at !== 'number' || Date.now() - stored.at > TTL_MS) return null;
-    return typeof stored.slug === 'string' && SLUG.test(stored.slug) ? `/books/${stored.slug}` : null;
+    return typeof stored.slug === 'string' && SLUG.test(stored.slug) ? `/products/${stored.slug}` : null;
   } catch {
     return null;
   }

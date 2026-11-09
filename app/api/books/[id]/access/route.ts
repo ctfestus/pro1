@@ -15,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const auth = await requireUser(req);
   if (isAuthError(auth)) return auth.error;
   const { id } = await params;
-  if (!UUID.test(id)) return NextResponse.json({ error: 'Book not found.' }, { status: 404 });
+  if (!UUID.test(id)) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
 
   const db = auth.serviceDb;
   try {
@@ -26,6 +26,6 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ owned: access.level === 'full' }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     console.error('[books/access]', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not check this book.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not check this product.' }, { status: 500 });
   }
 }

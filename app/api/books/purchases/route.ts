@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ attention }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     console.error('[books/purchases] list failed', e?.message ?? e);
-    return NextResponse.json({ error: 'Could not load book payments.' }, { status: 500 });
+    return NextResponse.json({ error: 'Could not load product payments.' }, { status: 500 });
   }
 }
 
