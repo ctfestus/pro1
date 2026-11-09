@@ -42,7 +42,7 @@ describe('GET /api/html-embed', () => {
 
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
-    expect(response.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    expect(response.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox');
     expect(response.headers.get('x-content-type-options')).toBe('nosniff');
     expect(await response.text()).toContain('Safe embed');
     expect(fetchMock).toHaveBeenCalledWith(

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Maximize2, Minimize2 } from 'lucide-react';
+import { HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 
 /**
  * Player-side frame for interactive HTML embeds (see lib/safe-embed-url).
@@ -31,7 +32,7 @@ export function HtmlEmbedFrame({ src, height = '80vh' }: { src: string; height?:
       <iframe
         src={src}
         style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
-        sandbox="allow-scripts allow-popups"
+        sandbox={HTML_EMBED_SANDBOX}
         allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
         allowFullScreen
       />

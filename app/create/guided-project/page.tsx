@@ -10,7 +10,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { PlanAccessPicker } from '@/components/PlanAccessPicker';
 import type { LessonDoc } from '@/lib/lesson-doc';
-import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
+import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { clampLinkedInSharePoints, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 import { validateVirtualExperienceForPublish } from '@/lib/virtual-experience-validation';
 import {
@@ -2452,7 +2452,7 @@ function VirtualExperienceCreatePageInner() {
                                         const embedUrl = safeEmbedUrl(les.videoUrl || '');
                                         return embedUrl ? (
                                           <div className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.cardBorder}` }}>
-                                            <iframe src={embedUrl} className={isHtmlEmbedUrl(embedUrl) ? 'w-full' : 'w-full aspect-video'} style={isHtmlEmbedUrl(embedUrl) ? { height: 480 } : undefined} sandbox={isHtmlEmbedUrl(embedUrl) ? 'allow-scripts allow-popups' : undefined} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                                            <iframe src={embedUrl} className={isHtmlEmbedUrl(embedUrl) ? 'w-full' : 'w-full aspect-video'} style={isHtmlEmbedUrl(embedUrl) ? { height: 480 } : undefined} sandbox={isHtmlEmbedUrl(embedUrl) ? HTML_EMBED_SANDBOX : undefined} allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                                           </div>
                                         ) : null;
                                       })()}

@@ -6,7 +6,7 @@ import { useState, useEffect, useRef, isValidElement, cloneElement } from 'react
 import { AlertTriangle, ArrowLeft, ChevronDown, ChevronRight, Database, Download, Edit2, Eye, FileCode, FileText, GripVertical, Loader2, Plus, Save, Search, Sparkles, Trash2, Upload, Video, X } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { uploadToStorage } from '@/lib/uploadToStorage';
-import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
+import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { downloadJSON } from '@/lib/dashboard-export';
 import { PexelsImagePicker } from '@/components/PexelsImagePicker';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -713,7 +713,7 @@ export function DataCenterAdminSection({ C }: { C: typeof LIGHT_C }) {
                       <div style={{ borderRadius: 10, overflow: 'hidden', border: `1px solid ${C.cardBorder}` }}>
                         <iframe src={embedUrl}
                           style={{ width: '100%', border: 'none', display: 'block', ...(isHtml ? { height: 480 } : { aspectRatio: '16 / 9' }) }}
-                          sandbox={isHtml ? 'allow-scripts allow-popups' : undefined}
+                          sandbox={isHtml ? HTML_EMBED_SANDBOX : undefined}
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                       </div>
                     );
