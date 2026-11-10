@@ -82,19 +82,19 @@ export default async function BookStorePage({ params }: Params) {
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={accentColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks}>
       <div className="relative">
-        <section className="relative max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-6 sm:pt-10 pb-28 lg:pb-20">
+        <section className="relative max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-5 sm:pt-8 pb-28 lg:pb-16">
           <nav aria-label="Breadcrumb" className="flex items-center gap-1.5 text-sm" style={{ color: '#64748b' }}>
             <Link href="/products" className="font-medium hover:underline" style={{ color: '#334155' }}>Digital Products</Link>
             {book.category && <><ChevronRight className="w-3.5 h-3.5" /><span className="truncate">{book.category}</span></>}
           </nav>
 
-          <div className="mt-6 sm:mt-8 space-y-10 sm:space-y-14">
+          <div className="mt-5 sm:mt-6 space-y-8 sm:space-y-10">
             {/* Hero */}
-            <header className="flex flex-col sm:flex-row gap-7 sm:gap-12 lg:gap-16 items-center sm:items-start">
+            <header className="flex flex-col sm:flex-row gap-6 sm:gap-10 lg:gap-12 items-center sm:items-start">
               <BookCover book={book} primaryColor={primaryColor} />
               <div className="min-w-0 flex-1 text-center sm:text-left">
                 {/* What kind of product it is (migration 242) and its format, above the title. */}
-                <p className="mb-3 flex flex-wrap items-center justify-center sm:justify-start gap-x-2.5 gap-y-1 text-xs sm:text-sm font-bold uppercase tracking-[0.14em]"
+                <p className="mb-3 flex flex-wrap items-center justify-center sm:justify-start gap-x-2.5 gap-y-1 text-[11px] sm:text-xs font-bold uppercase tracking-[0.14em]"
                   style={{ color: primaryColor }}>
                   <span>{book.productTypeLabel}</span>
                   {format && (
@@ -106,17 +106,17 @@ export default async function BookStorePage({ params }: Params) {
                     </>
                   )}
                 </p>
-                <h1 className="text-[32px] leading-[1.1] sm:text-5xl sm:leading-[1.05] lg:text-[56px] font-extrabold tracking-tight max-w-[18ch] sm:mx-0 mx-auto" style={{ color: '#0f172a' }}>{book.title}</h1>
-                {book.subtitle && <p className="mt-4 text-lg sm:text-xl leading-snug max-w-[56ch]" style={{ color: '#475569' }}>{book.subtitle}</p>}
+                <h1 className="text-[28px] leading-[1.15] sm:text-4xl sm:leading-[1.1] lg:text-[44px] font-extrabold tracking-tight max-w-[20ch] sm:mx-0 mx-auto" style={{ color: '#0f172a' }}>{book.title}</h1>
+                {book.subtitle && <p className="mt-3 text-base sm:text-lg leading-snug max-w-[56ch]" style={{ color: '#475569' }}>{book.subtitle}</p>}
                 {tags.length > 0 && (
-                  <ul className="mt-5 flex flex-wrap justify-center sm:justify-start gap-2" aria-label="Topics">
+                  <ul className="mt-4 flex flex-wrap justify-center sm:justify-start gap-2" aria-label="Topics">
                     {tags.map(t => (
-                      <li key={t} className="inline-flex items-center rounded-full px-3.5 py-2 text-sm font-medium"
+                      <li key={t} className="inline-flex items-center rounded-full px-3 py-1.5 text-xs sm:text-[13px] font-medium"
                         style={{ background: '#ffffff', color: '#475569', boxShadow: CARD_SHADOW }}>{t}</li>
                     ))}
                   </ul>
                 )}
-                <div id="buy" className="mt-8 scroll-mt-24">
+                <div id="buy" className="mt-6 scroll-mt-24">
                   <BuyPanel primaryColor={primaryColor}
                     book={{ id: book.id, slug: book.slug, format: book.format, free: book.free, prices: book.prices, hasSample: book.hasSample }} />
                 </div>
@@ -129,8 +129,8 @@ export default async function BookStorePage({ params }: Params) {
             {/* Body */}
             <div className="min-w-0 max-w-[960px] space-y-6">
               {aboutHtml && (
-                <section aria-labelledby="about-heading" className="rounded-[28px] bg-white p-5 sm:p-7" style={{ boxShadow: CARD_SHADOW }}>
-                  <h2 id="about-heading" className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>About this product</h2>
+                <section aria-labelledby="about-heading" className="rounded-3xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+                  <h2 id="about-heading" className="text-lg font-bold tracking-tight" style={{ color: '#0f172a' }}>About this product</h2>
                   {/* The editor's rich text, sanitized (lib/books/description.ts); older plain text is escaped. */}
                   <div className="product-richtext mt-3 max-w-[70ch]" dangerouslySetInnerHTML={{ __html: aboutHtml }} />
                 </section>
@@ -142,9 +142,9 @@ export default async function BookStorePage({ params }: Params) {
           <AboutInstructor instructor={book.instructor} authors={book.authors} primaryColor={primaryColor} />
 
           {more.length > 0 && (
-            <section aria-labelledby="more-heading" className="mt-14">
+            <section aria-labelledby="more-heading" className="mt-10">
               <div className="flex items-end justify-between gap-3">
-                <h2 id="more-heading" className="text-2xl font-bold tracking-tight" style={{ color: '#0f172a' }}>More digital products</h2>
+                <h2 id="more-heading" className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>More digital products</h2>
                 <Link href="/products" className="text-sm font-semibold inline-flex items-center gap-1" style={{ color: primaryColor }}>
                   See all <ChevronRight className="w-4 h-4" />
                 </Link>
@@ -165,7 +165,7 @@ export default async function BookStorePage({ params }: Params) {
 /** The cover drawn as a standing book: a slight turn, a lit spine edge and a soft neutral shadow. */
 function BookCover({ book, primaryColor }: { book: StoreBook; primaryColor: string }) {
   return (
-    <div className="shrink-0 w-[190px] sm:w-[230px] lg:w-[270px]" style={{ perspective: '1400px' }}>
+    <div className="shrink-0 w-[160px] sm:w-[200px] lg:w-[230px]" style={{ perspective: '1400px' }}>
       <div className="relative rounded-r-2xl rounded-l-md overflow-hidden bg-white"
         style={{ aspectRatio: '3 / 4', transform: 'rotateY(-14deg) rotateX(2deg)', transformOrigin: 'left center',
           boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 14px 32px -16px rgba(15,23,42,0.28)' }}>
@@ -211,25 +211,25 @@ function AboutInstructor({ instructor, authors, primaryColor }: { instructor: St
   if (!instructor) {
     if (!authors.length) return null;
     return (
-      <section aria-labelledby="instructor-heading" className="mt-10 sm:mt-14 max-w-[960px] rounded-[28px] bg-white p-5 sm:p-7" style={{ boxShadow: CARD_SHADOW }}>
-        <h2 id="instructor-heading" className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>{authors.length > 1 ? 'About the authors' : 'About the author'}</h2>
+      <section aria-labelledby="instructor-heading" className="mt-8 sm:mt-10 max-w-[960px] rounded-3xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+        <h2 id="instructor-heading" className="text-lg font-bold tracking-tight" style={{ color: '#0f172a' }}>{authors.length > 1 ? 'About the authors' : 'About the author'}</h2>
         <p className="mt-3 text-[15px] font-semibold" style={{ color: '#0f172a' }}>{authors.join(', ')}</p>
       </section>
     );
   }
 
   return (
-    <section aria-labelledby="instructor-heading" className="mt-10 sm:mt-14 max-w-[960px] rounded-[28px] bg-white p-5 sm:p-7" style={{ boxShadow: CARD_SHADOW }}>
-      <h2 id="instructor-heading" className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>About the creator</h2>
+    <section aria-labelledby="instructor-heading" className="mt-8 sm:mt-10 max-w-[960px] rounded-3xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+      <h2 id="instructor-heading" className="text-lg font-bold tracking-tight" style={{ color: '#0f172a' }}>About the creator</h2>
       <div className="mt-5 flex flex-col sm:flex-row gap-5 sm:gap-6">
         {instructor.avatar
-          ? <img src={resolveCoverUrl(instructor.avatar)} alt={instructor.name} className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover shrink-0" />
+          ? <img src={resolveCoverUrl(instructor.avatar)} alt={instructor.name} className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" />
           : (
-            <span className="w-20 h-20 sm:w-24 sm:h-24 rounded-full shrink-0 inline-flex items-center justify-center text-2xl font-bold"
+            <span className="w-16 h-16 sm:w-20 sm:h-20 rounded-full shrink-0 inline-flex items-center justify-center text-2xl font-bold"
               style={{ background: `color-mix(in srgb, ${primaryColor} 14%, #ffffff)`, color: primaryColor }}>{initials(instructor.name)}</span>
           )}
         <div className="min-w-0 flex-1">
-          <p className="text-lg font-bold" style={{ color: '#0f172a' }}>{instructor.name}</p>
+          <p className="text-base font-bold" style={{ color: '#0f172a' }}>{instructor.name}</p>
           {instructor.bio && <p className="mt-2 text-[15px] leading-relaxed whitespace-pre-line max-w-[68ch]" style={{ color: '#475569' }}>{instructor.bio}</p>}
           {instructor.links.length > 0 && <InstructorLinks name={instructor.name} links={instructor.links} />}
         </div>

@@ -72,7 +72,7 @@ export function GuestBuy({ bookId, price, primaryColor, primaryBtn }: {
     );
   }
 
-  const field = 'w-full rounded-2xl px-4 py-3 text-[15px] outline-none';
+  const field = 'w-full rounded-xl px-4 py-2.5 text-sm outline-none';
   const fieldStyle = { background: '#ffffff', color: '#0f172a', boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 8px 20px -12px rgba(15,23,42,0.2)' };
   return (
     // A full row of its own, so the other buttons wrap below the form instead of stretching beside it.
