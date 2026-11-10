@@ -15,6 +15,7 @@ import { sendPaystackCartReminders } from '@/lib/notify-paystack-cart';
 import { reconcileStalePaystackTransactions } from '@/lib/paystack-subscriptions';
 import { verifyQStashRequest } from '@/lib/qstash';
 import { sweepBookPurchases } from '@/lib/books/purchases';
+import { resumeStalledAnnouncements } from '@/lib/books/announce';
 
 export const dynamic = 'force-dynamic';
 // Every send is a network round trip, so a backlog can outlast the default serverless
@@ -253,6 +254,15 @@ export async function POST(req: NextRequest) {
         }
       } else {
         paystackRecoverySkipped = true;
+      }
+      // Product launch emails that stalled (time limit, crash, provider outage): resume them. Its own
+      // try so a problem here never stops the work that follows.
+      if (!outOfTime()) {
+        try {
+          await resumeStalledAnnouncements(db, outOfTime);
+        } catch (err) {
+          console.error('[cron/subscription-expiry-sweep] product announcements', err);
+        }
       }
       // Last of the recovery work and the least urgent: a nudge that waits an hour costs nothing.
       if (!outOfTime()) {
