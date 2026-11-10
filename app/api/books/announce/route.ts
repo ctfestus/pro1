@@ -2,8 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { announcementAudience, buildAnnouncementEmail, createAnnouncement, runAnnouncement } from '@/lib/books/announce';
 import { loadStoreBook } from '@/lib/books/store';
-import { productPriceLabel } from '@/lib/books/share';
-import { socialImageUrl } from '@/lib/cloudinary-url';
+import { announcementBook, loadAnnounceable, parseAnnouncementInput } from '@/lib/books/announce-request';
 
 // GET  /api/books/announce?bookId=...  -> { available, reason?, recipients, history }
 // POST /api/books/announce { bookId, subject, message } -> { recipients }
@@ -64,21 +63,15 @@ export async function POST(req: NextRequest) {
   if (isAuthError(auth)) return auth.error;
   let body: any;
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid request.' }, { status: 400 }); }
-  const bookId = typeof body?.bookId === 'string' && UUID.test(body.bookId) ? body.bookId : null;
-  const subject = typeof body?.subject === 'string' ? body.subject.replace(/[\r\n]+/g, ' ').trim() : '';
-  const message = typeof body?.message === 'string' ? body.message.trim() : '';
-  if (!bookId) return NextResponse.json({ error: 'A valid product id is required.' }, { status: 400 });
-  if (!subject || subject.length > 200) return NextResponse.json({ error: 'Add a subject of up to 200 characters.' }, { status: 400 });
-  if (!message || message.length > 5000) return NextResponse.json({ error: 'Add a message of up to 5,000 characters.' }, { status: 400 });
+  const input = parseAnnouncementInput(body);
+  if ('error' in input) return NextResponse.json({ error: input.error }, { status: 400 });
+  const { bookId, subject, message } = input;
 
   const db = auth.serviceDb;
   try {
-    const book = await loadOwned(db, bookId, auth.user.id, auth.role);
-    if (!book) return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
-    const live = await loadStoreBook(book.slug, db);
-    if (!live) {
-      return NextResponse.json({ error: 'Publish this product, and make it free or for sale, before announcing it.' }, { status: 409 });
-    }
+    const target = await loadAnnounceable(db, bookId, auth.user.id, auth.role);
+    if ('error' in target) return NextResponse.json({ error: target.error }, { status: target.status });
+    const { book } = target;
 
     // Never twice by accident: nothing sent for this product in the last ten minutes, none still
     // preparing or sending (a unique index), and the earliest of any started together wins.
@@ -91,10 +84,7 @@ export async function POST(req: NextRequest) {
     if (!recipients.length) return NextResponse.json({ error: 'There are no students to email yet.' }, { status: 409 });
 
     // The email, rendered once now and saved with the announcement (lib/books/announce.ts).
-    const email = await buildAnnouncementEmail({
-      subject, message,
-      book: { title: live.title, slug: live.slug, priceLabel: productPriceLabel(live), coverUrl: live.coverImage ? socialImageUrl(live.coverImage) || null : null },
-    });
+    const email = await buildAnnouncementEmail({ subject, message, book: announcementBook(target.live) });
     const created = await createAnnouncement(db, { bookId: book.id, sentBy: auth.user.id, subject, message, recipients, email });
     if (created === 'busy') return NextResponse.json({ error: 'An announcement for this product is already being sent.' }, { status: 409 });
 

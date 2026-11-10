@@ -259,14 +259,26 @@ describe('the frozen email', () => {
 });
 
 describe('the launch email', () => {
-  it('escapes the author message and product title', () => {
+  it('inserts the message it is given and escapes the product title', () => {
     const html = productAnnouncementEmail({
-      name: 'Ama', bookTitle: '<b>Guide</b>', priceLabel: 'GHS 120', message: 'Hello <script>x</script>\n\nSecond para',
+      name: 'Ama', bookTitle: '<b>Guide</b>', priceLabel: 'GHS 120', messageHtml: '<p>Hello <b>there</b></p>',
       productUrl: 'https://learn.example.test/products/g',
     });
-    expect(html).not.toContain('<script>');
-    expect(html).toContain('&lt;script&gt;');
+    expect(html).toContain('<p>Hello <b>there</b></p>');
     expect(html).toContain('&lt;b&gt;Guide&lt;/b&gt;');
-    expect(html).toContain('<p>Second para</p>');
+  });
+
+  it('is built from the rich text message with formatting kept and anything unsafe removed', async () => {
+    const email = await buildAnnouncementEmail({
+      subject: 'New', message: '<p>Get <b>20%</b> <i>more</i></p><ul><li>One</li></ul><script>alert(1)</script><img src=x onerror=alert(1)><a href="javascript:alert(1)">x</a>',
+      book: { title: 'Guide', slug: 'g', coverUrl: null, priceLabel: '' },
+    });
+    for (const kept of ['<b>20%</b>', '<i>more</i>', '<li>One</li>']) expect(email.html).toContain(kept);
+    expect(email.html).not.toMatch(/<script|onerror|javascript:/i);
+  });
+
+  it('turns an older plain-text message into paragraphs, escaped', async () => {
+    const email = await buildAnnouncementEmail({ subject: 'New', message: 'Line one\n\n1 < 2 & more', book: { title: 'G', slug: 'g', coverUrl: null, priceLabel: '' } });
+    expect(email.html).toContain('<p>Line one</p><p>1 &lt; 2 &amp; more</p>');
   });
 });

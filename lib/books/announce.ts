@@ -7,6 +7,7 @@ import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { productAnnouncementEmail } from '@/lib/email-templates';
 import { applyEmailTemplate } from '@/lib/email-template-service';
 import { loadStoreBook } from '@/lib/books/store';
+import { descriptionHtml } from '@/lib/books/description';
 
 /**
  * Product launch emails (migration 241): one announcement of a digital product to every admitted,
@@ -72,7 +73,9 @@ export async function buildAnnouncementEmail(input: {
     key: 'product_announcement',
     fallbackSubject: input.subject,
     fallbackHtml: productAnnouncementEmail({
-      name: NAME_TOKEN, bookTitle: input.book.title, priceLabel: input.book.priceLabel, message: input.message,
+      name: NAME_TOKEN, bookTitle: input.book.title, priceLabel: input.book.priceLabel,
+      // Rich text from the editor, sanitized; older plain text is escaped with its line breaks.
+      messageHtml: descriptionHtml(input.message),
       coverUrl: input.book.coverUrl ?? undefined, productUrl: `${appUrl}/products/${encodeURIComponent(input.book.slug)}`, branding,
     }),
     variables: { student_name: NAME_TOKEN, book_title: input.book.title },
@@ -86,7 +89,7 @@ export async function buildAnnouncementEmail(input: {
 }
 
 /** One recipient's copy of the frozen email: only the name differs. */
-function personalise(email: FrozenEmail, name: string) {
+export function personalise(email: FrozenEmail, name: string) {
   return {
     subject: email.subject.split(NAME_TOKEN).join(name.replace(/[\r\n]+/g, ' ')),
     html: email.html.split(NAME_TOKEN).join(escHtml(name)),
