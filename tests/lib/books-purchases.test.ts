@@ -200,14 +200,19 @@ describe('sweepBookPurchases', () => {
     paystack.sendReceipt.mockResolvedValue({ sent: true });
     const rpc = vi.fn(() => ({ data: { status: 'paid', purchaseId: 'p1', bookId: 'b1' }, error: null }));
     const db = makeDb([
-      { data: [{ id: 'p1', paystack_reference: 'book-1' }] },  // open checkouts
+      { data: [{ id: 'p1', paystack_reference: 'book-1' }] },  // open checkouts (signed-in queue)
+      { data: [] },                                              // open checkouts (guest queue)
       { data: null },                                            // stamp last_checked_at
       { data: { id: 'p1', book_id: 'b1', status: 'pending' } },  // settle reads the row
-      { data: [{ id: 'p1' }, { id: 'p9' }] },                    // paid without receipt
+      { data: [{ id: 'p1' }, { id: 'p9' }] },                    // sales paid without receipt
+      { data: [] },                                              // free claims without their email
     ], rpc);
     await expect(sweepBookPurchases(db)).resolves.toEqual({ settled: 1, receipts: 2, failed: 0 });
     expect(paystack.sendReceipt).toHaveBeenCalledWith(db, 'p9');
     expect(callsTo('book_purchases', 'eq')).toContainEqual({ table: 'book_purchases', method: 'eq', args: ['status', 'pending'] });
+    // Sales receipts and free-claim emails are separate queues, sales first.
+    const kinds = callsTo('book_purchases', 'eq').filter(c => c.args[0] === 'kind').map(c => c.args[1]);
+    expect(kinds).toEqual(['sale', 'free_claim']);
     // Rotates: least recently checked first, and every check is stamped.
     expect(callsTo('book_purchases', 'order')[0].args).toEqual(['last_checked_at', { ascending: true, nullsFirst: true }]);
     expect(callsTo('book_purchases', 'update')[0].args[0]).toHaveProperty('last_checked_at');
@@ -218,9 +223,11 @@ describe('sweepBookPurchases', () => {
     paystack.sendReceipt.mockRejectedValue(new Error('mail down'));
     const db = makeDb([
       { data: [{ id: 'p1', paystack_reference: 'book-1' }] },
+      { data: [] },
       { data: null },
       { data: { id: 'p1', book_id: 'b1', status: 'pending' } },
       { data: [{ id: 'p2' }] },
+      { data: [] },
     ]);
     await expect(sweepBookPurchases(db)).resolves.toEqual({ settled: 0, receipts: 0, failed: 2 });
   });

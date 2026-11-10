@@ -85,6 +85,18 @@ export function normalizeGuestEmail(value: unknown): string | null {
   return email;
 }
 
+/**
+ * A buyer's full name as typed: letters (any script), spaces, apostrophes and hyphens, 1 to 80
+ * characters; null otherwise. The name is put into emails sent from the tenant's address, so it
+ * may not carry digits, dots, slashes or anything else that could form a link or a message.
+ */
+export function normalizeGuestName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const name = value.replace(/\s+/g, ' ').trim();
+  if (name.length < 1 || name.length > 80) return null;
+  return /^[\p{L}\p{M}](?:[\p{L}\p{M} '\u2019-]*[\p{L}\p{M}])?$/u.test(name) ? name : null;
+}
+
 /** The path of the page a guest's links open (never the file itself, so email scanners use nothing). */
 export function guestAccessPath(purchaseId: string): string {
   return `/products/download?access=${encodeURIComponent(guestAccessToken(purchaseId))}`;

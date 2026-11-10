@@ -4,6 +4,7 @@ import { verifyGuestAccessToken } from '@/lib/books/guest-access';
 import { guestBookAvailable, guestRateLimited, loadGuestPurchase } from '@/lib/books/guest-purchase';
 import { isBookObjectPath } from '@/lib/books/schema';
 import { BOOK_BUCKET, BOOK_SIGNED_URL_TTL_SECONDS } from '@/lib/books/storage';
+import { logBookDownload } from '@/lib/books/downloads';
 
 // POST /api/books/guest-access/download  { access }  -> { url, remaining }
 //
@@ -60,6 +61,7 @@ export async function POST(req: NextRequest) {
       .from(BOOK_BUCKET)
       .createSignedUrl(book.file_path as string, BOOK_SIGNED_URL_TTL_SECONDS, { download: `${book.slug || 'product'}.${book.format}` });
     if (signError || !signed?.signedUrl) throw signError ?? new Error('No signed URL returned.');
+    await logBookDownload(db, { bookId: book.id, purchaseId });
     return NextResponse.json({ url: signed.signedUrl, remaining: took.remaining }, { headers: NO_STORE });
   } catch (e: any) {
     if (taken) {

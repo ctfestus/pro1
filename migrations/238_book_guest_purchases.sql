@@ -3,7 +3,7 @@
 -- Guest checkout: a digital product can be bought with only an email address. No account is
 -- created and nothing is linked to one; the buyer downloads the file and that is the end.
 --
--- A guest purchase is a book_purchases row with is_guest = true, the buyer's email, and no
+-- A guest purchase is a book_purchases row with is_guest = true, the buyer's name and email, and no
 -- student_id. When its payment is verified, fulfil_book_purchase marks it paid and starts its one
 -- download allowance: guest_access_expires_at (paid_at + 7 days) and guest_downloads_used (at most
 -- 5). The allowance lives on the purchase, so resending the email or confirming the payment again
@@ -17,21 +17,28 @@
 -- holds. The Paystack return page needs it to collect the download; the reference alone (in browser
 -- history or a receipt) is not enough, and another browser using the same email never sees it.
 --
+-- Safe to run again: every statement is idempotent.
+--
 -- Mirrored into festman-fresh-schema.sql.
 
 ALTER TABLE public.book_purchases
   ADD COLUMN IF NOT EXISTS is_guest                boolean     NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS guest_email             text,
+  ADD COLUMN IF NOT EXISTS guest_name              text,
   ADD COLUMN IF NOT EXISTS guest_return_hash       text,
   ADD COLUMN IF NOT EXISTS guest_access_expires_at timestamptz,
   ADD COLUMN IF NOT EXISTS guest_downloads_used    integer     NOT NULL DEFAULT 0;
 
+-- guest_name was added after this migration first shipped: a database that already ran the earlier
+-- version and holds guest rows gets a placeholder name, so re-running it cannot fail on the check.
+UPDATE public.book_purchases SET guest_name = 'Guest' WHERE is_guest AND guest_name IS NULL;
 ALTER TABLE public.book_purchases DROP CONSTRAINT IF EXISTS book_purchases_guest_check;
 ALTER TABLE public.book_purchases ADD CONSTRAINT book_purchases_guest_check CHECK (
   (is_guest AND student_id IS NULL AND guest_email IS NOT NULL
      AND guest_email = lower(guest_email) AND length(guest_email) BETWEEN 3 AND 254
+     AND guest_name IS NOT NULL AND length(btrim(guest_name)) BETWEEN 1 AND 120
      AND guest_return_hash ~ '^[0-9a-f]{64}$')
-  OR (NOT is_guest AND guest_email IS NULL AND guest_return_hash IS NULL AND guest_access_expires_at IS NULL)
+  OR (NOT is_guest AND guest_email IS NULL AND guest_name IS NULL AND guest_return_hash IS NULL AND guest_access_expires_at IS NULL)
 );
 ALTER TABLE public.book_purchases DROP CONSTRAINT IF EXISTS book_purchases_guest_downloads_check;
 ALTER TABLE public.book_purchases ADD CONSTRAINT book_purchases_guest_downloads_check

@@ -21,6 +21,7 @@ type Info = {
   state: 'ready' | 'pending' | 'not_paid' | 'expired' | 'used_up' | 'unavailable';
   downloadsLeft: number;
   expiresAt: string | null;
+  free?: boolean;
 };
 
 const CARD_SHADOW = '0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -14px rgba(15,23,42,0.14)';
@@ -122,7 +123,7 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: '#16a34a' }}>
-            {ready ? 'Payment received' : info.state === 'pending' ? 'Confirming payment' : 'Your purchase'}
+            {ready ? (info.free ? 'Your free download' : 'Payment received') : info.state === 'pending' ? 'Confirming payment' : info.free ? 'Your free download' : 'Your purchase'}
           </p>
           <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>{info.title}</h1>
           {info.format && <p className="mt-1 text-sm" style={{ color: '#64748b' }}>{formatLabel(info.format)}</p>}

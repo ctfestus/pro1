@@ -175,3 +175,53 @@ describe('GET /api/books/[id]/file', () => {
     expect(createSignedUrl).not.toHaveBeenCalled();
   });
 });
+
+describe('the download log (migration 239)', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  let recent: unknown[] = [];
+  function authWithLog(userId: string, tables: Record<string, any>) {
+    const inserts: any[] = [];
+    createSignedUrl = vi.fn(async (path: string) => ({ data: { signedUrl: `https://storage.test/${path}` }, error: null }));
+    const base = makeSupabaseStub(tables);
+    const serviceDb = {
+      ...base,
+      from: (table: string) => {
+        if (table === 'book_download_events') {
+          const recentQuery: any = new Proxy({}, { get: (_t, prop) => (prop === 'maybeSingle' ? () => Promise.resolve({ data: recent.length ? { id: 'e' } : null, error: null }) : () => recentQuery) });
+          return { insert: (row: any) => { inserts.push(row); return Promise.resolve({ error: null }); }, select: () => recentQuery };
+        }
+        return base.from(table);
+      },
+      storage: { from: () => ({ createSignedUrl }) },
+    };
+    mockRequireUser.mockResolvedValue({ user: { id: userId }, serviceDb } as any);
+    return inserts;
+  }
+
+  it('records a reader downloading the full product', async () => {
+    const inserts = authWithLog('buyer', { books: { data: { ...BOOK, purchasable: true } }, ...outsider, book_entitlements: { data: { id: 'e1' } } });
+    expect((await call()).status).toBe(200);
+    expect(inserts).toEqual([{ book_id: BOOK_ID, student_id: 'buyer', purchase_id: null, source: 'account' }]);
+  });
+
+  it('counts repeat downloads by one reader within ten minutes once', async () => {
+    recent = [{ id: 'e0' }];
+    const inserts = authWithLog('buyer', { books: { data: { ...BOOK, purchasable: true } }, ...outsider, book_entitlements: { data: { id: 'e1' } } });
+    expect((await call()).status).toBe(200);
+    expect(inserts).toEqual([]);
+    recent = [];
+  });
+
+  it("does not record the owner's or an admin's own checks, or a sample", async () => {
+    let inserts = authWithLog('owner-1', { books: { data: BOOK }, ...outsider });
+    await call();
+    expect(inserts).toEqual([]);
+    inserts = authWithLog('admin-1', { books: { data: BOOK }, ...outsider, students: { data: { role: 'admin', cohort_id: null } } });
+    await call();
+    expect(inserts).toEqual([]);
+    inserts = authWithLog('stranger', { books: { data: { ...BOOK, purchasable: true } }, ...outsider });
+    await call();
+    expect(inserts).toEqual([]);
+  });
+});

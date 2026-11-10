@@ -3,6 +3,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { BOOK_ACCESS_COLUMNS, canReadBook, type BookAccessRow } from '@/lib/books/access';
 import { isBookObjectPath } from '@/lib/books/schema';
 import { BOOK_BUCKET, BOOK_SIGNED_URL_TTL_SECONDS } from '@/lib/books/storage';
+import { logBookDownload } from '@/lib/books/downloads';
 
 // GET /api/books/[id]/file
 //
@@ -61,6 +62,11 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .from(BOOK_BUCKET)
       .createSignedUrl(path, BOOK_SIGNED_URL_TTL_SECONDS, inline ? undefined : { download: filename });
     if (signError || !signed?.signedUrl) throw signError ?? new Error('No signed URL returned.');
+    // The full product handed to a reader is logged for the sales and downloads view; the owner's
+    // and admins' own checks are not.
+    if (kind === 'file' && access.level === 'full' && access.reason !== 'owner' && access.reason !== 'admin') {
+      await logBookDownload(db, { bookId: row.id, studentId: auth.user.id });
+    }
 
     return NextResponse.json(
       { url: signed.signedUrl, variant: access.level, format: row.format, download: !inline },

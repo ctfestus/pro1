@@ -19,7 +19,7 @@ import { guestAccessToken } from '@/lib/books/guest-access';
 const PURCHASE = '33333333-3333-4333-8333-333333333333';
 const guestRow = (extra: Record<string, unknown> = {}) => ({
   id: PURCHASE, student_id: null, book_title: 'Field Guide', amount: '120.00', currency: 'GHS', paystack_reference: 'book-1',
-  status: 'paid', paid_at: '2026-11-10T10:00:00Z', receipt_email_sent_at: null, is_guest: true, guest_email: 'buyer@example.test',
+  status: 'paid', paid_at: '2026-11-10T10:00:00Z', receipt_email_sent_at: null, is_guest: true, guest_email: 'buyer@example.test', guest_name: 'Ama Mensah',
   guest_access_expires_at: new Date(Date.now() + 86_400_000).toISOString(), students: null, ...extra,
 });
 
@@ -38,6 +38,7 @@ describe('guest receipt', () => {
     expect(msg.html).toContain(`https://app.test/products/download?access=${encodeURIComponent(guestAccessToken(PURCHASE))}`);
     expect(msg.html).not.toContain('storage');
     expect(msg.html).toContain('up to 5 downloads');
+    expect(msg.html).toContain('Hi Ama Mensah');
     expect(opts).toEqual({ idempotencyKey: `book-purchase/${PURCHASE}` });
   });
 
@@ -58,6 +59,18 @@ describe('guest receipt', () => {
       expect(await sendBookPurchaseReceipt(db as any, PURCHASE)).toEqual({ sent: false });
     }
     expect(sent.send).not.toHaveBeenCalled();
+  });
+});
+
+describe('free claim email', () => {
+  it('says it is free, carries no price, and links to the download page', async () => {
+    const db = makeSupabaseStub({ book_purchases: { data: guestRow({ kind: 'free_claim', amount: 0, currency: 'XXX', paystack_reference: 'free-1' }) } });
+    await sendBookPurchaseReceipt(db as any, PURCHASE);
+    const [msg] = sent.send.mock.calls[0];
+    expect(msg.subject).toBe('Your free download: Field Guide');
+    expect(msg.html).toContain('free copy');
+    expect(msg.html).not.toContain('XXX');
+    expect(msg.html).toContain(`/products/download?access=${encodeURIComponent(guestAccessToken(PURCHASE))}`);
   });
 });
 

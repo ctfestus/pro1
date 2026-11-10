@@ -6,7 +6,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
-import { bookPurchaseEmail } from '@/lib/email-templates';
+import { bookFreeDownloadEmail, bookPurchaseEmail } from '@/lib/email-templates';
 import { applyEmailTemplate, formatEmailDate } from '@/lib/email-template-service';
 import { guestAccessPath } from '@/lib/books/guest-access';
 
@@ -28,7 +28,9 @@ interface GuestPurchaseRow {
   paystack_reference: string;
   paid_at: string | null;
   guest_email: string | null;
+  guest_name?: string | null;
   guest_access_expires_at: string | null;
+  kind?: string | null;
 }
 
 /** The receipt for a guest purchase, sent to the email it was bought with, linking to its download page. */
@@ -41,16 +43,25 @@ async function sendGuestEmail(purchase: GuestPurchaseRow, idempotencyKey: string
     appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl,
     emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName,
   };
-  const name = 'there';
+  const name = purchase.guest_name?.trim() || 'there';
   const paidAt = formatEmailDate(purchase.paid_at ?? new Date().toISOString());
   const until = formatEmailDate(purchase.guest_access_expires_at ?? new Date().toISOString());
   const amount = Number(purchase.amount);
-  const rendered = await applyEmailTemplate({
+  const downloadUrl = `${appUrl}${guestAccessPath(purchase.id)}`;
+  const rendered = purchase.kind === 'free_claim'
+    ? await applyEmailTemplate({
+      key: 'book_free_download',
+      fallbackSubject: `Your free download: ${purchase.book_title}`,
+      fallbackHtml: bookFreeDownloadEmail({ name, bookTitle: purchase.book_title, downloadUrl, until, branding }),
+      variables: { student_name: name, book_title: purchase.book_title },
+      branding,
+    })
+    : await applyEmailTemplate({
     key: 'book_purchase',
     fallbackSubject: `Your purchase: ${purchase.book_title}`,
     fallbackHtml: bookPurchaseEmail({
       name, bookTitle: purchase.book_title, amount, currency: purchase.currency, paidAt,
-      reference: purchase.paystack_reference, libraryUrl: `${appUrl}${guestAccessPath(purchase.id)}`, guestUntil: until, branding,
+      reference: purchase.paystack_reference, libraryUrl: downloadUrl, guestUntil: until, branding,
     }),
     variables: {
       student_name: name, book_title: purchase.book_title, currency: purchase.currency,
@@ -76,7 +87,7 @@ export async function resendGuestAccessEmail(db: SupabaseClient, purchaseId: str
   if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured.');
   const { data: purchase, error } = await db
     .from('book_purchases')
-    .select('id, book_title, amount, currency, paystack_reference, status, paid_at, is_guest, guest_email, guest_access_expires_at')
+    .select('id, book_title, amount, currency, paystack_reference, status, paid_at, is_guest, guest_email, guest_name, guest_access_expires_at, kind')
     .eq('id', purchaseId)
     .maybeSingle();
   if (error) throw error;
@@ -92,7 +103,7 @@ export async function sendBookPurchaseReceipt(db: SupabaseClient, purchaseId: st
 
   const { data: purchase, error } = await db
     .from('book_purchases')
-    .select('id, student_id, book_title, amount, currency, paystack_reference, status, paid_at, receipt_email_sent_at, is_guest, guest_email, guest_access_expires_at, students ( email, full_name )')
+    .select('id, student_id, book_title, amount, currency, paystack_reference, status, paid_at, receipt_email_sent_at, is_guest, guest_email, guest_name, guest_access_expires_at, kind, students ( email, full_name )')
     .eq('id', purchaseId)
     .maybeSingle();
   if (error) throw error;

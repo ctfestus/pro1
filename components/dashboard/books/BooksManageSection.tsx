@@ -3,16 +3,19 @@
 // Dashboard list of books: an author's own books, or every book for an admin. Reads through
 // /api/books (service role) because sales counts come from other people's purchases, which RLS
 // rightly keeps private. Creating and editing happen in the editor at /create/product. Book payments
-// that need a person (wrong amount, double payment, deleted account) are listed above the books.
+// that need a person (wrong amount, double payment, deleted account) are listed above the books, and
+// sales, free claims and downloads come from /api/books/stats (summary cards, and People per product).
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, Edit2, Eye, Library, Loader2, Plus, Search, Trash2 } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Edit2, Eye, Library, Loader2, Plus, Search, Trash2, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { openBookPreview } from '@/lib/books/open-preview';
+import { formatMoney } from '@/lib/books/format';
+import { ProductPeople } from '@/components/dashboard/books/ProductPeople';
 
 type BookListItem = {
   id: string;
@@ -28,9 +31,12 @@ type BookListItem = {
   available_to_everyone: boolean;
   cohort_ids: string[] | null;
   sold: number;
+  stats?: { revenue: Record<string, number>; freeClaims: number; downloads: number; downloads30d: number };
 };
 
 type StatusFilter = 'all' | 'published' | 'draft' | 'archived';
+
+type ProductStats = { bookId: string; sold: number; revenue: Record<string, number>; freeClaims: number; downloads: number; downloads30d: number };
 
 type AttentionItem = {
   id: string;
@@ -74,6 +80,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
   const [attention, setAttention] = useState<AttentionItem[]>([]);
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
+  const [peopleFor, setPeopleFor] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,6 +102,19 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
     })();
     return () => { cancelled = true; };
   }, []);
+
+  // Per-product figures arrive with the product list (GET /api/books), so deleting a product drops
+  // its figures from the totals at the same moment.
+  const stats = useMemo(() => new Map<string, ProductStats>(books.filter(b => b.stats).map(b => [b.id, { bookId: b.id, sold: b.sold, ...b.stats! }])), [books]);
+
+  const totals = useMemo(() => {
+    const t = { sold: 0, freeClaims: 0, downloads: 0, downloads30d: 0, revenue: {} as Record<string, number> };
+    for (const p of stats.values()) {
+      t.sold += p.sold; t.freeClaims += p.freeClaims; t.downloads += p.downloads; t.downloads30d += p.downloads30d;
+      for (const [cur, amt] of Object.entries(p.revenue)) t.revenue[cur] = Math.round(((t.revenue[cur] ?? 0) + amt) * 100) / 100;
+    }
+    return t;
+  }, [stats]);
 
   const visible = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -155,13 +175,31 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
           <p className="text-sm" style={{ color: C.faint }}>Publish digital products for your cohorts, open them to everyone, or sell them.</p>
-          <p className="text-xs mt-1" style={{ color: C.faint }}>{books.length} book{books.length === 1 ? '' : 's'}</p>
+          <p className="text-xs mt-1" style={{ color: C.faint }}>{books.length} product{books.length === 1 ? '' : 's'}</p>
         </div>
         <Link href="/create/product" className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
           style={{ background: C.cta, color: C.ctaText }}>
-          <Plus className="w-4 h-4" /> New book
+          <Plus className="w-4 h-4" /> New product
         </Link>
       </div>
+
+      {stats.size > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[
+            { label: 'Revenue', value: Object.keys(totals.revenue).length
+              ? Object.entries(totals.revenue).map(([cur, amt]) => formatMoney(amt, cur)).join(' / ') : '0', sub: 'From paid sales' },
+            { label: 'Paid sales', value: String(totals.sold), sub: 'Refunds and review cases excluded' },
+            { label: 'Free downloads claimed', value: String(totals.freeClaims), sub: 'Without an account' },
+            { label: 'Downloads', value: String(totals.downloads), sub: `${totals.downloads30d} in the last 30 days` },
+          ].map(card => (
+            <div key={card.label} className="p-4 rounded-2xl" style={{ ...cardStyle(C) }}>
+              <p className="text-[11px] font-semibold uppercase tracking-wide" style={{ color: C.faint }}>{card.label}</p>
+              <p className="text-lg font-bold mt-1 truncate" style={{ color: C.text }}>{card.value}</p>
+              <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>{card.sub}</p>
+            </div>
+          ))}
+        </div>
+      )}
 
       {attention.length > 0 && (
         <div className="p-4 rounded-2xl space-y-3" style={{ ...cardStyle(C) }}>
@@ -214,7 +252,8 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
         {visible.map(b => {
           const cover = b.cover_image ? resolveCoverUrl(b.cover_image) : '';
           return (
-            <div key={b.id} className="flex items-center gap-4 p-4 rounded-2xl" style={{ ...cardStyle(C) }}>
+            <div key={b.id} className="p-4 rounded-2xl" style={{ ...cardStyle(C) }}>
+            <div className="flex items-center gap-4">
               <div className="w-12 h-16 rounded-lg overflow-hidden shrink-0 flex items-center justify-center" style={{ background: C.pill }}>
                 {cover
                   ? <img src={cover} alt="" className="w-full h-full object-cover" />
@@ -233,10 +272,22 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                   {[(b.authors ?? []).join(', '), b.category].filter(Boolean).join(' / ') || 'No author yet'}
                 </p>
                 <p className="text-xs mt-1" style={{ color: C.faint }}>
-                  {audienceLabel(b)}{b.purchasable || b.sold > 0 ? ` / ${b.sold} sold` : ''}
+                  {[
+                    audienceLabel(b),
+                    b.purchasable || b.sold > 0 ? `${stats.get(b.id)?.sold ?? b.sold} sold` : '',
+                    Object.entries(stats.get(b.id)?.revenue ?? {}).map(([cur, amt]) => formatMoney(amt, cur)).join(' / '),
+                    stats.get(b.id)?.freeClaims ? `${stats.get(b.id)!.freeClaims} free` : '',
+                    stats.has(b.id) ? `${stats.get(b.id)!.downloads} download${stats.get(b.id)!.downloads === 1 ? '' : 's'}` : '',
+                  ].filter(Boolean).join(' / ')}
                 </p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
+                <button onClick={() => setPeopleFor(prev => (prev === b.id ? null : b.id))} aria-expanded={peopleFor === b.id}
+                  className="inline-flex items-center gap-1 px-2 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-70"
+                  aria-label={`People for ${b.title}`} title="Buyers and downloads" style={{ color: C.muted }}>
+                  <Users className="w-4 h-4" /><span className="hidden sm:inline">People</span>
+                  <ChevronDown className="w-3.5 h-3.5 transition-transform" style={{ transform: peopleFor === b.id ? 'rotate(180deg)' : 'none' }} />
+                </button>
                 {b.format && (
                   <button onClick={() => preview(b)} disabled={openingId === b.id} className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"
                     aria-label={`Preview ${b.title}`} title={b.format === 'epub' ? 'Download to check' : 'Preview'} style={{ color: C.muted }}>
@@ -250,6 +301,12 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                   {deletingId === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+            {peopleFor === b.id && (
+              <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.pill}` }}>
+                <ProductPeople bookId={b.id} slug={b.slug} C={C} />
+              </div>
+            )}
             </div>
           );
         })}

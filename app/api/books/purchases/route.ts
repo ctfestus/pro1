@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   try {
     let query = db
       .from('book_purchases')
-      .select('id, book_id, book_title, amount, currency, status, review_reason, paystack_reference, paid_at, created_at, is_guest, guest_email, students ( email, full_name ), books!inner ( user_id )')
+      .select('id, book_id, book_title, amount, currency, status, review_reason, paystack_reference, paid_at, created_at, is_guest, guest_email, guest_name, students ( email, full_name ), books!inner ( user_id )')
       .not('review_reason', 'is', null)
       .is('review_resolved_at', null)
       .order('created_at', { ascending: false })
@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
         paidAt: r.paid_at,
         // A guest bought with only an email (migration 238).
         buyerEmail: r.is_guest ? r.guest_email ?? null : student?.email ?? null,
-        buyerName: r.is_guest ? 'Guest' : student?.full_name ?? null,
+        buyerName: r.is_guest ? `${r.guest_name ?? 'Guest'} (guest)` : student?.full_name ?? null,
       };
     });
     return NextResponse.json({ attention }, { headers: { 'Cache-Control': 'no-store' } });

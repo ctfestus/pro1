@@ -26,17 +26,22 @@ export async function POST(req: NextRequest) {
   after(async () => {
     const db = adminClient();
     try {
-      const { data, error } = await db
+      // Paid purchases first, so free claims made to this address can never crowd them out.
+      const lookup = (kind: 'sale' | 'free_claim') => db
         .from('book_purchases')
         .select('id')
         .eq('is_guest', true)
+        .eq('kind', kind)
         .eq('guest_email', email)
         .eq('status', 'paid')
         .gt('guest_access_expires_at', new Date().toISOString())
         .order('paid_at', { ascending: false })
         .limit(5);
-      if (error) throw error;
-      for (const row of data ?? []) {
+      const [sales, free] = await Promise.all([lookup('sale'), lookup('free_claim')]);
+      if (sales.error) throw sales.error;
+      if (free.error) throw free.error;
+      const data = [...(sales.data ?? []), ...(free.data ?? [])].slice(0, 5);
+      for (const row of data) {
         try { await resendGuestAccessEmail(db, row.id); } catch (e: any) {
           console.error('[books/guest-access] resend failed', row.id, e?.message ?? e);
         }
