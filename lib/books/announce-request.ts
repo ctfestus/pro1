@@ -1,7 +1,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { loadStoreBook, type StoreBook } from '@/lib/books/store';
-import { descriptionText } from '@/lib/books/description';
+import { hasRichContent } from '@/lib/plain-text';
 import { productPriceLabel } from '@/lib/books/share';
 import { socialImageUrl } from '@/lib/cloudinary-url';
 
@@ -21,7 +21,7 @@ export function parseAnnouncementInput(body: any): AnnouncementInput | { error: 
   const message = typeof body?.message === 'string' ? body.message.trim() : '';
   if (!bookId) return { error: 'A valid product id is required.' };
   if (!subject || subject.length > 200) return { error: 'Add a subject of up to 200 characters.' };
-  if (!descriptionText(message)) return { error: 'Add a message.' };
+  if (!hasRichContent(message)) return { error: 'Add a message.' };
   if (message.length > 5000) return { error: 'The message is too long. Keep it under 5,000 characters, formatting included.' };
   return { bookId, subject, message };
 }

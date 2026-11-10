@@ -1,4 +1,5 @@
 import { sanitizeRichText } from '@/lib/sanitize';
+import { hasRichContent } from '@/lib/plain-text';
 
 /**
  * A product description is rich text from the editor (bold, italic, lists, headings, links). Older
@@ -28,12 +29,12 @@ export function descriptionText(value: string | null | undefined, max = 20000): 
 export function descriptionHtml(value: string | null | undefined): string {
   const v = (value ?? '').trim();
   if (!v) return '';
-  if (isHtml(v)) return descriptionText(v) ? sanitizeRichText(v) : '';
+  if (isHtml(v)) return hasRichContent(v) ? sanitizeRichText(v) : '';
   return v.split(/\n{2,}/).map(p => `<p>${escapeHtml(p).replace(/\n/g, '<br/>')}</p>`).join('');
 }
 
 /** What to store from the editor: sanitized rich text, or null when it has no words. */
 export function descriptionForSave(value: string | null): string | null {
-  if (!value || !descriptionText(value)) return null;
+  if (!value || !hasRichContent(value)) return null;
   return isHtml(value) ? sanitizeRichText(value) : value;
 }

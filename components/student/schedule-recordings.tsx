@@ -18,7 +18,7 @@ import {
   Paperclip, Play, Video,
 } from 'lucide-react';
 import { formatAttachmentSize } from '@/lib/lesson-attachment';
-import { looksLikeHtml, toPlainText } from '@/lib/plain-text';
+import { hasRichContent, looksLikeHtml, toPlainText } from '@/lib/plain-text';
 import {
   normalizeRecordingAttachments, recordingAttachmentBadge, recordingAttachmentHref,
   type RecordingAttachment,
@@ -108,10 +108,11 @@ function ScheduleDetail({ schedule, C, onBack }: { schedule: any; C: typeof LIGH
             <Calendar className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }}/>
             <span className="text-sm" style={{ color: C.muted }}>{dateRange}</span>
           </div>
-          {schedule.description && (
-            <p className="text-sm leading-relaxed pb-5 mb-5" style={{ color: C.muted, borderBottom: `1px solid ${C.divider}` }}>
-              {schedule.description}
-            </p>
+          {/* Authored in the rich text editor: shown formatted (with its images), not as raw markup. */}
+          {schedule.description && hasRichContent(schedule.description) && (
+            <div className="pb-5 mb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
+              <AuthoredText value={schedule.description} style={{ color: C.muted, fontSize: 14, lineHeight: 1.6 }} />
+            </div>
           )}
 
           {loading ? (
@@ -208,7 +209,7 @@ function SessionExtras({ entry, C }: { entry: any; C: typeof LIGHT_C }) {
   const [open, setOpen] = useState(false);
   const attachments: RecordingAttachment[] = entry.attachments ?? [];
   // An untouched rich-text field still arrives as markup, so ask what it actually says.
-  const notes = toPlainText(entry.description).trim() ? entry.description as string : '';
+  const notes = hasRichContent(entry.description) ? entry.description as string : '';
   if (!notes && !attachments.length) return null;
 
   const summary = [
@@ -563,7 +564,7 @@ export function ScheduleSection({ userId, C }: { userId: string; C: typeof LIGHT
               <span className="text-xs" style={{ color: C.muted }}>{dateRange}</span>
             </div>
             {item.description && (
-              <p className="text-xs line-clamp-1 mt-0.5" style={{ color: C.faint }}>{item.description}</p>
+              <p className="text-xs line-clamp-1 mt-0.5" style={{ color: C.faint }}>{toPlainText(item.description)}</p>
             )}
           </div>
 

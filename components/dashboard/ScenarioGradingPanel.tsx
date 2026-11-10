@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import { AlertCircle, Check, ChevronDown, Download, MessageSquare } from 'lucide-react';
+import { hasRichContent } from '@/lib/plain-text';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { ReviewReportView } from '@/components/ReviewReportView';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -54,7 +55,7 @@ function AnswerBody({ a, mcq, C, isDark }: { a: TaskAnswer; mcq: Record<string, 
   const empty = (text: string) => <p className="text-sm italic" style={{ color: C.faint }}>{text}</p>;
 
   if (a.type === 'text') {
-    return a.text && a.text.replace(/<[^>]*>/g, '').trim()
+    return a.text && hasRichContent(a.text)
       ? <div className="rich-content text-sm" style={{ color: C.text }} dangerouslySetInnerHTML={{ __html: sanitizeRichText(a.text) }}/>
       : empty('No response.');
   }

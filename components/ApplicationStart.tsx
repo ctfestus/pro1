@@ -22,7 +22,7 @@ function scrollToApplicationField(id: string) {
 }
 
 function applicationRichText(value: string): string {
-  if (/<\/?(?:p|br|strong|b|em|i|u|s|ul|ol|li|h[1-4]|blockquote|a|code|pre|hr|span|table|thead|tbody|tfoot|tr|th|td|caption)\b/i.test(value)) {
+  if (/<\/?(?:p|br|strong|b|em|i|u|s|ul|ol|li|h[1-4]|blockquote|a|code|pre|hr|span|img|figure|figcaption|table|thead|tbody|tfoot|tr|th|td|caption)\b/i.test(value)) {
     return sanitizeRichText(value);
   }
   const escaped = value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');

@@ -63,6 +63,8 @@ export function templateTags(value: string) {
 }
 
 export function hasVisibleEmailMessage(value: string) {
+  // An image counts as something to show, as words do.
+  if (/<img\b[^>]*\bsrc\s*=/i.test(value)) return true;
   return value
     .replace(/<br\s*\/?>/gi, ' ')
     .replace(/<[^>]*>/g, '')

@@ -2375,7 +2375,7 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
                           <div>
                             <p style={{ fontWeight: 600, fontSize: 14, lineHeight: 1.3, color: t.title }}>{rfConfig.title || rf.title}</p>
                             {rfConfig.description && (
-                              <p style={{ fontSize: 12, marginTop: 4, color: t.body, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }} dangerouslySetInnerHTML={{ __html: sanitizeRichText(rfConfig.description) }} />
+                              <p style={{ fontSize: 12, marginTop: 4, color: t.body, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' as any }}>{toPlainText(rfConfig.description)}</p>
                             )}
                           </div>
                           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12, fontWeight: 600, color: accentColor }}>

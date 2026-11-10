@@ -23,6 +23,15 @@ export function toPlainText(html: string | null | undefined): string {
 }
 
 /**
+ * Whether authored rich text has anything to show: words, or an image. Use it instead of "is the
+ * plain text empty", which would treat an image-only block as blank.
+ */
+export function hasRichContent(html: string | null | undefined): boolean {
+  const v = String(html ?? '');
+  return !!toPlainText(v) || /<img\b[^>]*\bsrc\s*=/i.test(v);
+}
+
+/**
  * Whether authored text actually contains markup.
  *
  * Descriptions predate the rich-text editor, so a path saved years ago holds plain text with real
