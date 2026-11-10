@@ -134,3 +134,14 @@ describe('bookSlug', () => {
     expect(bookSlug('!!!', 'a1b2')).toBe('a1b2');
   });
 });
+
+describe('recommended courses', () => {
+  it('keeps distinct course ids, lowercased, at most 20, and drops anything else', () => {
+    const A = '11111111-1111-4111-8111-111111111111';
+    const many = Array.from({ length: 25 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    expect(bookColumnsFromInput({ recommendedCourseIds: [A.toUpperCase(), A, 'nope', 5, null] }).recommended_course_ids).toEqual([A]);
+    expect((bookColumnsFromInput({ recommendedCourseIds: many }).recommended_course_ids as string[]).length).toBe(20);
+    expect(bookColumnsFromInput({ recommendedCourseIds: 'x' }).recommended_course_ids).toEqual([]);
+    expect(bookColumnsFromInput({ title: 'T' })).not.toHaveProperty('recommended_course_ids');
+  });
+});

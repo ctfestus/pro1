@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { safeEmbedUrl as getVideoEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { HtmlEmbedFrame } from '@/components/HtmlEmbedFrame';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
+import { RecommendedProducts } from '@/components/RecommendedProducts';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
@@ -1847,6 +1848,22 @@ export function CourseTaker({
                 </a>
               ))}
             </div>
+          </motion.div>
+        )}
+
+        {/* -- Digital products the author recommends with this course (passed only; nothing if none) -- */}
+        {isSuccess && formId && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}>
+            <RecommendedProducts
+              courseId={formId}
+              palette={{
+                card: isDark ? '#18181b' : '#ffffff',
+                title: isDark ? '#f4f4f5' : '#18181b',
+                muted: isDark ? '#a1a1aa' : '#71717a',
+                border: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)',
+                accent,
+              }}
+            />
           </motion.div>
         )}
 

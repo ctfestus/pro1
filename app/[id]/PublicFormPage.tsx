@@ -16,6 +16,7 @@ const CertificationTaker = dynamic(() => import('@/components/CertificationTaker
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { sanitizeRichText } from '@/lib/sanitize';
+import { RecommendedProducts } from '@/components/RecommendedProducts';
 import { getFontById } from '@/lib/fonts';
 import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, buildCalendarFields, isRecurring } from '@/lib/calendar-links';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
@@ -2083,6 +2084,8 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
                   )}
                 </div>
               </div>
+              {/* Digital products the author recommends with this course (shows nothing if none). */}
+              <RecommendedProducts courseId={form.id} palette={{ card: cp.card, title: cp.title, muted: cp.muted, border: cp.border, accent: accentColor }} />
             </div>
           </div>
         )}

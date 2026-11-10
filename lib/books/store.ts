@@ -220,6 +220,28 @@ async function loadInstructor(db: any, userId: unknown): Promise<StoreInstructor
   }
 }
 
+/**
+ * Products recommended with a course (migration 240), as the public store shows them: only ones the
+ * public may buy or download (toStoreBook), newest first, at most three.
+ */
+export async function loadProductsForCourse(courseId: string, db: any = adminClient(), now: Date = new Date()): Promise<StoreBook[]> {
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(courseId)) return [];
+  const { data, error } = await db
+    .from('books')
+    .select(`${COLUMNS}, status`)
+    .eq('status', 'published')
+    .contains('recommended_course_ids', [courseId.toLowerCase()])
+    .or('purchasable.eq.true,available_to_everyone.eq.true')
+    .order('updated_at', { ascending: false })
+    .limit(10);
+  if (error) throw error;
+  const rows = (data as any[]) ?? [];
+  const prices = await pricesFor(db, rows.filter(r => r.purchasable === true).map(r => r.id));
+  return rows.map(r => toStoreBook(r, prices.get(r.id) ?? [], now)).filter((b): b is StoreBook => !!b).slice(0, 3);
+}
+
+export const getProductsForCourse = unstable_cache((courseId: string) => loadProductsForCourse(courseId), ['books-store-for-course'], { tags: [BOOKS_STORE_TAG], revalidate: 60 });
+
 export const listStoreBooks = unstable_cache(() => loadStoreBooks(), ['books-store-list'], { tags: [BOOKS_STORE_TAG], revalidate: 60 });
 export const getStoreBook = unstable_cache((slug: string) => loadStoreBook(slug), ['books-store-book'], { tags: [BOOKS_STORE_TAG], revalidate: 60 });
 

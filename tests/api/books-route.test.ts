@@ -86,6 +86,20 @@ const put = (body: unknown) => PUT(new NextRequest('http://localhost/api/books',
 describe('PUT /api/books', () => {
   beforeEach(() => { vi.clearAllMocks(); });
 
+  it("keeps only the instructor's own courses in recommended courses; an admin may pick any", async () => {
+    const MINE = '33333333-3333-4333-8333-333333333333';
+    const THEIRS = '44444444-4444-4444-8444-444444444444';
+    authAs('author-1', 'instructor', BOOK, { courses: { data: [{ id: MINE }] } });
+    expect((await put({ id: BOOK_ID, recommendedCourseIds: [MINE, THEIRS] })).status).toBe(200);
+    expect(saveArgs()?.p_patch.recommended_course_ids).toEqual([MINE]);
+    expect(callsTo('courses', 'eq')).toContainEqual({ table: 'courses', method: 'eq', args: ['user_id', 'author-1'] });
+
+    authAs('boss', 'admin', BOOK, { courses: { data: [{ id: MINE }, { id: THEIRS }] } });
+    expect((await put({ id: BOOK_ID, recommendedCourseIds: [MINE, THEIRS] })).status).toBe(200);
+    expect(saveArgs()?.p_patch.recommended_course_ids).toEqual([MINE, THEIRS]);
+    expect(callsTo('courses', 'eq').filter(c => c.args[0] === 'user_id')).toHaveLength(0);
+  });
+
   it("refuses an instructor editing someone else's book", async () => {
     authAs('author-2', 'instructor', BOOK);
     expect((await put({ id: BOOK_ID, title: 'Mine now' })).status).toBe(403);

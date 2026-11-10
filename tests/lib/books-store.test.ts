@@ -4,7 +4,7 @@ vi.mock('server-only', () => ({}));
 vi.mock('next/cache', () => ({ unstable_cache: (fn: any) => fn, revalidateTag: vi.fn() }));
 vi.mock('@/lib/admin-client', () => ({ adminClient: () => { throw new Error('tests pass a db'); } }));
 
-import { loadStoreBook, loadStoreBooks, toStoreBook, toStoreInstructor } from '@/lib/books/store';
+import { loadProductsForCourse, loadStoreBook, loadStoreBooks, toStoreBook, toStoreInstructor } from '@/lib/books/store';
 import { makeSupabaseStub } from '../helpers/supabaseStub';
 
 const ID = '11111111-1111-4111-8111-111111111111';
@@ -129,5 +129,23 @@ describe('the instructor shown on a product page', () => {
 
     const none = makeSupabaseStub({ books: { data: row() }, book_prices: { data: [{ book_id: ID, currency: 'GHS', amount: 120 }] }, book_chapters: { data: [] } });
     expect((await loadStoreBook('field-guide', none))!.instructor).toBeNull();
+  });
+});
+
+describe('products recommended with a course (migration 240)', () => {
+  const COURSE = '55555555-5555-4555-8555-555555555555';
+
+  it('returns only products the public may get, at most three, without object paths', async () => {
+    const draft = row({ id: '22222222-2222-4222-8222-222222222222', status: 'draft' });
+    const rows = [row(), draft, ...Array.from({ length: 4 }, (_, i) => row({ id: `3333333${i}-3333-4333-8333-333333333333`, slug: `p${i}`, file_path: `3333333${i}-3333-4333-8333-333333333333/file-${U}.pdf`, preview_file_path: null }))];
+    const db = makeSupabaseStub({ books: { data: rows }, book_prices: { data: rows.map(r => ({ book_id: r.id, currency: 'GHS', amount: 10 })) } });
+    const out = await loadProductsForCourse(COURSE, db);
+    expect(out).toHaveLength(3);
+    expect(out.map(b => b.id)).not.toContain(draft.id);
+    expect(JSON.stringify(out)).not.toContain(U);
+  });
+
+  it('refuses a malformed course id without querying', async () => {
+    expect(await loadProductsForCourse('nope', makeSupabaseStub({}))).toEqual([]);
   });
 });

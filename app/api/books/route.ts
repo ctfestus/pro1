@@ -181,6 +181,17 @@ export async function PUT(req: NextRequest) {
     if (commercial.purchasable !== undefined) patch.purchasable = commercial.purchasable;
     if (commercial.royaltyPct !== undefined) patch.royalty_pct = commercial.royaltyPct;
 
+    // Recommended with courses: an instructor may only attach their own courses, so a product never
+    // appears on someone else's course. Ids that are not courses (or not theirs) are dropped.
+    if (Array.isArray(patch.recommended_course_ids) && patch.recommended_course_ids.length) {
+      let courses = db.from('courses').select('id').in('id', patch.recommended_course_ids as string[]);
+      if (auth.role !== 'admin') courses = courses.eq('user_id', auth.user.id);
+      const { data: allowed, error: courseError } = await courses;
+      if (courseError) throw courseError;
+      const ok = new Set((allowed ?? []).map((c: any) => String(c.id)));
+      patch.recommended_course_ids = (patch.recommended_course_ids as string[]).filter(id => ok.has(id));
+    }
+
     // Files. A new main file may change the format; the sample must always match it.
     const replaced: string[] = [];
     let format: BookFormat | null = isBookFormat(book.format) ? book.format : null;

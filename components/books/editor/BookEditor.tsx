@@ -87,6 +87,8 @@ type EditorState = {
   endorsementPermitted: boolean;
   availableToEveryone: boolean;
   cohortIds: string[];
+  /** Courses this product is recommended with (migration 240). */
+  recommendedCourseIds: string[];
   purchasable: boolean;
   royaltyPct: string;
   // saleAmount and saleEndsAt (a date, yyyy-mm-dd) are optional: a sale price shown with the
@@ -97,7 +99,7 @@ type EditorState = {
 const EMPTY: EditorState = {
   title: '', subtitle: '', description: '', coverImage: '', authors: '', category: '', topics: '', skills: '',
   difficulty: '', estimatedMinutes: '', rightsHolder: '', licenseType: '', licenseUrl: '', licenseExpiresAt: '',
-  aiAllowed: true, endorsementPermitted: false, availableToEveryone: false, cohortIds: [],
+  aiAllowed: true, endorsementPermitted: false, availableToEveryone: false, cohortIds: [], recommendedCourseIds: [],
   purchasable: false, royaltyPct: '0', prices: [],
 };
 
@@ -183,6 +185,10 @@ export function BookEditor() {
     setChaptersDirty(true);
   }, []);
   const [cohorts, setCohorts] = useState<{ id: string; name: string }[]>([]);
+  // Courses the product can be recommended with: an instructor's own, or every course for an admin
+  // (the server enforces the same rule on save).
+  const [courses, setCourses] = useState<{ id: string; title: string; status: string }[]>([]);
+  const [courseQuery, setCourseQuery] = useState('');
   const [loading, setLoading] = useState(!!editId);
   const [saving, setSaving] = useState<null | BookStatus>(null);
   const [uploading, setUploading] = useState<null | 'file' | 'preview'>(null);
@@ -230,6 +236,16 @@ export function BookEditor() {
   useEffect(() => {
     supabase.from('cohorts').select('id, name').eq('cohort_kind', 'bootcamp').order('name')
       .then(({ data }) => setCohorts(data ?? []));
+    (async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      const uid = session?.user?.id;
+      if (!uid) return;
+      const { data: me } = await supabase.from('students').select('role').eq('id', uid).maybeSingle();
+      let q = supabase.from('courses').select('id, title, status').neq('status', 'archived').order('title').limit(1000);
+      if (me?.role !== 'admin') q = q.eq('user_id', uid);
+      const { data } = await q;
+      setCourses((data ?? []) as { id: string; title: string; status: string }[]);
+    })();
   }, []);
 
   useEffect(() => {
@@ -257,6 +273,7 @@ export function BookEditor() {
         licenseExpiresAt: book.license_expires_at ? String(book.license_expires_at).slice(0, 10) : '',
         aiAllowed: book.ai_allowed !== false, endorsementPermitted: book.endorsement_permitted === true,
         availableToEveryone: book.available_to_everyone === true, cohortIds: book.cohort_ids ?? [],
+        recommendedCourseIds: Array.isArray(book.recommended_course_ids) ? book.recommended_course_ids : [],
         purchasable: book.purchasable === true, royaltyPct: String(book.royalty_pct ?? 0),
         prices: (priceRows ?? []).map((p: any) => ({
           currency: p.currency,
@@ -598,6 +615,7 @@ export function BookEditor() {
         endorsementPermitted: state.endorsementPermitted,
         availableToEveryone: state.availableToEveryone,
         cohortIds: state.cohortIds,
+        recommendedCourseIds: state.recommendedCourseIds,
         expectedUpdatedAt: loadedAt,
       };
       if (newFile && newFormat) body.file = { path: newFile.path, format: newFormat };
@@ -1083,6 +1101,41 @@ export function BookEditor() {
                 ? 'Free for the selected cohorts.'
                 : state.purchasable ? 'Only people who buy it.' : 'Nobody can read it yet. Choose a cohort, everyone, or sell it.'}
           </p>
+        </div>
+
+        {/* Recommend with courses */}
+        <div className="rounded-2xl p-5 sm:p-7 space-y-4" style={card}>
+          {sectionTitle('Recommend with courses')}
+          <p className="text-xs" style={{ color: C.faint }}>
+            This product shows on these course pages, and in What to take next when a learner passes them.
+          </p>
+          {courses.length === 0 ? (
+            <p className="text-xs" style={{ color: C.faint }}>You have no courses to pick yet.</p>
+          ) : (
+            <>
+              {courses.length > 8 && (
+                <input className={inputCls} style={inputStyle} value={courseQuery} onChange={e => setCourseQuery(e.target.value)}
+                  placeholder="Search your courses" aria-label="Search courses" />
+              )}
+              <div className="flex flex-wrap gap-2">
+                {courses
+                  .filter(c => state.recommendedCourseIds.includes(c.id) || !courseQuery.trim() || c.title.toLowerCase().includes(courseQuery.trim().toLowerCase()))
+                  .slice(0, 60)
+                  .map(c => {
+                    const on = state.recommendedCourseIds.includes(c.id);
+                    return (
+                      <button key={c.id} type="button" aria-pressed={on}
+                        onClick={() => update({ recommendedCourseIds: on ? state.recommendedCourseIds.filter(x => x !== c.id) : [...state.recommendedCourseIds, c.id].slice(0, 20) })}
+                        className="px-3 py-1.5 rounded-full text-xs font-medium"
+                        style={{ background: on ? C.cta : C.pill, color: on ? C.ctaText : C.muted }}>
+                        {c.title}{c.status === 'draft' ? ' (draft)' : ''}
+                      </button>
+                    );
+                  })}
+              </div>
+              {state.recommendedCourseIds.length >= 20 && <p className="text-xs" style={{ color: C.faint }}>Up to 20 courses.</p>}
+            </>
+          )}
         </div>
 
         {/* Selling */}
