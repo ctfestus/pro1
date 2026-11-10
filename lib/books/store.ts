@@ -127,6 +127,11 @@ export function toStoreBook(row: any, prices: StorePrice[], now: Date = new Date
   const free = row.available_to_everyone === true;
   const forSale = row.purchasable === true && prices.length > 0;
   if (!free && !forSale) return null;
+  return storeShape(row, free ? [] : prices, free, !free && forSale && isBookObjectPath(row.id, row.preview_file_path, 'preview', format));
+}
+
+/** The output shape, built field by field (never a spread), so no object path can leak through. */
+function storeShape(row: any, prices: StorePrice[], free: boolean, hasSample: boolean): StoreBook {
   return {
     id: String(row.id),
     slug: String(row.slug),
@@ -142,11 +147,46 @@ export function toStoreBook(row: any, prices: StorePrice[], now: Date = new Date
     estimatedMinutes: typeof row.estimated_minutes === 'number' ? row.estimated_minutes : null,
     productType: isProductType(row.product_type) ? row.product_type : 'book',
     productTypeLabel: productTypeLabel(row.product_type, row.product_type_label),
-    format,
+    format: row.format as BookFormat,
     fileSize: typeof row.file_size === 'number' ? row.file_size : null,
     free,
-    prices: free ? [] : prices,
-    hasSample: !free && forSale && isBookObjectPath(row.id, row.preview_file_path, 'preview', format),
+    prices,
+    hasSample,
+  };
+}
+
+/**
+ * Why buyers cannot see a product's page yet, in the author's words; empty when it is live. The
+ * same rules as toStoreBook. Exported for tests.
+ */
+export function storeBlockers(row: any, prices: StorePrice[], now: Date = new Date()): string[] {
+  const out: string[] = [];
+  if (row.status === 'archived') out.push('It is archived.');
+  else if (row.status !== 'published') out.push('It is a draft. Publish it to put this page live.');
+  if (!isBookObjectPath(row.id, row.file_path, 'file', row.format as BookFormat)) out.push('No product file is saved yet.');
+  if (isLicenseExpired(row.license_expires_at, now)) out.push('Its licence has expired.');
+  if (row.available_to_everyone !== true && !(row.purchasable === true && prices.length > 0)) {
+    out.push('It is neither for sale with a price nor free to everyone.');
+  }
+  return out;
+}
+
+/**
+ * A product's page as it will look, for its author: any status, with what still keeps it off the
+ * store. Callers must have checked that the viewer may edit the product. Null when it does not exist.
+ */
+export async function loadPreviewBook(id: string, db: any = adminClient(), now: Date = new Date()): Promise<{ book: StoreBookDetail; blockers: string[] } | null> {
+  const { data, error } = await db.from('books').select(`${COLUMNS}, status, user_id`).eq('id', id).maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const row = data as any;
+  const prices = row.purchasable === true ? (await pricesFor(db, [row.id])).get(row.id) ?? [] : [];
+  const free = row.available_to_everyone === true;
+  const hasSample = !free && prices.length > 0 && isBookObjectPath(row.id, row.preview_file_path, 'preview', row.format as BookFormat);
+  const book = storeShape(row, free ? [] : prices, free, hasSample);
+  return {
+    book: { ...book, instructor: await loadInstructor(db, row.user_id), chapters: [] },
+    blockers: storeBlockers(row, prices, now),
   };
 }
 
