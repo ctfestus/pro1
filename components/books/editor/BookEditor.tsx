@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Download, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw,
+  AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Download, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw,
   Trash2, Upload, X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +18,7 @@ import { Toggle, inputCls, labelCls } from '@/components/create/shared';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { descriptionHtml } from '@/lib/books/description';
+import { normalizeProductAddress, PRODUCT_ADDRESS, PRODUCT_TYPE_NAMES, PRODUCT_TYPES } from '@/lib/books/product-type';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import {
   BOOK_DIFFICULTIES,
@@ -89,6 +90,9 @@ type EditorState = {
   cohortIds: string[];
   /** Courses this product is recommended with (migration 240). */
   recommendedCourseIds: string[];
+  /** What kind of product (migration 242), and the author's own word when it is "other". */
+  productType: string;
+  productTypeLabel: string;
   purchasable: boolean;
   royaltyPct: string;
   // saleAmount and saleEndsAt (a date, yyyy-mm-dd) are optional: a sale price shown with the
@@ -99,7 +103,7 @@ type EditorState = {
 const EMPTY: EditorState = {
   title: '', subtitle: '', description: '', coverImage: '', authors: '', category: '', topics: '', skills: '',
   difficulty: '', estimatedMinutes: '', rightsHolder: '', licenseType: '', licenseUrl: '', licenseExpiresAt: '',
-  aiAllowed: true, endorsementPermitted: false, availableToEveryone: false, cohortIds: [], recommendedCourseIds: [],
+  aiAllowed: true, endorsementPermitted: false, availableToEveryone: false, cohortIds: [], recommendedCourseIds: [], productType: 'book', productTypeLabel: '',
   purchasable: false, royaltyPct: '0', prices: [],
 };
 
@@ -168,6 +172,10 @@ export function BookEditor() {
   const [format, setFormat] = useState<BookFormat | null>(null);
   // For the sample's links back to the book's store page.
   const [slug, setSlug] = useState('');
+  // The web address being edited (/products/<address>), saved on its own (PATCH /api/books/address).
+  const [addressDraft, setAddressDraft] = useState('');
+  const [addressBusy, setAddressBusy] = useState(false);
+  const [addressNote, setAddressNote] = useState<{ ok: boolean; text: string } | null>(null);
   const [storedFile, setStoredFile] = useState<{ path: string | null; size: number | null }>({ path: null, size: null });
   const [storedPreview, setStoredPreview] = useState<string | null>(null);
   const [newFile, setNewFile] = useState<UploadedFile | null>(null);
@@ -274,6 +282,8 @@ export function BookEditor() {
         aiAllowed: book.ai_allowed !== false, endorsementPermitted: book.endorsement_permitted === true,
         availableToEveryone: book.available_to_everyone === true, cohortIds: book.cohort_ids ?? [],
         recommendedCourseIds: Array.isArray(book.recommended_course_ids) ? book.recommended_course_ids : [],
+        productType: typeof book.product_type === 'string' ? book.product_type : 'book',
+        productTypeLabel: book.product_type_label ?? '',
         purchasable: book.purchasable === true, royaltyPct: String(book.royalty_pct ?? 0),
         prices: (priceRows ?? []).map((p: any) => ({
           currency: p.currency,
@@ -285,6 +295,7 @@ export function BookEditor() {
       setStatus(book.status);
       setFormat(book.format ?? null);
       setSlug(book.slug ?? '');
+      setAddressDraft(book.slug ?? '');
       setStoredFile({ path: book.file_path ?? null, size: book.file_size ?? null });
       setStoredPreview(book.preview_file_path ?? null);
       setChaptersRaw((chapterRows ?? []).map(chapterFromRow));
@@ -616,6 +627,8 @@ export function BookEditor() {
         availableToEveryone: state.availableToEveryone,
         cohortIds: state.cohortIds,
         recommendedCourseIds: state.recommendedCourseIds,
+        productType: state.productType,
+        productTypeLabel: state.productTypeLabel,
         expectedUpdatedAt: loadedAt,
       };
       if (newFile && newFormat) body.file = { path: newFile.path, format: newFormat };
@@ -734,6 +747,34 @@ export function BookEditor() {
 
   const card = { background: C.card } as const;
   const sectionTitle = (t: string) => <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: C.cta }}>{t}</p>;
+  async function saveAddress() {
+    if (!editId) return;
+    const next = normalizeProductAddress(addressDraft);
+    if (!PRODUCT_ADDRESS.test(next)) { setAddressNote({ ok: false, text: 'Use 2 to 120 lowercase letters, numbers and hyphens.' }); return; }
+    if (next === slug) { setAddressNote(null); return; }
+    if (!window.confirm('Change the web address? Links already shared with the old address will stop working.')) return;
+    setAddressBusy(true); setAddressNote(null);
+    try {
+      const res = await fetch('/api/books/address', {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
+        body: JSON.stringify({ id: editId, slug: next, expectedUpdatedAt: loadedAt }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(d.error || 'Could not change the address.');
+      setSlug(d.slug); setAddressDraft(d.slug);
+      // The address change moved the product's version on: this editor is now at that version.
+      if (d.updatedAt) setLoadedAt(d.updatedAt);
+      // A sample cut by chapters links to the product page: it is made again on the next save.
+      const relinks = sampleSource === 'cut' && !!effectiveFormat && effectiveFormat !== 'pdf' && !!storedPreview;
+      if (relinks) setSampleDirty(true);
+      setAddressNote({ ok: true, text: relinks ? 'Address saved. Save the product to update the links in its free sample.' : 'Address saved.' });
+    } catch (e: any) {
+      setAddressNote({ ok: false, text: e?.message || 'Could not change the address.' });
+    } finally {
+      setAddressBusy(false);
+    }
+  }
+
   const field = (label: string, input: React.ReactNode, hint?: string) => (
     <div>
       <label className={labelCls} style={{ color: C.faint }}>{label}</label>
@@ -810,10 +851,37 @@ export function BookEditor() {
           {sectionTitle('Details')}
           {field('Title', <input className={inputCls} style={inputStyle} value={state.title} onChange={e => update({ title: e.target.value })} />)}
           {field('Subtitle', <input className={inputCls} style={inputStyle} value={state.subtitle} onChange={e => update({ subtitle: e.target.value })} />)}
+          {editId && slug && field('Web address', (
+            <div className="space-y-2">
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex flex-1 items-center rounded-xl overflow-hidden" style={inputStyle}>
+                  <span className="pl-3 text-sm shrink-0" style={{ color: C.faint }}>/products/</span>
+                  <input className="flex-1 min-w-0 bg-transparent px-1 py-2.5 text-sm outline-none" style={{ color: C.text }} value={addressDraft}
+                    onChange={e => { setAddressDraft(e.target.value.toLowerCase().replace(/\s+/g, '-')); setAddressNote(null); }} aria-label="Web address" />
+                </div>
+                <button type="button" onClick={saveAddress} disabled={addressBusy || normalizeProductAddress(addressDraft) === slug}
+                  className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50" style={{ background: C.cta, color: C.ctaText }}>
+                  {addressBusy ? 'Saving' : 'Save address'}
+                </button>
+              </div>
+              {addressNote && <p className="text-xs" style={{ color: addressNote.ok ? C.green : '#dc2626' }}>{addressNote.text}</p>}
+            </div>
+          ), 'Lowercase letters, numbers and hyphens. Changing it breaks links already shared.')}
           {field('Description', <RichTextEditor value={state.description} onChange={html => update({ description: html })} placeholder="What the product is, who it is for and what they get" enableAiAssist />,
             'Use bold, italics, lists and headings. This shows on the product page.')}
           <div className="grid sm:grid-cols-2 gap-5">
             {field('Authors', <input className={inputCls} style={inputStyle} value={state.authors} onChange={e => update({ authors: e.target.value })} />, 'Separate names with commas.')}
+            {field('Type', (
+              <div className="space-y-2">
+                <select className={inputCls} style={inputStyle} value={state.productType} onChange={e => update({ productType: e.target.value })} aria-label="Type">
+                  {PRODUCT_TYPES.map(t => <option key={t} value={t}>{PRODUCT_TYPE_NAMES[t]}</option>)}
+                </select>
+                {state.productType === 'other' && (
+                  <input className={inputCls} style={inputStyle} value={state.productTypeLabel} maxLength={40}
+                    onChange={e => update({ productTypeLabel: e.target.value })} placeholder="For example Dataset, Course pack, Checklist" aria-label="Type name" />
+                )}
+              </div>
+            ), state.productType === 'other' && !state.productTypeLabel.trim() ? 'Name the type, or it is saved as Book.' : 'Shown on the product page and in the store.')}
             {field('Category', <input className={inputCls} style={inputStyle} value={state.category} onChange={e => update({ category: e.target.value })} placeholder="Data Engineering" />)}
             {field('Topics', <input className={inputCls} style={inputStyle} value={state.topics} onChange={e => update({ topics: e.target.value })} />, 'Separate with commas.')}
             {field('Skills', <input className={inputCls} style={inputStyle} value={state.skills} onChange={e => update({ skills: e.target.value })} />, 'Separate with commas.')}
@@ -989,10 +1057,20 @@ export function BookEditor() {
           </div>
         </div>
 
-        {/* Chapters */}
-        <div className="rounded-2xl p-5 sm:p-7 space-y-4" style={card}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {sectionTitle('Chapters')}
+        {/* Chapters: buyers never see them; they only tell a chapter-cut sample (EPUB, HTML) where to
+            stop. So the section appears only then, folded away by default. PDF samples are cut by
+            page range and uploaded samples are not cut, so neither needs chapters. */}
+        {effectiveFormat && effectiveFormat !== 'pdf' && sampleSource === 'cut' && (
+        <details className="group rounded-2xl p-5 sm:p-7" style={card}>
+          <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none flex items-center justify-between gap-3">
+            <span>
+              <span className="text-sm font-bold" style={{ color: C.text }}>Chapters</span>
+              <span className="text-xs ml-2" style={{ color: C.faint }}>used to cut the free sample{chapters.length ? `, ${chapters.length} found` : ''}</span>
+            </span>
+            <ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" style={{ color: C.faint }} />
+          </summary>
+          <div className="mt-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-end gap-3">
             <div className="flex gap-2">
               {effectiveFormat && (newFile || storedFile.path) && (
                 <button onClick={() => findChapters()} disabled={findingChapters || !!uploading} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
@@ -1008,9 +1086,7 @@ export function BookEditor() {
           </div>
           <p className="text-xs" style={{ color: C.faint }}>
             {findingChapters ? 'Reading the chapters from the file...'
-              : effectiveFormat === 'pdf'
-                ? 'Chapters are read from the PDF\'s bookmarks when you upload it. If it has none, AI suggests them from the page text. Check the start pages, then save.'
-                : 'Chapters are read from the file\'s table of contents or headings when you upload it. If it has none, AI suggests them. Rename or remove any you do not want, then save.'}
+              : 'Chapters are read from the file\'s table of contents or headings when you upload it. If it has none, AI suggests them. Rename or remove any you do not want, then save.'}
           </p>
           {chapters.length === 0 && <p className="text-sm py-4 text-center" style={{ color: C.faint }}>No chapters yet.</p>}
           <div className="space-y-2">
@@ -1025,31 +1101,18 @@ export function BookEditor() {
                   <button onClick={() => setChapters(prev => prev.filter(c => c.key !== ch.key))} aria-label="Remove chapter" className="p-1.5 rounded-lg" style={{ color: '#dc2626' }}><Trash2 className="w-4 h-4" /></button>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 pl-8 text-xs" style={{ color: C.faint }}>
-                  {effectiveFormat === 'pdf' && <>
-                    <label className="flex items-center gap-1.5">Starts on page
-                      <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" value={ch.pageStart}
-                        onChange={e => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, pageStart: e.target.value.replace(/\D/g, '') } : c))} />
-                    </label>
-                    <label className="flex items-center gap-1.5">ends on
-                      <input className="w-16 rounded-lg px-2 py-1 outline-none" style={inputStyle} inputMode="numeric" value={ch.pageEnd}
-                        onChange={e => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, pageEnd: e.target.value.replace(/\D/g, '') } : c))} />
-                    </label>
-                  </>}
                   {effectiveFormat === 'epub' && ch.href && <span className="truncate max-w-[16rem]">{ch.href}</span>}
                   {effectiveFormat === 'html' && ch.anchor && <span>#{ch.anchor}</span>}
                   <label className="flex items-center gap-2">Counts toward completion
                     <Toggle checked={ch.required} accentColor={C.cta} onChange={() => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, required: !c.required } : c))} />
                   </label>
-                  {sampleSource === 'upload' && (
-                    <label className="flex items-center gap-2">In the sample
-                      <Toggle checked={ch.isPreview} accentColor={C.cta} onChange={() => setChapters(prev => prev.map(c => c.key === ch.key ? { ...c, isPreview: !c.isPreview } : c))} />
-                    </label>
-                  )}
                 </div>
               </div>
             ))}
           </div>
-        </div>
+          </div>
+        </details>
+        )}
 
         {/* Rights */}
         <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>

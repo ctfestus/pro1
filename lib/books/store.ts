@@ -5,6 +5,7 @@ import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
 import { isBookObjectPath, isLicenseExpired, type BookFormat } from '@/lib/books/schema';
 import { BOOKS_STORE_TAG } from '@/lib/books/store-cache';
+import { isProductType, productTypeLabel } from '@/lib/books/product-type';
 import type { NavBook } from '@/lib/landing-nav';
 
 /**
@@ -25,7 +26,7 @@ import type { NavBook } from '@/lib/landing-nav';
 const COLUMNS = [
   'id', 'slug', 'title', 'subtitle', 'description', 'cover_image', 'authors', 'category', 'topics', 'skills',
   'difficulty', 'estimated_minutes', 'format', 'file_size', 'purchasable', 'available_to_everyone',
-  'license_expires_at', 'updated_at',
+  'license_expires_at', 'updated_at', 'product_type', 'product_type_label',
   // Read only to compute hasFile / hasSample. Never returned.
   'file_path', 'preview_file_path',
 ].join(', ');
@@ -47,6 +48,9 @@ export interface StoreBook {
   difficulty: string | null;
   estimatedMinutes: number | null;
   format: BookFormat;
+  /** What kind of product (migration 242), e.g. 'template', and how it reads, e.g. "Template". */
+  productType: string;
+  productTypeLabel: string;
   fileSize: number | null;
   /** Open to everyone: a free download for any signed-in visitor. */
   free: boolean;
@@ -136,6 +140,8 @@ export function toStoreBook(row: any, prices: StorePrice[], now: Date = new Date
     skills: list(row.skills),
     difficulty: row.difficulty ?? null,
     estimatedMinutes: typeof row.estimated_minutes === 'number' ? row.estimated_minutes : null,
+    productType: isProductType(row.product_type) ? row.product_type : 'book',
+    productTypeLabel: productTypeLabel(row.product_type, row.product_type_label),
     format,
     fileSize: typeof row.file_size === 'number' ? row.file_size : null,
     free,
