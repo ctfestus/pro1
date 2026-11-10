@@ -7,7 +7,6 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { BookOpen, Search } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
-import { formatLabel } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import type { StoreBook } from '@/lib/books/store';
 
@@ -16,9 +15,16 @@ const ALL = 'All';
 export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; primaryColor: string }) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState(ALL);
+  const [kind, setKind] = useState(ALL);
 
   const categories = useMemo(() => {
     const set = new Set(books.map(b => b.category?.trim()).filter((c): c is string => !!c));
+    return set.size > 1 ? [ALL, ...[...set].sort((a, b) => a.localeCompare(b))] : [];
+  }, [books]);
+
+  // Kinds of product in the store (migration 242), offered as filters once there is more than one.
+  const kinds = useMemo(() => {
+    const set = new Set(books.map(b => b.productTypeLabel).filter(Boolean));
     return set.size > 1 ? [ALL, ...[...set].sort((a, b) => a.localeCompare(b))] : [];
   }, [books]);
 
@@ -26,11 +32,12 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
     const q = query.trim().toLowerCase();
     return books.filter(b => {
       if (category !== ALL && b.category?.trim() !== category) return false;
+      if (kind !== ALL && b.productTypeLabel !== kind) return false;
       if (!q) return true;
-      return [b.title, b.subtitle, ...b.authors, b.category, ...b.topics, ...b.skills]
+      return [b.title, b.subtitle, ...b.authors, b.category, b.productTypeLabel, ...b.topics, ...b.skills]
         .some(v => typeof v === 'string' && v.toLowerCase().includes(q));
     });
-  }, [books, query, category]);
+  }, [books, query, category, kind]);
 
   if (!books.length) {
     return (
@@ -62,6 +69,17 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
           </div>
         )}
       </div>
+      {kinds.length > 0 && (
+        <div className="flex flex-wrap gap-2 -mt-2" role="group" aria-label="Product types">
+          {kinds.map(k => (
+            <button key={k} onClick={() => setKind(k)} aria-pressed={kind === k}
+              className="px-3.5 py-2 rounded-full text-xs font-semibold"
+              style={kind === k ? { background: '#0f172a', color: '#ffffff' } : { background: '#ffffff', color: '#475569' }}>
+              {k === ALL ? 'All types' : k}
+            </button>
+          ))}
+        </div>
+      )}
 
       {shown.length === 0 ? (
         <p className="text-sm py-10 text-center" style={{ color: '#64748b' }}>No products match your search.</p>
@@ -80,7 +98,7 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
                 {book.free
                   ? <span className="text-sm font-bold" style={{ color: '#16a34a' }}>Free</span>
                   : <PriceTag prices={book.prices} className="text-sm font-bold" style={{ color: '#0f172a' }} />}
-                <span className="text-[11px]" style={{ color: '#94a3b8' }}>{formatLabel(book.format).split(' ')[0]}</span>
+                <span className="text-[11px] font-semibold" style={{ color: '#64748b' }}>{book.productTypeLabel}</span>
               </div>
             </Link>
           ))}

@@ -8054,6 +8054,19 @@ ALTER TABLE public.book_announcements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.book_announcement_recipients ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON public.book_announcements, public.book_announcement_recipients FROM anon, authenticated;
 GRANT ALL ON public.book_announcements, public.book_announcement_recipients TO service_role;
+-- What kind of product, and the address format (migration 242).
+ALTER TABLE public.books
+  ADD COLUMN IF NOT EXISTS product_type       text NOT NULL DEFAULT 'book',
+  ADD COLUMN IF NOT EXISTS product_type_label text;
+ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_product_type_check;
+ALTER TABLE public.books ADD CONSTRAINT books_product_type_check CHECK (
+  product_type IN ('book', 'template', 'guide', 'prompt', 'skill', 'plugin', 'other')
+  AND (product_type_label IS NULL OR length(btrim(product_type_label)) BETWEEN 1 AND 40)
+  AND (product_type <> 'other' OR product_type_label IS NOT NULL)
+);
+ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_slug_format_check;
+ALTER TABLE public.books ADD CONSTRAINT books_slug_format_check
+  CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,119}$') NOT VALID;
 
 -- Books (migration 233): save a book and its chapters atomically. Chapter ids are kept so reading
 -- progress and notes survive edits and reorders.
@@ -8189,6 +8202,8 @@ BEGIN
     endorsement_permitted = v_new.endorsement_permitted,
     sample_spec           = v_new.sample_spec,
     recommended_course_ids = v_new.recommended_course_ids,
+    product_type          = v_new.product_type,
+    product_type_label    = v_new.product_type_label,
     updated_at            = clock_timestamp()
   WHERE id = p_book_id
   RETURNING * INTO v_new;

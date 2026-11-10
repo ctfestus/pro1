@@ -107,9 +107,11 @@ describe('fresh schema book chapters save (migration 233)', () => {
     expect(fn).toContain('TO service_role');
   });
 
-  // save_book was redefined by 236 (sample_spec), 237 (sale prices) and 240 (recommended courses);
+  // save_book was redefined by 236 (sample_spec), 237 (sale prices), 240 (recommended courses) and
+  // 242 (product type);
   // the fresh schema carries the latest.
-  const latest = readFileSync(join(process.cwd(), 'migrations/240_book_recommended_courses.sql'), 'utf8');
+  const latest = readFileSync(join(process.cwd(), 'migrations/242_book_product_type.sql'), 'utf8');
+  const m240 = readFileSync(join(process.cwd(), 'migrations/240_book_recommended_courses.sql'), 'utf8');
   const m237 = readFileSync(join(process.cwd(), 'migrations/237_book_price_sales.sql'), 'utf8');
   const m236 = readFileSync(join(process.cwd(), 'migrations/236_book_sample_spec.sql'), 'utf8');
 
@@ -145,10 +147,20 @@ describe('fresh schema book chapters save (migration 233)', () => {
 
   it('migration 240 only adds recommended_course_ids to save_book', () => {
     const before = m237.slice(m237.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), m237.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
-    const after = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), latest.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
+    const after = m240.slice(m240.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), m240.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
     expect(after.replace('    recommended_course_ids = v_new.recommended_course_ids,\n', '').trim()).toBe(before.trim());
-    expect(latest).toContain('ADD COLUMN IF NOT EXISTS recommended_course_ids uuid[] NOT NULL DEFAULT \'{}\'');
+    expect(m240).toContain('ADD COLUMN IF NOT EXISTS recommended_course_ids uuid[] NOT NULL DEFAULT \'{}\'');
     expect(schema).toContain('CHECK (cardinality(recommended_course_ids) <= 20)');
+  });
+
+  it('migration 242 only adds the product type to save_book, and checks types and addresses', () => {
+    const before = m240.slice(m240.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), m240.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
+    const after = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), latest.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
+    expect(after.replace('    product_type          = v_new.product_type,\n    product_type_label    = v_new.product_type_label,\n', '').trim()).toBe(before.trim());
+    expect(latest).toContain("product_type IN ('book', 'template', 'guide', 'prompt', 'skill', 'plugin', 'other')");
+    expect(latest).toContain("AND (product_type <> 'other' OR product_type_label IS NOT NULL)");
+    expect(latest).toContain("CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,119}$') NOT VALID;");
+    expect(schema).toContain("ADD COLUMN IF NOT EXISTS product_type       text NOT NULL DEFAULT 'book'");
   });
 
   it('migration 236 only adds sample_spec to save_book', () => {

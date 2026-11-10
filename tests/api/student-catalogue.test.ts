@@ -426,7 +426,7 @@ describe('GET /api/student/catalogue', () => {
       });
       const list = await items();
       expect(Object.keys(byTitle(list, 'Book')).sort()).toEqual(
-        ['category', 'coverImage', 'description', 'id', 'inStore', 'locked', 'prices', 'slug', 'title', 'type'],
+        ['category', 'coverImage', 'description', 'id', 'inStore', 'locked', 'prices', 'productTypeLabel', 'slug', 'title', 'type'],
       );
       expect(JSON.stringify(list)).not.toContain('file-x');
     });

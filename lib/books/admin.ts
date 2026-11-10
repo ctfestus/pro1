@@ -19,6 +19,7 @@ import {
   type BookPrice,
 } from '@/lib/books/schema';
 import { BOOK_BUCKET } from '@/lib/books/storage';
+import { cleanProductTypeLabel, isProductType } from '@/lib/books/product-type';
 import { descriptionForSave } from '@/lib/books/description';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -96,6 +97,13 @@ export function bookColumnsFromInput(input: any): Record<string, unknown> {
   if (has('endorsementPermitted')) out.endorsement_permitted = input.endorsementPermitted === true;
   // Anything that is not a valid spec clears it: the sample is then treated as uploaded.
   if (has('sampleSpec')) out.sample_spec = parseSampleSpec(input.sampleSpec);
+  // What kind of product (migration 242); "other" needs the author's own word for it.
+  if (has('productType') || has('productTypeLabel')) {
+    const type = isProductType(input.productType) ? input.productType : 'book';
+    const label = cleanProductTypeLabel(input.productTypeLabel);
+    out.product_type = type === 'other' && !label ? 'book' : type;
+    out.product_type_label = out.product_type === 'other' ? label : null;
+  }
   // Courses to recommend this product with (migration 240). Which ones the person may pick is
   // checked by the route (an instructor only their own courses).
   if (has('recommendedCourseIds')) {

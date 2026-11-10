@@ -96,7 +96,10 @@ export default async function BookStorePage({ params }: Params) {
                 <h1 className="text-[32px] leading-[1.1] sm:text-5xl sm:leading-[1.05] lg:text-[56px] font-extrabold tracking-tight max-w-[18ch] sm:mx-0 mx-auto" style={{ color: '#0f172a' }}>{book.title}</h1>
                 {book.subtitle && <p className="mt-4 text-lg sm:text-xl leading-snug max-w-[56ch]" style={{ color: '#475569' }}>{book.subtitle}</p>}
                 {(format || tags.length > 0) && (
-                  <ul className="mt-5 flex flex-wrap justify-center sm:justify-start gap-2" aria-label="Format and topics">
+                  <ul className="mt-5 flex flex-wrap justify-center sm:justify-start gap-2" aria-label="Type, format and topics">
+                    {/* What kind of product it is (migration 242), first. */}
+                    <li className="inline-flex items-center rounded-full px-4 py-2 text-sm font-bold"
+                      style={{ background: primaryColor, color: '#ffffff' }}>{book.productTypeLabel}</li>
                     {format && (
                       <li className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
                         style={{ background: '#ffffff', color: '#0f172a', boxShadow: CARD_SHADOW }}>

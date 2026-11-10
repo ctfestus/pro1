@@ -48,6 +48,8 @@ interface CatalogueItem {
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
   prices?: { currency: string; amount: number; original?: number }[];
+  /** Books only: the kind of product, e.g. "Template". */
+  productTypeLabel?: string;
   /** Books only: listed in the public store; otherwise the learner's copy is in My Books. */
   inStore?: boolean;
 }
@@ -569,7 +571,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           </div>
         )}
         <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
-          {TYPE_LABEL[item.type]}
+          {item.type === 'book' && item.productTypeLabel ? item.productTypeLabel : TYPE_LABEL[item.type]}
         </span>
         {item.locked && (
           <span className="absolute top-2 right-2 w-7 h-7 rounded-full grid place-items-center" style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>

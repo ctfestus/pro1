@@ -24,6 +24,7 @@ import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
 import { pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
 import { pathOverviewFields } from '@/lib/path-overview';
 import { isLicenseExpired } from '@/lib/books/schema';
+import { productTypeLabel } from '@/lib/books/product-type';
 import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
 import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 import {
@@ -56,6 +57,8 @@ export interface CatalogueItem {
    * to My Books for it instead of to a store page that would not find it.
    */
   inStore?: boolean;
+  /** Books only: what kind of product, as it reads, e.g. "Template" (migration 242). */
+  productTypeLabel?: string;
 }
 
 type Row = {
@@ -132,7 +135,7 @@ export async function GET(req: NextRequest) {
       // Books with a file only. The file path itself is a filter, never selected: it must not
       // reach the browser (downloads go through /api/books/[id]/file, which re-checks access).
       fetchAllRows<BookRow>((from, to) => db.from('books')
-        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, purchasable, license_expires_at', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, purchasable, license_expires_at, product_type, product_type_label', { count: 'exact' })
         .eq('status', 'published').not('file_path', 'is', null).order('id').range(from, to)),
       // Books the learner bought or was given open like anything else they have access to.
       fetchAllRows<{ book_id: string }>((from, to) => db.from('book_entitlements')
@@ -214,8 +217,9 @@ export async function GET(req: NextRequest) {
       const prices = pricesByBook.get(item.id) ?? [];
       const forSale = row.purchasable === true && prices.length > 0;
       const inStore = forSale || row.available_to_everyone === true;
-      if (open) bookItems.push({ ...item, locked: false, inStore });
-      else if (forSale) bookItems.push({ ...item, prices, inStore });
+      const kind = productTypeLabel((row as any).product_type, (row as any).product_type_label);
+      if (open) bookItems.push({ ...item, locked: false, inStore, productTypeLabel: kind });
+      else if (forSale) bookItems.push({ ...item, prices, inStore, productTypeLabel: kind });
     }
 
     const items: CatalogueItem[] = [
