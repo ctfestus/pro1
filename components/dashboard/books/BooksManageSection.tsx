@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, ChevronDown, Edit2, Eye, Loader2, Package, Plus, Search, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Edit2, Eye, Loader2, Megaphone, Package, Plus, Search, Trash2, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
@@ -16,6 +16,7 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { openBookPreview } from '@/lib/books/open-preview';
 import { formatMoney } from '@/lib/books/format';
 import { ProductPeople } from '@/components/dashboard/books/ProductPeople';
+import { ProductAnnounce } from '@/components/dashboard/books/ProductAnnounce';
 
 type BookListItem = {
   id: string;
@@ -81,6 +82,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [openingId, setOpeningId] = useState<string | null>(null);
   const [peopleFor, setPeopleFor] = useState<string | null>(null);
+  const [announceFor, setAnnounceFor] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -275,7 +277,14 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                 <p className="text-xs mt-1" style={{ color: C.faint }}>{audienceLabel(b)}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => setPeopleFor(prev => (prev === b.id ? null : b.id))} aria-expanded={peopleFor === b.id}
+                {b.status === 'published' && (
+                  <button onClick={() => { setAnnounceFor(prev => (prev === b.id ? null : b.id)); setPeopleFor(null); }} aria-expanded={announceFor === b.id}
+                    className="inline-flex items-center gap-1 px-2 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-70"
+                    aria-label={`Announce ${b.title}`} title="Email all students about this product" style={{ color: C.muted }}>
+                    <Megaphone className="w-4 h-4" /><span className="hidden sm:inline">Announce</span>
+                  </button>
+                )}
+                <button onClick={() => { setPeopleFor(prev => (prev === b.id ? null : b.id)); setAnnounceFor(null); }} aria-expanded={peopleFor === b.id}
                   className="inline-flex items-center gap-1 px-2 py-2 rounded-lg text-xs font-semibold transition-opacity hover:opacity-70"
                   aria-label={`People for ${b.title}`} title="Buyers and downloads" style={{ color: C.muted }}>
                   <Users className="w-4 h-4" /><span className="hidden sm:inline">People</span>
@@ -295,6 +304,11 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                 </button>
               </div>
             </div>
+            {announceFor === b.id && (
+              <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.pill}` }}>
+                <ProductAnnounce book={{ id: b.id, title: b.title, cover_image: b.cover_image }} C={C} />
+              </div>
+            )}
             {peopleFor === b.id && (
               <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${C.pill}` }}>
                 <ProductPeople bookId={b.id} slug={b.slug} C={C} />
