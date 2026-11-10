@@ -23,9 +23,14 @@ interface RichTextEditorProps {
   /** Show an "Insert name" button that drops a {{first_name}} merge tag. For VE
    *  workplace-email editors only -- the tag is resolved by the VE players at render time. */
   enableNameTag?: boolean;
+  /** Show the "Embed YouTube video" button. Off by default: only surfaces that render the saved
+   *  embed as a player (community announcements, via renderAnnouncementContent) may turn it on.
+   *  Everywhere else the HTML is sanitized to plain rich text and the embed would silently vanish,
+   *  leaving only its surrounding text. */
+  enableVideoEmbed?: boolean;
 }
 
-export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload, onRequestImage, enableAiAssist = false, enableNameTag = false }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload, onRequestImage, enableAiAssist = false, enableNameTag = false, enableVideoEmbed = false }: RichTextEditorProps) {
   const { theme } = useTheme();
   const dark = theme === 'dark';
   const bg        = bgOverride ?? (dark ? 'rgba(255,255,255,0.05)' : '#f4f5f7');
@@ -509,10 +514,14 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
             </ToolbarButton>
           </>
         )}
-        <div className="w-px h-4 mx-1" style={{ background: toolDiv }} />
-        <ToolbarButton onClick={handleInsertVideo} title="Embed YouTube video" dark={dark}>
-          <Youtube className="w-3.5 h-3.5" />
-        </ToolbarButton>
+        {enableVideoEmbed && (
+          <>
+            <div className="w-px h-4 mx-1" style={{ background: toolDiv }} />
+            <ToolbarButton onClick={handleInsertVideo} title="Embed YouTube video" dark={dark}>
+              <Youtube className="w-3.5 h-3.5" />
+            </ToolbarButton>
+          </>
+        )}
         {(onImageUpload || onRequestImage) && (
           <>
             <ToolbarButton

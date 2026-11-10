@@ -1257,17 +1257,19 @@ export function productAnnouncementEmail(data: {
   name: string;
   bookTitle: string;
   priceLabel: string;
-  message: string;
+  /**
+   * The author's message as HTML that is ALREADY SAFE: rich text through sanitizeRichText, or plain
+   * text escaped (lib/books/description.ts descriptionHtml does both). Inserted as given.
+   */
+  messageHtml: string;
   coverUrl?: string;
   productUrl: string;
   branding?: EmailBranding;
 }) {
-  const { name, bookTitle, priceLabel, message, coverUrl, productUrl, branding } = data;
-  // The author's message is plain text: escaped, with paragraphs and line breaks kept.
-  const body = esc(message).split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+  const { name, bookTitle, priceLabel, messageHtml, coverUrl, productUrl, branding } = data;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    ${body}
+    <div style="font-size:15px;line-height:1.6;color:#374151;">${messageHtml}</div>
 
     <table cellpadding="0" cellspacing="0" style="width:100%;margin:20px 0;border-collapse:collapse;">
       <tr>
