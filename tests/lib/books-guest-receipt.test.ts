@@ -68,9 +68,20 @@ describe('free claim email', () => {
     await sendBookPurchaseReceipt(db as any, PURCHASE);
     const [msg] = sent.send.mock.calls[0];
     expect(msg.subject).toBe('Your free download: Field Guide');
+    expect(msg.html).toContain('Hi Ama Mensah');
     expect(msg.html).toContain('free copy');
     expect(msg.html).not.toContain('XXX');
     expect(msg.html).toContain(`/products/download?access=${encodeURIComponent(guestAccessToken(PURCHASE))}`);
+  });
+});
+
+describe('greeting', () => {
+  it('uses the full name the buyer typed, and a plain greeting for purchases made before names were asked for', async () => {
+    await sendBookPurchaseReceipt(makeSupabaseStub({ book_purchases: { data: guestRow({ guest_name: 'Kwame Nkrumah' }) } }) as any, PURCHASE);
+    expect(sent.send.mock.calls[0][0].html).toContain('Hi Kwame Nkrumah');
+    await sendBookPurchaseReceipt(makeSupabaseStub({ book_purchases: { data: guestRow({ guest_name: 'Guest' }) } }) as any, PURCHASE);
+    expect(sent.send.mock.calls[1][0].html).toContain('Hi there');
+    expect(sent.send.mock.calls[1][0].html).not.toContain('Hi Guest');
   });
 });
 

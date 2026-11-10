@@ -6,7 +6,7 @@
 // confirms a returning payment without waiting for the webhook.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { BookOpen, CheckCircle2, Clock, Download, Loader2, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Clock, Download, Loader2, Package, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { downloadBook } from '@/lib/books/open-preview';
@@ -240,10 +240,8 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold" style={{ color: C.text }}>My Products</h1>
-        <p className="text-sm mt-1" style={{ color: C.muted }}>Digital products you have bought, or that your program gives you. Download them any time.</p>
-      </div>
+      {/* The page header already names the section ("My Products"), so only the explanation here. */}
+      <p className="text-sm" style={{ color: C.muted }}>Digital products you have bought, or that your program gives you. Download them any time.</p>
 
       {banner}
       {(loadError || downloadError) && (
@@ -260,7 +258,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
         </div>
       ) : books.length === 0 ? (
         <div className="rounded-2xl" style={card}>
-          <EmptyState icon={BookOpen} title="No products yet" body="Digital products you buy, or that your program gives you, will appear here for download." />
+          <EmptyState icon={Package} title="No products yet" body="Digital products you buy, or that your program gives you, will appear here for download." />
         </div>
       ) : (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -269,7 +267,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
               <div className="rounded-xl overflow-hidden flex items-center justify-center" style={{ background: C.pill, aspectRatio: '3 / 4' }}>
                 {book.coverImage
                   ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover" />
-                  : <BookOpen className="w-8 h-8" style={{ color: C.faint }} />}
+                  : <Package className="w-8 h-8" style={{ color: C.faint }} />}
               </div>
               <p className="mt-3 text-sm font-semibold leading-snug line-clamp-2" style={{ color: C.text }}>{book.title}</p>
               {book.authors.length > 0 && <p className="text-xs mt-0.5 truncate" style={{ color: C.muted }}>{book.authors.join(', ')}</p>}

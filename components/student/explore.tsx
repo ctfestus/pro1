@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useState, type ElementType } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Play } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Package, Play } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
@@ -87,7 +87,7 @@ const TYPE_ICON: Record<CatalogueType, ElementType> = {
   learning_path:      Layers,
   virtual_experience: Briefcase,
   certification:      Award,
-  book:               BookOpen,
+  book:               Package,
 };
 
 // What a learner can open now, versus what a plan would open. Two different questions from the
@@ -368,7 +368,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
                       : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
                           style={{ background: TYPE_GRAD[type] }}>
-                          <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />
+                          {(() => { const Icon = TYPE_ICON[type]; return <Icon className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
                         </div>
                     }
 
@@ -565,7 +565,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
           <div className="w-full h-full flex items-center justify-center" style={{ background: TYPE_GRAD[item.type] }}>
-            <BookOpen className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />
+            {(() => { const Icon = TYPE_ICON[item.type]; return <Icon className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
           </div>
         )}
         <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
@@ -581,7 +581,6 @@ function CataloguePreview({ item, accent, onOpen, C }: {
       })()}
 
       <div className="p-5">
-        <p className="text-xs mb-1" style={{ color: C.faint }}>{TYPE_LABEL[item.type]}</p>
         <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
 
         {desc && (
@@ -608,7 +607,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
         ) : (() => {
           const label = item.type === 'book' ? (
             <>
-              <BookOpen className="w-3.5 h-3.5" />
+              <Package className="w-3.5 h-3.5" />
               Get your copy
             </>
           ) : (

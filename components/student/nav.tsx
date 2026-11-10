@@ -6,7 +6,7 @@
 import {
   LayoutDashboard, Film, Layers, Briefcase, Database, CalendarDays, ClipboardList,
   CalendarCheck, Users, Megaphone, Calendar, Video, Trophy, Award, Medal, CreditCard,
-  Sparkles, ShieldCheck, Compass, Route, BookOpen,
+  Sparkles, ShieldCheck, Compass, Route, Package,
 } from 'lucide-react';
 
 export const NAV_ITEMS = [
@@ -18,7 +18,7 @@ export const NAV_ITEMS = [
   { id: 'certifications',    label: 'Certifications',       Icon: ShieldCheck     },
   { id: 'explore',           label: 'Explore',             Icon: Compass         },
   { id: 'data_center',       label: 'Data Playground',      Icon: Database        },
-  { id: 'products',          label: 'My Products',            Icon: BookOpen        },
+  { id: 'products',          label: 'My Products',            Icon: Package         },
   { id: 'events',            label: 'Live Sessions',        Icon: CalendarDays    },
   { id: 'assignments',       label: 'Assignments',         Icon: ClipboardList   },
   { id: 'calendar',          label: 'Calendar',            Icon: CalendarCheck   },

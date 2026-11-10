@@ -8,7 +8,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { AlertTriangle, Check, ChevronDown, Edit2, Eye, Library, Loader2, Plus, Search, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, Check, ChevronDown, Edit2, Eye, Loader2, Package, Plus, Search, Trash2, Users } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
@@ -168,7 +168,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
 
   if (loading) return <div className="py-24 flex justify-center"><Loader2 className="w-6 h-6 animate-spin" style={{ color: C.green }} /></div>;
   if (error) return <div className="text-sm px-4 py-3 rounded-xl" style={{ background: 'rgba(244,63,94,0.1)', color: '#f43f5e' }}>{error}</div>;
-  if (!books.length) return <SectionEmptyState Icon={Library} label="product" createHref="/create/product" createLabel="New product" C={C} />;
+  if (!books.length) return <SectionEmptyState Icon={Package} label="product" createHref="/create/product" createLabel="New product" C={C} />;
 
   return (
     <div className="space-y-5">
@@ -257,7 +257,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
               <div className="w-12 h-16 rounded-lg overflow-hidden shrink-0 flex items-center justify-center" style={{ background: C.pill }}>
                 {cover
                   ? <img src={cover} alt="" className="w-full h-full object-cover" />
-                  : <Library className="w-5 h-5" style={{ color: C.faint }} />}
+                  : <Package className="w-5 h-5" style={{ color: C.faint }} />}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
@@ -271,15 +271,8 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                 <p className="text-xs mt-0.5 truncate" style={{ color: C.faint }}>
                   {[(b.authors ?? []).join(', '), b.category].filter(Boolean).join(' / ') || 'No author yet'}
                 </p>
-                <p className="text-xs mt-1" style={{ color: C.faint }}>
-                  {[
-                    audienceLabel(b),
-                    b.purchasable || b.sold > 0 ? `${stats.get(b.id)?.sold ?? b.sold} sold` : '',
-                    Object.entries(stats.get(b.id)?.revenue ?? {}).map(([cur, amt]) => formatMoney(amt, cur)).join(' / '),
-                    stats.get(b.id)?.freeClaims ? `${stats.get(b.id)!.freeClaims} free` : '',
-                    stats.has(b.id) ? `${stats.get(b.id)!.downloads} download${stats.get(b.id)!.downloads === 1 ? '' : 's'}` : '',
-                  ].filter(Boolean).join(' / ')}
-                </p>
+                {/* Who can get it. Sales and downloads are in the summary cards and behind People. */}
+                <p className="text-xs mt-1" style={{ color: C.faint }}>{audienceLabel(b)}</p>
               </div>
               <div className="flex items-center gap-1 shrink-0">
                 <button onClick={() => setPeopleFor(prev => (prev === b.id ? null : b.id))} aria-expanded={peopleFor === b.id}

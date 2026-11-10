@@ -43,7 +43,10 @@ async function sendGuestEmail(purchase: GuestPurchaseRow, idempotencyKey: string
     appName: tenant.appName, appUrl: tenant.appUrl, logoUrl: tenant.logoUrl,
     emailBannerUrl: tenant.emailBannerUrl, teamName: tenant.teamName,
   };
-  const name = purchase.guest_name?.trim() || 'there';
+  // The full name the buyer typed. "Guest" is migration 238's placeholder for purchases made before
+  // the name was asked for: those get a plain greeting rather than "Hi Guest".
+  const given = purchase.guest_name?.trim() ?? '';
+  const name = given && given !== 'Guest' ? given : 'there';
   const paidAt = formatEmailDate(purchase.paid_at ?? new Date().toISOString());
   const until = formatEmailDate(purchase.guest_access_expires_at ?? new Date().toISOString());
   const amount = Number(purchase.amount);
