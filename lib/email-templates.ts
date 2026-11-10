@@ -1252,6 +1252,40 @@ export function bookFreeDownloadEmail(data: {
   return shell(content, branding);
 }
 
+// -- Digital product launch ---
+export function productAnnouncementEmail(data: {
+  name: string;
+  bookTitle: string;
+  priceLabel: string;
+  message: string;
+  coverUrl?: string;
+  productUrl: string;
+  branding?: EmailBranding;
+}) {
+  const { name, bookTitle, priceLabel, message, coverUrl, productUrl, branding } = data;
+  // The author's message is plain text: escaped, with paragraphs and line breaks kept.
+  const body = esc(message).split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    ${body}
+
+    <table cellpadding="0" cellspacing="0" style="width:100%;margin:20px 0;border-collapse:collapse;">
+      <tr>
+        ${coverUrl ? `<td style="width:96px;padding:0 16px 0 0;vertical-align:top;"><img src="${esc(coverUrl)}" alt="" width="96" style="display:block;width:96px;height:auto;border-radius:6px;"></td>` : ''}
+        <td style="vertical-align:top;">
+          <p style="margin:0;font-size:16px;font-weight:700;color:#111827;">${esc(bookTitle)}</p>
+          ${priceLabel ? `<p style="margin:6px 0 0;font-size:15px;font-weight:700;color:#16a34a;">${esc(priceLabel)}</p>` : ''}
+        </td>
+      </tr>
+    </table>
+
+    ${cta('View product', esc(productUrl))}
+
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
+
 // -- Payment Confirmation Acknowledged (student submitted) ---
 export function subscriptionPaymentAssignedEmail(data: {
   name: string;

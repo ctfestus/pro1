@@ -336,3 +336,27 @@ describe('fresh schema free claims and download log (migration 239)', () => {
     expect(migration).not.toMatch(/CREATE POLICY[^;]*book_download_events/);
   });
 });
+
+describe('fresh schema product launch emails (migration 241)', () => {
+  const schema = readFileSync(join(process.cwd(), 'festman-fresh-schema.sql'), 'utf8');
+  const migration = readFileSync(join(process.cwd(), 'migrations/241_product_announcements.sql'), 'utf8');
+
+  it('is mirrored whole into the fresh schema', () => {
+    expect(schema).toContain(migration.slice(migration.indexOf('CREATE TABLE IF NOT EXISTS public.book_announcements')).trim());
+  });
+
+  it('allows one send in progress per product, and keeps each recipient with a status', () => {
+    expect(migration).toContain("ON public.book_announcements(book_id) WHERE status IN ('preparing', 'sending');");
+    expect(migration).toContain('CREATE UNIQUE INDEX IF NOT EXISTS idx_book_announcements_one_active');
+    expect(migration).toContain("DEFAULT 'preparing' CHECK (status IN ('preparing', 'sending', 'sent', 'failed'))");
+    expect(migration).toContain('PRIMARY KEY (announcement_id, student_id)');
+    expect(migration).toContain("CHECK (status IN ('pending', 'sending', 'sent', 'failed', 'skipped'))");
+    expect(migration).toContain('ADD COLUMN IF NOT EXISTS email_html text NOT NULL DEFAULT');
+    expect(migration).toContain('attempted_at    timestamptz,');
+  });
+
+  it('keeps both tables server-only', () => {
+    expect(migration).toContain('REVOKE ALL ON public.book_announcements, public.book_announcement_recipients FROM anon, authenticated;');
+    expect(migration).not.toMatch(/CREATE POLICY[^;]*book_announcement/);
+  });
+});
