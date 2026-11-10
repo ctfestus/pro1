@@ -6,12 +6,14 @@ import { getLandingProgrammesOrEmpty, getLandingSiteSettingsOrDefault } from '@/
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { normalizeAbsoluteBaseUrl } from '@/lib/public-url';
-import { resolveCoverUrl, socialImageUrl } from '@/lib/cloudinary-url';
+import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { getStoreBook, listStoreBooksOrEmpty, type StoreBookDetail } from '@/lib/books/store';
 import { formatLabel } from '@/lib/books/format';
 import { descriptionHtml, descriptionText } from '@/lib/books/description';
+import { productMetadata } from '@/lib/books/share';
 import { StoreChrome } from '@/components/books/store/StoreChrome';
 import { BuyPanel } from '@/components/books/store/BuyPanel';
+import { ShareProduct } from '@/components/books/store/ShareProduct';
 import { MobileBuyBar } from '@/components/books/store/MobileBuyBar';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import type { StoreBook, StoreInstructor } from '@/lib/books/store';
@@ -35,16 +37,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const [book, tenant] = await Promise.all([findBook(slug), getTenantSettings()]);
   if (!book) return { title: tenant.appName };
   const appUrl = normalizeAbsoluteBaseUrl(tenant.appUrl, process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL);
-  const cover = book.coverImage && !book.coverImage.startsWith('data:') ? socialImageUrl(book.coverImage) : '';
-  const image = cover || (appUrl ? `${appUrl}/api/og/brand` : '');
-  const description = (book.subtitle?.trim() || descriptionText(book.description, 200)) || `${book.title}, a digital product from ${tenant.appName}.`;
-  const title = `${book.title} - ${tenant.appName}`;
-  return {
-    title,
-    description,
-    openGraph: { title, description, siteName: tenant.appName, type: 'book', ...(image ? { images: [{ url: image }] } : {}) },
-    twitter: { card: 'summary_large_image', title, description, ...(image ? { images: [image] } : {}) },
-  };
+  return productMetadata(book, tenant.appName, appUrl);
 }
 
 /** White surfaces lifted off the gray page by a soft shadow (no borders). */
@@ -78,6 +71,9 @@ export default async function BookStorePage({ params }: Params) {
   const navBooks = books.map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage }));
   const format = formatLabel(book.format);
   const aboutHtml = descriptionHtml(book.description);
+  // Absolute, from the tenant's own address, the same as the page's preview tags.
+  const baseUrl = normalizeAbsoluteBaseUrl(tenant.appUrl, process.env.APP_URL, process.env.NEXT_PUBLIC_APP_URL);
+  const shareUrl = baseUrl ? `${baseUrl}/products/${encodeURIComponent(book.slug)}` : '';
   // Topics and skills read as one set of tags: not every product teaches skills.
   const tags = [...new Map([...book.topics, ...book.skills].map(t => [t.trim().toLowerCase(), t.trim()])).values()].filter(Boolean).slice(0, 12);
   const more = books.filter(b => b.id !== book.id).slice(0, 4);
@@ -117,6 +113,8 @@ export default async function BookStorePage({ params }: Params) {
                   <BuyPanel primaryColor={primaryColor}
                     book={{ id: book.id, slug: book.slug, format: book.format, free: book.free, prices: book.prices, hasSample: book.hasSample }} />
                 </div>
+                <ShareProduct url={shareUrl} title={book.title} free={book.free} prices={book.prices}
+                  blurb={book.subtitle?.trim() || descriptionText(book.description, 160) || `${book.title}, a digital product from ${tenant.appName}.`} />
               </div>
             </header>
 
