@@ -3,7 +3,7 @@
 import {
   CalendarDays, Settings, BookOpen, GraduationCap, ClipboardList, Award, Users,
   Megaphone, Trophy, CheckCircle2, Briefcase, Activity, CreditCard, Palette, Video,
-  PlayCircle, Database, ShieldCheck, Handshake, BadgeDollarSign, FileText, BadgePercent, Mail, Library,
+  PlayCircle, Database, ShieldCheck, Handshake, BadgeDollarSign, FileText, BadgePercent, Mail, Package,
 } from 'lucide-react';
 import { LIGHT_C } from '@/lib/theme';
 
@@ -20,7 +20,7 @@ export const NAV_ITEMS = [
   { id: 'schedule',         label: 'Schedule',         Icon: CalendarDays, adminOnly: false },
   { id: 'recordings',      label: 'Recordings',       Icon: PlayCircle,   adminOnly: false },
   { id: 'learning_paths', label: 'Learning Paths',  Icon: BookOpen,      adminOnly: false },
-  { id: 'products',      label: 'Digital Products',          Icon: Library,       adminOnly: false },
+  { id: 'products',      label: 'Digital Products',          Icon: Package,       adminOnly: false },
   { id: 'data_center',   label: 'Data Playground', Icon: Database,      adminOnly: false },
   { id: 'certificates',  label: 'Certificates',   Icon: Award,         adminOnly: false },
   { id: 'leaderboard',   label: 'Leaderboard',    Icon: Trophy,        adminOnly: false },
