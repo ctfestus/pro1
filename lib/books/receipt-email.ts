@@ -31,6 +31,13 @@ interface GuestPurchaseRow {
   guest_name?: string | null;
   guest_access_expires_at: string | null;
   kind?: string | null;
+  books?: { format?: string | null } | { format?: string | null }[] | null;
+}
+
+/** Whether the purchase is of a link product (migration 243), from the embedded book row. */
+function isLinkProduct(purchase: { books?: GuestPurchaseRow['books'] }): boolean {
+  const book = Array.isArray(purchase.books) ? purchase.books[0] : purchase.books;
+  return book?.format === 'link';
 }
 
 /** The receipt for a guest purchase, sent to the email it was bought with, linking to its download page. */
@@ -55,7 +62,7 @@ async function sendGuestEmail(purchase: GuestPurchaseRow, idempotencyKey: string
     ? await applyEmailTemplate({
       key: 'book_free_download',
       fallbackSubject: `Your free download: ${purchase.book_title}`,
-      fallbackHtml: bookFreeDownloadEmail({ name, bookTitle: purchase.book_title, downloadUrl, until, branding }),
+      fallbackHtml: bookFreeDownloadEmail({ name, bookTitle: purchase.book_title, downloadUrl, until, link: isLinkProduct(purchase), branding }),
       variables: { student_name: name, book_title: purchase.book_title },
       branding,
     })
@@ -64,7 +71,7 @@ async function sendGuestEmail(purchase: GuestPurchaseRow, idempotencyKey: string
     fallbackSubject: `Your purchase: ${purchase.book_title}`,
     fallbackHtml: bookPurchaseEmail({
       name, bookTitle: purchase.book_title, amount, currency: purchase.currency, paidAt,
-      reference: purchase.paystack_reference, libraryUrl: downloadUrl, guestUntil: until, branding,
+      reference: purchase.paystack_reference, libraryUrl: downloadUrl, guestUntil: until, link: isLinkProduct(purchase), branding,
     }),
     variables: {
       student_name: name, book_title: purchase.book_title, currency: purchase.currency,
@@ -90,7 +97,7 @@ export async function resendGuestAccessEmail(db: SupabaseClient, purchaseId: str
   if (!process.env.RESEND_API_KEY) throw new Error('RESEND_API_KEY is not configured.');
   const { data: purchase, error } = await db
     .from('book_purchases')
-    .select('id, book_title, amount, currency, paystack_reference, status, paid_at, is_guest, guest_email, guest_name, guest_access_expires_at, kind')
+    .select('id, book_title, amount, currency, paystack_reference, status, paid_at, is_guest, guest_email, guest_name, guest_access_expires_at, kind, books ( format )')
     .eq('id', purchaseId)
     .maybeSingle();
   if (error) throw error;
@@ -106,7 +113,7 @@ export async function sendBookPurchaseReceipt(db: SupabaseClient, purchaseId: st
 
   const { data: purchase, error } = await db
     .from('book_purchases')
-    .select('id, student_id, book_title, amount, currency, paystack_reference, status, paid_at, receipt_email_sent_at, is_guest, guest_email, guest_name, guest_access_expires_at, kind, students ( email, full_name )')
+    .select('id, student_id, book_title, amount, currency, paystack_reference, status, paid_at, receipt_email_sent_at, is_guest, guest_email, guest_name, guest_access_expires_at, kind, books ( format ), students ( email, full_name )')
     .eq('id', purchaseId)
     .maybeSingle();
   if (error) throw error;
@@ -142,7 +149,7 @@ export async function sendBookPurchaseReceipt(db: SupabaseClient, purchaseId: st
     fallbackSubject: `Your purchase: ${purchase.book_title}`,
     fallbackHtml: bookPurchaseEmail({
       name, bookTitle: purchase.book_title, amount, currency: purchase.currency, paidAt,
-      reference: purchase.paystack_reference, libraryUrl: `${appUrl}/student#products`, branding,
+      reference: purchase.paystack_reference, libraryUrl: `${appUrl}/student#products`, link: isLinkProduct(purchase as any), branding,
     }),
     variables: {
       student_name: name, book_title: purchase.book_title, currency: purchase.currency,

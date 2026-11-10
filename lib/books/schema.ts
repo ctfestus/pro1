@@ -6,13 +6,55 @@
  * This module has no runtime imports, so client components may import it freely.
  */
 
-export type BookFormat = 'epub' | 'pdf' | 'html';
+/** A product delivered as a file in the private bucket (migration 232; more types in 243). */
+export type BookFileFormat = 'epub' | 'pdf' | 'html' | 'zip' | 'xlsx' | 'docx' | 'pptx' | 'csv' | 'txt' | 'md';
+/** 'link': a product delivered as a web address, kept in book_links (migration 243). */
+export type BookFormat = BookFileFormat | 'link';
+/** The formats the platform can read itself: chapters, cut samples, viewing in the browser. */
+export type ReadableBookFormat = 'epub' | 'pdf' | 'html';
 export type BookStatus = 'draft' | 'published' | 'archived';
 export type BookDifficulty = 'beginner' | 'intermediate' | 'advanced';
 export type BookLicenseType =
   | 'own' | 'cc_by' | 'cc_by_sa' | 'cc_by_nc' | 'public_domain' | 'licensed' | 'other';
 
-export const BOOK_FORMATS: readonly BookFormat[] = ['epub', 'pdf', 'html'];
+export const BOOK_FILE_FORMATS: readonly BookFileFormat[] = ['epub', 'pdf', 'html', 'zip', 'xlsx', 'docx', 'pptx', 'csv', 'txt', 'md'];
+export const BOOK_FORMATS: readonly BookFormat[] = [...BOOK_FILE_FORMATS, 'link'];
+export const READABLE_BOOK_FORMATS: readonly ReadableBookFormat[] = ['epub', 'pdf', 'html'];
+
+export function isFileFormat(format: unknown): format is BookFileFormat {
+  return typeof format === 'string' && (BOOK_FILE_FORMATS as readonly string[]).includes(format);
+}
+
+/** Whether the platform can find chapters in, cut a sample from, or show this format. */
+export function isReadableFormat(format: unknown): format is ReadableBookFormat {
+  return typeof format === 'string' && (READABLE_BOOK_FORMATS as readonly string[]).includes(format);
+}
+
+/**
+ * Whether a product has something to hand over: its own uploaded file, or for a link product its
+ * address. save_book (migration 243) refuses to publish a link product without one, so a published
+ * link product always has it.
+ */
+export function hasDeliverable(row: { id: string; format?: string | null; file_path?: string | null }): boolean {
+  return row.format === 'link' || isBookObjectPath(row.id, row.file_path, 'file', row.format);
+}
+
+/**
+ * A link product's address as typed: https only, no user name or password, at most 2000
+ * characters. Null when it is not one. The book_links CHECK (migration 243) repeats the rule.
+ */
+export function normalizeProductLink(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const raw = value.trim();
+  if (!raw || raw.length > 2000 || /\s/.test(raw)) return null;
+  try {
+    const u = new URL(raw);
+    if (u.protocol !== 'https:' || u.username || u.password || !u.hostname.includes('.')) return null;
+    return u.toString();
+  } catch {
+    return null;
+  }
+}
 export const BOOK_DIFFICULTIES: readonly BookDifficulty[] = ['beginner', 'intermediate', 'advanced'];
 export const BOOK_LICENSE_TYPES: readonly BookLicenseType[] = [
   'own', 'cc_by', 'cc_by_sa', 'cc_by_nc', 'public_domain', 'licensed', 'other',
@@ -23,10 +65,17 @@ export const BOOK_FILE_MAX_BYTES = 100 * 1024 * 1024;
 /** Self-contained HTML books are served through a function, so they keep the embed proxy's cap. */
 export const BOOK_HTML_MAX_BYTES = 10 * 1024 * 1024;
 
-export const BOOK_MIME_BY_FORMAT: Record<BookFormat, string> = {
+export const BOOK_MIME_BY_FORMAT: Record<BookFileFormat, string> = {
   epub: 'application/epub+zip',
   pdf: 'application/pdf',
   html: 'text/html',
+  zip: 'application/zip',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  csv: 'text/csv',
+  txt: 'text/plain',
+  md: 'text/markdown',
 };
 
 /** Where a chapter starts. Exactly one shape per format. */
@@ -193,10 +242,12 @@ export function isLicenseExpired(licenseExpiresAt: string | null | undefined, no
  * Problems that block publishing, as user-visible sentences. Mirrors the books_published_ready
  * CHECK (migration 232) so the editor can say why before the database refuses.
  */
-export function validateBookForPublish(book: Book, prices: BookPrice[] = []): string[] {
+export function validateBookForPublish(book: Book, prices: BookPrice[] = [], opts: { hasLink?: boolean } = {}): string[] {
   const problems: string[] = [];
   if (!book.title || book.title === 'Untitled') problems.push('Add a title.');
-  if (!book.format || !book.filePath) problems.push('Upload the product file.');
+  if (book.format === 'link') {
+    if (!opts.hasLink) problems.push('Add the link buyers will get.');
+  } else if (!book.format || !book.filePath) problems.push('Upload the product file.');
   if (!book.licenseType) problems.push('Choose a licence type.');
   if (!book.availableToEveryone && !book.purchasable && book.cohortIds.length === 0) {
     problems.push('Choose who can read it: everyone, a cohort, or sell it.');
@@ -211,7 +262,7 @@ export function validateBookForPublish(book: Book, prices: BookPrice[] = []): st
  * nonce gives every upload a fresh object, so replacing a file never breaks a reader mid-session
  * on the old one (the old object is removed once the new path is saved).
  */
-export function bookObjectPath(bookId: string, kind: 'file' | 'preview', format: BookFormat, nonce: string): string {
+export function bookObjectPath(bookId: string, kind: 'file' | 'preview', format: BookFileFormat, nonce: string): string {
   return `${bookId}/${kind}-${nonce}.${format}`;
 }
 
@@ -229,7 +280,7 @@ export function isBookObjectPath(
   format: BookFormat | string | null | undefined,
 ): path is string {
   if (typeof path !== 'string' || !bookId) return false;
-  if (!(BOOK_FORMATS as readonly string[]).includes(String(format))) return false;
+  if (!isFileFormat(format)) return false;
   const prefix = `${bookId}/${kind}-`;
   if (!path.startsWith(prefix)) return false;
   return new RegExp(`^[0-9a-f-]{36}\\.${format}$`).test(path.slice(prefix.length));

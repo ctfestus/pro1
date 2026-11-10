@@ -107,10 +107,10 @@ describe('fresh schema book chapters save (migration 233)', () => {
     expect(fn).toContain('TO service_role');
   });
 
-  // save_book was redefined by 236 (sample_spec), 237 (sale prices), 240 (recommended courses) and
-  // 242 (product type);
-  // the fresh schema carries the latest.
-  const latest = readFileSync(join(process.cwd(), 'migrations/242_book_product_type.sql'), 'utf8');
+  // save_book was redefined by 236 (sample_spec), 237 (sale prices), 240 (recommended courses),
+  // 242 (product type) and 243 (link products); the fresh schema carries the latest.
+  const latest = readFileSync(join(process.cwd(), 'migrations/243_book_more_formats.sql'), 'utf8');
+  const m242 = readFileSync(join(process.cwd(), 'migrations/242_book_product_type.sql'), 'utf8');
   const m240 = readFileSync(join(process.cwd(), 'migrations/240_book_recommended_courses.sql'), 'utf8');
   const m237 = readFileSync(join(process.cwd(), 'migrations/237_book_price_sales.sql'), 'utf8');
   const m236 = readFileSync(join(process.cwd(), 'migrations/236_book_sample_spec.sql'), 'utf8');
@@ -155,12 +155,39 @@ describe('fresh schema book chapters save (migration 233)', () => {
 
   it('migration 242 only adds the product type to save_book, and checks types and addresses', () => {
     const before = m240.slice(m240.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), m240.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
-    const after = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), latest.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
+    const after = m242.slice(m242.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), m242.indexOf('GRANT  EXECUTE ON FUNCTION public.save_book'));
     expect(after.replace('    product_type          = v_new.product_type,\n    product_type_label    = v_new.product_type_label,\n', '').trim()).toBe(before.trim());
-    expect(latest).toContain("product_type IN ('book', 'template', 'guide', 'prompt', 'skill', 'plugin', 'other')");
-    expect(latest).toContain("AND (product_type <> 'other' OR product_type_label IS NOT NULL)");
-    expect(latest).toContain("CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,119}$') NOT VALID;");
+    expect(m242).toContain("product_type IN ('book', 'template', 'guide', 'prompt', 'skill', 'plugin', 'other')");
+    expect(m242).toContain("AND (product_type <> 'other' OR product_type_label IS NOT NULL)");
+    expect(m242).toContain("CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,119}$') NOT VALID;");
     expect(schema).toContain("ADD COLUMN IF NOT EXISTS product_type       text NOT NULL DEFAULT 'book'");
+  });
+
+  it('migration 243 only adds the link to save_book, and keeps addresses out of books', () => {
+    const before = m242.slice(m242.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), m242.indexOf('REVOKE EXECUTE ON FUNCTION public.save_book'));
+    const after = latest.slice(latest.indexOf('CREATE OR REPLACE FUNCTION public.save_book('), latest.indexOf('REVOKE EXECUTE ON FUNCTION public.save_book'));
+    const linkBlock = after.slice(after.indexOf('  -- The address of a link product (migration 243).'), after.indexOf('  IF p_chapters IS NOT NULL THEN'));
+    expect(linkBlock).toContain("ERRCODE = 'BK422'");
+    expect(linkBlock).toContain('DELETE FROM public.book_links WHERE book_id = p_book_id;');
+    const restored = after
+      .replace(linkBlock, '')
+      .replace(',\n  p_link                jsonb   DEFAULT NULL\n)', '\n)');
+    expect(restored.trim()).toBe(before.trim());
+    expect(latest).toContain('DROP FUNCTION IF EXISTS public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb);');
+    expect(latest).toContain('TO service_role;');
+    // The address lives only in book_links: no write policy, read by the author or an admin.
+    expect(latest).not.toMatch(/ALTER TABLE public\.books\s+ADD COLUMN[^;]*url/);
+    expect(latest).not.toMatch(/CREATE POLICY[^;]*ON public\.book_links FOR (INSERT|UPDATE|DELETE|ALL)/);
+    expect(latest).toContain('ON public.book_links FOR SELECT TO authenticated');
+    // Direct owner writes to books are held to the same rule, checked at commit.
+    expect(latest).toContain('CREATE CONSTRAINT TRIGGER books_link_check');
+    expect(latest).toContain('DEFERRABLE INITIALLY DEFERRED');
+    expect(latest).toContain('REVOKE EXECUTE ON FUNCTION public.check_book_link() FROM PUBLIC, anon, authenticated;');
+    expect(latest).toContain("format IN ('epub', 'pdf', 'html', 'zip', 'xlsx', 'docx', 'pptx', 'csv', 'txt', 'md', 'link')");
+    expect(latest).toContain("OR (format IS NOT NULL AND license_type IS NOT NULL AND (format = 'link' OR file_path IS NOT NULL))");
+    // Mirrored into the fresh schema, with the old six-argument function gone from it.
+    expect(schema).toContain(latest.slice(latest.indexOf('ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_format_check;'), latest.indexOf('-- save_book, with the link ----')).trim());
+    expect(schema).not.toContain('GRANT  EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb) TO service_role;');
   });
 
   it('migration 236 only adds sample_spec to save_book', () => {

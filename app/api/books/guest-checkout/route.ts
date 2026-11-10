@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { startGuestBookCheckout } from '@/lib/books/purchases';
-import { isBookObjectPath, isLicenseExpired } from '@/lib/books/schema';
+import { hasDeliverable, isLicenseExpired } from '@/lib/books/schema';
 import { normalizeGuestEmail, normalizeGuestName } from '@/lib/books/guest-access';
 import { emailHash, guestRateLimited } from '@/lib/books/guest-purchase';
 import { PaystackApiError, paystackIsConfigured } from '@/lib/paystack';
@@ -64,7 +64,8 @@ export async function POST(req: NextRequest) {
     if (isLicenseExpired(book.license_expires_at)) {
       return NextResponse.json({ error: 'This product is no longer available.' }, { status: 403 });
     }
-    if (!isBookObjectPath(book.id, book.file_path, 'file', book.format)) {
+    // Its file, or for a link product its address (migration 243).
+    if (!hasDeliverable(book)) {
       return NextResponse.json({ error: 'This product is not ready for sale yet.' }, { status: 409 });
     }
 

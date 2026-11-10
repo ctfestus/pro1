@@ -6,10 +6,11 @@
 // confirms a returning payment without waiting for the webhook.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CheckCircle2, Clock, Download, Loader2, Package, RefreshCw } from 'lucide-react';
+import { CheckCircle2, Clock, Download, ExternalLink, Loader2, Package, RefreshCw } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { downloadBook } from '@/lib/books/open-preview';
+import { formatLabel, getItLabel } from '@/lib/books/format';
 import { EmptyState, Sk } from '@/components/student/shared';
 import type { LIGHT_C } from '@/lib/theme';
 
@@ -172,10 +173,10 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
     void confirm(reference);
   }, [readOnly, confirm]);
 
-  async function download(bookId: string) {
+  async function download(bookId: string, format: string | null) {
     setDownloadError(''); setDownloading(bookId);
     try {
-      await downloadBook(bookId);
+      await downloadBook(bookId, format);
     } catch (e: any) {
       setDownloadError(e?.message || 'Could not download the product.');
     } finally {
@@ -215,10 +216,10 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
         return box('ok', <CheckCircle2 className="w-5 h-5" />, 'Payment received. Your product is ready.',
           paidBook ? `${paidBook.title} is in your library below. A receipt is on its way to your email.` : 'It is in your library below. A receipt is on its way to your email.',
           paidBook && paidBook.available ? (
-            <button onClick={() => download(paidBook.id)} disabled={downloading === paidBook.id}
+            <button onClick={() => download(paidBook.id, paidBook.format)} disabled={downloading === paidBook.id}
               className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold disabled:opacity-60"
               style={{ background: C.cta, color: C.ctaText }}>
-              {downloading === paidBook.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
+              {downloading === paidBook.id ? <Loader2 className="w-4 h-4 animate-spin" /> : paidBook.format === 'link' ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />} {getItLabel(paidBook.format)}
             </button>
           ) : undefined);
       case 'review':
@@ -241,7 +242,7 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
   return (
     <div className="space-y-6">
       {/* The page header already names the section ("My Products"), so only the explanation here. */}
-      <p className="text-sm" style={{ color: C.muted }}>Digital products you have bought, or that your program gives you. Download them any time.</p>
+      <p className="text-sm" style={{ color: C.muted }}>Digital products you have bought, or that your program gives you. Open or download them any time.</p>
 
       {banner}
       {(loadError || downloadError) && (
@@ -272,15 +273,15 @@ export function BooksSection({ C, readOnly = false }: { C: typeof LIGHT_C; readO
               <p className="mt-3 text-sm font-semibold leading-snug line-clamp-2" style={{ color: C.text }}>{book.title}</p>
               {book.authors.length > 0 && <p className="text-xs mt-0.5 truncate" style={{ color: C.muted }}>{book.authors.join(', ')}</p>}
               <p className="text-[11px] mt-1" style={{ color: C.faint }}>
-                {[book.format?.toUpperCase(), sizeLabel(book.fileSize), SOURCE_LABEL[book.source]].filter(Boolean).join(' / ')}
+                {[formatLabel(book.format), sizeLabel(book.fileSize), SOURCE_LABEL[book.source]].filter(Boolean).join(' / ')}
               </p>
               <div className="mt-auto pt-3">
                 {book.available ? (
-                  <button onClick={() => download(book.id)} disabled={readOnly || downloading === book.id}
+                  <button onClick={() => download(book.id, book.format)} disabled={readOnly || downloading === book.id}
                     title={readOnly ? 'Downloads are off while viewing as a student' : undefined}
                     className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-60"
                     style={{ background: C.cta, color: C.ctaText }}>
-                    {downloading === book.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />} Download
+                    {downloading === book.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : book.format === 'link' ? <ExternalLink className="w-3.5 h-3.5" /> : <Download className="w-3.5 h-3.5" />} {getItLabel(book.format)}
                   </button>
                 ) : (
                   <p className="text-xs text-center py-2" style={{ color: C.faint }}>No longer available</p>

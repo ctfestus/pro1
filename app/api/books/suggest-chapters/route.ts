@@ -3,7 +3,7 @@ import { requireRole, isAuthError } from '@/lib/api-auth';
 import { generateJSON, isAiFeatureConfigured } from '@/lib/ai';
 import { getRedis } from '@/lib/redis';
 import { bumpRateLimit } from '@/lib/rate-limit';
-import { isBookFormat } from '@/lib/books/admin';
+import { isReadableFormat } from '@/lib/books/schema';
 import { SUGGESTION_SCHEMA, normalizeSuggestions, outlineFromInput, suggestionPrompt } from '@/lib/books/chapter-suggestions';
 
 // POST /api/books/suggest-chapters { bookId, format, outline: [{ text, level? }] } -> { chapters: [{ index, title }] }
@@ -23,7 +23,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => null);
   const bookId = typeof body?.bookId === 'string' && UUID.test(body.bookId) ? body.bookId : null;
-  const format = isBookFormat(body?.format) ? body.format : null;
+  // Chapters are only found in the formats the platform can read.
+  const format = isReadableFormat(body?.format) ? body.format : null;
   if (!bookId || !format) return NextResponse.json({ error: 'A product and its format are required.' }, { status: 400 });
   const outline = outlineFromInput(body?.outline);
   if ('error' in outline) return NextResponse.json({ error: outline.error }, { status: 400 });

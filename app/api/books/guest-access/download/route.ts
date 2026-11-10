@@ -44,6 +44,10 @@ export async function POST(req: NextRequest) {
     if (!book || !guestBookAvailable(book)) {
       return NextResponse.json({ error: 'This product is no longer available.' }, { status: 403, headers: NO_STORE });
     }
+    // A link product is opened, never downloaded (guest-access/open), and costs no download.
+    if (book.format === 'link') {
+      return NextResponse.json({ error: 'This product is a link. Use Open instead.' }, { status: 400, headers: NO_STORE });
+    }
     // Checked before taking a download, so a product without a file costs nothing.
     if (!isBookObjectPath(book.id, book.file_path, 'file', book.format)) {
       return NextResponse.json({ error: 'This product file is not available right now.' }, { status: 409, headers: NO_STORE });

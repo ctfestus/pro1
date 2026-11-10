@@ -14,7 +14,8 @@ import { LIGHT_C, cardStyle } from '@/lib/theme';
 import { SectionEmptyState } from '@/components/dashboard/primitives';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { openBookPreview } from '@/lib/books/open-preview';
-import { formatMoney } from '@/lib/books/format';
+import { formatMoney, opensInBrowser } from '@/lib/books/format';
+import type { BookFormat } from '@/lib/books/schema';
 import { ProductPeople } from '@/components/dashboard/books/ProductPeople';
 import { ProductAnnounce } from '@/components/dashboard/books/ProductAnnounce';
 
@@ -27,7 +28,7 @@ type BookListItem = {
   authors: string[] | null;
   category: string | null;
   status: 'draft' | 'published' | 'archived';
-  format: 'epub' | 'pdf' | 'html' | null;
+  format: BookFormat | null;
   purchasable: boolean;
   available_to_everyone: boolean;
   cohort_ids: string[] | null;
@@ -292,7 +293,7 @@ export function BooksManageSection({ C }: { C: typeof LIGHT_C }) {
                 </button>
                 {b.format && (
                   <button onClick={() => preview(b)} disabled={openingId === b.id} className="p-2 rounded-lg transition-opacity hover:opacity-70 disabled:opacity-40"
-                    aria-label={`Preview ${b.title}`} title={b.format === 'epub' ? 'Download to check' : 'Preview'} style={{ color: C.muted }}>
+                    aria-label={`Preview ${b.title}`} title={b.format === 'link' ? 'Open link' : opensInBrowser(b.format) ? 'Preview' : 'Download to check'} style={{ color: C.muted }}>
                     {openingId === b.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
                   </button>
                 )}

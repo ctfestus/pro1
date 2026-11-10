@@ -7,7 +7,7 @@
  * real place in the file (an anchor, a document, a page): the model cannot invent a location, and
  * the editor maps indices back to locators itself. Server-safe (no DOM).
  */
-import type { BookFormat } from '@/lib/books/schema';
+import type { ReadableBookFormat } from '@/lib/books/schema';
 
 export interface OutlineItem {
   /** A heading, a document's opening words, or a page's first line. */
@@ -58,13 +58,13 @@ export function outlineFromInput(input: unknown): OutlineItem[] | { error: strin
   return out;
 }
 
-const WHAT: Record<BookFormat, string> = {
+const WHAT: Record<ReadableBookFormat, string> = {
   html: 'Each item is a heading in the book, in order, with its level (1 is the largest).',
   epub: 'Each item is one document of the book in reading order, shown by its opening words.',
   pdf: 'Each item is one page of the book in order (item 0 is page 1), shown by its first words. Empty items are blank or image-only pages.',
 };
 
-export function suggestionPrompt(format: BookFormat, title: string, outline: OutlineItem[]): string {
+export function suggestionPrompt(format: ReadableBookFormat, title: string, outline: OutlineItem[]): string {
   const lines = outline.map((item, i) => `${i}${item.level ? ` [h${item.level}]` : ''}: ${item.text}`).join('\n');
   return [
     'You are building the table of contents for a book from its outline.',
