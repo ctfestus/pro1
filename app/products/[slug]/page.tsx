@@ -95,13 +95,13 @@ export default async function BookStorePage({ params }: Params) {
               <div className="min-w-0 flex-1 text-center sm:text-left">
                 {/* What kind of product it is (migration 242) and its format, above the title. */}
                 <p className="mb-3 flex flex-wrap items-center justify-center sm:justify-start gap-x-2.5 gap-y-1 text-[11px] sm:text-xs font-bold uppercase tracking-[0.14em]"
-                  style={{ color: primaryColor }}>
+                  style={{ color: '#0f172a' }}>
                   <span>{book.productTypeLabel}</span>
                   {format && (
                     <>
                       <span aria-hidden className="w-1 h-1 rounded-full" style={{ background: '#94a3b8' }} />
                       <span className="inline-flex items-center gap-1.5" style={{ color: '#475569' }}>
-                        <FileText className="w-3.5 h-3.5" style={{ color: primaryColor }} /> {format}
+                        <FileText className="w-3.5 h-3.5" style={{ color: '#64748b' }} /> {format}
                       </span>
                     </>
                   )}
@@ -145,7 +145,7 @@ export default async function BookStorePage({ params }: Params) {
             <section aria-labelledby="more-heading" className="mt-10">
               <div className="flex items-end justify-between gap-3">
                 <h2 id="more-heading" className="text-xl font-bold tracking-tight" style={{ color: '#0f172a' }}>More digital products</h2>
-                <Link href="/products" className="text-sm font-semibold inline-flex items-center gap-1" style={{ color: primaryColor }}>
+                <Link href="/products" className="text-sm font-semibold inline-flex items-center gap-1" style={{ color: '#0f172a' }}>
                   See all <ChevronRight className="w-4 h-4" />
                 </Link>
               </div>
@@ -226,7 +226,7 @@ function AboutInstructor({ instructor, authors, primaryColor }: { instructor: St
           ? <img src={resolveCoverUrl(instructor.avatar)} alt={instructor.name} className="w-16 h-16 sm:w-20 sm:h-20 rounded-full object-cover shrink-0" />
           : (
             <span className="w-16 h-16 sm:w-20 sm:h-20 rounded-full shrink-0 inline-flex items-center justify-center text-2xl font-bold"
-              style={{ background: `color-mix(in srgb, ${primaryColor} 14%, #ffffff)`, color: primaryColor }}>{initials(instructor.name)}</span>
+              style={{ background: '#E8EEF0', color: '#334155' }}>{initials(instructor.name)}</span>
           )}
         <div className="min-w-0 flex-1">
           <p className="text-base font-bold" style={{ color: '#0f172a' }}>{instructor.name}</p>
