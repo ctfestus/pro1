@@ -7994,6 +7994,15 @@ ALTER TABLE public.book_prices DROP CONSTRAINT IF EXISTS book_prices_sale_check;
 ALTER TABLE public.book_prices ADD CONSTRAINT book_prices_sale_check
   CHECK (sale_amount IS NULL OR (sale_amount > 0 AND sale_amount < amount));
 
+-- Products recommended alongside courses (migration 240).
+ALTER TABLE public.books
+  ADD COLUMN IF NOT EXISTS recommended_course_ids uuid[] NOT NULL DEFAULT '{}';
+ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_recommended_course_ids_check;
+ALTER TABLE public.books ADD CONSTRAINT books_recommended_course_ids_check
+  CHECK (cardinality(recommended_course_ids) <= 20);
+CREATE INDEX IF NOT EXISTS idx_books_recommended_course_ids
+  ON public.books USING gin (recommended_course_ids);
+
 -- Books (migration 233): save a book and its chapters atomically. Chapter ids are kept so reading
 -- progress and notes survive edits and reorders.
 CREATE OR REPLACE FUNCTION public.save_book_chapters(p_book_id uuid, p_chapters jsonb)
@@ -8127,6 +8136,7 @@ BEGIN
     ai_allowed            = v_new.ai_allowed,
     endorsement_permitted = v_new.endorsement_permitted,
     sample_spec           = v_new.sample_spec,
+    recommended_course_ids = v_new.recommended_course_ids,
     updated_at            = clock_timestamp()
   WHERE id = p_book_id
   RETURNING * INTO v_new;

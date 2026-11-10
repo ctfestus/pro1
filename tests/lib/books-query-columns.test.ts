@@ -107,7 +107,7 @@ describe('books queries name only columns the schema has', () => {
             if (part !== '*' && !cols.has(part)) problems.push(`${where}.${part}`);
           }
         }
-        const filter = /\.(?:eq|neq|gt|gte|lt|lte|is|in|not|order|like|ilike)\(\s*'([a-z_0-9.]+)'/g;
+        const filter = /\.(?:eq|neq|gt|gte|lt|lte|is|in|not|order|like|ilike|contains)\(\s*'([a-z_0-9.]+)'/g;
         let f: RegExpExecArray | null;
         while ((f = filter.exec(rest))) {
           const name = f[1];

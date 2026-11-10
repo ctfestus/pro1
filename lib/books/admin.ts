@@ -96,6 +96,13 @@ export function bookColumnsFromInput(input: any): Record<string, unknown> {
   if (has('endorsementPermitted')) out.endorsement_permitted = input.endorsementPermitted === true;
   // Anything that is not a valid spec clears it: the sample is then treated as uploaded.
   if (has('sampleSpec')) out.sample_spec = parseSampleSpec(input.sampleSpec);
+  // Courses to recommend this product with (migration 240). Which ones the person may pick is
+  // checked by the route (an instructor only their own courses).
+  if (has('recommendedCourseIds')) {
+    out.recommended_course_ids = Array.isArray(input.recommendedCourseIds)
+      ? [...new Set(input.recommendedCourseIds.filter((c: unknown): c is string => typeof c === 'string' && UUID.test(c)).map((c: string) => c.toLowerCase()))].slice(0, 20)
+      : [];
+  }
   if (has('availableToEveryone') || has('cohortIds')) {
     const everyone = input.availableToEveryone === true;
     const cohorts = Array.isArray(input.cohortIds)

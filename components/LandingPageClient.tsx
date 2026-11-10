@@ -20,6 +20,7 @@ import { MidAdBanner } from '@/components/landing/MidAdBanner';
 import { hasMidAds, midAdCardsFrom, type AdCard } from '@/lib/mid-ads';
 import { LandingNav, LandingFooter, NavProfileMenu } from '@/components/landing/LandingChrome';
 import { PromoCard } from '@/components/PromoCard';
+import { ProductsShowcase, type LandingProduct } from '@/components/landing/ProductsShowcase';
 import { buildNavGroups, groupByField, type NavBook } from '@/lib/landing-nav';
 import { toPlainText } from '@/lib/plain-text';
 
@@ -78,11 +79,12 @@ function ProgrammeLoadError({ dark = false }: { dark?: boolean }) {
 }
 
 // --- Elevate Template ---
-function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [] }: {
+function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [], storeProducts = [] }: {
   user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
   publicSignupEnabled: boolean;
   programmes: ProgrammeItem[]; programmesError: boolean;
   navBooks?: NavBook[];
+  storeProducts?: LandingProduct[];
 }) {
   const [hoveredTrack, setHoveredTrack] = useState<number | null>(null);
   const [hoveredSlide, setHoveredSlide] = useState<number | null>(null);
@@ -626,6 +628,9 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
           </div>
         </>)}
       </section>
+
+      {/* DIGITAL PRODUCTS */}
+      <ProductsShowcase products={storeProducts} dark={false} accent={primaryColor} background={alt_bg} hFont={hFont} bFont={bFont} />
 
       {/* IMPACT STATS */}
       {hideStats !== '1' && <section className="py-14 md:py-24 px-6" style={{ background: dark_bg }}>
@@ -1481,11 +1486,12 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
 }
 
 // --- Modern template ---
-function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [] }: {
+function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [], storeProducts = [] }: {
   user: any; profile: any; scrolled: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
   publicSignupEnabled: boolean;
   programmes: ProgrammeItem[]; programmesError: boolean;
   navBooks?: NavBook[];
+  storeProducts?: LandingProduct[];
 }) {
   const reduced = useReducedMotion();
 
@@ -1668,6 +1674,9 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
         </section>
       )}
 
+      {/* DIGITAL PRODUCTS */}
+      <ProductsShowcase products={storeProducts} dark={isPageDark} accent={BLUE} hFont={hFont} bFont={bFont} />
+
       {programmesError && <ProgrammeLoadError dark={isPageDark} />}
 
       {!programmesError && programmes.length === 0 && (
@@ -1776,6 +1785,8 @@ type LandingPageClientProps = {
   programmesError: boolean;
   /** The store's books, for the Learn menu's Books entry. */
   navBooks?: NavBook[];
+  /** The newest store products, for the Digital Products section. */
+  storeProducts?: LandingProduct[];
   isPreview: boolean;
 };
 
@@ -1785,6 +1796,7 @@ export default function LandingPageClient({
   initialProgrammes,
   programmesError,
   navBooks,
+  storeProducts = [],
   isPreview,
 }: LandingPageClientProps) {
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
@@ -1918,9 +1930,9 @@ export default function LandingPageClient({
   const promo = isPreview ? null : <PromoCard placement="landing" bottomOffset={72} light />;
 
   if (templateId === 'elevate') {
-    return <><ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} />{promo}</>;
+    return <><ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} storeProducts={storeProducts} />{promo}</>;
   }
 
-  return <><ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} />{promo}</>;
+  return <><ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} storeProducts={storeProducts} />{promo}</>;
 
 }
