@@ -93,19 +93,23 @@ export default async function BookStorePage({ params }: Params) {
             <header className="flex flex-col sm:flex-row gap-7 sm:gap-12 lg:gap-16 items-center sm:items-start">
               <BookCover book={book} primaryColor={primaryColor} />
               <div className="min-w-0 flex-1 text-center sm:text-left">
+                {/* What kind of product it is (migration 242) and its format, above the title. */}
+                <p className="mb-3 flex flex-wrap items-center justify-center sm:justify-start gap-x-2.5 gap-y-1 text-xs sm:text-sm font-bold uppercase tracking-[0.14em]"
+                  style={{ color: primaryColor }}>
+                  <span>{book.productTypeLabel}</span>
+                  {format && (
+                    <>
+                      <span aria-hidden className="w-1 h-1 rounded-full" style={{ background: '#94a3b8' }} />
+                      <span className="inline-flex items-center gap-1.5" style={{ color: '#475569' }}>
+                        <FileText className="w-3.5 h-3.5" style={{ color: primaryColor }} /> {format}
+                      </span>
+                    </>
+                  )}
+                </p>
                 <h1 className="text-[32px] leading-[1.1] sm:text-5xl sm:leading-[1.05] lg:text-[56px] font-extrabold tracking-tight max-w-[18ch] sm:mx-0 mx-auto" style={{ color: '#0f172a' }}>{book.title}</h1>
                 {book.subtitle && <p className="mt-4 text-lg sm:text-xl leading-snug max-w-[56ch]" style={{ color: '#475569' }}>{book.subtitle}</p>}
-                {(format || tags.length > 0) && (
-                  <ul className="mt-5 flex flex-wrap justify-center sm:justify-start gap-2" aria-label="Type, format and topics">
-                    {/* What kind of product it is (migration 242), first. */}
-                    <li className="inline-flex items-center rounded-full px-4 py-2 text-sm font-bold"
-                      style={{ background: primaryColor, color: '#ffffff' }}>{book.productTypeLabel}</li>
-                    {format && (
-                      <li className="inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
-                        style={{ background: '#ffffff', color: '#0f172a', boxShadow: CARD_SHADOW }}>
-                        <FileText className="w-4 h-4" style={{ color: primaryColor }} /> {format}
-                      </li>
-                    )}
+                {tags.length > 0 && (
+                  <ul className="mt-5 flex flex-wrap justify-center sm:justify-start gap-2" aria-label="Topics">
                     {tags.map(t => (
                       <li key={t} className="inline-flex items-center rounded-full px-3.5 py-2 text-sm font-medium"
                         style={{ background: '#ffffff', color: '#475569', boxShadow: CARD_SHADOW }}>{t}</li>
