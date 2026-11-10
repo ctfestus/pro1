@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
-  guestAccessPath, guestAccessToken, newReturnCode, normalizeGuestEmail, returnCodeMatches, verifyGuestAccessToken,
+  guestAccessPath, guestAccessToken, newReturnCode, normalizeGuestEmail, normalizeGuestName, returnCodeMatches, verifyGuestAccessToken,
 } from '@/lib/books/guest-access';
 
 const A = '33333333-3333-4333-8333-333333333333';
@@ -45,5 +45,18 @@ describe('guest emails', () => {
   it('are trimmed and lowercased, and junk is refused', () => {
     expect(normalizeGuestEmail(' Ama@Example.COM ')).toBe('ama@example.com');
     for (const bad of ['', 'ama', 'ama@', '@x.com', 'a b@x.com', 'ama@x', '<a@x.com>', 5, null]) expect(normalizeGuestEmail(bad)).toBeNull();
+  });
+});
+
+describe('guest names', () => {
+  it('are letters, spaces, apostrophes and hyphens only, 1 to 80 characters', () => {
+    expect(normalizeGuestName('  Ama   Mensah ')).toBe('Ama Mensah');
+    expect(normalizeGuestName("Ama O'Neil-Mensah")).toBe("Ama O'Neil-Mensah");
+    expect(normalizeGuestName('Kwame Nkrumah')).toBe('Kwame Nkrumah');
+    expect(normalizeGuestName('Zo\u00eb \u00c9lise')).toBe('Zo\u00eb \u00c9lise');
+    // Nothing that can carry a link or a message into an email sent from the tenant's address.
+    for (const bad of ['', '   ', '<b>Ama</b>', 'x'.repeat(81), 'verify at evil.example', 'Ama 2', 'Ama/Kofi', 'http://x', '-Ama', 5, null]) {
+      expect(normalizeGuestName(bad)).toBeNull();
+    }
   });
 });

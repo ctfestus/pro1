@@ -225,6 +225,7 @@ export async function startGuestBookCheckout(
   db: SupabaseClient,
   input: {
     email: string;
+    name: string;
     book: BookCheckoutBook & { slug: string };
     amount: number;
     currency: string;
@@ -295,6 +296,7 @@ export async function startGuestBookCheckout(
     student_id: null,
     is_guest: true,
     guest_email: input.email,
+    guest_name: input.name,
     guest_return_hash: hash,
     book_id: input.book.id,
     book_title: input.book.title,
@@ -378,16 +380,23 @@ export async function sweepBookPurchases(
     }
   }
 
-  const { data: unsent, error: unsentError } = await db
-    .from('book_purchases')
-    .select('id')
-    .eq('status', 'paid')
-    .is('receipt_email_sent_at', null)
-    .gt('paid_at', new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString())
-    .order('paid_at', { ascending: true })
-    .limit(50);
-  if (unsentError) throw unsentError;
-  for (const row of unsent ?? []) {
+  // Receipts for sales first, then free-claim emails in a smaller queue of their own: free claims need
+  // no payment, so a flood of them can never hold back a paying buyer's receipt.
+  const unsentOf = async (kind: 'sale' | 'free_claim', limit: number) => {
+    const { data, error } = await db
+      .from('book_purchases')
+      .select('id')
+      .eq('status', 'paid')
+      .eq('kind', kind)
+      .is('receipt_email_sent_at', null)
+      .gt('paid_at', new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString())
+      .order('paid_at', { ascending: true })
+      .limit(limit);
+    if (error) throw error;
+    return (data ?? []) as { id: string }[];
+  };
+  const unsent = [...await unsentOf('sale', 50), ...await unsentOf('free_claim', 25)];
+  for (const row of unsent) {
     if (outOfTime()) break;
     try {
       if ((await sendBookPurchaseReceipt(db, row.id)).sent) receipts++;

@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminClient } from '@/lib/admin-client';
 import { startGuestBookCheckout } from '@/lib/books/purchases';
 import { isBookObjectPath, isLicenseExpired } from '@/lib/books/schema';
-import { normalizeGuestEmail } from '@/lib/books/guest-access';
+import { normalizeGuestEmail, normalizeGuestName } from '@/lib/books/guest-access';
 import { emailHash, guestRateLimited } from '@/lib/books/guest-purchase';
 import { PaystackApiError, paystackIsConfigured } from '@/lib/paystack';
 import { paymentErrorResponse } from '@/lib/payment-errors';
 import { shownPrice, type PriceRow } from '@/lib/books/pricing';
 
 // POST /api/books/guest-checkout
-//   { bookId, email, currency?, expectedAmount?, resume?: { reference, code } }
+//   { bookId, name, email, currency?, expectedAmount?, resume?: { reference, code } }
 //   -> { authorizationUrl, reference, returnCode } | { status, reference, returnCode }
 //
 // Buying a product with only an email: no sign-in, no account (migration 238). The product rules are
@@ -32,6 +32,8 @@ export async function POST(req: NextRequest) {
   try { body = await req.json(); } catch { return NextResponse.json({ error: 'Invalid request.' }, { status: 400 }); }
   const bookId = typeof body?.bookId === 'string' && UUID.test(body.bookId) ? body.bookId : null;
   if (!bookId) return NextResponse.json({ error: 'A valid product id is required.' }, { status: 400 });
+  const name = normalizeGuestName(body?.name);
+  if (!name) return NextResponse.json({ error: 'Enter your full name.' }, { status: 400 });
   const email = normalizeGuestEmail(body?.email);
   if (!email) return NextResponse.json({ error: 'Enter a valid email address.' }, { status: 400 });
   const wanted = typeof body?.currency === 'string' ? body.currency.trim().toUpperCase() : null;
@@ -55,9 +57,9 @@ export async function POST(req: NextRequest) {
     if (!book || book.status !== 'published' || book.purchasable !== true) {
       return NextResponse.json({ error: 'Product not found.' }, { status: 404 });
     }
-    // A free product stays sign-in only: a download without an account would make the file public.
+    // A free product is not bought: visitors claim it with /api/books/free-claim (the link is emailed).
     if (book.available_to_everyone === true) {
-      return NextResponse.json({ error: 'This product is free. Sign in to download it.' }, { status: 400 });
+      return NextResponse.json({ error: 'This product is free. Use Get it free instead.' }, { status: 400 });
     }
     if (isLicenseExpired(book.license_expires_at)) {
       return NextResponse.json({ error: 'This product is no longer available.' }, { status: 403 });
@@ -85,6 +87,7 @@ export async function POST(req: NextRequest) {
 
     const outcome = await startGuestBookCheckout(db, {
       email,
+      name,
       book: { id: book.id, slug: book.slug, title: book.title, royalty_pct: book.royalty_pct },
       amount: charge.amount,
       currency: price.currency,

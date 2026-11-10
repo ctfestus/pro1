@@ -1231,6 +1231,27 @@ export function bookPurchaseEmail(data: {
   return shell(content, branding);
 }
 
+// -- Free digital product (claimed without an account) ---
+export function bookFreeDownloadEmail(data: {
+  name: string;
+  bookTitle: string;
+  downloadUrl: string;
+  until: string;
+  branding?: EmailBranding;
+}) {
+  const { name, bookTitle, downloadUrl, until, branding } = data;
+  const content = `
+    <p><b>Hi ${esc(name)},</b></p>
+    <p>Here is your free copy of <b>${esc(bookTitle)}</b>. Use the button below to download it. The link works until ${esc(until)}, for up to 5 downloads, so save a copy to keep.</p>
+
+    ${cta('Download your product', downloadUrl)}
+
+    <p style="color:#6b7280;font-size:13px;">If you did not ask for this, you can ignore this email.</p>
+    <br><p><b>Best regards,</b></p>
+  `;
+  return shell(content, branding);
+}
+
 // -- Payment Confirmation Acknowledged (student submitted) ---
 export function subscriptionPaymentAssignedEmail(data: {
   name: string;

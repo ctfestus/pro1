@@ -3,7 +3,7 @@
 /**
  * The product page's price and actions, shown in the hero under the tags.
  *   signed out, for sale -> Buy now with only an email (GuestBuy), or sign in
- *   signed out, free     -> Sign in to download (the product is remembered across sign-in and sign-up)
+ *   signed out, free     -> Get it free with a name and email (the link is emailed), or sign in
  *   owns it             -> Download, and a link to My Books
  *   signed in, for sale -> Buy, through /api/books/checkout and Paystack
  *   free book           -> Download once signed in
@@ -22,6 +22,7 @@ import { formatMoney } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import { GuestBuy } from '@/components/books/store/GuestBuy';
 import { GuestReturn } from '@/components/books/store/GuestReturn';
+import { FreeClaim } from '@/components/books/store/FreeClaim';
 import { PRICE_CHANGED_EVENT, useCurrentPrices } from '@/lib/books/use-current-prices';
 
 export interface BuyPanelBook {
@@ -180,7 +181,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
         </div>
       ) : null}
 
-      <div className="mt-5 flex flex-col sm:flex-row flex-wrap gap-3">
+      <div className="mt-5 flex flex-col sm:flex-row sm:items-start flex-wrap gap-3">
         {viewer.phase === 'loading' ? (
           <div className={`${primaryBtn} min-w-[200px]`} style={{ background: '#E8EBEF', color: '#94a3b8' }}><Loader2 className="w-4 h-4 animate-spin" /></div>
         ) : owned ? (
@@ -197,12 +198,13 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
           null
         ) : viewer.phase === 'signedOut' && !book.free && price ? (
           // No account needed to buy (lib/books/guest-access.ts); signing in stays one click away.
-          <GuestBuy bookId={book.id} price={price} signInLink={signInHref(backHere)} onSignIn={() => rememberBookPage(book.slug)}
-            primaryColor={primaryColor} primaryBtn={primaryBtn} />
+          <GuestBuy bookId={book.id} price={price} primaryColor={primaryColor} primaryBtn={primaryBtn} />
+        ) : viewer.phase === 'signedOut' && book.free ? (
+          // Free without an account: the link is emailed, so only the owner of the address gets it.
+          <FreeClaim bookId={book.id} primaryColor={primaryColor} primaryBtn={primaryBtn} />
         ) : viewer.phase === 'signedOut' ? (
-          // Free products stay sign-in only: a download without an account would make the file public.
           <Link href={signInHref(backHere)} onClick={() => rememberBookPage(book.slug)} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
-            {book.free ? 'Sign in to download' : 'Sign in to buy'}
+            Sign in to buy
           </Link>
         ) : book.free ? (
           // Free for everyone signed in; the access check said otherwise only if it failed.
@@ -223,6 +225,16 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
         )}
       </div>
 
+      {viewer.phase === 'signedOut' && (book.free || (price && (!guestReference || retryAllowed))) && (
+        // Below the buttons, for buyers who would rather keep it in My Products.
+        <p className="mt-4 text-sm" style={{ color: '#64748b' }}>
+          Have an account?{' '}
+          <Link href={signInHref(backHere)} onClick={() => rememberBookPage(book.slug)} className="font-semibold underline underline-offset-2" style={{ color: '#0f172a' }}>
+            Sign in
+          </Link>
+          {book.free ? ' to download it now.' : ''}
+        </p>
+      )}
       {owned && !book.free && <p className="mt-3 text-sm" style={{ color: '#16a34a' }}>You own this product.</p>}
       {book.hasSample && !owned && book.format === 'epub' && (
         <p className="mt-3 text-xs" style={{ color: '#64748b' }}>Open the sample in an ebook app such as Apple Books or Google Play Books.</p>

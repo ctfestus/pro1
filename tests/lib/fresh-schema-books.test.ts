@@ -222,7 +222,8 @@ describe('fresh schema guest purchases (migration 238)', () => {
 
   it('keeps a guest purchase apart from accounts, and a signed-in one free of guest fields', () => {
     expect(migration).toContain('(is_guest AND student_id IS NULL AND guest_email IS NOT NULL');
-    expect(migration).toContain('OR (NOT is_guest AND guest_email IS NULL AND guest_return_hash IS NULL AND guest_access_expires_at IS NULL)');
+    expect(migration).toContain('OR (NOT is_guest AND guest_email IS NULL AND guest_name IS NULL AND guest_return_hash IS NULL AND guest_access_expires_at IS NULL)');
+    expect(migration).toContain('AND guest_name IS NOT NULL AND length(btrim(guest_name)) BETWEEN 1 AND 120');
     expect(migration).toContain("guest_return_hash ~ '^[0-9a-f]{64}$'");
     expect(migration).toContain('CHECK (guest_downloads_used >= 0 AND guest_downloads_used <= 5)');
   });
@@ -262,5 +263,66 @@ describe('fresh schema guest purchases (migration 238)', () => {
       expect(migration).toContain(`REVOKE EXECUTE ON FUNCTION public.${fn} FROM PUBLIC, anon, authenticated;`);
       expect(migration).toContain(`GRANT  EXECUTE ON FUNCTION public.${fn} TO service_role;`);
     }
+  });
+});
+
+describe('fresh schema free claims and download log (migration 239)', () => {
+  const schema = readFileSync(join(process.cwd(), 'festman-fresh-schema.sql'), 'utf8');
+  const migration = readFileSync(join(process.cwd(), 'migrations/239_book_free_claims_and_downloads.sql'), 'utf8');
+
+  it('is mirrored whole into the fresh schema', () => {
+    expect(schema).toContain(migration.slice(migration.indexOf('ALTER TABLE public.book_purchases')).trim());
+  });
+
+  it('lets only a guest free claim have no price, and keeps sales above zero', () => {
+    expect(migration).toContain("(kind = 'sale' AND amount > 0)");
+    expect(migration).toContain("OR (kind = 'free_claim' AND is_guest AND amount = 0 AND currency = 'XXX' AND paystack_reference LIKE 'free-%')");
+    // A free reference never looks like a Paystack one, so the webhook and sweep leave it alone.
+    expect(migration).not.toContain("LIKE 'book-%'");
+  });
+
+  it('makes 238 re-runnable on a database that already has guest rows without a name', () => {
+    const m238 = readFileSync(join(process.cwd(), 'migrations/238_book_guest_purchases.sql'), 'utf8');
+    const backfill = m238.indexOf("UPDATE public.book_purchases SET guest_name = 'Guest' WHERE is_guest AND guest_name IS NULL;");
+    expect(backfill).toBeGreaterThan(0);
+    expect(backfill).toBeLessThan(m238.indexOf('ADD CONSTRAINT book_purchases_guest_check'));
+    expect(migration).toContain('ALTER TABLE public.book_purchases ADD COLUMN IF NOT EXISTS guest_name text;');
+  });
+
+  it('totals in the database, counting only paid rows, and lets only the service role run it', () => {
+    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.book_product_stats'), migration.indexOf('CREATE OR REPLACE FUNCTION public.book_download_counts'));
+    expect(fn.match(/p\.status = 'paid'/g)).toHaveLength(2);
+    expect(fn).toContain("p.kind = 'sale'");
+    for (const sig of ['book_product_stats(uuid[])', 'book_download_counts(uuid)']) {
+      expect(migration).toContain(`REVOKE EXECUTE ON FUNCTION public.${sig} FROM PUBLIC, anon, authenticated;`);
+      expect(migration).toContain(`GRANT  EXECUTE ON FUNCTION public.${sig} TO service_role;`);
+    }
+  });
+
+  it('makes a free claim under per-email and platform locks, checks before inserting, service role only', () => {
+    const fn = migration.slice(migration.indexOf('CREATE OR REPLACE FUNCTION public.claim_free_book'));
+    // The email lock covers the per-email limit across every product (not one product), and the
+    // platform lock covers the 300-an-hour check; both are held until the insert commits.
+    const emailLock = fn.indexOf("pg_advisory_xact_lock(hashtextextended('book-free-claim:email:' || lower(p_email), 0))");
+    const open = fn.indexOf('guest_downloads_used < 5');
+    const perEmail = fn.indexOf(">= 3");
+    const allLock = fn.indexOf("pg_advisory_xact_lock(hashtextextended('book-free-claim:all', 0))");
+    const platform = fn.indexOf('>= 300');
+    const insert = fn.indexOf('INSERT INTO public.book_purchases');
+    expect(emailLock).toBeGreaterThan(0);
+    expect(fn).not.toContain("p_book_id::text || ':' || lower(p_email)");
+    expect(open).toBeGreaterThan(emailLock);
+    expect(perEmail).toBeGreaterThan(open);
+    expect(allLock).toBeGreaterThan(perEmail);
+    expect(platform).toBeGreaterThan(allLock);
+    expect(insert).toBeGreaterThan(platform);
+    expect(migration).toContain('REVOKE EXECUTE ON FUNCTION public.claim_free_book(uuid, text, text, text, text) FROM PUBLIC, anon, authenticated;');
+    expect(migration).toContain('GRANT  EXECUTE ON FUNCTION public.claim_free_book(uuid, text, text, text, text) TO service_role;');
+  });
+
+  it('keeps the download log server-only', () => {
+    expect(migration).toContain('ALTER TABLE public.book_download_events ENABLE ROW LEVEL SECURITY;');
+    expect(migration).toContain('REVOKE ALL ON public.book_download_events FROM anon, authenticated;');
+    expect(migration).not.toMatch(/CREATE POLICY[^;]*book_download_events/);
   });
 });

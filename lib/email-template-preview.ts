@@ -26,6 +26,7 @@ import {
   paymentConfirmationApprovedEmail,
   paymentConfirmationRejectedEmail,
   paymentReceiptEmail,
+  bookFreeDownloadEmail,
   bookPurchaseEmail,
   recordingPublishedEmail,
   reminderEmail,
@@ -166,6 +167,8 @@ export function buildEmailTemplateSample(key: EmailTemplateKey, branding: EmailB
       return { subject: 'Your Data Analytics Programme Certificate', html: openCertificateEmail({ recipientName: name, programName: 'Data Analytics Programme', issuedDate: '4 October 2026', certUrl: certificateUrl, branding }), variables };
     case 'payment_receipt':
       return { subject: 'Payment received on your account', html: paymentReceiptEmail({ name, amount: 450, currency: 'GHS', paidAt: '4 October 2026', method: 'Mobile Money', reference: 'PAY-1024', dashboardUrl: paymentsUrl, branding }), variables };
+    case 'book_free_download':
+      return { subject: 'Your free download: SQL for Data Analysts', html: bookFreeDownloadEmail({ name, bookTitle: 'SQL for Data Analysts', downloadUrl: `${appUrl}/products/download`, until: '11 October 2026', branding }), variables };
     case 'book_purchase':
       return { subject: 'Your purchase: SQL for Data Analysts', html: bookPurchaseEmail({ name, bookTitle: 'SQL for Data Analysts', amount: 120, currency: 'GHS', paidAt: '4 October 2026', reference: 'book-1024', libraryUrl: `${studentUrl}#products`, branding }), variables };
     case 'payment_confirmation_received':

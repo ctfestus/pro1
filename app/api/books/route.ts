@@ -1,7 +1,8 @@
 import { randomBytes } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
+import { productSummaries } from '@/lib/books/stats';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 import { requireRole, isAuthError } from '@/lib/api-auth';
-import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 import {
   bookColumnsFromInput,
   bookSlug,
@@ -90,28 +91,32 @@ export async function GET(req: NextRequest) {
   const db = auth.serviceDb;
 
   try {
-    let query = db
-      .from('books')
-      .select('id, user_id, slug, title, subtitle, cover_image, authors, category, status, format, purchasable, available_to_everyone, cohort_ids, updated_at')
-      .order('updated_at', { ascending: false });
-    if (auth.role !== 'admin') query = query.eq('user_id', auth.user.id);
-    const { data: books, error } = await query;
-    if (error) throw error;
+    // Paged (the API caps each response at about 1,000 rows), newest first with id as a tiebreak so
+    // pages never overlap or skip a product.
+    const books = await fetchAllRows<any>((from, to) => {
+      let query = db
+        .from('books')
+        .select('id, user_id, slug, title, subtitle, cover_image, authors, category, status, format, purchasable, available_to_everyone, cohort_ids, updated_at', { count: 'exact' });
+      if (auth.role !== 'admin') query = query.eq('user_id', auth.user.id);
+      return query.order('updated_at', { ascending: false }).order('id').range(from, to) as any;
+    });
 
-    const ids = (books ?? []).map((b: any) => b.id);
-    // Sales per book, for the list. Refunded and review cases are not counted as sold.
-    const sales = await fetchAllRowsByIds<{ book_id: string }>(
-      ids,
-      (chunk, from, to) => db.from('book_purchases')
-        .select('book_id', { count: 'exact' })
-        .in('book_id', chunk).eq('status', 'paid').order('id').range(from, to),
-    );
-    const sold = new Map<string, number>();
-    for (const r of sales) sold.set(r.book_id, (sold.get(r.book_id) ?? 0) + 1);
+    const ids = books.map((b: any) => b.id);
+    // Sales, revenue, free claims and downloads per product, counted in the database
+    // (book_product_stats, migration 239). Refunded and review cases, and free claims, are not sold.
+    const stats = new Map((await productSummaries(db, ids)).map(p => [p.bookId, p]));
 
     return NextResponse.json({
       role: auth.role,
-      books: (books ?? []).map((b: any) => ({ ...b, sold: sold.get(b.id) ?? 0 })),
+      // The dashboard's summary cards and per-product figures come from here, in this one request.
+      books: books.map((b: any) => {
+        const st = stats.get(b.id);
+        return {
+          ...b,
+          sold: st?.sold ?? 0,
+          stats: { revenue: st?.revenue ?? {}, freeClaims: st?.freeClaims ?? 0, downloads: st?.downloads ?? 0, downloads30d: st?.downloads30d ?? 0 },
+        };
+      }),
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e: any) {
     console.error('[books] list failed', e?.message ?? e);

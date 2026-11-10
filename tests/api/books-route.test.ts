@@ -66,7 +66,9 @@ function authAs(
   rpc = vi.fn((fn: string, args: Record<string, any>): QueryResult => (
     fn === 'save_book'
       ? saveResult ?? { data: { ...row, ...args.p_patch }, error: null }
-      : { data: { ok: true }, error: null }
+      : fn === 'book_product_stats'
+        ? { data: (args.p_book_ids as string[]).map(id => ({ book_id: id, sold: 2, revenue: {}, free_claims: 1, downloads: 0, downloads_30d: 0 })), error: null }
+        : { data: { ok: true }, error: null }
   ));
   calls = [];
   const tables = { books: { data: row }, book_prices: { data: [] }, ...extra };
@@ -317,12 +319,20 @@ describe('GET /api/books', () => {
   });
 
   it('lists books with paid sales counts', async () => {
-    authAs('author-1', 'instructor', [{ id: BOOK_ID, title: 'SQL' }], {
-      book_purchases: { data: [{ book_id: BOOK_ID }, { book_id: BOOK_ID }], count: 2 },
-    });
+    authAs('author-1', 'instructor', [{ id: BOOK_ID, title: 'SQL' }]);
     const res = await GET(new NextRequest('http://localhost/api/books'));
     expect(res.status).toBe(200);
-    expect((await res.json()).books[0]).toMatchObject({ id: BOOK_ID, sold: 2 });
-    expect(callsTo('book_purchases', 'eq')).toContainEqual({ table: 'book_purchases', method: 'eq', args: ['status', 'paid'] });
+    // Counted in the database; free claims are not sales.
+    expect((await res.json()).books[0]).toMatchObject({ id: BOOK_ID, sold: 2, stats: { revenue: {}, freeClaims: 1, downloads: 0, downloads30d: 0 } });
+    expect(rpc).toHaveBeenCalledWith('book_product_stats', { p_book_ids: [BOOK_ID] });
+  });
+
+  it('pages the product list past the API row cap, so every product and its figures are included', async () => {
+    const ids = Array.from({ length: 2500 }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    const page = (from: number, to: number) => ({ data: ids.slice(from, to + 1).map(id => ({ id, title: id })), count: ids.length });
+    authAs('boss', 'admin', null, { books: [page(0, 999), page(1000, 1999), page(2000, 2999)] });
+    const body = await (await GET(new NextRequest('http://localhost/api/books'))).json();
+    expect(body.books).toHaveLength(2500);
+    expect(new Set(rpc.mock.calls.filter((c: any[]) => c[0] === 'book_product_stats').flatMap((c: any[]) => c[1].p_book_ids)).size).toBe(2500);
   });
 });

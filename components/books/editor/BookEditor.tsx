@@ -1064,7 +1064,7 @@ export function BookEditor() {
             <button onClick={() => update({ cohortIds: [], availableToEveryone: !state.availableToEveryone })}
               className="px-3 py-1.5 rounded-full text-xs font-medium"
               style={{ background: state.availableToEveryone ? C.cta : C.pill, color: state.availableToEveryone ? C.ctaText : C.muted }}>
-              Everyone signed in
+              Free for everyone
             </button>
             {cohorts.map(c => {
               const on = state.cohortIds.includes(c.id);
@@ -1078,7 +1078,7 @@ export function BookEditor() {
           </div>
           <p className="text-xs" style={{ color: C.faint }}>
             {state.availableToEveryone
-              ? 'Free for every signed-in account.'
+              ? 'Free for anyone. Signed-in learners download it straight away; visitors without an account enter their name and email and get the link by email.'
               : state.cohortIds.length
                 ? 'Free for the selected cohorts.'
                 : state.purchasable ? 'Only people who buy it.' : 'Nobody can read it yet. Choose a cohort, everyone, or sell it.'}

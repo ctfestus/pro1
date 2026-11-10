@@ -35,6 +35,7 @@ export async function POST(req: NextRequest) {
       coverImage: book?.cover_image ?? null,
       format: book?.format ?? null,
       state: guestBookAvailable(book) ? guestAccessState(purchase) : 'unavailable',
+      free: purchase.kind === 'free_claim',
       downloadsLeft: downloadsLeft(purchase),
       expiresAt: purchase.guest_access_expires_at,
     }, { headers: NO_STORE });

@@ -109,7 +109,7 @@ afterEach(() => { process.env.BOOK_GUEST_ACCESS_SECRET = ORIGINAL_SECRET; });
 
 describe('POST /api/books/guest-checkout', () => {
   const start = (extra: Record<string, unknown> = {}) =>
-    post(startGuest, { bookId: BOOK_ID, email: ' Buyer@Example.TEST ', currency: 'GHS', expectedAmount: 120, ...extra });
+    post(startGuest, { bookId: BOOK_ID, name: '  Ama   Mensah ', email: ' Buyer@Example.TEST ', currency: 'GHS', expectedAmount: 120, ...extra });
 
   it('opens a guest purchase with no account, the email lowercased, and only a hash of the return code', async () => {
     state.tables = { books: { data: BOOK }, book_prices: PRICE, book_purchases: { data: { id: 'p-new' } } };
@@ -118,7 +118,7 @@ describe('POST /api/books/guest-checkout', () => {
     const body = await res.json();
     expect(body.authorizationUrl).toBe('https://paystack.test/new');
     const row = callsTo('book_purchases', 'insert')[0].args[0] as any;
-    expect(row).toMatchObject({ student_id: null, is_guest: true, guest_email: 'buyer@example.test', amount: 120, currency: 'GHS' });
+    expect(row).toMatchObject({ student_id: null, is_guest: true, guest_email: 'buyer@example.test', guest_name: 'Ama Mensah', amount: 120, currency: 'GHS' });
     expect(row.guest_return_hash).toBe(hashReturnCode(body.returnCode));
     expect(JSON.stringify(row)).not.toContain(body.returnCode);
     expect(paystack.init.mock.calls[0][0]).toMatchObject({ email: 'buyer@example.test', amount: 120 });
@@ -149,6 +149,10 @@ describe('POST /api/books/guest-checkout', () => {
     expect((await start()).status).toBe(409);
     state.tables.book_prices = PRICE;
     expect((await start({ email: 'not-an-email' })).status).toBe(400);
+    expect((await start({ name: '   ' })).status).toBe(400);
+    expect((await start({ name: '<b></b>' })).status).toBe(400);
+    expect((await start({ name: 'x'.repeat(81) })).status).toBe(400);
+    expect((await start({ name: 'visit evil.example now' })).status).toBe(400);
     const stale = await start({ expectedAmount: 90 });
     expect(stale.status).toBe(409);
     expect((await stale.json()).priceChanged).toBe(true);
@@ -299,12 +303,14 @@ describe('the download page and its buttons', () => {
   });
 
   it('Download takes one of the five and hands out a short-lived link to the full file', async () => {
-    state.tables = { book_purchases: { data: paidPurchase() }, books: { data: BOOK } };
+    state.tables = { book_purchases: { data: paidPurchase() }, books: { data: BOOK }, book_download_events: { data: null } };
     state.rpc = () => ({ data: { ok: true, remaining: 4 }, error: null });
     const body = await (await post(download, { access: access() })).json();
     expect(body).toEqual({ url: `https://storage.test/${FILE}`, remaining: 4 });
     expect(state.rpcCalls).toEqual([{ fn: 'take_guest_book_download', args: { p_purchase_id: PURCHASE } }]);
     expect(state.signed[0].opts).toEqual({ download: `${BOOK.slug}.html` });
+    // Logged for the sales and downloads view, as the guest purchase (no account).
+    expect(callsTo('book_download_events', 'insert')[0].args[0]).toEqual({ book_id: BOOK_ID, purchase_id: PURCHASE, student_id: null, source: 'guest' });
   });
 
   it.each(['used_up', 'expired', 'not_paid'])('hands out nothing when the database says %s (refunds included)', async (reason) => {
@@ -369,7 +375,7 @@ describe('POST /api/books/guest-access/resend', () => {
     state.tables = { book_purchases: { data: [] } };
     const unknown = await (await post(resendLink, { email: 'nobody@example.test' })).json();
     state.after = [];
-    state.tables = { book_purchases: { data: [{ id: PURCHASE }] } };
+    state.tables = { book_purchases: [{ data: [{ id: PURCHASE }] }, { data: [] }] };
     const known = await (await post(resendLink, { email: 'buyer@example.test' })).json();
     expect(known).toEqual(unknown);
 
@@ -379,7 +385,7 @@ describe('POST /api/books/guest-access/resend', () => {
     expect(mail.resend).toHaveBeenCalledTimes(1);
     expect(mail.resend.mock.calls[0][1]).toBe(PURCHASE);
     const filters = state.calls.filter(c => c.table === 'book_purchases' && (c.method === 'eq' || c.method === 'gt')).map(c => c.args);
-    expect(filters).toEqual(expect.arrayContaining([['is_guest', true], ['guest_email', 'buyer@example.test'], ['status', 'paid']]));
+    expect(filters).toEqual(expect.arrayContaining([['is_guest', true], ['guest_email', 'buyer@example.test'], ['status', 'paid'], ['kind', 'sale'], ['kind', 'free_claim']]));
     expect(filters.some(a => a[0] === 'guest_access_expires_at')).toBe(true);
   });
 

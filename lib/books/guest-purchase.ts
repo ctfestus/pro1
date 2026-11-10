@@ -20,11 +20,12 @@ export interface GuestPurchase {
   is_guest: boolean;
   guest_access_expires_at: string | null;
   guest_downloads_used: number;
+  kind?: string | null;
 }
 
 export type GuestAccessState = 'ready' | 'pending' | 'not_paid' | 'expired' | 'used_up';
 
-export const GUEST_PURCHASE_COLUMNS = 'id, book_id, status, is_guest, guest_access_expires_at, guest_downloads_used';
+export const GUEST_PURCHASE_COLUMNS = 'id, book_id, status, is_guest, guest_access_expires_at, guest_downloads_used, kind';
 
 export async function loadGuestPurchase(db: SupabaseClient, purchaseId: string): Promise<GuestPurchase | null> {
   const { data, error } = await db.from('book_purchases').select(GUEST_PURCHASE_COLUMNS).eq('id', purchaseId).maybeSingle();
