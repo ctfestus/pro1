@@ -1,3 +1,15 @@
+import { sanitizeRichText } from '@/lib/sanitize';
+import { looksLikeHtml } from '@/lib/plain-text';
+
+/**
+ * A description or overview as stored: rich text from the editor is cleaned (it is shown and
+ * emailed as HTML); plain text from before the editor is kept exactly, since cleaning would turn
+ * "Excel & SQL" into "Excel &amp; SQL" and the page shows plain text as written.
+ */
+function cleanAuthored(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  return looksLikeHtml(value) ? sanitizeRichText(value) : value;
+}
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requireStudentUser, requireRole, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
@@ -120,12 +132,13 @@ export async function POST(req: NextRequest) {
     const { data, error } = await supabase.from('learning_paths').insert({
       ...(request_id ? { id: request_id } : {}),
       title: title.trim(),
-      description: description ?? null,
+      // Rich text from the editor: cleaned before it is stored, and it is also emailed.
+      description: cleanAuthored(description),
       cover_image: cover_image ?? null,
       badge_image_url: badge_image_url ?? null,
       // What the path is FOR, as opposed to what it contains. Arrays default to empty so a path
       // saved before these existed simply shows fewer sections.
-      overview: overview ?? null,
+      overview: cleanAuthored(overview),
       skills: Array.isArray(skills) ? skills : [],
       who_should_take: Array.isArray(who_should_take) ? who_should_take : [],
       tools: Array.isArray(tools) ? tools : [],
@@ -228,7 +241,7 @@ export async function POST(req: NextRequest) {
 
     const updateData: any = { updated_at: new Date().toISOString() };
     if (title           !== undefined) updateData.title           = title.trim();
-    if (description     !== undefined) updateData.description     = description;
+    if (description     !== undefined) updateData.description     = cleanAuthored(description);
     if (cover_image     !== undefined) updateData.cover_image     = cover_image;
     if (badge_image_url !== undefined) updateData.badge_image_url = badge_image_url ?? null;
     if (item_ids        !== undefined) updateData.item_ids        = item_ids;
@@ -238,7 +251,7 @@ export async function POST(req: NextRequest) {
     // Only whether "no specialization" is offered. Learners who already chose it keep it, so
     // turning it off changes no one's requirements and needs no completer guard.
     if (tracks_optional !== undefined) updateData.tracks_optional = tracks_optional === true;
-    if (overview        !== undefined) updateData.overview        = overview ?? null;
+    if (overview        !== undefined) updateData.overview        = cleanAuthored(overview);
     if (skills          !== undefined) updateData.skills          = Array.isArray(skills) ? skills : [];
     if (who_should_take !== undefined) updateData.who_should_take = Array.isArray(who_should_take) ? who_should_take : [];
     if (tools           !== undefined) updateData.tools           = Array.isArray(tools) ? tools : [];

@@ -1,5 +1,6 @@
 'use client';
 
+import { toPlainText } from '@/lib/plain-text';
 import { useState, useEffect, useLayoutEffect, useRef, useContext, type CSSProperties } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
@@ -7,7 +8,6 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
-import { sanitizeRichText } from '@/lib/sanitize';
 import {
   Plus, FileText, BarChart3, ExternalLink, Trash2, Edit2, Share2, Check, Copy, X,
   CalendarDays, AlignLeft, ChevronDown, ChevronRight, ChevronLeft, BookOpen, MapPin,
@@ -872,8 +872,8 @@ export function EventCard({ form, index, isLast, shareMenuOpen, setShareMenuOpen
 
             {/* Description */}
             {form.config?.description && (
-              <div className="text-xs leading-relaxed line-clamp-2 rich-content" style={{ color: C.muted }}
-                dangerouslySetInnerHTML={{ __html: sanitizeRichText(form.config.description) }} />
+              // A two-line card: plain text, so an image in the description cannot fill or break it.
+              <p className="text-xs leading-relaxed line-clamp-2" style={{ color: C.muted }}>{toPlainText(form.config.description)}</p>
             )}
 
             {/* Footer: responses + Insights (actions live in the card's top-right menu) */}

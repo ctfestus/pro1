@@ -1,3 +1,4 @@
+import { sanitizeRichText } from '@/lib/sanitize';
 import { createHash } from 'crypto';
 import { Resend } from 'resend';
 import { learningPathAssignedEmail } from '@/lib/email-templates';
@@ -123,7 +124,8 @@ export async function sendPathNotification(
       const fallbackHtml = learningPathAssignedEmail({
         name:            student.full_name ?? 'there',
         pathTitle:       lp.title,
-        pathDescription: lp.description ?? undefined,
+        // Cleaned here too: paths saved before descriptions were cleaned on save.
+        pathDescription: lp.description ? sanitizeRichText(lp.description) : undefined,
         items,
         dashboardUrl,
         branding,

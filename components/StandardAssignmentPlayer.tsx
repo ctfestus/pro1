@@ -13,6 +13,7 @@ import { useC } from '@/lib/theme';
 import { supabase } from '@/lib/supabase';
 import { reviewGate } from '@/lib/review-gate';
 import { sanitizeRichText } from '@/lib/sanitize';
+import { hasRichContent } from '@/lib/plain-text';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -112,7 +113,7 @@ export default function StandardAssignmentPlayer({
   // Render interactive content (LessonDoc) with the VE renderer, falling back to sanitized HTML.
   const renderRich = (doc: LessonDoc | undefined, html: string | undefined, style?: React.CSSProperties) => {
     if (doc) return <LessonRenderer doc={doc} isDark={isDark} accentColor={scenarioAccent} />;
-    if (html && html.replace(/<[^>]*>/g, '').trim()) {
+    if (html && hasRichContent(html)) {
       return <div className="rich-content" style={style} dangerouslySetInnerHTML={{ __html: sanitizeRichText(html) }} />;
     }
     return null;
@@ -141,7 +142,7 @@ export default function StandardAssignmentPlayer({
   function isAnswered(task: AssignmentTask): boolean {
     const a = answers[task.id];
     if (!a) return false;
-    if (task.type === 'text') return !!a.text && !!a.text.replace(/<[^>]*>/g, '').trim();
+    if (task.type === 'text') return hasRichContent(a.text);
     if (task.type === 'upload') return !!a.fileUrl;
     if (task.type === 'mcq') return a.selectedOption != null;
     return !!a.report;
@@ -279,7 +280,7 @@ export default function StandardAssignmentPlayer({
     // input in both light and dark mode (the editor has no border of its own in dark).
     return (
       <div style={{ border: cardBorder, borderRadius: 10, overflow: 'hidden' }}>
-        <RichTextEditor value={a.text ?? ''} onChange={html => patch(task.id, { text: html })} placeholder="Write your response here..." bgOverride={C.input} />
+        <RichTextEditor value={a.text ?? ''} onChange={html => patch(task.id, { text: html })} placeholder="Write your response here..." bgOverride={C.input} images="upload" imageFolder="submission-images" />
       </div>
     );
   }

@@ -1,3 +1,4 @@
+import { hasRichContent } from '@/lib/plain-text';
 import {
   APPLICATION_THEME_IDS,
   type ApplicationCustomTheme,
@@ -605,7 +606,7 @@ export function validateApplicationForm(config: ApplicationFormConfig, status?: 
     if (!item.label?.trim() && item.type !== 'image') errors.push('Every question needs a label.');
     if (!APPLICATION_QUESTION_TYPES.includes(item.type)) errors.push(`Unsupported question type: ${item.type}`);
     if (item.type === 'image') errors.push(...imageBlockErrors(item.image, item.label?.trim() || 'Image block'));
-    if (item.type === 'text_block' && !item.richText?.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim()) errors.push(`${item.label || 'Text block'} needs content.`);
+    if (item.type === 'text_block' && !hasRichContent(item.richText)) errors.push(`${item.label || 'Text block'} needs content.`);
     if ((item.richText?.length ?? 0) > 100_000) errors.push(`${item.label || 'Text block'} content is too long.`);
     if (['single_choice', 'multiple_choice', 'dropdown'].includes(item.type) && (item.options ?? []).filter(Boolean).length < 2) {
       errors.push(`${item.label || 'Choice question'} needs at least two options.`);

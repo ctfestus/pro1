@@ -7,7 +7,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '@/lib/supabase';
-import { renderAnnouncementContent } from '@/lib/sanitize';
+import { renderAnnouncementContent, sanitizeAnnouncementContent } from '@/lib/sanitize';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { Sk, EmptyState } from '@/components/student/shared';
 import { announcementCohortFilter, isIndividualCohort } from '@/lib/cohort-kind';
@@ -262,7 +262,7 @@ function AnnouncementModal({ ann, C, react, onToggleReaction, onClose, otherItem
           )}
           {ann.content && (
             <div className="rich-content compact" style={{ color: C.text, fontSize: 15.5 }}
-              dangerouslySetInnerHTML={{ __html: renderAnnouncementContent(ann.content) }}
+              dangerouslySetInnerHTML={{ __html: renderAnnouncementContent(sanitizeAnnouncementContent(ann.content ?? '')) }}
             />
           )}
           <div className="flex items-center gap-3 mt-6 pt-5" style={{ borderTop: `1px solid ${C.divider}` }}>

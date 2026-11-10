@@ -767,7 +767,7 @@ export function learningPathAssignedEmail(data: {
     <div style="margin:20px 0;padding:20px;background:#f0fdf4;border-left:4px solid #22c55e;border-radius:0;">
       <p style="margin:0 0 4px;font-size:11px;font-weight:700;color:#15803d;text-transform:uppercase;letter-spacing:0.05em;">Your Learning Path</p>
       <p style="margin:0 0 8px;font-size:20px;font-weight:800;color:#111827;">${pathTitle}</p>
-      ${pathDescription ? `<p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">${pathDescription}</p>` : ''}
+      ${pathDescription ? `<div style="margin:0;font-size:14px;color:#374151;line-height:1.6;">${pathDescription}</div>` : ''}
     </div>
 
     ${items.length > 0 ? `
@@ -874,7 +874,7 @@ export function learningPathCertificateEmail(data: {
     <div style="margin:20px 0;padding:24px;background:linear-gradient(135deg,#064e3b,#0f766e);border-radius:0;text-align:center;">
       <p style="margin:0 0 4px;font-size:12px;font-weight:700;color:#6ee7b7;text-transform:uppercase;letter-spacing:0.1em;">Learning Path Completed</p>
       <p style="margin:0 0 8px;font-size:22px;font-weight:900;color:#ffffff;line-height:1.2;">${pathTitle}</p>
-      ${pathDescription ? `<p style="margin:0 0 16px;font-size:13px;color:#a7f3d0;line-height:1.5;">${pathDescription}</p>` : '<div style="margin-bottom:16px;"></div>'}
+      ${pathDescription ? `<div style="margin:0 0 16px;font-size:13px;color:#a7f3d0;line-height:1.5;">${pathDescription}</div>` : '<div style="margin-bottom:16px;"></div>'}
       <a href="${certUrl}" style="display:inline-block;background:#ffffff;color:#064e3b;padding:12px 28px;border-radius:0;text-decoration:none;font-weight:800;font-size:14px;">🎓 View Your Certificate</a>
     </div>
 

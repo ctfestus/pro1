@@ -1,9 +1,14 @@
 'use client';
 
 import { useEffect, useRef, useCallback, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { Bold, Code2, FileCode2, Table, Italic, RemoveFormatting, Underline, List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Quote, Youtube, ImageIcon, Loader2, UserRound, Trash2 } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { RichTextAiMenu } from '@/components/RichTextAiMenu';
+import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
+
+// The image library opens only when someone inserts an image, so it is loaded then.
+const ImageLibrary = dynamic(() => import('@/components/ImageLibrary').then(m => m.ImageLibrary), { ssr: false });
 
 interface RichTextEditorProps {
   value: string;
@@ -28,9 +33,37 @@ interface RichTextEditorProps {
    *  Everywhere else the HTML is sanitized to plain rich text and the embed would silently vanish,
    *  leaving only its surrounding text. */
   enableVideoEmbed?: boolean;
+  /**
+   * The "Insert image" button when no onImageUpload / onRequestImage is given:
+   *   'library' (default) -- the image library (your uploads, or Pexels), the usual choice;
+   *   'upload'            -- choose a file only (for student answers);
+   *   'off'               -- no image button.
+   * Saved images are kept when shown and emailed only from the platform's own image hosting or
+   * Pexels (lib/sanitize.ts), which is exactly what these give.
+   */
+  images?: 'library' | 'upload' | 'off';
+  /** Folder new uploads go to (under the user's own folder). */
+  imageFolder?: string;
 }
 
-export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload, onRequestImage, enableAiAssist = false, enableNameTag = false, enableVideoEmbed = false }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload: givenImageUpload, onRequestImage: givenRequestImage, enableAiAssist = false, enableNameTag = false, enableVideoEmbed = false, images = 'library', imageFolder = 'rich-text-images' }: RichTextEditorProps) {
+  // The built-in image library picker, used unless the caller brings its own.
+  const [libraryOpen, setLibraryOpen] = useState(false);
+  const libraryResolve = useRef<((url: string | null) => void) | null>(null);
+  const builtinRequestImage = useCallback(() => new Promise<string | null>(resolve => {
+    libraryResolve.current?.(null);
+    libraryResolve.current = resolve;
+    setLibraryOpen(true);
+  }), []);
+  const closeLibrary = useCallback((url: string | null) => {
+    const resolve = libraryResolve.current;
+    libraryResolve.current = null;
+    setLibraryOpen(false);
+    resolve?.(url);
+  }, []);
+  const builtinUpload = useCallback((file: File) => uploadToCloudinary(file, imageFolder), [imageFolder]);
+  const onRequestImage = givenRequestImage ?? (!givenImageUpload && images === 'library' ? builtinRequestImage : undefined);
+  const onImageUpload = givenImageUpload ?? (images === 'upload' ? builtinUpload : undefined);
   const { theme } = useTheme();
   const dark = theme === 'dark';
   const bg        = bgOverride ?? (dark ? 'rgba(255,255,255,0.05)' : '#f4f5f7');
@@ -545,6 +578,10 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
                   e.target.value = '';
                 }}
               />
+            )}
+            {libraryOpen && (
+              <ImageLibrary uploadFolder={imageFolder} initialFolder={imageFolder}
+                onSelect={url => closeLibrary(url)} onClose={() => closeLibrary(null)} />
             )}
           </>
         )}

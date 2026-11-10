@@ -1,3 +1,4 @@
+import { sanitizeRichText } from '@/lib/sanitize';
 import { Resend } from 'resend';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { ensureCertificate, sendCertificateEmailOnce } from '@/lib/issue-certificate';
@@ -275,7 +276,7 @@ async function runPathCompletionEffects(
             const fallbackSubject = `You've been enrolled in a new learning path: ${nextPath.title}`;
             const fallbackHtml = learningPathAssignedEmail({
                 name: studentRow.full_name ?? 'there', pathTitle: nextPath.title,
-                pathDescription: nextPath.description ?? undefined, dashboardUrl, items, branding,
+                pathDescription: nextPath.description ? sanitizeRichText(nextPath.description) : undefined, dashboardUrl, items, branding,
                 specializations: pathTracks(nextPath).map(t => t.name),
                 specializationOptional: coreOnlyAvailable(nextPath),
               });

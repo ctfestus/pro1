@@ -41,6 +41,8 @@ describe('announcement input', () => {
   it('refuses an empty rich text message (the editor still holds markup)', () => {
     expect(parseAnnouncementInput({ bookId: BOOK_ID, subject: 'S', message: '<p><br></p>' })).toEqual({ error: 'Add a message.' });
     expect(parseAnnouncementInput({ bookId: BOOK_ID, subject: 'S', message: '<p>Hi</p>' })).toMatchObject({ message: '<p>Hi</p>' });
+    // A message that is only an image is still a message.
+    expect(parseAnnouncementInput({ bookId: BOOK_ID, subject: 'S', message: '<p><img src="https://res.cloudinary.com/test-cloud/image/upload/a.jpg"></p>' })).not.toHaveProperty('error');
   });
 });
 

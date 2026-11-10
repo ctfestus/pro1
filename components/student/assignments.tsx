@@ -1074,7 +1074,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
 
             {/* Response text */}
             <div className="mb-4">
-              <RichTextEditor value={responseText} onChange={setResponseText} placeholder="Write your response here…" />
+              <RichTextEditor value={responseText} onChange={setResponseText} placeholder="Write your response here" images="upload" imageFolder="submission-images" />
             </div>
 
             {/* Saved attachments (editable) */}

@@ -1,5 +1,7 @@
 'use client';
 
+import { hasRichContent } from '@/lib/plain-text';
+
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
@@ -159,7 +161,7 @@ function analystSectionsFor(d: DCDataset): AnalystSection[] {
       const difficulty = String(section.difficulty ?? '').trim();
       const duration = String(section.duration ?? '').trim();
       // Keep a phase if it has tasks OR is a briefing-only phase (real title, brief, or embed).
-      const hasContent = tasks.length > 0 || !!rawTitle || !!brief.replace(/<[^>]*>/g, '').trim() || !!videoUrl;
+      const hasContent = tasks.length > 0 || !!rawTitle || hasRichContent(brief) || !!videoUrl;
       return {
         section: { id: sectionKey(section, index), title: rawTitle || `Analysis Phase ${index + 1}`, brief, videoUrl, difficulty, duration, tasks },
         hasContent,
@@ -1287,7 +1289,7 @@ function DatasetDetailPane({
                       <span style={{ fontSize: 12, color: C.faint }}>{activeSection.duration || deriveTimeEstimate(activeSection.tasks.length)}</span>
                     </div>
                   )}
-                  {activeSection.brief && activeSection.brief.replace(/<[^>]*>/g, '').trim() && (
+                  {activeSection.brief && hasRichContent(activeSection.brief) && (
                     <div className="rich-content" style={{ margin: '13px 0 0', color: C.muted, fontSize: 14.5, lineHeight: 1.6 }}
                       dangerouslySetInnerHTML={{ __html: sanitizeRichText(activeSection.brief) }} />
                   )}
