@@ -1204,12 +1204,16 @@ export function bookPurchaseEmail(data: {
   libraryUrl: string;
   /** A guest purchase (no account): the button opens its download page, open until this date. */
   guestUntil?: string;
+  /** A link product (migration 243): it is opened, not downloaded, and has no download limit. */
+  link?: boolean;
   branding?: EmailBranding;
 }) {
-  const { name, bookTitle, amount, currency, paidAt, reference, libraryUrl, guestUntil, branding } = data;
+  const { name, bookTitle, amount, currency, paidAt, reference, libraryUrl, guestUntil, link, branding } = data;
   const intro = guestUntil
-    ? `Thank you for buying <b>${esc(bookTitle)}</b>. Use the button below to download it. The link works until ${esc(guestUntil)}, for up to 5 downloads, so save a copy to keep.`
-    : `Thank you for buying <b>${esc(bookTitle)}</b>. It is now in My Products, where you can download it at any time.`;
+    ? link
+      ? `Thank you for buying <b>${esc(bookTitle)}</b>. Use the button below to open it. The link works until ${esc(guestUntil)}, so save your own copy there before then.`
+      : `Thank you for buying <b>${esc(bookTitle)}</b>. Use the button below to download it. The link works until ${esc(guestUntil)}, for up to 5 downloads, so save a copy to keep.`
+    : `Thank you for buying <b>${esc(bookTitle)}</b>. It is now in My Products, where you can ${link ? 'open' : 'download'} it at any time.`;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
     <p>${intro}</p>
@@ -1223,7 +1227,7 @@ export function bookPurchaseEmail(data: {
       </table>
     </div>
 
-    ${cta('Download your product', libraryUrl)}
+    ${cta(link ? 'Open your product' : 'Download your product', libraryUrl)}
 
     <p style="color:#6b7280;font-size:13px;">If you did not make this purchase, please contact our support team.</p>
     <br><p><b>Best regards,</b></p>
@@ -1237,14 +1241,19 @@ export function bookFreeDownloadEmail(data: {
   bookTitle: string;
   downloadUrl: string;
   until: string;
+  /** A link product (migration 243): it is opened, not downloaded, and has no download limit. */
+  link?: boolean;
   branding?: EmailBranding;
 }) {
-  const { name, bookTitle, downloadUrl, until, branding } = data;
+  const { name, bookTitle, downloadUrl, until, link, branding } = data;
+  const how = link
+    ? `Use the button below to open it. The link works until ${esc(until)}, so save your own copy there before then.`
+    : `Use the button below to download it. The link works until ${esc(until)}, for up to 5 downloads, so save a copy to keep.`;
   const content = `
     <p><b>Hi ${esc(name)},</b></p>
-    <p>Here is your free copy of <b>${esc(bookTitle)}</b>. Use the button below to download it. The link works until ${esc(until)}, for up to 5 downloads, so save a copy to keep.</p>
+    <p>Here is your free copy of <b>${esc(bookTitle)}</b>. ${how}</p>
 
-    ${cta('Download your product', downloadUrl)}
+    ${cta(link ? 'Open your product' : 'Download your product', downloadUrl)}
 
     <p style="color:#6b7280;font-size:13px;">If you did not ask for this, you can ignore this email.</p>
     <br><p><b>Best regards,</b></p>

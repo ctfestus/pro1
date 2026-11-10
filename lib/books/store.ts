@@ -3,7 +3,7 @@ import { unstable_cache } from 'next/cache';
 import { adminClient } from '@/lib/admin-client';
 import { fetchAllRowsByIds } from '@/lib/fetch-all-rows';
 import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
-import { isBookObjectPath, isLicenseExpired, type BookFormat } from '@/lib/books/schema';
+import { hasDeliverable, isBookObjectPath, isLicenseExpired, type BookFormat } from '@/lib/books/schema';
 import { BOOKS_STORE_TAG } from '@/lib/books/store-cache';
 import { isProductType, productTypeLabel } from '@/lib/books/product-type';
 import type { NavBook } from '@/lib/landing-nav';
@@ -122,7 +122,7 @@ const list = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is st
 export function toStoreBook(row: any, prices: StorePrice[], now: Date = new Date()): StoreBook | null {
   if (!row || row.status !== 'published') return null;
   const format = row.format as BookFormat;
-  if (!isBookObjectPath(row.id, row.file_path, 'file', format)) return null;
+  if (!hasDeliverable(row)) return null;
   if (isLicenseExpired(row.license_expires_at, now)) return null;
   const free = row.available_to_everyone === true;
   const forSale = row.purchasable === true && prices.length > 0;
@@ -163,7 +163,7 @@ export function storeBlockers(row: any, prices: StorePrice[], now: Date = new Da
   const out: string[] = [];
   if (row.status === 'archived') out.push('It is archived.');
   else if (row.status !== 'published') out.push('It is a draft. Publish it to put this page live.');
-  if (!isBookObjectPath(row.id, row.file_path, 'file', row.format as BookFormat)) out.push('No product file is saved yet.');
+  if (!hasDeliverable(row)) out.push('No product file is saved yet.');
   if (isLicenseExpired(row.license_expires_at, now)) out.push('Its licence has expired.');
   if (row.available_to_everyone !== true && !(row.purchasable === true && prices.length > 0)) {
     out.push('It is neither for sale with a price nor free to everyone.');
@@ -215,7 +215,6 @@ export async function loadStoreBooks(db: any = adminClient(), now: Date = new Da
     .select(`${COLUMNS}, status`)
     .eq('status', 'published')
     .or('purchasable.eq.true,available_to_everyone.eq.true')
-    .not('file_path', 'is', null)
     .order('updated_at', { ascending: false })
     .limit(500);
   if (error) throw error;

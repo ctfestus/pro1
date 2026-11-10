@@ -43,6 +43,7 @@ vi.mock('@/lib/admin-client', () => ({
       const page: any = {
         eq: () => page,
         not: () => page,
+        or: () => page,
         is: () => page,
         in: (column: string, ids: string[]) => { h.inCalls.push({ table, size: ids.length }); data = data.filter(r => ids.includes(r[column])); return page; },
         order: () => page,

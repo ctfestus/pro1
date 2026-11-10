@@ -11,7 +11,9 @@ import {
   isBookFormat,
   verifyUploadedObject,
 } from '@/lib/books/admin';
-import { normalizeBook, validateBookForPublish, type BookFormat, type BookPrice } from '@/lib/books/schema';
+import {
+  isFileFormat, isReadableFormat, normalizeBook, normalizeProductLink, validateBookForPublish, type BookFormat, type BookPrice,
+} from '@/lib/books/schema';
 import { BOOK_BUCKET } from '@/lib/books/storage';
 import { refreshBookStore } from '@/lib/books/store-cache';
 
@@ -83,6 +85,7 @@ const SAVE_ERRORS: Record<string, { status: number; error: string }> = {
   BK400: { status: 400, error: 'Saving would remove every chapter. Remove them on purpose to do that.' },
   '42501': { status: 400, error: 'A chapter in this save belongs to another product. Reload and try again.' },
   '23514': { status: 400, error: 'The product could not be saved as given. Check its file, licence and paths.' },
+  BK422: { status: 400, error: 'Add the link buyers will get before publishing.' },
 };
 
 export async function GET(req: NextRequest) {
@@ -192,14 +195,27 @@ export async function PUT(req: NextRequest) {
       patch.recommended_course_ids = (patch.recommended_course_ids as string[]).filter(id => ok.has(id));
     }
 
-    // Files. A new main file may change the format; the sample must always match it.
+    // Files, or a link (migration 243). A new main file may change the format; the sample must always
+    // match it. A link product has no file and no sample; its address is saved by save_book, which
+    // also drops the address when the product becomes a file again.
     const replaced: string[] = [];
     let format: BookFormat | null = isBookFormat(book.format) ? book.format : null;
-    if (body.file !== undefined) {
+    let link: string | null = null;
+    if (body.link !== undefined && body.link !== null) {
+      link = normalizeProductLink(body.link?.url);
+      if (!link) return NextResponse.json({ error: 'Enter the full link, starting with https://' }, { status: 400 });
+      if (book.file_path) replaced.push(book.file_path);
+      if (book.preview_file_path) replaced.push(book.preview_file_path);
+      patch.format = 'link';
+      patch.file_path = null;
+      patch.file_size = null;
+      patch.preview_file_path = null;
+      format = 'link';
+    } else if (body.file !== undefined) {
       const path = body.file?.path;
-      const nextFormat = body.file?.format;
+      const nextFormat: unknown = body.file?.format;
       if (path !== book.file_path) {
-        if (!isBookFormat(nextFormat)) return NextResponse.json({ error: 'Unknown product format.' }, { status: 400 });
+        if (!isFileFormat(nextFormat)) return NextResponse.json({ error: 'Unknown product format.' }, { status: 400 });
         const checked = await verifyUploadedObject(db, book.id, path, 'file', nextFormat);
         if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
         if (book.file_path) replaced.push(book.file_path);
@@ -214,22 +230,31 @@ export async function PUT(req: NextRequest) {
         format = nextFormat;
       }
     }
-    if (body.preview !== undefined) {
+    if (body.preview !== undefined && format !== 'link') {
       const path = body.preview?.path ?? null;
       if (path === null) {
         if (book.preview_file_path) replaced.push(book.preview_file_path);
         patch.preview_file_path = null;
       } else if (path !== book.preview_file_path) {
-        if (!format) return NextResponse.json({ error: 'Upload the product file before its sample.' }, { status: 400 });
+        if (!isFileFormat(format)) return NextResponse.json({ error: 'Upload the product file before its sample.' }, { status: 400 });
         const checked = await verifyUploadedObject(db, book.id, path, 'preview', format);
         if ('error' in checked) return NextResponse.json({ error: checked.error }, { status: 400 });
         if (book.preview_file_path) replaced.push(book.preview_file_path);
         patch.preview_file_path = path;
       }
     }
+    // Chapters and cut samples exist only for the formats the platform can read: any other product
+    // (a link, a ZIP, an Office file) keeps neither, whatever the request sends. A product that has
+    // no file yet (format null) may still get its chapters later, so it is left alone.
+    const unreadable = format !== null && !isReadableFormat(format);
+    if (unreadable) patch.sample_spec = null;
+    // Clear chapters it may still have from a readable file it had before.
+    const clearUnreadable = unreadable && (patch.format !== undefined || body.chapters !== undefined);
 
     let chapters: ReturnType<typeof chaptersFromInput> | null = null;
-    if (body.chapters !== undefined) {
+    if (clearUnreadable) {
+      chapters = [];
+    } else if (!unreadable && body.chapters !== undefined) {
       chapters = chaptersFromInput(body.chapters, format);
       if ('error' in chapters) return NextResponse.json({ error: chapters.error }, { status: 400 });
     }
@@ -238,7 +263,13 @@ export async function PUT(req: NextRequest) {
     patch.status = status;
     const nextPrices = commercial.prices ?? storedPrices;
     if (status === 'published') {
-      const problems = validateBookForPublish(normalizeBook({ ...book, ...patch }), nextPrices);
+      let hasLink = !!link;
+      if (!hasLink && format === 'link') {
+        const { data: stored, error: linkError } = await db.from('book_links').select('book_id').eq('book_id', book.id).maybeSingle();
+        if (linkError) throw linkError;
+        hasLink = !!stored;
+      }
+      const problems = validateBookForPublish(normalizeBook({ ...book, ...patch }), nextPrices, { hasLink });
       if (problems.length) return NextResponse.json({ error: problems.join(' '), problems }, { status: 400 });
     }
     // One transaction from here. The version is the one the editor loaded, else the one read above,
@@ -248,10 +279,11 @@ export async function PUT(req: NextRequest) {
       p_expected_updated_at: body.expectedUpdatedAt ?? book.updated_at ?? null,
       p_patch: patch,
       p_chapters: chapters,
-      p_clear_chapters: body.clearChapters === true,
+      p_clear_chapters: clearUnreadable || body.clearChapters === true,
       p_prices: commercial.prices
         ? commercial.prices.map(p => ({ currency: p.currency, amount: p.amount, sale_amount: p.saleAmount ?? null, sale_ends_at: p.saleEndsAt ?? null }))
         : null,
+      p_link: link ? { url: link } : null,
     });
     if (saveError) {
       const known = SAVE_ERRORS[String(saveError.code)];

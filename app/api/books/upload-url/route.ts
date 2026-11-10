@@ -3,11 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import {
   BOOK_FILE_MAX_BYTES,
-  BOOK_FORMATS,
   BOOK_HTML_MAX_BYTES,
   BOOK_MIME_BY_FORMAT,
   bookObjectPath,
-  type BookFormat,
+  isFileFormat,
 } from '@/lib/books/schema';
 import { BOOK_BUCKET } from '@/lib/books/storage';
 
@@ -32,7 +31,9 @@ export async function POST(req: NextRequest) {
 
   const bookId = typeof body?.bookId === 'string' ? body.bookId : '';
   const kind = body?.kind === 'preview' ? 'preview' : body?.kind === 'file' ? 'file' : null;
-  const format = (BOOK_FORMATS as readonly string[]).includes(body?.format) ? (body.format as BookFormat) : null;
+  // Only file formats: a link product has nothing to upload.
+  const requested: unknown = body?.format;
+  const format = isFileFormat(requested) ? requested : null;
   const size = typeof body?.size === 'number' && Number.isFinite(body.size) ? body.size : 0;
   if (!bookId || !kind || !format) {
     return NextResponse.json({ error: 'bookId, kind and format are required.' }, { status: 400 });

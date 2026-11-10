@@ -5,7 +5,8 @@ import type { BookFormat } from '@/lib/books/schema';
 // uploaded. The server decides what the caller may see; this only picks the right route:
 //   HTML -> the sandboxed /api/books/[id]/html page (never rendered on this app's origin)
 //   PDF  -> the browser's own PDF viewer
-//   EPUB -> a download, since browsers cannot show EPUB
+//   link -> the product's address (migration 243)
+//   anything else (EPUB, ZIP, Office files, CSV, text) -> a download, since browsers cannot show it
 //
 // The tab is opened before the fetch so popup blockers treat it as part of the click.
 export async function openBookPreview(bookId: string, format: BookFormat, variant: 'full' | 'sample'): Promise<void> {
@@ -43,12 +44,26 @@ export async function openBookPreview(bookId: string, format: BookFormat, varian
 
 // Downloads the full book for someone who owns it (or has it through their cohort). The file route
 // re-checks access and signs a short-lived link with a download disposition, so following it in
-// this tab saves the file without leaving the page.
-export async function downloadBook(bookId: string): Promise<void> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const headers: Record<string, string> = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
-  const res = await fetch(`/api/books/${encodeURIComponent(bookId)}/file`, { headers });
-  const d = await res.json().catch(() => ({}));
-  if (!res.ok || !d.url) throw new Error(d.error || 'Could not download the product.');
-  window.location.href = d.url;
+// this tab saves the file without leaving the page. A link product (migration 243) opens its
+// address in a new tab instead, opened before the fetch so a popup blocker allows it.
+export async function downloadBook(bookId: string, format?: string | null): Promise<void> {
+  const tab = format === 'link' ? window.open('', '_blank') : null;
+  if (tab) tab.opener = null;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    const headers: Record<string, string> = session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {};
+    const res = await fetch(`/api/books/${encodeURIComponent(bookId)}/file`, { headers });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok || !d.url) throw new Error(d.error || 'Could not get the product.');
+    if (d.link) {
+      if (tab) tab.location.href = d.url;
+      else window.open(d.url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    tab?.close();
+    window.location.href = d.url;
+  } catch (e) {
+    tab?.close();
+    throw e;
+  }
 }

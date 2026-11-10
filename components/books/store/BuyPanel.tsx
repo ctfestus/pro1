@@ -13,12 +13,12 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, Download, Eye, Loader2 } from 'lucide-react';
+import { BookOpen, Download, ExternalLink, Eye, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { signInHref } from '@/lib/auth-redirect';
 import { downloadBook } from '@/lib/books/open-preview';
 import { clearBookPage, rememberBookPage } from '@/lib/books/pending-return';
-import { formatMoney } from '@/lib/books/format';
+import { formatMoney, getItLabel, opensInBrowser } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import { GuestBuy } from '@/components/books/store/GuestBuy';
 import { GuestReturn } from '@/components/books/store/GuestReturn';
@@ -124,7 +124,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
   async function download() {
     setError(''); setBusy('download');
     try {
-      await downloadBook(book.id);
+      await downloadBook(book.id, book.format);
     } catch (e: any) {
       setError(e?.message || 'Could not download the product.');
     } finally {
@@ -134,8 +134,9 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
 
   async function openSample() {
     setError(''); setBusy('sample');
-    // PDF and HTML open in a new tab, opened inside the click so a popup blocker allows it.
-    const tab = book.format === 'epub' ? null : window.open('', '_blank');
+    // PDF and HTML open in a new tab, opened inside the click so a popup blocker allows it; other
+    // formats download.
+    const tab = opensInBrowser(book.format) ? window.open('', '_blank') : null;
     if (tab) tab.opener = null;
     try {
       const res = await fetch(`/api/books/${encodeURIComponent(book.id)}/sample`);
@@ -187,7 +188,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
         ) : owned ? (
           <>
             <button onClick={download} disabled={busy === 'download'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
-              {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
+              {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : book.format === 'link' ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />} {getItLabel(book.format)}
             </button>
             <Link href="/student#products" className={secondaryBtn} style={secondaryStyle}>
               <BookOpen className="w-4 h-4" /> Open My Products
@@ -209,7 +210,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
         ) : book.free ? (
           // Free for everyone signed in; the access check said otherwise only if it failed.
           <button onClick={download} disabled={busy === 'download'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
-            {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download
+            {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : book.format === 'link' ? <ExternalLink className="w-4 h-4" /> : <Download className="w-4 h-4" />} {getItLabel(book.format)}
           </button>
         ) : price ? (
           <button onClick={buy} disabled={busy === 'buy'} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
@@ -220,7 +221,7 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
         {book.hasSample && !owned && (
           <button onClick={openSample} disabled={busy === 'sample'} className={secondaryBtn} style={secondaryStyle}>
             {busy === 'sample' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />}
-            {book.format === 'epub' ? 'Download free sample' : 'Read free sample'}
+            {opensInBrowser(book.format) ? 'Read free sample' : 'Download free sample'}
           </button>
         )}
       </div>

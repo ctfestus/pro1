@@ -8068,6 +8068,85 @@ ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_slug_format_check;
 ALTER TABLE public.books ADD CONSTRAINT books_slug_format_check
   CHECK (slug ~ '^[a-z0-9][a-z0-9-]{1,119}$') NOT VALID;
 
+-- More file formats and link products (migration 243).
+ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_format_check;
+ALTER TABLE public.books ADD CONSTRAINT books_format_check CHECK (
+  format IN ('epub', 'pdf', 'html', 'zip', 'xlsx', 'docx', 'pptx', 'csv', 'txt', 'md', 'link')
+);
+
+-- A published product has its file, or for a link product its address (checked in save_book, as a
+-- CHECK cannot see book_links), and a licence.
+ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_published_ready;
+ALTER TABLE public.books ADD CONSTRAINT books_published_ready CHECK (
+  status <> 'published'
+  OR (format IS NOT NULL AND license_type IS NOT NULL AND (format = 'link' OR file_path IS NOT NULL))
+);
+ALTER TABLE public.books DROP CONSTRAINT IF EXISTS books_link_has_no_file;
+ALTER TABLE public.books ADD CONSTRAINT books_link_has_no_file CHECK (
+  format IS DISTINCT FROM 'link' OR (file_path IS NULL AND file_size IS NULL AND preview_file_path IS NULL)
+);
+
+-- The address of a link product ----------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.book_links (
+  book_id    uuid        PRIMARY KEY REFERENCES public.books(id) ON DELETE CASCADE,
+  url        text        NOT NULL CHECK (url ~ '^https://[^\s/?#@]+\.[^\s/?#@]+' AND length(url) <= 2000),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE public.book_links ENABLE ROW LEVEL SECURITY;
+REVOKE ALL ON public.book_links FROM anon, authenticated;
+GRANT SELECT ON public.book_links TO authenticated;
+GRANT ALL ON public.book_links TO service_role;
+
+-- The editor reads the address back for the product's own author (or an admin). There is no write
+-- policy: only save_book, on the service role, changes it.
+DROP POLICY IF EXISTS "book_links: owner select" ON public.book_links;
+CREATE POLICY "book_links: owner select"
+  ON public.book_links FOR SELECT TO authenticated
+  USING ((SELECT public.is_instructor_or_admin()) AND EXISTS (
+    SELECT 1 FROM public.books b
+    WHERE b.id = book_id AND (b.user_id = (SELECT auth.uid()) OR (SELECT public.is_admin()))
+  ));
+
+-- The rule also holds for direct writes to books, not only for save_book: the owner may still update
+-- their row under its RLS policy. Checked when the transaction commits (deferred), so save_book can
+-- write the row and then its address. A product that is not a link loses any address it had; a
+-- published link product without one is refused, so it can never be listed and sold with nothing
+-- to hand over.
+CREATE OR REPLACE FUNCTION public.check_book_link() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
+DECLARE
+  v_format text;
+  v_status text;
+BEGIN
+  -- The row as it stands at commit, not as this statement left it.
+  SELECT format, status INTO v_format, v_status FROM public.books WHERE id = NEW.id;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  IF v_format IS DISTINCT FROM 'link' THEN
+    DELETE FROM public.book_links WHERE book_id = NEW.id;
+  ELSIF v_status = 'published' AND NOT EXISTS (SELECT 1 FROM public.book_links WHERE book_id = NEW.id) THEN
+    RAISE EXCEPTION 'a published link product needs its address' USING ERRCODE = 'BK422';
+  END IF;
+  RETURN NULL;
+END;
+$$;
+REVOKE EXECUTE ON FUNCTION public.check_book_link() FROM PUBLIC, anon, authenticated;
+DROP TRIGGER IF EXISTS books_link_check ON public.books;
+CREATE CONSTRAINT TRIGGER books_link_check
+  AFTER INSERT OR UPDATE OF format, status ON public.books
+  DEFERRABLE INITIALLY DEFERRED
+  FOR EACH ROW EXECUTE FUNCTION public.check_book_link();
+
+-- Storage: the new file types ------------------------------------------------------------------
+UPDATE storage.buckets SET allowed_mime_types = ARRAY[
+  'application/epub+zip', 'application/pdf', 'text/html',
+  'application/zip',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'text/csv', 'text/plain', 'text/markdown'
+] WHERE id = 'book-files';
+
 -- Books (migration 233): save a book and its chapters atomically. Chapter ids are kept so reading
 -- progress and notes survive edits and reorders.
 CREATE OR REPLACE FUNCTION public.save_book_chapters(p_book_id uuid, p_chapters jsonb)
@@ -8147,13 +8226,15 @@ GRANT  EXECUTE ON FUNCTION public.save_book_chapters(uuid, jsonb) TO service_rol
 --     cohort_assignments foreign key on every later save;
 --   * an empty chapter list is refused (BK400) unless p_clear_chapters says it is deliberate;
 --   * any error rolls back everything, including the row update.
+DROP FUNCTION IF EXISTS public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb);
 CREATE OR REPLACE FUNCTION public.save_book(
   p_book_id             uuid,
   p_expected_updated_at timestamptz,
   p_patch               jsonb,
   p_chapters            jsonb   DEFAULT NULL,
   p_clear_chapters      boolean DEFAULT false,
-  p_prices              jsonb   DEFAULT NULL
+  p_prices              jsonb   DEFAULT NULL,
+  p_link                jsonb   DEFAULT NULL
 )
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = '' AS $$
 DECLARE
@@ -8208,6 +8289,21 @@ BEGIN
   WHERE id = p_book_id
   RETURNING * INTO v_new;
 
+  -- The address of a link product (migration 243).
+  IF p_link IS NOT NULL THEN
+    IF v_new.format IS DISTINCT FROM 'link' THEN
+      RAISE EXCEPTION 'only a link product has an address' USING ERRCODE = 'BK422';
+    END IF;
+    INSERT INTO public.book_links (book_id, url, updated_at)
+    VALUES (p_book_id, p_link->>'url', clock_timestamp())
+    ON CONFLICT (book_id) DO UPDATE SET url = EXCLUDED.url, updated_at = EXCLUDED.updated_at;
+  END IF;
+  IF v_new.format IS DISTINCT FROM 'link' THEN
+    DELETE FROM public.book_links WHERE book_id = p_book_id;
+  ELSIF v_new.status = 'published' AND NOT EXISTS (SELECT 1 FROM public.book_links WHERE book_id = p_book_id) THEN
+    RAISE EXCEPTION 'a published link product needs its address' USING ERRCODE = 'BK422';
+  END IF;
+
   IF p_chapters IS NOT NULL THEN
     IF jsonb_typeof(p_chapters) = 'array' AND jsonb_array_length(p_chapters) = 0
        AND NOT COALESCE(p_clear_chapters, false)
@@ -8243,8 +8339,8 @@ BEGIN
 END;
 $$;
 
-REVOKE EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb) FROM PUBLIC, anon, authenticated;
-GRANT  EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb) TO service_role;
+REVOKE EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb, jsonb) FROM PUBLIC, anon, authenticated;
+GRANT  EXECUTE ON FUNCTION public.save_book(uuid, timestamptz, jsonb, jsonb, boolean, jsonb, jsonb) TO service_role;
 
 -- Books store (migrations 235 and 238): purchase fulfilment, guest purchases and their download allowance.
 ALTER TABLE public.book_purchases

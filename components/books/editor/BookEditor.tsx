@@ -8,7 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Download, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw,
+  AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, ChevronDown, Download, ExternalLink, Eye, FileText, ImagePlus, Library, ListOrdered, Loader2, Plus, RefreshCw,
   Trash2, Upload, X,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -18,6 +18,7 @@ import { Toggle, inputCls, labelCls } from '@/components/create/shared';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { descriptionHtml } from '@/lib/books/description';
+import { formatLabel, opensInBrowser } from '@/lib/books/format';
 import { normalizeProductAddress, PRODUCT_ADDRESS, PRODUCT_TYPE_NAMES, PRODUCT_TYPES } from '@/lib/books/product-type';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import {
@@ -27,6 +28,8 @@ import {
   BOOK_LICENSE_TYPES,
   DEFAULT_SAMPLE_CHAPTERS,
   DEFAULT_SAMPLE_PAGES,
+  isReadableFormat,
+  normalizeProductLink,
   parseSampleSpec,
   sampleStorePath,
   type BookFormat,
@@ -52,7 +55,12 @@ const LICENSE_LABELS: Record<BookLicenseType, string> = {
   other: 'Other',
 };
 
-const FORMAT_BY_EXTENSION: Record<string, BookFormat> = { epub: 'epub', pdf: 'pdf', html: 'html', htm: 'html' };
+const FORMAT_BY_EXTENSION: Record<string, BookFormat> = {
+  epub: 'epub', pdf: 'pdf', html: 'html', htm: 'html',
+  // Download-only files (migration 243): no chapters, no cut sample, never shown in the browser.
+  zip: 'zip', xlsx: 'xlsx', docx: 'docx', pptx: 'pptx', csv: 'csv', txt: 'txt', md: 'md',
+};
+const FILE_ACCEPT = '.epub,.pdf,.html,.htm,.zip,.xlsx,.docx,.pptx,.csv,.txt,.md';
 
 type ChapterDraft = {
   key: string;
@@ -170,6 +178,11 @@ export function BookEditor() {
   const [state, setState] = useState<EditorState>(EMPTY);
   const [status, setStatus] = useState<BookStatus>('draft');
   const [format, setFormat] = useState<BookFormat | null>(null);
+  // How the product is delivered: an uploaded file, or a link (migration 243). The address is read
+  // back from book_links, which only the product's author or an admin can read.
+  const [delivery, setDelivery] = useState<'file' | 'link'>('file');
+  const [linkDraft, setLinkDraft] = useState('');
+  const [storedLink, setStoredLink] = useState<string | null>(null);
   // For the sample's links back to the book's store page.
   const [slug, setSlug] = useState('');
   // The web address being edited (/products/<address>), saved on its own (PATCH /api/books/address).
@@ -294,6 +307,17 @@ export function BookEditor() {
       });
       setStatus(book.status);
       setFormat(book.format ?? null);
+      setDelivery(book.format === 'link' ? 'link' : 'file');
+      if (book.format === 'link') {
+        const { data: linkRow, error: linkError } = await supabase.from('book_links').select('url').eq('book_id', editId).maybeSingle();
+        if (cancelled) return;
+        if (linkError) {
+          setError('The product link could not be loaded. Reload the page before editing.');
+          setBlocked(true);
+        }
+        setStoredLink(linkRow?.url ?? null);
+        setLinkDraft(linkRow?.url ?? '');
+      }
       setSlug(book.slug ?? '');
       setAddressDraft(book.slug ?? '');
       setStoredFile({ path: book.file_path ?? null, size: book.file_size ?? null });
@@ -306,11 +330,13 @@ export function BookEditor() {
       const spec = parseSampleSpec(book.sample_spec);
       if (spec && 'pages' in spec) setSamplePages({ from: String(spec.pages.from), to: String(spec.pages.to) });
       if (spec && 'chapters' in spec) setSampleChapters(String(spec.chapters));
-      setSampleSource(spec || !book.preview_file_path ? 'cut' : 'upload');
+      // Only the formats the platform can read can have a sample cut from them; any other file can
+      // only have one uploaded.
+      setSampleSource(isReadableFormat(book.format) && (spec || !book.preview_file_path) ? 'cut' : 'upload');
       // A chapter cut whose links lead to an older store address (or none recorded) is made again
       // on the next save, so its links reach the product page.
       const staleLinks = !!spec && 'chapters' in spec && !!book.file_path && !!book.slug && spec.storePath !== sampleStorePath(book.slug);
-      setSampleDirty((!spec && !book.preview_file_path && !!book.file_path) || staleLinks);
+      setSampleDirty(isReadableFormat(book.format) && ((!spec && !book.preview_file_path && !!book.file_path) || staleLinks));
       setLoadedAt(book.updated_at ?? null);
       setLoading(false);
     })();
@@ -369,7 +395,7 @@ export function BookEditor() {
     if (!editId) return;
     setError(''); setNotice('');
     const fmt = formatOf(file);
-    if (!fmt) { setError('Choose an EPUB, PDF or HTML file.'); return; }
+    if (!fmt) { setError('Choose a PDF, EPUB, HTML, ZIP, Excel, Word, PowerPoint, CSV, text or Markdown file.'); return; }
     if (kind === 'preview' && fmt !== effectiveFormat) { setError(`The sample must be the same format as the product file (${effectiveFormat?.toUpperCase()}).`); return; }
     const max = fmt === 'html' ? BOOK_HTML_MAX_BYTES : BOOK_FILE_MAX_BYTES;
     if (file.size > max) { setError(`The file must be under ${Math.round(max / (1024 * 1024))} MB.`); return; }
@@ -393,12 +419,22 @@ export function BookEditor() {
       } else {
         setNewFile(uploaded);
         setNewFormat(fmt);
+        setDelivery('file');
         bookData.current = { blob: file, format: fmt };
         setPageCount(null);
         if (fmt !== format && (storedPreview || preview)) setPreview('remove');
-        if (sampleSource === 'cut') sampleChanged();
+        if (!isReadableFormat(fmt)) {
+          // Nothing to cut or read chapters from: a sample can only be uploaded.
+          setSampleSource('upload');
+          setSampleDirty(false);
+          setSampleReview(null);
+          setNotice(format === 'link' ? 'Uploaded. Save to use this file instead of the link.' : 'Uploaded. Save to keep it.');
+          return;
+        }
+        // A product moving from a link to a readable file starts with the usual cut sample.
+        if (sampleSource === 'cut' || format === 'link') { setSampleSource('cut'); sampleChanged(); }
         else setSampleReview(null);
-        setNotice('Uploaded. Save to keep it.');
+        setNotice(format === 'link' ? 'Uploaded. Save to use this file instead of the link.' : 'Uploaded. Save to keep it.');
         if (!chapters.length || fmt !== format) await findChapters(fmt, true);
       }
     } catch (e: any) {
@@ -631,9 +667,21 @@ export function BookEditor() {
         productTypeLabel: state.productTypeLabel,
         expectedUpdatedAt: loadedAt,
       };
-      if (newFile && newFormat) body.file = { path: newFile.path, format: newFormat };
-      if (preview === 'remove') body.preview = null;
-      else if (preview) body.preview = { path: preview.path };
+      // A link product sends its address when it changed; saving one in place of a file removes the
+      // file and its sample on the server.
+      const linkProduct = delivery === 'link';
+      if (linkProduct) {
+        const link = normalizeProductLink(linkDraft);
+        if (!link) { setError('Enter the full link, starting with https://'); setSaving(null); return; }
+        if (link !== storedLink) {
+          if ((storedFile.path || newFile) && !window.confirm('Use this link instead of the uploaded file? The file and its free sample will be removed.')) { setSaving(null); return; }
+          body.link = { url: link };
+        }
+      } else {
+        if (newFile && newFormat) body.file = { path: newFile.path, format: newFormat };
+        if (preview === 'remove') body.preview = null;
+        else if (preview) body.preview = { path: preview.path };
+      }
 
       // The free sample is cut from the book here, before the save, when its settings, the book
       // file or (for a chapter-based cut) the chapter list changed. A failed cut does not stop the
@@ -642,9 +690,11 @@ export function BookEditor() {
       let sampleProblem = '';
       let sampleNeedsReview = false;
       let cutSpec: BookSampleSpec | null = null;
-      if (sampleSource === 'upload') {
+      if (linkProduct) {
+        // No sample and no chapters for a link.
+      } else if (sampleSource === 'upload') {
         body.sampleSpec = null;
-      } else if (fmt && (newFile || storedFile.path) && (sampleDirty || (fmt !== 'pdf' && chaptersDirty))) {
+      } else if (isReadableFormat(fmt) && (newFile || storedFile.path) && (sampleDirty || (fmt !== 'pdf' && chaptersDirty))) {
         const spec = currentSampleSpec(fmt);
         if (!spec) {
           sampleProblem = fmt === 'pdf' ? 'Enter the sample pages, for example 1 to 10.' : 'Enter how many chapters the sample has.';
@@ -679,7 +729,7 @@ export function BookEditor() {
 
       // A chapter-based sample marks its chapters, so the store can show what the sample covers.
       const sampleCount = cutSpec && 'chapters' in cutSpec ? cutSpec.chapters : null;
-      if (chaptersDirty || sampleCount !== null) {
+      if (!linkProduct && isReadableFormat(effectiveFormat) && (chaptersDirty || sampleCount !== null)) {
         body.chapters = chapters.map((c, i) => ({
           id: c.id,
           title: c.title,
@@ -715,6 +765,17 @@ export function BookEditor() {
       const saved = d.book;
       setStatus(saved.status);
       setFormat(saved.format ?? null);
+      setDelivery(saved.format === 'link' ? 'link' : 'file');
+      if (saved.format === 'link') {
+        if (body.link) setStoredLink((body.link as { url: string }).url);
+        // Nothing is cut for a link; a file uploaded later sets the sample up again.
+        setSampleSource('upload');
+        setSampleDirty(false);
+        setSampleReview(null);
+      } else {
+        setStoredLink(null);
+        setLinkDraft('');
+      }
       setStoredFile({ path: saved.file_path ?? null, size: saved.file_size ?? null });
       setStoredPreview(saved.preview_file_path ?? null);
       setNewFile(null); setNewFormat(null); setPreview(null);
@@ -907,34 +968,67 @@ export function BookEditor() {
           ))}
         </div>
 
-        {/* Files */}
+        {/* Files, or a link (migration 243) */}
         <div className="rounded-2xl p-5 sm:p-7 space-y-5" style={card}>
-          {sectionTitle('Product file')}
-          <p className="text-sm" style={{ color: C.faint }}>EPUB or PDF up to 100 MB, or a self-contained HTML file up to 10 MB. Files are private: readers only ever get a short-lived link.</p>
-          <input ref={fileInput} type="file" accept=".epub,.pdf,.html,.htm" className="hidden"
+          {sectionTitle('Product file or link')}
+          <div className="inline-flex rounded-xl p-1 gap-1" style={{ background: C.input }} role="radiogroup" aria-label="How buyers get the product">
+            {([['file', 'Upload a file'], ['link', 'Give a link']] as const).map(([value, label]) => (
+              <button key={value} role="radio" aria-checked={delivery === value} onClick={() => setDelivery(value)}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold"
+                style={delivery === value ? { background: C.cta, color: C.ctaText } : { color: C.muted }}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {delivery === 'link' ? (
+            <div className="space-y-3">
+              <p className="text-sm" style={{ color: C.faint }}>For a Canva template, a Notion page, a shared folder or anything else online. Buyers only get the link after they buy or claim the product, through an Open button. It is never shown on the product page or in emails.</p>
+              <input className={inputCls} style={inputStyle} type="url" inputMode="url" value={linkDraft} placeholder="https://"
+                aria-label="Product link" onChange={e => setLinkDraft(e.target.value)} />
+              <p className="text-xs" style={{ color: C.faint }}>Anyone who has the link can pass it on, so set it up in the tool itself to give a copy, for example a Canva template link or a Notion page people duplicate.</p>
+              <div className="flex flex-wrap items-center gap-3">
+                {storedLink && format === 'link' && (
+                  <button onClick={() => previewSaved('full')} disabled={!!opening} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
+                    style={{ background: C.pill, color: C.muted }}>
+                    {opening === 'full' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ExternalLink className="w-3.5 h-3.5" />} Open link
+                  </button>
+                )}
+                {(storedFile.path || newFile) && <span className="text-xs" style={{ color: C.faint }}>Saving with a link removes the uploaded file and its free sample.</span>}
+              </div>
+            </div>
+          ) : (
+          <>
+          <p className="text-sm" style={{ color: C.faint }}>PDF, EPUB or interactive HTML, which buyers can read, or a ZIP, Excel, Word, PowerPoint, CSV, text or Markdown file they download. Up to 100 MB, or 10 MB for HTML. Files are private: buyers only ever get a short-lived link.</p>
+          {format === 'link' && !newFile && <p className="text-xs" style={{ color: C.faint }}>Upload a file to use it instead of the link. Until then the product stays a link.</p>}
+          <input ref={fileInput} type="file" accept={FILE_ACCEPT} className="hidden"
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload('file', f); }} />
-          <input ref={previewInput} type="file" accept=".epub,.pdf,.html,.htm" className="hidden"
+          <input ref={previewInput} type="file" accept={FILE_ACCEPT} className="hidden"
             onChange={e => { const f = e.target.files?.[0]; e.target.value = ''; if (f) upload('preview', f); }} />
           <div className="flex flex-wrap items-center gap-3">
             <button onClick={() => fileInput.current?.click()} disabled={!!uploading} className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60"
               style={{ background: C.cta, color: C.ctaText }}>
               {uploading === 'file' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
-              {storedFile.path || newFile ? 'Replace file' : 'Upload file'}
+              {(storedFile.path && format !== 'link') || newFile ? 'Replace file' : 'Upload file'}
             </button>
             {fileName && <span className="inline-flex items-center gap-1.5 text-xs" style={{ color: C.muted }}>
               <FileText className="w-3.5 h-3.5" /> {fileName} {sizeLabel(newFile?.size ?? storedFile.size)}{newFile ? ' (not saved yet)' : ''}
             </span>}
-            {storedFile.path && !newFile && format && (
+            {storedFile.path && !newFile && format && format !== 'link' && (
               <button onClick={() => previewSaved('full')} disabled={!!opening} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold disabled:opacity-50"
                 style={{ background: C.pill, color: C.muted }}>
                 {opening === 'full' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-                {format === 'epub' ? 'Download to check' : 'Preview product'}
+                {opensInBrowser(format) ? 'Preview product' : 'Download to check'}
               </button>
             )}
           </div>
+          {/* A product that is still a link (until a file is uploaded) has no sample. */}
+          {effectiveFormat !== 'link' && (
           <div className="pt-4 space-y-3" style={{ borderTop: `1px solid ${C.divider}` }}>
             <p className="text-sm font-medium" style={{ color: C.text }}>Free sample</p>
             <p className="text-xs" style={{ color: C.faint }}>People who have not bought the product get only this part, as a separate file, so the full product never reaches them.</p>
+            {effectiveFormat && !isReadableFormat(effectiveFormat) ? (
+              <p className="text-xs" style={{ color: C.faint }}>Optional. Upload a smaller {formatLabel(effectiveFormat)} to give away, for example a sample workbook with one sheet.</p>
+            ) : (
             <div className="inline-flex rounded-xl p-1 gap-1" style={{ background: C.input }} role="radiogroup" aria-label="Sample source">
               {([['cut', 'Cut from the file'], ['upload', 'Upload a sample file']] as const).map(([value, label]) => (
                 <button key={value} role="radio" aria-checked={sampleSource === value}
@@ -945,6 +1039,7 @@ export function BookEditor() {
                 </button>
               ))}
             </div>
+            )}
             {sampleSource === 'cut' ? (
               <div className="space-y-2">
                 {effectiveFormat === 'pdf' ? (
@@ -1031,7 +1126,7 @@ export function BookEditor() {
                 {storedPreview && !sampleDirty && !preview && format && (
                   <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
                     {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-                    {format === 'epub' ? 'Download sample' : 'Preview sample'}
+                    {opensInBrowser(format) ? 'Preview sample' : 'Download sample'}
                   </button>
                 )}
               </div>
@@ -1047,7 +1142,7 @@ export function BookEditor() {
                   {storedPreview && !preview && format && (
                     <button onClick={() => previewSaved('sample')} disabled={!!opening} className="inline-flex items-center gap-1.5 text-xs font-semibold disabled:opacity-50" style={{ color: C.muted }}>
                       {opening === 'sample' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Eye className="w-3.5 h-3.5" />}
-                      {format === 'epub' ? 'Download sample' : 'Preview sample'}
+                      {opensInBrowser(format) ? 'Preview sample' : 'Download sample'}
                     </button>
                   )}
                   <button onClick={() => setPreview('remove')} className="text-xs" style={{ color: '#dc2626' }}>Remove</button>
@@ -1055,12 +1150,15 @@ export function BookEditor() {
               </div>
             )}
           </div>
+          )}
+          </>
+          )}
         </div>
 
         {/* Chapters: buyers never see them; they only tell a chapter-cut sample (EPUB, HTML) where to
             stop. So the section appears only then, folded away by default. PDF samples are cut by
             page range and uploaded samples are not cut, so neither needs chapters. */}
-        {effectiveFormat && effectiveFormat !== 'pdf' && sampleSource === 'cut' && (
+        {delivery === 'file' && isReadableFormat(effectiveFormat) && effectiveFormat !== 'pdf' && sampleSource === 'cut' && (
         <details className="group rounded-2xl p-5 sm:p-7" style={card}>
           <summary className="list-none [&::-webkit-details-marker]:hidden cursor-pointer select-none flex items-center justify-between gap-3">
             <span>

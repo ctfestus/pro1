@@ -7,7 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
  */
 export async function logBookDownload(
   db: SupabaseClient,
-  entry: { bookId: string; studentId?: string | null; purchaseId?: string | null },
+  entry: { bookId: string; studentId?: string | null; purchaseId?: string | null; repeatable?: boolean },
 ): Promise<void> {
   const row = entry.purchaseId
     ? { book_id: entry.bookId, purchase_id: entry.purchaseId, student_id: null, source: 'guest' }
@@ -15,10 +15,13 @@ export async function logBookDownload(
   if (row.source === 'account' && !row.student_id) return;
   try {
     // Repeat requests from one account within ten minutes count once, so the log measures people
-    // downloading rather than clicks (and cannot be flooded). Guest downloads are already limited to five.
-    if (row.source === 'account') {
-      const { data: recent, error: recentError } = await db.from('book_download_events').select('id')
-        .eq('book_id', row.book_id).eq('student_id', row.student_id as string)
+    // downloading rather than clicks (and cannot be flooded). Guest downloads are already limited to
+    // five; a guest's link opens are not (repeatable), so they count once per ten minutes too.
+    if (row.source === 'account' || entry.repeatable) {
+      const recentQuery = db.from('book_download_events').select('id').eq('book_id', row.book_id);
+      const { data: recent, error: recentError } = await (row.source === 'account'
+        ? recentQuery.eq('student_id', row.student_id as string)
+        : recentQuery.eq('purchase_id', row.purchase_id as string))
         .gt('created_at', new Date(Date.now() - 10 * 60 * 1000).toISOString()).limit(1).maybeSingle();
       if (recentError) throw recentError;
       if (recent) return;

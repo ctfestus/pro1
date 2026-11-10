@@ -132,11 +132,12 @@ export async function GET(req: NextRequest) {
       fetchAllRows<Row>((from, to) => db.from('certifications')
         .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
-      // Books with a file only. The file path itself is a filter, never selected: it must not
-      // reach the browser (downloads go through /api/books/[id]/file, which re-checks access).
+      // Books with a file, or link products (migration 243; save_book only publishes one with its
+      // address). The file path itself is a filter, never selected: it must not reach the browser
+      // (downloads go through /api/books/[id]/file, which re-checks access).
       fetchAllRows<BookRow>((from, to) => db.from('books')
         .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, purchasable, license_expires_at, product_type, product_type_label', { count: 'exact' })
-        .eq('status', 'published').not('file_path', 'is', null).order('id').range(from, to)),
+        .eq('status', 'published').or('file_path.not.is.null,format.eq.link').order('id').range(from, to)),
       // Books the learner bought or was given open like anything else they have access to.
       fetchAllRows<{ book_id: string }>((from, to) => db.from('book_entitlements')
         .select('book_id', { count: 'exact' })

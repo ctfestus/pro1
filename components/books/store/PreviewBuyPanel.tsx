@@ -7,7 +7,7 @@
  */
 import { Eye } from 'lucide-react';
 import { PriceTag } from '@/components/books/store/PriceTag';
-import { formatMoney } from '@/lib/books/format';
+import { formatMoney, opensInBrowser } from '@/lib/books/format';
 import type { StoreBook } from '@/lib/books/store';
 
 const primaryBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold cursor-default';
@@ -46,7 +46,7 @@ export function PreviewBuyPanel({ book, primaryColor }: { book: StoreBook; prima
           {book.hasSample && (
             <button type="button" aria-disabled="true" title={OFF} onClick={e => e.preventDefault()} className={secondaryBtn} style={secondaryStyle}>
               <Eye className="w-4 h-4" />
-              {book.format === 'epub' ? 'Download free sample' : 'Read free sample'}
+              {opensInBrowser(book.format) ? 'Read free sample' : 'Download free sample'}
             </button>
           )}
         </div>

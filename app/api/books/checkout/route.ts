@@ -3,7 +3,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { BOOK_ACCESS_COLUMNS, canReadBook, type BookAccessRow } from '@/lib/books/access';
 import { isBookReference, settleBookPurchase, startBookCheckout } from '@/lib/books/purchases';
 import { sendBookPurchaseReceipt } from '@/lib/books/receipt-email';
-import { isBookObjectPath, isLicenseExpired } from '@/lib/books/schema';
+import { hasDeliverable, isLicenseExpired } from '@/lib/books/schema';
 import { PaystackApiError, paystackIsConfigured } from '@/lib/paystack';
 import { paymentErrorResponse } from '@/lib/payment-errors';
 import { shownPrice, type PriceRow } from '@/lib/books/pricing';
@@ -69,7 +69,8 @@ export async function POST(req: NextRequest) {
     if (isLicenseExpired(book.license_expires_at)) {
       return NextResponse.json({ error: 'This product is no longer available.' }, { status: 403 });
     }
-    if (!isBookObjectPath(book.id, book.file_path, 'file', book.format)) {
+    // Its file, or for a link product its address (migration 243).
+    if (!hasDeliverable(book)) {
       return NextResponse.json({ error: 'This product is not ready for sale yet.' }, { status: 409 });
     }
 

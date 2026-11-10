@@ -15,6 +15,7 @@ import {
   BOOK_MIME_BY_FORMAT,
   isBookObjectPath,
   parseSampleSpec,
+  type BookFileFormat,
   type BookFormat,
   type BookPrice,
 } from '@/lib/books/schema';
@@ -220,7 +221,7 @@ export async function verifyUploadedObject(
   bookId: string,
   path: unknown,
   kind: 'file' | 'preview',
-  format: BookFormat,
+  format: BookFileFormat,
 ): Promise<{ size: number } | { error: string }> {
   if (!isBookObjectPath(bookId, path, kind, format)) return { error: 'That upload does not belong to this product.' };
   const bucket = db.storage.from(BOOK_BUCKET);

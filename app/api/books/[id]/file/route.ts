@@ -16,6 +16,8 @@ import { logBookDownload } from '@/lib/books/downloads';
 //   sample, PDF  -> opens in the browser's own PDF viewer
 //   sample, EPUB -> a download (browsers cannot show EPUB)
 //   sample, HTML -> refused here; it is shown through the sandboxed /api/books/[id]/html route
+//   link product -> the address itself (migration 243), only with full access and only from here,
+//                   so it never sits in a page, an email or the store's data. No sample.
 //
 // Query options, used by the editor's preview buttons:
 //   ?variant=sample -> someone with full access (the owner, an admin) gets the sample instead, to
@@ -46,6 +48,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     const wantsSample = req.nextUrl.searchParams.get('variant') === 'sample';
     const kind = access.level === 'full' && !wantsSample ? 'file' : 'preview';
+    if (row.format === 'link') {
+      if (kind !== 'file' || access.level !== 'full') return NextResponse.json({ error: 'This product has no free sample.' }, { status: 404 });
+      const { data: link, error: linkError } = await db.from('book_links').select('url').eq('book_id', row.id).maybeSingle();
+      if (linkError) throw linkError;
+      const url = typeof (link as any)?.url === 'string' ? (link as any).url : '';
+      if (!url.startsWith('https://')) return NextResponse.json({ error: 'This product has no link yet.' }, { status: 404 });
+      if (access.reason !== 'owner' && access.reason !== 'admin') {
+        await logBookDownload(db, { bookId: row.id, studentId: auth.user.id });
+      }
+      return NextResponse.json(
+        { url, variant: access.level, format: 'link', download: false, link: true },
+        { headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } },
+      );
+    }
     if (kind === 'preview' && row.format === 'html') {
       return NextResponse.json({ error: 'HTML samples open in the preview.' }, { status: 400 });
     }

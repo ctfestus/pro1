@@ -3,7 +3,8 @@
 /**
  * The guest buyer's download page (/products/download?access=...). Shows the product and what is
  * left of the purchase; nothing is used by looking. Download takes one of the five downloads and
- * starts the file; Open in browser (interactive HTML only) uses none. A guest whose link has
+ * starts the file; Open in browser (interactive HTML) uses none, and a link product (migration 243)
+ * only has Open, which uses none either. A guest whose link has
  * expired or been used up can still ask for help, and anyone can have a link emailed again.
  */
 import { useEffect, useState } from 'react';
@@ -110,6 +111,7 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
   const until = info.expiresAt ? new Date(info.expiresAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
   const ready = info.state === 'ready';
   const canDownload = ready && info.downloadsLeft > 0;
+  const isLink = info.format === 'link';
   const primaryBtn = 'inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-[15px] font-semibold disabled:opacity-60';
   const secondaryStyle = { background: '#ffffff', color: '#0f172a', boxShadow: CARD_SHADOW };
 
@@ -123,12 +125,17 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: '#16a34a' }}>
-            {ready ? (info.free ? 'Your free download' : 'Payment received') : info.state === 'pending' ? 'Confirming payment' : info.free ? 'Your free download' : 'Your purchase'}
+            {ready ? (info.free ? (info.format === 'link' ? 'Your free copy' : 'Your free download') : 'Payment received') : info.state === 'pending' ? 'Confirming payment' : info.free ? (info.format === 'link' ? 'Your free copy' : 'Your free download') : 'Your purchase'}
           </p>
           <h1 className="mt-2 text-2xl sm:text-3xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>{info.title}</h1>
           {info.format && <p className="mt-1 text-sm" style={{ color: '#64748b' }}>{formatLabel(info.format)}</p>}
 
-          {ready && (
+          {ready && isLink && (
+            <p className="mt-4 text-sm" style={{ color: '#475569' }}>
+              {until ? `Open it as often as you like until ${until}. ` : ''}Save your own copy there to keep it.
+            </p>
+          )}
+          {ready && !isLink && (
             <p className="mt-4 text-sm" style={{ color: '#475569' }}>
               {info.downloadsLeft > 0
                 ? `${info.downloadsLeft} of 5 downloads left${until ? `, until ${until}` : ''}. Save a copy to keep: it works without this link.`
@@ -140,7 +147,14 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
           {info.state === 'not_paid' && <p className="mt-4 text-sm" style={{ color: '#475569' }}>This purchase is no longer active.</p>}
           {info.state === 'pending' && <p className="mt-4 text-sm" style={{ color: '#475569' }}>Your payment is still being confirmed. Refresh this page in a minute.</p>}
 
-          {ready && (
+          {ready && isLink && (
+            <div className="mt-6 flex flex-col sm:flex-row flex-wrap gap-3">
+              <button onClick={openInBrowser} disabled={busy !== null} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
+                {busy === 'open' ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />} Open
+              </button>
+            </div>
+          )}
+          {ready && !isLink && (
             <div className="mt-6 flex flex-col sm:flex-row flex-wrap gap-3">
               <button onClick={download} disabled={!canDownload || busy !== null} className={primaryBtn} style={{ background: primaryColor, color: '#ffffff' }}>
                 {busy === 'download' ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />} Download

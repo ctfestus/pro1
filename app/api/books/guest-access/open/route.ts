@@ -4,12 +4,16 @@ import { verifyGuestAccessToken } from '@/lib/books/guest-access';
 import { guestAccessState, guestBookAvailable, guestRateLimited, loadGuestPurchase } from '@/lib/books/guest-purchase';
 import { issueHtmlTicket } from '@/lib/books/html-ticket';
 import { isBookObjectPath } from '@/lib/books/schema';
+import { logBookDownload } from '@/lib/books/downloads';
 
 // POST /api/books/guest-access/open  { access }  -> { url }
 //
-// Opens an interactive HTML product in the browser for a guest buyer: a few-minute 'guest' ticket for
-// the sandboxed viewer (/api/books/[id]/html), which re-checks the purchase. Unlimited while the
-// purchase is paid and inside its seven days; it does not use one of the five downloads.
+// Opens a product in the browser for a guest buyer:
+//   interactive HTML -> a few-minute 'guest' ticket for the sandboxed viewer (/api/books/[id]/html),
+//                       which re-checks the purchase
+//   link product     -> its address (migration 243), read from book_links only here
+// Unlimited while the purchase is paid and inside its seven days; it does not use one of the five
+// downloads.
 export const dynamic = 'force-dynamic';
 
 const NO_STORE = { 'Cache-Control': 'no-store' };
@@ -34,6 +38,16 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
     if (!book || !guestBookAvailable(book)) {
       return NextResponse.json({ error: 'This product is no longer available.' }, { status: 403, headers: NO_STORE });
+    }
+    if (book.format === 'link') {
+      const { data: link, error: linkError } = await db.from('book_links').select('url').eq('book_id', book.id).maybeSingle();
+      if (linkError) throw linkError;
+      const url = typeof (link as any)?.url === 'string' ? (link as any).url : '';
+      if (!url.startsWith('https://')) {
+        return NextResponse.json({ error: 'This product is not available right now.' }, { status: 409, headers: NO_STORE });
+      }
+      await logBookDownload(db, { bookId: book.id, purchaseId, repeatable: true });
+      return NextResponse.json({ url, link: true }, { headers: { ...NO_STORE, 'Referrer-Policy': 'no-referrer' } });
     }
     if (book.format !== 'html') {
       return NextResponse.json({ error: 'Only interactive HTML products open in the browser. Use Download instead.' }, { status: 400, headers: NO_STORE });
