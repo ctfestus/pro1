@@ -666,12 +666,12 @@ html .landing-scope .text-white { color: #fff !important; }
 
 /* Product descriptions on the public product page (/products/[slug]). The store is always light, so
    colours are fixed rather than following the app theme. */
-.product-richtext { color: #334155; font-size: 1rem; line-height: 1.75; }
+.product-richtext { color: #334155; font-size: 0.9375rem; line-height: 1.7; }
 .product-richtext > :first-child { margin-top: 0; }
 .product-richtext > :last-child { margin-bottom: 0; }
 .product-richtext p { margin: 0 0 0.9rem; }
-.product-richtext h1, .product-richtext h2 { color: #0f172a; font-size: 1.25rem; font-weight: 700; letter-spacing: -0.01em; margin: 1.5rem 0 0.5rem; }
-.product-richtext h3, .product-richtext h4 { color: #0f172a; font-size: 1.05rem; font-weight: 700; margin: 1.25rem 0 0.4rem; }
+.product-richtext h1, .product-richtext h2 { color: #0f172a; font-size: 1.125rem; font-weight: 700; letter-spacing: -0.01em; margin: 1.5rem 0 0.5rem; }
+.product-richtext h3, .product-richtext h4 { color: #0f172a; font-size: 1rem; font-weight: 700; margin: 1.25rem 0 0.4rem; }
 .product-richtext ul, .product-richtext ol { padding-left: 1.4rem; margin: 0.5rem 0 1rem; }
 .product-richtext ul { list-style: disc; }
 .product-richtext ol { list-style: decimal; }

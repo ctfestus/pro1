@@ -151,8 +151,8 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
     }
   }
 
-  const primaryBtn = 'inline-flex items-center justify-center gap-2 px-7 py-3.5 rounded-2xl text-[15px] font-semibold disabled:opacity-60 transition-transform active:scale-[0.98]';
-  const secondaryBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl text-[15px] font-semibold disabled:opacity-60 transition-transform active:scale-[0.98]';
+  const primaryBtn = 'inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold disabled:opacity-60 transition-transform active:scale-[0.98]';
+  const secondaryBtn = 'inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold disabled:opacity-60 transition-transform active:scale-[0.98]';
   const secondaryStyle = { background: '#ffffff', color: '#0f172a', boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 8px 20px -12px rgba(15,23,42,0.2)' };
   const owned = viewer.phase === 'signedIn' && viewer.owned;
   const saleEnds = price?.saleEndsAt ? new Date(price.saleEndsAt).toLocaleDateString('en', { day: 'numeric', month: 'short', year: 'numeric' }) : '';
@@ -163,10 +163,10 @@ export function BuyPanel({ book, primaryColor }: { book: BuyPanelBook; primaryCo
         <div className="mb-5"><GuestReturn reference={guestReference} primaryColor={primaryColor} onRetryAllowed={allowRetry} /></div>
       )}
       {book.free ? (
-        <p className="text-3xl font-extrabold tracking-tight" style={{ color: '#16a34a' }}>Free</p>
+        <p className="text-2xl font-extrabold tracking-tight" style={{ color: '#16a34a' }}>Free</p>
       ) : price ? (
         <div className="flex flex-wrap items-center justify-center sm:justify-start gap-x-4 gap-y-2">
-          <PriceTag prices={[price]} className="text-3xl font-extrabold tracking-tight" style={{ color: '#0f172a' }} />
+          <PriceTag prices={[price]} className="text-2xl font-extrabold tracking-tight" style={{ color: '#0f172a' }} />
           {price.original !== undefined && (
             <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ background: '#ffffff', color: '#16a34a' }}>
               Save {formatMoney(price.original - price.amount, price.currency)}{saleEnds ? ` until ${saleEnds}` : ''}
