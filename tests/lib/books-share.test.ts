@@ -52,7 +52,7 @@ describe('share messages follow the current price', () => {
     const src = readFileSync(`${process.cwd()}/components/books/store/ShareProduct.tsx`, 'utf8');
     expect(src).toContain('const current = useCurrentPrices(prices);');
     expect(src).toContain('productPriceLabel({ free, prices: current })');
-    const page = readFileSync(`${process.cwd()}/app/products/[slug]/page.tsx`, 'utf8');
+    const page = readFileSync(`${process.cwd()}/components/books/store/ProductPageView.tsx`, 'utf8');
     expect(page).toContain('free={book.free} prices={book.prices}');
   });
 });

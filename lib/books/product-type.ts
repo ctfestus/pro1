@@ -29,7 +29,7 @@ export function productTypeLabel(type: unknown, custom?: string | null): string 
 export const PRODUCT_ADDRESS = /^[a-z0-9][a-z0-9-]{1,119}$/;
 
 /** Addresses that are pages of the store itself, so no product may take them. */
-export const RESERVED_PRODUCT_ADDRESSES = new Set(['download', 'new', 'edit', 'admin', 'api']);
+export const RESERVED_PRODUCT_ADDRESSES = new Set(['download', 'preview', 'new', 'edit', 'admin', 'api']);
 
 /** A typed address made into a valid one: lowercase, spaces and underscores to hyphens, no doubles. */
 export function normalizeProductAddress(v: unknown): string {

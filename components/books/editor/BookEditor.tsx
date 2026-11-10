@@ -1253,6 +1253,12 @@ export function BookEditor() {
       {/* Actions */}
       <div className="fixed bottom-0 inset-x-0 z-20" style={{ background: C.card, boxShadow: '0 -4px 20px rgba(0,0,0,0.06)' }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-end gap-2">
+          {/* The product's page as buyers see it, drafts included (app/products/preview/[id]). */}
+          <a href={`/products/preview/${encodeURIComponent(editId)}`} target="_blank" rel="noopener noreferrer"
+            title="Opens in a new tab and shows the last saved version"
+            className="mr-auto inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold" style={{ background: C.pill, color: C.text }}>
+            <Eye className="w-4 h-4" /> Preview page
+          </a>
           {status === 'published' && (
             <button onClick={() => save('archived')} disabled={!!saving || blocked} className="px-4 py-2.5 rounded-xl text-sm font-semibold disabled:opacity-60" style={{ background: C.pill, color: C.muted }}>
               {saving === 'archived' ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Archive'}
