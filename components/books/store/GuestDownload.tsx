@@ -9,7 +9,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, Download, ExternalLink, Loader2 } from 'lucide-react';
+import { Download, ExternalLink, Loader2, Package } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { formatLabel } from '@/lib/books/format';
 import { ResendGuestLink } from '@/components/books/store/ResendGuestLink';
@@ -121,7 +121,7 @@ export function GuestDownload({ access, primaryColor }: { access: string; primar
         <div className="w-28 shrink-0 rounded-xl overflow-hidden flex items-center justify-center" style={{ aspectRatio: '3 / 4', background: '#E8EEF0' }}>
           {info.coverImage
             ? <img src={resolveCoverUrl(info.coverImage)} alt="" className="w-full h-full object-cover" />
-            : <BookOpen className="w-8 h-8" style={{ color: '#94a3b8' }} />}
+            : <Package className="w-8 h-8" style={{ color: '#94a3b8' }} />}
         </div>
         <div className="min-w-0 flex-1 text-center sm:text-left">
           <p className="text-xs font-bold uppercase tracking-[0.16em]" style={{ color: '#16a34a' }}>

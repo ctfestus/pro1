@@ -5,7 +5,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { BookOpen, Search } from 'lucide-react';
+import { Package, Search } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import type { StoreBook } from '@/lib/books/store';
@@ -42,7 +42,7 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
   if (!books.length) {
     return (
       <div className="rounded-3xl bg-white px-6 py-16 text-center">
-        <BookOpen className="w-8 h-8 mx-auto" style={{ color: '#94a3b8' }} />
+        <Package className="w-8 h-8 mx-auto" style={{ color: '#94a3b8' }} />
         <p className="mt-3 text-base font-semibold" style={{ color: '#0f172a' }}>No products yet</p>
         <p className="mt-1 text-sm" style={{ color: '#64748b' }}>New digital products will appear here as soon as they are published.</p>
       </div>
@@ -90,7 +90,7 @@ export function BookCatalogue({ books, primaryColor }: { books: StoreBook[]; pri
               <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: '#E8EEF0', aspectRatio: '3 / 4' }}>
                 {book.coverImage
                   ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover transition-transform group-hover:scale-[1.02]" />
-                  : <BookOpen className="w-10 h-10" style={{ color: '#94a3b8' }} />}
+                  : <Package className="w-10 h-10" style={{ color: '#94a3b8' }} />}
               </div>
               <p className="mt-3 text-sm sm:text-base font-semibold leading-snug line-clamp-2" style={{ color: '#0f172a' }}>{book.title}</p>
               {book.authors.length > 0 && <p className="text-xs mt-1 truncate" style={{ color: '#64748b' }}>{book.authors.join(', ')}</p>}
