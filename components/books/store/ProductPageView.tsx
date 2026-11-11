@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { BookOpen, ChevronRight, FileText } from 'lucide-react';
+import { ChevronRight, FileText, Package } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { formatLabel } from '@/lib/books/format';
 import { descriptionHtml, descriptionText } from '@/lib/books/description';
@@ -129,23 +129,23 @@ export function ProductPageView({ book, more, primaryColor, appName, shareUrl, p
   );
 }
 
-/** The cover drawn as a standing book: a slight turn, a lit spine edge and a soft neutral shadow. */
+/**
+ * The product's cover: one flat card for every kind of product (book, template, prompt...), with a
+ * soft neutral shadow. Without a cover image, the title on the brand color.
+ */
 function BookCover({ book, primaryColor }: { book: StoreBook; primaryColor: string }) {
   return (
-    <div className="shrink-0 w-[160px] sm:w-[200px] lg:w-[230px]" style={{ perspective: '1400px' }}>
-      <div className="relative rounded-r-2xl rounded-l-md overflow-hidden bg-white"
-        style={{ aspectRatio: '3 / 4', transform: 'rotateY(-14deg) rotateX(2deg)', transformOrigin: 'left center',
-          boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 14px 32px -16px rgba(15,23,42,0.28)' }}>
+    <div className="shrink-0 w-[160px] sm:w-[200px] lg:w-[230px]">
+      <div className="rounded-2xl overflow-hidden bg-white"
+        style={{ aspectRatio: '3 / 4', boxShadow: '0 1px 2px rgba(15,23,42,0.06), 0 14px 32px -16px rgba(15,23,42,0.28)' }}>
         {book.coverImage
           ? <img src={resolveCoverUrl(book.coverImage)} alt={`Cover of ${book.title}`} className="w-full h-full object-cover" />
           : (
             <div className="w-full h-full flex flex-col justify-between p-5" style={{ background: `linear-gradient(150deg, ${primaryColor}, color-mix(in srgb, ${primaryColor} 55%, #0f172a))` }}>
-              <BookOpen className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.85)' }} />
+              <Package className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.85)' }} />
               <p className="font-bold text-lg leading-snug line-clamp-4" style={{ color: '#ffffff' }}>{book.title}</p>
             </div>
           )}
-        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-3" style={{ background: 'linear-gradient(to right, rgba(0,0,0,0.22), rgba(255,255,255,0.18) 55%, transparent)' }} />
-        <span aria-hidden="true" className="absolute inset-0" style={{ background: 'linear-gradient(115deg, rgba(255,255,255,0.22), transparent 38%)' }} />
       </div>
     </div>
   );
@@ -157,7 +157,7 @@ function MiniCard({ book }: { book: StoreBook }) {
       <div className="rounded-2xl overflow-hidden flex items-center justify-center" style={{ background: '#E8EEF0', aspectRatio: '3 / 4' }}>
         {book.coverImage
           ? <img src={resolveCoverUrl(book.coverImage)} alt="" className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
-          : <BookOpen className="w-10 h-10" style={{ color: '#94a3b8' }} />}
+          : <Package className="w-10 h-10" style={{ color: '#94a3b8' }} />}
       </div>
       <p className="mt-3 text-sm sm:text-base font-semibold leading-snug line-clamp-2" style={{ color: '#0f172a' }}>{book.title}</p>
       {book.authors.length > 0 && <p className="text-xs mt-1 truncate" style={{ color: '#64748b' }}>{book.authors.join(', ')}</p>}
