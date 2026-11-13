@@ -26,9 +26,9 @@ export function EventCard({ ev, primaryColor }: { ev: PublicEvent; primaryColor:
   const badge = seatsBadge(ev);
   return (
     <Link href={`/events/${encodeURIComponent(ev.slug)}`}
-      className="group flex flex-col rounded-2xl overflow-hidden bg-white transition-transform hover:-translate-y-0.5"
+      className="group flex flex-col rounded-2xl overflow-hidden bg-[var(--ev-surface,#ffffff)] transition-transform hover:-translate-y-0.5"
       style={{ boxShadow: CARD_SHADOW, opacity: ev.isPast ? 0.85 : 1 }}>
-      <div className="relative aspect-[16/9] overflow-hidden" style={{ background: '#e2e8f0' }}>
+      <div className="relative aspect-[16/9] overflow-hidden" style={{ background: 'var(--ev-line,#e2e8f0)' }}>
         {ev.coverImage ? (
           <img src={resolveCoverUrl(ev.coverImage)} alt="" loading="lazy"
             className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.02]" />
@@ -38,9 +38,9 @@ export function EventCard({ ev, primaryColor }: { ev: PublicEvent; primaryColor:
           </div>
         )}
         {date && (
-          <div className="absolute top-3 left-3 w-12 rounded-xl bg-white text-center overflow-hidden" style={{ boxShadow: CARD_SHADOW }}>
-            <div className="text-[10px] font-bold tracking-wider py-0.5" style={{ background: primaryColor, color: '#ffffff' }}>{date.month}</div>
-            <div className="text-lg font-extrabold py-0.5" style={{ color: '#0f172a' }}>{date.day}</div>
+          <div className="absolute top-3 left-3 w-12 rounded-xl bg-[var(--ev-surface,#ffffff)] text-center overflow-hidden" style={{ boxShadow: CARD_SHADOW }}>
+            <div className="text-[10px] font-bold tracking-wider py-0.5" style={{ background: primaryColor, color: 'var(--ev-on-accent,#ffffff)' }}>{date.month}</div>
+            <div className="text-lg font-extrabold py-0.5" style={{ color: 'var(--ev-text,#0f172a)' }}>{date.day}</div>
           </div>
         )}
         {badge && (
@@ -48,24 +48,24 @@ export function EventCard({ ev, primaryColor }: { ev: PublicEvent; primaryColor:
         )}
       </div>
       <div className="flex-1 flex flex-col p-4 sm:p-5">
-        <p className="text-xs font-bold uppercase tracking-[0.14em] flex items-center gap-1.5" style={{ color: '#475569' }}>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] flex items-center gap-1.5" style={{ color: 'var(--ev-body2,#475569)' }}>
           {ev.format === 'virtual' ? <Video className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
           {ev.format === 'virtual' ? 'Online' : 'In person'}
-          {repeat && <span className="font-semibold normal-case tracking-normal" style={{ color: '#64748b' }}>| {repeat}</span>}
+          {repeat && <span className="font-semibold normal-case tracking-normal" style={{ color: 'var(--ev-muted,#64748b)' }}>| {repeat}</span>}
         </p>
-        <h3 className="mt-2 text-base sm:text-lg font-bold leading-snug line-clamp-2" style={{ color: '#0f172a' }}>{ev.title}</h3>
-        <p className="mt-1.5 text-sm" style={{ color: '#475569' }}>
+        <h3 className="mt-2 text-base sm:text-lg font-bold leading-snug line-clamp-2" style={{ color: 'var(--ev-text,#0f172a)' }}>{ev.title}</h3>
+        <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>
           {date ? date.long : 'Date to be announced'}{time ? ` at ${time}` : ''}{ev.timezone && time ? ` ${ev.timezone}` : ''}
         </p>
-        {ev.venue && <p className="mt-0.5 text-sm truncate" style={{ color: '#64748b' }}>{ev.venue.name}</p>}
-        {ev.summary && <p className="mt-3 text-sm line-clamp-2" style={{ color: '#64748b' }}>{ev.summary}</p>}
+        {ev.venue && <p className="mt-0.5 text-sm truncate" style={{ color: 'var(--ev-muted,#64748b)' }}>{ev.venue.name}</p>}
+        {ev.summary && <p className="mt-3 text-sm line-clamp-2" style={{ color: 'var(--ev-muted,#64748b)' }}>{ev.summary}</p>}
         {/* Looks like a button; the whole card is the link (a real button cannot sit inside one). */}
         <div className="mt-auto pt-4">
           {(() => {
             const open = !ev.isPast && badge?.tone !== 'full';
             return (
               <span className="flex h-10 w-full items-center justify-center rounded-xl text-sm font-bold transition-opacity group-hover:opacity-90"
-                style={open ? { background: primaryColor, color: '#ffffff' } : { background: '#f1f5f9', color: '#334155' }}>
+                style={open ? { background: primaryColor, color: 'var(--ev-on-accent,#ffffff)' } : { background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-body,#334155)' }}>
                 {ev.isPast ? 'View event' : open ? 'Register' : 'View details'}
               </span>
             );

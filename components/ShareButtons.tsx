@@ -43,10 +43,10 @@ export function ShareButtons({ url: givenUrl, title, blurb, className = 'flex fl
   }
 
   const btn = 'w-10 h-10 rounded-full inline-flex items-center justify-center transition-transform hover:-translate-y-0.5';
-  const style = { background: '#ffffff', color: '#0f172a', boxShadow: BUTTON_SHADOW };
+  const style = { background: 'var(--ev-surface,#ffffff)', color: 'var(--ev-text,#0f172a)', boxShadow: BUTTON_SHADOW };
   return (
     <div className={className}>
-      <span className="text-sm mr-1" style={{ color: '#64748b' }}>Share</span>
+      <span className="text-sm mr-1" style={{ color: 'var(--ev-muted,#64748b)' }}>Share</span>
       {canNativeShare && (
         <button type="button" onClick={nativeShare} aria-label="Share" title="Share" className={btn} style={style}>
           <Share2 className="w-4 h-4" />
@@ -60,7 +60,7 @@ export function ShareButtons({ url: givenUrl, title, blurb, className = 'flex fl
       ))}
       <button type="button" onClick={copy} aria-label={copied ? 'Link copied' : 'Copy link'} title={copied ? 'Copied' : 'Copy link'}
         className="h-10 px-4 rounded-full inline-flex items-center gap-2 text-sm font-semibold transition-transform hover:-translate-y-0.5"
-        style={{ ...style, color: copied ? '#16a34a' : '#0f172a' }}>
+        style={{ ...style, color: copied ? '#16a34a' : 'var(--ev-text,#0f172a)' }}>
         {copied ? <Check className="w-4 h-4" /> : <Link2 className="w-4 h-4" />} {copied ? 'Copied' : 'Copy link'}
       </button>
     </div>

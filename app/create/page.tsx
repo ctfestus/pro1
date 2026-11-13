@@ -1,5 +1,6 @@
 'use client';
 
+import { THEME_ACCENT_COLORS } from '@/lib/theme-types';
 import { VenueFields } from '@/components/VenueFields';
 import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
 import React, { useState, useEffect, useRef } from 'react';
@@ -80,14 +81,7 @@ import {
 const COURSE_CATEGORIES = ['Excel', 'Power BI', 'SQL', 'Tableau', 'AI'] as const;
 
 
-const themeAccentColors: Record<ThemeColor, string> = {
-  forest:  '#00bf63',
-  lime:    '#ADEE66',
-  emerald: '#10b981',
-  rose:    '#f43f5e',
-  amber:   '#f59e0b',
-  ocean:   '#3E93FF',
-};
+const themeAccentColors = THEME_ACCENT_COLORS;
 
 
 const parseJsonResponse = async (res: Response) => {

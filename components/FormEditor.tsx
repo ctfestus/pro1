@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { THEME_ACCENT_COLORS } from '@/lib/theme-types';
 import { VenueFields } from '@/components/VenueFields';
 import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -83,14 +84,7 @@ const buttonThemes: Record<ThemeColor, string> = {
   ocean:   'bg-[#3E93FF] hover:bg-[#2f7fe0] text-white',
 };
 
-const themeAccentColors: Record<ThemeColor, string> = {
-  forest:  '#00bf63',
-  lime:    '#ADEE66',
-  emerald: '#10b981',
-  rose:    '#f43f5e',
-  amber:   '#f59e0b',
-  ocean:   '#3E93FF',
-};
+const themeAccentColors = THEME_ACCENT_COLORS;
 
 const SOCIAL_PLATFORMS = [
   { id: 'linkedin',  name: 'LinkedIn',    placeholder: 'linkedin.com/in/username' },

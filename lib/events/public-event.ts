@@ -1,3 +1,5 @@
+import { accentColorFor, type ThemeMode } from '@/lib/theme-types';
+import { toThemeMode } from '@/lib/events/page-theme';
 import {
   eventLocalDate,
   getLastScheduledSessionDate,
@@ -70,6 +72,11 @@ export interface PublicEvent {
   spotsLeft: number | null;
   speakers: PublicEventSpeaker[];
   fields: PublicEventField[];
+  /** The event's Appearance settings, as its editor shows them. accent null: use the site colour. */
+  accent: string | null;
+  mode: ThemeMode;
+  /** A lib/fonts.ts id; null for the site font. */
+  font: string | null;
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -240,6 +247,9 @@ export function toPublicEvent(row: any, taken: number, now: Date = new Date()): 
     spotsLeft: capacity === null ? null : Math.max(0, capacity - (Math.floor(taken) || 0)),
     speakers: publicSpeakers(row.speakers),
     fields: publicEventFields(row.fields),
+    accent: accentColorFor(row.custom_accent, row.theme),
+    mode: toThemeMode(row.mode),
+    font: str(row.font, 40),
   };
 }
 

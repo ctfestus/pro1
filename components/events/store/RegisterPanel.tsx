@@ -27,7 +27,7 @@ type Props = {
 };
 
 const inputClass = 'w-full h-11 rounded-xl px-3.5 text-sm outline-none transition-shadow focus:ring-2';
-const inputStyle = { background: '#f1f5f9', color: '#0f172a' } as const;
+const inputStyle = { background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' } as const;
 
 export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props) {
   const [name, setName] = useState('');
@@ -61,12 +61,12 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
 
   if (event.isPast || full) {
     return (
-      <div className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
-        <p className="text-base font-bold" style={{ color: '#0f172a' }}>{event.isPast ? 'This event has ended' : 'This event is full'}</p>
-        <p className="mt-1.5 text-sm" style={{ color: '#64748b' }}>
+      <div className="rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+        <p className="text-base font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>{event.isPast ? 'This event has ended' : 'This event is full'}</p>
+        <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>
           {event.isPast ? 'Registration is closed.' : 'Every spot has been taken. Check back in case one opens up.'}
         </p>
-        <Link href="/events" className="mt-4 inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold" style={{ background: '#f1f5f9', color: '#0f172a' }}>
+        <Link href="/events" className="mt-4 inline-flex h-10 items-center rounded-xl px-4 text-sm font-semibold" style={{ background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' }}>
           Browse other events
         </Link>
       </div>
@@ -105,24 +105,24 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
     const recurrence = event.recurrence === 'once' ? undefined : event.recurrence;
     const google = calDate ? buildGoogleCalUrl(event.title, calDate, calTime, event.timezone, where, details, recurrence, event.recurrenceEndDate ?? undefined, event.recurrenceDays) : null;
     return (
-      <div className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+      <div className="rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
         {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
         <CheckCircle2 className="w-8 h-8" style={{ color: '#16a34a' }} />
-        <p className="mt-3 text-lg font-bold" style={{ color: '#0f172a' }}>You are registered</p>
-        <p className="mt-1.5 text-sm" style={{ color: '#475569' }}>
+        <p className="mt-3 text-lg font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>You are registered</p>
+        <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>
           We sent a confirmation to <b>{done}</b>{event.format === 'virtual' ? ' with your personal join link' : ''}. You will also get a reminder before it starts.
         </p>
         {calDate && (
           <div className="mt-5 flex flex-wrap gap-2">
             {google && (
               <a href={google} target="_blank" rel="noopener noreferrer"
-                className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ background: '#f1f5f9', color: '#0f172a' }}>
+                className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' }}>
                 <CalendarPlus className="w-4 h-4" /> Google Calendar
               </a>
             )}
             <button type="button"
               onClick={() => downloadIcs(event.title, calDate, calTime, event.timezone, where, details, recurrence, event.recurrenceEndDate ?? undefined, event.recurrenceDays)}
-              className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ background: '#f1f5f9', color: '#0f172a' }}>
+              className="inline-flex h-10 items-center gap-2 rounded-xl px-4 text-sm font-semibold" style={{ background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' }}>
               <CalendarPlus className="w-4 h-4" /> Apple / Outlook (.ics)
             </button>
           </div>
@@ -133,24 +133,24 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
 
   const ring = { ...inputStyle, ['--tw-ring-color' as any]: `${primaryColor}55` };
   return (
-    <form onSubmit={submit} className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+    <form onSubmit={submit} className="rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
       {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
-      <p className="text-lg font-bold" style={{ color: '#0f172a' }}>Register for this event</p>
-      <p className="mt-1 text-sm" style={{ color: '#64748b' }}>
+      <p className="text-lg font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Register for this event</p>
+      <p className="mt-1 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>
         Free
         {event.spotsLeft !== null ? ` | ${event.spotsLeft} spot${event.spotsLeft === 1 ? '' : 's'} left` : ''}
       </p>
 
       <div className="mt-4 space-y-3">
         <label className="block">
-          <span className="text-xs font-semibold" style={{ color: '#334155' }}>Full name</span>
+          <span className="text-xs font-semibold" style={{ color: 'var(--ev-body,#334155)' }}>Full name</span>
           <input required value={name} onChange={e => setName(e.target.value)} autoComplete="name" maxLength={80}
             className={`mt-1 ${inputClass}`} style={ring} />
         </label>
         <label className="block">
-          <span className="text-xs font-semibold" style={{ color: '#334155' }}>Email</span>
+          <span className="text-xs font-semibold" style={{ color: 'var(--ev-body,#334155)' }}>Email</span>
           {accountEmail ? (
-            <input value={accountEmail} readOnly className={`mt-1 ${inputClass}`} style={{ ...inputStyle, color: '#64748b' }} />
+            <input value={accountEmail} readOnly className={`mt-1 ${inputClass}`} style={{ ...inputStyle, color: 'var(--ev-muted,#64748b)' }} />
           ) : (
             <input required type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" maxLength={254}
               className={`mt-1 ${inputClass}`} style={ring} />
@@ -161,8 +161,8 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
           const set = (v: string) => setAnswers(a => ({ ...a, [f.name]: v }));
           return (
             <label key={f.name} className="block">
-              <span className="text-xs font-semibold" style={{ color: '#334155' }}>
-                {f.label}{!f.required && <span className="font-normal" style={{ color: '#94a3b8' }}> (optional)</span>}
+              <span className="text-xs font-semibold" style={{ color: 'var(--ev-body,#334155)' }}>
+                {f.label}{!f.required && <span className="font-normal" style={{ color: 'var(--ev-faint,#94a3b8)' }}> (optional)</span>}
               </span>
               {f.type === 'textarea' ? (
                 <textarea required={f.required} value={value} onChange={e => set(e.target.value)} maxLength={2000} rows={3}
@@ -187,13 +187,13 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
 
       <button type="submit" disabled={submitting}
         className="mt-5 w-full min-h-[68px] rounded-2xl px-4 py-3.5 inline-flex flex-col items-center justify-center gap-1 transition-opacity hover:opacity-95 disabled:opacity-60"
-        style={{ background: primaryColor, color: '#ffffff' }}>
+        style={{ background: primaryColor, color: 'var(--ev-on-accent,#ffffff)' }}>
         <span className="inline-flex items-center gap-2 text-lg font-extrabold leading-tight">
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your seat' : 'Save my seat'}
         </span>
         <span className="text-[10px] font-normal uppercase tracking-[0.14em] opacity-80">Limited spots available</span>
       </button>
-      <p className="mt-3 text-xs" style={{ color: '#94a3b8' }}>
+      <p className="mt-3 text-xs" style={{ color: 'var(--ev-faint,#94a3b8)' }}>
         {accountEmail ? 'Registering with your account email.' : 'We use your email only to send your registration details and reminders.'}
       </p>
     </form>
