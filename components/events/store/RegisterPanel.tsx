@@ -189,7 +189,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
         className="mt-5 w-full min-h-[68px] rounded-2xl px-4 py-3.5 inline-flex flex-col items-center justify-center gap-1 transition-opacity hover:opacity-95 disabled:opacity-60"
         style={{ background: primaryColor, color: '#ffffff' }}>
         <span className="inline-flex items-center gap-2 text-lg font-extrabold leading-tight">
-          {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your spot' : 'Save my spot'}
+          {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your seat' : 'Save my seat'}
         </span>
         <span className="text-[10px] font-normal uppercase tracking-[0.14em] opacity-80">Limited spots available</span>
       </button>
