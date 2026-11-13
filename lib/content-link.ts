@@ -7,13 +7,25 @@
  * slug with a course would otherwise open, and preview, as the course. Same rule as
  * lib/landing-href, keyed on the dashboard's content_type / config flags instead.
  *
- * Events never carry a type: app/[id] only resolves an event from an untyped link.
+ * Events never carry a type: app/[id] only resolves an event from an untyped link. An event open
+ * to public registration (migration 244) has its one page at /events/<slug> instead.
  */
 export interface ContentLinkItem {
   id?: string | null;
   slug?: string | null;
   content_type?: string | null;
-  config?: { isCourse?: boolean; isVirtualExperience?: boolean; isGuidedProject?: boolean } | null;
+  /** An events row's flag (migration 244). */
+  public_registration?: boolean | null;
+  config?: {
+    isCourse?: boolean; isVirtualExperience?: boolean; isGuidedProject?: boolean;
+    eventDetails?: { isEvent?: boolean; publicRegistration?: boolean } | null;
+  } | null;
+}
+
+/** An event whose page is the public one, /events/<slug>. */
+export function isPublicEvent(item: ContentLinkItem): boolean {
+  const isEvent = item.content_type === 'event' || item.config?.eventDetails?.isEvent === true;
+  return isEvent && (item.public_registration === true || item.config?.eventDetails?.publicRegistration === true);
 }
 
 /** The catalogueType value app/[id] accepts for this item, or null when it takes none. */
@@ -29,6 +41,7 @@ export function contentCatalogueType(item: ContentLinkItem): string | null {
 
 export function contentPath(item: ContentLinkItem): string {
   const ref = item.slug || item.id || '';
+  if (isPublicEvent(item)) return `/events/${encodeURIComponent(ref)}`;
   const catalogueType = contentCatalogueType(item);
   return catalogueType ? `/${ref}?catalogueType=${catalogueType}` : `/${ref}`;
 }
