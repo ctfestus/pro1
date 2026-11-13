@@ -25,6 +25,7 @@ const CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME ?? '';
  */
 export const IMG_HERO = 'f_auto,q_auto,w_1600,c_limit';        // full-width banner / page hero
 export const IMG_EMAIL = 'f_auto,q_auto,w_600,c_limit';        // email body image (600px-wide table)
+export const IMG_EMAIL_BANNER = 'f_auto,q_auto,w_1200,c_limit'; // full-width email banner, 600px at 2x (sharp on phones)
 export const IMG_EMAIL_THUMB = 'f_auto,q_auto,w_150,c_limit';  // 64-72px email thumbnail, at 2x
 export const IMG_ICON = 'f_auto,q_auto,w_128,c_limit';        // 13-64px tool logo, at 2x
 

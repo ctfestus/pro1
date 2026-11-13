@@ -29,7 +29,7 @@ import { sameReportContent, type InstructorReportDraft } from '@/lib/ve-instruct
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { contentPath } from '@/lib/content-link';
 import { RichTextEditor } from '@/components/RichTextEditor';
-import { IMG_EMAIL, resolveImageUrl } from '@/lib/cloudinary-url';
+import { IMG_EMAIL_BANNER, resolveImageUrl } from '@/lib/cloudinary-url';
 
 // -- Lazy charts ---
 const ResponsesOverTimeChart = dynamic(
@@ -1064,7 +1064,7 @@ function WhatsAppIcon({ className }: { className?: string }) {
  * (from a local copy that is localhost, which no inbox can load). No usable link, no banner.
  */
 function emailBannerFor(cover: unknown): string | undefined {
-  const url = typeof cover === 'string' ? resolveImageUrl(cover, IMG_EMAIL) : '';
+  const url = typeof cover === 'string' ? resolveImageUrl(cover, IMG_EMAIL_BANNER) : '';
   return /^https:\/\//i.test(url) ? url : undefined;
 }
 
