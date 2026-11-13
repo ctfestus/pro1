@@ -501,12 +501,13 @@ export async function POST(req: NextRequest) {
       // Buttons in the body take the content's colour, as the editor showed them, else the platform's.
       const buttonColor = typeof data.buttonColor === 'string' && /^#[0-9a-f]{6}$/i.test(data.buttonColor)
         ? data.buttonColor : (t.primaryColor || '#111827');
-      // -- Test mode: single email address provided -> send once, skip quota --
-      if (typeof to === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) {
+      // -- Preview (render only, data.preview) or test mode (one address): no quota --
+      const isPreview = data.preview === true;
+      if (isPreview || (typeof to === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim()))) {
         if (!data.subject?.trim()) {
           return NextResponse.json({ error: 'Subject is required' }, { status: 400 });
         }
-        const testTo = to.trim();
+        const testTo = isPreview ? '' : to.trim();
         const mergeValues: Record<string, string> = {
           name: 'there', email: testTo,
           form_title: String(data.formTitle || ''),
@@ -521,6 +522,8 @@ export async function POST(req: NextRequest) {
         const testSubject = applyMergeTags(String(data.subject || ''), mergeValues);
         const testBodyHtml = renderEmailBody(String(data.body || ''), mergeValues, buttonColor);
         const testHtml = blastEmail({ ...data, subject: testSubject, body: '', bodyHtml: testBodyHtml, neutralFooter: true, branding });
+        // Exactly what a recipient gets, with the sample name "there", shown in the dashboard.
+        if (isPreview) return NextResponse.json({ subject: testSubject, html: testHtml });
         await resend.emails.send({ from: FROM, to: testTo, subject: testSubject, html: testHtml });
         return NextResponse.json({ success: true, test: true });
       }
