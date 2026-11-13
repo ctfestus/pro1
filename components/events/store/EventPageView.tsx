@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { CalendarDays, ChevronRight, Clock, MapPin, Repeat, Users, Video } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { sessionStartInstant } from '@/lib/event-sessions';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { dateParts, displayDate, displayTime, recurrenceLabel, type PublicEvent } from '@/lib/events/public-event';
 import type { PublicEventDetail } from '@/lib/events/store';
@@ -40,6 +41,8 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
   const badge = seatsBadge(event);
   const mapsUrl = event.location ? `https://maps.google.com/?q=${encodeURIComponent(event.location)}` : null;
   const aboutHtml = event.description ? sanitizeRichText(event.description) : '';
+  // Only a timed upcoming session counts down: an untimed one has no real start to count to.
+  const startsAt = event.nextDate && event.time ? sessionStartInstant(event.nextDate, event.time, event.timezone)?.toISOString() ?? null : null;
 
   return (
     <section className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-5 sm:pt-8 pb-16">
@@ -91,7 +94,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {/* Phones: the register box straight after the facts. */}
           <div className="lg:hidden">
-            <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} />
+            <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} />
           </div>
 
           {aboutHtml && (
@@ -147,7 +150,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
         </div>
 
         <aside className="hidden lg:block lg:sticky lg:top-24">
-          <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} />
+          <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} />
         </aside>
       </div>
 

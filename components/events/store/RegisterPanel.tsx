@@ -15,18 +15,21 @@ import { supabase } from '@/lib/supabase';
 import { buildGoogleCalUrl, downloadIcs } from '@/lib/calendar-links';
 import { displayTime, type PublicEvent } from '@/lib/events/public-event';
 import { CARD_SHADOW } from '@/components/books/store/card-style';
+import { Countdown } from '@/components/events/store/Countdown';
 
 type Props = {
   event: Pick<PublicEvent, 'id' | 'title' | 'summary' | 'format' | 'location' | 'startDate' | 'nextDate' | 'time' | 'timezone'
     | 'recurrence' | 'recurrenceEndDate' | 'recurrenceDays' | 'isPast' | 'spotsLeft' | 'fields'>;
   primaryColor: string;
   pageUrl: string;
+  /** The next session's start (ISO), for the countdown. Null for an untimed or finished event. */
+  startsAt: string | null;
 };
 
 const inputClass = 'w-full h-11 rounded-xl px-3.5 text-sm outline-none transition-shadow focus:ring-2';
 const inputStyle = { background: '#f1f5f9', color: '#0f172a' } as const;
 
-export function RegisterPanel({ event, primaryColor, pageUrl }: Props) {
+export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
@@ -103,6 +106,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl }: Props) {
     const google = calDate ? buildGoogleCalUrl(event.title, calDate, calTime, event.timezone, where, details, recurrence, event.recurrenceEndDate ?? undefined, event.recurrenceDays) : null;
     return (
       <div className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+        {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
         <CheckCircle2 className="w-8 h-8" style={{ color: '#16a34a' }} />
         <p className="mt-3 text-lg font-bold" style={{ color: '#0f172a' }}>You are registered</p>
         <p className="mt-1.5 text-sm" style={{ color: '#475569' }}>
@@ -131,6 +135,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl }: Props) {
   const ring = { ...inputStyle, ['--tw-ring-color' as any]: `${primaryColor}55` };
   return (
     <form onSubmit={submit} className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+      {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
       <p className="text-base font-bold" style={{ color: '#0f172a' }}>Register for this event</p>
       <p className="mt-1 text-sm" style={{ color: '#64748b' }}>
         Free{time ? ` | Starts ${time}${event.timezone ? ` ${event.timezone}` : ''}` : ''}
