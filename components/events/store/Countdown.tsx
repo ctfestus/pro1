@@ -40,12 +40,12 @@ export function Countdown({ startsAt, primaryColor }: { startsAt: string; primar
   const parts = UNITS.map(([label, ms], i) => ({ label, n: Math.floor((i === 0 ? left : left % UNITS[i - 1][1]) / ms) }));
   return (
     <div role="timer" aria-label="Time until the event starts">
-      <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: '#64748b' }}>Starts in</p>
+      <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--ev-muted,#64748b)' }}>Starts in</p>
       <div className="mt-2 grid grid-cols-4 gap-2">
         {parts.map(p => (
           <div key={p.label} className="rounded-xl py-2 text-center" style={{ background: `${primaryColor}12` }}>
-            <div className="text-xl font-extrabold tabular-nums leading-tight" style={{ color: '#0f172a' }}>{String(p.n).padStart(2, '0')}</div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: '#64748b' }}>{p.label}</div>
+            <div className="text-xl font-extrabold tabular-nums leading-tight" style={{ color: 'var(--ev-text,#0f172a)' }}>{String(p.n).padStart(2, '0')}</div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: 'var(--ev-muted,#64748b)' }}>{p.label}</div>
           </div>
         ))}
       </div>

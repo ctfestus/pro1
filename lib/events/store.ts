@@ -20,7 +20,7 @@ import type { NavBook } from '@/lib/landing-nav';
 const COLUMNS = [
   'id', 'slug', 'title', 'description', 'cover_image', 'status', 'public_registration', 'is_private',
   'event_date', 'event_time', 'timezone', 'location', 'event_type', 'capacity', 'speakers', 'fields',
-  'recurrence', 'recurrence_end_date', 'recurrence_days', 'user_id',
+  'recurrence', 'recurrence_end_date', 'recurrence_days', 'user_id', 'custom_accent', 'theme', 'mode', 'font',
 ].join(', ');
 
 const MAX_EVENTS = 200;

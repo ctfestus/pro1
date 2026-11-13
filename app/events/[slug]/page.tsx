@@ -59,7 +59,8 @@ export default async function EventPage({ params }: Params) {
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={config.accentColor || tenant.accentColor || primaryColor}
       bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       {event.listed && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd }} />}
-      <EventPageView event={event} more={more} primaryColor={primaryColor} shareUrl={shareUrl} />
+      {/* The event's own colour (its custom accent or theme, as the editor shows it), else the site's. */}
+      <EventPageView event={event} more={more} primaryColor={event.accent ?? primaryColor} shareUrl={shareUrl} />
     </StoreChrome>
   );
 }
