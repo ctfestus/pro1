@@ -7,6 +7,7 @@ import { getVectorIndex, buildCourseEmbedText } from '@/lib/vector';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { studentsStillInCohorts } from '@/lib/cohort-roster';
 import { applyEmailTemplate } from '@/lib/email-template-service';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
 
 const resend     = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100; // Resend batch limit
@@ -515,7 +516,7 @@ export async function POST(req: NextRequest) {
       // Load content metadata -- never trust client-supplied recipient lists
       const [{ data: blastCourse }, { data: blastEvent }, { data: blastVe }] = await Promise.all([
         supabase.from('courses').select('cohort_ids').eq('id', data.formId).maybeSingle(),
-        supabase.from('events').select('cohort_ids').eq('id', data.formId).maybeSingle(),
+        supabase.from('events').select('cohort_ids, meeting_link').eq('id', data.formId).maybeSingle(),
         supabase.from('virtual_experiences').select('cohort_ids').eq('id', data.formId).maybeSingle(),
       ]);
 
@@ -527,6 +528,8 @@ export async function POST(req: NextRequest) {
 
       // Build deduplicated map of email -> merge data
       const responseByEmail = new Map<string, Record<string, any>>();
+      // Public registrants' {{meeting_link}}: their own tracked join link, never the raw meeting link.
+      const joinLinkByEmail = new Map<string, string>();
 
       if (isEvent) {
         // Events: send to registrants only
@@ -541,6 +544,23 @@ export async function POST(req: NextRequest) {
             const regResponses = (reg as any).responses ?? {};
             responseByEmail.set(emailKey, { name: student.full_name, email: student.email, ...regResponses });
           }
+        }
+
+        // And everyone who registered on the public page (migration 244). An address registered
+        // both ways gets one email, as the cohort member.
+        const publicRegs = await fetchAllRows<{ id: string; name: string; email: string; join_token: string; responses: Record<string, any> | null }>(
+          (from, to) => supabase
+            .from('event_public_registrations')
+            .select('id, name, email, join_token, responses', { count: 'exact' })
+            .eq('event_id', data.formId)
+            .order('id')
+            .range(from, to));
+        const online = !!(blastEvent as any)?.meeting_link;
+        for (const reg of publicRegs) {
+          const emailKey = normalizeEmail(reg.email);
+          if (!emailKey || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailKey) || responseByEmail.has(emailKey)) continue;
+          responseByEmail.set(emailKey, { ...(reg.responses ?? {}), name: reg.name, email: reg.email });
+          joinLinkByEmail.set(emailKey, online && reg.join_token ? `${t.appUrl}/api/join?token=${encodeURIComponent(reg.join_token)}` : '');
         }
       } else {
         // Courses / VEs: all enrolled cohort students, filtered by segment
@@ -621,7 +641,7 @@ export async function POST(req: NextRequest) {
           event_time: String(data.eventTime || ''),
           event_timezone: String(data.eventTimezone || ''),
           event_location: String(data.eventLocation || ''),
-          meeting_link: String(data.meetingLink || ''),
+          meeting_link: joinLinkByEmail.get(recipient) ?? String(data.meetingLink || ''),
           form_url: String(data.formUrl || ''),
         };
 
