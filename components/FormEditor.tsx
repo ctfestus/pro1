@@ -1022,11 +1022,33 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   };
 
   // Save handler
+  // A speaker typed into the Speakers form but not yet added with its own button. Saving used to
+  // drop it silently, so the event saved with no speakers; now Save adds it, as the host meant.
+  const withPendingSpeaker = (config: FormConfig): FormConfig => {
+    if (!speakerAddOpen || !config.eventDetails?.isEvent || !speakerDraft.name.trim()) return config;
+    const current = config.eventDetails.speakers ?? [];
+    const speaker: Speaker = {
+      id: speakerEditId ?? crypto.randomUUID(),
+      name: speakerDraft.name.trim(),
+      title: speakerDraft.title.trim() || undefined,
+      bio: speakerDraft.bio.trim() || undefined,
+      avatar_url: speakerDraft.avatar_url || undefined,
+      linkedin_url: speakerDraft.linkedin_url.trim() || undefined,
+    };
+    const speakers = speakerEditId ? current.map(s => s.id === speakerEditId ? speaker : s) : [...current, speaker];
+    setSpeakerDraft({ name: '', title: '', bio: '', avatar_url: '', linkedin_url: '' });
+    setSpeakerEditId(null);
+    setSpeakerAddOpen(false);
+    const next = { ...config, eventDetails: { ...config.eventDetails, speakers } };
+    setFormConfig(next);
+    return next;
+  };
+
   const handleSave = async () => {
     if (!formConfig) return;
     setIsSaving(true);
     try {
-      let configToSave = await prepareSqlExpectedResultsForSave(formConfig);
+      let configToSave = await prepareSqlExpectedResultsForSave(withPendingSpeaker(formConfig));
       if (!configToSave) { setIsSaving(false); return; }
       configToSave = await preparePythonExpectedOutputsForSave(configToSave);
       if (!configToSave) { setIsSaving(false); return; }
