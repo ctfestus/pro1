@@ -110,6 +110,22 @@ export function sanitizeRichTextWithImages(html: string): string {
   }));
 }
 
+/**
+ * The broadcast email body from its editor (lib/email-body.ts turns the result into email HTML):
+ * rich text, images from the platform's own hosting or Pexels only (no outside tracking pixels),
+ * and the editor's two blocks, which carry a class: a.email-button and div.yt-embed[title].
+ */
+export function sanitizeEmailBody(html: string): string {
+  return withImageGuard(isAllowedRichTextImage, () => DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['p', 'br', 'b', 'strong', 'i', 'em', 'u', 's', 'ul', 'ol', 'li',
+                   'h1', 'h2', 'h3', 'h4', 'blockquote', 'a', 'code', 'pre', 'hr', 'span',
+                   'img', 'figure', 'figcaption', 'div',
+                   'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'caption'],
+    ALLOWED_ATTR: ['href', 'target', 'rel', 'colspan', 'rowspan', 'scope', 'src', 'alt', 'width', 'class', 'title'],
+    ALLOW_DATA_ATTR: false,
+  }));
+}
+
 /** Sanitizer for email body content authored in the VE briefing editor. */
 export function sanitizeEmailContent(html: string): string {
   return sanitizeRichTextWithImages(html);

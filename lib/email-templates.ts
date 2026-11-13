@@ -17,7 +17,7 @@ export interface EmailBranding {
 }
 
 // -- Shared shell ---
-function shell(content: string, opts?: { bannerUrl?: string } & EmailBranding) {
+function shell(content: string, opts?: { bannerUrl?: string; neutralFooter?: boolean } & EmailBranding) {
   const bannerUrl = opts?.bannerUrl || opts?.emailBannerUrl;
   const logoUrl   = opts?.logoUrl || BANNER;
   const appName   = opts?.appName   || tenant.appName  || 'the platform';
@@ -55,7 +55,7 @@ function shell(content: string, opts?: { bannerUrl?: string } & EmailBranding) {
 
           <!-- Footer -->
           <p style="font-size:12px;color:#a1a1aa;margin-top:24px;">
-            You received this because you are enrolled on ${appName}. &middot;
+            ${opts?.neutralFooter ? `You received this because this email address is associated with ${appName}.` : `You received this because you are enrolled on ${appName}.`} &middot;
             <a href="${appUrl_}" style="color:#2563eb;">Visit ${appName}</a>
           </p>
         </td></tr>
@@ -660,27 +660,35 @@ export function day7EncouragementEmail(data: { name: string; studentUrl: string;
 export function blastEmail(data: {
   subject: string;
   body: string;
+  /** The body already as email HTML (lib/email-body.ts); used in place of the plain-text body. */
+  bodyHtml?: string | null;
   senderName?: string;
   formTitle: string;
   formUrl: string;
   bannerUrl?: string;
   ctaLabel?: string;
+  /** Recipients may not be enrolled (an event's public registrants): the footer says so neutrally. */
+  neutralFooter?: boolean;
   branding?: EmailBranding;
 }) {
-  const { body, senderName, formTitle, formUrl, bannerUrl, ctaLabel, branding } = data;
+  const { body, bodyHtml, senderName, formTitle, ctaLabel, neutralFooter, branding } = data;
+  // Titles and links arrive from the request: text is escaped, links must be web links.
+  const webUrl = (v: unknown) => (typeof v === 'string' && /^https?:\/\/[^\s"'<>]+$/i.test(v.trim()) ? v.trim() : '');
+  const formUrl = webUrl(data.formUrl);
+  const bannerUrl = webUrl(data.bannerUrl);
 
   const content = `
-    <p>${body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>
+    ${bodyHtml ?? `<p>${body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`}
 
-    ${cta(ctaLabel || 'View Page', formUrl)}
+    ${formUrl ? cta(esc(ctaLabel || 'View Page'), esc(formUrl)) : ''}
 
     <br>
     <p><b>Best regards,</b></p>
-    <p>${senderName || formTitle}</p>
+    <p>${esc(senderName || formTitle)}</p>
   `;
 
   // blastEmail uses senderName as sign-off -- do not pass teamName to shell
-  return shell(content, { ...branding, bannerUrl: bannerUrl || undefined, teamName: undefined });
+  return shell(content, { ...branding, bannerUrl: bannerUrl || undefined, neutralFooter, teamName: undefined });
 }
 
 // -- 12. Learning Path Assignment ---

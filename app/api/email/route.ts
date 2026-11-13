@@ -7,6 +7,8 @@ import { getVectorIndex, buildCourseEmbedText } from '@/lib/vector';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { studentsStillInCohorts } from '@/lib/cohort-roster';
 import { applyEmailTemplate } from '@/lib/email-template-service';
+import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { fillMergeTags, renderEmailBody } from '@/lib/email-body';
 
 const resend     = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100; // Resend batch limit
@@ -122,12 +124,7 @@ function eventLocationDisplay(data: Record<string, any>) {
   return data.eventLocation || data.location || (data.meetingLink || data.joinUrl ? 'Online' : 'To be announced');
 }
 
-function applyMergeTags(template: string, values: Record<string, string>) {
-  return template.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_match, key) => {
-    const normalizedKey = String(key).toLowerCase();
-    return values[normalizedKey] ?? '';
-  });
-}
+const applyMergeTags = (template: string, values: Record<string, string>) => fillMergeTags(template, values);
 
 export async function POST(req: NextRequest) {
   if (!process.env.RESEND_API_KEY) {
@@ -177,7 +174,7 @@ export async function POST(req: NextRequest) {
 
         // Validate content is actually an event
         const supabase = getAdminSupabase();
-        const { data: eventRow } = await supabase.from('events').select('id').eq('id', data.formId).maybeSingle();
+        const { data: eventRow } = await supabase.from('events').select('id, meeting_link, status, public_registration').eq('id', data.formId).maybeSingle();
         if (!eventRow) {
           return NextResponse.json({ error: 'This form is not an event' }, { status: 400 });
         }
@@ -221,6 +218,39 @@ export async function POST(req: NextRequest) {
           });
           return { from: FROM, to: email, subject: rendered.subject, html: rendered.html };
         }))).filter((message): message is NonNullable<typeof message> => message !== null);
+
+        // Public registrants too (migration 244), as the reminder cron does: while the event is
+        // published and public, each with their own tracked join link, once per address.
+        if (eventRow.status === 'published' && eventRow.public_registration === true) {
+          const already = new Set(messages.map(m => normalizeEmail(m.to)));
+          const publicRegs = await fetchAllRows<{ id: string; name: string; email: string; join_token: string }>(
+            (from, to) => supabase
+              .from('event_public_registrations')
+              .select('id, name, email, join_token', { count: 'exact' })
+              .eq('event_id', data.formId)
+              .order('id')
+              .range(from, to));
+          for (const reg of publicRegs) {
+            const email = normalizeEmail(reg.email);
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || already.has(email)) continue;
+            already.add(email);
+            const joinUrl = eventRow.meeting_link && reg.join_token ? `${t.appUrl}/api/join?token=${encodeURIComponent(reg.join_token)}` : undefined;
+            // The Join button goes to their own join link; the stored meeting link only names the
+            // platform ("Zoom") on it and is never the link itself.
+            const forThem = { ...data, name: reg.name, meetingLink: joinUrl ? eventRow.meeting_link : undefined, joinUrl };
+            const html = reminderEmail({ ...forThem, branding });
+            const rendered = await applyEmailTemplate({
+              key: 'event_reminder', fallbackSubject: reminderSubject, fallbackHtml: html,
+              variables: {
+                student_name: reg.name || 'there', event_title: data.eventTitle || 'Event',
+                reminder_timing: data.isOneHour ? 'in 1 hour' : 'tomorrow',
+                event_time_display: eventTimeDisplay(data), event_location: eventLocationDisplay(forThem),
+              },
+              branding,
+            });
+            messages.push({ from: FROM, to: email, subject: rendered.subject, html: rendered.html });
+          }
+        }
 
         if (!messages.length) return NextResponse.json({ error: 'No valid recipients found' }, { status: 400 });
         for (let i = 0; i < messages.length; i += 100) {
@@ -468,6 +498,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === 'blast') {
+      // Buttons in the body take the content's colour, as the editor showed them, else the platform's.
+      const buttonColor = typeof data.buttonColor === 'string' && /^#[0-9a-f]{6}$/i.test(data.buttonColor)
+        ? data.buttonColor : (t.primaryColor || '#111827');
       // -- Test mode: single email address provided -> send once, skip quota --
       if (typeof to === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) {
         if (!data.subject?.trim()) {
@@ -486,8 +519,8 @@ export async function POST(req: NextRequest) {
           form_url: String(data.formUrl || ''),
         };
         const testSubject = applyMergeTags(String(data.subject || ''), mergeValues);
-        const testBody = applyMergeTags(String(data.body || ''), mergeValues);
-        const testHtml = blastEmail({ ...data, subject: testSubject, body: testBody, branding });
+        const testBodyHtml = renderEmailBody(String(data.body || ''), mergeValues, buttonColor);
+        const testHtml = blastEmail({ ...data, subject: testSubject, body: '', bodyHtml: testBodyHtml, neutralFooter: true, branding });
         await resend.emails.send({ from: FROM, to: testTo, subject: testSubject, html: testHtml });
         return NextResponse.json({ success: true, test: true });
       }
@@ -515,7 +548,7 @@ export async function POST(req: NextRequest) {
       // Load content metadata -- never trust client-supplied recipient lists
       const [{ data: blastCourse }, { data: blastEvent }, { data: blastVe }] = await Promise.all([
         supabase.from('courses').select('cohort_ids').eq('id', data.formId).maybeSingle(),
-        supabase.from('events').select('cohort_ids').eq('id', data.formId).maybeSingle(),
+        supabase.from('events').select('cohort_ids, meeting_link, status, public_registration').eq('id', data.formId).maybeSingle(),
         supabase.from('virtual_experiences').select('cohort_ids').eq('id', data.formId).maybeSingle(),
       ]);
 
@@ -527,6 +560,8 @@ export async function POST(req: NextRequest) {
 
       // Build deduplicated map of email -> merge data
       const responseByEmail = new Map<string, Record<string, any>>();
+      // Public registrants' {{meeting_link}}: their own tracked join link, never the raw meeting link.
+      const joinLinkByEmail = new Map<string, string>();
 
       if (isEvent) {
         // Events: send to registrants only
@@ -541,6 +576,26 @@ export async function POST(req: NextRequest) {
             const regResponses = (reg as any).responses ?? {};
             responseByEmail.set(emailKey, { name: student.full_name, email: student.email, ...regResponses });
           }
+        }
+
+        // And everyone who registered on the public page (migration 244). An address registered
+        // both ways gets one email, as the cohort member.
+        const publicRegs = await fetchAllRows<{ id: string; name: string; email: string; join_token: string; responses: Record<string, any> | null }>(
+          (from, to) => supabase
+            .from('event_public_registrations')
+            .select('id, name, email, join_token, responses', { count: 'exact' })
+            .eq('event_id', data.formId)
+            .order('id')
+            .range(from, to));
+        // Their join link works only while the event is published and public (/api/join refuses it
+        // otherwise), so a closed event's registrants are still told the news, without a dead link.
+        const ev = blastEvent as any;
+        const online = !!ev?.meeting_link && ev.status === 'published' && ev.public_registration === true;
+        for (const reg of publicRegs) {
+          const emailKey = normalizeEmail(reg.email);
+          if (!emailKey || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailKey) || responseByEmail.has(emailKey)) continue;
+          responseByEmail.set(emailKey, { ...(reg.responses ?? {}), name: reg.name, email: reg.email });
+          joinLinkByEmail.set(emailKey, online && reg.join_token ? `${t.appUrl}/api/join?token=${encodeURIComponent(reg.join_token)}` : '');
         }
       } else {
         // Courses / VEs: all enrolled cohort students, filtered by segment
@@ -621,16 +676,18 @@ export async function POST(req: NextRequest) {
           event_time: String(data.eventTime || ''),
           event_timezone: String(data.eventTimezone || ''),
           event_location: String(data.eventLocation || ''),
-          meeting_link: String(data.meetingLink || ''),
+          // Cohort members get the event's stored link, not one named by the request.
+          meeting_link: joinLinkByEmail.get(recipient) ?? (isEvent ? String((blastEvent as any)?.meeting_link || '') : ''),
           form_url: String(data.formUrl || ''),
         };
 
         const personalizedSubject = applyMergeTags(String(data.subject || ''), mergeValues);
-        const personalizedBody = applyMergeTags(String(data.body || ''), mergeValues);
         const personalizedHtml = blastEmail({
           ...data,
           subject: personalizedSubject,
-          body: personalizedBody,
+          body: '',
+          bodyHtml: renderEmailBody(String(data.body || ''), mergeValues, buttonColor),
+          neutralFooter: isEvent,
           branding,
         });
 
