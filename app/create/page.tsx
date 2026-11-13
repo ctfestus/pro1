@@ -2425,7 +2425,7 @@ const [isSaving, setIsSaving] = useState(false);
                 Live
               </span>
               <code className="flex-1 truncate" style={{ color: C.muted }}>
-                {typeof window !== 'undefined' ? window.location.origin : ''}/{customSlug || savedFormId}
+                {typeof window !== 'undefined' ? window.location.origin : ''}{contentPath({ slug: customSlug || savedFormId, config: formConfig })}
               </code>
               <button type="button" onClick={() => handleShare()} className="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-opacity hover:opacity-80 flex-shrink-0" style={{ background: accentColor, color: '#fff' }}>
                 {copied ? <Check className="w-3 h-3" /> : <Share2 className="w-3 h-3" />}

@@ -30,10 +30,9 @@ async function currentPromotions(): Promise<PromotionTeaser[]> {
   }
 }
 
-// An event open to public registration has its page at /events/<slug>. The client sends a visitor
-// there only after its usual lookup finds nothing it may open: slugs are unique per table, so a
-// course, experience or path with the same slug must win, and cohort members of the event keep
-// this page (their Join button lives here).
+// An event open to public registration has its one page at /events/<slug>. The client sends
+// everyone there once its usual lookup has run: slugs are unique per table, so a course,
+// experience or path with the same slug must keep this page.
 export default async function Page({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const [publicEvent, promotions] = await Promise.all([publicEventRedirect(id), currentPromotions()]);

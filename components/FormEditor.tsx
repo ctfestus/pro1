@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { contentPath } from '@/lib/content-link';
 import { THEME_ACCENT_COLORS } from '@/lib/theme-types';
 import { VenueFields } from '@/components/VenueFields';
 import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
@@ -2015,7 +2016,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                   <span className="self-stretch px-3 text-xs whitespace-nowrap flex items-center" style={{ color: FE.faint, borderRight: `1px solid ${FE.inputBorder}` }}>/</span>
                   <input type="text" value={customSlug} onChange={e => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="my-course" className="w-full bg-transparent px-3 py-3 text-sm font-medium outline-none placeholder:text-zinc-400" style={{ color: FE.text }} />
                 </div>
-                <p className="mt-2 flex items-center gap-1.5 text-[11px]" style={{ color: FE.faint }}><Link2 className="h-3 w-3" /> /{customSlug || formId}</p>
+                <p className="mt-2 flex items-center gap-1.5 text-[11px]" style={{ color: FE.faint }}><Link2 className="h-3 w-3" /> {contentPath({ slug: customSlug || formId, config: formConfig })}</p>
               </div>
               </div>
             )}

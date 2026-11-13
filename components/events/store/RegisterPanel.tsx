@@ -10,7 +10,7 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarPlus, CheckCircle2, Loader2 } from 'lucide-react';
+import { CalendarPlus, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { buildGoogleCalUrl, downloadIcs } from '@/lib/calendar-links';
 import type { PublicEvent } from '@/lib/events/public-event';
@@ -37,6 +37,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState<string | null>(null);
+  const [cohortToken, setCohortToken] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,8 +45,14 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
       if (!user || cancelled) return;
-      const { data: student } = await supabase.from('students').select('full_name').eq('id', user.id).maybeSingle();
+      // A cohort member is registered already (their cohort's row, read under its own RLS): they
+      // get their tracked Join link here instead of the form.
+      const [{ data: student }, { data: cohortReg }] = await Promise.all([
+        supabase.from('students').select('full_name').eq('id', user.id).maybeSingle(),
+        supabase.from('event_registrations').select('join_token').eq('event_id', event.id).eq('student_id', user.id).maybeSingle(),
+      ]);
       if (cancelled) return;
+      if (cohortReg?.join_token) setCohortToken(cohortReg.join_token);
       // The server registers the sign-in address, so that is the one shown.
       setAccountEmail(user.email || null);
       // Names go into emails, so the server takes letters, spaces, apostrophes and hyphens only.
@@ -55,9 +62,27 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
       setName(prev => prev || profileName);
     })();
     return () => { cancelled = true; };
-  }, []);
+  }, [event.id]);
 
   const full = event.spotsLeft !== null && event.spotsLeft <= 0;
+
+  if (cohortToken && !event.isPast) {
+    return (
+      <div className="rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
+        {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
+        <CheckCircle2 className="w-8 h-8" style={{ color: '#16a34a' }} />
+        <p className="mt-3 text-lg font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>You are registered</p>
+        <p className="mt-1.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>Your cohort is registered for this event, so there is nothing to fill in.</p>
+        {event.format === 'virtual' && (
+          <a href={`/api/join?token=${encodeURIComponent(cohortToken)}`} target="_blank" rel="noopener noreferrer"
+            className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl text-base font-bold"
+            style={{ background: primaryColor, color: 'var(--ev-on-accent,#ffffff)' }}>
+            Join meeting <ExternalLink className="w-4 h-4" />
+          </a>
+        )}
+      </div>
+    );
+  }
 
   if (event.isPast || full) {
     return (

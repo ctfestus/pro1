@@ -1067,10 +1067,11 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         } catch { /* fall through to not-found */ }
       }
 
-      // A public event this visitor cannot open here (not a cohort member, or signed out): its
-      // public page is where they register. Only once nothing else claimed this slug -- slugs are
-      // unique per table, so a course or path sharing it must keep its own page.
-      if (!data && !foundPath && publicEventPath) {
+      // An event open to public registration has one page, /events/<slug>, for everyone: visitors,
+      // its owner, and cohort members (who get their Join button there). Only when this slug
+      // resolved to that event or to nothing -- slugs are unique per table, so a course or path
+      // sharing it keeps its own page.
+      if (publicEventPath && !foundPath && (!data || data.content_type === 'event')) {
         window.location.replace(publicEventPath);
         return;
       }
