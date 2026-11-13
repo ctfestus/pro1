@@ -15,10 +15,10 @@ import { ShareButtons } from '@/components/ShareButtons';
 
 /**
  * One line of the hero facts. With href (the venue), the whole fact opens the map, and on hover
- * both lines underline and take the event's colour.
+ * both lines take the event's colour (no underline).
  */
 function Fact({ icon, title, sub, href, label, accent }: { icon: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode; href?: string; label?: string; accent?: string }) {
-  const hover = href ? ' underline-offset-4 transition-colors group-hover:underline group-hover:text-[var(--fact-hover)]' : '';
+  const hover = href ? ' transition-colors group-hover:text-[var(--fact-hover)]' : '';
   const body = (
     <>
       <div className="w-11 h-11 flex-shrink-0 rounded-xl bg-[var(--ev-surface,#ffffff)] flex items-center justify-center" style={{ boxShadow: CARD_SHADOW, color: 'var(--ev-body,#334155)' }}>{icon}</div>
