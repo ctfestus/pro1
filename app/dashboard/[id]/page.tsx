@@ -1554,7 +1554,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           <div className={isDark ? 'rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-xs text-zinc-500' : 'rounded-xl border border-[rgba(0,0,0,0.07)] bg-[#f5f6f7] px-4 py-3 text-xs text-[#888]'}>
             Available tags: <code>{'{{name}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{form_title}}'}</code>, <code>{'{{event_title}}'}</code>, <code>{'{{event_date}}'}</code>, <code>{'{{event_time}}'}</code>, <code>{'{{event_timezone}}'}</code>, <code>{'{{event_location}}'}</code>, <code>{'{{meeting_link}}'}</code>, <code>{'{{form_url}}'}</code>
           
-            <span className="mt-1 block">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>
+            {isEvent && <span className="mt-1 block">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>}
           </div>
           {blastResult && (
             <div className={feedback(blastResult.ok)}>

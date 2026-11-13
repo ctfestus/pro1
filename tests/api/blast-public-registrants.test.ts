@@ -23,9 +23,10 @@ const state = vi.hoisted(() => ({ tables: {} as Record<string, any[]> }));
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     from(table: string) {
-      const rows = () => state.tables[table] ?? [];
+      const filters: [string, any][] = [];
+      const rows = () => (state.tables[table] ?? []).filter(r => filters.every(([k, v]) => !(k in r) || r[k] === v));
       const chain: any = {
-        select: () => chain, eq: () => chain, order: () => chain, in: () => chain, range: () => chain, upsert: () => chain,
+        select: () => chain, eq: (k: string, v: any) => { filters.push([k, v]); return chain; }, order: () => chain, in: () => chain, range: () => chain, upsert: () => chain,
         maybeSingle: () => Promise.resolve({ data: rows()[0] ?? null, error: null }),
         then: (ok: any, bad: any) => Promise.resolve({ data: rows(), count: rows().length, error: null }).then(ok, bad),
       };
@@ -46,11 +47,12 @@ beforeEach(() => {
   vi.stubEnv('RESEND_API_KEY', 'k');
   batchSend.mockClear();
   state.tables = {
-    events: [{ id: 'ev1', cohort_ids: ['c1'], meeting_link: 'https://zoom.test/secret' }],
-    event_registrations: [{ student_id: 's1', responses: {}, student: { full_name: 'Kofi Cohort', email: 'kofi@example.test' } }],
+    events: [{ id: 'ev1', user_id: 'owner', cohort_ids: ['c1'], meeting_link: 'https://zoom.test/secret', status: 'published', public_registration: true }],
+    event_registrations: [{ event_id: 'ev1', student_id: 's1', responses: {}, student: { full_name: 'Kofi Cohort', email: 'kofi@example.test' } }],
     event_public_registrations: [
-      { id: 'r1', name: 'Ama Public', email: 'ama@example.test', join_token: 'tok1', responses: {} },
-      { id: 'r2', name: 'Kofi Again', email: 'KOFI@example.test', join_token: 'tok2', responses: {} },
+      { id: 'r1', event_id: 'ev1', name: 'Ama Public', email: 'ama@example.test', join_token: 'tok1', responses: {} },
+      { id: 'r2', event_id: 'ev1', name: 'Kofi Again', email: 'KOFI@example.test', join_token: 'tok2', responses: {} },
+      { id: 'r3', event_id: 'other', name: 'Other Event', email: 'other@example.test', join_token: 'tok3', responses: {} },
     ],
     blast_quotas: [],
   };
@@ -61,6 +63,8 @@ describe('event blast recipients', () => {
     expect(await (await blast()).json()).toMatchObject({ success: true, count: 2 });
     const payloads = batchSend.mock.calls.flatMap(c => c[0]);
     expect(payloads.map(p => p.to).sort()).toEqual(['ama@example.test', 'kofi@example.test']);
+    // The address registered both ways is written to as the cohort member.
+    expect(payloads.find(p => p.to === 'kofi@example.test').html).toContain('Hi Kofi Cohort');
   });
 
   it("gives a public registrant their tracked join link, never the meeting link", async () => {
@@ -72,10 +76,23 @@ describe('event blast recipients', () => {
   });
 
   it('reaches public registrants of an event with no cohort', async () => {
-    state.tables.events = [{ id: 'ev1', cohort_ids: [], meeting_link: null }];
+    state.tables.events = [{ id: 'ev1', user_id: 'owner', cohort_ids: [], meeting_link: null, status: 'published', public_registration: true }];
     expect(await (await blast()).json()).toMatchObject({ success: true, count: 2 });
     const ama = batchSend.mock.calls.flatMap(c => c[0]).find(p => p.to === 'ama@example.test');
     expect(ama.html).not.toContain('/api/join');
+    // The request names a meeting link, but the event stores none: it is not used.
+    expect(ama.html).not.toContain('zoom.test/secret');
+  });
+
+  it('still writes to registrants of a closed event, without a join link that would be refused', async () => {
+    state.tables.events = [{ ...state.tables.events[0], public_registration: false }];
+    await blast('<p>Hi {{name}}</p><p><a class="email-button" href="{{meeting_link}}">Join the session</a></p>');
+    const ama = batchSend.mock.calls.flatMap(c => c[0]).find(p => p.to === 'ama@example.test');
+    expect(ama.html).toContain('Hi Ama Public');
+    expect(ama.html).not.toContain('/api/join');
+    expect(ama.html).not.toContain('zoom.test/secret');
+    expect(ama.html).toContain('Join the session');
+    expect(ama.html).not.toMatch(/<a [^>]*>Join the session/);
   });
 
   it('sends an editor body as email HTML, with a join button per registrant', async () => {
@@ -83,5 +100,20 @@ describe('event blast recipients', () => {
     const ama = batchSend.mock.calls.flatMap(c => c[0]).find(p => p.to === 'ama@example.test');
     expect(ama.html).toContain('<p>Hi Ama Public</p>');
     expect(ama.html).toMatch(/<td style="border-radius:8px;background-color:#[0-9a-f]{6};"><a href="https:\/\/app\.test\/api\/join\?token=tok1"/);
+    expect(ama.html).not.toContain('zoom.test/secret');
+  });
+
+  it('escapes the title and drops a link that is not a web link', async () => {
+    const res = await POST(new NextRequest('http://localhost/api/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer t' },
+      body: JSON.stringify({ type: 'blast', data: { formId: 'ev1', subject: 'S', body: '<image src="https://tracker.test/p.gif"><p>Hi</p>', formTitle: 'Data & AI <Bootcamp>', formUrl: 'https://x.test/"><b>x', bannerUrl: 'javascript:1' } }),
+    }));
+    expect(await res.json()).toMatchObject({ success: true });
+    const html = batchSend.mock.calls.flatMap(c => c[0])[0].html;
+    expect(html).toContain('Data &amp; AI &lt;Bootcamp&gt;');
+    expect(html).not.toContain('tracker.test');
+    expect(html).not.toContain('<b>x');
+    expect(html).not.toContain('javascript:');
   });
 });

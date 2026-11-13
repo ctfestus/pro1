@@ -6,6 +6,7 @@ import { Bold, Code2, FileCode2, Table, Italic, RemoveFormatting, Underline, Lis
 import { useTheme } from '@/components/ThemeProvider';
 import { RichTextAiMenu } from '@/components/RichTextAiMenu';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
+import { textOn } from '@/lib/events/page-theme';
 
 // The image library opens only when someone inserts an image, so it is loaded then.
 const ImageLibrary = dynamic(() => import('@/components/ImageLibrary').then(m => m.ImageLibrary), { ssr: false });
@@ -126,10 +127,15 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
     }
   }, [value, rebuildYtPreviews]);
 
+  const valueRef = useRef(value);
+  useEffect(() => { valueRef.current = value; }, [value]);
+
   const exec = useCallback((command: string, val?: string) => {
     editorRef.current?.focus();
     document.execCommand(command, false, val);
-    if (editorRef.current) {
+    // Only a real change is flagged: a command that changed nothing (bold with no selection) causes
+    // no re-render to clear the flag, and the next value set from outside would then be ignored.
+    if (editorRef.current && editorRef.current.innerHTML !== valueRef.current) {
       isInternalChange.current = true;
       onChange(editorRef.current.innerHTML);
     }
@@ -199,15 +205,18 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
     a.setAttribute('contenteditable', 'false');
     const p = document.createElement('p');
     p.appendChild(a);
-    const range = savedRange.current ?? (() => {
-      const sel = window.getSelection();
-      const r = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
-      return r && editor.contains(r.commonAncestorContainer) ? r : null;
-    })();
+    const sel = window.getSelection();
+    const live = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    // The saved caret may be gone by now (its paragraph deleted while the form was open).
+    const range = [savedRange.current, live].find(r => r && r.startContainer.isConnected && editor.contains(r.startContainer)) ?? null;
     if (range) {
-      const block = (range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer as HTMLElement)
-        ?.closest?.('p, h2, h3, li, blockquote, pre, div.yt-embed');
-      if (block && block !== editor && editor.contains(block)) block.after(p);
+      // Selected text became the label, so it is not kept as text too.
+      if (!range.collapsed && range.toString().trim().slice(0, 60) === label) range.deleteContents();
+      // After the top-level block holding the caret, so a button never lands inside a list,
+      // a heading or a table.
+      let top: Node | null = range.startContainer;
+      while (top && top.parentNode !== editor) top = top.parentNode;
+      if (top && top !== editor) (top as ChildNode).after(p);
       else { range.collapse(false); range.insertNode(p); }
     } else {
       editor.appendChild(p);
@@ -220,7 +229,8 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
   const handleInsertVideo = useCallback(() => {
     const url = prompt(anyVideoLink ? 'Paste a YouTube link, or any video link (Zoom, Loom, Google Drive):' : 'Enter YouTube URL:');
     if (!url) return;
-    const match = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+    const isYouTube = /^(?:https?:\/\/)?(?:[\w-]+\.)?(?:youtube\.com|youtube-nocookie\.com|youtu\.be)\//i.test(url.trim());
+    const match = !anyVideoLink || isYouTube ? url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/) : null;
     if (!match && anyVideoLink) {
       if (!/^https?:\/\/\S+$/i.test(url.trim())) { alert('Paste a full link starting with https://'); return; }
       insertButton('Watch the video', url.trim());
@@ -506,6 +516,9 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
   }, []);
   const handleEditorClick = useCallback((e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
+    // A link in the editor is being edited, not followed (a button is not editable, so the
+    // browser would open it and lose the draft).
+    if (target?.closest?.('a')) e.preventDefault();
     if (target && target.tagName === 'IMG') positionImgCtl(target as HTMLImageElement);
     else setImgCtl(null);
   }, [positionImgCtl]);
@@ -660,7 +673,7 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
               className="flex-1 min-w-[160px] rounded-md px-2.5 py-1.5 text-xs outline-none" style={field} />
             <button type="button" disabled={!valid}
               onClick={() => { insertButton(buttonForm.label.trim(), url); setButtonForm(null); }}
-              className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40" style={{ background: buttonColor, color: '#ffffff' }}>
+              className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40" style={{ background: buttonColor, color: textOn(buttonColor) }}>
               Insert
             </button>
             <button type="button" onClick={() => { savedRange.current = null; setButtonForm(null); }}
@@ -747,7 +760,7 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
         .rich-editor table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
         .rich-editor th, .rich-editor td { border: 1px solid ${dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}; padding: 6px 10px; text-align: left; min-width: 40px; }
         .rich-editor th { font-weight: 700; background: ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}; }
-        .rich-editor a.email-button { display: inline-block; background: ${buttonColor}; color: #ffffff; text-decoration: none; font-weight: 600; padding: 10px 22px; border-radius: 8px; cursor: default; }
+        .rich-editor a.email-button { display: inline-block; background: ${buttonColor}; color: ${textOn(buttonColor)}; text-decoration: none; font-weight: 600; padding: 10px 22px; border-radius: 8px; cursor: default; }
         .rich-editor a.email-button:hover { opacity: 1; }
         .rich-editor .yt-embed { width: 100%; margin: 8px 0; border-radius: 8px; overflow: hidden; position: relative; cursor: default; display: block; }
         .rich-editor .yt-embed img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }

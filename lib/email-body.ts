@@ -11,29 +11,40 @@ import { textOn } from '@/lib/events/page-theme';
  *   div.yt-embed[title]  the YouTube thumbnail, linked to the video: email cannot play video
  *   img                  full width at most, never overflowing a phone screen
  * Merge tags ({{name}}, {{meeting_link}}, ...) are filled last, HTML-escaped, so a registrant's
- * name can never add markup. A button may point at a merge tag, e.g. {{meeting_link}}.
+ * name can never add markup. A button may point at a merge tag, e.g. {{meeting_link}}: the tag is
+ * filled first and the button kept only if the result is a web link (a recipient with no link gets
+ * the label as plain text, not a dead button).
  *
- * A body with no markup (older drafts, the plain textarea) returns null: the caller keeps its
- * plain-text path.
+ * A body with no markup at all is plain text: escaped, with blank lines as paragraphs. Anything
+ * with a tag in it goes through the sanitizer, so no body reaches an email unsanitized.
  */
 
 const YT_ID = /^[a-zA-Z0-9_-]{11}$/;
-const MERGE_HREF = /^\{\{\s*[a-z_]+\s*\}\}$/i;
+const MERGE_HREF = /^\{\{\s*([a-z0-9_]+)\s*\}\}$/i;
 const WEB_HREF = /^https?:\/\/\S+$/i;
 
-const escapeHtml = (v: string) =>
+export const escapeHtml = (v: string) =>
   v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 
-export function looksLikeHtml(body: string): boolean {
-  return /<(p|br|div|h[1-4]|ul|ol|img|a|b|strong|i|em|u|blockquote|table)\b/i.test(body);
+/** A merge value by tag name. Own keys only: {{constructor}} is an unknown tag, not a function. */
+export function mergeValue(values: Record<string, string>, key: string): string {
+  const k = key.toLowerCase();
+  return Object.prototype.hasOwnProperty.call(values, k) ? String(values[k] ?? '') : '';
 }
 
-function fillMergeTags(html: string, values: Record<string, string>): string {
-  return html.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, key: string) => escapeHtml(values[key.toLowerCase()] ?? ''));
+/** Fill {{tags}} in a template; `escape` for a template that is HTML. */
+export function fillMergeTags(template: string, values: Record<string, string>, escape = false): string {
+  return template.replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_m, key: string) => {
+    const v = mergeValue(values, key);
+    return escape ? escapeHtml(v) : v;
+  });
 }
 
-export function renderEmailBody(body: string, values: Record<string, string>, buttonColor: string): string | null {
-  if (!looksLikeHtml(body)) return null;
+export function renderEmailBody(body: string, values: Record<string, string>, buttonColor: string): string {
+  if (!/<[a-z!/]/i.test(body)) {
+    const paragraphs = escapeHtml(body.trim()).split(/\n{2,}/).map(p => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
+    return fillMergeTags(paragraphs, values, true);
+  }
   const clean = sanitizeEmailBody(body);
   const color = /^#[0-9a-f]{3}([0-9a-f]{3})?$/i.test(buttonColor) ? buttonColor : '#111827';
   const onColor = textOn(color);
@@ -53,10 +64,20 @@ export function renderEmailBody(body: string, values: Record<string, string>, bu
     target.replaceWith(...Array.from(holder.childNodes));
   };
 
+  // A link to a merge tag is filled here, not with the text, so the result can be checked: a tag
+  // that fills to nothing, or to anything but a web link, leaves no link behind.
+  root.querySelectorAll('a[href]').forEach(a => {
+    const tag = (a.getAttribute('href') ?? '').trim().match(MERGE_HREF);
+    if (!tag) return;
+    const href = mergeValue(values, tag[1]).trim();
+    if (WEB_HREF.test(href)) a.setAttribute('href', href);
+    else a.removeAttribute('href');
+  });
+
   root.querySelectorAll('a.email-button').forEach(a => {
     const href = (a.getAttribute('href') ?? '').trim();
     const label = (a.textContent ?? '').trim();
-    if (!label || !(WEB_HREF.test(href) || MERGE_HREF.test(href))) { a.replaceWith(doc.createTextNode(label)); return; }
+    if (!label || !WEB_HREF.test(href)) { a.replaceWith(doc.createTextNode(label)); return; }
     replaceBlock(a, `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0;"><tr>`
       + `<td style="border-radius:8px;background-color:${color};">`
       + `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer" style="display:inline-block;padding:13px 26px;color:${onColor};font-weight:bold;font-size:15px;text-decoration:none;border-radius:8px;">${escapeHtml(label)}</a>`
@@ -77,5 +98,5 @@ export function renderEmailBody(body: string, values: Record<string, string>, bu
     img.setAttribute('style', 'display:block;max-width:100%;height:auto;border:0;border-radius:6px;margin:12px 0;');
   });
 
-  return fillMergeTags(root.innerHTML, values);
+  return fillMergeTags(root.innerHTML, values, true);
 }
