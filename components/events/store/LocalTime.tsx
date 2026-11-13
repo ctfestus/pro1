@@ -19,7 +19,7 @@ export function LocalTime({ date, time, timezone }: { date: string | null; time:
   }, [date, time, timezone]);
   if (!local) return null;
   return (
-    <span className="block mt-0.5 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>
+    <span className="block mt-0.5">
       {local.date ? `${local.date}, ` : ''}{local.time} your time ({local.zone})
     </span>
   );

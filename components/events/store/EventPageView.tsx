@@ -98,8 +98,8 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
                 sub={time ? (
                   <>
                     <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {time}{event.timezone ? ` ${event.timezone}` : ''}</span>
-                    {/* The visitor's own time, in their browser only; nothing once the event is over. */}
-                    {!event.isPast && <LocalTime date={event.nextDate} time={event.time} timezone={event.timezone} />}
+                    {/* The visitor's own time, in their browser only. A finished event has no next date, so nothing shows. */}
+                    <LocalTime date={event.nextDate} time={event.time} timezone={event.timezone} />
                   </>
                 ) : undefined} />
               {event.format === 'virtual' ? (

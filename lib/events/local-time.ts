@@ -8,11 +8,15 @@ import { parseGmtOffsetMinutes, sessionStartInstant } from '@/lib/event-sessions
  * from Date#getTimezoneOffset at that instant, so summer time on the event's date is right).
  *
  * Returns null whenever it cannot be certain or has nothing to add:
- *   - the event's timezone is not a readable GMT/UTC offset (old rows hold names like "WAT";
- *     sessionStartInstant would read those as UTC, which is exactly the wrong-by-hours bug)
+ *   - the event's timezone is not written the way the editors write it, "GMT+1 (Lagos)" or
+ *     "UTC+5:30". Old rows hold names like "WAT" (read as UTC elsewhere: the wrong-by-hours bug),
+ *     and look-alikes such as "Etc/GMT+5" or "GMT+0530" would be misread by the looser parser
  *   - no date or no time
  *   - the visitor is already on the event's offset
  */
+
+/** The editors' shape only, from the start of the string, with real minutes. */
+const EDITOR_TIMEZONE = /^(?:GMT|UTC)\s*[+-]\s*\d{1,2}(?::[0-5]\d)?(?:\s|\(|$)/i;
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -42,6 +46,7 @@ export function viewerLocalTime(
   viewerOffsetAt: (instant: Date) => number,
 ): ViewerLocalTime | null {
   if (!date || !time) return null;
+  if (!timezone || !EDITOR_TIMEZONE.test(timezone.trim())) return null;
   const eventOffset = parseGmtOffsetMinutes(timezone);
   if (eventOffset === null || Math.abs(eventOffset) > 14 * 60) return null;
   const instant = sessionStartInstant(date, time, timezone);
