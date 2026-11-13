@@ -59,9 +59,18 @@ export function EventCard({ ev, primaryColor }: { ev: PublicEvent; primaryColor:
         </p>
         {ev.venue && <p className="mt-0.5 text-sm truncate" style={{ color: '#64748b' }}>{ev.venue.name}</p>}
         {ev.summary && <p className="mt-3 text-sm line-clamp-2" style={{ color: '#64748b' }}>{ev.summary}</p>}
-        <span className="mt-auto pt-4 text-sm font-semibold" style={{ color: ev.isPast ? '#64748b' : primaryColor }}>
-          {ev.isPast ? 'View event' : badge?.tone === 'full' ? 'View details' : 'Register'}
-        </span>
+        {/* Looks like a button; the whole card is the link (a real button cannot sit inside one). */}
+        <div className="mt-auto pt-4">
+          {(() => {
+            const open = !ev.isPast && badge?.tone !== 'full';
+            return (
+              <span className="flex h-10 w-full items-center justify-center rounded-xl text-sm font-bold transition-opacity group-hover:opacity-90"
+                style={open ? { background: primaryColor, color: '#ffffff' } : { background: '#f1f5f9', color: '#334155' }}>
+                {ev.isPast ? 'View event' : open ? 'Register' : 'View details'}
+              </span>
+            );
+          })()}
+        </div>
       </div>
     </Link>
   );
