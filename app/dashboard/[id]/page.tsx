@@ -29,6 +29,7 @@ import { sameReportContent, type InstructorReportDraft } from '@/lib/ve-instruct
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { contentPath } from '@/lib/content-link';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { IMG_EMAIL, resolveImageUrl } from '@/lib/cloudinary-url';
 
 // -- Lazy charts ---
 const ResponsesOverTimeChart = dynamic(
@@ -1058,6 +1059,15 @@ function WhatsAppIcon({ className }: { className?: string }) {
 }
 
 // -- Email Tab ---
+/**
+ * The cover as an email banner: its direct image link, sized for email. Not a link to this site
+ * (from a local copy that is localhost, which no inbox can load). No usable link, no banner.
+ */
+function emailBannerFor(cover: unknown): string | undefined {
+  const url = typeof cover === 'string' ? resolveImageUrl(cover, IMG_EMAIL) : '';
+  return /^https:\/\//i.test(url) ? url : undefined;
+}
+
 /** The AI writer's plain-text draft as editor paragraphs (escaped, blank lines split paragraphs). */
 function plainTextToEditorHtml(text: string): string {
   const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1162,11 +1172,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
     setQuickSending(true);
     setQuickResult(null);
     try {
-      const eventBannerUrl = cfg.coverImage
-        ? (/^https?:\/\//i.test(cfg.coverImage)
-            ? cfg.coverImage
-            : `${window.location.origin}/api/og/${form.id}`)
-        : undefined;
+      const eventBannerUrl = emailBannerFor(cfg.coverImage);
       let payload: any = { type: quickType, to: quickTo, data: { formUrl } };
       if (isCourse || isVE) {
         // Course / VE: send a test blast to this single address
@@ -1227,11 +1233,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
 
   /** The broadcast as the email route takes it; preview and test send use the same, so they match. */
   const blastData = () => {
-    const eventBannerUrl = cfg.coverImage
-      ? (/^https?:\/\//i.test(cfg.coverImage)
-          ? cfg.coverImage
-          : `${window.location.origin}/api/og/${form.id}`)
-      : undefined;
+    const eventBannerUrl = emailBannerFor(cfg.coverImage);
     return {
             formId: form.id,
             subject: blastSubject,
@@ -1357,11 +1359,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
     setReminding(true);
     setReminderResult(null);
     try {
-      const eventBannerUrl = cfg.coverImage
-        ? (/^https?:\/\//i.test(cfg.coverImage)
-            ? cfg.coverImage
-            : `${window.location.origin}/api/og/${form.id}`)
-        : undefined;
+      const eventBannerUrl = emailBannerFor(cfg.coverImage);
       const { data: { session: reminderSession } } = await supabase.auth.getSession();
       const res = await fetch('/api/email', {
         method: 'POST',
