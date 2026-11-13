@@ -1751,7 +1751,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                     {(formConfig.eventDetails.eventType ?? 'in-person') === 'virtual' ? (
                       <input type="url" value={formConfig.eventDetails.meetingLink || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, meetingLink: e.target.value } })} placeholder="https://meet.google.com/..." className={`${inputCls} pl-9`} style={inputStyle} />
                     ) : (
-                      <input type="text" value={formConfig.eventDetails.location || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, location: e.target.value } })} placeholder="Address or venue name" className={`${inputCls} pl-9`} style={inputStyle} />
+                      <input type="text" value={formConfig.eventDetails.location || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, location: e.target.value } })} placeholder="Venue name, street, city" className={`${inputCls} pl-9`} style={inputStyle} />
                     )}
                   </div>
                 </div>

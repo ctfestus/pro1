@@ -44,7 +44,7 @@ export function eventJsonLd(ev: PublicEvent, appName: string, appUrl: string): R
       : 'https://schema.org/OfflineEventAttendanceMode',
     location: ev.format === 'virtual'
       ? { '@type': 'VirtualLocation', url }
-      : { '@type': 'Place', name: ev.location ?? 'To be announced', address: ev.location ?? undefined },
+      : { '@type': 'Place', name: ev.venue?.name ?? 'To be announced', address: ev.venue?.address ?? ev.location ?? undefined },
     image: ev.coverImage && !ev.coverImage.startsWith('data:') ? [socialImageUrl(ev.coverImage)] : undefined,
     organizer: { '@type': 'Organization', name: appName, url: appUrl || undefined },
     offers: {
