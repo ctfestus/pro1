@@ -1,6 +1,6 @@
 // What the public events pages may show (migration 244), and how registrant answers are checked.
 import { describe, expect, it } from 'vitest';
-import { dateParts, displayTime, eventIsOpenForRegistration, publicEventFields, recurrenceLabel, splitVenue, toPublicEvent } from '@/lib/events/public-event';
+import { dateParts, displayTime, eventIsOpenForRegistration, publicEventFields, joinVenue, recurrenceLabel, splitVenue, toPublicEvent } from '@/lib/events/public-event';
 import { validateRegistrationResponses } from '@/lib/events/registration';
 
 const NOW = new Date('2026-11-13T12:00:00Z');
@@ -91,5 +91,14 @@ describe('splitVenue', () => {
   it('gives an in-person event a venue and an online one none', () => {
     expect(toPublicEvent({ ...ROW, event_type: 'in-person', location: 'Impact Hub, Osu' }, 0, NOW)!.venue).toEqual({ name: 'Impact Hub', address: 'Osu' });
     expect(toPublicEvent(ROW, 0, NOW)!.venue).toBeNull();
+  });
+});
+
+describe('joinVenue', () => {
+  it('stores the venue name and subtitle as one location that splits back the same', () => {
+    expect(joinVenue('Accra Digital Centre', 'Ring Road, Osu')).toBe('Accra Digital Centre, Ring Road, Osu');
+    expect(splitVenue(joinVenue('Accra Digital Centre', 'Ring Road, Osu'))).toEqual({ name: 'Accra Digital Centre', address: 'Ring Road, Osu' });
+    expect(joinVenue('Impact Hub', '  ')).toBe('Impact Hub');
+    expect(joinVenue('Hall, A', 'Osu')).toBe('Hall A, Osu');
   });
 });

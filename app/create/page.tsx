@@ -1,5 +1,6 @@
 'use client';
 
+import { VenueFields } from '@/components/VenueFields';
 import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
 import React, { useState, useEffect, useRef } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
@@ -2621,16 +2622,18 @@ const [isSaving, setIsSaving] = useState(false);
                       );
                     })}
                   </div>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.faint }}>
-                      {(formConfig.eventDetails.eventType ?? 'in-person') === 'virtual' ? <Link2 className="w-4 h-4" /> : <MapPin className="w-4 h-4" />}
-                    </span>
-                    {(formConfig.eventDetails.eventType ?? 'in-person') === 'virtual' ? (
+                  {(formConfig.eventDetails.eventType ?? 'in-person') === 'virtual' ? (
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.faint }}>
+                        <Link2 className="w-4 h-4" />
+                      </span>
                       <input type="url" value={formConfig.eventDetails.meetingLink || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, meetingLink: e.target.value } })} placeholder="https://meet.google.com/..." className={`${inputCls} pl-9`} style={inputStyle} />
-                    ) : (
-                      <input type="text" value={formConfig.eventDetails.location || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, location: e.target.value } })} placeholder="Venue name, street, city" className={`${inputCls} pl-9`} style={inputStyle} />
-                    )}
-                  </div>
+                    </div>
+                  ) : (
+                    <VenueFields location={formConfig.eventDetails.location || ''}
+                      onChange={location => updateConfig({ eventDetails: { ...formConfig.eventDetails!, location } })}
+                      inputClass={inputCls} inputStyle={inputStyle} iconColor={C.faint} />
+                  )}
                 </div>
 
                 {/* SCHEDULE */}
