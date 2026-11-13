@@ -186,12 +186,12 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
       {error && <p className="mt-3 text-sm font-medium" style={{ color: '#b91c1c' }} role="alert">{error}</p>}
 
       <button type="submit" disabled={submitting}
-        className="mt-5 w-full rounded-xl py-2.5 inline-flex flex-col items-center justify-center transition-opacity disabled:opacity-60"
+        className="mt-5 w-full min-h-[68px] rounded-2xl px-4 py-3.5 inline-flex flex-col items-center justify-center gap-1 transition-opacity hover:opacity-95 disabled:opacity-60"
         style={{ background: primaryColor, color: '#ffffff' }}>
-        <span className="inline-flex items-center gap-2 text-base font-bold">
+        <span className="inline-flex items-center gap-2 text-lg font-extrabold leading-tight">
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your spot' : 'Save my spot'}
         </span>
-        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-85">Limited spots available</span>
+        <span className="text-xs font-semibold uppercase tracking-[0.14em] opacity-90">Limited spots available</span>
       </button>
       <p className="mt-3 text-xs" style={{ color: '#94a3b8' }}>
         {accountEmail ? 'Registering with your account email.' : 'We use your email only to send your registration details and reminders.'}
