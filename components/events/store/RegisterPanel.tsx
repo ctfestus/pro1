@@ -136,7 +136,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
     <form onSubmit={submit} className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
       {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
       <p className="text-lg font-bold" style={{ color: '#0f172a' }}>Register for this event</p>
-      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: primaryColor }}>Limited seats available</p>
+      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: primaryColor }}>Limited spots available</p>
 
       <div className="mt-4 space-y-3">
         <label className="block">
