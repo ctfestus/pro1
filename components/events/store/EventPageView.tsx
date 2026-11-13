@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CalendarDays, ChevronRight, Clock, MapPin, Navigation, Repeat, Users, Video } from 'lucide-react';
+import { CalendarDays, ChevronRight, Clock, MapPin, Repeat, Users, Video } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { sessionStartInstant } from '@/lib/event-sessions';
 import { sanitizeRichText } from '@/lib/sanitize';
@@ -13,16 +13,20 @@ import { CARD_SHADOW, initials } from '@/components/books/store/card-style';
 import { RegisterPanel } from '@/components/events/store/RegisterPanel';
 import { ShareButtons } from '@/components/ShareButtons';
 
-function Fact({ icon, title, sub }: { icon: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode }) {
-  return (
-    <div className="flex items-start gap-3">
+/** One line of the hero facts. With href (the venue), the whole fact opens the map. */
+function Fact({ icon, title, sub, href, label }: { icon: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode; href?: string; label?: string }) {
+  const body = (
+    <>
       <div className="w-11 h-11 flex-shrink-0 rounded-xl bg-[var(--ev-surface,#ffffff)] flex items-center justify-center" style={{ boxShadow: CARD_SHADOW, color: 'var(--ev-body,#334155)' }}>{icon}</div>
       <div className="min-w-0 pt-0.5">
-        <div className="text-base font-semibold" style={{ color: 'var(--ev-text,#0f172a)' }}>{title}</div>
+        <div className={`text-base font-semibold${href ? ' underline-offset-4 group-hover:underline' : ''}`} style={{ color: 'var(--ev-text,#0f172a)' }}>{title}</div>
         {sub && <div className="mt-0.5 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>{sub}</div>}
       </div>
-    </div>
+    </>
   );
+  return href
+    ? <a href={href} target="_blank" rel="noopener noreferrer" aria-label={label} title={label} className="group flex items-start gap-3">{body}</a>
+    : <div className="flex items-start gap-3">{body}</div>;
 }
 
 /**
@@ -91,7 +95,9 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
               ) : (
                 <Fact icon={<MapPin className="w-5 h-5" />}
                   title={event.venue?.name ?? 'Venue to be announced'}
-                  sub={event.venue?.address ?? undefined} />
+                  sub={event.venue?.address ?? undefined}
+                  href={event.venue && mapsUrl ? mapsUrl : undefined}
+                  label={event.venue ? `Open ${event.venue.name} in Google Maps` : undefined} />
               )}
               {repeat && <Fact icon={<Repeat className="w-5 h-5" />} title={repeat} sub="One registration covers every session" />}
               {event.capacity !== null && !event.isPast && (
@@ -111,26 +117,6 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
               <h2 className="text-xl font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>About this event</h2>
               <div className="rich-preview mt-3 text-base leading-relaxed" style={{ color: 'var(--ev-body,#334155)' }}
                 dangerouslySetInnerHTML={{ __html: aboutHtml }} />
-            </div>
-          )}
-
-          {event.venue && mapsUrl && (
-            <div>
-              <h2 className="text-xl font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>Venue</h2>
-              <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl bg-[var(--ev-surface,#ffffff)] p-5" style={{ boxShadow: CARD_SHADOW }}>
-                <div className="w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center" style={{ background: `${primaryColor}14`, color: primaryColor }}>
-                  <MapPin className="w-5 h-5" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-base font-bold" style={{ color: 'var(--ev-text,#0f172a)' }}>{event.venue.name}</p>
-                  {event.venue.address && <p className="mt-0.5 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>{event.venue.address}</p>}
-                </div>
-                <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold flex-shrink-0"
-                  style={{ background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' }}>
-                  <Navigation className="w-4 h-4" /> Get directions
-                </a>
-              </div>
             </div>
           )}
 
