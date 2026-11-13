@@ -9,12 +9,9 @@ import { ShareProduct } from '@/components/books/store/ShareProduct';
 import { MobileBuyBar } from '@/components/books/store/MobileBuyBar';
 import { PriceTag } from '@/components/books/store/PriceTag';
 import { InstructorLinks } from '@/components/books/store/InstructorLinks';
+import { CARD_SHADOW, initials } from '@/components/books/store/card-style';
 import type { StoreBook, StoreBookDetail, StoreInstructor } from '@/lib/books/store';
 
-/** White surfaces lifted off the gray page by a soft shadow (no borders). */
-const CARD_SHADOW = '0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -14px rgba(15,23,42,0.14)';
-
-const initials = (name: string) => name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]!.toUpperCase()).join('');
 
 /**
  * A product's page, laid out as:

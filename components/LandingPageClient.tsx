@@ -79,11 +79,12 @@ function ProgrammeLoadError({ dark = false }: { dark?: boolean }) {
 }
 
 // --- Elevate Template ---
-function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [], storeProducts = [] }: {
+function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [], navEvents = [], storeProducts = [] }: {
   user: any; profile: any; scrolled: boolean; pastHero: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
   publicSignupEnabled: boolean;
   programmes: ProgrammeItem[]; programmesError: boolean;
   navBooks?: NavBook[];
+  navEvents?: NavBook[];
   storeProducts?: LandingProduct[];
 }) {
   const [hoveredTrack, setHoveredTrack] = useState<number | null>(null);
@@ -197,6 +198,15 @@ function ElevateTemplate({ user, profile, scrolled, pastHero, siteConfig, logoUr
       >
         <img src={logoDarkUrl || logoUrl || undefined} alt="" className="h-9 w-auto" />
         <div className="flex items-center gap-3">
+          {navEvents.length > 0 && (
+            <Link
+              href="/events"
+              className="text-sm font-medium transition-opacity hover:opacity-60"
+              style={{ color: nav_text }}
+            >
+              Events
+            </Link>
+          )}
           {/* The book store, once it has something in it (lib/books/store.ts). */}
           {navBooks.length > 0 && (
             <Link
@@ -1486,11 +1496,12 @@ function LandingCarouselRow({ title, items, type, typeColor, user, hFont, bFont,
 }
 
 // --- Modern template ---
-function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [], storeProducts = [] }: {
+function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDarkUrl, appName, publicSignupEnabled, programmes, programmesError, navBooks = [], navEvents = [], storeProducts = [] }: {
   user: any; profile: any; scrolled: boolean; siteConfig: SiteConfig; logoUrl: string; logoDarkUrl: string; appName: string;
   publicSignupEnabled: boolean;
   programmes: ProgrammeItem[]; programmesError: boolean;
   navBooks?: NavBook[];
+  navEvents?: NavBook[];
   storeProducts?: LandingProduct[];
 }) {
   const reduced = useReducedMotion();
@@ -1551,7 +1562,7 @@ function ModernTemplate({ user, profile, scrolled, siteConfig, logoUrl, logoDark
 
 
   // Shared with the pricing page, so both public pages offer the same Learn menu.
-  const NAV_LINKS = buildNavGroups(programmes, user, navBooks);
+  const NAV_LINKS = buildNavGroups(programmes, user, navBooks, navEvents);
 
   return (
     <>
@@ -1785,6 +1796,8 @@ type LandingPageClientProps = {
   programmesError: boolean;
   /** The store's books, for the Learn menu's Books entry. */
   navBooks?: NavBook[];
+  /** Upcoming public events, for the Learn menu's Events entry. */
+  navEvents?: NavBook[];
   /** The newest store products, for the Digital Products section. */
   storeProducts?: LandingProduct[];
   isPreview: boolean;
@@ -1796,6 +1809,7 @@ export default function LandingPageClient({
   initialProgrammes,
   programmesError,
   navBooks,
+  navEvents,
   storeProducts = [],
   isPreview,
 }: LandingPageClientProps) {
@@ -1930,9 +1944,9 @@ export default function LandingPageClient({
   const promo = isPreview ? null : <PromoCard placement="landing" bottomOffset={72} light />;
 
   if (templateId === 'elevate') {
-    return <><ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} storeProducts={storeProducts} />{promo}</>;
+    return <><ElevateTemplate user={user} profile={profile} scrolled={scrolled} pastHero={pastHero} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} navEvents={navEvents} storeProducts={storeProducts} />{promo}</>;
   }
 
-  return <><ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} storeProducts={storeProducts} />{promo}</>;
+  return <><ModernTemplate user={user} profile={profile} scrolled={scrolled} siteConfig={siteConfig} logoUrl={logoUrl} logoDarkUrl={logoDarkUrl} appName={appName} publicSignupEnabled={publicSignupEnabled} programmes={initialProgrammes} programmesError={programmesError} navBooks={navBooks} navEvents={navEvents} storeProducts={storeProducts} />{promo}</>;
 
 }

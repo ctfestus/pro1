@@ -5,6 +5,7 @@ import { requireRole, requireUser, isAuthError } from '@/lib/api-auth';
 import { normalizeFormConfig, validateFormConfig, normalizeQuestions, normalizePointsSystem, LEGACY_RUNTIME_POINTS_SYSTEM } from '@/lib/course-schema';
 import { extractDocImageUrls } from '@/lib/lesson-doc';
 import { sendAssignmentNotifications } from '@/lib/send-assignment-notification';
+import { refreshEventsStore } from '@/lib/events/store-cache';
 import { autoRegisterEventCohorts } from '@/lib/auto-register-event-cohorts';
 import { getVectorIndex } from '@/lib/vector';
 import { cloudinary, extractPublicId } from '@/lib/cloudinary-server';
@@ -196,6 +197,7 @@ export async function POST(req: NextRequest) {
           capacity:             config.eventDetails?.capacity          ?? null,
           meeting_link:         config.eventDetails?.meetingLink       || null,
           is_private:           config.eventDetails?.isPrivate         ?? false,
+          public_registration:  config.eventDetails?.publicRegistration === true,
           speakers:             config.eventDetails?.speakers          ?? [],
           recurrence:           config.eventDetails?.recurrence        ?? 'once',
           recurrence_end_date:  config.eventDetails?.recurrenceEndDate || null,
@@ -207,6 +209,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!error) {
+      if (content_type === 'event') refreshEventsStore();
       if (effectiveCohortIds.length && formStatus === 'published') {
         await upsertCohortAssignments(supabase, content_type, data.id, effectiveCohortIds);
         try {
@@ -333,6 +336,7 @@ export async function PUT(req: NextRequest) {
       capacity:             config.eventDetails?.capacity          ?? null,
       meeting_link:         config.eventDetails?.meetingLink       || null,
       is_private:           config.eventDetails?.isPrivate         ?? false,
+      public_registration:  config.eventDetails?.publicRegistration === true,
       speakers:             config.eventDetails?.speakers          ?? [],
       recurrence:           config.eventDetails?.recurrence        ?? 'once',
       recurrence_end_date:  config.eventDetails?.recurrenceEndDate || null,
@@ -352,6 +356,8 @@ export async function PUT(req: NextRequest) {
     console.error('[api/forms] update error:', updateError.message);
     return NextResponse.json({ error: 'Failed to update.' }, { status: 500 });
   }
+
+  if (found.table === 'events') refreshEventsStore();
 
   // Sync cohort_assignments: upsert added, delete removed
   // Use found.row fallback so callers that omit cohort_ids do not accidentally wipe all rows
@@ -427,6 +433,7 @@ export async function PATCH(req: NextRequest) {
 
   const { error: updateError } = await supabase.from(found.table).update({ status }).eq('id', formId);
   if (updateError) return NextResponse.json({ error: 'Failed to update status' }, { status: 500 });
+  if (found.table === 'events') refreshEventsStore();
 
   if (status === 'published') {
     if (found.table === 'courses') {
@@ -522,6 +529,7 @@ export async function DELETE(req: NextRequest) {
 
   // Clean up cohort_assignments (no FK cascade)
   await supabase.from('cohort_assignments').delete().eq('content_id', formId);
+  if (found.table === 'events') refreshEventsStore();
 
   // Also clean up event responses (no cascade from events table)
   if (found.table === 'events') {

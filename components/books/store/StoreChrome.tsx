@@ -21,14 +21,18 @@ export interface StoreChromeProps {
   bodyFont?: string;
   programmes: ProgrammeItem[];
   navBooks: NavBook[];
+  /** Upcoming public events for the nav (lib/events/store.ts listNavEvents). */
+  navEvents?: NavBook[];
   children: React.ReactNode;
 }
 
-export function StoreChrome({ siteConfig, primaryColor, accentColor, bodyFont, programmes, navBooks, children }: StoreChromeProps) {
+const EMPTY: NavBook[] = [];
+
+export function StoreChrome({ siteConfig, primaryColor, accentColor, bodyFont, programmes, navBooks, navEvents = EMPTY, children }: StoreChromeProps) {
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
   const [user, setUser] = useState<any>(null);
   const [scrolled, setScrolled] = useState(false);
-  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks), [programmes, user, navBooks]);
+  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks, navEvents), [programmes, user, navBooks, navEvents]);
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
 
   useEffect(() => {

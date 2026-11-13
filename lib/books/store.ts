@@ -249,7 +249,7 @@ export async function loadStoreBook(slug: string, db: any = adminClient(), now: 
 }
 
 /** The publishing instructor's public profile. A failure only hides the section. */
-async function loadInstructor(db: any, userId: unknown): Promise<StoreInstructor | null> {
+export async function loadInstructor(db: any, userId: unknown): Promise<StoreInstructor | null> {
   if (typeof userId !== 'string' || !userId) return null; // the author's account was deleted
   try {
     const { data: profile } = await db

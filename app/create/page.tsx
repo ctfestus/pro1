@@ -377,7 +377,7 @@ const [isSaving, setIsSaving] = useState(false);
       // Load existing content from purpose-built tables
       Promise.all([
         supabase.from('courses').select('id, title, description, slug, status, cohort_ids, available_to_everyone, questions, fields, passmark, course_timer, learn_outcomes, points_enabled, points_base, points_system, post_submission, cover_image, badge_image_url, deadline_days, theme, mode, font, custom_accent, category, partner_id, show_answers, lesson_timing, max_attempts, ai_tutor_enabled').eq('id', editId).maybeSingle(),
-        supabase.from('events').select('id, title, description, slug, status, cohort_ids, fields, event_date, event_time, timezone, location, event_type, capacity, meeting_link, is_private, post_submission, cover_image, deadline_days, theme, mode, font, custom_accent, speakers, recurrence, recurrence_end_date, recurrence_days').eq('id', editId).maybeSingle(),
+        supabase.from('events').select('id, title, description, slug, status, cohort_ids, fields, event_date, event_time, timezone, location, event_type, capacity, meeting_link, is_private, public_registration, post_submission, cover_image, deadline_days, theme, mode, font, custom_accent, speakers, recurrence, recurrence_end_date, recurrence_days').eq('id', editId).maybeSingle(),
       ]).then(([{ data: course }, { data: event }]) => {
         let id: string | null = null;
         let config: any = null;
@@ -416,6 +416,7 @@ const [isSaving, setIsSaving] = useState(false);
             eventDetails: { isEvent: true, date: event.event_date, time: event.event_time,
               timezone: event.timezone, location: event.location, eventType: event.event_type,
               capacity: event.capacity, meetingLink: event.meeting_link, isPrivate: event.is_private,
+              publicRegistration: event.public_registration === true,
               speakers: event.speakers ?? [],
               recurrence: event.recurrence ?? 'once',
               recurrenceEndDate: event.recurrence_end_date ?? '',
@@ -2746,6 +2747,34 @@ const [isSaving, setIsSaving] = useState(false);
 
             {activeSection === 'visibility' && formConfig.eventDetails?.isEvent && (
               <div className="space-y-5">
+                {/* Public registration (migration 244): the event gets a page at /events/<slug> that
+                    anyone can register on, with or without an account. */}
+                {(() => {
+                  const on = formConfig.eventDetails!.publicRegistration === true;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => updateConfig({ eventDetails: { ...formConfig.eventDetails!, publicRegistration: !on } })}
+                      aria-pressed={on}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border transition-all duration-200"
+                      style={{ background: on ? 'rgba(16,185,129,0.07)' : C.input, borderColor: on ? 'rgba(16,185,129,0.25)' : C.inputBorder }}
+                    >
+                      <div className="text-left min-w-0">
+                        <p className="text-xs font-semibold" style={{ color: on ? '#10b981' : C.text }}>
+                          {on ? 'Open to public registration' : 'Cohort members only'}
+                        </p>
+                        <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>
+                          {on
+                            ? 'Anyone can register on the public events page, no account needed. Cohort members stay registered automatically.'
+                            : 'Turn on to list this event on the public events page and take registrations from anyone.'}
+                        </p>
+                      </div>
+                      <div className="relative w-10 h-5 rounded-full transition-all duration-300 flex-shrink-0" style={{ background: on ? '#10b981' : C.toggleOff }}>
+                        <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300" style={{ left: on ? '1.25rem' : '0.125rem' }} />
+                      </div>
+                    </button>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => updateConfig({ eventDetails: { ...formConfig.eventDetails!, isPrivate: !formConfig.eventDetails!.isPrivate } })}
@@ -2762,7 +2791,7 @@ const [isSaving, setIsSaving] = useState(false);
                         {formConfig.eventDetails.isPrivate ? 'Private event' : 'Public event'}
                       </p>
                       <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>
-                        {formConfig.eventDetails.isPrivate ? 'Hidden from your profile page' : 'Visible on your public profile'}
+                        {formConfig.eventDetails.isPrivate ? 'Unlisted: hidden from your profile and the events page' : 'Listed on your public profile and the events page'}
                       </p>
                     </div>
                   </div>
@@ -2816,6 +2845,8 @@ const [isSaving, setIsSaving] = useState(false);
                   <p className="text-[11px] pt-1" style={{ color: C.faint }}>
                     {courseAvailableToEveryone
                       ? 'Available to every signed-in student.'
+                      : selectedCohortIds.length === 0 && formConfig.eventDetails?.publicRegistration
+                      ? 'No cohort selected. Anyone can still register on the public events page.'
                       : selectedCohortIds.length === 0
                       ? 'Nobody can access this yet. Choose Everyone or select at least one cohort.'
                       : `Visible to ${selectedCohortIds.length} cohort${selectedCohortIds.length > 1 ? 's' : ''}.`}

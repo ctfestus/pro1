@@ -168,6 +168,8 @@ export interface EventDetails {
   location?: string;
   timezone?: string;
   isPrivate?: boolean;
+  /** Anyone may register on /events/[slug], with or without an account (migration 244). */
+  publicRegistration?: boolean;
   capacity?: number;
   eventType?: 'in-person' | 'virtual';
   meetingLink?: string;

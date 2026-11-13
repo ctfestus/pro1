@@ -1,5 +1,6 @@
 'use client';
 
+import { PublicRegistrationsCard } from '@/components/dashboard/PublicRegistrationsCard';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import { motion, AnimatePresence } from 'motion/react';
@@ -111,6 +112,8 @@ function ResponsesTab({
 }) {
   const { theme } = useTheme();
   const isDark = theme !== 'light';
+  // Public registrations (migration 244) take seats too; PublicRegistrationsCard reports how many.
+  const [publicCount, setPublicCount] = useState(0);
   const card = isDark ? 'bg-zinc-900/35 border-zinc-800/60' : 'bg-white border-[rgba(0,0,0,0.07)]';
   const cardHeader = isDark ? 'border-zinc-800' : 'border-[rgba(0,0,0,0.07)]';
   const dividerCls = isDark ? 'divide-zinc-800/50' : 'divide-[rgba(0,0,0,0.05)]';
@@ -603,8 +606,10 @@ function ResponsesTab({
   // Event responses
   if (isEvent) {
     const capacity = Number(form.config?.eventDetails?.capacity) || 0;
-    const fillPercent = capacity > 0 ? Math.min(100, Math.round((totalCount / capacity) * 100)) : 100;
-    const progressWidth = totalCount > 0 ? Math.max(fillPercent, 8) : 0;
+    const isPublicEvent = form.public_registration === true;
+    const seatsTaken = totalCount + (isPublicEvent ? publicCount : 0);
+    const fillPercent = capacity > 0 ? Math.min(100, Math.round((seatsTaken / capacity) * 100)) : 100;
+    const progressWidth = seatsTaken > 0 ? Math.max(fillPercent, 8) : 0;
     const participantRows = responses.map((r: any) => ({
       ...r,
       participantName: getResponseName(r),
@@ -615,7 +620,7 @@ function ResponsesTab({
     const responseEntries = selectedResponse
       ? Object.entries(selectedResponse.data || {}).filter(([key, value]) => key !== 'email' && value !== null && value !== undefined && value !== '')
       : [];
-    const spotsLeft = capacity > 0 ? Math.max(capacity - totalCount, 0) : null;
+    const spotsLeft = capacity > 0 ? Math.max(capacity - seatsTaken, 0) : null;
 
     return (
       <>
@@ -629,7 +634,7 @@ function ResponsesTab({
                       Event responses
                     </span>
                     <div>
-                      <p className={`text-4xl font-semibold tracking-tight ${textPrim}`}>{totalCount}</p>
+                      <p className={`text-4xl font-semibold tracking-tight ${textPrim}`}>{seatsTaken}</p>
                       <p className={`mt-1 text-sm ${textMut}`}>
                         {capacity > 0 ? `${fillPercent}% of capacity claimed` : 'Registered participants'}
                       </p>
@@ -661,7 +666,7 @@ function ResponsesTab({
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <p className={`text-sm ${textMut}`}>Participant occupancy</p>
                     <p className={`text-sm font-medium ${textPrim}`}>
-                      {capacity > 0 ? `${totalCount} / ${capacity}` : `${totalCount} registered`}
+                      {capacity > 0 ? `${seatsTaken} / ${capacity}` : `${seatsTaken} registered`}
                     </p>
                   </div>
                 </div>
@@ -682,8 +687,8 @@ function ResponsesTab({
           <div className={`rounded-[28px] border ${card}`}>
             <div className={`flex items-center justify-between gap-3 border-b px-6 py-5 ${cardHeader}`}>
               <div>
-                <h3 className={`text-base font-semibold ${textPrim}`}>Participants</h3>
-                <p className={`mt-1 text-sm ${textMut}`}>A focused view of who registered and when they joined.</p>
+                <h3 className={`text-base font-semibold ${textPrim}`}>{isPublicEvent ? 'Cohort participants' : 'Participants'}</h3>
+                <p className={`mt-1 text-sm ${textMut}`}>{isPublicEvent ? 'Students registered through their cohort.' : 'A focused view of who registered and when they joined.'}</p>
               </div>
               <span className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-[#f1f2f3] text-[#555]'}`}>
                 {totalCount} total
@@ -714,6 +719,10 @@ function ResponsesTab({
             </div>
             <Pagination totalCount={totalCount} page={page} pageLoading={pageLoading} onPageChange={onPageChange} isDark={isDark} />
           </div>
+
+          {isPublicEvent && (
+            <PublicRegistrationsCard eventId={form.id} slug={form.slug} title={form.title ?? form.config?.title ?? ''} isDark={isDark} onCount={setPublicCount} />
+          )}
 
           {/* Session Attendance */}
           {(() => {

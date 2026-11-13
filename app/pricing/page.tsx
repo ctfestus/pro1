@@ -7,6 +7,7 @@ import { PricingPageClient } from '@/components/pricing/PricingPageClient';
 import { hasMidAds, midAdCardsFrom } from '@/lib/mid-ads';
 import { paystackIsConfigured } from '@/lib/paystack';
 import { listNavBooks } from '@/lib/books/store';
+import { listNavEvents } from '@/lib/events/store';
 
 export async function generateMetadata(): Promise<Metadata> {
   const settings = await getTenantSettings();
@@ -24,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
  * that page, and every number on it comes from what an admin configured.
  */
 export default async function PricingPage() {
-  const [data, site, tenant, programmes, navBooks] = await Promise.all([
+  const [data, site, tenant, programmes, navBooks, navEvents] = await Promise.all([
     getPricingPageData(),
     getLandingSiteSettingsOrDefault(),
     getTenantSettings(),
@@ -32,6 +33,7 @@ export default async function PricingPage() {
     // section links, so the two public pages disagreed about their own navigation.
     getLandingProgrammesOrEmpty(),
     listNavBooks(),
+    listNavEvents(),
   ]);
   const config = resolveConfig(site.template, site.config);
 
@@ -49,6 +51,7 @@ export default async function PricingPage() {
       paystackEnabled={paystackIsConfigured()}
       programmes={programmes}
       navBooks={navBooks}
+      navEvents={navEvents}
     />
   );
 }

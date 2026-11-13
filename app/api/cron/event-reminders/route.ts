@@ -11,7 +11,11 @@
  * current cohort member with no registration yet is registered here first; a student who cannot
  * be given a token is skipped rather than sent the raw meeting link.
  *
- * email_dedup, keyed per event + session date + student, makes each reminder go out once.
+ * Public registrants (migration 244) of an event open to the public get the same two reminders,
+ * with their own tracked join link from registration.
+ *
+ * email_dedup, keyed per event + session date + student (or public registration), makes each
+ * reminder go out once.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { Resend } from 'resend';
@@ -63,7 +67,7 @@ export async function POST(req: NextRequest) {
   try {
     events = await fetchAllRows<any>((from, to) => supabase
       .from('events')
-      .select('id, title, slug, event_date, event_time, timezone, location, meeting_link, event_type, recurrence, recurrence_end_date, recurrence_days, cohort_ids', { count: 'exact' })
+      .select('id, title, slug, event_date, event_time, timezone, location, meeting_link, event_type, recurrence, recurrence_end_date, recurrence_days, cohort_ids, public_registration', { count: 'exact' })
       .eq('status', 'published')
       .order('id')
       .range(from, to));
@@ -86,20 +90,39 @@ export async function POST(req: NextRequest) {
     if (kind === '1h' && !next.timed) continue;
 
     const cohortIds: string[] = Array.isArray(event.cohort_ids) ? event.cohort_ids : [];
-    if (!cohortIds.length) {
-      console.log(`[cron/event-reminders] event=${event.id} is assigned to no cohort; skipping`);
+    const isPublic = event.public_registration === true;
+    if (!cohortIds.length && !isPublic) {
+      console.log(`[cron/event-reminders] event=${event.id} is assigned to no cohort and is not public; skipping`);
       continue;
     }
     sessions++;
+    const ctx = { FROM, branding, appUrl: t.appUrl, now };
 
-    try {
-      const result = await remindSession(supabase, event, next.date, kind, cohortIds, { FROM, branding, appUrl: t.appUrl, now });
-      sent += result.sent;
-      skipped += result.skipped;
-    } catch (err) {
-      // One event failing must not stop the rest. Reminders it had not claimed are picked up by the
-      // next run; any it claimed and could not settle are not resent (see remindSession).
-      console.error('[cron/event-reminders] event failed', event.id, err);
+    // Cohort members first, so a member who also registered publicly is reminded once.
+    const remindedEmails = new Set<string>();
+    let cohortFailed = false;
+    if (cohortIds.length) {
+      try {
+        const result = await remindSession(supabase, event, next.date, kind, cohortIds, ctx, remindedEmails);
+        sent += result.sent;
+        skipped += result.skipped;
+      } catch (err) {
+        // One event failing must not stop the rest. Reminders it had not claimed are picked up by the
+        // next run; any it claimed and could not settle are not resent (see deliver).
+        console.error('[cron/event-reminders] event failed', event.id, err);
+        cohortFailed = true;
+      }
+    }
+    // After a failed cohort pass nobody knows who it would have reminded, so the public pass waits
+    // for the next run rather than risk reminding a cohort member twice.
+    if (isPublic && !cohortFailed) {
+      try {
+        const result = await remindPublicRegistrants(supabase, event, next.date, kind, ctx, remindedEmails);
+        sent += result.sent;
+        skipped += result.skipped;
+      } catch (err) {
+        console.error('[cron/event-reminders] public registrants failed', event.id, err);
+      }
     }
   }
 
@@ -107,13 +130,18 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ ok: true, sessions, sent, skipped });
 }
 
+type Ctx = { FROM: string; branding: any; appUrl: string; now: Date };
+/** One reminder to send: its dedupe key, who it goes to, and their tracked join link if any. */
+type Recipient = { key: string; name: string; email: string; joinUrl?: string };
+
 async function remindSession(
   supabase: ReturnType<typeof adminClient>,
   event: any,
   sessionDate: string,
   kind: Kind,
   cohortIds: string[],
-  ctx: { FROM: string; branding: any; appUrl: string; now: Date },
+  ctx: Ctx,
+  remindedEmails: Set<string>,
 ): Promise<{ sent: number; skipped: number }> {
   // Recipients are the event's cohorts as they are now. Registrations are never removed when a
   // student moves cohort, so they decide nobody's place on the list -- only their join token.
@@ -136,39 +164,92 @@ async function remindSession(
   const needsJoinLink = !!event.meeting_link;
   const tokens = needsJoinLink ? await joinTokens(supabase, event.id, students.map(s => s.id)) : new Map<string, string>();
 
+  let skipped = 0;
+  const recipients: Recipient[] = [];
+  for (const s of students) {
+    const email = (s.email ?? '').trim().toLowerCase();
+    const token = tokens.get(s.id);
+    if (needsJoinLink && !token) {
+      console.error(`[cron/event-reminders] event=${event.id} student=${s.id} has no join token; not sending an untracked link`);
+      skipped++;
+      continue;
+    }
+    // Only someone this list will actually remind is left off the public list.
+    remindedEmails.add(email);
+    recipients.push({
+      key: `${event.id}:${sessionDate}:${s.id}`,
+      name: s.full_name || 'there',
+      email,
+      joinUrl: token ? `${ctx.appUrl}/api/join?token=${token}` : undefined,
+    });
+  }
+  const result = await deliver(supabase, event, sessionDate, kind, recipients, ctx, `${ctx.appUrl}/${event.slug ?? event.id}`);
+  return { sent: result.sent, skipped: skipped + result.skipped };
+}
+
+// Public registrants (migration 244). Each registration carries its own join token, written at
+// registration, so nobody is registered here. Their keys are namespaced so they can never collide
+// with a student's.
+async function remindPublicRegistrants(
+  supabase: ReturnType<typeof adminClient>,
+  event: any,
+  sessionDate: string,
+  kind: Kind,
+  ctx: Ctx,
+  remindedEmails: Set<string>,
+): Promise<{ sent: number; skipped: number }> {
+  const regs = await fetchAllRows<{ id: string; name: string; email: string; join_token: string }>((from, to) => supabase
+    .from('event_public_registrations')
+    .select('id, name, email, join_token', { count: 'exact' })
+    .eq('event_id', event.id)
+    .order('id')
+    .range(from, to));
+  const online = !!event.meeting_link;
+  const recipients: Recipient[] = regs
+    .filter(r => EMAIL_RE.test(r.email) && !remindedEmails.has(r.email))
+    .map(r => ({
+      key: `${event.id}:${sessionDate}:public:${r.id}`,
+      name: r.name || 'there',
+      email: r.email,
+      joinUrl: online ? `${ctx.appUrl}/api/join?token=${encodeURIComponent(r.join_token)}` : undefined,
+    }));
+  return deliver(supabase, event, sessionDate, kind, recipients, ctx, `${ctx.appUrl}/events/${encodeURIComponent(event.slug)}`);
+}
+
+async function deliver(
+  supabase: ReturnType<typeof adminClient>,
+  event: any,
+  sessionDate: string,
+  kind: Kind,
+  recipients: Recipient[],
+  ctx: Ctx,
+  formUrl: string,
+): Promise<{ sent: number; skipped: number }> {
+  if (!recipients.length) return { sent: 0, skipped: 0 };
   const today = eventLocalDate(event.timezone, ctx.now);
   const day: 'today' | 'tomorrow' = sessionDate === today ? 'today' : 'tomorrow';
   const timing = kind === '1h' ? 'in 1 hour' : day;
   const subject = kind === '1h' ? `Starting in 1 hour: ${event.title}` : `Reminder: "${event.title}" is ${day}`;
   const eventTime = event.event_time ? String(event.event_time).slice(0, 5) : '';
-  const formUrl = `${ctx.appUrl}/${event.slug ?? event.id}`;
 
   const type = DEDUPE_TYPE[kind];
-  const keyOf = (studentId: string) => `${event.id}:${sessionDate}:${studentId}`;
   let sent = 0;
   let skipped = 0;
-
-  const recipients = students.filter(s => {
-    if (!needsJoinLink || tokens.has(s.id)) return true;
-    console.error(`[cron/event-reminders] event=${event.id} student=${s.id} has no join token; not sending an untracked link`);
-    skipped++;
-    return false;
-  });
 
   for (const batch of chunkIds(recipients, BATCH_SIZE)) {
     // Claim first. Insert-only: a reminder already claimed, by this run or any other, comes back
     // missing and is not sent again. A run that dies after claiming leaves its claims in place, so
     // at worst a reminder is missed, never sent twice.
     const { data: claimed, error: claimError } = await supabase.from('email_dedup')
-      .upsert(batch.map(s => ({ dedupe_key: keyOf(s.id), type, status: 'pending' })),
+      .upsert(batch.map(r => ({ dedupe_key: r.key, type, status: 'pending' })),
         { onConflict: 'dedupe_key,type', ignoreDuplicates: true })
       .select('dedupe_key');
     if (claimError) throw new Error(`dedupe claim failed: ${claimError.message}`);
     const ownedKeys = new Set((claimed ?? []).map((r: any) => r.dedupe_key as string));
-    const owned = batch.filter(s => ownedKeys.has(keyOf(s.id)));
+    const owned = batch.filter(r => ownedKeys.has(r.key));
     skipped += batch.length - owned.length;
     if (!owned.length) continue;
-    const keys = owned.map(s => keyOf(s.id));
+    const keys = owned.map(r => r.key);
     const release = async () => {
       const { error } = await supabase.from('email_dedup').delete().eq('type', type).in('dedupe_key', keys);
       // Left in place, these reminders will not be retried: make that visible.
@@ -176,19 +257,16 @@ async function remindSession(
     };
 
     // Nothing has gone out if building the emails fails, so release the claims for the next run.
-    const payloads = await Promise.all(owned.map(async student => {
-      const token = tokens.get(student.id);
-      const joinUrl = token ? `${ctx.appUrl}/api/join?token=${token}` : undefined;
-      const name = student.full_name || 'there';
+    const payloads = await Promise.all(owned.map(async r => {
       const fallbackHtml = reminderEmail({
-        name,
+        name:          r.name,
         eventTitle:    event.title || '',
         eventDate:     sessionDate,
         eventTime,
         eventTimezone: event.timezone || '',
         eventLocation: event.location || '',
         meetingLink:   event.meeting_link || '',
-        joinUrl,
+        joinUrl:       r.joinUrl,
         formUrl,
         isOneHour:     kind === '1h',
         day,
@@ -197,13 +275,13 @@ async function remindSession(
       const rendered = await applyEmailTemplate({
         key: 'event_reminder', fallbackSubject: subject, fallbackHtml,
         variables: {
-          student_name: name, event_title: event.title || '', reminder_timing: timing,
+          student_name: r.name, event_title: event.title || '', reminder_timing: timing,
           event_time_display: [sessionDate, eventTime, event.timezone].filter(Boolean).join(' '),
           event_location: event.location || (event.meeting_link ? 'Online' : 'To be announced'),
         },
         branding: ctx.branding,
       });
-      return { from: ctx.FROM, to: (student.email ?? '').trim().toLowerCase(), subject: rendered.subject, html: rendered.html };
+      return { from: ctx.FROM, to: r.email, subject: rendered.subject, html: rendered.html };
     })).catch(async err => { await release(); throw err; });
 
     // Resend reports a rejected request in the result. Nothing went out, so drop the claims and let

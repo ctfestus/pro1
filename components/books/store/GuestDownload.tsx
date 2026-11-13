@@ -7,6 +7,7 @@
  * only has Open, which uses none either. A guest whose link has
  * expired or been used up can still ask for help, and anyone can have a link emailed again.
  */
+import { CARD_SHADOW } from '@/components/books/store/card-style';
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Download, ExternalLink, Loader2, Package } from 'lucide-react';
@@ -24,8 +25,6 @@ type Info = {
   expiresAt: string | null;
   free?: boolean;
 };
-
-const CARD_SHADOW = '0 1px 2px rgba(15,23,42,0.04), 0 10px 30px -14px rgba(15,23,42,0.14)';
 
 export function GuestDownload({ access, primaryColor }: { access: string; primaryColor: string }) {
   const [info, setInfo] = useState<Info | null>(null);

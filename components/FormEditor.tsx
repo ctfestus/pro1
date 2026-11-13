@@ -664,7 +664,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
           savedCohortIds.current = loadedCohorts;
         }
       } else {
-        const { data: event } = await supabase.from('events').select('id, title, description, slug, cohort_ids, fields, post_submission, cover_image, deadline_days, theme, mode, font, custom_accent, event_date, event_time, timezone, location, event_type, capacity, meeting_link, is_private, speakers, recurrence, recurrence_end_date, recurrence_days').eq('id', formId).maybeSingle();
+        const { data: event } = await supabase.from('events').select('id, title, description, slug, cohort_ids, fields, post_submission, cover_image, deadline_days, theme, mode, font, custom_accent, event_date, event_time, timezone, location, event_type, capacity, meeting_link, is_private, public_registration, speakers, recurrence, recurrence_end_date, recurrence_days').eq('id', formId).maybeSingle();
         if (event) {
           setFormConfig({
             isCourse: false,
@@ -688,6 +688,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
               capacity: event.capacity ?? null,
               meetingLink: event.meeting_link ?? '',
               isPrivate: event.is_private ?? false,
+              publicRegistration: event.public_registration === true,
               speakers: event.speakers ?? [],
               recurrence: event.recurrence ?? 'once',
               recurrenceEndDate: event.recurrence_end_date ?? '',
@@ -1881,6 +1882,34 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
 
             {activeSection === 'visibility' && formConfig.eventDetails?.isEvent && (
               <div className="space-y-5">
+                {/* Public registration (migration 244): the event gets a page at /events/<slug> that
+                    anyone can register on, with or without an account. */}
+                {(() => {
+                  const on = formConfig.eventDetails!.publicRegistration === true;
+                  return (
+                    <button
+                      type="button"
+                      onClick={() => updateConfig({ eventDetails: { ...formConfig.eventDetails!, publicRegistration: !on } })}
+                      aria-pressed={on}
+                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border transition-all duration-200"
+                      style={{ background: on ? 'rgba(16,185,129,0.07)' : FE.input, borderColor: on ? 'rgba(16,185,129,0.25)' : FE.inputBorder }}
+                    >
+                      <div className="text-left min-w-0">
+                        <p className="text-xs font-semibold" style={{ color: on ? '#10b981' : FE.text }}>
+                          {on ? 'Open to public registration' : 'Cohort members only'}
+                        </p>
+                        <p className="text-[11px] mt-0.5" style={{ color: FE.faint }}>
+                          {on
+                            ? 'Anyone can register on the public events page, no account needed. Cohort members stay registered automatically.'
+                            : 'Turn on to list this event on the public events page and take registrations from anyone.'}
+                        </p>
+                      </div>
+                      <div className="relative w-10 h-5 rounded-full transition-all duration-300 flex-shrink-0" style={{ background: on ? '#10b981' : FE.toggleOff }}>
+                        <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300" style={{ left: on ? '1.25rem' : '0.125rem' }} />
+                      </div>
+                    </button>
+                  );
+                })()}
                 <button
                   type="button"
                   onClick={() => updateConfig({ eventDetails: { ...formConfig.eventDetails!, isPrivate: !formConfig.eventDetails!.isPrivate } })}
@@ -1897,7 +1926,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         {formConfig.eventDetails.isPrivate ? 'Private event' : 'Public event'}
                       </p>
                       <p className="text-[11px] mt-0.5" style={{ color: FE.faint }}>
-                        {formConfig.eventDetails.isPrivate ? 'Hidden from your profile page' : 'Visible on your public profile'}
+                        {formConfig.eventDetails.isPrivate ? 'Unlisted: hidden from your profile and the events page' : 'Listed on your public profile and the events page'}
                       </p>
                     </div>
                   </div>

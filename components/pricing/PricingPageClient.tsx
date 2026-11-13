@@ -48,11 +48,12 @@ export interface PricingPageClientProps extends PricingPageData {
   programmes: ProgrammeItem[];
   /** The store's books, for the Learn menu's Books entry. */
   navBooks?: NavBook[];
+  navEvents?: NavBook[];
 }
 
 export function PricingPageClient(props: PricingPageClientProps) {
   const { siteConfig, primaryColor, accentColor, headingFont, bodyFont, supportEmail, midAds,
-    paystackEnabled, programmes, navBooks } = props;
+    paystackEnabled, programmes, navBooks, navEvents } = props;
   // The same source the landing page reads, so the chrome cannot say one thing here and another
   // there.
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
@@ -62,7 +63,7 @@ export function PricingPageClient(props: PricingPageClientProps) {
 
   // Same builder the landing page uses. Its section anchors do not exist here, which is what
   // navLinkHref is for: they become links home instead of scroll targets.
-  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks), [programmes, user, navBooks]);
+  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks, navEvents), [programmes, user, navBooks, navEvents]);
 
   const durations = useMemo(() => {
     const all = new Set<number>();
