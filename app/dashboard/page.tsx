@@ -118,17 +118,22 @@ export default function DashboardPage() {
       const courseIds = (coursesData ?? []).map((c: any) => c.id);
       const veIds     = (vesData ?? []).map((v: any) => v.id);
       const eventIds  = (eventsData ?? []).map((e: any) => e.id);
-      const [{ data: responsesData }, { data: regData }] = await Promise.all([
+      const [{ data: responsesData }, { data: regData }, { data: publicRegData }] = await Promise.all([
         courseIds.length || veIds.length
           ? supabase.from('responses').select('form_id').in('form_id', [...courseIds, ...veIds])
           : Promise.resolve({ data: [] }),
         eventIds.length
           ? supabase.from('event_registrations').select('event_id').in('event_id', eventIds)
           : Promise.resolve({ data: [] }),
+        // Public registrations (migration 244).
+        eventIds.length
+          ? supabase.from('event_public_registrations').select('event_id').in('event_id', eventIds)
+          : Promise.resolve({ data: [] }),
       ]);
       const responseCounts: Record<string, number> = {};
       for (const r of responsesData ?? []) responseCounts[r.form_id] = (responseCounts[r.form_id] ?? 0) + 1;
       for (const r of regData ?? [])       responseCounts[r.event_id] = (responseCounts[r.event_id] ?? 0) + 1;
+      for (const r of publicRegData ?? []) responseCounts[r.event_id] = (responseCounts[r.event_id] ?? 0) + 1;
 
       // Build normalized form objects with reconstructed config
       const allRows: any[] = [];

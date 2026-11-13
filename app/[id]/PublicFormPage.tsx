@@ -794,7 +794,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
 
 // promotions: each plan's running discount, read by the server wrapper. The scroll prompt offers
 // one on the detail views, free and locked alike -- never inside the course or experience player.
-export default function PublicFormPage({ promotions = [] }: { promotions?: PromotionTeaser[] }) {
+export default function PublicFormPage({ promotions = [], publicEventPath = null }: { promotions?: PromotionTeaser[]; publicEventPath?: string | null }) {
   const { logoUrl, logoDarkUrl } = useTenant();
   const C = useC();
   const { id } = useParams();
@@ -958,6 +958,7 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
 
       // Reconstruct a form-compatible object with config shape for the viewer
       let data: any = null;
+      let foundPath = false;
       if (course && (!requestedType || requestedType === 'course')) {
         data = { ...course, content_type: 'course', config: {
           title: course.title, description: course.description,
@@ -1035,6 +1036,7 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
               data = certificationPreviewToForm(item);
             } else if (item?.type === 'learning_path') {
               setPathPreview(cataloguePathToPathRow(item));
+              foundPath = true;
             }
           }
         } catch { /* fall through to not-found */ }
@@ -1059,9 +1061,18 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
               data = certificationPreviewToForm(item);
             } else if (item?.type === 'learning_path') {
               setPathPreview(cataloguePathToPathRow(item));
+              foundPath = true;
             }
           }
         } catch { /* fall through to not-found */ }
+      }
+
+      // A public event this visitor cannot open here (not a cohort member, or signed out): its
+      // public page is where they register. Only once nothing else claimed this slug -- slugs are
+      // unique per table, so a course or path sharing it must keep its own page.
+      if (!data && !foundPath && publicEventPath) {
+        window.location.replace(publicEventPath);
+        return;
       }
 
       if (data) {
@@ -1161,7 +1172,7 @@ export default function PublicFormPage({ promotions = [] }: { promotions?: Promo
       setLoading(false);
     };
     fetchForm();
-  }, [id]);
+  }, [id, publicEventPath]);
 
   useEffect(() => {
     const name = contentPageTitle(form, pathPreview);

@@ -30,10 +30,7 @@ export async function GET(req: NextRequest) {
     return new NextResponse('Internal error', { status: 500 });
   }
 
-  if (!reg) {
-    console.warn('[join] token not found:', token);
-    return new NextResponse('Not found', { status: 404 });
-  }
+  if (!reg) return joinAsPublicRegistrant(supabase, token);
 
   // Step 2: get the meeting link for the event
   const { data: event, error: eventError } = await supabase
@@ -66,24 +63,9 @@ export async function GET(req: NextRequest) {
     return new NextResponse('This session is not available on your account any more.', { status: 403 });
   }
 
-  const rawLink: string | null = event?.meeting_link ?? null;
-  if (!rawLink) {
-    return new NextResponse('No meeting link configured for this event', { status: 404 });
-  }
-
-  // Normalize: add https:// if the stored link has no protocol
-  const normalized = /^https?:\/\//i.test(rawLink) ? rawLink : `https://${rawLink}`;
-
-  let safeUrl: string;
-  try {
-    const u = new URL(normalized);
-    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
-      return new NextResponse('Invalid meeting URL', { status: 400 });
-    }
-    safeUrl = u.toString();
-  } catch {
-    return new NextResponse('Invalid meeting URL', { status: 400 });
-  }
+  const meeting = meetingUrl(event?.meeting_link);
+  if (meeting instanceof NextResponse) return meeting;
+  const safeUrl = meeting;
 
   // Record attendance only when the click falls on an actual scheduled session
   // date. Use the event's timezone -- a click at the correct local time near UTC
@@ -104,4 +86,71 @@ export async function GET(req: NextRequest) {
   }
 
   return NextResponse.redirect(safeUrl);
+}
+
+/** The stored meeting link as a safe absolute http(s) URL, or the response to send instead. */
+function meetingUrl(rawLink: string | null | undefined): string | NextResponse {
+  if (!rawLink) {
+    return new NextResponse('No meeting link configured for this event', { status: 404 });
+  }
+  // Normalize: add https:// if the stored link has no protocol
+  const normalized = /^https?:\/\//i.test(rawLink) ? rawLink : `https://${rawLink}`;
+  try {
+    const u = new URL(normalized);
+    if (u.protocol !== 'http:' && u.protocol !== 'https:') {
+      return new NextResponse('Invalid meeting URL', { status: 400 });
+    }
+    return u.toString();
+  } catch {
+    return new NextResponse('Invalid meeting URL', { status: 400 });
+  }
+}
+
+// A token from a public registration (migration 244). Cohort membership does not apply: the rule
+// here is that the event is still published and still open to the public, so turning public
+// registration off (or unpublishing) closes every public link at once. A click on a scheduled
+// session day stamps the registration's join times; guests have no live_attendance row, which
+// is keyed on a student.
+async function joinAsPublicRegistrant(supabase: ReturnType<typeof adminClient>, token: string) {
+  const { data: reg, error } = await supabase
+    .from('event_public_registrations')
+    .select('id, event_id, first_joined_at')
+    .eq('join_token', token)
+    .maybeSingle();
+  if (error) {
+    console.error('[join] public registration lookup error:', error.message);
+    return new NextResponse('Internal error', { status: 500 });
+  }
+  if (!reg) {
+    console.warn('[join] token not found');
+    return new NextResponse('Not found', { status: 404 });
+  }
+
+  const { data: event, error: eventError } = await supabase
+    .from('events')
+    .select('meeting_link, status, public_registration, event_date, recurrence, recurrence_end_date, recurrence_days, timezone')
+    .eq('id', reg.event_id)
+    .maybeSingle();
+  if (eventError) {
+    console.error('[join] event lookup error:', eventError.message);
+    return new NextResponse('Internal error', { status: 500 });
+  }
+  if (!event || event.status !== 'published' || event.public_registration !== true) {
+    return new NextResponse('This event is no longer open to the public.', { status: 403 });
+  }
+
+  const meeting = meetingUrl(event.meeting_link);
+  if (meeting instanceof NextResponse) return meeting;
+
+  if (isScheduledSessionDate(event, eventLocalDate(event.timezone))) {
+    const now = new Date().toISOString();
+    const { error: stampError } = await supabase
+      .from('event_public_registrations')
+      .update({ last_joined_at: now, ...(reg.first_joined_at ? {} : { first_joined_at: now }) })
+      .eq('id', reg.id);
+    // Non-fatal: still send them to the meeting.
+    if (stampError) console.error('[join] public join stamp error:', stampError.message);
+  }
+
+  return NextResponse.redirect(meeting);
 }

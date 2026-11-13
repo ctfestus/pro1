@@ -77,10 +77,11 @@ export interface LegalPageClientProps {
   programmes: ProgrammeItem[];
   /** The store's books, for the Learn menu's Books entry. */
   navBooks?: NavBook[];
+  navEvents?: NavBook[];
 }
 
 export function LegalPageClient({
-  doc, siteConfig, primaryColor, accentColor, headingFont, bodyFont, programmes, navBooks,
+  doc, siteConfig, primaryColor, accentColor, headingFont, bodyFont, programmes, navBooks, navEvents,
 }: LegalPageClientProps) {
   const { logoUrl, logoDarkUrl, appName, publicSignupEnabled } = useTenant();
   const { theme } = useTheme();
@@ -102,7 +103,7 @@ export function LegalPageClient({
 
   // Same builder the landing page uses. Its section anchors do not exist here, which is what
   // navLinkHref is for: they become links home instead of scroll targets.
-  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks), [programmes, user, navBooks]);
+  const navGroups = useMemo(() => buildNavGroups(programmes, user, navBooks, navEvents), [programmes, user, navBooks, navEvents]);
   const sections = useMemo(
     () => doc.sections.map(section => ({ ...section, id: slugify(section.heading) })),
     [doc.sections],

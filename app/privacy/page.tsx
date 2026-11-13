@@ -4,6 +4,7 @@ import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { LegalPageClient } from '@/components/legal/LegalPageClient';
 import { listNavBooks } from '@/lib/books/store';
+import { listNavEvents } from '@/lib/events/store';
 import { privacyPolicy } from '@/lib/legal-content';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -16,12 +17,13 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /** The public privacy policy. Its wording comes from lib/legal-content, filled in per tenant. */
 export default async function PrivacyPage() {
-  const [site, tenant, programmes, navBooks] = await Promise.all([
+  const [site, tenant, programmes, navBooks, navEvents] = await Promise.all([
     getLandingSiteSettingsOrDefault(),
     getTenantSettings(),
     // Only for the shared nav's Learn menu, so this page navigates like the other public pages.
     getLandingProgrammesOrEmpty(),
     listNavBooks(),
+    listNavEvents(),
   ]);
   const config = resolveConfig(site.template, site.config);
 
@@ -40,6 +42,7 @@ export default async function PrivacyPage() {
       bodyFont={config.bodyFont}
       programmes={programmes}
       navBooks={navBooks}
+      navEvents={navEvents}
     />
   );
 }

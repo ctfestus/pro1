@@ -99,7 +99,25 @@ function booksGroup(books: NavBook[]): NavGroup | null {
   };
 }
 
-export function buildNavGroups(programmes: ProgrammeItem[], user: unknown, books: NavBook[] = []): NavGroup[] {
+/** Upcoming public events (lib/events/store.ts), linking to /events like the products entry. */
+function eventsGroup(events: NavBook[]): NavGroup | null {
+  if (!events.length) return null;
+  return {
+    label: 'Events',
+    anchor: '/events',
+    subGroups: [{
+      label: '',
+      items: events.slice(0, ITEMS_PER_GROUP).map(ev => ({
+        id: ev.id,
+        title: ev.title,
+        imageUrl: ev.coverImage ?? undefined,
+        href: `/events/${ev.slug}`,
+      })),
+    }],
+  };
+}
+
+export function buildNavGroups(programmes: ProgrammeItem[], user: unknown, books: NavBook[] = [], events: NavBook[] = []): NavGroup[] {
   const byType = (type: ProgrammeItem['type']) => programmes.filter(item => item.type === type);
   const groups: Array<NavGroup | null> = [
     { label: 'Courses',             anchor: 'section-courses',        items: byType('course') },
@@ -109,5 +127,5 @@ export function buildNavGroups(programmes: ProgrammeItem[], user: unknown, books
   ].map(({ label, anchor, items }) => (
     items.length ? { label, anchor, subGroups: subGroupsFor(items, user) } : null
   ));
-  return [...groups, booksGroup(books)].filter((group): group is NavGroup => group !== null);
+  return [...groups, booksGroup(books), eventsGroup(events)].filter((group): group is NavGroup => group !== null);
 }

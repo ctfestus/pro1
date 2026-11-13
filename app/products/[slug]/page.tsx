@@ -6,6 +6,7 @@ import { resolveConfig } from '@/lib/site-templates';
 import { normalizeAbsoluteBaseUrl } from '@/lib/public-url';
 import { getStoreBook, listStoreBooksOrEmpty, type StoreBookDetail } from '@/lib/books/store';
 import { productMetadata } from '@/lib/books/share';
+import { listNavEvents } from '@/lib/events/store';
 import { StoreChrome } from '@/components/books/store/StoreChrome';
 import { ProductPageView } from '@/components/books/store/ProductPageView';
 
@@ -37,12 +38,13 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
  */
 export default async function BookStorePage({ params }: Params) {
   const { slug } = await params;
-  const [book, site, tenant, programmes, books] = await Promise.all([
+  const [book, site, tenant, programmes, books, navEvents] = await Promise.all([
     findBook(slug),
     getLandingSiteSettingsOrDefault(),
     getTenantSettings(),
     getLandingProgrammesOrEmpty(),
     listStoreBooksOrEmpty(),
+    listNavEvents(),
   ]);
   if (!book) notFound();
   const config = resolveConfig(site.template, site.config);
@@ -56,7 +58,7 @@ export default async function BookStorePage({ params }: Params) {
 
   return (
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={accentColor}
-      bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks}>
+      bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <ProductPageView book={book} more={more} primaryColor={primaryColor} appName={tenant.appName} shareUrl={shareUrl} />
     </StoreChrome>
   );

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { buildShareMetadata } from '@/lib/content-share-metadata';
 import { getPricingPageData } from '@/lib/get-pricing-page-data';
 import { planPromotions, type PromotionTeaser } from '@/lib/pricing-offer';
+import { publicEventRedirect } from '@/lib/events/store';
 import PublicFormPage from './PublicFormPage';
 
 // Server wrapper so link previews can read ?catalogueType= (a layout never receives search
@@ -29,6 +30,13 @@ async function currentPromotions(): Promise<PromotionTeaser[]> {
   }
 }
 
-export default async function Page() {
-  return <PublicFormPage promotions={await currentPromotions()} />;
+// An event open to public registration has its page at /events/<slug>. The client sends a visitor
+// there only after its usual lookup finds nothing it may open: slugs are unique per table, so a
+// course, experience or path with the same slug must win, and cohort members of the event keep
+// this page (their Join button lives here).
+export default async function Page({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params;
+  const [publicEvent, promotions] = await Promise.all([publicEventRedirect(id), currentPromotions()]);
+  const publicEventPath = publicEvent ? `/events/${encodeURIComponent(publicEvent.slug)}` : null;
+  return <PublicFormPage promotions={promotions} publicEventPath={publicEventPath} />;
 }

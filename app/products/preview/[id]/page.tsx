@@ -3,6 +3,7 @@ import { getLandingProgrammesOrEmpty, getLandingSiteSettingsOrDefault } from '@/
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { listStoreBooksOrEmpty } from '@/lib/books/store';
+import { listNavEvents } from '@/lib/events/store';
 import { StoreChrome } from '@/components/books/store/StoreChrome';
 import { ProductPreview } from '@/components/books/store/ProductPreview';
 
@@ -21,11 +22,12 @@ export async function generateMetadata(): Promise<Metadata> {
  */
 export default async function ProductPreviewPage({ params }: Params) {
   const { id } = await params;
-  const [site, tenant, programmes, books] = await Promise.all([
+  const [site, tenant, programmes, books, navEvents] = await Promise.all([
     getLandingSiteSettingsOrDefault(),
     getTenantSettings(),
     getLandingProgrammesOrEmpty(),
     listStoreBooksOrEmpty(),
+    listNavEvents(),
   ]);
   const config = resolveConfig(site.template, site.config);
   const primaryColor = config.primaryColor || tenant.primaryColor;
@@ -34,7 +36,7 @@ export default async function ProductPreviewPage({ params }: Params) {
 
   return (
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={accentColor}
-      bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks}>
+      bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <ProductPreview id={id} more={books.slice(0, 5)} primaryColor={primaryColor} appName={tenant.appName} />
     </StoreChrome>
   );

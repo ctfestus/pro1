@@ -3,6 +3,7 @@ import { getLandingProgrammesOrEmpty, getLandingSiteSettingsOrDefault } from '@/
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { resolveConfig } from '@/lib/site-templates';
 import { listStoreBooksOrEmpty } from '@/lib/books/store';
+import { listNavEvents } from '@/lib/events/store';
 import { StoreChrome } from '@/components/books/store/StoreChrome';
 import { BookCatalogue } from '@/components/books/store/BookCatalogue';
 
@@ -20,11 +21,12 @@ export async function generateMetadata(): Promise<Metadata> {
  * filters run in the browser.
  */
 export default async function BooksStorePage() {
-  const [books, site, tenant, programmes] = await Promise.all([
+  const [books, site, tenant, programmes, navEvents] = await Promise.all([
     listStoreBooksOrEmpty(),
     getLandingSiteSettingsOrDefault(),
     getTenantSettings(),
     getLandingProgrammesOrEmpty(),
+    listNavEvents(),
   ]);
   const config = resolveConfig(site.template, site.config);
   const primaryColor = config.primaryColor || tenant.primaryColor;
@@ -32,7 +34,7 @@ export default async function BooksStorePage() {
 
   return (
     <StoreChrome siteConfig={config} primaryColor={primaryColor} accentColor={config.accentColor || tenant.accentColor}
-      bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks}>
+      bodyFont={config.bodyFont} programmes={programmes} navBooks={navBooks} navEvents={navEvents}>
       <section className="max-w-[1240px] mx-auto px-4 sm:px-6 md:px-10 pt-10 sm:pt-14 pb-16">
         <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: '#475569' }}>Digital Products</p>
         <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight" style={{ color: '#0f172a' }}>Practical guides you can keep</h1>

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import LandingPageClient from '@/components/LandingPageClient';
 import { getLandingPageData, getLandingSiteSettingsOrDefault } from '@/lib/get-landing-page-data';
 import { listStoreBooksOrEmpty } from '@/lib/books/store';
+import { listNavEvents } from '@/lib/events/store';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { normalizeAbsoluteBaseUrl } from '@/lib/public-url';
 import { resolveConfig } from '@/lib/site-templates';
@@ -57,10 +58,11 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function LandingPage({ searchParams }: LandingPageProps) {
-  const [params, data, storeBooks] = await Promise.all([
+  const [params, data, storeBooks, navEvents] = await Promise.all([
     searchParams,
     getLandingPageData(),
     listStoreBooksOrEmpty(),
+    listNavEvents(),
   ]);
   const navBooks = storeBooks.map(b => ({ id: b.id, slug: b.slug, title: b.title, coverImage: b.coverImage }));
   // The newest few for the home page's Digital Products section (display fields only).
@@ -73,6 +75,7 @@ export default async function LandingPage({ searchParams }: LandingPageProps) {
       initialProgrammes={data.programmes}
       programmesError={data.programmesError}
       navBooks={navBooks}
+      navEvents={navEvents}
       storeProducts={storeProducts}
       isPreview={'_preview' in params}
     />
