@@ -10,7 +10,7 @@ import {
   Copy, Check, ExternalLink, Code2, GitFork, QrCode, Edit2,
   AlignLeft, HelpCircle, CalendarDays, Share2, Mail, Send, Bell,
   Award, Upload, Trash2, RefreshCw, Link as LinkIcon, Sun, Moon, Sparkles, X,
-  ChevronDown,
+  ChevronDown, Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -29,6 +29,7 @@ import { sameReportContent, type InstructorReportDraft } from '@/lib/ve-instruct
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { contentPath } from '@/lib/content-link';
 import { RichTextEditor } from '@/components/RichTextEditor';
+import { IMG_EMAIL, resolveImageUrl } from '@/lib/cloudinary-url';
 
 // -- Lazy charts ---
 const ResponsesOverTimeChart = dynamic(
@@ -1058,6 +1059,15 @@ function WhatsAppIcon({ className }: { className?: string }) {
 }
 
 // -- Email Tab ---
+/**
+ * The cover as an email banner: its direct image link, sized for email. Not a link to this site
+ * (from a local copy that is localhost, which no inbox can load). No usable link, no banner.
+ */
+function emailBannerFor(cover: unknown): string | undefined {
+  const url = typeof cover === 'string' ? resolveImageUrl(cover, IMG_EMAIL) : '';
+  return /^https:\/\//i.test(url) ? url : undefined;
+}
+
 /** The AI writer's plain-text draft as editor paragraphs (escaped, blank lines split paragraphs). */
 function plainTextToEditorHtml(text: string): string {
   const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -1162,11 +1172,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
     setQuickSending(true);
     setQuickResult(null);
     try {
-      const eventBannerUrl = cfg.coverImage
-        ? (/^https?:\/\//i.test(cfg.coverImage)
-            ? cfg.coverImage
-            : `${window.location.origin}/api/og/${form.id}`)
-        : undefined;
+      const eventBannerUrl = emailBannerFor(cfg.coverImage);
       let payload: any = { type: quickType, to: quickTo, data: { formUrl } };
       if (isCourse || isVE) {
         // Course / VE: send a test blast to this single address
@@ -1225,26 +1231,10 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
     setQuickSending(false);
   };
 
-  const handleBlast = async () => {
-    if (!blastSubject.trim() || !blastHasBody) {
-      setBlastResult({ ok: false, msg: 'Subject and body are required.' });
-      return;
-    }
-    setBlasting(true);
-    setBlastResult(null);
-    try {
-      const eventBannerUrl = cfg.coverImage
-        ? (/^https?:\/\//i.test(cfg.coverImage)
-            ? cfg.coverImage
-            : `${window.location.origin}/api/og/${form.id}`)
-        : undefined;
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch('/api/email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}) },
-        body: JSON.stringify({
-          type: 'blast',
-          data: {
+  /** The broadcast as the email route takes it; preview and test send use the same, so they match. */
+  const blastData = () => {
+    const eventBannerUrl = emailBannerFor(cfg.coverImage);
+    return {
             formId: form.id,
             subject: blastSubject,
             body: blastBody,
@@ -1260,9 +1250,66 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             formUrl,
             ...((isCourse || isVE) ? { segment: blastSegment } : {}),
             ...((isCourse || isVE) && selectedCohortId !== 'all' ? { cohortId: selectedCohortId } : {}),
-          },
-        }),
-      });
+    };
+  };
+
+  const postBlast = async (extra: { to?: string; preview?: boolean } = {}) => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const { to, preview } = extra;
+    return fetch('/api/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {}) },
+      body: JSON.stringify({ type: 'blast', ...(to ? { to } : {}), data: { ...blastData(), ...(preview ? { preview: true } : {}) } }),
+    });
+  };
+
+  // Preview and test send, from the Broadcast Email card itself.
+  const [blastPreview, setBlastPreview] = useState<{ subject: string; html: string } | null>(null);
+  const [previewWidth, setPreviewWidth] = useState<'desktop' | 'phone'>('desktop');
+  const [previewing, setPreviewing] = useState(false);
+  const [testTo, setTestTo] = useState('');
+  const [testSending, setTestSending] = useState(false);
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user?.email) setTestTo(prev => prev || session.user.email!);
+    });
+  }, []);
+
+  const handlePreview = async () => {
+    if (!blastSubject.trim() || !blastHasBody) { setBlastResult({ ok: false, msg: 'Write a subject and message to preview.' }); return; }
+    setPreviewing(true);
+    setBlastResult(null);
+    try {
+      const res = await postBlast({ preview: true });
+      const json = await res.json().catch(() => ({}));
+      if (res.ok && typeof json.html === 'string') setBlastPreview({ subject: json.subject || blastSubject, html: json.html });
+      else setBlastResult({ ok: false, msg: json.error || 'Could not build the preview.' });
+    } catch { setBlastResult({ ok: false, msg: 'Network error. Please try again.' }); }
+    setPreviewing(false);
+  };
+
+  const handleTestSend = async () => {
+    if (!isValidEmail(testTo.trim())) { setBlastResult({ ok: false, msg: 'Enter a valid email address for the test.' }); return; }
+    if (!blastSubject.trim() || !blastHasBody) { setBlastResult({ ok: false, msg: 'Write a subject and message first.' }); return; }
+    setTestSending(true);
+    setBlastResult(null);
+    try {
+      const res = await postBlast({ to: testTo.trim() });
+      const json = await res.json().catch(() => ({}));
+      setBlastResult(res.ok ? { ok: true, msg: `Test sent to ${testTo.trim()}. Nobody else got it.` } : { ok: false, msg: json.error || 'Test send failed.' });
+    } catch { setBlastResult({ ok: false, msg: 'Network error. Please try again.' }); }
+    setTestSending(false);
+  };
+
+  const handleBlast = async () => {
+    if (!blastSubject.trim() || !blastHasBody) {
+      setBlastResult({ ok: false, msg: 'Subject and body are required.' });
+      return;
+    }
+    setBlasting(true);
+    setBlastResult(null);
+    try {
+      const res = await postBlast();
       if (res.ok) {
         const result = await res.json().catch(() => ({}));
         const count = result.count ?? 0;
@@ -1312,11 +1359,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
     setReminding(true);
     setReminderResult(null);
     try {
-      const eventBannerUrl = cfg.coverImage
-        ? (/^https?:\/\//i.test(cfg.coverImage)
-            ? cfg.coverImage
-            : `${window.location.origin}/api/og/${form.id}`)
-        : undefined;
+      const eventBannerUrl = emailBannerFor(cfg.coverImage);
       const { data: { session: reminderSession } } = await supabase.auth.getSession();
       const res = await fetch('/api/email', {
         method: 'POST',
@@ -1549,12 +1592,28 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               enableButton
               buttonColor={courseAccent}
               imageFolder="email-images"
+              imageWidth="100%"
             />
+            <p className={isDark ? 'mt-1.5 text-xs text-zinc-500' : 'mt-1.5 text-xs text-gray-400'}>Click an image to change its size. Sign off in your own words: nothing is added under your message.</p>
           </div>
           <div className={isDark ? 'rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-xs text-zinc-500' : 'rounded-xl border border-[rgba(0,0,0,0.07)] bg-[#f5f6f7] px-4 py-3 text-xs text-[#888]'}>
             Available tags: <code>{'{{name}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{form_title}}'}</code>, <code>{'{{event_title}}'}</code>, <code>{'{{event_date}}'}</code>, <code>{'{{event_time}}'}</code>, <code>{'{{event_timezone}}'}</code>, <code>{'{{event_location}}'}</code>, <code>{'{{meeting_link}}'}</code>, <code>{'{{form_url}}'}</code>
           
             {isEvent && <span className="mt-1 block">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>}
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button type="button" onClick={handlePreview} disabled={previewing || !blastSubject.trim() || !blastHasBody}
+              className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-40 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f1f2f4] text-gray-800'}`}>
+              {previewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />} Preview
+            </button>
+            <div className="flex flex-1 gap-2">
+              <input type="email" value={testTo} onChange={e => { setTestTo(e.target.value); setBlastResult(null); }}
+                placeholder="you@example.com" aria-label="Send a test to" className={`${input} min-w-0 flex-1`} />
+              <button type="button" onClick={handleTestSend} disabled={testSending || !testTo.trim() || !blastSubject.trim() || !blastHasBody}
+                className={`inline-flex h-11 flex-shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-40 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f1f2f4] text-gray-800'}`}>
+                {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send test
+              </button>
+            </div>
           </div>
           {blastResult && (
             <div className={feedback(blastResult.ok)}>
@@ -1579,6 +1638,40 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           </p>
         </div>
       </div>
+
+      {blastPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setBlastPreview(null)}>
+          <div role="dialog" aria-modal="true" aria-label="Email preview" onClick={e => e.stopPropagation()}
+            className={`flex max-h-[92vh] w-full max-w-[720px] flex-col overflow-hidden rounded-2xl ${isDark ? 'bg-zinc-900' : 'bg-white'}`}>
+            <div className="flex items-center gap-3 px-5 py-3.5">
+              <div className="min-w-0 flex-1">
+                <p className={isDark ? 'text-xs text-zinc-500' : 'text-xs text-gray-400'}>Subject</p>
+                <p className={`truncate text-sm font-semibold ${isDark ? 'text-white' : 'text-gray-900'}`}>{blastPreview.subject}</p>
+              </div>
+              <div className={`flex rounded-lg p-0.5 ${isDark ? 'bg-zinc-800' : 'bg-[#f1f2f4]'}`}>
+                {(['desktop', 'phone'] as const).map(w => (
+                  <button key={w} type="button" onClick={() => setPreviewWidth(w)}
+                    className={`rounded-md px-3 py-1 text-xs font-semibold ${previewWidth === w ? (isDark ? 'bg-zinc-700 text-white' : 'bg-white text-gray-900') : (isDark ? 'text-zinc-400' : 'text-gray-500')}`}>
+                    {w === 'desktop' ? 'Desktop' : 'Phone'}
+                  </button>
+                ))}
+              </div>
+              <button type="button" onClick={() => setBlastPreview(null)} aria-label="Close preview" className={`rounded-lg p-1.5 ${isDark ? 'text-zinc-400 hover:bg-zinc-800' : 'text-gray-500 hover:bg-gray-100'}`}>
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className={`flex-1 overflow-auto p-4 ${isDark ? 'bg-zinc-950' : 'bg-[#f1f2f4]'}`}>
+              {/* Scripts never run in the preview; links open in a new tab. */}
+              <iframe title="Email preview" srcDoc={blastPreview.html} sandbox="allow-popups allow-popups-to-escape-sandbox"
+                className="mx-auto block h-[70vh] rounded-lg bg-white transition-[width]"
+                style={{ width: previewWidth === 'phone' ? 375 : '100%', maxWidth: '100%' }} />
+            </div>
+            <p className={`px-5 py-3 text-xs ${isDark ? 'text-zinc-500' : 'text-gray-400'}`}>
+              Shown with the sample name &quot;there&quot;. Each recipient sees their own name and links.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* -- Event Reminder (bulk) -- */}
       {isEvent && (

@@ -660,7 +660,8 @@ export function day7EncouragementEmail(data: { name: string; studentUrl: string;
 export function blastEmail(data: {
   subject: string;
   body: string;
-  /** The body already as email HTML (lib/email-body.ts); used in place of the plain-text body. */
+  /** The body already as email HTML (lib/email-body.ts); used in place of the plain-text body.
+   *  The author's own message then signs itself off: no "Best regards" is added under it. */
   bodyHtml?: string | null;
   senderName?: string;
   formTitle: string;
@@ -681,10 +682,10 @@ export function blastEmail(data: {
     ${bodyHtml ?? `<p>${body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`}
 
     ${formUrl ? cta(esc(ctaLabel || 'View Page'), esc(formUrl)) : ''}
-
+    ${bodyHtml != null ? '' : `
     <br>
     <p><b>Best regards,</b></p>
-    <p>${esc(senderName || formTitle)}</p>
+    <p>${esc(senderName || formTitle)}</p>`}
   `;
 
   // blastEmail uses senderName as sign-off -- do not pass teamName to shell

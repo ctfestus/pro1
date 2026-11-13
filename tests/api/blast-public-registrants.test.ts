@@ -111,9 +111,23 @@ describe('event blast recipients', () => {
     }));
     expect(await res.json()).toMatchObject({ success: true });
     const html = batchSend.mock.calls.flatMap(c => c[0])[0].html;
-    expect(html).toContain('Data &amp; AI &lt;Bootcamp&gt;');
+    expect(html).not.toContain('<Bootcamp>');
     expect(html).not.toContain('tracker.test');
     expect(html).not.toContain('<b>x');
     expect(html).not.toContain('javascript:');
+  });
+
+  it('previews the email without sending it or using the quota', async () => {
+    const res = await POST(new NextRequest('http://localhost/api/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer t' },
+      body: JSON.stringify({ type: 'blast', data: { formId: 'ev1', subject: 'Hello {{name}}', body: '<p>Hi {{name}}</p><p>Best, Ama</p>', formTitle: 'Open Night', formUrl: 'https://app.test/events/open-night', preview: true } }),
+    }));
+    const json = await res.json();
+    expect(json.subject).toBe('Hello there');
+    expect(json.html).toContain('<p>Hi there</p>');
+    // The author's own sign-off is the only one.
+    expect(json.html).not.toContain('Best regards');
+    expect(batchSend).not.toHaveBeenCalled();
   });
 });

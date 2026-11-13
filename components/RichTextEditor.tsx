@@ -53,9 +53,11 @@ interface RichTextEditorProps {
   images?: 'library' | 'upload' | 'off';
   /** Folder new uploads go to (under the user's own folder). */
   imageFolder?: string;
+  /** How wide a new image starts (it can be resized after): '55%' by default, '100%' for full width. */
+  imageWidth?: string;
 }
 
-export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload: givenImageUpload, onRequestImage: givenRequestImage, enableAiAssist = false, enableNameTag = false, enableVideoEmbed = false, anyVideoLink = false, enableButton = false, buttonColor = '#111827', images = 'library', imageFolder = 'rich-text-images' }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload: givenImageUpload, onRequestImage: givenRequestImage, enableAiAssist = false, enableNameTag = false, enableVideoEmbed = false, anyVideoLink = false, enableButton = false, buttonColor = '#111827', images = 'library', imageFolder = 'rich-text-images', imageWidth = '55%' }: RichTextEditorProps) {
   // The built-in image library picker, used unless the caller brings its own.
   const [libraryOpen, setLibraryOpen] = useState(false);
   const libraryResolve = useRef<((url: string | null) => void) | null>(null);
@@ -458,7 +460,7 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
     img.src = url;
     img.alt = alt;
     // Default to a contained medium width (not full-bleed); the user can resize via the image control.
-    img.style.cssText = 'width:55%;max-width:100%;height:auto;border-radius:6px;margin:6px 0;display:block;';
+    img.style.cssText = `width:${imageWidth};max-width:100%;height:auto;border-radius:6px;margin:6px 0;display:block;`;
     const sel = window.getSelection();
     if (sel && sel.rangeCount > 0) {
       const range = sel.getRangeAt(0);
@@ -477,7 +479,7 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
     }
     isInternalChange.current = true;
     onChange(editorRef.current.innerHTML);
-  }, [onChange]);
+  }, [onChange, imageWidth]);
 
   const handleInsertImage = useCallback(async (file: File) => {
     if (!onImageUpload) return;
@@ -708,9 +710,11 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
             background: dark ? '#1b1d26' : '#ffffff', border: `1px solid ${toolDiv}`, boxShadow: '0 6px 20px rgba(0,0,0,0.18)',
           }}
         >
-          {([['S', '30%'], ['M', '55%'], ['L', '100%']] as const).map(([label, w]) => (
-            <button key={label} type="button" onClick={() => resizeSelectedImg(w)} title={`Resize ${label}`}
-              className="px-2 py-1 rounded text-xs font-semibold hover:opacity-70" style={{ color: textColor }}>
+          {/* Original: no width, so the image shows at its own size (never wider than the space). */}
+          {([['Small', '30%'], ['Medium', '55%'], ['Full width', '100%'], ['Original', '']] as const).map(([label, w]) => (
+            <button key={label} type="button" onClick={() => resizeSelectedImg(w)} title={`${label} image`}
+              className="px-2 py-1 rounded text-xs font-semibold hover:opacity-70"
+              style={{ color: textColor, background: imgCtl.img.style.width === w ? toolDiv : 'transparent' }}>
               {label}
             </button>
           ))}
