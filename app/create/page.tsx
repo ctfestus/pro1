@@ -1,5 +1,6 @@
 'use client';
 
+import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
 import React, { useState, useEffect, useRef } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { useTheme } from '@/components/ThemeProvider';
@@ -211,6 +212,7 @@ const [isSaving, setIsSaving] = useState(false);
   };
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
   const [savedFormId, setSavedFormId] = useState<string | null>(null);
+  const speakerDraft = useSpeakerDraft();
   const [showCoverLibrary, setShowCoverLibrary] = useState(false);
   const [lessonImageQId, setLessonImageQId] = useState<string | null>(null);
   const [customSlug, setCustomSlug] = useState('');
@@ -530,6 +532,16 @@ const [isSaving, setIsSaving] = useState(false);
     }
   };
 
+  // A speaker typed into the Speakers form but not yet added: Save adds it (components/SpeakersEditor).
+  const withPendingSpeaker = (config: FormConfig): FormConfig => {
+    if (!config.eventDetails?.isEvent) return config;
+    const speakers = speakerDraft.applyTo(config.eventDetails.speakers ?? []);
+    if (!speakers) return config;
+    const next = { ...config, eventDetails: { ...config.eventDetails, speakers } };
+    setFormConfig(next);
+    return next;
+  };
+
   // -- Supabase save/share --
   const handleShare = async (saveStatus: 'draft' | 'published' = 'published') => {
     if (!formConfig) return;
@@ -541,7 +553,7 @@ const [isSaving, setIsSaving] = useState(false);
     setIsSaving(true);
     setSavingAs(saveStatus);
     try {
-      let configToSave = await prepareSqlExpectedResultsForSave(formConfig, saveStatus === 'published');
+      let configToSave = await prepareSqlExpectedResultsForSave(withPendingSpeaker(formConfig), saveStatus === 'published');
       if (!configToSave) { setIsSaving(false); setSavingAs(null); return; }
       configToSave = await preparePythonExpectedOutputsForSave(configToSave, saveStatus === 'published');
       if (!configToSave) { setIsSaving(false); setSavingAs(null); return; }
@@ -2301,7 +2313,7 @@ const [isSaving, setIsSaving] = useState(false);
     { id: 'cover', label: formConfig.isCourse ? 'Cover & Media' : 'Cover Image' },
     ...(!formConfig.isCourse && !formConfig.eventDetails?.isEvent ? [{ id: 'fields', label: 'Form Fields' }] : []),
     ...(formConfig.isCourse ? [{ id: 'curriculum', label: 'Lessons' }] : []),
-    ...(formConfig.eventDetails?.isEvent ? [{ id: 'fields', label: 'Registration Fields' }, { id: 'event_details', label: 'Event Details' }, { id: 'visibility', label: 'Visibility' }] : []),
+    ...(formConfig.eventDetails?.isEvent ? [{ id: 'fields', label: 'Registration Fields' }, { id: 'event_details', label: 'Event Details' }, { id: 'speakers', label: 'Speakers' }, { id: 'visibility', label: 'Visibility' }] : []),
     ...(formConfig.isCourse ? [{ id: 'course_settings', label: 'Learning Rules' }] : []),
     { id: 'appearance', label: 'Appearance' },
     ...(formConfig.isCourse ? [{ id: 'points', label: 'Points & Rewards' }] : []),
@@ -2743,6 +2755,19 @@ const [isSaving, setIsSaving] = useState(false);
 
                 </div>
               </div>
+            )}
+
+            {activeSection === 'speakers' && formConfig.eventDetails?.isEvent && (
+              <SpeakersEditor
+                speakers={formConfig.eventDetails.speakers ?? []}
+                onChange={next => updateConfig({ eventDetails: { ...formConfig.eventDetails!, speakers: next } })}
+                draft={speakerDraft}
+                tokens={C}
+                accentColor={accentColor}
+                labelClass={labelCls}
+                labelStyle={labelStyle}
+                onError={msg => showToast(msg)}
+              />
             )}
 
             {activeSection === 'visibility' && formConfig.eventDetails?.isEvent && (() => {
