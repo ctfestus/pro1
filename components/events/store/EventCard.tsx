@@ -48,7 +48,7 @@ export function EventCard({ ev, primaryColor }: { ev: PublicEvent; primaryColor:
         )}
       </div>
       <div className="flex-1 flex flex-col p-4 sm:p-5">
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] flex items-center gap-1.5" style={{ color: '#475569' }}>
+        <p className="text-xs font-bold uppercase tracking-[0.14em] flex items-center gap-1.5" style={{ color: '#475569' }}>
           {ev.format === 'virtual' ? <Video className="w-3.5 h-3.5" /> : <MapPin className="w-3.5 h-3.5" />}
           {ev.format === 'virtual' ? 'Online' : 'In person'}
           {repeat && <span className="font-semibold normal-case tracking-normal" style={{ color: '#64748b' }}>| {repeat}</span>}

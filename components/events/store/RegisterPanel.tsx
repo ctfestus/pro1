@@ -13,7 +13,7 @@ import Link from 'next/link';
 import { CalendarPlus, CheckCircle2, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { buildGoogleCalUrl, downloadIcs } from '@/lib/calendar-links';
-import { displayTime, type PublicEvent } from '@/lib/events/public-event';
+import type { PublicEvent } from '@/lib/events/public-event';
 import { CARD_SHADOW } from '@/components/books/store/card-style';
 import { Countdown } from '@/components/events/store/Countdown';
 
@@ -131,14 +131,13 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
     );
   }
 
-  const time = displayTime(event.time);
   const ring = { ...inputStyle, ['--tw-ring-color' as any]: `${primaryColor}55` };
   return (
     <form onSubmit={submit} className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
       {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
-      <p className="text-base font-bold" style={{ color: '#0f172a' }}>Register for this event</p>
+      <p className="text-lg font-bold" style={{ color: '#0f172a' }}>Register for this event</p>
       <p className="mt-1 text-sm" style={{ color: '#64748b' }}>
-        Free{time ? ` | Starts ${time}${event.timezone ? ` ${event.timezone}` : ''}` : ''}
+        Free
         {event.spotsLeft !== null ? ` | ${event.spotsLeft} spot${event.spotsLeft === 1 ? '' : 's'} left` : ''}
       </p>
 
