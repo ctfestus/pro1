@@ -13,19 +13,24 @@ import { CARD_SHADOW, initials } from '@/components/books/store/card-style';
 import { RegisterPanel } from '@/components/events/store/RegisterPanel';
 import { ShareButtons } from '@/components/ShareButtons';
 
-/** One line of the hero facts. With href (the venue), the whole fact opens the map. */
-function Fact({ icon, title, sub, href, label }: { icon: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode; href?: string; label?: string }) {
+/**
+ * One line of the hero facts. With href (the venue), the whole fact opens the map, and on hover
+ * both lines underline and take the event's colour.
+ */
+function Fact({ icon, title, sub, href, label, accent }: { icon: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode; href?: string; label?: string; accent?: string }) {
+  const hover = href ? ' underline-offset-4 transition-colors group-hover:underline group-hover:text-[var(--fact-hover)]' : '';
   const body = (
     <>
       <div className="w-11 h-11 flex-shrink-0 rounded-xl bg-[var(--ev-surface,#ffffff)] flex items-center justify-center" style={{ boxShadow: CARD_SHADOW, color: 'var(--ev-body,#334155)' }}>{icon}</div>
       <div className="min-w-0 pt-0.5">
-        <div className={`text-base font-semibold${href ? ' underline-offset-4 group-hover:underline' : ''}`} style={{ color: 'var(--ev-text,#0f172a)' }}>{title}</div>
-        {sub && <div className="mt-0.5 text-sm" style={{ color: 'var(--ev-muted,#64748b)' }}>{sub}</div>}
+        <div className={`text-base font-semibold text-[var(--ev-text,#0f172a)]${hover}`}>{title}</div>
+        {sub && <div className={`mt-0.5 text-sm text-[var(--ev-muted,#64748b)]${hover}`}>{sub}</div>}
       </div>
     </>
   );
   return href
-    ? <a href={href} target="_blank" rel="noopener noreferrer" aria-label={label} title={label} className="group flex items-start gap-3">{body}</a>
+    ? <a href={href} target="_blank" rel="noopener noreferrer" aria-label={label} title={label} className="group flex items-start gap-3"
+        style={{ ['--fact-hover' as any]: accent ?? 'var(--ev-text,#0f172a)' }}>{body}</a>
     : <div className="flex items-start gap-3">{body}</div>;
 }
 
@@ -97,7 +102,8 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
                   title={event.venue?.name ?? 'Venue to be announced'}
                   sub={event.venue?.address ?? undefined}
                   href={event.venue && mapsUrl ? mapsUrl : undefined}
-                  label={event.venue ? `Open ${event.venue.name} in Google Maps` : undefined} />
+                  label={event.venue ? `Open ${event.venue.name} in Google Maps` : undefined}
+                  accent={primaryColor} />
               )}
               {repeat && <Fact icon={<Repeat className="w-5 h-5" />} title={repeat} sub="One registration covers every session" />}
               {event.capacity !== null && !event.isPast && (
