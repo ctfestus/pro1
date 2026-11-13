@@ -10,10 +10,11 @@
  */
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { CalendarPlus, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react';
+import { ArrowRight, CalendarPlus, CheckCircle2, ExternalLink, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { buildGoogleCalUrl, downloadIcs } from '@/lib/calendar-links';
-import type { PublicEvent } from '@/lib/events/public-event';
+import { dateParts, type AfterRegistration, type PublicEvent } from '@/lib/events/public-event';
+import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { CARD_SHADOW } from '@/components/books/store/card-style';
 import { Countdown } from '@/components/events/store/Countdown';
 
@@ -24,12 +25,14 @@ type Props = {
   pageUrl: string;
   /** The next session's start (ISO), for the countdown. Null for an untimed or finished event. */
   startsAt: string | null;
+  /** The editor's "after registration" setting: a notice, a button, a redirect or suggestions. */
+  after: AfterRegistration;
 };
 
 const inputClass = 'w-full h-11 rounded-xl px-3.5 text-sm outline-none transition-shadow focus:ring-2';
 const inputStyle = { background: 'var(--ev-soft,#f1f5f9)', color: 'var(--ev-text,#0f172a)' } as const;
 
-export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props) {
+export function RegisterPanel({ event, primaryColor, pageUrl, startsAt, after }: Props) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [accountEmail, setAccountEmail] = useState<string | null>(null);
@@ -63,6 +66,13 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
     })();
     return () => { cancelled = true; };
   }, [event.id]);
+
+  // "Redirect to a URL": the success card shows briefly, then the browser goes on.
+  useEffect(() => {
+    if (!done || after.type !== 'redirect') return;
+    const t = setTimeout(() => { window.location.href = after.url; }, 1800);
+    return () => clearTimeout(t);
+  }, [done, after]);
 
   const full = event.spotsLeft !== null && event.spotsLeft <= 0;
 
@@ -152,6 +162,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
             </button>
           </div>
         )}
+        <AfterRegistering after={after} primaryColor={primaryColor} />
       </div>
     );
   }
@@ -223,4 +234,64 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
       </p>
     </form>
   );
+}
+
+/** The editor's "after registration" setting, shown under the success message. */
+function AfterRegistering({ after, primaryColor }: { after: AfterRegistration; primaryColor: string }) {
+  if (after.type === 'notice') {
+    return (
+      <div className="mt-5 rounded-xl p-4" style={{ background: 'var(--ev-soft,#f1f5f9)' }}>
+        {after.title && <p className="text-sm font-semibold" style={{ color: 'var(--ev-text,#0f172a)' }}>{after.title}</p>}
+        {after.body && <p className={`${after.title ? 'mt-1 ' : ''}whitespace-pre-line text-sm leading-relaxed`} style={{ color: 'var(--ev-body2,#475569)' }}>{after.body}</p>}
+      </div>
+    );
+  }
+  if (after.type === 'button') {
+    return (
+      <a href={after.url} target="_blank" rel="noopener noreferrer"
+        className="mt-5 flex h-12 w-full items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold"
+        style={{ background: primaryColor, color: 'var(--ev-on-accent,#ffffff)' }}>
+        {after.label} <ExternalLink className="w-4 h-4" />
+      </a>
+    );
+  }
+  if (after.type === 'redirect') {
+    return (
+      <p className="mt-5 flex items-center gap-2 text-sm" style={{ color: 'var(--ev-body2,#475569)' }}>
+        <Loader2 className="w-4 h-4 animate-spin" />
+        <span className="min-w-0">Taking you to <a href={after.url} className="break-all underline">{hostOf(after.url)}</a></span>
+      </p>
+    );
+  }
+  if (after.type === 'events') {
+    return (
+      <div className="mt-6">
+        <p className="text-xs font-semibold uppercase tracking-[0.12em]" style={{ color: 'var(--ev-muted,#64748b)' }}>You might also like</p>
+        <div className="mt-3 space-y-2">
+          {after.items.map(item => (
+            <Link key={item.id} href={item.href}
+              className="flex items-center gap-3 rounded-xl p-2 transition-opacity hover:opacity-80" style={{ background: 'var(--ev-soft,#f1f5f9)' }}>
+              {item.coverImage ? (
+                <img src={resolveCoverUrl(item.coverImage)} alt="" loading="lazy" className="h-12 w-12 flex-shrink-0 rounded-lg object-cover" />
+              ) : (
+                <div className="h-12 w-12 flex-shrink-0 rounded-lg" style={{ background: `${primaryColor}22` }} />
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold" style={{ color: 'var(--ev-text,#0f172a)' }}>{item.title}</p>
+                <p className="truncate text-xs" style={{ color: 'var(--ev-muted,#64748b)' }}>
+                  {item.kind === 'course' ? 'Free course' : dateParts(item.date)?.long ?? 'Event'}
+                </p>
+              </div>
+              <ArrowRight className="mr-1 w-4 h-4 flex-shrink-0" style={{ color: primaryColor }} />
+            </Link>
+          ))}
+        </div>
+      </div>
+    );
+  }
+  return null;
+}
+
+function hostOf(url: string): string {
+  try { return new URL(url).host; } catch { return url; }
 }

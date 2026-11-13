@@ -103,7 +103,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {/* Phones: the register box straight after the facts. */}
           <div className="lg:hidden">
-            <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} />
+            <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} after={event.after} />
           </div>
 
           {aboutHtml && (
@@ -179,7 +179,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
         </div>
 
         <aside className="hidden lg:block lg:sticky lg:top-24">
-          <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} />
+          <RegisterPanel event={event} primaryColor={primaryColor} pageUrl={shareUrl} startsAt={startsAt} after={event.after} />
         </aside>
       </div>
 
