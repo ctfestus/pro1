@@ -1,4 +1,5 @@
-﻿import { NextRequest, NextResponse } from 'next/server';
+﻿import { createHash } from 'crypto';
+import { NextRequest, NextResponse } from 'next/server';
 import { requireUser, requireRole, isAuthError } from '@/lib/api-auth';
 import { Resend } from 'resend';
 import { createClient } from '@supabase/supabase-js';
@@ -559,6 +560,10 @@ export async function POST(req: NextRequest) {
       const isCourseBlast = !!blastCourse;
       // segment: 'all' | 'not_started' | 'in_progress' | 'completed'
       const segment: string  = data.segment  ?? 'all';
+      // An unknown audience is refused, never read as "everyone".
+      if (!['all', 'not_started', 'in_progress', 'completed', 'failed'].includes(segment)) {
+        return NextResponse.json({ error: 'Unknown audience' }, { status: 400 });
+      }
       const cohortId: string = data.cohortId ?? '';
 
       // Build deduplicated map of email -> merge data
@@ -624,19 +629,23 @@ export async function POST(req: NextRequest) {
 
           const { data: attempts } = await supabase
             .from(attemptTable)
-            .select('student_id, completed_at')
+            .select(isCourseBlast ? 'student_id, completed_at, passed' : 'student_id, completed_at')
             .eq(foreignKey, data.formId)
             .in('student_id', enrolledIds);
 
-          const startedIds   = new Set((attempts || []).map((a: any) => String(a.student_id)));
-          const completedIds = new Set(
-            (attempts || []).filter((a: any) => !!a.completed_at).map((a: any) => String(a.student_id))
-          );
+          // The same groups the dashboard counts: a finished course attempt marked not passed is
+          // "failed", not "completed". A virtual experience has no pass mark, so nobody has failed one.
+          const rows = (attempts || []) as any[];
+          const startedIds   = new Set(rows.map(a => String(a.student_id)));
+          const completedIds = new Set(rows.filter(a => !!a.completed_at && a.passed !== false).map(a => String(a.student_id)));
+          const failedIds    = new Set(rows.filter(a => isCourseBlast && !!a.completed_at && a.passed === false).map(a => String(a.student_id)));
 
           enrolledStudents = enrolledStudents.filter((s: any) => {
-            if (segment === 'not_started') return !startedIds.has(String(s.id));
-            if (segment === 'in_progress') return startedIds.has(String(s.id)) && !completedIds.has(String(s.id));
-            if (segment === 'completed')   return completedIds.has(String(s.id));
+            const id = String(s.id);
+            if (segment === 'not_started') return !startedIds.has(id);
+            if (segment === 'in_progress') return startedIds.has(id) && !completedIds.has(id) && !failedIds.has(id);
+            if (segment === 'completed')   return completedIds.has(id);
+            if (segment === 'failed')      return failedIds.has(id);
             return true;
           });
         }
@@ -697,17 +706,46 @@ export async function POST(req: NextRequest) {
         emailBatch.push({ from: FROM, to: recipient, subject: personalizedSubject, html: personalizedHtml });
       }
 
+      // Resend reports a rejected batch in its result rather than by throwing, so each result is
+      // read. A batch's key is its content: sending the same broadcast again within 24 hours (to
+      // finish one that stopped part way) skips the batches that already went, so nobody gets it
+      // twice.
+      const broadcastKey = createHash('sha256')
+        .update(JSON.stringify([blastCreatorId, data.formId, segment, cohortId, data.subject, data.body]))
+        .digest('hex');
+      let sent = 0;
+      let failure = '';
       for (const batch of chunk(emailBatch, BATCH_SIZE)) {
-        await resend.batch.send(batch);
+        const batchKey = createHash('sha256').update(broadcastKey + batch.map(m => m.to).join(',')).digest('hex').slice(0, 48);
+        try {
+          const { error } = await resend.batch.send(batch, { idempotencyKey: `blast-${batchKey}` });
+          if (error) { failure = error.message || 'rejected by the email service'; break; }
+          sent += batch.length;
+        } catch (e: any) {
+          failure = e?.message || 'the email service could not be reached';
+          break;
+        }
       }
 
-      // Increment daily blast quota
-      await supabase.from('blast_quotas').upsert(
-        { creator_id: blastCreatorId, date: today, count: currentCount + 1 },
-        { onConflict: 'creator_id,date' }
-      );
+      // A broadcast that reached anyone counts against today's limit.
+      if (sent > 0) {
+        await supabase.from('blast_quotas').upsert(
+          { creator_id: blastCreatorId, date: today, count: currentCount + 1 },
+          { onConflict: 'creator_id,date' }
+        );
+      }
 
-      return NextResponse.json({ success: true, count: responseByEmail.size });
+      if (failure) {
+        console.error('[email] blast stopped', { formId: data.formId, sent, total: emailBatch.length, failure });
+        return NextResponse.json({
+          error: sent
+            ? `Sent to ${sent} of ${emailBatch.length}, then the email service stopped (${failure}). Send again to reach the rest: the ${sent} already sent to will not get it twice.`
+            : `Nothing was sent: the email service refused it (${failure}). Try again.`,
+          sent, total: emailBatch.length,
+        }, { status: 502 });
+      }
+
+      return NextResponse.json({ success: true, count: sent });
     } else if (Array.isArray(to)) {
       await sendBatch(to, subject, html, FROM);
     } else if (typeof to === 'string') {
