@@ -191,7 +191,7 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
         <span className="inline-flex items-center gap-2 text-lg font-extrabold leading-tight">
           {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your spot' : 'Save my spot'}
         </span>
-        <span className="text-xs font-semibold uppercase tracking-[0.14em] opacity-90">Limited spots available</span>
+        <span className="text-[10px] font-normal uppercase tracking-[0.14em] opacity-80">Limited spots available</span>
       </button>
       <p className="mt-3 text-xs" style={{ color: '#94a3b8' }}>
         {accountEmail ? 'Registering with your account email.' : 'We use your email only to send your registration details and reminders.'}
