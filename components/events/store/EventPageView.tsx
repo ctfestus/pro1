@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { CalendarDays, ChevronRight, Clock, MapPin, Repeat, Users, Video } from 'lucide-react';
+import { CalendarDays, ChevronRight, Clock, MapPin, Navigation, Repeat, Users, Video } from 'lucide-react';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { sessionStartInstant } from '@/lib/event-sessions';
 import { sanitizeRichText } from '@/lib/sanitize';
@@ -11,12 +11,13 @@ import { CARD_SHADOW, initials } from '@/components/books/store/card-style';
 import { RegisterPanel } from '@/components/events/store/RegisterPanel';
 import { ShareButtons } from '@/components/ShareButtons';
 
-function Fact({ icon, title, sub }: { icon: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode }) {
+function Fact({ icon, label, title, sub }: { icon: React.ReactNode; label: string; title: React.ReactNode; sub?: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
       <div className="w-11 h-11 flex-shrink-0 rounded-xl bg-white flex items-center justify-center" style={{ boxShadow: CARD_SHADOW, color: '#334155' }}>{icon}</div>
-      <div className="min-w-0 pt-0.5">
-        <div className="text-[15px] font-semibold" style={{ color: '#0f172a' }}>{title}</div>
+      <div className="min-w-0">
+        <div className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: '#94a3b8' }}>{label}</div>
+        <div className="mt-0.5 text-[15px] font-semibold" style={{ color: '#0f172a' }}>{title}</div>
         {sub && <div className="mt-0.5 text-sm" style={{ color: '#64748b' }}>{sub}</div>}
       </div>
     </div>
@@ -73,20 +74,19 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
             {event.summary && <p className="mt-3 text-base sm:text-lg" style={{ color: '#475569' }}>{event.summary}</p>}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Fact icon={<CalendarDays className="w-5 h-5" />}
+              <Fact icon={<CalendarDays className="w-5 h-5" />} label="Date and time"
                 title={date ? date.long : 'Date to be announced'}
                 sub={time ? <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {time}{event.timezone ? ` ${event.timezone}` : ''}</span> : undefined} />
               {event.format === 'virtual' ? (
-                <Fact icon={<Video className="w-5 h-5" />} title="Online" sub="We email your join link once you register" />
+                <Fact icon={<Video className="w-5 h-5" />} label="Location" title="Online" sub="We email your join link once you register" />
               ) : (
-                <Fact icon={<MapPin className="w-5 h-5" />}
-                  title={event.location && mapsUrl
-                    ? <a href={mapsUrl} target="_blank" rel="noopener noreferrer" className="hover:underline">{event.location}</a>
-                    : 'Location to be announced'} />
+                <Fact icon={<MapPin className="w-5 h-5" />} label="Venue"
+                  title={event.venue?.name ?? 'Venue to be announced'}
+                  sub={event.venue?.address ?? undefined} />
               )}
-              {repeat && <Fact icon={<Repeat className="w-5 h-5" />} title={repeat} sub="One registration covers every session" />}
+              {repeat && <Fact icon={<Repeat className="w-5 h-5" />} label="Schedule" title={repeat} sub="One registration covers every session" />}
               {event.capacity !== null && !event.isPast && (
-                <Fact icon={<Users className="w-5 h-5" />}
+                <Fact icon={<Users className="w-5 h-5" />} label="Capacity"
                   title={event.spotsLeft === 0 ? 'Sold out' : `${event.spotsLeft} of ${event.capacity} spots left`} />
               )}
             </div>
@@ -102,6 +102,26 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
               <h2 className="text-lg font-bold" style={{ color: '#0f172a' }}>About this event</h2>
               <div className="rich-preview mt-3 text-[15px] leading-relaxed" style={{ color: '#334155' }}
                 dangerouslySetInnerHTML={{ __html: aboutHtml }} />
+            </div>
+          )}
+
+          {event.venue && mapsUrl && (
+            <div>
+              <h2 className="text-lg font-bold" style={{ color: '#0f172a' }}>Venue</h2>
+              <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl bg-white p-5" style={{ boxShadow: CARD_SHADOW }}>
+                <div className="w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center" style={{ background: `${primaryColor}14`, color: primaryColor }}>
+                  <MapPin className="w-5 h-5" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-base font-bold" style={{ color: '#0f172a' }}>{event.venue.name}</p>
+                  {event.venue.address && <p className="mt-0.5 text-sm" style={{ color: '#475569' }}>{event.venue.address}</p>}
+                </div>
+                <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold flex-shrink-0"
+                  style={{ background: '#f1f5f9', color: '#0f172a' }}>
+                  <Navigation className="w-4 h-4" /> Get directions
+                </a>
+              </div>
             </div>
           )}
 

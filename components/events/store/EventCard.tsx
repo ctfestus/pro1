@@ -57,7 +57,7 @@ export function EventCard({ ev, primaryColor }: { ev: PublicEvent; primaryColor:
         <p className="mt-1.5 text-sm" style={{ color: '#475569' }}>
           {date ? date.long : 'Date to be announced'}{time ? ` at ${time}` : ''}{ev.timezone && time ? ` ${ev.timezone}` : ''}
         </p>
-        {ev.location && <p className="mt-0.5 text-sm truncate" style={{ color: '#64748b' }}>{ev.location}</p>}
+        {ev.venue && <p className="mt-0.5 text-sm truncate" style={{ color: '#64748b' }}>{ev.venue.name}</p>}
         {ev.summary && <p className="mt-3 text-sm line-clamp-2" style={{ color: '#64748b' }}>{ev.summary}</p>}
         <span className="mt-auto pt-4 text-sm font-semibold" style={{ color: ev.isPast ? '#64748b' : primaryColor }}>
           {ev.isPast ? 'View event' : badge?.tone === 'full' ? 'View details' : 'Register'}

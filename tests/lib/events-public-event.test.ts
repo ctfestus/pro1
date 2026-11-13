@@ -1,6 +1,6 @@
 // What the public events pages may show (migration 244), and how registrant answers are checked.
 import { describe, expect, it } from 'vitest';
-import { dateParts, displayTime, eventIsOpenForRegistration, publicEventFields, recurrenceLabel, toPublicEvent } from '@/lib/events/public-event';
+import { dateParts, displayTime, eventIsOpenForRegistration, publicEventFields, recurrenceLabel, splitVenue, toPublicEvent } from '@/lib/events/public-event';
 import { validateRegistrationResponses } from '@/lib/events/registration';
 
 const NOW = new Date('2026-11-13T12:00:00Z');
@@ -78,5 +78,18 @@ describe('formatting', () => {
     expect(dateParts('2026-11-20')).toEqual({ month: 'NOV', day: '20', long: 'Friday, November 20, 2026' });
     expect(displayTime('18:30:00')).toBe('6:30 PM');
     expect(displayTime('00:05')).toBe('12:05 AM');
+  });
+});
+
+describe('splitVenue', () => {
+  it('takes the venue name before the first comma and the address after it', () => {
+    expect(splitVenue('Accra Digital Centre, Ring Road, Accra')).toEqual({ name: 'Accra Digital Centre', address: 'Ring Road, Accra' });
+    expect(splitVenue('Impact Hub')).toEqual({ name: 'Impact Hub', address: null });
+    expect(splitVenue(', Osu, Accra')).toEqual({ name: 'Osu, Accra', address: null });
+    expect(splitVenue(null)).toBeNull();
+  });
+  it('gives an in-person event a venue and an online one none', () => {
+    expect(toPublicEvent({ ...ROW, event_type: 'in-person', location: 'Impact Hub, Osu' }, 0, NOW)!.venue).toEqual({ name: 'Impact Hub', address: 'Osu' });
+    expect(toPublicEvent(ROW, 0, NOW)!.venue).toBeNull();
   });
 });

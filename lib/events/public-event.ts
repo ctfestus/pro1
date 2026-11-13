@@ -44,8 +44,11 @@ export interface PublicEvent {
   summary: string;
   coverImage: string | null;
   format: PublicEventFormat;
-  /** In-person address; null for an online event. */
+  /** In-person address as typed; null for an online event. */
   location: string | null;
+  /** The location split for display: "Accra Digital Centre, Ring Road, Accra" is the venue
+   * "Accra Digital Centre" at "Ring Road, Accra". Null for an online event or no location. */
+  venue: { name: string; address: string | null } | null;
   /** The series start (YYYY-MM-DD) as stored. */
   startDate: string | null;
   time: string | null;
@@ -155,6 +158,16 @@ function publicSpeakers(raw: unknown): PublicEventSpeaker[] {
   }).slice(0, 24);
 }
 
+/** "Venue, street, city" to its venue name and the address after it (the first comma splits them). */
+export function splitVenue(location: string | null): { name: string; address: string | null } | null {
+  if (!location) return null;
+  const i = location.indexOf(',');
+  if (i < 0) return { name: location, address: null };
+  const name = location.slice(0, i).trim();
+  const address = location.slice(i + 1).trim();
+  return name ? { name, address: address || null } : { name: address, address: null };
+}
+
 /** The schedule fields event-sessions reads, from a row. */
 function scheduleOf(row: any): EventSchedule & { event_time?: string | null } {
   return {
@@ -202,6 +215,7 @@ export function toPublicEvent(row: any, taken: number, now: Date = new Date()): 
     coverImage: str(row.cover_image, 1000),
     format,
     location: format === 'in-person' ? str(row.location, 300) : null,
+    venue: format === 'in-person' ? splitVenue(str(row.location, 300)) : null,
     startDate: sched.event_date ?? null,
     time: timeMatch ? `${timeMatch[1]}:${timeMatch[2]}` : null,
     timezone: str(row.timezone, 80),
