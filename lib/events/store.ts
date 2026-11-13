@@ -3,7 +3,11 @@ import { unstable_cache } from 'next/cache';
 import { adminClient } from '@/lib/admin-client';
 import { loadInstructor, type StoreInstructor } from '@/lib/books/store';
 import { EVENTS_STORE_TAG } from '@/lib/events/store-cache';
-import { toPublicEvent, type PublicEvent } from '@/lib/events/public-event';
+import {
+  afterRegistrationOf, suggestedIds, toPublicEvent,
+  type AfterRegistration, type AfterRegistrationItem, type PublicEvent,
+} from '@/lib/events/public-event';
+import { contentPath } from '@/lib/content-link';
 import type { NavBook } from '@/lib/landing-nav';
 
 /**
@@ -28,6 +32,8 @@ const PAST_SHOWN = 12;
 
 export interface PublicEventDetail extends PublicEvent {
   host: StoreInstructor | null;
+  /** What the register box does after someone registers. */
+  after: AfterRegistration;
 }
 
 interface PublicEventList {
@@ -74,7 +80,7 @@ async function loadPublicEvent(slug: string): Promise<PublicEventDetail | null> 
   const db = adminClient();
   const { data, error } = await db
     .from('events')
-    .select(COLUMNS)
+    .select(`${COLUMNS}, post_submission`)
     .eq('slug', slug)
     .maybeSingle();
   if (error) throw error;
@@ -82,7 +88,39 @@ async function loadPublicEvent(slug: string): Promise<PublicEventDetail | null> 
   const taken = await seatsTaken(db, [(data as any).id]);
   const event = toPublicEvent(data, taken.get((data as any).id) ?? 0);
   if (!event) return null;
-  return { ...event, host: await loadInstructor(db, (data as any).user_id) };
+  const [host, items] = await Promise.all([
+    loadInstructor(db, (data as any).user_id),
+    loadSuggestions(db, suggestedIds((data as any).post_submission), event.id),
+  ]);
+  return { ...event, host, after: afterRegistrationOf((data as any).post_submission, items) };
+}
+
+/**
+ * The picks for "Show other events" that the public may open: upcoming public events (listed
+ * ones only, so an unlisted event's link is never handed out) and free courses. Anything else
+ * picked is left out. A failed read shows no suggestions rather than failing the page.
+ */
+async function loadSuggestions(db: any, ids: string[], selfId: string): Promise<AfterRegistrationItem[]> {
+  const wanted = ids.filter(id => id !== selfId);
+  if (!wanted.length) return [];
+  const [events, courses] = await Promise.all([
+    db.from('events').select(COLUMNS).in('id', wanted)
+      .eq('status', 'published').eq('public_registration', true).eq('is_private', false),
+    db.from('public_free_courses').select('id, slug, title, cover_image').in('id', wanted),
+  ]);
+  if (events.error) console.error('[events/store] suggested events failed', events.error.message);
+  if (courses.error) console.error('[events/store] suggested courses failed', courses.error.message);
+  const out: AfterRegistrationItem[] = [];
+  for (const row of (events.data as any[]) ?? []) {
+    const ev = toPublicEvent(row, 0);
+    if (!ev || ev.isPast) continue;
+    out.push({ id: ev.id, title: ev.title, href: `/events/${encodeURIComponent(ev.slug)}`, coverImage: ev.coverImage, date: ev.nextDate, kind: 'event' });
+  }
+  for (const c of (courses.data as any[]) ?? []) {
+    if (!c?.id || typeof c.title !== 'string') continue;
+    out.push({ id: c.id, title: c.title, href: contentPath({ id: c.id, slug: c.slug }), coverImage: c.cover_image ?? null, date: null, kind: 'course' });
+  }
+  return out;
 }
 
 const listPublicEvents = unstable_cache(() => loadPublicEvents(), ['events-store-list'], { tags: [EVENTS_STORE_TAG], revalidate: 60 });

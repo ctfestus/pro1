@@ -293,3 +293,78 @@ export function recurrenceLabel(ev: Pick<PublicEvent, 'recurrence' | 'recurrence
   const days = ev.recurrenceDays.length ? ` on ${ev.recurrenceDays.map(d => DAYS[d]).join(', ')}` : '';
   return `Weekly${days}${tail}`;
 }
+
+/** One thing suggested after registering: another public event, or a free course. */
+export interface AfterRegistrationItem {
+  id: string;
+  title: string;
+  href: string;
+  coverImage: string | null;
+  /** For events: the next session's date (YYYY-MM-DD), else null. */
+  date: string | null;
+  kind: 'event' | 'course';
+}
+
+/**
+ * What the register box does once someone registers: the editor's "after registration" setting
+ * (config.postSubmission, stored as events.post_submission), with every link checked.
+ */
+export type AfterRegistration =
+  | { type: 'default' }
+  | { type: 'redirect'; url: string }
+  | { type: 'button'; label: string; url: string }
+  | { type: 'notice'; title: string | null; body: string | null }
+  | { type: 'events'; items: AfterRegistrationItem[] };
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const MAX_SUGGESTIONS = 6;
+
+/** An http(s) link, or null: a javascript: or data: link never reaches an href or a redirect. */
+export function webUrl(v: unknown): string | null {
+  const raw = str(v, 1000);
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === 'https:' || u.protocol === 'http:' ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The ids picked for "Show other events", in order, at most six. */
+export function suggestedIds(raw: unknown): string[] {
+  const ps = raw as { type?: unknown; relatedEventIds?: unknown } | null;
+  if (!ps || ps.type !== 'events' || !Array.isArray(ps.relatedEventIds)) return [];
+  const ids = ps.relatedEventIds.filter((id): id is string => typeof id === 'string' && UUID_RE.test(id));
+  return [...new Set(ids)].slice(0, MAX_SUGGESTIONS);
+}
+
+/**
+ * The setting as the page uses it. A setting with nothing usable left (a bad link, an empty
+ * notice, no suggestion the public may see) falls back to the plain success card.
+ */
+export function afterRegistrationOf(raw: unknown, items: AfterRegistrationItem[] = []): AfterRegistration {
+  const ps = raw as Record<string, unknown> | null;
+  if (!ps || typeof ps !== 'object') return { type: 'default' };
+  if (ps.type === 'redirect') {
+    const url = webUrl(ps.redirectUrl);
+    return url ? { type: 'redirect', url } : { type: 'default' };
+  }
+  if (ps.type === 'button') {
+    const url = webUrl(ps.buttonUrl);
+    return url ? { type: 'button', label: str(ps.buttonLabel, 60) ?? 'Continue', url } : { type: 'default' };
+  }
+  if (ps.type === 'notice') {
+    const title = str(ps.noticeTitle, 200);
+    const body = str(ps.noticeBody, 2000);
+    return title || body ? { type: 'notice', title, body } : { type: 'default' };
+  }
+  if (ps.type === 'events') {
+    const order = suggestedIds(ps);
+    const shown = items
+      .filter(i => order.includes(i.id))
+      .sort((a, b) => order.indexOf(a.id) - order.indexOf(b.id));
+    return shown.length ? { type: 'events', items: shown } : { type: 'default' };
+  }
+  return { type: 'default' };
+}
