@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { useTheme } from '@/components/ThemeProvider';
@@ -10,7 +11,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2, Save, Check, Plus, Trash2, Image as ImageIcon, Images, Sun, Moon,
   X, MapPin, ArrowUpRight, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Sparkles,
-  Building2, GripVertical, BookOpen, Pencil, Monitor, Smartphone, RotateCcw, ExternalLink, Video, Search,
+  Building2, GripVertical, BookOpen, Monitor, Smartphone, RotateCcw, ExternalLink, Video, Search,
   HelpCircle, CalendarDays, ClipboardList, Share2, CheckCircle2, Zap, Settings, Upload, Download, Link2, FileText,
   Lock, LockOpen, Users, Music, FileCode,
   ArrowUp, ArrowDown, PenLine, Blocks,
@@ -19,12 +20,11 @@ import { LinkedInIcon } from '@/components/LinkedInIcon';
 import type { ThemeColor, ThemeMode } from '@/lib/theme-types';
 import type {
   FieldType, FormField, QuestionType, DownloadItem, CourseQuestion,
-  Speaker, EventDetails, PostSubmission, PointsMilestone, PointsSystem, FormConfig,
+  EventDetails, PostSubmission, PointsMilestone, PointsSystem, FormConfig,
 } from '@/lib/course-schema';
 import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 import dynamic from 'next/dynamic';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
-import { ImageCropModal } from '@/components/ImageCropModal';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
 import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
@@ -35,7 +35,7 @@ import type { QuestionTypeOrDownloads } from '@/components/create/QuestionTypePi
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import { FontPickerModal } from '@/components/FontPickerModal';
 import { supabase } from '@/lib/supabase';
-import { uploadToCloudinary, uploadToCloudinaryWithMeta, deleteFromCloudinary, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@/lib/uploadToCloudinary';
+import { uploadToCloudinary, uploadToCloudinaryWithMeta, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@/lib/uploadToCloudinary';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { deleteUploadedFile } from '@/lib/storage-cleanup';
@@ -588,11 +588,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     if (contentType === 'course') setCourseAvailableToEveryone(false);
     setSelectedCohortIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
-  const [speakerAddOpen, setSpeakerAddOpen] = useState(false);
-  const [speakerEditId, setSpeakerEditId] = useState<string | null>(null);
-  const [speakerDraft, setSpeakerDraft] = useState({ name: '', title: '', bio: '', avatar_url: '', linkedin_url: '' });
-  const [speakerImgUploading, setSpeakerImgUploading] = useState(false);
-  const [speakerCropSrc, setSpeakerCropSrc] = useState<string | null>(null);
+  const speakerDraft = useSpeakerDraft();
   const badgeInputRef = useRef<HTMLInputElement>(null);
   const [uploadingBadge, setUploadingBadge] = useState(false);
   const handleBadgeImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1022,23 +1018,11 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   };
 
   // Save handler
-  // A speaker typed into the Speakers form but not yet added with its own button. Saving used to
-  // drop it silently, so the event saved with no speakers; now Save adds it, as the host meant.
+  // A speaker typed into the Speakers form but not yet added: Save adds it (components/SpeakersEditor).
   const withPendingSpeaker = (config: FormConfig): FormConfig => {
-    if (!speakerAddOpen || !config.eventDetails?.isEvent || !speakerDraft.name.trim()) return config;
-    const current = config.eventDetails.speakers ?? [];
-    const speaker: Speaker = {
-      id: speakerEditId ?? crypto.randomUUID(),
-      name: speakerDraft.name.trim(),
-      title: speakerDraft.title.trim() || undefined,
-      bio: speakerDraft.bio.trim() || undefined,
-      avatar_url: speakerDraft.avatar_url || undefined,
-      linkedin_url: speakerDraft.linkedin_url.trim() || undefined,
-    };
-    const speakers = speakerEditId ? current.map(s => s.id === speakerEditId ? speaker : s) : [...current, speaker];
-    setSpeakerDraft({ name: '', title: '', bio: '', avatar_url: '', linkedin_url: '' });
-    setSpeakerEditId(null);
-    setSpeakerAddOpen(false);
+    if (!config.eventDetails?.isEvent) return config;
+    const speakers = speakerDraft.applyTo(config.eventDetails.speakers ?? []);
+    if (!speakers) return config;
     const next = { ...config, eventDetails: { ...config.eventDetails, speakers } };
     setFormConfig(next);
     return next;
@@ -1941,219 +1925,18 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
               );
             })()}
 
-            {activeSection === 'speakers' && formConfig.eventDetails?.isEvent && (() => {
-              const speakers: Speaker[] = formConfig.eventDetails!.speakers ?? [];
-              const updateSpeakers = (next: Speaker[]) =>
-                updateConfig({ eventDetails: { ...formConfig.eventDetails!, speakers: next } });
-
-              const handleSpeakerPhoto = (e: React.ChangeEvent<HTMLInputElement>) => {
-                const file = e.target.files?.[0];
-                if (!file) return;
-                if (file.size > 8 * 1024 * 1024) { showToast('Image must be 8MB or smaller.'); return; }
-                const url = URL.createObjectURL(file);
-                setSpeakerCropSrc(url);
-                // reset input so same file can be re-selected
-                e.target.value = '';
-              };
-
-              const deleteSpeakerPhoto = (url: string) => {
-                if (url) deleteFromCloudinary(url).catch(() => {});
-              };
-
-              const handleSpeakerCropConfirm = async (blob: Blob) => {
-                setSpeakerCropSrc(null);
-                setSpeakerImgUploading(true);
-                const oldUrl = speakerDraft.avatar_url;
-                try {
-                  const publicUrl = await uploadToCloudinary(new File([blob], 'speaker.jpg', { type: 'image/jpeg' }), 'speakers');
-                  setSpeakerDraft(d => ({ ...d, avatar_url: publicUrl }));
-                  if (oldUrl) deleteSpeakerPhoto(oldUrl);
-                } catch { /* ignore */ }
-                setSpeakerImgUploading(false);
-              };
-
-              const openEdit = (sp: Speaker) => {
-                setSpeakerEditId(sp.id);
-                setSpeakerDraft({ name: sp.name, title: sp.title ?? '', bio: sp.bio ?? '', avatar_url: sp.avatar_url ?? '', linkedin_url: sp.linkedin_url ?? '' });
-                setSpeakerAddOpen(true);
-              };
-
-              const isEditing = speakerEditId !== null;
-
-              return (
-                <div className="space-y-5">
-                  {/* Crop modal */}
-                  {speakerCropSrc && (
-                    <ImageCropModal
-                      src={speakerCropSrc}
-                      aspect={1}
-                      shape="round"
-                      title="Crop speaker photo"
-                      onConfirm={handleSpeakerCropConfirm}
-                      onCancel={() => { URL.revokeObjectURL(speakerCropSrc); setSpeakerCropSrc(null); }}
-                    />
-                  )}
-
-                  {/* Existing speakers list */}
-                  {speakers.length > 0 && (
-                    <div className="space-y-2 mb-3">
-                      {speakers.map((sp) => (
-                        <div key={sp.id} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: FE.groupBg, border: `1px solid ${FE.groupBorder}` }}>
-                          <div style={{ width: 36, height: 36, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: `${accentColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 700, color: accentColor }}>
-                            {sp.avatar_url
-                              ? <img src={sp.avatar_url} alt={sp.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : (sp.name || '?').slice(0, 2).toUpperCase()}
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <p className="text-sm font-semibold truncate" style={{ color: FE.text }}>{sp.name}</p>
-                            {sp.title && <p className="text-xs truncate" style={{ color: FE.faint }}>{sp.title}</p>}
-                          </div>
-                          <div className="flex items-center gap-1 flex-shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => openEdit(sp)}
-                              className="p-1 rounded-lg transition-colors hover:bg-black/10"
-                              title="Edit speaker"
-                            >
-                              <Pencil className="w-3.5 h-3.5" style={{ color: FE.faint }} />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (sp.avatar_url) deleteSpeakerPhoto(sp.avatar_url);
-                                updateSpeakers(speakers.filter(s => s.id !== sp.id));
-                              }}
-                              className="p-1 rounded-lg transition-colors hover:bg-red-500/10"
-                              title="Remove speaker"
-                            >
-                              <X className="w-3.5 h-3.5 text-red-400" />
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Add / Edit speaker form */}
-                  {!speakerAddOpen ? (
-                    <button
-                      type="button"
-                      onClick={() => { setSpeakerEditId(null); setSpeakerDraft({ name: '', title: '', bio: '', avatar_url: '', linkedin_url: '' }); setSpeakerAddOpen(true); }}
-                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold"
-                      style={{ border: `1.5px dashed ${FE.inputBorder}`, color: FE.faint }}
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Speaker
-                    </button>
-                  ) : (
-                    <div className="rounded-xl p-3 space-y-2.5" style={{ background: FE.groupBg, border: `1px solid ${FE.groupBorder}` }}>
-                      {/* Photo */}
-                      <div className="flex items-center gap-3">
-                        <div style={{ width: 44, height: 44, borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: `${accentColor}22`, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 700, color: accentColor }}>
-                          {speakerDraft.avatar_url
-                            ? <img src={speakerDraft.avatar_url} alt="preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : speakerDraft.name ? speakerDraft.name.slice(0, 2).toUpperCase() : <ImageIcon className="w-4 h-4" />}
-                        </div>
-                        <label className="flex-1 cursor-pointer">
-                          <input type="file" accept="image/*" className="hidden" onChange={handleSpeakerPhoto} disabled={speakerImgUploading} />
-                          <span className="text-xs font-medium" style={{ color: accentColor }}>
-                            {speakerImgUploading ? 'Uploading…' : speakerDraft.avatar_url ? 'Change photo' : 'Upload photo'}
-                          </span>
-                        </label>
-                      </div>
-
-                      {/* Name */}
-                      <div>
-                        <label className={labelCls} style={labelStyle}>Name <span className="text-red-400">*</span></label>
-                        <input
-                          type="text"
-                          value={speakerDraft.name}
-                          onChange={e => setSpeakerDraft(d => ({ ...d, name: e.target.value }))}
-                          placeholder="e.g. Jane Doe"
-                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                          style={{ background: FE.input, border: `1px solid ${FE.inputBorder}`, color: FE.text }}
-                        />
-                      </div>
-
-                      {/* Title / Role */}
-                      <div>
-                        <label className={labelCls} style={labelStyle}>Title / Role</label>
-                        <input
-                          type="text"
-                          value={speakerDraft.title}
-                          onChange={e => setSpeakerDraft(d => ({ ...d, title: e.target.value }))}
-                          placeholder="e.g. CEO at Acme · Keynote Speaker"
-                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                          style={{ background: FE.input, border: `1px solid ${FE.inputBorder}`, color: FE.text }}
-                        />
-                      </div>
-
-                      {/* Bio */}
-                      <div>
-                        <label className={labelCls} style={labelStyle}>Short bio</label>
-                        <AiTextarea
-                          value={speakerDraft.bio}
-                          onValueChange={value => setSpeakerDraft(d => ({ ...d, bio: value }))}
-                          placeholder="A sentence or two about this speaker…"
-                          rows={2}
-                          className="w-full px-3 py-2 rounded-lg text-sm outline-none resize-none"
-                          style={{ background: FE.input, border: `1px solid ${FE.inputBorder}`, color: FE.text }}
-                        />
-                      </div>
-
-                      {/* LinkedIn */}
-                      <div>
-                        <label className={labelCls} style={labelStyle}>LinkedIn URL</label>
-                        <input
-                          type="url"
-                          value={speakerDraft.linkedin_url}
-                          onChange={e => setSpeakerDraft(d => ({ ...d, linkedin_url: e.target.value }))}
-                          placeholder="https://linkedin.com/in/username"
-                          className="w-full px-3 py-2 rounded-lg text-sm outline-none"
-                          style={{ background: FE.input, border: `1px solid ${FE.inputBorder}`, color: FE.text }}
-                        />
-                      </div>
-
-                      {/* Actions */}
-                      <div className="flex gap-2 pt-1">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (!speakerDraft.name.trim()) return;
-                            const updated = {
-                              id: isEditing ? speakerEditId! : crypto.randomUUID(),
-                              name: speakerDraft.name.trim(),
-                              title: speakerDraft.title.trim() || undefined,
-                              bio: speakerDraft.bio.trim() || undefined,
-                              avatar_url: speakerDraft.avatar_url || undefined,
-                              linkedin_url: speakerDraft.linkedin_url.trim() || undefined,
-                            };
-                            updateSpeakers(isEditing
-                              ? speakers.map(s => s.id === speakerEditId ? updated : s)
-                              : [...speakers, updated]);
-                            setSpeakerDraft({ name: '', title: '', bio: '', avatar_url: '', linkedin_url: '' });
-                            setSpeakerEditId(null);
-                            setSpeakerAddOpen(false);
-                          }}
-                          className="flex-1 py-2 rounded-lg text-xs font-semibold"
-                          style={{ background: accentColor, color: 'white', opacity: speakerDraft.name.trim() ? 1 : 0.45 }}
-                        >
-                          {isEditing ? 'Save Changes' : 'Add Speaker'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => { setSpeakerAddOpen(false); setSpeakerEditId(null); setSpeakerDraft({ name: '', title: '', bio: '', avatar_url: '', linkedin_url: '' }); }}
-                          className="px-3 py-2 rounded-lg text-xs font-medium"
-                          style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.faint }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            {activeSection === 'speakers' && formConfig.eventDetails?.isEvent && (
+              <SpeakersEditor
+                speakers={formConfig.eventDetails.speakers ?? []}
+                onChange={next => updateConfig({ eventDetails: { ...formConfig.eventDetails!, speakers: next } })}
+                draft={speakerDraft}
+                tokens={FE}
+                accentColor={accentColor}
+                labelClass={labelCls}
+                labelStyle={labelStyle}
+                onError={msg => showToast(msg)}
+              />
+            )}
 
             {((formConfig.isCourse && activeStudioMode.id === 'settings') || (activeSection === 'cohorts' && formConfig?.eventDetails?.isEvent)) && (
               <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 2 } : undefined}>
