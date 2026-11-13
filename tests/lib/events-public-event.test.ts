@@ -75,7 +75,7 @@ describe('validateRegistrationResponses', () => {
 
 describe('formatting', () => {
   it('reads dates without shifting the day and times in 12-hour form', () => {
-    expect(dateParts('2026-11-20')).toEqual({ month: 'NOV', day: '20', long: 'Friday, November 20, 2026' });
+    expect(dateParts('2026-11-20')).toEqual({ month: 'NOV', day: '20', long: 'Fri, Nov 20, 2026' });
     expect(displayTime('18:30:00')).toBe('6:30 PM');
     expect(displayTime('00:05')).toBe('12:05 AM');
   });

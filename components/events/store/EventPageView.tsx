@@ -16,8 +16,8 @@ function Fact({ icon, label, title, sub }: { icon: React.ReactNode; label: strin
     <div className="flex items-start gap-3">
       <div className="w-11 h-11 flex-shrink-0 rounded-xl bg-white flex items-center justify-center" style={{ boxShadow: CARD_SHADOW, color: '#334155' }}>{icon}</div>
       <div className="min-w-0">
-        <div className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: '#94a3b8' }}>{label}</div>
-        <div className="mt-0.5 text-[15px] font-semibold" style={{ color: '#0f172a' }}>{title}</div>
+        <div className="text-xs font-bold uppercase tracking-[0.12em]" style={{ color: '#94a3b8' }}>{label}</div>
+        <div className="mt-0.5 text-base font-semibold" style={{ color: '#0f172a' }}>{title}</div>
         {sub && <div className="mt-0.5 text-sm" style={{ color: '#64748b' }}>{sub}</div>}
       </div>
     </div>
@@ -99,15 +99,15 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {aboutHtml && (
             <div>
-              <h2 className="text-lg font-bold" style={{ color: '#0f172a' }}>About this event</h2>
-              <div className="rich-preview mt-3 text-[15px] leading-relaxed" style={{ color: '#334155' }}
+              <h2 className="text-xl font-bold" style={{ color: '#0f172a' }}>About this event</h2>
+              <div className="rich-preview mt-3 text-base leading-relaxed" style={{ color: '#334155' }}
                 dangerouslySetInnerHTML={{ __html: aboutHtml }} />
             </div>
           )}
 
           {event.venue && mapsUrl && (
             <div>
-              <h2 className="text-lg font-bold" style={{ color: '#0f172a' }}>Venue</h2>
+              <h2 className="text-xl font-bold" style={{ color: '#0f172a' }}>Venue</h2>
               <div className="mt-4 flex flex-col sm:flex-row sm:items-center gap-4 rounded-2xl bg-white p-5" style={{ boxShadow: CARD_SHADOW }}>
                 <div className="w-11 h-11 flex-shrink-0 rounded-xl flex items-center justify-center" style={{ background: `${primaryColor}14`, color: primaryColor }}>
                   <MapPin className="w-5 h-5" />
@@ -127,7 +127,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {event.speakers.length > 0 && (
             <div>
-              <h2 className="text-lg font-bold" style={{ color: '#0f172a' }}>Speakers</h2>
+              <h2 className="text-xl font-bold" style={{ color: '#0f172a' }}>Speakers</h2>
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
                 {event.speakers.map((sp, i) => (
                   <div key={`${sp.name}-${i}`} className="flex gap-3 rounded-2xl bg-white p-4" style={{ boxShadow: CARD_SHADOW }}>
@@ -151,7 +151,7 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
 
           {event.host && (
             <div>
-              <h2 className="text-lg font-bold" style={{ color: '#0f172a' }}>Hosted by</h2>
+              <h2 className="text-xl font-bold" style={{ color: '#0f172a' }}>Hosted by</h2>
               <div className="mt-4 flex gap-4 rounded-2xl bg-white p-5" style={{ boxShadow: CARD_SHADOW }}>
                 <div className="w-14 h-14 flex-shrink-0 rounded-full overflow-hidden flex items-center justify-center font-bold"
                   style={{ background: `${primaryColor}18`, color: primaryColor }}>

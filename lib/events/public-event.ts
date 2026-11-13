@@ -242,8 +242,7 @@ export function displayDate(ev: Pick<PublicEvent, 'nextDate' | 'lastDate' | 'sta
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const MONTHS_LONG = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-const DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** A calendar date's parts, read without the viewer's timezone (so the day never shifts). */
 export function dateParts(date: string | null | undefined): { month: string; day: string; long: string } | null {
@@ -254,7 +253,7 @@ export function dateParts(date: string | null | undefined): { month: string; day
   return {
     month: MONTHS[dt.getUTCMonth()].toUpperCase(),
     day: String(dt.getUTCDate()),
-    long: `${DAYS_LONG[dt.getUTCDay()]}, ${MONTHS_LONG[dt.getUTCMonth()]} ${dt.getUTCDate()}, ${dt.getUTCFullYear()}`,
+    long: `${DAYS[dt.getUTCDay()]}, ${MONTHS[dt.getUTCMonth()]} ${dt.getUTCDate()}, ${dt.getUTCFullYear()}`,
   };
 }
 
@@ -267,7 +266,6 @@ export function displayTime(time: string | null | undefined): string | null {
   return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
 }
 
-const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 /** "Weekly on Tue, Thu" or "Daily", or null for a one-time event. */
 export function recurrenceLabel(ev: Pick<PublicEvent, 'recurrence' | 'recurrenceDays' | 'recurrenceEndDate'>): string | null {
@@ -275,6 +273,6 @@ export function recurrenceLabel(ev: Pick<PublicEvent, 'recurrence' | 'recurrence
   const until = ev.recurrenceEndDate ? dateParts(ev.recurrenceEndDate) : null;
   const tail = until ? ` until ${until.month.charAt(0)}${until.month.slice(1).toLowerCase()} ${until.day}` : '';
   if (ev.recurrence === 'daily') return `Daily${tail}`;
-  const days = ev.recurrenceDays.length ? ` on ${ev.recurrenceDays.map(d => DAY_SHORT[d]).join(', ')}` : '';
+  const days = ev.recurrenceDays.length ? ` on ${ev.recurrenceDays.map(d => DAYS[d]).join(', ')}` : '';
   return `Weekly${days}${tail}`;
 }

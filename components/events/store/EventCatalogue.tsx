@@ -50,7 +50,7 @@ export function EventCatalogue({ upcoming, past, primaryColor }: { upcoming: Pub
         </label>
       </div>
 
-      <h2 className="mt-8 text-lg font-bold" style={{ color: '#0f172a' }}>Upcoming</h2>
+      <h2 className="mt-8 text-xl font-bold" style={{ color: '#0f172a' }}>Upcoming</h2>
       {shownUpcoming.length ? (
         <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {shownUpcoming.map(ev => <EventCard key={ev.id} ev={ev} primaryColor={primaryColor} />)}
@@ -63,7 +63,7 @@ export function EventCatalogue({ upcoming, past, primaryColor }: { upcoming: Pub
 
       {shownPast.length > 0 && (
         <>
-          <h2 className="mt-12 text-lg font-bold" style={{ color: '#0f172a' }}>Past events</h2>
+          <h2 className="mt-12 text-xl font-bold" style={{ color: '#0f172a' }}>Past events</h2>
           <div className="mt-4 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {shownPast.map(ev => <EventCard key={ev.id} ev={ev} primaryColor={primaryColor} />)}
           </div>
