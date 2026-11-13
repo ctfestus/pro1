@@ -2745,68 +2745,44 @@ const [isSaving, setIsSaving] = useState(false);
               </div>
             )}
 
-            {activeSection === 'visibility' && formConfig.eventDetails?.isEvent && (
-              <div className="space-y-5">
-                {/* Public registration (migration 244): the event gets a page at /events/<slug> that
-                    anyone can register on, with or without an account. */}
-                {(() => {
-                  const on = formConfig.eventDetails!.publicRegistration === true;
-                  return (
-                    <button
-                      type="button"
-                      onClick={() => updateConfig({ eventDetails: { ...formConfig.eventDetails!, publicRegistration: !on } })}
-                      aria-pressed={on}
-                      className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-xl border transition-all duration-200"
-                      style={{ background: on ? 'rgba(16,185,129,0.07)' : C.input, borderColor: on ? 'rgba(16,185,129,0.25)' : C.inputBorder }}
-                    >
-                      <div className="text-left min-w-0">
-                        <p className="text-xs font-semibold" style={{ color: on ? '#10b981' : C.text }}>
-                          {on ? 'Open to public registration' : 'Cohort members only'}
-                        </p>
-                        <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>
-                          {on
-                            ? 'Anyone can register on the public events page, no account needed. Cohort members stay registered automatically.'
-                            : 'Turn on to list this event on the public events page and take registrations from anyone.'}
-                        </p>
+            {activeSection === 'visibility' && formConfig.eventDetails?.isEvent && (() => {
+              // Two independent switches, each with a fixed label so its state is read from the
+              // switch, not from wording that changes. Public registration: migration 244.
+              const ev = formConfig.eventDetails!;
+              const isPublic = ev.publicRegistration === true;
+              const rows = [
+                {
+                  key: 'public', on: isPublic, title: 'Open to public registration',
+                  body: 'Anyone can register on the public events page, with or without an account. Cohort members are still registered automatically.',
+                  toggle: () => updateConfig({ eventDetails: { ...ev, publicRegistration: !isPublic } }),
+                },
+                {
+                  key: 'listed', on: ev.isPrivate !== true, title: 'Listed',
+                  body: `Shown on your profile${isPublic ? ' and the public events page' : ''}. Turn off to keep it unlisted, so only people with the link can find it.`,
+                  toggle: () => updateConfig({ eventDetails: { ...ev, isPrivate: ev.isPrivate !== true } }),
+                },
+              ];
+              return (
+                <div className="space-y-3">
+                  {rows.map(r => (
+                    <button key={r.key} type="button" role="switch" aria-checked={r.on} onClick={r.toggle}
+                      className="w-full flex items-center justify-between gap-4 px-4 py-3.5 rounded-xl border text-left transition-colors duration-200"
+                      style={{ background: r.on ? 'rgba(16,185,129,0.07)' : C.input, borderColor: r.on ? 'rgba(16,185,129,0.25)' : C.inputBorder }}>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold" style={{ color: C.text }}>{r.title}</p>
+                        <p className="text-xs mt-0.5" style={{ color: C.faint }}>{r.body}</p>
                       </div>
-                      <div className="relative w-10 h-5 rounded-full transition-all duration-300 flex-shrink-0" style={{ background: on ? '#10b981' : C.toggleOff }}>
-                        <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300" style={{ left: on ? '1.25rem' : '0.125rem' }} />
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <span className="text-[11px] font-semibold w-6 text-right" style={{ color: r.on ? '#10b981' : C.faint }}>{r.on ? 'On' : 'Off'}</span>
+                        <div className="relative w-10 h-5 rounded-full transition-colors duration-300" style={{ background: r.on ? '#10b981' : C.toggleOff }}>
+                          <div className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300" style={{ left: r.on ? '1.375rem' : '0.125rem' }} />
+                        </div>
                       </div>
                     </button>
-                  );
-                })()}
-                <button
-                  type="button"
-                  onClick={() => updateConfig({ eventDetails: { ...formConfig.eventDetails!, isPrivate: !formConfig.eventDetails!.isPrivate } })}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all duration-200"
-                  style={{
-                    background: formConfig.eventDetails.isPrivate ? 'rgba(239,68,68,0.07)' : 'rgba(16,185,129,0.07)',
-                    borderColor: formConfig.eventDetails.isPrivate ? 'rgba(239,68,68,0.25)' : 'rgba(16,185,129,0.25)',
-                  }}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-base">{formConfig.eventDetails.isPrivate ? '🔒' : '🌐'}</span>
-                    <div className="text-left">
-                      <p className="text-xs font-semibold" style={{ color: formConfig.eventDetails.isPrivate ? '#f87171' : '#34d399' }}>
-                        {formConfig.eventDetails.isPrivate ? 'Private event' : 'Public event'}
-                      </p>
-                      <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>
-                        {formConfig.eventDetails.isPrivate ? 'Unlisted: hidden from your profile and the events page' : 'Listed on your public profile and the events page'}
-                      </p>
-                    </div>
-                  </div>
-                  <div
-                    className="relative w-10 h-5 rounded-full transition-all duration-300 flex-shrink-0"
-                    style={{ background: formConfig.eventDetails.isPrivate ? '#ef4444' : '#10b981' }}
-                  >
-                    <div
-                      className="absolute top-0.5 w-4 h-4 rounded-full bg-white shadow transition-all duration-300"
-                      style={{ left: formConfig.eventDetails.isPrivate ? '1.25rem' : '0.125rem' }}
-                    />
-                  </div>
-                </button>
-              </div>
-            )}
+                  ))}
+                </div>
+              );
+            })()}
 
             {((formConfig.isCourse && activeStudioMode.id === 'settings') || (activeSection === 'cohorts' && formConfig.eventDetails?.isEvent)) && (
               <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 2 } : undefined}>
