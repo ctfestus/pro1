@@ -71,7 +71,6 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
               {badge && <span className="rounded-full px-2.5 py-0.5 normal-case tracking-normal" style={BADGE_STYLE[badge.tone]}>{badge.label}</span>}
             </p>
             <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight" style={{ color: '#0f172a' }}>{event.title}</h1>
-            {event.summary && <p className="mt-3 text-base sm:text-lg" style={{ color: '#475569' }}>{event.summary}</p>}
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <Fact icon={<CalendarDays className="w-5 h-5" />} label="Date and time"
