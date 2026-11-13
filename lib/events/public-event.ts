@@ -168,6 +168,13 @@ export function splitVenue(location: string | null): { name: string; address: st
   return name ? { name, address: address || null } : { name: address, address: null };
 }
 
+/** The editors' venue name and subtitle as the one stored location (the reverse of splitVenue). */
+export function joinVenue(name: string, subtitle: string): string {
+  const n = name.replace(/,/g, ' ').replace(/\s+/g, ' ').trim();
+  const sub = subtitle.trim();
+  return n && sub ? `${n}, ${sub}` : n || sub;
+}
+
 /** The schedule fields event-sessions reads, from a row. */
 function scheduleOf(row: any): EventSchedule & { event_time?: string | null } {
   return {

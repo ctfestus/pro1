@@ -11,13 +11,12 @@ import { CARD_SHADOW, initials } from '@/components/books/store/card-style';
 import { RegisterPanel } from '@/components/events/store/RegisterPanel';
 import { ShareButtons } from '@/components/ShareButtons';
 
-function Fact({ icon, label, title, sub }: { icon: React.ReactNode; label: string; title: React.ReactNode; sub?: React.ReactNode }) {
+function Fact({ icon, title, sub }: { icon: React.ReactNode; title: React.ReactNode; sub?: React.ReactNode }) {
   return (
     <div className="flex items-start gap-3">
       <div className="w-11 h-11 flex-shrink-0 rounded-xl bg-white flex items-center justify-center" style={{ boxShadow: CARD_SHADOW, color: '#334155' }}>{icon}</div>
-      <div className="min-w-0">
-        <div className="text-xs font-bold uppercase tracking-[0.12em]" style={{ color: '#94a3b8' }}>{label}</div>
-        <div className="mt-0.5 text-base font-semibold" style={{ color: '#0f172a' }}>{title}</div>
+      <div className="min-w-0 pt-0.5">
+        <div className="text-base font-semibold" style={{ color: '#0f172a' }}>{title}</div>
         {sub && <div className="mt-0.5 text-sm" style={{ color: '#64748b' }}>{sub}</div>}
       </div>
     </div>
@@ -73,19 +72,19 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
             <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight leading-tight" style={{ color: '#0f172a' }}>{event.title}</h1>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
-              <Fact icon={<CalendarDays className="w-5 h-5" />} label="Date and time"
+              <Fact icon={<CalendarDays className="w-5 h-5" />}
                 title={date ? date.long : 'Date to be announced'}
                 sub={time ? <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {time}{event.timezone ? ` ${event.timezone}` : ''}</span> : undefined} />
               {event.format === 'virtual' ? (
-                <Fact icon={<Video className="w-5 h-5" />} label="Location" title="Online" sub="We email your join link once you register" />
+                <Fact icon={<Video className="w-5 h-5" />} title="Online" sub="We email your join link once you register" />
               ) : (
-                <Fact icon={<MapPin className="w-5 h-5" />} label="Venue"
+                <Fact icon={<MapPin className="w-5 h-5" />}
                   title={event.venue?.name ?? 'Venue to be announced'}
                   sub={event.venue?.address ?? undefined} />
               )}
-              {repeat && <Fact icon={<Repeat className="w-5 h-5" />} label="Schedule" title={repeat} sub="One registration covers every session" />}
+              {repeat && <Fact icon={<Repeat className="w-5 h-5" />} title={repeat} sub="One registration covers every session" />}
               {event.capacity !== null && !event.isPast && (
-                <Fact icon={<Users className="w-5 h-5" />} label="Capacity"
+                <Fact icon={<Users className="w-5 h-5" />}
                   title={event.spotsLeft === 0 ? 'Sold out' : `${event.spotsLeft} of ${event.capacity} spots left`} />
               )}
             </div>
