@@ -11,6 +11,7 @@ import { InstructorLinks } from '@/components/books/store/InstructorLinks';
 import { EventCard, BADGE_STYLE, seatsBadge } from '@/components/events/store/EventCard';
 import { CARD_SHADOW, initials } from '@/components/books/store/card-style';
 import { RegisterPanel } from '@/components/events/store/RegisterPanel';
+import { LocalTime } from '@/components/events/store/LocalTime';
 import { ShareButtons } from '@/components/ShareButtons';
 
 /**
@@ -94,7 +95,13 @@ export function EventPageView({ event, more, primaryColor, shareUrl }: {
             <div className="mt-6 grid gap-4 sm:grid-cols-2">
               <Fact icon={<CalendarDays className="w-5 h-5" />}
                 title={date ? date.long : 'Date to be announced'}
-                sub={time ? <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {time}{event.timezone ? ` ${event.timezone}` : ''}</span> : undefined} />
+                sub={time ? (
+                  <>
+                    <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" /> {time}{event.timezone ? ` ${event.timezone}` : ''}</span>
+                    {/* The visitor's own time, in their browser only. A finished event has no next date, so nothing shows. */}
+                    <LocalTime date={event.nextDate} time={event.time} timezone={event.timezone} />
+                  </>
+                ) : undefined} />
               {event.format === 'virtual' ? (
                 <Fact icon={<Video className="w-5 h-5" />} title="Online" sub="We email your join link once you register" />
               ) : (
