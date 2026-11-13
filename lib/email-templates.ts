@@ -660,6 +660,8 @@ export function day7EncouragementEmail(data: { name: string; studentUrl: string;
 export function blastEmail(data: {
   subject: string;
   body: string;
+  /** The body already as email HTML (lib/email-body.ts); used in place of the plain-text body. */
+  bodyHtml?: string | null;
   senderName?: string;
   formTitle: string;
   formUrl: string;
@@ -667,10 +669,10 @@ export function blastEmail(data: {
   ctaLabel?: string;
   branding?: EmailBranding;
 }) {
-  const { body, senderName, formTitle, formUrl, bannerUrl, ctaLabel, branding } = data;
+  const { body, bodyHtml, senderName, formTitle, formUrl, bannerUrl, ctaLabel, branding } = data;
 
   const content = `
-    <p>${body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>
+    ${bodyHtml ?? `<p>${body.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>')}</p>`}
 
     ${cta(ctaLabel || 'View Page', formUrl)}
 

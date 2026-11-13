@@ -77,4 +77,11 @@ describe('event blast recipients', () => {
     const ama = batchSend.mock.calls.flatMap(c => c[0]).find(p => p.to === 'ama@example.test');
     expect(ama.html).not.toContain('/api/join');
   });
+
+  it('sends an editor body as email HTML, with a join button per registrant', async () => {
+    await blast('<p>Hi {{name}}</p><p><a class="email-button" href="{{meeting_link}}">Join the session</a></p>');
+    const ama = batchSend.mock.calls.flatMap(c => c[0]).find(p => p.to === 'ama@example.test');
+    expect(ama.html).toContain('<p>Hi Ama Public</p>');
+    expect(ama.html).toMatch(/<td style="border-radius:8px;background-color:#[0-9a-f]{6};"><a href="https:\/\/app\.test\/api\/join\?token=tok1"/);
+  });
 });

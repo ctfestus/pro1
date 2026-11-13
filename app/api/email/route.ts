@@ -8,6 +8,7 @@ import { getTenantSettings } from '@/lib/get-tenant-settings';
 import { studentsStillInCohorts } from '@/lib/cohort-roster';
 import { applyEmailTemplate } from '@/lib/email-template-service';
 import { fetchAllRows } from '@/lib/fetch-all-rows';
+import { renderEmailBody } from '@/lib/email-body';
 
 const resend     = new Resend(process.env.RESEND_API_KEY);
 const BATCH_SIZE = 100; // Resend batch limit
@@ -469,6 +470,9 @@ export async function POST(req: NextRequest) {
     }
 
     if (type === 'blast') {
+      // Buttons in the body take the content's colour, as the editor showed them, else the platform's.
+      const buttonColor = typeof data.buttonColor === 'string' && /^#[0-9a-f]{6}$/i.test(data.buttonColor)
+        ? data.buttonColor : (t.primaryColor || '#111827');
       // -- Test mode: single email address provided -> send once, skip quota --
       if (typeof to === 'string' && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to.trim())) {
         if (!data.subject?.trim()) {
@@ -488,7 +492,8 @@ export async function POST(req: NextRequest) {
         };
         const testSubject = applyMergeTags(String(data.subject || ''), mergeValues);
         const testBody = applyMergeTags(String(data.body || ''), mergeValues);
-        const testHtml = blastEmail({ ...data, subject: testSubject, body: testBody, branding });
+        const testBodyHtml = renderEmailBody(String(data.body || ''), mergeValues, buttonColor);
+        const testHtml = blastEmail({ ...data, subject: testSubject, body: testBody, bodyHtml: testBodyHtml, branding });
         await resend.emails.send({ from: FROM, to: testTo, subject: testSubject, html: testHtml });
         return NextResponse.json({ success: true, test: true });
       }
@@ -651,6 +656,7 @@ export async function POST(req: NextRequest) {
           ...data,
           subject: personalizedSubject,
           body: personalizedBody,
+          bodyHtml: renderEmailBody(String(data.body || ''), mergeValues, buttonColor),
           branding,
         });
 

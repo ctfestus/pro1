@@ -28,6 +28,7 @@ import { repairVeSubmissionUrl } from '@/lib/ve-upload';
 import { sameReportContent, type InstructorReportDraft } from '@/lib/ve-instructor-report';
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { contentPath } from '@/lib/content-link';
+import { RichTextEditor } from '@/components/RichTextEditor';
 
 // -- Lazy charts ---
 const ResponsesOverTimeChart = dynamic(
@@ -1057,6 +1058,12 @@ function WhatsAppIcon({ className }: { className?: string }) {
 }
 
 // -- Email Tab ---
+/** The AI writer's plain-text draft as editor paragraphs (escaped, blank lines split paragraphs). */
+function plainTextToEditorHtml(text: string): string {
+  const esc = (v: string) => v.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  return text.trim().split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+}
+
 function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], formCohorts = [] }: {
   form: any; formUrl: string; courseProgress?: any[]; cohortStudents?: any[]; formCohorts?: { id: string; name: string }[];
 }) {
@@ -1130,6 +1137,9 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   // Blast state
   const [blastSubject, setBlastSubject] = useState('');
   const [blastBody, setBlastBody]       = useState('');
+  // The message is editor HTML: it counts as written once it has text or an image, button or video.
+  const blastHasBody = /<(img|a)\b|class="yt-embed"/i.test(blastBody)
+    || blastBody.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim().length > 0;
   const [blasting, setBlasting]         = useState(false);
   const [blastResult, setBlastResult]   = useState<{ ok: boolean; msg: string } | null>(null);
   const [blastTone, setBlastTone]       = useState<'friendly' | 'professional' | 'casual'>('friendly');
@@ -1160,7 +1170,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
       let payload: any = { type: quickType, to: quickTo, data: { formUrl } };
       if (isCourse || isVE) {
         // Course / VE: send a test blast to this single address
-        if (!blastSubject.trim() || !blastBody.trim()) {
+        if (!blastSubject.trim() || !blastHasBody) {
           setQuickResult({ ok: false, msg: 'Fill in the subject and message above first, then test here.' });
           setQuickSending(false);
           return;
@@ -1172,6 +1182,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             formId: form.id,
             subject: blastSubject,
             body: blastBody,
+            buttonColor: courseAccent,
             formTitle: cfg.title || form.title,
             eventTitle: cfg.title || form.title,
             formUrl,
@@ -1215,7 +1226,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   };
 
   const handleBlast = async () => {
-    if (!blastSubject.trim() || !blastBody.trim()) {
+    if (!blastSubject.trim() || !blastHasBody) {
       setBlastResult({ ok: false, msg: 'Subject and body are required.' });
       return;
     }
@@ -1237,6 +1248,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             formId: form.id,
             subject: blastSubject,
             body: blastBody,
+            buttonColor: courseAccent,
             formTitle: cfg.title || form.title,
             eventTitle: cfg.title || form.title,
             eventDate: cfg.eventDetails?.date,
@@ -1287,7 +1299,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'AI request failed');
       setBlastSubject(data.subject || '');
-      setBlastBody(data.body || '');
+      setBlastBody(plainTextToEditorHtml(data.body || ''));
       setBlastAiResult({ ok: true, msg: 'Broadcast email draft generated.' });
       setBlastResult(null);
     } catch (e: any) {
@@ -1528,16 +1540,21 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           </div>
           <div>
             <label className={label}>Message</label>
-            <textarea
+            <RichTextEditor
               value={blastBody}
-              onChange={e => { setBlastBody(e.target.value); setBlastResult(null); }}
-              placeholder="Write your message here..."
-              rows={5}
-              className={textarea}
+              onChange={html => { setBlastBody(html); setBlastResult(null); }}
+              placeholder="Write your message here. Add images, a button, or a video."
+              enableVideoEmbed
+              anyVideoLink
+              enableButton
+              buttonColor={courseAccent}
+              imageFolder="email-images"
             />
           </div>
           <div className={isDark ? 'rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-xs text-zinc-500' : 'rounded-xl border border-[rgba(0,0,0,0.07)] bg-[#f5f6f7] px-4 py-3 text-xs text-[#888]'}>
             Available tags: <code>{'{{name}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{form_title}}'}</code>, <code>{'{{event_title}}'}</code>, <code>{'{{event_date}}'}</code>, <code>{'{{event_time}}'}</code>, <code>{'{{event_timezone}}'}</code>, <code>{'{{event_location}}'}</code>, <code>{'{{meeting_link}}'}</code>, <code>{'{{form_url}}'}</code>
+          
+            <span className="mt-1 block">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>
           </div>
           {blastResult && (
             <div className={feedback(blastResult.ok)}>
@@ -1547,7 +1564,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           )}
           <button
             onClick={handleBlast}
-            disabled={blasting || !blastSubject.trim() || !blastBody.trim()}
+            disabled={blasting || !blastSubject.trim() || !blastHasBody}
             className={primaryBtn}
             style={{ background: courseAccent }}
           >

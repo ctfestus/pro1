@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useCallback, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { Bold, Code2, FileCode2, Table, Italic, RemoveFormatting, Underline, List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Quote, Youtube, ImageIcon, Loader2, UserRound, Trash2 } from 'lucide-react';
+import { Bold, Code2, FileCode2, Table, Italic, RemoveFormatting, Underline, List, ListOrdered, Heading2, Heading3, Link as LinkIcon, Quote, Youtube, ImageIcon, Loader2, UserRound, Trash2, RectangleHorizontal } from 'lucide-react';
 import { useTheme } from '@/components/ThemeProvider';
 import { RichTextAiMenu } from '@/components/RichTextAiMenu';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
@@ -33,6 +33,14 @@ interface RichTextEditorProps {
    *  Everywhere else the HTML is sanitized to plain rich text and the embed would silently vanish,
    *  leaving only its surrounding text. */
   enableVideoEmbed?: boolean;
+  /** With enableVideoEmbed: also take any other video link (Zoom, Loom, Drive), inserted as a
+   *  "Watch the video" button. For email bodies, where a video is a link either way. */
+  anyVideoLink?: boolean;
+  /** Show the "Insert button" control: a labelled link drawn as a button (a.email-button). Only
+   *  for surfaces that render it, today the broadcast email (lib/email-body.ts). */
+  enableButton?: boolean;
+  /** The inserted button's colour in the editor, matching how it will look when sent. */
+  buttonColor?: string;
   /**
    * The "Insert image" button when no onImageUpload / onRequestImage is given:
    *   'library' (default) -- the image library (your uploads, or Pexels), the usual choice;
@@ -46,7 +54,7 @@ interface RichTextEditorProps {
   imageFolder?: string;
 }
 
-export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload: givenImageUpload, onRequestImage: givenRequestImage, enableAiAssist = false, enableNameTag = false, enableVideoEmbed = false, images = 'library', imageFolder = 'rich-text-images' }: RichTextEditorProps) {
+export function RichTextEditor({ value, onChange, placeholder = 'Add a description...', className = '', bgOverride, fontFamily, onImageUpload: givenImageUpload, onRequestImage: givenRequestImage, enableAiAssist = false, enableNameTag = false, enableVideoEmbed = false, anyVideoLink = false, enableButton = false, buttonColor = '#111827', images = 'library', imageFolder = 'rich-text-images' }: RichTextEditorProps) {
   // The built-in image library picker, used unless the caller brings its own.
   const [libraryOpen, setLibraryOpen] = useState(false);
   const libraryResolve = useRef<((url: string | null) => void) | null>(null);
@@ -169,10 +177,55 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
     }
   }, [onChange]);
 
+  // Where the caret was when the button form opened: typing in the form moves focus away.
+  const savedRange = useRef<Range | null>(null);
+  const [buttonForm, setButtonForm] = useState<{ label: string; url: string } | null>(null);
+
+  const openButtonForm = useCallback(() => {
+    const sel = window.getSelection();
+    const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    savedRange.current = range && editorRef.current?.contains(range.commonAncestorContainer) ? range.cloneRange() : null;
+    setButtonForm({ label: sel && !sel.isCollapsed ? sel.toString().trim().slice(0, 60) : '', url: '' });
+  }, []);
+
+  /** A button (a.email-button) in its own paragraph, at the caret or at the end. */
+  const insertButton = useCallback((label: string, url: string) => {
+    const editor = editorRef.current;
+    if (!editor) return;
+    const a = document.createElement('a');
+    a.className = 'email-button';
+    a.href = url;
+    a.textContent = label;
+    a.setAttribute('contenteditable', 'false');
+    const p = document.createElement('p');
+    p.appendChild(a);
+    const range = savedRange.current ?? (() => {
+      const sel = window.getSelection();
+      const r = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+      return r && editor.contains(r.commonAncestorContainer) ? r : null;
+    })();
+    if (range) {
+      const block = (range.startContainer.nodeType === Node.TEXT_NODE ? range.startContainer.parentElement : range.startContainer as HTMLElement)
+        ?.closest?.('p, h2, h3, li, blockquote, pre, div.yt-embed');
+      if (block && block !== editor && editor.contains(block)) block.after(p);
+      else { range.collapse(false); range.insertNode(p); }
+    } else {
+      editor.appendChild(p);
+    }
+    savedRange.current = null;
+    isInternalChange.current = true;
+    onChange(editor.innerHTML);
+  }, [onChange]);
+
   const handleInsertVideo = useCallback(() => {
-    const url = prompt('Enter YouTube URL:');
+    const url = prompt(anyVideoLink ? 'Paste a YouTube link, or any video link (Zoom, Loom, Google Drive):' : 'Enter YouTube URL:');
     if (!url) return;
     const match = url.match(/(?:v=|youtu\.be\/|\/shorts\/)([a-zA-Z0-9_-]{11})/);
+    if (!match && anyVideoLink) {
+      if (!/^https?:\/\/\S+$/i.test(url.trim())) { alert('Paste a full link starting with https://'); return; }
+      insertButton('Watch the video', url.trim());
+      return;
+    }
     if (!match) { alert('Invalid YouTube URL. Paste a standard youtube.com or youtu.be link.'); return; }
     const videoId = match[1];
 
@@ -217,7 +270,7 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
     rebuildYtPreviews(editor);
     isInternalChange.current = true;
     onChange(editor.innerHTML);
-  }, [onChange, rebuildYtPreviews]);
+  }, [onChange, rebuildYtPreviews, anyVideoLink, insertButton]);
 
   const handleInlineCode = useCallback(() => {
     const editor = editorRef.current;
@@ -496,7 +549,7 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
       style={{ background: bg, border }}
     >
       {/* Toolbar */}
-      <div className="flex items-center gap-0.5 px-2 py-1.5" style={{ borderBottom: `1px solid ${toolDiv}` }}>
+      <div className="flex flex-wrap items-center gap-0.5 px-2 py-1.5" style={{ borderBottom: `1px solid ${toolDiv}` }}>
         <ToolbarButton onClick={() => handleHeading('h2')} title="Heading 2" dark={dark}>
           <Heading2 className="w-3.5 h-3.5" />
         </ToolbarButton>
@@ -550,10 +603,15 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
         {enableVideoEmbed && (
           <>
             <div className="w-px h-4 mx-1" style={{ background: toolDiv }} />
-            <ToolbarButton onClick={handleInsertVideo} title="Embed YouTube video" dark={dark}>
+            <ToolbarButton onClick={handleInsertVideo} title={anyVideoLink ? 'Add a video (YouTube or any video link)' : 'Embed YouTube video'} dark={dark}>
               <Youtube className="w-3.5 h-3.5" />
             </ToolbarButton>
           </>
+        )}
+        {enableButton && (
+          <ToolbarButton onClick={openButtonForm} title="Insert button" dark={dark}>
+            <RectangleHorizontal className="w-3.5 h-3.5" />
+          </ToolbarButton>
         )}
         {(onImageUpload || onRequestImage) && (
           <>
@@ -586,6 +644,32 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
           </>
         )}
       </div>
+
+      {buttonForm && (() => {
+        const url = buttonForm.url.trim();
+        const valid = !!buttonForm.label.trim() && /^(https?:\/\/\S+|\{\{\s*[a-z_]+\s*\}\})$/i.test(url);
+        const field = { background: dark ? 'rgba(255,255,255,0.06)' : '#ffffff', border: `1px solid ${toolDiv}`, color: textColor };
+        return (
+          <div className="flex flex-wrap items-center gap-2 px-2 py-2" style={{ borderBottom: `1px solid ${toolDiv}` }}>
+            <input autoFocus value={buttonForm.label} maxLength={60} placeholder="Button text, e.g. Watch the recording"
+              onChange={e => setButtonForm(f => f && { ...f, label: e.target.value })}
+              className="flex-1 min-w-[140px] rounded-md px-2.5 py-1.5 text-xs outline-none" style={field} />
+            <input value={buttonForm.url} placeholder="https://... or {{meeting_link}}"
+              onChange={e => setButtonForm(f => f && { ...f, url: e.target.value })}
+              onKeyDown={e => { if (e.key === 'Enter' && valid) { e.preventDefault(); insertButton(buttonForm.label.trim(), url); setButtonForm(null); } }}
+              className="flex-1 min-w-[160px] rounded-md px-2.5 py-1.5 text-xs outline-none" style={field} />
+            <button type="button" disabled={!valid}
+              onClick={() => { insertButton(buttonForm.label.trim(), url); setButtonForm(null); }}
+              className="rounded-md px-3 py-1.5 text-xs font-semibold disabled:opacity-40" style={{ background: buttonColor, color: '#ffffff' }}>
+              Insert
+            </button>
+            <button type="button" onClick={() => { savedRange.current = null; setButtonForm(null); }}
+              className="rounded-md px-2 py-1.5 text-xs font-medium" style={{ color: dark ? '#a1a1aa' : '#666' }}>
+              Cancel
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Editable area */}
       <div
@@ -663,6 +747,8 @@ export function RichTextEditor({ value, onChange, placeholder = 'Add a descripti
         .rich-editor table { border-collapse: collapse; width: 100%; margin: 0.75rem 0; }
         .rich-editor th, .rich-editor td { border: 1px solid ${dark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}; padding: 6px 10px; text-align: left; min-width: 40px; }
         .rich-editor th { font-weight: 700; background: ${dark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)'}; }
+        .rich-editor a.email-button { display: inline-block; background: ${buttonColor}; color: #ffffff; text-decoration: none; font-weight: 600; padding: 10px 22px; border-radius: 8px; cursor: default; }
+        .rich-editor a.email-button:hover { opacity: 1; }
         .rich-editor .yt-embed { width: 100%; margin: 8px 0; border-radius: 8px; overflow: hidden; position: relative; cursor: default; display: block; }
         .rich-editor .yt-embed img { width: 100%; aspect-ratio: 16/9; object-fit: cover; display: block; }
         .rich-editor .yt-embed::after { content: '▶'; position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%); width: 56px; height: 40px; background: rgba(255,0,0,0.88); border-radius: 8px; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 18px; padding-left: 4px; pointer-events: none; box-sizing: border-box; }
