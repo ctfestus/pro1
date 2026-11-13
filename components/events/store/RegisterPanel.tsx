@@ -136,7 +136,10 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
     <form onSubmit={submit} className="rounded-2xl bg-white p-5 sm:p-6" style={{ boxShadow: CARD_SHADOW }}>
       {startsAt && <div className="mb-5"><Countdown startsAt={startsAt} primaryColor={primaryColor} /></div>}
       <p className="text-lg font-bold" style={{ color: '#0f172a' }}>Register for this event</p>
-      <p className="mt-1 text-xs font-bold uppercase tracking-[0.12em]" style={{ color: primaryColor }}>Limited spots available</p>
+      <p className="mt-1 text-sm" style={{ color: '#64748b' }}>
+        Free
+        {event.spotsLeft !== null ? ` | ${event.spotsLeft} spot${event.spotsLeft === 1 ? '' : 's'} left` : ''}
+      </p>
 
       <div className="mt-4 space-y-3">
         <label className="block">
@@ -183,9 +186,12 @@ export function RegisterPanel({ event, primaryColor, pageUrl, startsAt }: Props)
       {error && <p className="mt-3 text-sm font-medium" style={{ color: '#b91c1c' }} role="alert">{error}</p>}
 
       <button type="submit" disabled={submitting}
-        className="mt-5 w-full h-12 rounded-xl text-sm font-bold inline-flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
+        className="mt-5 w-full rounded-xl py-2.5 inline-flex flex-col items-center justify-center transition-opacity disabled:opacity-60"
         style={{ background: primaryColor, color: '#ffffff' }}>
-        {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your seat' : 'Save my seat'}
+        <span className="inline-flex items-center gap-2 text-base font-bold">
+          {submitting && <Loader2 className="w-4 h-4 animate-spin" />} {submitting ? 'Saving your spot' : 'Save my spot'}
+        </span>
+        <span className="text-[11px] font-semibold uppercase tracking-[0.12em] opacity-85">Limited spots available</span>
       </button>
       <p className="mt-3 text-xs" style={{ color: '#94a3b8' }}>
         {accountEmail ? 'Registering with your account email.' : 'We use your email only to send your registration details and reminders.'}
