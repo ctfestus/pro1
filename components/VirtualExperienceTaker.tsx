@@ -26,6 +26,7 @@ import { MissionTodo, todoSource, jumpToRequirement, type TodoItem } from '@/com
 import { MissionSignOff, WelcomeBack } from '@/components/ve/MissionSignOff';
 import { FilesDrawer, type DrawerFile } from '@/components/ve/FilesDrawer';
 import { PhoneTabBar, type PhoneTab } from '@/components/ve/PhoneTabBar';
+import { FinishSummary } from '@/components/ve/FinishSummary';
 import { channelFor } from '@/components/ve/ChatCard';
 import { RequirementItem } from '@/components/ve/requirements/RequirementItem';
 import type {
@@ -661,9 +662,6 @@ export default function VirtualExperienceTaker({
 
   // Completion screen
   if (completed && !reviewMode) {
-    const totalLessons  = modules.reduce((a, m) => a + m.lessons.length, 0);
-    const totalModules  = modules.length;
-
     const buildLinkedInUrl = (name: string, id: string, orgName?: string, issuedAt?: string | null) => {
       const issueDate = issuedAt ? new Date(issuedAt) : new Date();
       const certUrl = `${window.location.origin}/certificate/${id}`;
@@ -727,21 +725,10 @@ export default function VirtualExperienceTaker({
         {/* Content */}
         <div className="flex-1 w-full max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-4">
 
-          {/* Stats row */}
-          <div className="grid grid-cols-3 overflow-hidden rounded-2xl"
-            style={{ background: isDark ? '#1c1c1c' : '#fff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.06)' : '0 10px 28px rgba(15,23,42,0.06)' }}>
-            {[
-              { label: 'Milestones', value: totalModules },
-              { label: 'Missions',   value: totalLessons },
-              { label: 'Score',      value: '100%' },
-            ].map(s => (
-              <div key={s.label} className="p-4 text-center [&:not(:last-child)]:border-r"
-                style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
-                <p className="text-2xl font-black" style={{ color: accentColor }}>{s.value}</p>
-                <p className="text-[12px] mt-0.5" style={{ color: muted }}>{s.label}</p>
-              </div>
-            ))}
-          </div>
+          {/* The manager's closing note, real numbers, and the learner's work */}
+          <FinishSummary modules={modules} progress={progress} manager={manager} studentName={studentName}
+            shortCourse={shortCourse} isDark={isDark} accentColor={accentColor} text={text} muted={muted}
+            onOpenMission={(modId, lesId) => { setReviewMode(true); setCurrentModId(modId); setCurrentLesId(lesId); }} />
 
           {/* The instructor's review: score, feedback and a report on each uploaded file. */}
           {hasInstructorReview(review) && (
@@ -759,7 +746,7 @@ export default function VirtualExperienceTaker({
               <div className="px-5 py-4 border-b flex items-center gap-2"
                 style={{ borderColor: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
                 <Star className="w-4 h-4" style={{ color: accentColor }} fill={accentColor} />
-                <p className="text-[13px] font-bold" style={{ color: text }}>Skills Demonstrated</p>
+                <p className="text-[15px] font-semibold" style={{ color: text, fontFamily: VE_DISPLAY_FONT }}>Skills demonstrated</p>
               </div>
               <div className="px-5 py-4 space-y-3">
                 {(config.learnOutcomes || []).map((o, i) => (
