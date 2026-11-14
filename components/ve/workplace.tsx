@@ -97,6 +97,16 @@ export function fileSizeFor(name: string): string {
 
 // -- sounds (all soft, all optional) ------------------------------------------
 
+// The learner's sound switch, kept per browser. Read on every play so turning it off also stops
+// typing that is already under way. Unreadable storage means the default: on.
+const SOUND_KEY = 've-sound';
+export function workplaceSoundOn(): boolean {
+  try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch { return true; }
+}
+export function setWorkplaceSound(on: boolean) {
+  try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch { /* this visit only */ }
+}
+
 function audioCtx(): AudioContext | null {
   try {
     const Ctx = (window as any).AudioContext || (window as any).webkitAudioContext;
@@ -106,6 +116,7 @@ function audioCtx(): AudioContext | null {
 
 // Soft two-tone "new message" chime.
 export function playArrivalChime() {
+  if (!workplaceSoundOn()) return;
   const ctx = audioCtx();
   if (!ctx) return;
   try {
@@ -127,6 +138,7 @@ export function playArrivalChime() {
 }
 
 function playTypingClick() {
+  if (!workplaceSoundOn()) return;
   const ctx = audioCtx();
   if (!ctx) return;
   try {
@@ -302,7 +314,7 @@ export function TypingDots({ isDark }: { isDark: boolean }) {
   return (
     <span style={{ display: 'inline-flex', gap: 3, alignItems: 'center' }}>
       {[0, 1, 2].map(i => (
-        <span key={i} className="animate-bounce" style={{
+        <span key={i} className="animate-bounce motion-reduce:animate-none" style={{
           width: 6, height: 6, borderRadius: '50%', display: 'inline-block',
           background: isDark ? '#888' : '#aaa', animationDelay: `${i * 160}ms`,
         }} />
@@ -408,6 +420,9 @@ export function WorkplaceKeyframes() {
       .ve-mail-in { animation: veMailIn 0.5s cubic-bezier(0.2, 0.7, 0.3, 1) both; }
       .ve-toast-in { animation: veToastIn 3.4s ease both; }
       .ve-pulse { animation: vePulse 1.6s ease infinite; }
+      @media (prefers-reduced-motion: reduce) {
+        .ve-mail-in, .ve-toast-in, .ve-pulse { animation: none; }
+      }
     `}</style>
   );
 }

@@ -1,10 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import Link from 'next/link';
 import {
   CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown,
-  X, Loader2, Trophy, BookOpen, Lock, Download, Award, Star, Clock,
+  X, Loader2, Trophy, BookOpen, Download, Award, Star,
   Link as LinkIcon, Eye, SkipForward, MessageSquare,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -18,12 +17,20 @@ import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
 import { safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
-import { Person, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail } from '@/components/ve/workplace';
+import {
+  Person, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workStamp, workplaceSoundOn, setWorkplaceSound,
+} from '@/components/ve/workplace';
+import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
+import { ProjectPlan } from '@/components/ve/ProjectPlan';
 import { channelFor } from '@/components/ve/ChatCard';
 import { RequirementItem } from '@/components/ve/requirements/RequirementItem';
 import type {
   Requirement, Lesson, Module, ProjectConfig, Progress, AiFeedbackEntry, VeRequirementContext,
 } from '@/components/ve/requirements/types';
+
+// Player type: Google Sans for text, Space Grotesk for headings (loaded in app/layout.tsx).
+const VE_BODY_FONT = "'Google Sans', 'Google Sans Text', var(--font-sans), sans-serif";
+const VE_DISPLAY_FONT = "var(--font-display), 'Google Sans', sans-serif";
 
 // Hamburger -- matches the course player (tighter line spacing than lucide's Menu).
 function MenuIcon({ className }: { className?: string }) {
@@ -64,17 +71,6 @@ function CompanyAvatar({ name, color, size = 40 }: { name: string; color: string
   );
 }
 
-function DifficultyDots({ difficulty, color }: { difficulty: string; color: string }) {
-  const level = difficulty === 'advanced' ? 3 : difficulty === 'intermediate' ? 2 : 1;
-  return (
-    <span className="flex items-center gap-0.5">
-      {[1, 2, 3].map(i => (
-        <span key={i} className="w-1.5 h-1.5 rounded-full inline-block"
-          style={{ background: i <= level ? color : 'currentColor', opacity: i <= level ? 1 : 0.2 }} />
-      ))}
-    </span>
-  );
-}
 
 interface Props {
   formId: string;
@@ -188,6 +184,14 @@ export default function VirtualExperienceTaker({
   const [aiFeedback,   setAiFeedback]   = useState<Record<string, AiFeedbackEntry>>({});
   const entitlement = useAiReviewEntitlement('veAnswers');
   const [saveError,    setSaveError]    = useState<string | null>(null);
+  // Chimes and typing sounds. The choice lives in workplace.tsx so every surface that plays a sound
+  // respects it; this mirrors it for the button. Read after mount: storage is browser-only.
+  const [soundOn, setSoundOn] = useState(true);
+  useEffect(() => { setSoundOn(workplaceSoundOn()); }, []);
+  const toggleSound = () => {
+    setWorkplaceSound(!soundOn);
+    setSoundOn(!soundOn);
+  };
   const saveTimeout  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const [typingDecisions, setTypingDecisions] = useState<Set<string>>(new Set());
@@ -265,6 +269,32 @@ export default function VirtualExperienceTaker({
 
   // Preview only: mark a requirement done in memory so the conversation moves on. Never persisted
   // -- canPersistProgress is already false in preview, so saveProgress is not called at all.
+  // How many of this mission's requirements have arrived: they appear one at a time, each once
+  // everything before it is settled. Review shows them all.
+  const arrivedCount = (() => {
+    const reqs = currentLes?.requirements || [];
+    if (reviewMode) return reqs.length;
+    for (let i = 1; i < reqs.length; i++) {
+      if (!reqs.slice(0, i).every(reqSettled)) return i;
+    }
+    return reqs.length;
+  })();
+
+  // The work clock shows the time of the newest message in this mission, taken from the same
+  // workStamp the messages use, so the clock and the message times always agree.
+  const clockSeq = Math.max(0, arrivedCount - 1);
+  const missionDay = Math.max(0, flatIdx);
+  const clockStamp = workStamp(missionDay, clockSeq, currentLes?.requirements[clockSeq]?.id);
+  const workClock = { day: clockStamp.day, time: clockStamp.time, dayIdx: missionDay % 5, dayNumber: missionDay + 1 };
+
+  // The ask-your-manager chat is tied to a brief. Offer it from the top bar once this mission's
+  // brief has arrived; the chat itself lives in the brief's email.
+  // Not while the mission content still hides the tasks behind "Continue to Tasks".
+  const tasksHidden = !!currentLes && !!(currentLes.doc || currentLes.body) && currentLes.requirements.length > 0
+    && !allCurrentDone && !continuedLessons.has(currentLes.id);
+  const askableBrief = reviewMode || tasksHidden ? undefined
+    : (currentLes?.requirements || []).slice(0, arrivedCount).find(r => r.type === 'briefing');
+
   const skipReqInPreview = (reqId: string) => {
     if (!previewMode) return;
     setProgress(prev => ({ ...prev, [reqId]: { ...prev[reqId], completed: true } }));
@@ -578,7 +608,7 @@ export default function VirtualExperienceTaker({
     };
 
     return (
-      <div className="min-h-screen flex flex-col font-sans" style={{ background: isDark ? '#0e0e0e' : '#F3F4F2', color: text, fontFamily: "'Google Sans', 'Inter', sans-serif" }}>
+      <div className="min-h-screen flex flex-col" style={{ background: isDark ? '#0e0e0e' : '#F3F4F2', color: text, fontFamily: VE_BODY_FONT }}>
 
         {/* This screen is an early return, so the preview banner from the main layout is not on
             it. Repeat it here rather than let a congratulations page read as a real completion. */}
@@ -609,7 +639,7 @@ export default function VirtualExperienceTaker({
               <Trophy className="w-3.5 h-3.5" /> {shortCourse ? 'Course Complete' : 'Virtual Experience Complete'}
             </div>
             {/* Name */}
-            <h1 className="text-4xl sm:text-5xl font-black leading-tight" style={{ color: '#fff' }}>
+            <h1 className="text-4xl sm:text-5xl font-bold leading-tight" style={{ color: '#fff', fontFamily: VE_DISPLAY_FONT }}>
               Well done, {studentName.split(' ')[0]}!
             </h1>
             {/* Company + role (VE only) */}
@@ -757,50 +787,22 @@ export default function VirtualExperienceTaker({
 
   // Main layout
   return (
-    <div className="relative flex flex-col h-screen overflow-hidden font-sans" style={{ background: bg, color: text }}>
+    <div className="relative flex flex-col h-screen overflow-hidden"
+      style={{ background: bg, color: text, fontFamily: VE_BODY_FONT, ['--ve-accent' as string]: accentColor }}>
 
-      {/* Compact workplace bar */}
-      <div className="flex-shrink-0 flex items-center justify-between gap-3 px-4 sm:px-6 py-2.5"
-        style={{ background: isDark ? '#141414' : '#F2F5FA', minHeight: 52 }}>
-        {/* Left: hamburger (mobile, only when sidebar closed) + logo */}
-        <div className="flex items-center gap-2.5 min-w-0">
-          {!sidebarOpen && (
-            <button onClick={() => setSidebarOpen(true)}
-              className={`sm:hidden p-1.5 rounded-lg transition-colors flex-shrink-0 ${isDark ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800' : 'text-zinc-500 hover:text-zinc-700 hover:bg-zinc-100'}`}
-              title="Open course outline">
-              <MenuIcon className="w-5 h-5" />
-            </button>
-          )}
-          {(isDark ? (logoDarkUrl || logoUrl) : logoUrl) && (
-            <Link href="/dashboard" style={{ display: 'flex', alignItems: 'center' }}>
-              <img src={(isDark ? (logoDarkUrl || logoUrl) : logoUrl) || undefined} alt="" style={{ height: 24, width: 'auto', objectFit: 'contain' }} />
-            </Link>
-          )}
-          <div className="hidden sm:block min-w-0">
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-1.5 w-1.5">
-                <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-20" style={{ background: accentColor }} />
-                <span className="relative inline-flex h-1.5 w-1.5 rounded-full" style={{ background: accentColor }} />
-              </span>
-              <span className="text-[9px] font-black uppercase tracking-[0.16em]" style={{ color: accentColor }}>Workplace</span>
-            </div>
-            <p className="max-w-[320px] truncate text-[13px] font-semibold" style={{ color: navText }}>{config.title || config.company || 'Virtual Experience'}</p>
-          </div>
-        </div>
-        <div className="flex-1" />
-        {/* Right: controls */}
-        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-          {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: navMuted }} />}
-          {config.dataset && (
-            <button onClick={downloadDataset} title={`Download ${config.dataset.filename}`}
-              className="sm:hidden flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg"
-              style={{ background: isDark ? `${accentColor}18` : 'rgba(255,255,255,0.15)', color: isDark ? accentColor : '#fff' }}>
-              <Download className="w-3.5 h-3.5" />
-            </button>
-          )}
-          <span className="rounded-full px-2.5 py-1 text-[11px] font-bold tabular-nums" style={{ color: accentColor, background: `${accentColor}12` }}>{overallPct}% complete</span>
-        </div>
-      </div>
+      <WorkplaceTopBar
+        isDark={isDark} accentColor={accentColor} text={navText} muted={navMuted}
+        logoUrl={(isDark ? (logoDarkUrl || logoUrl) : logoUrl) || undefined}
+        showMenu={!sidebarOpen} onOpenMenu={() => setSidebarOpen(true)}
+        company={config.company} role={config.role}
+        clock={workClock} manager={manager}
+        onAsk={askableBrief ? () => {
+          setAskOpen(new Set([askableBrief.id]));
+          setAskSeen(prev => new Set([...prev, askableBrief.id]));
+        } : undefined}
+        soundOn={soundOn} onToggleSound={toggleSound}
+        pct={overallPct} saving={saving}
+        onDownloadDataset={config.dataset ? downloadDataset : undefined} datasetName={config.dataset?.filename} />
 
       {/* Body row */}
       <div className="relative flex flex-1 overflow-hidden" style={{ background: isDark ? '#141414' : '#F2F5FA' }}>
@@ -819,142 +821,25 @@ export default function VirtualExperienceTaker({
           overflow: sidebarOpen ? 'hidden' : 'visible',
         }}>
 
-        {/* Toggle + title header */}
-        <div className={`flex pt-3 pb-1 flex-shrink-0 ${sidebarOpen ? 'items-start px-4' : 'items-center justify-center'}`}>
-          {sidebarOpen ? (
-            <>
-              <div className="min-w-0 flex-1">
-                <p className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: accentColor }}>Mission outline</p>
-                <p className="text-[15px] font-bold leading-snug pt-1 truncate" style={{ color: text }}>{config.role || config.title || 'Virtual Experience'}</p>
-              </div>
-              <div className="relative group ml-2 flex-shrink-0">
-                <button onClick={() => setSidebarOpen(false)} style={{ color: muted }} className="hover:opacity-60 p-1">
-                  <X className="w-4 h-4" strokeWidth={2.5} />
-                </button>
-                {/* Tooltip below: aside has overflow:hidden so left direction is clipped */}
-                <span className="pointer-events-none absolute top-full mt-1 right-0 z-50 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white">
-                  Collapse outline
-                </span>
-              </div>
-            </>
-          ) : (
+        {sidebarOpen ? (
+          <ProjectPlan
+            isDark={isDark} accentColor={accentColor} text={text} muted={muted} border={border}
+            role={config.role} modules={modules} progress={progress} currentLesId={currentLesId}
+            isUnlocked={isUnlocked} onOpen={navigate} manager={manager}
+            dataset={config.dataset} onDownloadDataset={downloadDataset}
+            onCollapse={() => setSidebarOpen(false)} />
+        ) : (
+          <div className="flex pt-3 pb-1 flex-shrink-0 items-center justify-center">
             <div className="relative group hidden sm:flex">
-              <button onClick={() => setSidebarOpen(true)} style={{ color: muted }} className="hover:opacity-60 p-1">
+              <button onClick={() => setSidebarOpen(true)} style={{ color: muted }} className="hover:opacity-60 p-1" aria-label="Expand project plan">
                 <MenuIcon className="w-5 h-5" />
               </button>
               <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white">
-                Expand outline
+                Expand plan
               </span>
             </div>
-          )}
-        </div>
-
-        {sidebarOpen && (<>
-        {/* Overall progress */}
-        <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: border }}>
-          <div className="flex justify-between text-xs mb-1.5" style={{ color: muted }}>
-            <span>Overall progress</span><span>{overallPct}%</span>
-          </div>
-          <div className="h-1.5 rounded-full overflow-hidden" style={{ background: subtle }}>
-            <div className="h-full rounded-full transition-all" style={{ width: `${overallPct}%`, background: accentColor }} />
-          </div>
-        </div>
-
-        {/* Dataset download */}
-        {config.dataset && (
-          <div className="px-4 py-3 border-b flex-shrink-0" style={{ borderColor: border }}>
-            <button onClick={downloadDataset}
-              className="w-full flex items-center gap-2 text-xs font-semibold py-2 px-3 rounded-xl transition-all hover:opacity-80"
-              style={{ background: `${accentColor}18`, color: accentColor }}>
-              <Download className="w-3.5 h-3.5" />
-              <span className="truncate">{config.dataset.filename || 'Download file'}</span>
-            </button>
-            <p className="text-[11px] mt-1.5 px-1" style={{ color: muted }}>{config.dataset.description}</p>
           </div>
         )}
-
-        {/* Forage-style vertical timeline */}
-        <nav className="flex-1 py-3 overflow-y-auto">
-          <div className="px-4">
-            {flat.map(({ moduleId, lesson }, idx) => {
-              const lesPct   = lessonProgress(lesson, progress);
-              const isCurr   = lesson.id === currentLesId;
-              const locked   = !isUnlocked(idx);
-              const isIntro  = idx === 0;
-              const isLast   = idx === flat.length - 1;
-              const taskNum  = idx;
-              const reqCount = lesson.requirements?.length || 0;
-              const estTime  = reqCount <= 2 ? '15-30 mins' : reqCount <= 4 ? '30-60 mins' : '45-90 mins';
-              const lessonDiff = isIntro ? null : idx === 1 ? 'beginner' : config.difficulty;
-              const circleColor = locked ? muted : isCurr || lesPct === 100 ? accentColor : muted;
-
-              return (
-                <button key={lesson.id}
-                  onClick={() => !locked && navigate(moduleId, lesson.id, idx)}
-                  disabled={locked}
-                  className="w-full flex items-start gap-3 text-left transition-all disabled:cursor-not-allowed"
-                  style={{ opacity: locked ? 0.5 : 1 }}>
-
-                  {/* Left column: circle + dashed connector */}
-                  <div className="flex flex-col items-center flex-shrink-0">
-                    {/* Circle */}
-                    {isIntro ? (
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                          background: accentColor,
-                          border: `2px solid ${accentColor}`,
-                        }}>
-                        <Star className="w-4 h-4" style={{ color: 'white' }} fill="white" />
-                      </div>
-                    ) : (
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                        style={{
-                          background: lesPct === 100 ? accentColor : surface,
-                          border: `2px solid ${circleColor}`,
-                        }}>
-                        {locked
-                          ? <Lock className="w-3.5 h-3.5" style={{ color: muted }} />
-                          : lesPct === 100
-                            ? <span className="text-xs font-bold" style={{ color: 'white' }}>✓</span>
-                            : <span className="text-xs font-bold" style={{ color: circleColor }}>{taskNum}</span>
-                        }
-                      </div>
-                    )}
-                    {/* Dashed connector (between circles, not inside them) */}
-                    {!isLast && (
-                      <div style={{
-                        width: 0,
-                        minHeight: 28,
-                        flex: 1,
-                        borderLeft: `2px dashed ${border}`,
-                        marginTop: 4,
-                        marginBottom: 4,
-                      }} />
-                    )}
-                  </div>
-
-                  {/* Text */}
-                  <div className="flex-1 min-w-0 pt-1.5" style={{ paddingBottom: isLast ? 8 : 20 }}>
-                    <p className="text-sm font-semibold leading-snug truncate"
-                      style={{ color: isCurr ? accentColor : text }}>
-                      {lesson.title}
-                    </p>
-                    {lessonDiff && (
-                      <div className="flex items-center gap-1.5 mt-1">
-                        <DifficultyDots difficulty={lessonDiff} color={isCurr ? accentColor : muted} />
-                        <span className="text-[11px] capitalize" style={{ color: muted }}>{lessonDiff}</span>
-                        <span className="text-[11px]" style={{ color: muted }}>·</span>
-                        <Clock className="w-3 h-3 flex-shrink-0" style={{ color: muted }} />
-                        <span className="text-[11px]" style={{ color: muted }}>{estTime}</span>
-                      </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </nav>
-        </>)}
       </aside>
 
       {/* Main content */}
@@ -1061,7 +946,7 @@ export default function VirtualExperienceTaker({
                 <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5"
                   style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#F2F5FA'}` }}>
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accentColor }}>{currentMod?.title}</p>
-                  <h1 className="text-xl font-bold leading-snug" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{currentLes.title}</h1>
+                  <h1 className="text-[22px] font-semibold leading-snug" style={{ color: isDark ? '#f0f0f0' : '#111', fontFamily: VE_DISPLAY_FONT }}>{currentLes.title}</h1>
                 </div>
 
                 {/* Lesson body */}
@@ -1093,8 +978,8 @@ export default function VirtualExperienceTaker({
                   ) : (
                     <div
                       className={`prose prose-sm max-w-none [font-size:14.5px] ve-lesson-body ${isDark ? 'dark' : ''} ${isDark
-                        ? 'prose-invert prose-p:text-zinc-300 prose-p:leading-[1.6] prose-headings:text-white prose-headings:font-semibold prose-strong:text-white prose-a:text-blue-400 prose-li:text-zinc-300 prose-li:leading-[1.6] prose-hr:border-zinc-800 prose-blockquote:border-l-4 prose-blockquote:border-indigo-500 prose-blockquote:text-zinc-400 prose-blockquote:not-italic prose-code:text-emerald-400 [&_pre]:bg-[#0f1120] [&_pre]:border [&_pre]:border-[#2e2e33] [&_pre]:rounded-lg [&_pre_code]:text-[#c9d1d9] prose-table:w-full prose-thead:border-b prose-thead:border-zinc-700 prose-th:text-zinc-300 prose-th:font-semibold prose-th:py-2 prose-th:px-3 prose-td:text-zinc-400 prose-td:py-2 prose-td:px-3 prose-tr:border-b prose-tr:border-zinc-800'
-                        : 'prose-p:text-[#111] prose-p:leading-[1.6] prose-headings:text-[#111] prose-headings:font-semibold prose-strong:text-[#111] prose-li:text-[#111] prose-li:leading-[1.6] prose-a:text-blue-600 prose-hr:border-zinc-200 prose-blockquote:border-l-4 prose-blockquote:border-indigo-400 prose-blockquote:text-zinc-600 prose-blockquote:not-italic prose-code:text-emerald-700 [&_pre]:bg-[#f6f8fa] [&_pre]:border [&_pre]:border-[#d0d7de] [&_pre]:rounded-lg [&_pre_code]:text-[#1f2328] prose-table:w-full prose-thead:border-b prose-thead:border-zinc-200 prose-th:text-zinc-700 prose-th:font-semibold prose-th:py-2 prose-th:px-3 prose-td:text-zinc-600 prose-td:py-2 prose-td:px-3 prose-tr:border-b prose-tr:border-zinc-100'
+                        ? 'prose-invert prose-p:text-zinc-300 prose-p:leading-[1.6] prose-headings:text-white prose-headings:font-semibold prose-strong:text-white prose-a:text-blue-400 prose-li:text-zinc-300 prose-li:leading-[1.6] prose-hr:border-zinc-800 prose-blockquote:border-l-4 prose-blockquote:border-[color:var(--ve-accent)] prose-blockquote:text-zinc-400 prose-blockquote:not-italic prose-code:text-emerald-400 [&_pre]:bg-[#0f1120] [&_pre]:border [&_pre]:border-[#2e2e33] [&_pre]:rounded-lg [&_pre_code]:text-[#c9d1d9] prose-table:w-full prose-thead:border-b prose-thead:border-zinc-700 prose-th:text-zinc-300 prose-th:font-semibold prose-th:py-2 prose-th:px-3 prose-td:text-zinc-400 prose-td:py-2 prose-td:px-3 prose-tr:border-b prose-tr:border-zinc-800'
+                        : 'prose-p:text-[#111] prose-p:leading-[1.6] prose-headings:text-[#111] prose-headings:font-semibold prose-strong:text-[#111] prose-li:text-[#111] prose-li:leading-[1.6] prose-a:text-blue-600 prose-hr:border-zinc-200 prose-blockquote:border-l-4 prose-blockquote:border-[color:var(--ve-accent)] prose-blockquote:text-zinc-600 prose-blockquote:not-italic prose-code:text-emerald-700 [&_pre]:bg-[#f6f8fa] [&_pre]:border [&_pre]:border-[#d0d7de] [&_pre]:rounded-lg [&_pre_code]:text-[#1f2328] prose-table:w-full prose-thead:border-b prose-thead:border-zinc-200 prose-th:text-zinc-700 prose-th:font-semibold prose-th:py-2 prose-th:px-3 prose-td:text-zinc-600 prose-td:py-2 prose-td:px-3 prose-tr:border-b prose-tr:border-zinc-100'
                       }`}
                       dangerouslySetInnerHTML={{ __html: sanitizeRichText(currentLes.body) }}
                     />
