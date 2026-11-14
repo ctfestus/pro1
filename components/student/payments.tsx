@@ -116,7 +116,15 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
       setAmount(''); setMethod(''); setRef(''); setNotes(''); setReceipt('');
       await load();
     } catch (e: any) {
-      setSubmitError(e.message ?? 'Failed to submit');
+      // A TypeError from fetch means the connection dropped before a response came back
+      // (the browser's "Failed to fetch"). The confirmation may still have been saved, so
+      // reload the history and tell the student to check it before submitting again.
+      if (e instanceof TypeError) {
+        setSubmitError('We could not reach the server. Check your connection, then open Payment History to see if your confirmation was received before submitting again.');
+        load().catch(() => {});
+      } else {
+        setSubmitError(e.message ?? 'Failed to submit');
+      }
     } finally {
       setSubmitting(false);
     }
