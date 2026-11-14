@@ -48,7 +48,7 @@ export function WorkplaceTopBar({
   text: string;
   muted: string;
   logoUrl?: string;
-  /** Phone only: the plan is closed, so offer the way to open it. */
+  /** Phone only: the mission list is closed, so offer the way to open it. */
   showMenu: boolean;
   onOpenMenu: () => void;
   company?: string;
@@ -77,7 +77,7 @@ export function WorkplaceTopBar({
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         {showMenu && (
           <button onClick={onOpenMenu} className={`sm:hidden ${iconBtn}`} style={{ color: muted }}
-            title="Open project plan" aria-label="Open project plan">
+            title="Open mission list" aria-label="Open mission list">
             <MenuIcon className="w-5 h-5" />
           </button>
         )}

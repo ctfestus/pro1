@@ -824,18 +824,18 @@ export default function VirtualExperienceTaker({
         {sidebarOpen ? (
           <ProjectPlan
             isDark={isDark} accentColor={accentColor} text={text} muted={muted} border={border}
-            role={config.role} modules={modules} progress={progress} currentLesId={currentLesId}
+            role={config.role} heading={shortCourse ? 'Course' : 'Virtual Experience'} modules={modules} progress={progress} currentLesId={currentLesId}
             isUnlocked={isUnlocked} onOpen={navigate} manager={manager}
             dataset={config.dataset} onDownloadDataset={downloadDataset}
             onCollapse={() => setSidebarOpen(false)} />
         ) : (
           <div className="flex pt-3 pb-1 flex-shrink-0 items-center justify-center">
             <div className="relative group hidden sm:flex">
-              <button onClick={() => setSidebarOpen(true)} style={{ color: muted }} className="hover:opacity-60 p-1" aria-label="Expand project plan">
+              <button onClick={() => setSidebarOpen(true)} style={{ color: muted }} className="hover:opacity-60 p-1" aria-label="Expand mission list">
                 <MenuIcon className="w-5 h-5" />
               </button>
               <span className="pointer-events-none absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white">
-                Expand plan
+                Expand mission list
               </span>
             </div>
           </div>

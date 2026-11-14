@@ -21,11 +21,11 @@ function ManagerDot({ manager, size, faded }: { manager: Person; size: number; f
 }
 
 /**
- * The mission list, read as a project plan: missions grouped under their modules, each with who
+ * The mission list: missions grouped under their modules, each with who
  * it comes from and a plain status. Locked missions say what unlocks them.
  */
 export function ProjectPlan({
-  isDark, accentColor, text, muted, border, role, modules, progress, currentLesId, isUnlocked, onOpen,
+  isDark, accentColor, text, muted, border, role, heading, modules, progress, currentLesId, isUnlocked, onOpen,
   manager, dataset, onDownloadDataset, onCollapse,
 }: {
   isDark: boolean;
@@ -34,6 +34,8 @@ export function ProjectPlan({
   muted: string;
   border: string;
   role?: string;
+  /** What the learner is doing, shown under the role: "Virtual Experience" or "Course". */
+  heading: string;
   modules: Module[];
   progress: Progress;
   currentLesId: string;
@@ -57,16 +59,16 @@ export function ProjectPlan({
         <div className="min-w-0 flex-1">
           {role && <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] truncate" style={{ color: faint }}>{role}</p>}
           <h2 className="text-[17px] font-semibold leading-snug pt-0.5" style={{ color: text, fontFamily: 'var(--font-display), sans-serif' }}>
-            Project plan
+            {heading}
           </h2>
         </div>
         <div className="relative group ml-2 flex-shrink-0">
-          <button onClick={onCollapse} style={{ color: muted }} className="hover:opacity-60 p-1" aria-label="Collapse project plan">
+          <button onClick={onCollapse} style={{ color: muted }} className="hover:opacity-60 p-1" aria-label="Collapse mission list">
             <X className="w-4 h-4" strokeWidth={2.5} />
           </button>
           {/* Tooltip below: aside has overflow:hidden so left direction is clipped */}
           <span className="pointer-events-none absolute top-full mt-1 right-0 z-50 px-2 py-1 rounded-md text-[11px] font-medium whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity bg-zinc-900 text-white">
-            Collapse plan
+            Collapse mission list
           </span>
         </div>
       </div>
