@@ -1,10 +1,9 @@
 'use client';
 
+import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
 import { Download, Loader2, MessageSquare, Volume2, VolumeX } from 'lucide-react';
-import { PersonAvatar, firstNameOf, type Person } from '@/components/ve/workplace';
-
-const WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+import { PersonAvatar, firstNameOf, localDayTime, type Person } from '@/components/ve/workplace';
 
 // Hamburger -- matches the course player (tighter line spacing than lucide's Menu).
 function MenuIcon({ className }: { className?: string }) {
@@ -15,6 +14,17 @@ function MenuIcon({ className }: { className?: string }) {
       <line x1="4" y1="17" x2="20" y2="17" />
     </svg>
   );
+}
+
+// A clock store that changes once a minute, on the minute.
+function subscribeMinute(onChange: () => void) {
+  let timer: ReturnType<typeof setTimeout>;
+  const schedule = () => { timer = setTimeout(() => { onChange(); schedule(); }, 60000 - (Date.now() % 60000)); };
+  schedule();
+  return () => clearTimeout(timer);
+}
+function currentMinute(): number {
+  return Math.floor(Date.now() / 60000);
 }
 
 function ProgressRing({ pct, accent, track, text }: { pct: number; accent: string; track: string; text: string }) {
@@ -36,12 +46,12 @@ function ProgressRing({ pct, accent, track, text }: { pct: number; accent: strin
 }
 
 /**
- * The player's top bar, read as a work status bar: where you work and as what, the simulated
- * work clock, your manager, the sound switch and how far the project is.
+ * The player's top bar, read as a work status bar: where you work, your own day and
+ * time, your manager, the sound switch and how far the project is.
  */
 export function WorkplaceTopBar({
   isDark, accentColor, text, muted, logoUrl, showMenu, onOpenMenu,
-  company, role, clock, manager, onAsk, soundOn, onToggleSound, pct, saving, onDownloadDataset, datasetName,
+  company, manager, onAsk, soundOn, onToggleSound, pct, saving, onDownloadDataset, datasetName,
 }: {
   isDark: boolean;
   accentColor: string;
@@ -52,9 +62,6 @@ export function WorkplaceTopBar({
   showMenu: boolean;
   onOpenMenu: () => void;
   company?: string;
-  role?: string;
-  /** Simulated time of the newest message in this mission; dayIdx is the mission's day in the week. */
-  clock: { day: string; time: string; dayIdx: number; dayNumber: number };
   manager: Person;
   /** Opens the ask-your-manager chat. Absent when this mission has no brief to ask about yet. */
   onAsk?: () => void;
@@ -66,13 +73,17 @@ export function WorkplaceTopBar({
   datasetName?: string;
 }) {
   const surface = isDark ? '#1e1e1e' : '#ffffff';
+  // The learner's own day and time, refreshed on the minute. Nothing on the server render: the
+  // server has no idea what time it is for them.
+  const minute = useSyncExternalStore(subscribeMinute, currentMinute, () => null);
+  const now = minute === null ? null : new Date(minute * 60000);
   const track = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.08)';
   const iconBtn = `p-2 rounded-lg transition-colors flex-shrink-0 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-white'}`;
 
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-3 sm:px-5 py-2.5"
       style={{ background: isDark ? '#141414' : '#F2F5FA', minHeight: 56 }}>
-      {/* Left: menu (phone), platform logo, then the company and your role */}
+      {/* Left: menu (phone), platform logo, then the company */}
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         {showMenu && (
           <button onClick={onOpenMenu} className={`sm:hidden ${iconBtn}`} style={{ color: muted }}
@@ -89,33 +100,18 @@ export function WorkplaceTopBar({
           <div className="flex items-center gap-2.5 min-w-0">
             {logoUrl && <span className="hidden sm:block flex-shrink-0" style={{ width: 1, height: 18, background: track }} aria-hidden="true" />}
             <span className="text-[14px] font-bold truncate" style={{ color: text }}>{company}</span>
-            {role && (
-              <span className="hidden md:inline-block text-[11.5px] font-semibold px-2.5 py-1 rounded-full truncate max-w-[220px]"
-                style={{ background: surface, color: muted }}>
-                {role}
-              </span>
-            )}
           </div>
         )}
       </div>
 
-      {/* Centre (desktop): the work clock, from the same timestamps the messages use */}
-      <div className="hidden lg:flex items-center gap-2.5 px-3 py-1.5 rounded-full flex-shrink-0"
-        style={{ background: surface }} title={`Day ${clock.dayNumber} of the project`}>
-        <span className="text-[12.5px] font-medium tabular-nums"
-          style={{ color: text, fontFamily: 'var(--font-mono), ui-monospace, monospace' }}>
-          {clock.day} {clock.time}
-        </span>
-        <span className="flex gap-[3px]" aria-hidden="true">
-          {WEEK.map((d, i) => (
-            <span key={d} className="rounded-sm" style={{
-              width: 14, height: 4,
-              background: i <= clock.dayIdx ? accentColor : track,
-              opacity: i < clock.dayIdx ? 0.45 : 1,
-            }} />
-          ))}
-        </span>
-      </div>
+      {/* Centre (desktop): the learner's own day and time */}
+      {now && (
+        <div className="hidden lg:flex items-center px-3.5 py-1.5 rounded-full flex-shrink-0" style={{ background: surface }}>
+          <span className="text-[12.5px] font-medium tabular-nums" style={{ color: text, fontFamily: 'var(--font-mono), ui-monospace, monospace' }}>
+            {localDayTime(now)}
+          </span>
+        </div>
+      )}
 
       {/* Right: saving, dataset (phone), sound, manager, progress */}
       <div className="flex items-center justify-end gap-1 sm:gap-1.5 flex-1">

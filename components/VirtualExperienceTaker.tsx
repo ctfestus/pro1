@@ -18,10 +18,11 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
 import { safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
 import {
-  Person, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workStamp, workplaceSoundOn, setWorkplaceSound,
+  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workplaceSoundOn, setWorkplaceSound, localDayTime,
 } from '@/components/ve/workplace';
 import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
 import { ProjectPlan } from '@/components/ve/ProjectPlan';
+import { MissionTodo, todoSource, jumpToRequirement, type TodoItem } from '@/components/ve/MissionTodo';
 import { channelFor } from '@/components/ve/ChatCard';
 import { RequirementItem } from '@/components/ve/requirements/RequirementItem';
 import type {
@@ -192,6 +193,10 @@ export default function VirtualExperienceTaker({
     setWorkplaceSound(!soundOn);
     setSoundOn(!soundOn);
   };
+  // When the learner opened this mission, by their own clock: the brief greets them with it.
+  // Taken once per mission so it does not tick.
+  const [missionOpenedAt, setMissionOpenedAt] = useState<Date | null>(null);
+  useEffect(() => { setMissionOpenedAt(new Date()); }, [currentLesId]);
   const saveTimeout  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const [typingDecisions, setTypingDecisions] = useState<Set<string>>(new Set());
@@ -280,13 +285,6 @@ export default function VirtualExperienceTaker({
     return reqs.length;
   })();
 
-  // The work clock shows the time of the newest message in this mission, taken from the same
-  // workStamp the messages use, so the clock and the message times always agree.
-  const clockSeq = Math.max(0, arrivedCount - 1);
-  const missionDay = Math.max(0, flatIdx);
-  const clockStamp = workStamp(missionDay, clockSeq, currentLes?.requirements[clockSeq]?.id);
-  const workClock = { day: clockStamp.day, time: clockStamp.time, dayIdx: missionDay % 5, dayNumber: missionDay + 1 };
-
   // The ask-your-manager chat is tied to a brief. Offer it from the top bar once this mission's
   // brief has arrived; the chat itself lives in the brief's email.
   // Not while the mission content still hides the tasks behind "Continue to Tasks".
@@ -294,6 +292,16 @@ export default function VirtualExperienceTaker({
     && !allCurrentDone && !continuedLessons.has(currentLes.id);
   const askableBrief = reviewMode || tasksHidden ? undefined
     : (currentLes?.requirements || []).slice(0, arrivedCount).find(r => r.type === 'briefing');
+
+  // The mission's to-do list: what has arrived so far and counts towards finishing it, plus how
+  // many more are still to come. Not shown before the tasks are revealed, nor in review.
+  const showTodo = !!currentLes && !reviewMode && !tasksHidden && currentLes.requirements.length > 0;
+  const todoItems: TodoItem[] = !showTodo ? [] : currentLes!.requirements.slice(0, arrivedCount)
+    .filter(r => reqCountsForCompletion(r, progress))
+    .map(r => ({ id: r.id, label: (r.label || '').trim() || todoSource(r), source: todoSource(r), done: !!progress[r.id]?.completed }));
+  const todoPending = !showTodo ? 0 : currentLes!.requirements.slice(arrivedCount)
+    .filter(r => reqCountsForCompletion(r, progress)).length;
+  const jumpTo = (reqId: string) => jumpToRequirement(reqId, accentColor);
 
   const skipReqInPreview = (reqId: string) => {
     if (!previewMode) return;
@@ -794,8 +802,8 @@ export default function VirtualExperienceTaker({
         isDark={isDark} accentColor={accentColor} text={navText} muted={navMuted}
         logoUrl={(isDark ? (logoDarkUrl || logoUrl) : logoUrl) || undefined}
         showMenu={!sidebarOpen} onOpenMenu={() => setSidebarOpen(true)}
-        company={config.company} role={config.role}
-        clock={workClock} manager={manager}
+        company={config.company}
+        manager={manager}
         onAsk={askableBrief ? () => {
           setAskOpen(new Set([askableBrief.id]));
           setAskSeen(prev => new Set([...prev, askableBrief.id]));
@@ -908,7 +916,14 @@ export default function VirtualExperienceTaker({
 
         {/* Lesson content: subtle grey background, single white card */}
         <div ref={mainScrollRef} className="flex-1 overflow-y-auto" style={{ background: isDark ? '#141414' : '#F2F5FA' }}>
-          <div className={`${embedUrl && isHtmlEmbedUrl(embedUrl) ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full px-2 sm:px-4 pt-4 sm:pt-3 pb-4 sm:pb-6 space-y-4`}>
+          <div className="flex justify-center gap-4 w-full px-2 sm:px-4">
+          <div className={`${embedUrl && isHtmlEmbedUrl(embedUrl) ? 'max-w-6xl' : 'max-w-4xl'} w-full min-w-0 pt-4 sm:pt-3 pb-4 sm:pb-6 space-y-4`}>
+          {showTodo && todoItems.length > 0 && (
+            <div className="2xl:hidden sticky top-2 z-20">
+              <MissionTodo variant="pill" items={todoItems} pendingCount={todoPending} isDark={isDark}
+                accentColor={accentColor} text={text} muted={muted} onJump={jumpTo} />
+            </div>
+          )}
           {!currentLes && modules.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <BookOpen className="w-10 h-10 mb-3 opacity-20" style={{ color: muted }} />
@@ -942,8 +957,26 @@ export default function VirtualExperienceTaker({
                   background: isDark ? '#1e1e1e' : '#ffffff',
                 }}>
 
+                {/* A mission with content reads as a brief the manager shared: one line, never wrapping.
+                    On narrow screens the job title is left out. */}
+                {hasContent && (
+                  <div className="flex flex-nowrap items-center gap-3 sm:gap-4 px-4 sm:px-8 py-3 whitespace-nowrap overflow-hidden"
+                    style={{ background: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#EEF2F7'}` }}>
+                    <span className="inline-flex items-center gap-2 text-[12.5px] min-w-0 flex-1" style={{ color: muted }}>
+                      <PersonAvatar {...manager} size={22} isDark={isDark} />
+                      <span className="truncate">
+                        From <b className="font-semibold" style={{ color: text }}>{manager.name}</b>
+                        {manager.title && <span className="hidden md:inline">, {manager.title}</span>}
+                      </span>
+                    </span>
+                    <span className="flex-shrink-0 text-[12px] tabular-nums" style={{ color: muted }}>
+                      {missionOpenedAt ? localDayTime(missionOpenedAt) : ''}
+                    </span>
+                  </div>
+                )}
+
                 {/* Lesson header inside card */}
-                <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5"
+                <div className="px-4 sm:px-8 pt-5 sm:pt-7 pb-5"
                   style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#F2F5FA'}` }}>
                   <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accentColor }}>{currentMod?.title}</p>
                   <h1 className="text-[22px] font-semibold leading-snug" style={{ color: isDark ? '#f0f0f0' : '#111', fontFamily: VE_DISPLAY_FONT }}>{currentLes.title}</h1>
@@ -992,8 +1025,8 @@ export default function VirtualExperienceTaker({
                           <button onClick={() => toggleContentExpanded(currentLes.id)}
                             className="w-full flex items-center gap-2 px-4 sm:px-8 py-3 text-left hover:opacity-70 transition-opacity">
                             {isExpanded ? <ChevronDown className="w-3.5 h-3.5" style={{ color: muted }} /> : <ChevronRight className="w-3.5 h-3.5" style={{ color: muted }} />}
-                            <span className="text-[12.5px] font-semibold" style={{ color: muted }}>
-                              Mission content{!isExpanded ? ' (click to reread)' : ''}
+                            <span className="text-[12.5px] font-semibold" style={{ color: accentColor }}>
+                              {isExpanded ? 'Hide the brief' : 'Read the brief again'}
                             </span>
                           </button>
                           {isExpanded && <div className="px-4 sm:px-8 pb-6">{lessonBodyContent}</div>}
@@ -1004,13 +1037,14 @@ export default function VirtualExperienceTaker({
                     )}
 
                     {showGateButton && (
-                      <div className="px-4 sm:px-8 pb-8 flex justify-center"
+                      <div className="px-4 sm:px-8 pb-8 flex flex-col items-center gap-2"
                         style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#F2F5FA'}` }}>
                         <button onClick={() => continueToTasks(currentLes.id)}
                           className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-[14px] transition-all hover:opacity-90"
                           style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
-                          Continue to Tasks <ChevronRight className="w-4 h-4" />
+                          Start the work <ChevronRight className="w-4 h-4" />
                         </button>
+                        <span className="text-[12px]" style={{ color: muted }}>Your tasks arrive below once you start.</span>
                       </div>
                     )}
                   </>);
@@ -1019,33 +1053,7 @@ export default function VirtualExperienceTaker({
                 {/* Questions section */}
                 {currentLes.requirements.length > 0 && !showGateButton && (
                   <>
-                    {/* Divider + label */}
-                    {(() => {
-                      const reqs = currentLes.requirements;
-                      const allTask = reqs.every(r => r.type === 'task');
-                      const allMcq  = reqs.every(r => r.type === 'mcq');
-                      const sectionLabel = allTask ? 'Tasks' : allMcq ? 'Questions' : 'Tasks & Questions';
-                      const doneCount = reqs.filter(r => progress[r.id]?.completed).length;
-                      return (
-                        <div className="px-4 sm:px-8 pt-4 pb-3 space-y-2"
-                          style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }}>
-                          <div className="flex items-center justify-between">
-                            <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isDark ? '#666' : '#999' }}>{sectionLabel}</span>
-                            <span className="text-[10px] font-medium px-2 py-0.5 rounded-full"
-                              style={{ background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)', color: isDark ? '#777' : '#777' }}>
-                              {doneCount} / {reqs.length} done
-                            </span>
-                          </div>
-                          {!allCurrentDone && !reviewMode && (
-                            <p className="text-[12.5px] font-semibold" style={{ color: accentColor }}>
-                              {doneCount === 0
-                                ? `Complete all ${reqs.length} ${sectionLabel.toLowerCase()} below to unlock the next step`
-                                : `${reqs.length - doneCount} remaining. Mark them as done to continue.`}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })()}
+                    <div style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}` }} />
 
                     {currentLes.requirements.map((req, qi) => {
                       // Messages arrive sequentially: a requirement only appears once
@@ -1054,7 +1062,11 @@ export default function VirtualExperienceTaker({
                       // replying. Review shows the whole conversation at once; preview
                       // sequences like a student and offers a skip instead.
                       if (!reviewMode && qi > 0 && !currentLes.requirements.slice(0, qi).every(reqSettled)) return null;
-                      return <RequirementItem key={req.id} req={req} qi={qi} ctx={reqCtx} />;
+                      return (
+                        <div key={req.id} id={`ve-req-${req.id}`} className="scroll-mt-20" style={{ borderRadius: 16 }}>
+                          <RequirementItem req={req} qi={qi} ctx={reqCtx} />
+                        </div>
+                      );
                     })}
 
                     {/* Incoming-message indicator: the rest of the conversation arrives as work gets done */}
@@ -1208,6 +1220,14 @@ export default function VirtualExperienceTaker({
               </div>
             </>
           );})() : null}
+          </div>
+          {/* Wide screens: the to-do list sits beside the mission and stays in view while scrolling. */}
+          {showTodo && todoItems.length > 0 && (
+            <div className="hidden 2xl:block w-64 flex-shrink-0 self-start sticky top-3 pt-3">
+              <MissionTodo variant="rail" items={todoItems} pendingCount={todoPending} isDark={isDark}
+                accentColor={accentColor} text={text} muted={muted} onJump={jumpTo} />
+            </div>
+          )}
           </div>
         </div>
       </main>

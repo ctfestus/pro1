@@ -87,6 +87,15 @@ export function workStamp(dayIdx: number, seq: number, key?: string): { day: str
   return { day, time, full: `${day} ${time}` };
 }
 
+// "Sat 5:20 PM" in the learner's own time zone, for the real-time clock and the brief. Built by
+// hand rather than with toLocaleString, which can insert a narrow no-break space before AM/PM.
+export function localDayTime(d: Date): string {
+  const day = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()];
+  const h = d.getHours();
+  const h12 = h % 12 === 0 ? 12 : h % 12;
+  return `${day} ${h12}:${String(d.getMinutes()).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+}
+
 // Deterministic pseudo file size so attachments read like real files.
 export function fileSizeFor(name: string): string {
   const h = hashStr(name || 'file');
