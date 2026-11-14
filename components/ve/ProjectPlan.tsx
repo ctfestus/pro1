@@ -15,12 +15,12 @@ function StatusMarker({ status, number, accentColor, faint, isDark }: {
     return <span className={base} style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}><Check className="w-3.5 h-3.5" strokeWidth={3} /></span>;
   }
   if (status === 'locked') {
-    return <span className={base} style={{ border: `1.5px solid ${faint}55`, color: faint }}><Lock className="w-3 h-3" /></span>;
+    return <span className={base} style={{ background: `${faint}26`, color: faint }}><Lock className="w-3 h-3" /></span>;
   }
   if (status === 'progress') {
-    return <span className={base} style={{ border: `2px solid ${accentColor}`, color: accentColor, background: `${accentColor}14` }}>{number}</span>;
+    return <span className={base} style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{number}</span>;
   }
-  return <span className={base} style={{ border: `1.5px solid ${faint}`, color: faint }}>{number}</span>;
+  return <span className={base} style={{ background: `${faint}26`, color: faint }}>{number}</span>;
 }
 
 /**
@@ -90,22 +90,33 @@ export function ProjectPlan({
                 <span className="text-[11.5px] font-bold truncate" style={{ color: muted }}>{mod.title}</span>
                 <span className="text-[11px] tabular-nums flex-shrink-0" style={{ color: faint }}>{doneCount} / {lessons.length}</span>
               </div>
-              {lessons.map(lesson => {
+              {lessons.map((lesson, li) => {
                 const idx = positionOf.get(lesson.id) ?? 0;
                 const pct = lessonCompletionPct(lesson, progress);
                 const isCurr = lesson.id === currentLesId;
                 const locked = !isUnlocked(idx);
                 const status: Status = pct === 100 ? 'done' : locked ? 'locked' : (isCurr || pct > 0) ? 'progress' : 'ready';
                 const unlocksAfter = idx > 0 ? allLessons[idx - 1].title : '';
+                const hasNext = li < lessons.length - 1;
                 return (
                   <button key={lesson.id}
                     onClick={() => !locked && onOpen(mod.id, lesson.id, idx)}
                     disabled={locked}
                     aria-current={isCurr ? 'step' : undefined}
-                    className="w-full flex items-center gap-2.5 text-left px-2 py-2 rounded-xl transition-colors disabled:cursor-not-allowed"
+                    className="w-full flex items-stretch gap-2.5 text-left px-2 rounded-xl transition-colors disabled:cursor-not-allowed"
                     style={{ background: isCurr ? `${accentColor}14` : 'transparent' }}>
-                    <StatusMarker status={status} number={idx + 1} accentColor={accentColor} faint={faint} isDark={isDark} />
-                    <span className="flex-1 min-w-0">
+                    {/* Marker plus the line down to the next mission in this week: solid accent once this
+                        mission is done, so the line fills in as the learner moves forward. */}
+                    <span className="flex flex-col items-center flex-shrink-0 pt-2">
+                      <StatusMarker status={status} number={idx + 1} accentColor={accentColor} faint={faint} isDark={isDark} />
+                      {hasNext && (
+                        <span aria-hidden="true" style={{
+                          flex: 1, width: 0, minHeight: 12, marginTop: 4,
+                          borderLeft: status === 'done' ? `2px solid ${accentColor}` : `2px dashed ${faint}80`,
+                        }} />
+                      )}
+                    </span>
+                    <span className={`flex-1 min-w-0 pt-2 ${hasNext ? 'pb-4' : 'pb-2'}`} style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                       <span className="block text-[13px] font-semibold leading-snug truncate"
                         style={{ color: isCurr ? accentColor : locked ? faint : text }}>
                         {lesson.title}
