@@ -77,7 +77,7 @@ export function RichTextArea({
 export interface MailAttachment { name: string; url?: string; onClick?: () => void; subtitle?: string }
 
 export function MailCard({
-  isDark, accent, reqId, subject, sender, toName, toEmail, stamp, bodyHtml,
+  isDark, accent, reqId, subject, sender, stamp, bodyHtml,
   attachments, company, done = false, muteArrival = false, signature = true, signatureAfterChildren = false, chatAction, children,
 }: {
   isDark: boolean;
@@ -85,6 +85,7 @@ export function MailCard({
   reqId: string;
   subject: string;
   sender: Person;
+  // The learner's name and address. Not shown: the mail reads "to me", as a real inbox does.
   toName: string;
   toEmail: string;
   stamp: { day: string; time: string; full: string };
@@ -103,6 +104,7 @@ export function MailCard({
 }) {
   const [read, setRead] = useState(done);
   const [isNew] = useState(() => !done && !muteArrival && firstArrival(reqId));
+  const [showSenderEmail, setShowSenderEmail] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isNew) return;
@@ -134,7 +136,6 @@ export function MailCard({
         <span className="ve-pulse" style={{ width: 7, height: 7, borderRadius: '50%', background: accent, flexShrink: 0 }} />
         <Inbox style={{ width: 15, height: 15, color: tMuted, flexShrink: 0 }} />
         <span style={{ fontSize: 12.5, fontWeight: 750, color: tText }}>Work inbox</span>
-        <span className="hidden sm:inline" style={{ fontSize: 11.5, color: tFaint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{toEmail}</span>
         {unread && (
           <span style={{ marginLeft: 4, minWidth: 16, height: 16, borderRadius: 8, background: '#D93025', color: '#fff', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>1</span>
         )}
@@ -195,10 +196,15 @@ export function MailCard({
         <PersonAvatar {...sender} size={42} presence="active" isDark={isDark} />
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: tText }}>{sender.name}</span>
-            {sender.email && <span className="hidden sm:inline" style={{ fontSize: 12, color: tFaint }}>{'<'}{sender.email}{'>'}</span>}
+            {/* The address stays out of the way: it shows on hover, and a tap on the name reveals it. */}
+            <button type="button" onClick={() => setShowSenderEmail(v => !v)} title={sender.email || undefined}
+              aria-expanded={sender.email ? showSenderEmail : undefined}
+              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: 14, fontWeight: 700, color: tText, cursor: sender.email ? 'pointer' : 'default' }}>
+              {sender.name}
+            </button>
+            {sender.email && showSenderEmail && <span style={{ fontSize: 12, color: tFaint }}>{sender.email}</span>}
           </div>
-          <p style={{ fontSize: 12, color: tFaint, margin: '2px 0 0' }}>to {toName} {'<'}{toEmail}{'>'}</p>
+          <p style={{ fontSize: 12, color: tFaint, margin: '2px 0 0' }}>to me</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
           <span style={{ fontSize: 12, color: tMuted, whiteSpace: 'nowrap' }}>{stamp.full}</span>
