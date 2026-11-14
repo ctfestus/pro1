@@ -106,7 +106,7 @@ export function WorkplaceTopBar({
               {filesNew && (
                 <span className="absolute inset-0 rounded-full animate-ping motion-reduce:animate-none" style={{ background: accentColor, opacity: 0.5 }} aria-hidden="true" />
               )}
-              <span className="relative min-w-[18px] h-[18px] px-1 rounded-full text-[10.5px] font-bold flex items-center justify-center tabular-nums"
+              <span className="relative min-w-[15px] h-[15px] px-[3px] rounded-full text-[9px] font-bold leading-none flex items-center justify-center tabular-nums"
                 style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{filesCount}</span>
             </span>
           )}
