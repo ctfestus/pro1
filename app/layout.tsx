@@ -1,7 +1,7 @@
 import type { CSSProperties } from 'react';
 import type { Metadata, Viewport } from 'next';
 /* eslint-disable @next/next/no-page-custom-font -- Google Sans Text and the admin-selected Google Font are not available through next/font. */
-import { Inter, Playfair_Display, JetBrains_Mono, Lato } from 'next/font/google';
+import { Inter, Playfair_Display, JetBrains_Mono, Lato, Space_Grotesk } from 'next/font/google';
 import { headers } from 'next/headers';
 import './globals.css';
 import ThemeProvider from '@/components/ThemeProvider';
@@ -21,6 +21,8 @@ const inter = Inter({ subsets: ['latin'], variable: '--font-sans' });
 const playfair = Playfair_Display({ subsets: ['latin'], variable: '--font-serif', preload: false });
 const jetbrainsMono = JetBrains_Mono({ subsets: ['latin'], variable: '--font-mono', preload: false });
 const lato = Lato({ subsets: ['latin'], weight: ['400', '700', '900'], variable: '--font-lato', preload: false });
+// Headings in the virtual experience player.
+const spaceGrotesk = Space_Grotesk({ subsets: ['latin'], weight: ['500', '600', '700'], variable: '--font-display', preload: false });
 
 function selectedFontFamily(fontName: string): string {
   const safeName = fontName.replace(/[;'"\\]/g, '').trim();
@@ -97,7 +99,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   } as CSSProperties;
 
   return (
-    <html lang="en" nonce={nonce} className={`${inter.variable} ${playfair.variable} ${jetbrainsMono.variable} ${lato.variable}`} suppressHydrationWarning>
+    <html lang="en" nonce={nonce} className={`${inter.variable} ${playfair.variable} ${jetbrainsMono.variable} ${lato.variable} ${spaceGrotesk.variable}`} suppressHydrationWarning>
       <head>
         {/* Google Sans Text is not exposed by next/font. The other links load only when selected in Site Settings. */}
         <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Google+Sans+Text:wght@400;500;700&display=swap" />
