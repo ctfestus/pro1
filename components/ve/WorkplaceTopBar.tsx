@@ -63,7 +63,6 @@ export function WorkplaceTopBar({
   const minute = useSyncExternalStore(subscribeMinute, currentMinute, () => null);
   const now = minute === null ? null : new Date(minute * 60000);
   const track = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.08)';
-  const iconBtn = `p-2 rounded-lg transition-colors flex-shrink-0 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-white'}`;
 
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-3 sm:px-5 py-2.5"
@@ -95,12 +94,14 @@ export function WorkplaceTopBar({
       {/* Right: saving, files (desktop), manager, progress */}
       <div className="flex items-center justify-end gap-1 sm:gap-1.5 flex-1">
         {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" style={{ color: muted }} />}
-        <button onClick={onOpenFiles} className={`hidden sm:inline-flex relative ${iconBtn}`} style={{ color: muted }}
-          title="Files" aria-label={`Files (${filesCount})`}>
-          <FolderOpen className="w-4 h-4" />
+        <button onClick={onOpenFiles}
+          className="hidden sm:inline-flex items-center gap-1.5 text-[12.5px] font-semibold px-3 py-1.5 rounded-full transition-opacity hover:opacity-80 flex-shrink-0"
+          style={{ background: isDark ? '#1e1e1e' : '#ffffff', color: text }}
+          title="Everything shared with you and everything you sent">
+          <FolderOpen className="w-3.5 h-3.5" style={{ color: muted }} /> Files
           {filesCount > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-bold flex items-center justify-center tabular-nums"
-              style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{filesCount}</span>
+            <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10.5px] font-bold flex items-center justify-center tabular-nums"
+              style={{ background: `${accentColor}1f`, color: accentColor }}>{filesCount}</span>
           )}
         </button>
         {onAsk && (
