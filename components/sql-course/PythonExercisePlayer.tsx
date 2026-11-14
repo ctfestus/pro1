@@ -21,6 +21,7 @@ import { python, pythonLanguage } from '@codemirror/lang-python';
 import { HighlightStyle, syntaxHighlighting } from '@codemirror/language';
 import { tags } from '@lezer/highlight';
 import { sanitizeRichText } from '@/lib/sanitize';
+import { SignInError } from '@/lib/fresh-session-fetch';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import {
   initPythonRuntime,
@@ -557,8 +558,8 @@ export default function PythonExercisePlayer({
       onComplete({ code, output: actualOutput, passed: check.passed, attempts, solutionViewed: solutionRevealed, feedback: check, proof: check.proof } as any);
     } catch (e: any) {
       setError(e?.message || 'Run failed.');
-      const attempts = failedAttempts + 1;
-      setFailedAttempts(attempts);
+      // A sign-in problem says nothing about the answer, so it is not a failed attempt.
+      if (!(e instanceof SignInError)) setFailedAttempts(failedAttempts + 1);
     } finally {
       setChecking(false);
       if (isMobile) setMobileTab('output');

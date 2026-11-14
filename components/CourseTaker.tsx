@@ -32,6 +32,8 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
 import { LessonTutorPanel, TutorSignalMark } from '@/components/lesson/LessonTutorPanel';
 import { supabase } from '@/lib/supabase';
+import { postWithFreshSession } from '@/lib/fresh-session-fetch';
+import { supabaseSession } from '@/lib/fresh-session-supabase';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
 import {
   DndContext,
@@ -846,6 +848,17 @@ export function CourseTaker({
     await runCourseChecks(studentEmail.trim().toLowerCase());
   }, [studentName, studentEmail, runCourseChecks]);
 
+  // Exercise checks and solutions are sent with the sign-in as it is now, not as the page last
+  // saw it: a token held in the ref can go stale (the tab sat in the background, or the server
+  // renewed the cookie session without this tab hearing of it), and the learner then gets a
+  // bare "Unauthorized" on Submit Answer.
+  const freshSession = useMemo(() => supabaseSession(
+    token => { sessionTokenRef.current = token; },
+    () => sessionTokenRef.current,
+  ), []);
+  const postCourse = useCallback(<T = any,>(body: Record<string, unknown>, fallbackError: string) =>
+    postWithFreshSession<T>('/api/course', body, fallbackError, freshSession), [freshSession]);
+
   // Keep sessionTokenRef in sync whenever Supabase refreshes the access token.
   // `signedIn` is the reactive mirror of it: a ref cannot gate rendering, and the tutor
   // button has to be hidden for a signed-out viewer because /api/lesson-tutor requires a
@@ -879,6 +892,9 @@ export function CourseTaker({
       if (document.visibilityState !== 'hidden') return;
       if (!formId || !studentEmail.trim() || reviewMode) return;
       const { answers, index, score, points, streak, hintsUsed } = progressRef.current;
+      // Sent with the token in the ref on purpose: a page being hidden may be going away, so
+      // this cannot wait on a session read. Every other save keeps the ref current, and
+      // anything this one misses is saved again by the next.
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (sessionTokenRef.current) headers['Authorization'] = `Bearer ${sessionTokenRef.current}`;
       fetch('/api/course', {
@@ -925,12 +941,10 @@ export function CourseTaker({
   ) => {
     if (!formId || !studentEmail.trim()) return;
     if (reviewMode) return; // review mode -- never write new attempts
-    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-    if (sessionTokenRef.current) headers['Authorization'] = `Bearer ${sessionTokenRef.current}`;
-    fetch('/api/course', {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
+    // Read the sign-in now rather than trusting the ref: this save reports nothing back, so a
+    // stale token would lose progress silently. It also keeps the ref current for the calls
+    // that still read it.
+    const body = JSON.stringify({
         action:                 'save-progress',
         course_id:              formId,
         student_email:          studentEmail.trim(),
@@ -941,9 +955,16 @@ export function CourseTaker({
         points:                 newPoints,
         streak:                 newStreak,
         hints_used:             [...newHintsUsed],
-      }),
-    }).catch(() => {});
-  }, [formId, studentEmail, studentName, reviewMode]);
+    });
+    freshSession.getToken()
+      .catch(() => {})
+      .then(() => {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (sessionTokenRef.current) headers['Authorization'] = `Bearer ${sessionTokenRef.current}`;
+        return fetch('/api/course', { method: 'POST', headers, body });
+      })
+      .catch(() => {});
+  }, [formId, studentEmail, studentName, reviewMode, freshSession]);
 
   /**
    * Claim a LinkedIn post for a share slide.
@@ -967,6 +988,8 @@ export function CourseTaker({
     // bonus a second time.
     const wasAlreadyClaimed = !!answersRef.current[q.id];
     try {
+      // Bring the ref up to date first; the token it holds may have gone stale.
+      await freshSession.getToken().catch(() => null);
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (sessionTokenRef.current) headers['Authorization'] = `Bearer ${sessionTokenRef.current}`;
       const res = await fetch('/api/course', {
@@ -1019,7 +1042,7 @@ export function CourseTaker({
       setShareSaving(null);
     }
   }, [shareDrafts, reviewMode, formId, config, saveProgress, accent,
-      currentQuestionIndex, score, totalPoints, streak, hintsUsed]);
+      currentQuestionIndex, score, totalPoints, streak, hintsUsed, freshSession]);
 
   /** Save the student's LinkedIn profile, then retry the claim it was blocking. */
   const saveProfileAndRetry = useCallback(async (q: any) => {
@@ -3408,32 +3431,14 @@ export function CourseTaker({
               sessionToken={sessionTokenRef.current ?? undefined}
               onComplete={handleSqlComplete}
               onCheckAnswer={async (questionId, query, result) => {
-                const res = await fetch('/api/course', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(sessionTokenRef.current ? { Authorization: `Bearer ${sessionTokenRef.current}` } : {}),
-                  },
-                  body: JSON.stringify({ action: 'check-sql-answer', course_id: formId, question_id: questionId, query, result }),
-                });
-                const d = await res.json();
-                if (!res.ok) throw new Error(d.error || 'Failed to check SQL answer.');
+                const d = await postCourse({ action: 'check-sql-answer', course_id: formId, question_id: questionId, query, result }, 'Failed to check SQL answer.');
                 return d;
               }}
               hintPenalty={pointsEnabled ? (ps?.hintPenalty ?? 20) : undefined}
               solutionPenalty={pointsEnabled ? (ps?.solutionPenalty ?? 30) : undefined}
               onHintUsed={() => setHintsUsed(prev => new Set(prev).add(currentQuestion.id))}
               onRevealSolution={async (questionId, attempts) => {
-                const res = await fetch('/api/course', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(sessionTokenRef.current ? { Authorization: `Bearer ${sessionTokenRef.current}` } : {}),
-                  },
-                  body: JSON.stringify({ action: 'get-sql-solution', course_id: formId, question_id: questionId, attempts }),
-                });
-                const d = await res.json();
-                if (!res.ok) throw new Error(d.error || 'Failed to load solution.');
+                const d = await postCourse({ action: 'get-sql-solution', course_id: formId, question_id: questionId, attempts }, 'Failed to load solution.');
                 return d.solution ?? '';
               }}
               onNext={handleNext}
@@ -3459,16 +3464,7 @@ export function CourseTaker({
               solutionPenalty={pointsEnabled ? (ps?.solutionPenalty ?? 30) : undefined}
               onHintUsed={() => setHintsUsed(prev => new Set(prev).add(currentQuestion.id))}
               onCheckAnswer={async (questionId, code, output) => {
-                const res = await fetch('/api/course', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(sessionTokenRef.current ? { Authorization: `Bearer ${sessionTokenRef.current}` } : {}),
-                  },
-                  body: JSON.stringify({ action: 'check-python-answer', course_id: formId, question_id: questionId, code, output }),
-                });
-                const d = await res.json();
-                if (!res.ok) throw new Error(d.error || 'Failed to check answer.');
+                const d = await postCourse({ action: 'check-python-answer', course_id: formId, question_id: questionId, code, output }, 'Failed to check answer.');
                 return {
                   passed: !!d.passed,
                   message: d.message || (d.passed ? 'Output matches.' : 'Output does not match the expected result.'),
@@ -3476,16 +3472,7 @@ export function CourseTaker({
                 };
               }}
               onRevealSolution={async (questionId, attempts) => {
-                const res = await fetch('/api/course', {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    ...(sessionTokenRef.current ? { Authorization: `Bearer ${sessionTokenRef.current}` } : {}),
-                  },
-                  body: JSON.stringify({ action: 'get-python-solution', course_id: formId, question_id: questionId, attempts }),
-                });
-                const d = await res.json();
-                if (!res.ok) throw new Error(d.error || 'Failed to load solution.');
+                const d = await postCourse({ action: 'get-python-solution', course_id: formId, question_id: questionId, attempts }, 'Failed to load solution.');
                 return d.solution ?? '';
               }}
               onNext={handleNext}

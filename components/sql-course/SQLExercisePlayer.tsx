@@ -33,6 +33,8 @@ import {
   STUDENT_RESULT_LIMIT,
 } from '@/lib/sql-engine';
 import { sanitizeRichText } from '@/lib/sanitize';
+import { postWithFreshSession, SignInError } from '@/lib/fresh-session-fetch';
+import { supabaseSession } from '@/lib/fresh-session-supabase';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { HtmlEmbedFrame } from '@/components/HtmlEmbedFrame';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
@@ -654,8 +656,8 @@ export default function SQLExercisePlayer({
       setFeedback(serverCheck.feedback);
       await onComplete({ query, result: out, passed: true, feedback: serverCheck.feedback, attempts, solutionViewed: solutionRevealed, proof: serverCheck.proof });
     } catch (e: any) {
-      const attempts = failedAttempts + 1;
-      setFailedAttempts(attempts);
+      // A sign-in problem says nothing about the answer, so it is not a failed attempt.
+      if (!(e instanceof SignInError)) setFailedAttempts(failedAttempts + 1);
       setError(e?.message || 'Query failed.');
     }
     finally {
@@ -708,24 +710,20 @@ export default function SQLExercisePlayer({
     setExplainLoading(true);
     setErrorExplain('');
     try {
-      const res = await fetch('/api/sql-ai', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {}),
-        },
-        body: JSON.stringify({
-          action: 'explain-error',
-          query,
-          error: errorText,
-          tables: tables.map(t => ({ tableName: t.tableName, columns: t.columns })),
-        }),
-      });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || `Server error ${res.status}`);
+      // Sent with the sign-in as it is now; the token in the prop is a snapshot from the last
+      // render and may have gone stale.
+      const d = await postWithFreshSession('/api/sql-ai', {
+        action: 'explain-error',
+        query,
+        error: errorText,
+        tables: tables.map(t => ({ tableName: t.tableName, columns: t.columns })),
+      }, 'The AI could not be reached. Please try again.', supabaseSession(undefined, () => sessionToken));
       setErrorExplain(d.explanation?.trim() || 'The AI did not return an explanation. Please try again.');
     } catch (err: any) {
-      setErrorExplain(`Could not explain this error: ${err?.message || 'unknown error'}`);
+      // The sign-in messages are worded for submitting an answer; this is not that.
+      setErrorExplain(err instanceof SignInError
+        ? 'Sign in to get an explanation of this error. If you are signed in, refresh the page and sign in again.'
+        : `Could not explain this error: ${err?.message || 'unknown error'}`);
     } finally {
       setExplainLoading(false);
     }
