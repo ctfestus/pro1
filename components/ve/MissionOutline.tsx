@@ -35,9 +35,10 @@ export function MissionOutline({ modules, isDark, text, muted, divider }: {
                     style={{ background: `${faint}26`, color: isDark ? '#c4c4c4' : '#4b5563' }}>
                     {les.number}
                   </span>
-                  {hasNext && <span aria-hidden="true" style={{ flex: 1, width: 0, minHeight: 10, marginTop: 4, borderLeft: `2px dashed ${faint}80` }} />}
+                  {/* Stops short of both circles, the same gap at each end. */}
+                  {hasNext && <span aria-hidden="true" style={{ flex: 1, width: 0, minHeight: 18, marginTop: 5, marginBottom: 5, borderLeft: `2px dashed ${faint}80` }} />}
                 </span>
-                <span className={`min-w-0 flex-1 pt-[3px] ${hasNext ? 'pb-4' : 'pb-1'}`} style={{ fontFamily: 'var(--font-display), sans-serif' }}>
+                <span className={`min-w-0 flex-1 pt-[3px] ${hasNext ? 'pb-6' : 'pb-1'}`} style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                   <span className="block text-[14px] font-semibold leading-snug" style={{ color: text }}>{les.title}</span>
                   {tasks > 0 && (
                     <span className="block text-[11.5px] mt-0.5" style={{ color: faint }}>{tasks === 1 ? '1 task' : `${tasks} tasks`}</span>
