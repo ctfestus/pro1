@@ -171,7 +171,7 @@ export function ChatTypingMsg({ isDark, author, meName }: {
 }
 
 export function ChatReaction({ isDark, accent, emoji, count, active, onClick, disabled }: {
-  isDark: boolean; accent: string; emoji: string; count?: number;
+  isDark: boolean; accent: string; emoji: React.ReactNode; count?: number;
   active?: boolean; onClick?: () => void; disabled?: boolean;
 }) {
   const p = chatPalette(isDark);
