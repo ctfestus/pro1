@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown,
-  X, Loader2, Trophy, BookOpen, Download, Award, Star, FileText,
+  X, Loader2, Trophy, BookOpen, Download, Award, Star,
   Link as LinkIcon, Eye, SkipForward, MessageSquare,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -18,13 +18,11 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
 import { safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
 import {
-  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workStamp, workplaceSoundOn, setWorkplaceSound,
+  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workplaceSoundOn, setWorkplaceSound, localDayTime,
 } from '@/components/ve/workplace';
 import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
 import { ProjectPlan } from '@/components/ve/ProjectPlan';
 import { MissionTodo, todoSource, jumpToRequirement, type TodoItem } from '@/components/ve/MissionTodo';
-import { lessonPlainText } from '@/lib/lesson-doc';
-import { toPlainText } from '@/lib/plain-text';
 import { channelFor } from '@/components/ve/ChatCard';
 import { RequirementItem } from '@/components/ve/requirements/RequirementItem';
 import type {
@@ -54,13 +52,6 @@ import { HtmlEmbedFrame } from '@/components/HtmlEmbedFrame';
 // assignment-completion route cannot disagree about what "done" means.
 function lessonProgress(lesson: Lesson, progress: Progress): number {
   return lessonCompletionPct(lesson, progress);
-}
-
-// Reading time of a mission's content at 200 words a minute, never less than a minute.
-function readMinutes(lesson: Lesson): number {
-  const text = lesson.doc ? lessonPlainText(lesson.doc, 200000) : toPlainText(lesson.body);
-  const words = text.split(/\s+/).filter(Boolean).length;
-  return Math.max(1, Math.round(words / 200));
 }
 
 function allLessons(modules: Module[]): { moduleId: string; lesson: Lesson }[] {
@@ -202,6 +193,10 @@ export default function VirtualExperienceTaker({
     setWorkplaceSound(!soundOn);
     setSoundOn(!soundOn);
   };
+  // When the learner opened this mission, by their own clock: the brief greets them with it.
+  // Taken once per mission so it does not tick.
+  const [missionOpenedAt, setMissionOpenedAt] = useState<Date | null>(null);
+  useEffect(() => { setMissionOpenedAt(new Date()); }, [currentLesId]);
   const saveTimeout  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const [typingDecisions, setTypingDecisions] = useState<Set<string>>(new Set());
@@ -295,17 +290,6 @@ export default function VirtualExperienceTaker({
   // Not while the mission content still hides the tasks behind "Continue to Tasks".
   const tasksHidden = !!currentLes && !!(currentLes.doc || currentLes.body) && currentLes.requirements.length > 0
     && !allCurrentDone && !continuedLessons.has(currentLes.id);
-  // The work clock shows the time of the newest message in this mission, taken from the same
-  // workStamp the messages use, so the clock and the message times always agree. Before the
-  // tasks show, it is the time the brief was shared (9:00 AM, as the brief says).
-  const clockSeq = Math.max(0, arrivedCount - 1);
-  const missionDay = Math.max(0, flatIdx);
-  const clockStamp = workStamp(missionDay, clockSeq, currentLes?.requirements[clockSeq]?.id);
-  const workClock = {
-    day: clockStamp.day, time: tasksHidden ? '9:00 AM' : clockStamp.time,
-    dayIdx: missionDay % 5, dayNumber: missionDay + 1,
-  };
-
   const askableBrief = reviewMode || tasksHidden ? undefined
     : (currentLes?.requirements || []).slice(0, arrivedCount).find(r => r.type === 'briefing');
 
@@ -819,7 +803,7 @@ export default function VirtualExperienceTaker({
         logoUrl={(isDark ? (logoDarkUrl || logoUrl) : logoUrl) || undefined}
         showMenu={!sidebarOpen} onOpenMenu={() => setSidebarOpen(true)}
         company={config.company}
-        clock={workClock} manager={manager}
+        manager={manager}
         onAsk={askableBrief ? () => {
           setAskOpen(new Set([askableBrief.id]));
           setAskSeen(prev => new Set([...prev, askableBrief.id]));
@@ -974,14 +958,10 @@ export default function VirtualExperienceTaker({
                 }}>
 
                 {/* A mission with content reads as a brief the manager shared: one line, never wrapping.
-                    Below wide screens the label shows as its icon; on narrow ones the job title is left out. */}
+                    On narrow screens the job title is left out. */}
                 {hasContent && (
                   <div className="flex flex-nowrap items-center gap-3 sm:gap-4 px-4 sm:px-8 py-3 whitespace-nowrap overflow-hidden"
                     style={{ background: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#EEF2F7'}` }}>
-                    <span className="inline-flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.1em] flex-shrink-0" style={{ color: muted }}
-                      title="Mission brief">
-                      <FileText className="w-3.5 h-3.5" /> <span className="hidden xl:inline">Mission brief</span>
-                    </span>
                     <span className="inline-flex items-center gap-2 text-[12.5px] min-w-0 flex-1" style={{ color: muted }}>
                       <PersonAvatar {...manager} size={22} isDark={isDark} />
                       <span className="truncate">
@@ -990,7 +970,7 @@ export default function VirtualExperienceTaker({
                       </span>
                     </span>
                     <span className="flex-shrink-0 text-[12px] tabular-nums" style={{ color: muted }}>
-                      {workClock.day} 9:00 AM &middot; {readMinutes(currentLes)} min read
+                      {missionOpenedAt ? localDayTime(missionOpenedAt) : ''}
                     </span>
                   </div>
                 )}
