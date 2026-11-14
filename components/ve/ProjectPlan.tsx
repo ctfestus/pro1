@@ -58,7 +58,12 @@ export function ProjectPlan({
       <div className="flex items-start px-4 pt-4 pb-2 flex-shrink-0">
         <div className="min-w-0 flex-1">
           {role && <p className="text-[10.5px] font-bold uppercase tracking-[0.12em] truncate" style={{ color: faint }}>{role}</p>}
-          <h2 className="text-[17px] font-semibold leading-snug pt-0.5" style={{ color: text, fontFamily: 'var(--font-display), sans-serif' }}>
+          <h2 className="flex items-center gap-2 text-[17px] font-semibold leading-snug pt-0.5" style={{ color: text, fontFamily: 'var(--font-display), sans-serif' }}>
+            {/* Live dot: the experience is running. Holds still under reduced motion. */}
+            <span className="relative flex h-2 w-2 flex-shrink-0" aria-hidden="true">
+              <span className="absolute inline-flex h-full w-full rounded-full opacity-60 animate-ping motion-reduce:animate-none" style={{ background: accentColor }} />
+              <span className="relative inline-flex h-2 w-2 rounded-full" style={{ background: accentColor }} />
+            </span>
             {heading}
           </h2>
         </div>
