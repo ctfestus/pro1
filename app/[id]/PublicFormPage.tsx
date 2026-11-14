@@ -1569,6 +1569,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       subtle:    isLight ? '#F6F8FB' : '#242424',
     };
     const displayFont = 'var(--font-display), sans-serif';
+    // A soft lift off the page. Shadows barely show on dark, so there a faint outline does the job.
+    const cardShadow = isLight ? '0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06)' : '0 0 0 1px rgba(255,255,255,0.06)';
     const managerName = (config as any).managerName || 'Your manager';
     const managerInitials = managerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
     const dataset = (config as any).dataset;
@@ -1667,7 +1669,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
             {/* The brief (VE only): who it is from, then what it says. */}
             {!isShortCourse && config.background && (
-              <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden' }}>
+              <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden', boxShadow: cardShadow }}>
                 <div style={{ padding: '12px 22px', background: gp.subtle, display: 'flex', alignItems: 'center', gap: 10 }}>
                   {guide
                     ? <GuideAvatar guide={guide} size={26} accent={indColor} />
@@ -1685,7 +1687,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             {/* What you'll learn. Blank rows are filtered, not just counted: the editor saves an
                 unfilled outcome as an empty string, which rendered as a tick with no text. */}
             {veOutcomes.length > 0 && (
-              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px' }}>
+              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
                 <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 14, fontFamily: displayFont }}>What you&apos;ll learn</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '10px 20px' }}>
                   {veOutcomes.map((o: string, i: number) => (
@@ -1704,9 +1706,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
             {/* The missions, drawn the way the player's mission list draws them */}
             {modules.length > 0 && (
-              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px' }}>
+              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
                 <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>Missions</h2>
-                <MissionOutline modules={modules} isDark={!isLight} text={gp.title} muted={gp.muted} />
+                <MissionOutline modules={modules} isDark={!isLight} text={gp.title} muted={gp.muted} divider={gp.divider} />
               </div>
             )}
           </div>
@@ -1715,7 +1717,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Enrollment card */}
-            <div style={{ background: gp.card, borderRadius: 14, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+            <div style={{ background: gp.card, borderRadius: 14, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: cardShadow }}>
               {/* Tools */}
               {config.tools?.length > 0 && (
                 <div>
@@ -1782,7 +1784,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
             {/* Guide profile (VE only) -- the real professional playing the manager, with
                 their actual title, employer and LinkedIn. */}
-            {guide && <GuideCard guide={guide} theme={guideTheme} />}
+            {guide && <div style={{ borderRadius: 14, boxShadow: cardShadow }}><GuideCard guide={guide} theme={guideTheme} /></div>}
           </div>
         </div>
 

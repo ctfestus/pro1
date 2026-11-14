@@ -5,11 +5,13 @@
  * numbered markers, a dashed line between missions) so a learner recognises it once inside.
  * Read-only. A locked preview carries titles only, so every field past the title is optional.
  */
-export function MissionOutline({ modules, isDark, text, muted }: {
+export function MissionOutline({ modules, isDark, text, muted, divider }: {
   modules: Array<{ id: string; title?: string; lessons?: Array<{ id: string; title?: string; requirements?: unknown[] }> }>;
   isDark: boolean;
   text: string;
   muted: string;
+  /** Hairline between weeks. */
+  divider: string;
 }) {
   const faint = isDark ? '#6b6b6b' : '#8a929e';
   let n = 0;
@@ -19,10 +21,10 @@ export function MissionOutline({ modules, isDark, text, muted }: {
   }));
 
   return (
-    <div className="flex flex-col gap-4">
-      {numbered.map(mod => (
-        <div key={mod.id}>
-          <p className="text-[12px] font-bold truncate mb-1.5" style={{ color: muted }}>{mod.title}</p>
+    <div className="flex flex-col">
+      {numbered.map((mod, mi) => (
+        <div key={mod.id} style={mi ? { borderTop: `1px solid ${divider}`, marginTop: 14, paddingTop: 16 } : undefined}>
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.1em] truncate mb-2.5" style={{ color: muted }}>{mod.title}</p>
           {mod.lessons.map((les, li) => {
             const tasks = les.requirements?.length || 0;
             const hasNext = li < mod.lessons.length - 1;
