@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { Resend } from 'resend';
 import { requireUser, isAuthError } from '@/lib/api-auth';
@@ -571,8 +571,10 @@ export async function POST(req: NextRequest) {
     });
     if (error) throw error;
 
+    // after() keeps the acknowledgement and admin notice alive past the response; a bare
+    // fire-and-forget promise is dropped when the serverless function freezes.
     if (process.env.RESEND_API_KEY) {
-      void (async () => {
+      after(async () => {
         try {
           const [{ data: student }, { data: request }, settings] = await Promise.all([
             db.from('students').select('full_name').eq('id', session.id).maybeSingle(),
@@ -587,12 +589,16 @@ export async function POST(req: NextRequest) {
           const fallbackSubject = 'We received your subscription payment confirmation';
           const fallbackHtml = paymentConfirmationAcknowledgedEmail({ name, amount, currency, dashboardUrl, branding });
           const learnerEmail = await applyEmailTemplate({ key: 'payment_confirmation_received', fallbackSubject, fallbackHtml, variables: { student_name: name, amount: Number(amount).toFixed(2), currency }, branding });
-          await resend.batch.send([
+          const { error: sendErr } = await resend.batch.send([
             { from, to: session.email, subject: learnerEmail.subject, html: learnerEmail.html },
             { from, to: settings.supportEmail || process.env.RESEND_FROM_EMAIL || from, subject: `New subscription payment confirmation from ${name}`, html: adminPaymentConfirmationEmail({ studentName: name, studentEmail: session.email, amount, currency, adminUrl: `${settings.appUrl}/dashboard#subscriptions`, branding }) },
           ]);
-        } catch { /* Notification failures do not roll back the submitted confirmation. */ }
-      })();
+          if (sendErr) console.error('[student-subscriptions/submit-confirmation] notification email failed', sendErr);
+        } catch (notifyErr) {
+          // Notification failures do not roll back the submitted confirmation.
+          console.error('[student-subscriptions/submit-confirmation] notification email failed', notifyErr);
+        }
+      });
     }
     return NextResponse.json(data);
   } catch (err: any) {

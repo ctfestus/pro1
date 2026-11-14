@@ -285,7 +285,16 @@ export function StudentPaymentsSection({ userId, C, readOnly = false }: { userId
       setMessage('Payment confirmation submitted. We will notify you after review.');
       setForm({ paidAt: new Date().toISOString().slice(0, 10), method: '', reference: '', notes: '', receiptUrl: '' });
       await load(); goToTab('history');
-    } catch (err: any) { setMessage(err.message); } finally { setBusy(false); }
+    } catch (err: any) {
+      // A TypeError from fetch is a dropped connection (the browser's "Failed to fetch").
+      // The confirmation may have been saved, so reload to show it if it was.
+      if (err instanceof TypeError) {
+        setMessage('We could not reach the server. Check your connection, then check your payment history to see if your confirmation was received before submitting again.');
+        load().catch(() => {});
+      } else {
+        setMessage(err.message);
+      }
+    } finally { setBusy(false); }
   }
 
   async function startPaystackCheckout() {
