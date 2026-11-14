@@ -1,8 +1,8 @@
 'use client';
 
-import { Check, Download, Lock, X } from 'lucide-react';
+import { Check, Lock, X } from 'lucide-react';
 import { lessonCompletionPct } from '@/lib/ve-completion';
-import type { Dataset, Module, Progress } from '@/components/ve/requirements/types';
+import type { Module, Progress } from '@/components/ve/requirements/types';
 
 type Status = 'done' | 'progress' | 'ready' | 'locked';
 
@@ -29,7 +29,7 @@ function StatusMarker({ status, number, accentColor, faint, isDark }: {
  */
 export function ProjectPlan({
   isDark, accentColor, text, muted, border, role, heading, modules, progress, currentLesId, isUnlocked, onOpen,
-  dataset, onDownloadDataset, onCollapse,
+  onCollapse,
 }: {
   isDark: boolean;
   accentColor: string;
@@ -45,8 +45,6 @@ export function ProjectPlan({
   /** Same rule the player uses, by position in the flattened mission list. */
   isUnlocked: (flatIdx: number) => boolean;
   onOpen: (moduleId: string, lessonId: string, flatIdx: number) => void;
-  dataset?: Dataset;
-  onDownloadDataset: () => void;
   onCollapse: () => void;
 }) {
   const faint = isDark ? '#6b6b6b' : '#8a929e';
@@ -139,17 +137,6 @@ export function ProjectPlan({
         })}
       </nav>
 
-      {dataset && (
-        <div className="px-3 py-3 border-t flex-shrink-0" style={{ borderColor: border }}>
-          <button onClick={onDownloadDataset}
-            className="w-full flex items-center gap-2 text-xs font-semibold py-2 px-3 rounded-xl transition-all hover:opacity-80"
-            style={{ background: `${accentColor}18`, color: accentColor }}>
-            <Download className="w-3.5 h-3.5" />
-            <span className="truncate">{dataset.filename || 'Download file'}</span>
-          </button>
-          {dataset.description && <p className="text-[11px] mt-1.5 px-1" style={{ color: muted }}>{dataset.description}</p>}
-        </div>
-      )}
     </>
   );
 }

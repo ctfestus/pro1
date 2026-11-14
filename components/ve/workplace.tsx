@@ -104,17 +104,7 @@ export function fileSizeFor(name: string): string {
   return `${kb} KB`;
 }
 
-// -- sounds (all soft, all optional) ------------------------------------------
-
-// The learner's sound switch, kept per browser. Read on every play so turning it off also stops
-// typing that is already under way. Unreadable storage means the default: on.
-const SOUND_KEY = 've-sound';
-export function workplaceSoundOn(): boolean {
-  try { return localStorage.getItem(SOUND_KEY) !== 'off'; } catch { return true; }
-}
-export function setWorkplaceSound(on: boolean) {
-  try { localStorage.setItem(SOUND_KEY, on ? 'on' : 'off'); } catch { /* this visit only */ }
-}
+// -- sounds (all soft; the device volume decides how loud) -------------------
 
 function audioCtx(): AudioContext | null {
   try {
@@ -125,7 +115,6 @@ function audioCtx(): AudioContext | null {
 
 // Soft two-tone "new message" chime.
 export function playArrivalChime() {
-  if (!workplaceSoundOn()) return;
   const ctx = audioCtx();
   if (!ctx) return;
   try {
@@ -147,7 +136,6 @@ export function playArrivalChime() {
 }
 
 function playTypingClick() {
-  if (!workplaceSoundOn()) return;
   const ctx = audioCtx();
   if (!ctx) return;
   try {
