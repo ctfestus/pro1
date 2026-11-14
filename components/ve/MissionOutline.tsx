@@ -22,12 +22,7 @@ export function MissionOutline({ modules, isDark, text, muted }: {
     <div className="flex flex-col gap-4">
       {numbered.map(mod => (
         <div key={mod.id}>
-          <div className="flex items-baseline justify-between gap-2 mb-1.5">
-            <span className="text-[12px] font-bold truncate" style={{ color: muted }}>{mod.title}</span>
-            <span className="text-[11px] tabular-nums flex-shrink-0" style={{ color: faint }}>
-              {mod.lessons.length} {mod.lessons.length === 1 ? 'mission' : 'missions'}
-            </span>
-          </div>
+          <p className="text-[12px] font-bold truncate mb-1.5" style={{ color: muted }}>{mod.title}</p>
           {mod.lessons.map((les, li) => {
             const tasks = les.requirements?.length || 0;
             const hasNext = li < mod.lessons.length - 1;
