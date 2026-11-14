@@ -36,12 +36,12 @@ function ProgressRing({ pct, accent, track, text }: { pct: number; accent: strin
 }
 
 /**
- * The player's top bar, read as a work status bar: where you work and as what, the simulated
+ * The player's top bar, read as a work status bar: where you work, the simulated
  * work clock, your manager, the sound switch and how far the project is.
  */
 export function WorkplaceTopBar({
   isDark, accentColor, text, muted, logoUrl, showMenu, onOpenMenu,
-  company, role, clock, manager, onAsk, soundOn, onToggleSound, pct, saving, onDownloadDataset, datasetName,
+  company, clock, manager, onAsk, soundOn, onToggleSound, pct, saving, onDownloadDataset, datasetName,
 }: {
   isDark: boolean;
   accentColor: string;
@@ -52,7 +52,6 @@ export function WorkplaceTopBar({
   showMenu: boolean;
   onOpenMenu: () => void;
   company?: string;
-  role?: string;
   /** Simulated time of the newest message in this mission; dayIdx is the mission's day in the week. */
   clock: { day: string; time: string; dayIdx: number; dayNumber: number };
   manager: Person;
@@ -72,7 +71,7 @@ export function WorkplaceTopBar({
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-3 sm:px-5 py-2.5"
       style={{ background: isDark ? '#141414' : '#F2F5FA', minHeight: 56 }}>
-      {/* Left: menu (phone), platform logo, then the company and your role */}
+      {/* Left: menu (phone), platform logo, then the company */}
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
         {showMenu && (
           <button onClick={onOpenMenu} className={`sm:hidden ${iconBtn}`} style={{ color: muted }}
@@ -89,12 +88,6 @@ export function WorkplaceTopBar({
           <div className="flex items-center gap-2.5 min-w-0">
             {logoUrl && <span className="hidden sm:block flex-shrink-0" style={{ width: 1, height: 18, background: track }} aria-hidden="true" />}
             <span className="text-[14px] font-bold truncate" style={{ color: text }}>{company}</span>
-            {role && (
-              <span className="hidden md:inline-block text-[11.5px] font-semibold px-2.5 py-1 rounded-full truncate max-w-[220px]"
-                style={{ background: surface, color: muted }}>
-                {role}
-              </span>
-            )}
           </div>
         )}
       </div>
