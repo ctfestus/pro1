@@ -18,11 +18,12 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
 import { safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
 import {
-  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workplaceSoundOn, setWorkplaceSound, localDayTime,
+  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workplaceSoundOn, setWorkplaceSound, localDayTime, firstNameOf,
 } from '@/components/ve/workplace';
 import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
 import { ProjectPlan } from '@/components/ve/ProjectPlan';
 import { MissionTodo, todoSource, jumpToRequirement, type TodoItem } from '@/components/ve/MissionTodo';
+import { MissionSignOff, WelcomeBack } from '@/components/ve/MissionSignOff';
 import { channelFor } from '@/components/ve/ChatCard';
 import { RequirementItem } from '@/components/ve/requirements/RequirementItem';
 import type {
@@ -193,6 +194,10 @@ export default function VirtualExperienceTaker({
     setWorkplaceSound(!soundOn);
     setSoundOn(!soundOn);
   };
+  // Coming back to an unfinished experience: say where they stopped, once, on the mission they
+  // land on. Not in preview, where nothing was saved to come back to.
+  const [welcomeLesson, setWelcomeLesson] = useState<string | null>(() =>
+    !previewMode && Object.values(initialProgress).some(p => p?.completed) ? startLesson : null);
   // When the learner opened this mission, by their own clock: the brief greets them with it.
   // Taken once per mission so it does not tick.
   const [missionOpenedAt, setMissionOpenedAt] = useState<Date | null>(null);
@@ -241,7 +246,6 @@ export default function VirtualExperienceTaker({
 
   const currentLesPct  = currentLes ? lessonProgress(currentLes, progress) : 0;
   const allCurrentDone = currentLesPct === 100;
-  const remainingCount = currentLes ? currentLes.requirements.filter(r => !progress[r.id]?.completed).length : 0;
   const canPersistProgress = !previewMode && !reviewMode && !!formId && formId !== 'preview' && !!userId && userId !== 'preview';
 
   /**
@@ -302,6 +306,12 @@ export default function VirtualExperienceTaker({
   const todoPending = !showTodo ? 0 : currentLes!.requirements.slice(arrivedCount)
     .filter(r => reqCountsForCompletion(r, progress)).length;
   const jumpTo = (reqId: string) => jumpToRequirement(reqId, accentColor);
+
+  // What this mission still owes (the same rule the to-do list uses), and whether every reply has
+  // finished arriving, so the manager signs off only once the conversation is over.
+  const missionLeft = currentLes ? currentLes.requirements.filter(reqOwesWork).length : 0;
+  const missionSettled = !currentLes || currentLes.requirements.every(reqSettled);
+  const nextMission = hasNext ? flat[flatIdx + 1]?.lesson : undefined;
 
   const skipReqInPreview = (reqId: string) => {
     if (!previewMode) return;
@@ -924,6 +934,10 @@ export default function VirtualExperienceTaker({
                 accentColor={accentColor} text={text} muted={muted} onJump={jumpTo} />
             </div>
           )}
+          {currentLes && welcomeLesson === currentLesId && !reviewMode && (
+            <WelcomeBack studentName={studentName} missionTitle={currentLes.title} left={missionLeft}
+              isDark={isDark} accentColor={accentColor} text={text} muted={muted} onClose={() => setWelcomeLesson(null)} />
+          )}
           {!currentLes && modules.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <BookOpen className="w-10 h-10 mb-3 opacity-20" style={{ color: muted }} />
@@ -1106,6 +1120,13 @@ export default function VirtualExperienceTaker({
                   </>
                 )}
 
+                {/* The manager closes a finished mission and points to the next one. */}
+                {!reviewMode && !showGateButton && allCurrentDone && missionSettled && (
+                  <MissionSignOff manager={manager} studentName={studentName} isDark={isDark} accentColor={accentColor} text={text}
+                    nextTitle={nextMission?.title} onNext={goNext}
+                    canFinish={canComplete} finishing={saving} onFinish={handleComplete} />
+                )}
+
               </div>{/* end unified card */}
 
               {/* Module solution: video or file link, shown when all lessons in module are complete */}
@@ -1159,13 +1180,14 @@ export default function VirtualExperienceTaker({
                 );
               })()}
 
-              {/* Navigation */}
-              {!reviewMode && !allCurrentDone && hasNext && (
+              {/* Navigation: what is left, then a quiet way back. Moving on happens in the manager's
+                  sign-off; review and preview, which move freely, also get a way forward. */}
+              {!reviewMode && !allCurrentDone && missionLeft > 0 && (
                 <div className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl"
                   style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}30` }}>
                   <Circle className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accentColor }} />
                   <p className="text-[12.5px] font-semibold" style={{ color: accentColor }}>
-                    {remainingCount === 1 ? '1 item remaining.' : `${remainingCount} items remaining.`} Complete {remainingCount === 1 ? 'it' : 'them'} to move forward.
+                    {missionLeft === 1 ? '1 thing left' : `${missionLeft} things left`} before {firstNameOf(manager.name)} can sign this off.
                   </p>
                 </div>
               )}
@@ -1175,46 +1197,26 @@ export default function VirtualExperienceTaker({
                   <p className="text-[12.5px] font-semibold" style={{ color: '#f59e0b' }}>{saveError}</p>
                 </div>
               )}
-              <div className="flex items-center justify-between pt-2 pb-16 gap-2">
-                <button onClick={goPrev} disabled={!hasPrev}
-                  className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-medium border transition-all hover:opacity-70 disabled:opacity-30 flex-shrink-0"
-                  style={{ border: `1px solid ${border}`, color: muted, background: surface }}>
-                  <ChevronLeft className="w-4 h-4" /> <span className="hidden xs:inline">Previous</span>
-                </button>
-
-                <div className="hidden sm:flex items-center gap-2">
-                  {flat.slice(Math.max(0, flatIdx - 2), flatIdx + 3).map((f) => {
-                    const isCurr = f.lesson.id === currentLesId;
-                    const pct    = lessonProgress(f.lesson, progress);
-                    return (
-                      <div key={f.lesson.id} className="rounded-full transition-all"
-                        style={{
-                          width: isCurr ? 24 : 8, height: 8,
-                          background: isCurr ? accentColor : pct === 100 ? `${accentColor}80` : border,
-                        }} />
-                    );
-                  })}
-                </div>
-
-                {hasNext ? (
-                  <button onClick={goNext} disabled={!navUnlocked && !allCurrentDone}
-                    title={!navUnlocked && !allCurrentDone ? 'Complete all tasks to continue' : ''}
-                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-40 disabled:cursor-not-allowed flex-shrink-0"
-                    style={{ background: navUnlocked || allCurrentDone ? accentColor : border, color: navUnlocked || allCurrentDone ? (isDark ? '#111' : '#fff') : muted }}>
-                    <span className="hidden xs:inline">Next</span> <ChevronRight className="w-4 h-4" />
+              <div className="flex items-center justify-between pt-1 pb-16 gap-2">
+                {hasPrev ? (
+                  <button onClick={goPrev}
+                    className="inline-flex items-center gap-1 px-1 py-1.5 text-[12.5px] font-medium transition-opacity hover:opacity-70"
+                    style={{ color: muted }}>
+                    <ChevronLeft className="w-4 h-4" /> Previous mission
                   </button>
-                ) : reviewMode ? (
+                ) : <span />}
+                {navUnlocked && hasNext && (
+                  <button onClick={goNext}
+                    className="inline-flex items-center gap-1 px-1 py-1.5 text-[12.5px] font-medium transition-opacity hover:opacity-70"
+                    style={{ color: muted }}>
+                    Next mission <ChevronRight className="w-4 h-4" />
+                  </button>
+                )}
+                {reviewMode && !hasNext && (
                   <button onClick={() => setReviewMode(false)}
-                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all hover:opacity-80 flex-shrink-0"
-                    style={{ background: `${accentColor}18`, color: accentColor }}>
-                    <Trophy className="w-4 h-4" /> <span className="hidden xs:inline">Summary</span>
-                  </button>
-                ) : (
-                  <button onClick={handleComplete} disabled={saving || !canComplete}
-                    className="flex items-center gap-1.5 px-3 sm:px-5 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold transition-all hover:opacity-80 flex-shrink-0"
-                    style={{ background: canComplete ? accentColor : border, color: canComplete ? (isDark ? '#111' : '#fff') : muted }}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trophy className="w-4 h-4" />}
-                    <span className="hidden xs:inline">Complete</span>
+                    className="inline-flex items-center gap-1.5 px-1 py-1.5 text-[12.5px] font-semibold transition-opacity hover:opacity-70"
+                    style={{ color: accentColor }}>
+                    <Trophy className="w-4 h-4" /> Back to summary
                   </button>
                 )}
               </div>
