@@ -2,31 +2,34 @@
 
 import { Check, Download, Lock, X } from 'lucide-react';
 import { lessonCompletionPct } from '@/lib/ve-completion';
-import { initialsOf, type Person } from '@/components/ve/workplace';
 import type { Dataset, Module, Progress } from '@/components/ve/requirements/types';
 
 type Status = 'done' | 'progress' | 'ready' | 'locked';
 
-function ManagerDot({ manager, size, faded }: { manager: Person; size: number; faded: boolean }) {
-  const style = { width: size, height: size, opacity: faded ? 0.45 : 1 };
-  if (manager.avatarUrl) {
-    return <img src={manager.avatarUrl} alt="" className="rounded-full object-cover flex-shrink-0" style={style} />;
+/** The mission's state at a glance: a tick when done, its number while open, a lock when locked. */
+function StatusMarker({ status, number, accentColor, faint, isDark }: {
+  status: Status; number: number; accentColor: string; faint: string; isDark: boolean;
+}) {
+  const base = 'w-[26px] h-[26px] rounded-full flex items-center justify-center flex-shrink-0 text-[11.5px] font-bold tabular-nums';
+  if (status === 'done') {
+    return <span className={base} style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}><Check className="w-3.5 h-3.5" strokeWidth={3} /></span>;
   }
-  return (
-    <span className="rounded-full flex items-center justify-center flex-shrink-0 font-bold text-white"
-      style={{ ...style, background: manager.color, fontSize: Math.round(size * 0.36) }}>
-      {initialsOf(manager.name)}
-    </span>
-  );
+  if (status === 'locked') {
+    return <span className={base} style={{ border: `1.5px solid ${faint}55`, color: faint }}><Lock className="w-3 h-3" /></span>;
+  }
+  if (status === 'progress') {
+    return <span className={base} style={{ border: `2px solid ${accentColor}`, color: accentColor, background: `${accentColor}14` }}>{number}</span>;
+  }
+  return <span className={base} style={{ border: `1.5px solid ${faint}`, color: faint }}>{number}</span>;
 }
 
 /**
- * The mission list: missions grouped under their modules, each with who
- * it comes from and a plain status. Locked missions say what unlocks them.
+ * The mission list: missions grouped under their modules, each with a status marker and a plain
+ * status line. Locked missions say what unlocks them.
  */
 export function ProjectPlan({
   isDark, accentColor, text, muted, border, role, heading, modules, progress, currentLesId, isUnlocked, onOpen,
-  manager, dataset, onDownloadDataset, onCollapse,
+  dataset, onDownloadDataset, onCollapse,
 }: {
   isDark: boolean;
   accentColor: string;
@@ -42,7 +45,6 @@ export function ProjectPlan({
   /** Same rule the player uses, by position in the flattened mission list. */
   isUnlocked: (flatIdx: number) => boolean;
   onOpen: (moduleId: string, lessonId: string, flatIdx: number) => void;
-  manager: Person;
   dataset?: Dataset;
   onDownloadDataset: () => void;
   onCollapse: () => void;
@@ -102,7 +104,7 @@ export function ProjectPlan({
                     aria-current={isCurr ? 'step' : undefined}
                     className="w-full flex items-center gap-2.5 text-left px-2 py-2 rounded-xl transition-colors disabled:cursor-not-allowed"
                     style={{ background: isCurr ? `${accentColor}14` : 'transparent' }}>
-                    <ManagerDot manager={manager} size={26} faded={locked} />
+                    <StatusMarker status={status} number={idx + 1} accentColor={accentColor} faint={faint} isDark={isDark} />
                     <span className="flex-1 min-w-0">
                       <span className="block text-[13px] font-semibold leading-snug truncate"
                         style={{ color: isCurr ? accentColor : locked ? faint : text }}>
@@ -110,14 +112,11 @@ export function ProjectPlan({
                       </span>
                       <span className="flex items-center gap-1 text-[11px] mt-px min-w-0"
                         style={{ color: status === 'done' ? accentColor : status === 'progress' ? text : faint, fontWeight: status === 'progress' ? 600 : 400 }}>
-                        {status === 'done' && <><Check className="w-3 h-3 flex-shrink-0" strokeWidth={3} /> Done</>}
+                        {status === 'done' && 'Done'}
                         {status === 'progress' && 'In progress'}
                         {status === 'ready' && 'Ready to start'}
                         {status === 'locked' && (
-                          <>
-                            <Lock className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{unlocksAfter ? `Finish "${unlocksAfter}" first` : 'Locked'}</span>
-                          </>
+                          <span className="truncate">{unlocksAfter ? `Finish "${unlocksAfter}" first` : 'Locked'}</span>
                         )}
                       </span>
                     </span>

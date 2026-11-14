@@ -825,7 +825,7 @@ export default function VirtualExperienceTaker({
           <ProjectPlan
             isDark={isDark} accentColor={accentColor} text={text} muted={muted} border={border}
             role={config.role} heading={shortCourse ? 'Course' : 'Virtual Experience'} modules={modules} progress={progress} currentLesId={currentLesId}
-            isUnlocked={isUnlocked} onOpen={navigate} manager={manager}
+            isUnlocked={isUnlocked} onOpen={navigate}
             dataset={config.dataset} onDownloadDataset={downloadDataset}
             onCollapse={() => setSidebarOpen(false)} />
         ) : (

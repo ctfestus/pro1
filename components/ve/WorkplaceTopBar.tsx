@@ -68,7 +68,6 @@ export function WorkplaceTopBar({
   const surface = isDark ? '#1e1e1e' : '#ffffff';
   const track = isDark ? 'rgba(255,255,255,0.1)' : 'rgba(15,23,42,0.08)';
   const iconBtn = `p-2 rounded-lg transition-colors flex-shrink-0 ${isDark ? 'hover:bg-zinc-800' : 'hover:bg-white'}`;
-  const companyInitials = (company || '').split(/\s+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-3 sm:px-5 py-2.5"
@@ -88,10 +87,7 @@ export function WorkplaceTopBar({
         )}
         {company && (
           <div className="flex items-center gap-2.5 min-w-0">
-            <span className="flex items-center justify-center flex-shrink-0 rounded-[9px] text-[12px] font-bold"
-              style={{ width: 30, height: 30, background: text, color: isDark ? '#141414' : '#ffffff', fontFamily: 'var(--font-display), sans-serif' }}>
-              {companyInitials}
-            </span>
+            {logoUrl && <span className="hidden sm:block flex-shrink-0" style={{ width: 1, height: 18, background: track }} aria-hidden="true" />}
             <span className="text-[14px] font-bold truncate" style={{ color: text }}>{company}</span>
             {role && (
               <span className="hidden md:inline-block text-[11.5px] font-semibold px-2.5 py-1 rounded-full truncate max-w-[220px]"
