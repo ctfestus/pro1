@@ -6,13 +6,15 @@ export type PhoneTab = 'work' | 'missions' | 'files' | 'ask';
 
 /** Phone only: the player's sections at the bottom of the screen, like a work phone. Sits above the
  * Files drawer and the mission list so the learner can switch straight between them. */
-export function PhoneTabBar({ active, onSelect, askLabel, canAsk, isDark, accentColor, muted }: {
+export function PhoneTabBar({ active, onSelect, askLabel, canAsk, filesNew, isDark, accentColor, muted }: {
   active: PhoneTab;
   onSelect: (tab: PhoneTab) => void;
   /** "Ask Kofi" */
   askLabel: string;
   /** The ask chat needs a brief that has arrived; until then the tab is shown but disabled. */
   canAsk: boolean;
+  /** New files since Files was last opened: a pulsing dot on the tab. */
+  filesNew: boolean;
   isDark: boolean;
   accentColor: string;
   muted: string;
@@ -36,7 +38,15 @@ export function PhoneTabBar({ active, onSelect, askLabel, canAsk, isDark, accent
           <button key={id} onClick={() => onSelect(id)} disabled={disabled} aria-current={on ? 'page' : undefined}
             className="flex flex-col items-center gap-0.5 pt-2 pb-1 text-[11px] font-semibold disabled:opacity-40 truncate"
             style={{ color: on ? accentColor : muted }}>
-            <Icon className="w-5 h-5" />
+            <span className="relative">
+              <Icon className="w-5 h-5" />
+              {id === 'files' && filesNew && (
+                <span className="absolute -top-0.5 -right-1 flex h-2.5 w-2.5" aria-label="New files">
+                  <span className="absolute inline-flex h-full w-full rounded-full animate-ping motion-reduce:animate-none" style={{ background: accentColor, opacity: 0.6 }} />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
+                </span>
+              )}
+            </span>
             <span className="truncate max-w-full px-1">{label}</span>
           </button>
         );

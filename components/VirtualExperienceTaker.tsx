@@ -189,6 +189,8 @@ export default function VirtualExperienceTaker({
   const entitlement = useAiReviewEntitlement('veAnswers');
   const [saveError,    setSaveError]    = useState<string | null>(null);
   const [filesOpen, setFilesOpen] = useState(false);
+  // How many files there were when the learner last opened Files; more than that means new ones.
+  const [filesSeen, setFilesSeen] = useState(0);
   // Coming back to an unfinished experience: say where they stopped, once, on the mission they
   // land on. Not in preview, where nothing was saved to come back to.
   const [welcomeLesson, setWelcomeLesson] = useState<string | null>(() =>
@@ -347,6 +349,10 @@ export default function VirtualExperienceTaker({
     }
   });
 
+  const filesTotal = sharedFiles.length + sentFiles.length;
+  const filesNew = !filesOpen && filesTotal > filesSeen;
+  const openFiles = () => { setFilesOpen(true); setFilesSeen(filesTotal); };
+
   // Phone tab bar: which section is showing, and what each tab does.
   const askOpenNow = askOpen.size > 0;
   const phoneTab: PhoneTab = filesOpen ? 'files' : askOpenNow ? 'ask' : sidebarOpen ? 'missions' : 'work';
@@ -356,7 +362,7 @@ export default function VirtualExperienceTaker({
     setAskSeen(prev => new Set([...prev, askableBrief.id]));
   };
   const selectPhoneTab = (tab: PhoneTab) => {
-    setFilesOpen(tab === 'files');
+    if (tab === 'files') openFiles(); else setFilesOpen(false);
     setSidebarOpen(tab === 'missions');
     if (tab === 'ask') openAsk(); else setAskOpen(new Set());
   };
@@ -863,7 +869,7 @@ export default function VirtualExperienceTaker({
         manager={manager}
         onAsk={askableBrief ? openAsk : undefined}
         pct={overallPct} saving={saving}
-        onOpenFiles={() => setFilesOpen(true)} filesCount={sharedFiles.length + sentFiles.length} />
+        onOpenFiles={openFiles} filesCount={filesTotal} filesNew={filesNew} />
 
       {/* Body row */}
       <div className="relative flex flex-1 overflow-hidden" style={{ background: isDark ? '#141414' : '#F2F5FA' }}>
@@ -1276,7 +1282,7 @@ export default function VirtualExperienceTaker({
       </div>
 
       <PhoneTabBar active={phoneTab} onSelect={selectPhoneTab} askLabel={`Ask ${firstNameOf(manager.name)}`}
-        canAsk={!!askableBrief} isDark={isDark} accentColor={accentColor} muted={muted} />
+        canAsk={!!askableBrief} filesNew={filesNew} isDark={isDark} accentColor={accentColor} muted={muted} />
       <FilesDrawer open={filesOpen} onClose={() => setFilesOpen(false)} shared={sharedFiles} sent={sentFiles}
         isDark={isDark} text={text} muted={muted} />
     </div>

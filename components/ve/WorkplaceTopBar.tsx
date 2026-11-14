@@ -40,7 +40,7 @@ function ProgressRing({ pct, accent, track, text }: { pct: number; accent: strin
  */
 export function WorkplaceTopBar({
   isDark, accentColor, text, muted, logoUrl,
-  company, manager, onAsk, pct, saving, onOpenFiles, filesCount,
+  company, manager, onAsk, pct, saving, onOpenFiles, filesCount, filesNew,
 }: {
   isDark: boolean;
   accentColor: string;
@@ -56,6 +56,8 @@ export function WorkplaceTopBar({
   /** Opens the Files drawer (desktop; phones use the tab bar). */
   onOpenFiles: () => void;
   filesCount: number;
+  /** Files have arrived since the learner last opened Files: the count pulses. */
+  filesNew: boolean;
 }) {
   const surface = isDark ? '#1e1e1e' : '#ffffff';
   // The learner's own day and time, refreshed on the minute. Nothing on the server render: the
@@ -100,8 +102,13 @@ export function WorkplaceTopBar({
           title="Everything shared with you and everything you sent">
           <FolderOpen className="w-3.5 h-3.5" style={{ color: muted }} /> Files
           {filesCount > 0 && (
-            <span className="min-w-[18px] h-[18px] px-1 rounded-full text-[10.5px] font-bold flex items-center justify-center tabular-nums"
-              style={{ background: `${accentColor}1f`, color: accentColor }}>{filesCount}</span>
+            <span className="relative flex">
+              {filesNew && (
+                <span className="absolute inset-0 rounded-full animate-ping motion-reduce:animate-none" style={{ background: accentColor, opacity: 0.5 }} aria-hidden="true" />
+              )}
+              <span className="relative min-w-[18px] h-[18px] px-1 rounded-full text-[10.5px] font-bold flex items-center justify-center tabular-nums"
+                style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{filesCount}</span>
+            </span>
           )}
         </button>
         {onAsk && (
