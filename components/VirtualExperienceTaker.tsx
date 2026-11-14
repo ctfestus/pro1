@@ -18,7 +18,7 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
 import { repairVeSubmissionUrl, safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
 import {
-  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workplaceSoundOn, setWorkplaceSound, localDayTime, firstNameOf,
+  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, localDayTime, firstNameOf,
 } from '@/components/ve/workplace';
 import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
 import { ProjectPlan } from '@/components/ve/ProjectPlan';
@@ -188,14 +188,6 @@ export default function VirtualExperienceTaker({
   const [aiFeedback,   setAiFeedback]   = useState<Record<string, AiFeedbackEntry>>({});
   const entitlement = useAiReviewEntitlement('veAnswers');
   const [saveError,    setSaveError]    = useState<string | null>(null);
-  // Chimes and typing sounds. The choice lives in workplace.tsx so every surface that plays a sound
-  // respects it; this mirrors it for the button. Read after mount: storage is browser-only.
-  const [soundOn, setSoundOn] = useState(true);
-  useEffect(() => { setSoundOn(workplaceSoundOn()); }, []);
-  const toggleSound = () => {
-    setWorkplaceSound(!soundOn);
-    setSoundOn(!soundOn);
-  };
   const [filesOpen, setFilesOpen] = useState(false);
   // Coming back to an unfinished experience: say where they stopped, once, on the mission they
   // land on. Not in preview, where nothing was saved to come back to.
@@ -870,7 +862,6 @@ export default function VirtualExperienceTaker({
         company={config.company}
         manager={manager}
         onAsk={askableBrief ? openAsk : undefined}
-        soundOn={soundOn} onToggleSound={toggleSound}
         pct={overallPct} saving={saving}
         onOpenFiles={() => setFilesOpen(true)} filesCount={sharedFiles.length + sentFiles.length} />
 

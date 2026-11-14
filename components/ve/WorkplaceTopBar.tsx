@@ -2,7 +2,7 @@
 
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { FolderOpen, Loader2, MessageSquare, Volume2, VolumeX } from 'lucide-react';
+import { FolderOpen, Loader2, MessageSquare } from 'lucide-react';
 import { PersonAvatar, firstNameOf, localDayTime, type Person } from '@/components/ve/workplace';
 
 // A clock store that changes once a minute, on the minute.
@@ -36,11 +36,11 @@ function ProgressRing({ pct, accent, track, text }: { pct: number; accent: strin
 
 /**
  * The player's top bar, read as a work status bar: where you work, your own day and
- * time, your manager, the sound switch and how far the project is.
+ * time, your files, your manager and how far the project is.
  */
 export function WorkplaceTopBar({
   isDark, accentColor, text, muted, logoUrl,
-  company, manager, onAsk, soundOn, onToggleSound, pct, saving, onOpenFiles, filesCount,
+  company, manager, onAsk, pct, saving, onOpenFiles, filesCount,
 }: {
   isDark: boolean;
   accentColor: string;
@@ -51,8 +51,6 @@ export function WorkplaceTopBar({
   manager: Person;
   /** Opens the ask-your-manager chat. Absent when this mission has no brief to ask about yet. */
   onAsk?: () => void;
-  soundOn: boolean;
-  onToggleSound: () => void;
   pct: number;
   saving: boolean;
   /** Opens the Files drawer (desktop; phones use the tab bar). */
@@ -94,7 +92,7 @@ export function WorkplaceTopBar({
         </div>
       )}
 
-      {/* Right: saving, files (desktop), sound, manager, progress */}
+      {/* Right: saving, files (desktop), manager, progress */}
       <div className="flex items-center justify-end gap-1 sm:gap-1.5 flex-1">
         {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" style={{ color: muted }} />}
         <button onClick={onOpenFiles} className={`hidden sm:inline-flex relative ${iconBtn}`} style={{ color: muted }}
@@ -104,10 +102,6 @@ export function WorkplaceTopBar({
             <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-bold flex items-center justify-center tabular-nums"
               style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{filesCount}</span>
           )}
-        </button>
-        <button onClick={onToggleSound} className={iconBtn} style={{ color: muted }}
-          title={soundOn ? 'Sound on' : 'Sound off'} aria-label={soundOn ? 'Turn sound off' : 'Turn sound on'} aria-pressed={soundOn}>
-          {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
         </button>
         {onAsk && (
           <button onClick={onAsk}
