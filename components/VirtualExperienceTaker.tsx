@@ -971,8 +971,7 @@ export default function VirtualExperienceTaker({
                   background: isDark ? '#1e1e1e' : '#ffffff',
                 }}>
 
-                {/* A mission with content reads as a brief the manager shared: one line, never wrapping.
-                    On narrow screens the job title is left out. */}
+                {/* A mission with content reads as a brief the manager shared: one line, never wrapping. */}
                 {hasContent && (
                   <div className="flex flex-nowrap items-center gap-3 sm:gap-4 px-4 sm:px-8 py-3 whitespace-nowrap overflow-hidden"
                     style={{ background: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#EEF2F7'}` }}>
@@ -980,7 +979,6 @@ export default function VirtualExperienceTaker({
                       <PersonAvatar {...manager} size={22} isDark={isDark} />
                       <span className="truncate">
                         From <b className="font-semibold" style={{ color: text }}>{manager.name}</b>
-                        {manager.title && <span className="hidden md:inline">, {manager.title}</span>}
                       </span>
                     </span>
                     <span className="flex-shrink-0 text-[12px] tabular-nums" style={{ color: muted }}>
