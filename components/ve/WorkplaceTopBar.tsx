@@ -2,19 +2,8 @@
 
 import { useSyncExternalStore } from 'react';
 import Link from 'next/link';
-import { Download, Loader2, MessageSquare, Volume2, VolumeX } from 'lucide-react';
+import { FolderOpen, Loader2, MessageSquare, Volume2, VolumeX } from 'lucide-react';
 import { PersonAvatar, firstNameOf, localDayTime, type Person } from '@/components/ve/workplace';
-
-// Hamburger -- matches the course player (tighter line spacing than lucide's Menu).
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" className={className}>
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <line x1="4" y1="17" x2="20" y2="17" />
-    </svg>
-  );
-}
 
 // A clock store that changes once a minute, on the minute.
 function subscribeMinute(onChange: () => void) {
@@ -50,17 +39,14 @@ function ProgressRing({ pct, accent, track, text }: { pct: number; accent: strin
  * time, your manager, the sound switch and how far the project is.
  */
 export function WorkplaceTopBar({
-  isDark, accentColor, text, muted, logoUrl, showMenu, onOpenMenu,
-  company, manager, onAsk, soundOn, onToggleSound, pct, saving, onDownloadDataset, datasetName,
+  isDark, accentColor, text, muted, logoUrl,
+  company, manager, onAsk, soundOn, onToggleSound, pct, saving, onOpenFiles, filesCount,
 }: {
   isDark: boolean;
   accentColor: string;
   text: string;
   muted: string;
   logoUrl?: string;
-  /** Phone only: the mission list is closed, so offer the way to open it. */
-  showMenu: boolean;
-  onOpenMenu: () => void;
   company?: string;
   manager: Person;
   /** Opens the ask-your-manager chat. Absent when this mission has no brief to ask about yet. */
@@ -69,8 +55,9 @@ export function WorkplaceTopBar({
   onToggleSound: () => void;
   pct: number;
   saving: boolean;
-  onDownloadDataset?: () => void;
-  datasetName?: string;
+  /** Opens the Files drawer (desktop; phones use the tab bar). */
+  onOpenFiles: () => void;
+  filesCount: number;
 }) {
   const surface = isDark ? '#1e1e1e' : '#ffffff';
   // The learner's own day and time, refreshed on the minute. Nothing on the server render: the
@@ -83,14 +70,8 @@ export function WorkplaceTopBar({
   return (
     <div className="flex-shrink-0 flex items-center gap-3 px-3 sm:px-5 py-2.5"
       style={{ background: isDark ? '#141414' : '#F2F5FA', minHeight: 56 }}>
-      {/* Left: menu (phone), platform logo, then the company */}
+      {/* Left: platform logo, then the company */}
       <div className="flex items-center gap-2.5 min-w-0 flex-1">
-        {showMenu && (
-          <button onClick={onOpenMenu} className={`sm:hidden ${iconBtn}`} style={{ color: muted }}
-            title="Open mission list" aria-label="Open mission list">
-            <MenuIcon className="w-5 h-5" />
-          </button>
-        )}
         {logoUrl && (
           <Link href="/dashboard" className="hidden sm:flex items-center flex-shrink-0 pr-1" title="Back to dashboard">
             <img src={logoUrl} alt="" style={{ height: 22, width: 'auto', objectFit: 'contain' }} />
@@ -113,15 +94,17 @@ export function WorkplaceTopBar({
         </div>
       )}
 
-      {/* Right: saving, dataset (phone), sound, manager, progress */}
+      {/* Right: saving, files (desktop), sound, manager, progress */}
       <div className="flex items-center justify-end gap-1 sm:gap-1.5 flex-1">
         {saving && <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" style={{ color: muted }} />}
-        {onDownloadDataset && (
-          <button onClick={onDownloadDataset} className={`sm:hidden ${iconBtn}`} style={{ color: muted }}
-            title={datasetName ? `Download ${datasetName}` : 'Download dataset'} aria-label="Download dataset">
-            <Download className="w-4 h-4" />
-          </button>
-        )}
+        <button onClick={onOpenFiles} className={`hidden sm:inline-flex relative ${iconBtn}`} style={{ color: muted }}
+          title="Files" aria-label={`Files (${filesCount})`}>
+          <FolderOpen className="w-4 h-4" />
+          {filesCount > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full text-[9.5px] font-bold flex items-center justify-center tabular-nums"
+              style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{filesCount}</span>
+          )}
+        </button>
         <button onClick={onToggleSound} className={iconBtn} style={{ color: muted }}
           title={soundOn ? 'Sound on' : 'Sound off'} aria-label={soundOn ? 'Turn sound off' : 'Turn sound on'} aria-pressed={soundOn}>
           {soundOn ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}

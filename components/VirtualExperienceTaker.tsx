@@ -16,7 +16,7 @@ import { veCompletionCounts, lessonCompletionPct, isVeComplete, reqCountsForComp
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
-import { safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
+import { repairVeSubmissionUrl, safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
 import {
   Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, workplaceSoundOn, setWorkplaceSound, localDayTime, firstNameOf,
 } from '@/components/ve/workplace';
@@ -24,6 +24,8 @@ import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
 import { ProjectPlan } from '@/components/ve/ProjectPlan';
 import { MissionTodo, todoSource, jumpToRequirement, type TodoItem } from '@/components/ve/MissionTodo';
 import { MissionSignOff, WelcomeBack } from '@/components/ve/MissionSignOff';
+import { FilesDrawer, type DrawerFile } from '@/components/ve/FilesDrawer';
+import { PhoneTabBar, type PhoneTab } from '@/components/ve/PhoneTabBar';
 import { channelFor } from '@/components/ve/ChatCard';
 import { RequirementItem } from '@/components/ve/requirements/RequirementItem';
 import type {
@@ -194,6 +196,7 @@ export default function VirtualExperienceTaker({
     setWorkplaceSound(!soundOn);
     setSoundOn(!soundOn);
   };
+  const [filesOpen, setFilesOpen] = useState(false);
   // Coming back to an unfinished experience: say where they stopped, once, on the mission they
   // land on. Not in preview, where nothing was saved to come back to.
   const [welcomeLesson, setWelcomeLesson] = useState<string | null>(() =>
@@ -312,6 +315,59 @@ export default function VirtualExperienceTaker({
   const missionLeft = currentLes ? currentLes.requirements.filter(reqOwesWork).length : 0;
   const missionSettled = !currentLes || currentLes.requirements.every(reqSettled);
   const nextMission = hasNext ? flat[flatIdx + 1]?.lesson : undefined;
+
+  // Files. Shared with you: the dataset, then attachments from the messages that have arrived on
+  // the learner's path (earlier missions in full, this one up to where it has got). You sent: the
+  // uploads and links saved in progress. Nothing new is stored.
+  const sharedFiles: DrawerFile[] = [];
+  if (config.dataset) {
+    sharedFiles.push({
+      key: 'dataset', name: config.dataset.filename || 'Dataset',
+      ...(config.dataset.url ? { url: config.dataset.url } : { onOpen: () => downloadDataset() }),
+      detail: config.dataset.description || 'Dataset',
+    });
+  }
+  const sentFiles: DrawerFile[] = [];
+  const seenShared = new Set<string>();
+  flat.forEach(({ lesson }, idx) => {
+    const arrived = lesson.id === currentLesId
+      ? (tasksHidden ? [] : lesson.requirements.slice(0, arrivedCount))
+      : idx < flatIdx || reviewMode ? lesson.requirements : [];
+    for (const r of arrived) {
+      for (const a of r.attachments || []) {
+        if (!a.url || seenShared.has(a.url)) continue;
+        seenShared.add(a.url);
+        sharedFiles.push({ key: `att-${r.id}-${a.url}`, name: a.name, url: a.url, detail: lesson.title });
+      }
+    }
+    for (const r of lesson.requirements) {
+      const entry = progress[r.id];
+      const score = typeof entry?.aiScore === 'number' ? ` - Review ${entry.aiScore}/100` : '';
+      if (entry?.fileUrl) {
+        let name = '';
+        try { name = decodeURIComponent(entry.fileUrl.split('/').pop()?.split('?')[0] || ''); } catch { /* keep fallback */ }
+        sentFiles.push({ key: `sent-${r.id}`, name: name || r.label || 'Upload', url: repairVeSubmissionUrl(entry.fileUrl), detail: `${lesson.title}${score}` });
+      }
+      if (entry?.linkUrl) {
+        const label = r.type === 'linkedin_share' ? 'LinkedIn post' : entry.linkUrl.replace(/^https?:\/\//, '').slice(0, 60);
+        sentFiles.push({ key: `link-${r.id}`, name: label, url: entry.linkUrl, detail: `${lesson.title}${score}`, isLink: true });
+      }
+    }
+  });
+
+  // Phone tab bar: which section is showing, and what each tab does.
+  const askOpenNow = askOpen.size > 0;
+  const phoneTab: PhoneTab = filesOpen ? 'files' : askOpenNow ? 'ask' : sidebarOpen ? 'missions' : 'work';
+  const openAsk = () => {
+    if (!askableBrief) return;
+    setAskOpen(new Set([askableBrief.id]));
+    setAskSeen(prev => new Set([...prev, askableBrief.id]));
+  };
+  const selectPhoneTab = (tab: PhoneTab) => {
+    setFilesOpen(tab === 'files');
+    setSidebarOpen(tab === 'missions');
+    if (tab === 'ask') openAsk(); else setAskOpen(new Set());
+  };
 
   const skipReqInPreview = (reqId: string) => {
     if (!previewMode) return;
@@ -811,16 +867,12 @@ export default function VirtualExperienceTaker({
       <WorkplaceTopBar
         isDark={isDark} accentColor={accentColor} text={navText} muted={navMuted}
         logoUrl={(isDark ? (logoDarkUrl || logoUrl) : logoUrl) || undefined}
-        showMenu={!sidebarOpen} onOpenMenu={() => setSidebarOpen(true)}
         company={config.company}
         manager={manager}
-        onAsk={askableBrief ? () => {
-          setAskOpen(new Set([askableBrief.id]));
-          setAskSeen(prev => new Set([...prev, askableBrief.id]));
-        } : undefined}
+        onAsk={askableBrief ? openAsk : undefined}
         soundOn={soundOn} onToggleSound={toggleSound}
         pct={overallPct} saving={saving}
-        onDownloadDataset={config.dataset ? downloadDataset : undefined} datasetName={config.dataset?.filename} />
+        onOpenFiles={() => setFilesOpen(true)} filesCount={sharedFiles.length + sentFiles.length} />
 
       {/* Body row */}
       <div className="relative flex flex-1 overflow-hidden" style={{ background: isDark ? '#141414' : '#F2F5FA' }}>
@@ -844,7 +896,6 @@ export default function VirtualExperienceTaker({
             isDark={isDark} accentColor={accentColor} text={text} muted={muted} border={border}
             role={config.role} heading={shortCourse ? 'Course' : 'Virtual Experience'} modules={modules} progress={progress} currentLesId={currentLesId}
             isUnlocked={isUnlocked} onOpen={navigate}
-            dataset={config.dataset} onDownloadDataset={downloadDataset}
             onCollapse={() => setSidebarOpen(false)} />
         ) : (
           <div className="flex pt-3 pb-1 flex-shrink-0 items-center justify-center">
@@ -1232,6 +1283,11 @@ export default function VirtualExperienceTaker({
         </div>
       </main>
       </div>
+
+      <PhoneTabBar active={phoneTab} onSelect={selectPhoneTab} askLabel={`Ask ${firstNameOf(manager.name)}`}
+        canAsk={!!askableBrief} isDark={isDark} accentColor={accentColor} muted={muted} />
+      <FilesDrawer open={filesOpen} onClose={() => setFilesOpen(false)} shared={sharedFiles} sent={sentFiles}
+        isDark={isDark} text={text} muted={muted} />
     </div>
   );
 }
