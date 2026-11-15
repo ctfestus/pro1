@@ -12,6 +12,7 @@ import {
   Archive,
   Trash2,
   Star,
+  ChevronDown,
   Reply,
   ChevronLeft,
   CornerUpLeft,
@@ -91,7 +92,7 @@ export function RichTextArea({
 export interface MailAttachment { name: string; url?: string; onClick?: () => void; subtitle?: string }
 
 export function MailCard({
-  isDark, accent, reqId, subject, sender, stamp, bodyHtml,
+  isDark, accent, reqId, subject, sender, toName, toEmail, stamp, bodyHtml,
   attachments, company, done = false, muteArrival = false, signature = true, signatureAfterChildren = false, chatAction, children,
 }: {
   isDark: boolean;
@@ -118,7 +119,8 @@ export function MailCard({
 }) {
   const [read, setRead] = useState(done);
   const [isNew] = useState(() => !done && !muteArrival && firstArrival(reqId));
-  const [showSenderEmail, setShowSenderEmail] = useState(false);
+  // The details box under "to me" (from, to, date), closed until asked for, as in Gmail.
+  const [showDetails, setShowDetails] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isNew) return;
@@ -138,6 +140,9 @@ export function MailCard({
   const tFaint  = isDark ? '#6b7075' : '#9aa0a6';
   const iconBtn: React.CSSProperties = { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: 'transparent', color: tMuted, opacity: 0.45, cursor: 'default' };
   const unread = !read && !done;
+  // The work clock is part of the story, so "how long ago" is too: steady for each email, a few
+  // minutes for one just in, and simply "earlier" once it has been dealt with.
+  const ago = done ? 'earlier' : `${3 + (Array.from(reqId).reduce((n, c) => n + c.charCodeAt(0), 0) % 27)} minutes ago`;
 
   return (
     <div ref={rootRef} className={isNew ? 've-mail-in' : undefined}
@@ -194,28 +199,39 @@ export function MailCard({
         <h3 style={{ fontSize: 18, fontWeight: 750, color: tText, lineHeight: 1.35, margin: 0, flex: 1, minWidth: 0 }}>{subject}</h3>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, marginTop: 2 }}>
           <Chip isDark={isDark}>Inbox</Chip>
-          <Star size={16} style={{ color: done ? '#f4b400' : tFaint }} fill={done ? '#f4b400' : 'none'} aria-hidden />
         </div>
       </div>
 
-      {/* Sender row */}
+      {/* Sender row, laid out like Gmail: name, then "to me" with its details dropdown; the date
+          with how long ago, the star and the reply arrow on the right. */}
       <div style={{ padding: '14px 22px 0', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         <PersonAvatar {...sender} size={42} presence="active" isDark={isDark} />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
-            {/* The address stays out of the way: it shows on hover, and a tap on the name reveals it. */}
-            <button type="button" onClick={() => setShowSenderEmail(v => !v)} title={sender.email || undefined}
-              aria-expanded={sender.email ? showSenderEmail : undefined}
-              style={{ background: 'none', border: 'none', padding: 0, font: 'inherit', fontSize: 14, fontWeight: 700, color: tText, cursor: sender.email ? 'pointer' : 'default' }}>
-              {sender.name}
-            </button>
-            {sender.email && showSenderEmail && <span style={{ fontSize: 12, color: tFaint }}>{sender.email}</span>}
+          <div style={{ display: 'flex', alignItems: 'baseline', columnGap: 10, rowGap: 2, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 14, fontWeight: 700, color: tText, flex: '1 1 auto', minWidth: 0 }}>{sender.name}</span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+              <span style={{ fontSize: 12, color: tMuted, whiteSpace: 'nowrap' }}>{stamp.full} ({ago})</span>
+              <Star size={15} style={{ color: done ? '#f4b400' : tFaint, alignSelf: 'center' }} fill={done ? '#f4b400' : 'none'} aria-hidden />
+              <Reply size={14} style={{ color: tFaint, alignSelf: 'center' }} aria-hidden />
+            </span>
           </div>
-          <p style={{ fontSize: 12, color: tFaint, margin: '2px 0 0' }}>to me</p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
-          <span style={{ fontSize: 12, color: tMuted, whiteSpace: 'nowrap' }}>{stamp.full}</span>
-          <Reply size={14} style={{ color: tFaint }} aria-hidden />
+          <button type="button" onClick={e => { e.stopPropagation(); setShowDetails(v => !v); }} aria-expanded={showDetails}
+            aria-label={showDetails ? 'Hide details' : 'Show details'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 2, margin: '2px 0 0', padding: '4px 4px 4px 0', background: 'none', border: 'none', font: 'inherit', fontSize: 12, color: tFaint, cursor: 'pointer' }}>
+            to me <ChevronDown size={13} style={{ transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+          </button>
+          {showDetails && (
+            <dl style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 12, rowGap: 4, margin: '4px 0 0', padding: '10px 12px', borderRadius: 10, background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9', fontSize: 12.5, maxWidth: 440 }}>
+              <dt style={{ color: tFaint }}>from:</dt>
+              <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}><b style={{ fontWeight: 600 }}>{sender.name}</b>{sender.email ? ` (${sender.email})` : ''}</dd>
+              <dt style={{ color: tFaint }}>to:</dt>
+              <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}><b style={{ fontWeight: 600 }}>{toName || 'me'}</b>{toEmail ? ` (${toEmail})` : ''}</dd>
+              <dt style={{ color: tFaint }}>date:</dt>
+              <dd style={{ margin: 0, color: tText }}>{stamp.full}</dd>
+              <dt style={{ color: tFaint }}>subject:</dt>
+              <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}>{subject}</dd>
+            </dl>
+          )}
         </div>
       </div>
 
