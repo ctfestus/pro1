@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, Copy, Check, Star, BookOpen, FileText, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
+import { Loader2, CheckCircle2, ArrowRight, ArrowLeft, MapPin, Building2, ExternalLink, Calendar, Download, BookOpen, ListChecks, Video, Zap, Clock, Lock, BadgeCheck, MonitorPlay } from 'lucide-react';
 import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField';
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
@@ -34,7 +34,7 @@ import { buildGoogleCalUrl, buildOutlookCalUrl, buildYahooCalUrl, downloadIcs, b
 import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
-import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/ve/guide';
+import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
 import { MissionOutline } from '@/components/ve/MissionOutline';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
@@ -869,12 +869,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
   const [joinToken, setJoinToken] = useState<string | null>(null);
   const [joinErr, setJoinErr] = useState('');
   const [isCohortMember, setIsCohortMember] = useState(false);
-  const [isRegistering, setIsRegistering] = useState(false);
   const [relatedForms, setRelatedForms] = useState<any[]>([]);
   const [relatedAssignment, setRelatedAssignment] = useState<{ id: string; title: string } | null>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
   const [certificateId, setCertificateId] = useState<string | null>(null);
-  const [linkCopied, setLinkCopied] = useState(false);
   const [attendeeCount, setAttendeeCount] = useState<number | null>(null);
   // Virtual experience flow
   const [projectStarted,      setProjectStarted]      = useState(false);
@@ -905,23 +902,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
   const [certAuth, setCertAuth] = useState<{ name: string; email: string; token: string } | null>(null);
 
   useEffect(() => installStudentModeFetchBridge(), []);
-
-  const copyToClipboard = (text: string, id: string) => {
-    const done = () => { setCopiedId(id); setTimeout(() => setCopiedId(null), 2000); };
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(text).then(done).catch(() => {
-        const ta = document.createElement('textarea');
-        ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
-        document.body.appendChild(ta); ta.focus(); ta.select();
-        document.execCommand('copy'); document.body.removeChild(ta); done();
-      });
-    } else {
-      const ta = document.createElement('textarea');
-      ta.value = text; ta.style.cssText = 'position:fixed;opacity:0';
-      document.body.appendChild(ta); ta.focus(); ta.select();
-      document.execCommand('copy'); document.body.removeChild(ta); done();
-    }
-  };
 
   useEffect(() => {
     const fetchForm = async () => {
@@ -1287,12 +1267,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     setSuccess(true);
     setAttendeeCount(c => c !== null ? c + 1 : 1);
       const cfg = form.config;
-      const formUrl = `${window.location.origin}/${form.slug || form.id}`;
-      const eventBannerUrl = cfg.coverImage
-        ? (/^https?:\/\//i.test(cfg.coverImage)
-            ? cfg.coverImage
-            : `${window.location.origin}/api/og/${form.id}`)
-        : undefined;
 
       // -- Auto-issue certificate + send one combined email --
       const recipientEmail = data.email;
@@ -1423,7 +1397,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     : rawMode === 'auto' ? studentTheme : rawMode;
   const dark = resolvedMode === 'dark';
   const t = dark ? DARK_P : LIGHT_P;
-  const pageUrl = typeof window !== 'undefined' ? window.location.href : '';
   const configuredAccent = config.customAccent ?? ({
     forest: '#00bf63', lime: '#ADEE66', emerald: '#10b981', rose: '#f43f5e', amber: '#f59e0b', ocean: '#3E93FF',
   }[config.theme as string] ?? '#00bf63');
@@ -1436,23 +1409,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     ? `@import url('https://fonts.googleapis.com/css2?family=${fontOption.googleFamily}&display=swap');`
     : '';
 
-  const themeGradients: Record<string, string> = {
-    forest:  'linear-gradient(135deg, #00bf63, #ADEE66)',
-    lime:    'linear-gradient(135deg, #ADEE66, #00bf63)',
-    emerald: 'linear-gradient(135deg, #34d399, #10b981)',
-    rose:    'linear-gradient(135deg, #fb7185, #f43f5e)',
-    amber:   'linear-gradient(135deg, #fbbf24, #f59e0b)',
-  };
-  const privateGradient = themeGradients[config.theme] ?? themeGradients.forest;
-  const privateTagStyle: React.CSSProperties = {
-    background: privateGradient,
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
-  };
   const inputBg = resolvedMode === 'light' ? 'bg-transparent text-zinc-900 placeholder:text-zinc-400' : 'bg-transparent text-white placeholder:text-zinc-600';
   const selectOptionBg = resolvedMode === 'light' ? 'bg-white text-zinc-900' : 'bg-zinc-900 text-white';
-  const selectPlaceholderColor = resolvedMode === 'light' ? 'text-zinc-400' : 'text-zinc-500';
 
   // -- Certification (full-screen, protected exam) ---
   // Certifications require login + cohort access (RLS), so the row only loads for an authed
@@ -1500,10 +1458,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
   if (config.isVirtualExperience || config.isGuidedProject) {
     const modules     = config.modules || [];
     const totalLessons = modules.reduce((a: number, m: any) => a + (m.lessons?.length || 0), 0);
-    // Optional chaining throughout: a locked preview carries module and mission titles only, so
-    // neither `lessons` nor `requirements` is guaranteed to be there.
-    const totalReqs   = modules.reduce((a: number, m: any) =>
-      a + (m.lessons ?? []).reduce((b: number, l: any) => b + (l.requirements?.length || 0), 0), 0);
 
     // The experience's own accent, chosen in the editor like a course's (a theme colour or a custom
     // one), kept readable on the theme it shows on. None chosen: the default green.
@@ -1585,8 +1539,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     const displayFont = 'var(--font-display), sans-serif';
     // A soft lift off the page. Shadows barely show on dark, so there a faint outline does the job.
     const cardShadow = isLight ? '0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06)' : '0 0 0 1px rgba(255,255,255,0.06)';
-    const managerName = (config as any).managerName || 'Your manager';
-    const managerInitials = managerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
     const dataset = (config as any).dataset;
     // The real professional behind the experience. Shown before enrolment on the hero,
     // the brief and the sidebar; null when the VE has no consented guide, in which case
@@ -2372,9 +2324,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           >
             {/* Non-event form header -- single column */}
             {!config.eventDetails?.isEvent && (() => {
-              const fBtnBg = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
-              const fBtnBorder = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-              const fShareBtn: React.CSSProperties = { padding: 8, borderRadius: 10, border: `1px solid ${fBtnBorder}`, background: fBtnBg, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
               return (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 20, marginBottom: 32 }}>
                   {/* Cover image */}
@@ -2491,9 +2440,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               const isVirtual = ev.eventType === 'virtual' && ev.meetingLink;
               const evBtnBg = dark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
               const evBtnBorder = dark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)';
-              const shareBtnStyle: React.CSSProperties = { padding: 8, borderRadius: 10, border: `1px solid ${evBtnBorder}`, background: evBtnBg, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' };
               const cap = ev.capacity as number | undefined;
-              const isSoldOut = cap !== undefined && attendeeCount !== null && attendeeCount >= cap;
               return (
                 <>
                   {/* Past event banner */}
