@@ -5,6 +5,7 @@ import { LOCKABLE_CODE_REVIEW_LANGUAGES } from '@/lib/code-review-languages';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
 import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
+import { THEME_ACCENT_COLORS, accentColorFor, type ThemeColor } from '@/lib/theme-types';
 import { uploadToGithub } from '@/lib/uploadToGithub';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -243,6 +244,9 @@ interface Module {
 }
 interface ProjectConfig {
   isVirtualExperience: true;
+  // The experience's accent, as a course has one: a theme colour, or a custom colour that wins.
+  theme?: ThemeColor;
+  customAccent?: string;
   industry: string;
   difficulty: string;
   role: string;
@@ -606,6 +610,7 @@ function VirtualExperienceCreatePageInner() {
             guideId: ve.guide_id || (ve.guide_snapshot?.linkedUserId ? `instructor:${ve.guide_snapshot.linkedUserId}` : null), guideSnapshot: ve.guide_snapshot,
             dataset: ve.dataset, coverImage: ve.cover_image, deadline_days: ve.deadline_days,
             badgeImageUrl: ve.badge_image_url ?? null,
+            theme: ve.theme ?? undefined, customAccent: ve.custom_accent ?? undefined,
           };
           setTitle(ve.title || '');
           setCoverImage(cfg.coverImage || '');
@@ -1955,6 +1960,7 @@ function VirtualExperienceCreatePageInner() {
           const managerInitials = managerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
           const companyInitials = config.company?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || '??';
           const dataset = config.dataset;
+          const experienceAccent = accentColorFor(config.customAccent, config.theme) ?? DEFAULT_VE_ACCENT;
 
           return (
           <div className="max-w-6xl mx-auto py-0">
@@ -2440,7 +2446,7 @@ function VirtualExperienceCreatePageInner() {
                                           onChange={({ doc, body }) => updateLesson(mod.id, les.id, { doc, body })}
                                           placeholder="Write the mission content here. What should the student read, understand, or do?"
                                           isDark={C === DARK_C}
-                                          accentColor={DEFAULT_VE_ACCENT}
+                                          accentColor={experienceAccent}
                                         />
                                       </div>
                                       <div className="flex items-center gap-2">
@@ -2700,7 +2706,7 @@ function VirtualExperienceCreatePageInner() {
                                                           })}
                                                           placeholder="Explain the work clearly. Add interactive prompts, steps, tables, images, code, or examples..."
                                                           isDark={C === DARK_C}
-                                                          accentColor={DEFAULT_VE_ACCENT}
+                                                          accentColor={experienceAccent}
                                                         />
                                                       </div>
                                                       <div className="space-y-2">
@@ -3256,6 +3262,38 @@ function VirtualExperienceCreatePageInner() {
                 {activeSection === 'overview' && (
                 <div className="space-y-4">
 
+
+                {/* Accent, as courses have it: a theme colour or a custom one. Unset keeps the default green. */}
+                <div style={card} className="p-5 space-y-3">
+                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Accent color</p>
+                  <div className="flex flex-wrap items-start gap-4">
+                    {(Object.entries(THEME_ACCENT_COLORS) as [ThemeColor, string][]).map(([key, color]) => {
+                      const selected = config.theme === key && !config.customAccent;
+                      return (
+                        <button key={key} type="button" onClick={() => setConfig(c => c ? { ...c, theme: key, customAccent: undefined } : c)}
+                          aria-pressed={selected} title={key[0].toUpperCase() + key.slice(1)} className="flex flex-col items-center gap-1.5 group">
+                          <span className={`h-7 w-7 rounded-full transition-transform group-hover:scale-110 ${selected ? 'scale-110' : ''}`}
+                            style={{ background: color, boxShadow: selected ? `0 0 0 2.5px ${C.card}, 0 0 0 4.5px ${color}` : undefined }} />
+                          <span className="text-[10px] capitalize" style={{ color: C.faint }}>{key}</span>
+                        </button>
+                      );
+                    })}
+                    <label title="Custom color" className="flex flex-col items-center gap-1.5 group cursor-pointer">
+                      <span className={`relative grid h-7 w-7 place-items-center rounded-full transition-transform group-hover:scale-110 ${config.customAccent ? 'scale-110' : ''}`}
+                        style={{
+                          background: config.customAccent ?? 'conic-gradient(from 90deg, #f43f5e, #f59e0b, #a3e635, #10b981, #06b6d4, #3b82f6, #ec4899, #f43f5e)',
+                          boxShadow: config.customAccent ? `0 0 0 2.5px ${C.card}, 0 0 0 4.5px ${config.customAccent}` : undefined,
+                        }}>
+                        {!config.customAccent && <span className="pointer-events-none grid h-[18px] w-[18px] place-items-center rounded-full" style={{ background: C.card, color: C.faint }}><Plus className="h-2.5 w-2.5" /></span>}
+                        <input type="color" aria-label="Choose a custom accent color" value={config.customAccent ?? experienceAccent}
+                          onChange={e => setConfig(c => c ? { ...c, customAccent: e.target.value } : c)}
+                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
+                      </span>
+                      <span className="text-[10px]" style={{ color: C.faint }}>Custom</span>
+                    </label>
+                  </div>
+                  <p className="text-[11px]" style={{ color: C.faint }}>Used for buttons, highlights and progress across the experience. Pale colours are darkened just enough to stay readable.</p>
+                </div>
 
                 {/* Cover image card */}
                 <div id="ve-cover-image" style={card} className="p-5 space-y-3">
