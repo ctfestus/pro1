@@ -18,7 +18,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles } from 'lucide-react';
+import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles, HelpCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewPassed } from '@/lib/review-gate';
 import { AiReviewUpgradeNote, aiReviewResetWording, aiReviewAllowanceWording } from '@/components/AiReviewUpgradePrompt';
@@ -94,6 +94,8 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
   };
 
   const [selected, setSelected] = useState<number | null>(null);
+  // Choice: wrong picks are marked and the learner keeps trying; only the right one answers it.
+  const [missed, setMissed] = useState<number[]>([]);
   const [typed, setTyped] = useState('');
   const [textSubmitted, setTextSubmitted] = useState(false);
   const [review, setReview] = useState<BriefReview | null>(null);
@@ -141,6 +143,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
   // a note like "add a specific example". Matches WrittenResponsePlayer's reset.
   function retryAnswer() {
     setSelected(null);
+    setMissed([]);
     setTextSubmitted(false);
     setReview(null);
     setReviewing(false);
@@ -405,10 +408,8 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
 
   return (
     <NodeViewWrapper className={`lesson-check ${accent.className}`.trim()} data-state={state} contentEditable={false} style={wrapperStyle}>
-      <div className="lesson-check__learner-head">
-        <span className="lesson-check__identity-icon"><KnowledgeVerificationIcon /></span>
-        <div><span className="lesson-check__eyebrow">Knowledge check</span><span className="lesson-check__instruction">{instruction}</span></div>
-      </div>
+      <span className="lesson-check__label"><HelpCircle width={13} height={13} aria-hidden="true" /> Knowledge check</span>
+      {format === 'written' && <span className="lesson-check__instruction">{instruction}</span>}
       {question && <p className="lesson-check__question">{question}</p>}
 
       {format === 'choice' && (
@@ -417,7 +418,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
             if (!String(opt ?? '').trim()) return null;
             const letter = String.fromCharCode(65 + options.slice(0, i).filter(o => String(o ?? '').trim()).length);
             const showCorrect = answered && i === correctIndex;
-            const showWrong = answered && selected === i && i !== correctIndex;
+            const showWrong = !answered && missed.includes(i);
             return (
               <button
                 key={i}
@@ -428,13 +429,12 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
                 data-chosen={selected === i ? 'true' : 'false'}
                 disabled={answered}
                 aria-pressed={selected === i}
-                onClick={() => setSelected(i)}
+                onClick={() => (i === correctIndex ? setSelected(i) : setMissed((m) => (m.includes(i) ? m : [...m, i])))}
               >
                 <span className="lesson-check__letter" aria-hidden="true">{letter}</span>
                 <span className="lesson-check__opt-text">{opt}</span>
-                <span className="lesson-check__option-end" aria-hidden="true">
-                  {showCorrect ? <Check width={14} height={14} /> : showWrong ? <X width={14} height={14} /> : null}
-                </span>
+                {showWrong && <span className="lesson-check__miss">Not this one. Try again.</span>}
+                {showCorrect && <span className="lesson-check__option-end" aria-hidden="true"><Check width={14} height={14} /></span>}
               </button>
             );
           })}
@@ -499,7 +499,20 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
         </div>
       )}
 
-      {answered && (
+      {answered && format !== 'written' && (
+        state === 'incorrect' ? (
+          <p className="lesson-check__line" data-kind="incorrect" role="status" aria-live="polite">
+            <XCircle width={15} height={15} aria-hidden="true" /> <span>{verdictLabel}.{verdictCopy ? ` ${verdictCopy}` : ''}</span>
+            <button type="button" className="lesson-check__line-retry" onClick={retryAnswer}>Try again</button>
+          </p>
+        ) : (
+          <p className="lesson-check__line" data-kind="correct" role="status" aria-live="polite">
+            <Check width={15} height={15} aria-hidden="true" /> <span>{verdictLabel}.{verdictCopy ? ` ${verdictCopy}` : ''}</span>
+          </p>
+        )
+      )}
+
+      {answered && format === 'written' && (
         <div className="lesson-check__feedback" data-kind={state === 'idle' ? 'correct' : state} role="status" aria-live="polite">
           <span className="lesson-check__feedback-icon" aria-hidden="true">
             {state === 'incorrect' ? <XCircle width={18} height={18} /> : <CheckCircle2 width={18} height={18} />}

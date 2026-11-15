@@ -1368,6 +1368,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-flip__face--front .lesson-flip__text { font-family: var(--ve-display-font, inherit); font-size: 16px; font-weight: 600; }
 .lesson-content .lesson-flip__face--front .lesson-flip__hint { position: static; color: var(--lesson-accent-ink); font-size: 12px; font-weight: 700; }
 .lesson-content .lesson-flip__face--back { align-items: flex-start; justify-content: flex-start; padding: 36px 16px 16px; text-align: left; }
+.lesson-content .lesson-flip__face--back .lesson-flip__side-label { max-width: calc(100% - 28px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: 0; text-transform: none; font-size: 12px; }
 
 /* Tabs: underlined, on a soft panel */
 .lesson-content .lesson-tabs, .lesson-content.dark .lesson-tabs { border-radius: 14px; background: var(--block-soft); box-shadow: none; }
@@ -1396,6 +1397,37 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-check__letter { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 7px; color: var(--block-faint); background: var(--block-soft); font-size: 12px; font-weight: 700; }
 .lesson-content .lesson-check__option[data-correct="true"] .lesson-check__letter { color: #ffffff; background: #10b981; }
 .lesson-content .lesson-check__option[data-wrong="true"] .lesson-check__letter { color: #f43f5e; }
+
+.lesson-content .lesson-check, .lesson-content.dark .lesson-check { padding: 4px 0; background: transparent; }
+.lesson-content .lesson-check__label { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--block-faint); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
+.lesson-content .lesson-check__instruction { display: block; margin: -2px 0 6px; color: var(--block-faint); font-size: 12.5px; }
+.lesson-content .lesson-check__question { font-size: 16px; font-weight: 600; }
+.lesson-content .lesson-check__option, .lesson-content.dark .lesson-check__option { background: var(--block-soft); }
+.lesson-content .lesson-check__letter { background: var(--block-chip); }
+.lesson-content .lesson-check__option[data-wrong="true"], .lesson-content.dark .lesson-check__option[data-wrong="true"],
+.lesson-content .lesson-check__option[data-wrong="true"]:hover:not(:disabled) { color: inherit; background: rgba(244,63,94,0.08); font-weight: 400; transform: none; }
+.lesson-content .lesson-check[data-state="correct"] .lesson-check__option:not([data-correct="true"]) { opacity: 0.55; }
+.lesson-content .lesson-check__miss { margin-left: auto; flex: 0 0 auto; color: #e11d48; font-size: 12.5px; font-weight: 600; }
+.lesson-content.dark .lesson-check__miss { color: #fb7185; }
+.lesson-content .lesson-check__line { display: flex; align-items: flex-start; gap: 7px; margin: 10px 0 0; font-size: 13.5px; font-weight: 600; line-height: 1.5; }
+.lesson-content .lesson-check__line svg { flex: 0 0 auto; margin-top: 3px; }
+.lesson-content .lesson-check__line[data-kind="correct"] { color: #059669; }
+.lesson-content.dark .lesson-check__line[data-kind="correct"] { color: #34d399; }
+.lesson-content .lesson-check__line[data-kind="incorrect"] { color: #e11d48; }
+.lesson-content.dark .lesson-check__line[data-kind="incorrect"] { color: #fb7185; }
+.lesson-content .lesson-check__line-retry { margin-left: auto; flex: 0 0 auto; padding: 0; border: 0; color: inherit; background: none; font: inherit; font-size: 12.5px; text-decoration: underline; cursor: pointer; }
+
+/* Guided steps inside a deliverable's instructions: a plain numbered list, all steps shown, no
+   Continue button -- the deliverable card has its own way to mark the work complete. */
+.ve-task-instructions .lesson-content .lesson-step { display: flex !important; animation: none !important; }
+.ve-task-instructions .lesson-content .lesson-stepper__next-row, .ve-task-instructions .lesson-content .lesson-stepper__done { display: none !important; }
+.ve-task-instructions .lesson-content .lesson-step__main { margin-top: 0; padding: 2px 0 0; background: transparent !important; }
+.ve-task-instructions .lesson-content .lesson-step__marker { width: 26px; height: 26px; flex-basis: 26px; border-radius: 999px; color: #4b5563 !important; background: var(--block-soft) !important; box-shadow: none !important; }
+.ve-task-instructions .lesson-content.dark .lesson-step__marker { color: #c4c4c4 !important; }
+.ve-task-instructions .lesson-content .lesson-step__num { display: inline-flex !important; box-shadow: none !important; }
+.ve-task-instructions .lesson-content .lesson-step__check { display: none !important; }
+.ve-task-instructions .lesson-content .lesson-step::after { display: block !important; left: 13px; top: 31px; bottom: -9px; width: 0; border-radius: 0; background: none; border-left: 2px dashed var(--block-dash); }
+.ve-task-instructions .lesson-content [data-node-view-content-react] > :last-child .lesson-step::after { display: none !important; }
 
 /* Step cards: one list with the mission list's markers and dashed line */
 .lesson-content .lesson-step-cards__items > [data-node-view-content-react] { gap: 0; }
@@ -1428,6 +1460,7 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 /* Carousel: count and arrows in the header, slides on the soft panel */
 .lesson-content .lesson-carousel { padding: 12px 16px; border-radius: 14px; background: var(--block-soft); }
 .lesson-content .lesson-carousel__head { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.lesson-content .lesson-carousel__label { margin-right: auto; color: var(--block-faint); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .lesson-content .lesson-carousel__count { margin-right: 4px; color: var(--block-faint); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .lesson-content .lesson-carousel__arrow, .lesson-content .lesson-carousel__arrow:hover:not(:disabled) { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; color: inherit; background: var(--block-chip); box-shadow: none; transform: none; }
 .lesson-content .lesson-carousel__slide { background: transparent; box-shadow: none; }

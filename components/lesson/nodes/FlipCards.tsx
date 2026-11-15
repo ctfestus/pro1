@@ -167,7 +167,7 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
             <span className="lesson-flip__hint"><RefreshCw width={12} height={12} /> Tap to flip</span>
           </span>
           <span className="lesson-flip__face lesson-flip__face--back" aria-hidden={!flipped}>
-            <span className="lesson-flip__side-label">Answer</span>
+            <span className="lesson-flip__side-label">{front || 'Answer'}</span>
             <span className="lesson-flip__text">{back}</span>
             <span className="lesson-flip__hint"><RefreshCw width={12} height={12} /> Tap to flip back</span>
           </span>

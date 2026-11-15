@@ -30,7 +30,11 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
           done={done ? (isTask ? 'Done' : 'Complete') : null} />
 
         {req.descriptionDoc ? (
-          <LessonRenderer doc={req.descriptionDoc} isDark={isDark} accentColor={accentColor} />
+          // Scoped so guided steps inside a deliverable read as a plain numbered list: the card has
+          // its own "Mark complete", so a second Continue button there would compete with it.
+          <div className="ve-task-instructions">
+            <LessonRenderer doc={req.descriptionDoc} isDark={isDark} accentColor={accentColor} />
+          </div>
         ) : req.descriptionFormat === 'rich' && req.description ? (
           <div className="rich-content text-[13.5px] leading-relaxed" style={{ color: t.text }}
             dangerouslySetInnerHTML={{ __html: sanitizeRichTextWithImages(req.description) }} />

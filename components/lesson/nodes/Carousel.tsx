@@ -106,6 +106,7 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
     <NodeViewWrapper className={`lesson-carousel ${accent.className}`.trim()} data-active={current} data-hint={!editable && !hasNavigated && count > 1 ? 'true' : 'false'} style={cardVars}>
       {/* Count and arrows sit in the carousel's own header, where the learner looks for them. */}
       <div className="lesson-carousel__head" contentEditable={false}>
+        <span className="lesson-carousel__label">Slides</span>
         <span className="lesson-carousel__count" aria-live="polite">{current + 1} of {count}</span>
         <button
           type="button"
