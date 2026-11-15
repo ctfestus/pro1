@@ -190,7 +190,7 @@ export function VirtualExperiencesManageSection({ C, forms, setFormToDelete, onD
         guideSnapshot: newVe.guide_snapshot, dataset: newVe.dataset,
         coverImage: newVe.cover_image, deadline_days: newVe.deadline_days,
         theme: newVe.theme, mode: newVe.mode, font: newVe.font, customAccent: newVe.custom_accent,
-        isShortCourse: !!newVe.is_short_course, badgeImageUrl: newVe.badge_image_url,
+        badgeImageUrl: newVe.badge_image_url,
       }};
       onDuplicated(normalised);
     } finally {

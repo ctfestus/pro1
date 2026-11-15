@@ -88,7 +88,6 @@ interface Props {
   initialLessonId?: string;
   isDark?: boolean;
   accentColor?: string;
-  shortCourse?: boolean;
   logoUrl?: string;
   logoDarkUrl?: string;
   previewMode?: boolean;
@@ -98,7 +97,7 @@ interface Props {
 export default function VirtualExperienceTaker({
   formId, formSlug, config, studentName, studentEmail, userId, sessionToken,
   initialProgress = {}, initialModuleId, initialLessonId,
-  isDark = true, accentColor = '#00b95c', shortCourse = false,
+  isDark = true, accentColor = '#00b95c',
   logoUrl = '', logoDarkUrl = '', previewMode = false,
 }: Props) {
   const authHeader = useMemo(
@@ -694,19 +693,17 @@ export default function VirtualExperienceTaker({
             {/* Badge */}
             <div className="flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-widest"
               style={{ background: 'rgba(255,255,255,0.15)', color: '#fff', border: '1px solid rgba(255,255,255,0.25)', backdropFilter: 'blur(6px)' }}>
-              <Trophy className="w-3.5 h-3.5" /> {shortCourse ? 'Course Complete' : 'Virtual Experience Complete'}
+              <Trophy className="w-3.5 h-3.5" /> Virtual Experience Complete
             </div>
             {/* Name */}
             <h1 className="text-4xl sm:text-5xl font-bold leading-tight" style={{ color: '#fff', fontFamily: VE_DISPLAY_FONT }}>
               Well done, {studentName.split(' ')[0]}!
             </h1>
-            {/* Company + role (VE only) */}
-            {!shortCourse && (
+            {/* Company + role */}
               <p className="text-[15px] max-w-xl" style={{ color: 'rgba(255,255,255,0.75)' }}>
                 You completed the <span style={{ color: '#fff', fontWeight: 600 }}>{config.role}</span> experience at{' '}
                 <span style={{ color: '#fff', fontWeight: 700 }}>{config.company}</span>.
               </p>
-            )}
           </div>
         </div>
 
@@ -715,7 +712,7 @@ export default function VirtualExperienceTaker({
 
           {/* The manager's closing note, real numbers, and the learner's work */}
           <FinishSummary modules={modules} progress={progress} manager={manager} studentName={studentName}
-            shortCourse={shortCourse} isDark={isDark} accentColor={accentColor} text={text} muted={muted}
+            isDark={isDark} accentColor={accentColor} text={text} muted={muted}
             onOpenMission={(modId, lesId) => { setReviewMode(true); setCurrentModId(modId); setCurrentLesId(lesId); }} />
 
           {/* The instructor's review: score, feedback and a report on each uploaded file. */}
@@ -865,7 +862,7 @@ export default function VirtualExperienceTaker({
         {sidebarOpen ? (
           <ProjectPlan
             isDark={isDark} accentColor={accentColor} text={text} muted={muted} border={border}
-            role={config.role} heading={shortCourse ? 'Course' : 'Virtual Experience'} modules={modules} progress={progress} currentLesId={currentLesId}
+            role={config.role} heading="Virtual Experience" modules={modules} progress={progress} currentLesId={currentLesId}
             isUnlocked={isUnlocked} onOpen={navigate}
             onCollapse={() => setSidebarOpen(false)} />
         ) : (

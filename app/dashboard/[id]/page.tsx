@@ -2831,7 +2831,7 @@ export default function FormDetailPage() {
           guideId: veRow.guide_id, guideSnapshot: veRow.guide_snapshot, dataset: veRow.dataset,
           coverImage: veRow.cover_image, deadline_days: veRow.deadline_days,
           theme: veRow.theme, mode: veRow.mode, font: veRow.font, customAccent: veRow.custom_accent,
-          isShortCourse: !!veRow.is_short_course, badgeImageUrl: veRow.badge_image_url,
+          badgeImageUrl: veRow.badge_image_url,
         }};
       }
       if (!user) { window.location.href = '/auth'; return; }

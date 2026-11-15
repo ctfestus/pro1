@@ -71,12 +71,11 @@ const card = (isDark: boolean) => ({
  * The top of the finish screen: the manager's closing note, the real numbers, and the learner's
  * work. Built only from saved progress; nothing here is AI-written.
  */
-export function FinishSummary({ modules, progress, manager, studentName, shortCourse, isDark, accentColor, text, muted, onOpenMission }: {
+export function FinishSummary({ modules, progress, manager, studentName, isDark, accentColor, text, muted, onOpenMission }: {
   modules: Module[];
   progress: Progress;
   manager: Person;
   studentName: string;
-  shortCourse: boolean;
   isDark: boolean;
   accentColor: string;
   text: string;
@@ -107,7 +106,7 @@ export function FinishSummary({ modules, progress, manager, studentName, shortCo
         <div className="min-w-0">
           <p className="text-[13px] font-bold" style={{ color: text }}>{manager.name}</p>
           <p className="text-[14.5px] leading-relaxed mt-0.5" style={{ color: text }}>
-            Thanks for your work on this {shortCourse ? 'course' : 'project'}{first ? `, ${first}` : ''}. Everything you sent is listed below, and your certificate is ready when you are.
+            Thanks for your work on this project{first ? `, ${first}` : ''}. Everything you sent is listed below, and your certificate is ready when you are.
           </p>
         </div>
       </div>
