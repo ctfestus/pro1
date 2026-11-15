@@ -20,6 +20,7 @@ import { XpBadgeStack } from '@/components/XpBadge';
 import { useTheme } from '@/components/ThemeProvider';
 import type { QuestionType, DownloadItem, CourseQuestion } from '@/lib/course-schema';
 import { linkedInSharePointsFor } from '@/lib/course-schema';
+import { REVIEW_TYPES, isAnswerRight } from '@/lib/answer-rules';
 import { courseProgressCounts, answeredScorableCount, completedLessonCount, courseContentCounts } from '@/lib/course-progress';
 import type { CourseRankResult } from '@/lib/course-rank';
 import { preflightLinkedInPostUrl } from '@/lib/linkedin-post-url';
@@ -65,7 +66,6 @@ function MenuIcon({ className }: { className?: string }) {
 type ShowAnswers = 'per_question' | 'after_quiz' | 'none';
 
 // QuestionType / DownloadItem / CourseQuestion come from the canonical contract in lib/course-schema.
-const REVIEW_TYPES: QuestionType[] = ['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({
@@ -1129,17 +1129,6 @@ export function CourseTaker({
     }
   }, [clearProgress, onSubmit, studentName, studentEmail, totalQuestions, passmark, totalPoints, streak, questions]);
 
-  // -- Answer checking helpers --
-  const checkFillBlank = (userAnswer: string, correctAnswer: string): boolean => {
-    const accepted = correctAnswer.split('|').map(s => s.trim().toLowerCase());
-    return accepted.includes(userAnswer.trim().toLowerCase());
-  };
-
-  const checkArrange = (order: string[], correctAnswer: string): boolean => {
-    const correct = correctAnswer.split('|||');
-    return order.join('|||') === correct.join('|||');
-  };
-
   const getCurrentAnswer = () => {
     if (questionType === 'fill_blank') return fillBlankAnswer;
     if (questionType === 'arrange') return arrangeOrder.join('|||');
@@ -1193,10 +1182,7 @@ export function CourseTaker({
         return !!parsed?.passed && !!parsed?.proof;
       } catch { return false; }
     }
-    if (REVIEW_TYPES.includes(qType)) return answer === 'completed';
-    if (qType === 'fill_blank') return checkFillBlank(answer, q.correctAnswer);
-    if (qType === 'arrange') return answer === q.correctAnswer;
-    return answer === q.correctAnswer;
+    return isAnswerRight(q, answer);
   };
 
   const getSlideProgressStatus = useCallback((q: any) => {
@@ -2043,14 +2029,7 @@ export function CourseTaker({
     if (scoringLockRef.current) return; // prevent double-fire before state settles
     scoringLockRef.current = true;
     const userAnswer = overrideAnswer ?? getCurrentAnswer();
-    let correct = false;
-    if (questionType === 'fill_blank') {
-      correct = checkFillBlank(userAnswer, currentQuestion.correctAnswer);
-    } else if (questionType === 'arrange') {
-      correct = checkArrange(arrangeOrder, currentQuestion.correctAnswer);
-    } else {
-      correct = userAnswer === currentQuestion.correctAnswer;
-    }
+    const correct = isAnswerRight(currentQuestion, userAnswer);
     setIsCorrect(correct);
     setIsChecking(true);
     if (correct && !reviewMode) {
@@ -2060,7 +2039,9 @@ export function CourseTaker({
       if (confettiRef.current) burstConfetti(confettiRef.current, accent);
       // Points system
       if (pointsEnabled && !reviewMode) {
-        const { earned, label, isStreak } = calcPoints(hintVisible);
+        // The hint can be hidden again, so the penalty follows whether it was opened, not whether
+        // it is showing right now.
+        const { earned, label, isStreak } = calcPoints(hintWasUsed);
         setTotalPoints(prev => prev + earned);
         const newStreak = streak + 1;
         setStreak(newStreak);
@@ -2082,7 +2063,7 @@ export function CourseTaker({
     // Compute updated score/points for saving (state updates are async)
     const hintWasUsed = hintsUsed.has(currentQuestion.id);
     const newScore  = score + (correct ? (hintWasUsed ? 0.9 : 1) : 0);
-    const newPoints = correct && pointsEnabled ? totalPoints + calcPoints(hintVisible).earned : totalPoints;
+    const newPoints = correct && pointsEnabled ? totalPoints + calcPoints(hintsUsed.has(currentQuestion.id)).earned : totalPoints;
     const newStreak = correct && pointsEnabled ? streak + 1 : (pointsEnabled ? 0 : streak);
     saveProgress(newAnswers, currentQuestionIndex + 1, newScore, newPoints, newStreak, hintsUsed);
   };
@@ -2166,14 +2147,7 @@ export function CourseTaker({
       if (scoringLockRef.current) return; // prevent double-fire before state settles
       scoringLockRef.current = true;
       const userAnswer = getCurrentAnswer();
-      let correct = false;
-      if (questionType === 'fill_blank') {
-        correct = checkFillBlank(userAnswer, currentQuestion.correctAnswer);
-      } else if (questionType === 'arrange') {
-        correct = checkArrange(arrangeOrder, currentQuestion.correctAnswer);
-      } else {
-        correct = userAnswer === currentQuestion.correctAnswer;
-      }
+      const correct = isAnswerRight(currentQuestion, userAnswer);
       if (correct) {
         const hintWasUsed = hintsUsed.has(currentQuestion.id);
         newScore = score + (hintWasUsed ? 0.9 : 1);
@@ -3386,11 +3360,10 @@ export function CourseTaker({
                     }}
                   >
                   <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5 sm:pb-8">
-                  {moduleNoAt[currentQuestionIndex] > 0 && (
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
-                      Module {moduleNoAt[currentQuestionIndex]} &middot; Q{questionNoAt[currentQuestionIndex]} &middot; {slideKind(currentQuestion)}
-                    </p>
-                  )}
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
+                    {moduleNoAt[currentQuestionIndex] > 0 && <>Module {moduleNoAt[currentQuestionIndex]} &middot; </>}
+                    Q{questionNoAt[currentQuestionIndex]} &middot; {slideKind(currentQuestion)}
+                  </p>
                   <h2 className={`text-lg sm:text-2xl font-semibold leading-snug mb-5 sm:mb-8 ${textColor}`}>
                     {questionType === 'fill_blank' && /_{3,}/.test(currentQuestion.question)
                       ? currentQuestion.question.split(/_{3,}/).map((part: string, partIdx: number, parts: string[]) => (

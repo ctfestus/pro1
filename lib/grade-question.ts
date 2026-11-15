@@ -11,8 +11,10 @@
 
 import { createHmac, timingSafeEqual } from 'crypto';
 
-// AI-review question types: graded by the 'completed' sentinel the review players store.
-export const REVIEW_TYPES = ['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
+import { REVIEW_TYPES, isAnswerRight } from '@/lib/answer-rules';
+
+// Re-exported for existing importers; the rules themselves live in lib/answer-rules (client-safe).
+export { REVIEW_TYPES };
 
 // Strip answer keys before sending exam questions to a student (the inverse of grading). The exam is
 // scored server-side, so the taker never needs correctAnswer / solutions / expected results. Kept:
@@ -144,8 +146,6 @@ export function gradeQuestion(q: any, ctx: GradeContext): boolean {
   if (ua == null) return false;
   const type = q.type ?? 'multiple_choice';
 
-  if (REVIEW_TYPES.includes(type)) return ua === 'completed';
-
   if (type === 'sql_exercise') {
     // Trust the browser-stored result only when the course route has minted a proof. Re-running
     // WASM in Node can disagree, so the proof is issued after comparing the browser result
@@ -166,31 +166,6 @@ export function gradeQuestion(q: any, ctx: GradeContext): boolean {
     return ctx.verifyProof ? ctx.verifyProof(q.id, parsed.output, parsed.proof) : true;
   }
 
-  // Multiple-answer MCQ (multiple_choice / image_choice / code with multiSelect): correctAnswer and
-  // the student answer are both '|||'-joined option text; grade is order-independent set equality.
-  if (q.multiSelect && (type === 'multiple_choice' || type === 'image_choice' || type === 'code')) {
-    const norm = (s: string) => s.trim();
-    const correct = new Set(String(q.correctAnswer ?? '').split('|||').map(norm).filter(Boolean));
-    const chosen = new Set(String(ua).split('|||').map(norm).filter(Boolean));
-    return correct.size > 0 && correct.size === chosen.size && [...correct].every(c => chosen.has(c));
-  }
-
-  if (type === 'fill_blank') {
-    const norm = (s: string) => s.trim().toLowerCase();
-    // Multiple inline blanks are joined by '|||' (in both correctAnswer and the student answer);
-    // within a blank, '|' separates accepted alternatives. A correctAnswer with no '|||' is a single
-    // blank (the original behavior), so this stays backward compatible.
-    const blanks = String(q.correctAnswer ?? '').split('|||');
-    if (blanks.length <= 1) {
-      const accepted = String(q.correctAnswer ?? '').split('|').map(norm);
-      return accepted.includes(norm(String(ua)));
-    }
-    const studentBlanks = String(ua).split('|||');
-    if (studentBlanks.length !== blanks.length) return false;
-    return blanks.every((b, i) => b.split('|').map(norm).includes(norm(studentBlanks[i] ?? '')));
-  }
-
-  if (type === 'arrange') return ua === q.correctAnswer;
-
-  return ua === q.correctAnswer;
+  // Chosen and typed answers: the shared rules the course player also uses for instant feedback.
+  return isAnswerRight(q, ua);
 }
