@@ -42,8 +42,8 @@ export function PhoneTabBar({ active, onSelect, askLabel, canAsk, filesNew, isDa
               <Icon className="w-5 h-5" />
               {id === 'files' && filesNew && (
                 <span className="absolute -top-0.5 -right-1 flex h-2.5 w-2.5" aria-label="New files">
-                  <span className="absolute inline-flex h-full w-full rounded-full animate-ping motion-reduce:animate-none" style={{ background: accentColor, opacity: 0.6 }} />
-                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: accentColor }} />
+                  <span className="absolute inline-flex h-full w-full rounded-full animate-ping motion-reduce:animate-none" style={{ background: '#D93025', opacity: 0.6 }} />
+                  <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: '#D93025' }} />
                 </span>
               )}
             </span>

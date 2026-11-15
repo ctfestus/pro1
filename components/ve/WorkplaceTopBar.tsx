@@ -104,10 +104,10 @@ export function WorkplaceTopBar({
           {filesCount > 0 && (
             <span className="relative flex">
               {filesNew && (
-                <span className="absolute inset-0 rounded-full animate-ping motion-reduce:animate-none" style={{ background: accentColor, opacity: 0.5 }} aria-hidden="true" />
+                <span className="absolute inset-0 rounded-full animate-ping motion-reduce:animate-none" style={{ background: '#D93025', opacity: 0.5 }} aria-hidden="true" />
               )}
               <span className="relative min-w-[15px] h-[15px] px-[3px] rounded-full text-[9px] font-bold leading-none flex items-center justify-center tabular-nums"
-                style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>{filesCount}</span>
+                style={{ background: '#D93025', color: '#fff' }}>{filesCount}</span>
             </span>
           )}
         </button>
