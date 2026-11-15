@@ -240,13 +240,11 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         </>)}
         {/* Language selector -- locked when instructor specified a language */}
         {lockedLanguage ? (
+          // The instructor fixed the language: show it, with nothing to switch and nothing to explain.
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" title="Language for this task"
               style={{ background: accentColor, color: '#fff' }}>
               {lockedLanguage}
-            </span>
-            <span className="flex items-center gap-1 text-xs" style={{ color: muted }}>
-              <Lock className="w-3 h-3" /> Language set by instructor
             </span>
           </div>
         ) : (

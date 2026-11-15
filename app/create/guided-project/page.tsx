@@ -3020,7 +3020,7 @@ function VirtualExperienceCreatePageInner() {
                                                       <option value="">Learner chooses</option>
                                                       {LOCKABLE_CODE_REVIEW_LANGUAGES.map(lang => <option key={lang} value={lang}>{lang}</option>)}
                                                     </select>
-                                                    <p className="text-[11px] mt-1" style={{ color: C.muted }}>Pick a language to fix it for learners. They will see it locked and cannot switch.</p>
+                                                    <p className="text-[11px] mt-1" style={{ color: C.muted }}>Pick a language to fix it for learners. They will not be able to switch.</p>
                                                   </div>
                                                   <div>
                                                     <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Table Schema / Data Context (optional)</p>
