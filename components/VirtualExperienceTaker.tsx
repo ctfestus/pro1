@@ -727,8 +727,8 @@ export default function VirtualExperienceTaker({
             </div>
           )}
 
-          {/* Skills demonstrated */}
-          {(config.learnOutcomes || []).length > 0 && (
+          {/* Skills demonstrated (blank outcomes are not shown) */}
+          {(config.learnOutcomes || []).some(o => String(o ?? '').trim()) && (
             <div className="rounded-2xl overflow-hidden"
               style={{ background: isDark ? '#1c1c1c' : '#fff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.06)' : '0 10px 28px rgba(15,23,42,0.06)' }}>
               <div className="px-5 py-4 border-b flex items-center gap-2"
@@ -737,7 +737,7 @@ export default function VirtualExperienceTaker({
                 <p className="text-[15px] font-semibold" style={{ color: text, fontFamily: VE_DISPLAY_FONT }}>Skills demonstrated</p>
               </div>
               <div className="px-5 py-4 space-y-3">
-                {(config.learnOutcomes || []).map((o, i) => (
+                {(config.learnOutcomes || []).filter(o => String(o ?? '').trim()).map((o, i) => (
                   <div key={i} className="flex items-start gap-3">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                       style={{ background: `${accentColor}18` }}>

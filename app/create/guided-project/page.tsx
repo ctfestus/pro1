@@ -1076,6 +1076,8 @@ function VirtualExperienceCreatePageInner() {
   // Which tasks are open for editing. Closed by default, so an open mission is a short list of
   // rows (number, type, title) rather than every task's full editor; a new task opens itself.
   const [openReqs, setOpenReqs] = useState<Set<string>>(new Set());
+  // The learning outcome row just added, so the cursor goes straight into it.
+  const [focusOutcome, setFocusOutcome] = useState<number | null>(null);
   const toggleReqOpen = (reqId: string) => setOpenReqs(prev => { const next = new Set(prev); if (next.has(reqId)) next.delete(reqId); else next.add(reqId); return next; });
 
   const addReq = (moduleId: string, lessonId: string) => {
@@ -2348,13 +2350,15 @@ function VirtualExperienceCreatePageInner() {
                     <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Learning outcomes</p>
                     <div className="space-y-2">
                       {(config.learnOutcomes || []).map((o, i) => (
-                        <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: C.card }}>
+                        <div key={i} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ background: C.field }}>
                           <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                             style={{ background: `${C.cta}18` }}>
                             <Check className="w-3 h-3" style={{ color: C.cta }} />
                           </div>
                           <input value={o} onChange={e => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.map((x, j) => j === i ? e.target.value : x) } : c)}
-                            className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: C.muted }} />
+                            ref={el => { if (el && focusOutcome === i) { el.focus(); setFocusOutcome(null); } }}
+                            aria-label={`Learning outcome ${i + 1}`} placeholder="Describe what the learner will be able to do (empty rows are not saved)"
+                            className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: C.text }} />
                           <button onClick={() => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.filter((_, j) => j !== i) } : c)}
                             style={{ color: C.faint }} className="hover:text-red-400 transition-colors flex-shrink-0">
                             <X className="w-3.5 h-3.5" />
@@ -2362,8 +2366,8 @@ function VirtualExperienceCreatePageInner() {
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => setConfig(c => c ? { ...c, learnOutcomes: [...(c.learnOutcomes||[]), ''] } : c)}
-                      className="text-[13px] font-semibold flex items-center gap-1.5 rounded-xl px-3 py-2 hover:opacity-70" style={{ color: C.muted, background: C.card }}>
+                    <button onClick={() => { setFocusOutcome((config.learnOutcomes || []).length); setConfig(c => c ? { ...c, learnOutcomes: [...(c.learnOutcomes||[]), ''] } : c); }}
+                      className="text-[13px] font-semibold flex items-center gap-1.5 px-2 py-1.5 hover:opacity-70" style={{ color: C.muted }}>
                       <Plus className="w-3.5 h-3.5" /> Add outcome
                     </button>
                 </div>

@@ -160,12 +160,12 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
               </div>
             )}
 
-            {/* Learning outcomes */}
-            {(cfg.learnOutcomes || []).length > 0 && (
+            {/* Learning outcomes (blank ones are not shown) */}
+            {(cfg.learnOutcomes || []).some((o: string) => String(o ?? '').trim()) && (
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: C.faint }}>What you will learn</p>
                 <div className="space-y-2">
-                  {(cfg.learnOutcomes as string[]).map((o: string, i: number) => (
+                  {(cfg.learnOutcomes as string[]).filter(o => String(o ?? '').trim()).map((o: string, i: number) => (
                     <div key={i} className="flex items-start gap-2.5">
                       <div className="w-5 h-5 rounded-md flex items-center justify-center flex-shrink-0 mt-0.5"
                         style={{ background: `${color}1a` }}>

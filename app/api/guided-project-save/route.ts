@@ -108,7 +108,8 @@ export async function POST(req: NextRequest) {
     tool_logos:     config.toolLogos     ?? {},
     tagline:        config.tagline       ?? null,
     background:     config.background    ?? null,
-    learn_outcomes: config.learnOutcomes ?? [],
+    // An outcome row left empty in the editor is not an outcome.
+    learn_outcomes: (Array.isArray(config.learnOutcomes) ? config.learnOutcomes : []).filter((o: unknown) => typeof o === 'string' && o.trim()),
     manager_name:   config.managerName   ?? null,
     manager_title:  config.managerTitle  ?? 'Manager',
     guide_id:       verifiedGuide.guideId,
