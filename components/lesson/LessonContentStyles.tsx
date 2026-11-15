@@ -32,7 +32,7 @@ export function LessonContentStyles() {
     );
     const completed = done.length > 0;
     const each = (part: string) => done.map((sel) => `${sel} ${part}`).join(',\n');
-    return `${show} { display: flex; }\n${last} { animation: lesson-step-in 0.34s cubic-bezier(0.2,0.7,0.3,1); }\n${last}::after { display: none; }\n${current} .lesson-step__main { background: color-mix(in oklab, var(--lesson-accent-base) 10%, transparent); }${completed ? `\n${each('.lesson-step__num')} { display: none; }\n${each('.lesson-step__check')} { display: inline-flex; }\n${each('.lesson-step__marker')} { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }\n${each('.lesson-step__title')} { color: #6b7280; }` : ''}`;
+    return `${show} { display: flex; }\n${last} { animation: lesson-step-in 0.34s cubic-bezier(0.2,0.7,0.3,1); }\n${last}::after { display: none; }\n${current} .lesson-step__main { background: color-mix(in oklab, var(--lesson-accent-base) 10%, transparent); }\n${current.replace('.lesson-content ', '.lesson-content.dark ')} .lesson-step__main { background: color-mix(in oklab, var(--lesson-accent-base) 13%, transparent) !important; }${completed ? `\n${each('.lesson-step__num')} { display: none; }\n${each('.lesson-step__check')} { display: inline-flex; }\n${each('.lesson-step__marker')} { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }\n${each('.lesson-step__title')} { color: #6b7280; }` : ''}`;
   }).join('\n');
 
   // Authored inline links get a marker chosen by where they lead, so it carries
