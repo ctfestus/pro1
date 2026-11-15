@@ -8,6 +8,7 @@
 // sanitized by the caller before it gets here.
 
 import React, { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Archive,
   Trash2,
@@ -119,8 +120,41 @@ export function MailCard({
 }) {
   const [read, setRead] = useState(done);
   const [isNew] = useState(() => !done && !muteArrival && firstArrival(reqId));
-  // The details box under "to me" (from, to, date), closed until asked for, as in Gmail.
-  const [showDetails, setShowDetails] = useState(false);
+  // The details pop-up under "to me" (from, to, date, subject), as in Gmail: it floats over the
+  // email instead of pushing it down, and closes on a click elsewhere, Escape, or a scroll.
+  // Holds where to place it (below the "to me" button) while open.
+  const [detailsAt, setDetailsAt] = useState<{ left: number; top: number; width: number } | null>(null);
+  const showDetails = detailsAt !== null;
+  const detailsBtnRef = useRef<HTMLButtonElement>(null);
+  const detailsRef = useRef<HTMLDListElement>(null);
+  useEffect(() => {
+    if (!showDetails) return;
+    const close = () => setDetailsAt(null);
+    const onDown = (e: MouseEvent) => {
+      const target = e.target as Node;
+      if (detailsRef.current?.contains(target) || detailsBtnRef.current?.contains(target)) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { close(); detailsBtnRef.current?.focus(); } };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    window.addEventListener('resize', close);
+    // Capture: the email sits inside a scrolling pane, and its scroll does not bubble.
+    window.addEventListener('scroll', close, true);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', close);
+      window.removeEventListener('scroll', close, true);
+    };
+  }, [showDetails]);
+  const toggleDetails = () => {
+    if (showDetails) { setDetailsAt(null); return; }
+    const r = detailsBtnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    const width = Math.min(420, window.innerWidth - 24);
+    setDetailsAt({ left: Math.max(12, Math.min(r.left, window.innerWidth - width - 12)), top: r.bottom + 4, width });
+  };
   const rootRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!isNew) return;
@@ -215,13 +249,14 @@ export function MailCard({
               <Reply size={14} style={{ color: tFaint, alignSelf: 'center' }} aria-hidden />
             </span>
           </div>
-          <button type="button" onClick={e => { e.stopPropagation(); setShowDetails(v => !v); }} aria-expanded={showDetails}
+          <button ref={detailsBtnRef} type="button" onClick={e => { e.stopPropagation(); toggleDetails(); }} aria-expanded={showDetails} aria-haspopup="dialog"
             aria-label={showDetails ? 'Hide details' : 'Show details'}
             style={{ display: 'inline-flex', alignItems: 'center', gap: 2, margin: '2px 0 0', padding: '4px 4px 4px 0', background: 'none', border: 'none', font: 'inherit', fontSize: 12, color: tFaint, cursor: 'pointer' }}>
-            to me <ChevronDown size={13} style={{ transform: showDetails ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            to me <ChevronDown size={13} />
           </button>
-          {showDetails && (
-            <dl style={{ display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 12, rowGap: 4, margin: '4px 0 0', padding: '10px 12px', borderRadius: 10, background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9', fontSize: 12.5, maxWidth: 440 }}>
+          {detailsAt && createPortal(
+            <dl ref={detailsRef} role="dialog" aria-label="Message details"
+              style={{ position: 'fixed', left: detailsAt.left, top: detailsAt.top, width: detailsAt.width, zIndex: 1000, display: 'grid', gridTemplateColumns: 'auto minmax(0, 1fr)', columnGap: 12, rowGap: 5, margin: 0, padding: '12px 14px', borderRadius: 12, background: isDark ? '#2a2b31' : '#ffffff', boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.08), 0 12px 32px rgba(0,0,0,0.5)' : '0 0 0 1px rgba(15,23,42,0.06), 0 12px 32px rgba(15,23,42,0.16)', fontSize: 12.5, lineHeight: 1.5 }}>
               <dt style={{ color: tFaint }}>from:</dt>
               <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}><b style={{ fontWeight: 600 }}>{sender.name}</b>{sender.email ? ` (${sender.email})` : ''}</dd>
               <dt style={{ color: tFaint }}>to:</dt>
@@ -230,7 +265,8 @@ export function MailCard({
               <dd style={{ margin: 0, color: tText }}>{stamp.full}</dd>
               <dt style={{ color: tFaint }}>subject:</dt>
               <dd style={{ margin: 0, color: tText, overflowWrap: 'anywhere' }}>{subject}</dd>
-            </dl>
+            </dl>,
+            document.body,
           )}
         </div>
       </div>
