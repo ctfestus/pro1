@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Fragment } from '@tiptap/pm/model';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Monitor, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
@@ -106,7 +106,7 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
     <NodeViewWrapper className={`lesson-carousel ${accent.className}`.trim()} data-active={current} data-hint={!editable && !hasNavigated && count > 1 ? 'true' : 'false'} style={cardVars}>
       {/* Count and arrows sit in the carousel's own header, where the learner looks for them. */}
       <div className="lesson-carousel__head" contentEditable={false}>
-        <span className="lesson-carousel__label">Slides</span>
+        <span className="lesson-carousel__label"><Monitor width={13} height={13} aria-hidden="true" /> Slides</span>
         <span className="lesson-carousel__count" aria-live="polite">{current + 1} of {count}</span>
         <button
           type="button"

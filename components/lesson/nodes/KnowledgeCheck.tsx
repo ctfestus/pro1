@@ -433,7 +433,7 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
               >
                 <span className="lesson-check__letter" aria-hidden="true">{letter}</span>
                 <span className="lesson-check__opt-text">{opt}</span>
-                {showWrong && <span className="lesson-check__miss">Not this one. Try again.</span>}
+                {showWrong && <span className="lesson-check__miss">Not this one</span>}
                 {showCorrect && <span className="lesson-check__option-end" aria-hidden="true"><Check width={14} height={14} /></span>}
               </button>
             );
@@ -450,12 +450,12 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
             className="lesson-check__answer-input"
             value={typed}
             disabled={answered}
-            placeholder="Your answer"
-            aria-label={question || 'Your answer'}
+            placeholder="Type the missing word"
+            aria-label={question || 'Type the missing word'}
             onChange={(e) => setTyped(e.target.value)}
           />
           {!answered && (
-            <button type="submit" className="lesson-check__submit" disabled={!typed.trim()}>Check answer</button>
+            <button type="submit" className="lesson-check__submit">Check</button>
           )}
         </form>
       )}

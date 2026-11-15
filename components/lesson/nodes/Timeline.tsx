@@ -9,7 +9,7 @@
 
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, CalendarDays, Copy, Plus, Trash2 } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -117,6 +117,7 @@ function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps)
 
   return (
     <NodeViewWrapper className={`lesson-timeline ${accent.className}`.trim()} style={accent.style}>
+      {!editable && <span className="lesson-block-label" contentEditable={false}><CalendarDays width={13} height={13} aria-hidden="true" /> Timeline</span>}
       <NodeViewContent className="lesson-timeline__entries" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>
