@@ -11,11 +11,10 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2, XCircle, Loader2, ChevronRight, RotateCcw,
-  Clock, EyeOff, AlertTriangle, ShieldAlert, GripVertical,
-  ChevronLeft, BookOpen, X, ExternalLink, ArrowRight, Zap,
-  ArrowLeftToLine, ArrowRightFromLine, Download, ArrowDownToLine, Lock,
+  Clock, AlertTriangle, GripVertical,
+  BookOpen, X, ExternalLink, ArrowRight, Download, ArrowDownToLine, Lock,
   Check, Play, FileText, FlaskConical, ListChecks, Copy, MousePointerClick,
-  ArrowUp, ArrowDown, PenLine, Link2, Image as ImageIcon, Lightbulb,
+  ArrowUp, ArrowDown, PenLine, Link2, Image as ImageIcon,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { XpBadgeStack } from '@/components/XpBadge';
@@ -313,8 +312,8 @@ export function CourseTaker({
     initialStudentName ? 'info' : 'course'
   );
   const [reviewMode, setReviewMode] = useState(false); // true when student has already earned a cert -- no XP/saves
-  const [studentName, setStudentName] = useState(initialStudentName);
-  const [studentEmail, setStudentEmail] = useState(initialStudentEmail);
+  const [studentName] = useState(initialStudentName);
+  const [studentEmail] = useState(initialStudentEmail);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [fillBlankAnswer, setFillBlankAnswer] = useState('');
@@ -426,7 +425,6 @@ export function CourseTaker({
     let n = 0;
     return questions.map((q: any) => { if (q?.isSection) n += 1; return n; });
   }, [questions]);
-  const learningOutcomes: string[] = config.learnOutcomes || [];
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.filter(isScorableSlide).length;
   const totalSlides = questions.length;
@@ -435,13 +433,6 @@ export function CourseTaker({
     answeredAt: new Date().toISOString(),
     elapsedSeconds: Math.max(0, (Date.now() - questionStartTime) / 1000),
   });
-  // Current section: walk back from currentQuestionIndex to find the nearest section divider
-  const currentSection = useMemo(() => {
-    for (let i = currentQuestionIndex; i >= 0; i--) {
-      if ((questions[i] as any)?.isSection) return questions[i] as any;
-    }
-    return null;
-  }, [questions, currentQuestionIndex]);
   // Count how many section dividers appear up to and including currentQuestionIndex
   const currentSectionNumber = useMemo(() => {
     let n = 0;
@@ -2247,11 +2238,6 @@ export function CourseTaker({
     }
   };
 
-  const handleBack = () => {
-    if (currentQuestionIndex > 0) {
-      setCurrentQuestionIndex(i => i - 1);
-    }
-  };
 
 
   const handleNextDirect = () => {
@@ -2430,7 +2416,6 @@ export function CourseTaker({
   // Shared rule (lib/course-progress): an optional share the student has not claimed leaves the
   // denominator, so skipping it cannot hold the bar below 100%.
   const slideCounts = courseProgressCounts(questions, answers);
-  const completedSlides = slideCounts.done;
   const progressPct = slideCounts.total > 0 ? (slideCounts.done / slideCounts.total) * 100
     : slideCounts.authored > 0 ? 100 : 0;
   const timerWarning = timeLeft !== null && timeLeft <= 60;
