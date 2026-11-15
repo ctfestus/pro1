@@ -416,10 +416,10 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
           // Compose: attach file / paste link
           <div style={{ padding: '14px 22px 18px' }}>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 10, border: `1.5px dashed ${fileUrl ? `${accentColor}80` : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)'}`, background: t.soft, cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13.5, color: t.muted }}>
+              <label className="ve-file-label relative" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 10, border: `1.5px dashed ${fileUrl ? `${accentColor}80` : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)'}`, background: t.soft, cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13.5, color: t.muted }}>
                 {uploading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <Paperclip className="w-4 h-4" />}
                 <span>{uploading ? 'Uploading...' : fileUrl ? <b style={{ color: t.text, fontWeight: 600 }}>File attached. Choose another to replace it</b> : <><b style={{ color: t.text, fontWeight: 600 }}>Choose a file</b> to attach</>}</span>
-                <input type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={uploading} onChange={async e => {
+                <input type="file" accept={VE_SUBMISSION_ACCEPT} className="sr-only" disabled={uploading} onChange={async e => {
                   const file = e.target.files?.[0]; if (!file) return;
                   await handleFileUpload(req.id, file, true);
                   e.target.value = '';
@@ -494,7 +494,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
             )}
             {req.type === 'code_review' && (
               <CodeReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
-                savedResult={undefined} rubric={req.rubric} schema={req.schema} minScore={req.minScore}
+                savedResult={undefined} rubric={req.rubric} schema={req.schema} reviewLanguage={req.reviewLanguage} minScore={req.minScore}
                 onReviewStart={startReview} onReviewError={onReviewError}
                 onComplete={(result, passed) => { finishReview(); markDone(buildReviewNotes('code_review', result, saved?.notes), passed); }} />
             )}
@@ -557,7 +557,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
                 {req.type === 'code_review' && savedReport && (
                   <CodeReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={isFullReport('code_review', savedReport) ? savedReport as any : undefined}
-                    rubric={req.rubric} schema={req.schema} minScore={req.minScore} onComplete={() => {}} />
+                    rubric={req.rubric} schema={req.schema} reviewLanguage={req.reviewLanguage} minScore={req.minScore} onComplete={() => {}} />
                 )}
                 {req.type === 'excel_review' && savedReport && (
                   <ExcelReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}

@@ -84,13 +84,13 @@ export function ChatCard({ isDark, reqId, company, channel, members, unread = fa
             </span>
           ))}
         </span>
-        <span style={{ fontSize: 11.5, color: p.muted, marginLeft: 6 }}>{memberCount}</span>
+        <span style={{ fontSize: 12.5, color: p.muted, marginLeft: 6 }}>{memberCount}</span>
       </div>
 
       {/* Day divider */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px 2px' }} aria-hidden>
         <span style={{ flex: 1, height: 1, background: p.line }} />
-        <span style={{ fontSize: 11, fontWeight: 700, color: p.muted, border: `1px solid ${p.line}`, borderRadius: 20, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        <span style={{ fontSize: 12, fontWeight: 700, color: p.muted, border: `1px solid ${p.line}`, borderRadius: 20, padding: '2px 10px', display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           Today <ChevronDown size={10} />
         </span>
         <span style={{ flex: 1, height: 1, background: p.line }} />
@@ -123,9 +123,9 @@ export function ChatMsg({ isDark, author, meName, time, children, reactions }: {
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, flexWrap: 'wrap' }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: p.text }}>{isMe ? 'You' : (author as Person).name}</span>
-          <span style={{ fontSize: 11, color: p.muted }}>{time}</span>
+          <span style={{ fontSize: 12.5, color: p.muted }}>{time}</span>
         </div>
-        <div style={{ fontSize: 13.5, color: p.text, marginTop: 2, lineHeight: 1.5 }}>{children}</div>
+        <div style={{ fontSize: 14.5, color: p.text, marginTop: 2, lineHeight: 1.5 }}>{children}</div>
         {reactions && <div style={{ marginTop: 6 }}>{reactions}</div>}
       </div>
     </div>
@@ -150,7 +150,7 @@ export function ChatTypingMsg({ isDark, author, meName }: {
       <div style={{ flex: 1 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
           <span style={{ fontWeight: 700, fontSize: 14, color: p.text }}>{isMe ? 'You' : (author as Person).name}</span>
-          <span style={{ fontSize: 11, color: p.muted }}>is typing</span>
+          <span style={{ fontSize: 12.5, color: p.muted }}>is typing</span>
         </div>
         <div style={{ marginTop: 6 }}><TypingDots isDark={isDark} /></div>
       </div>
@@ -184,7 +184,7 @@ export function ChatThread({ isDark, label, children }: { isDark: boolean; label
   const p = chatPalette(isDark);
   return (
     <div style={{ borderTop: `1px solid ${p.line}`, marginTop: 10, paddingTop: 10 }}>
-      <p style={{ fontSize: 11.5, color: p.muted, fontWeight: 600, margin: '0 0 8px', paddingLeft: 40 }}>{label}</p>
+      <p style={{ fontSize: 12.5, color: p.muted, fontWeight: 600, margin: '0 0 8px', paddingLeft: 40 }}>{label}</p>
       <div style={{ paddingLeft: 10, borderLeft: `2px solid ${p.line}`, marginLeft: 14, display: 'flex', flexDirection: 'column', gap: 6 }}>
         {children}
       </div>

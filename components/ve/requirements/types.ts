@@ -27,6 +27,8 @@ export interface Requirement {
   expectedAnswer?: string;
   rubric?: string[];
   schema?: string;
+  // code_review: the language the instructor fixed for this task. Unset = the learner chooses.
+  reviewLanguage?: string;
   context?: string;
   reviewSheetNames?: string[];
   minScore?: number;

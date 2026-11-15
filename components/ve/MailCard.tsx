@@ -283,7 +283,7 @@ export function MailCard({
       {/* Signature */}
       {signature && !signatureAfterChildren && (sender.title || company) && (
         <div style={{ padding: '10px 22px 4px' }}>
-          <p style={{ margin: 0, fontSize: 12.5, color: tMuted, lineHeight: 1.6 }}>
+          <p style={{ margin: 0, fontSize: 13, color: tMuted, lineHeight: 1.6 }}>
             {sender.name}<br />
             <span style={{ color: tFaint }}>{[sender.title, company].filter(Boolean).join(' | ')}</span>
           </p>
@@ -295,11 +295,11 @@ export function MailCard({
         <div style={{ padding: '14px 22px 6px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
             <Paperclip size={12} style={{ color: tFaint }} />
-            <span style={{ fontSize: 11.5, fontWeight: 600, color: tMuted }}>
+            <span style={{ fontSize: 12.5, fontWeight: 600, color: tMuted }}>
               {attachments.length} {attachments.length === 1 ? 'attachment' : 'attachments'}
             </span>
             <ShieldCheck size={12} style={{ color: '#2BAC76' }} />
-            <span style={{ fontSize: 11, color: tFaint }}>Scanned{company ? ` by ${company} Mail` : ''}</span>
+            <span style={{ fontSize: 12, color: tFaint }}>Scanned{company ? ` by ${company} Mail` : ''}</span>
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
             {attachments.map((att, i) => (
@@ -317,7 +317,7 @@ export function MailCard({
       )}
       {signature && signatureAfterChildren && (sender.title || company) && (
         <div style={{ padding: '10px 22px 16px' }}>
-          <p style={{ margin: 0, fontSize: 12.5, color: tMuted, lineHeight: 1.6 }}>
+          <p style={{ margin: 0, fontSize: 13, color: tMuted, lineHeight: 1.6 }}>
             {sender.name}<br />
             <span style={{ color: tFaint }}>{[sender.title, company].filter(Boolean).join(' | ')}</span>
           </p>
@@ -350,16 +350,16 @@ export function MailThreadMsg({ isDark, from, meName, time = 'Just now', receipt
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 3 }}>
           <span style={{ fontSize: 13.5, fontWeight: 700, color: tText }}>{isMe ? 'Me' : (from as Person).name}</span>
-          <span style={{ fontSize: 11.5, color: tFaint }}>{time}</span>
+          <span style={{ fontSize: 12.5, color: tFaint }}>{time}</span>
         </div>
-        <div style={{ fontSize: 13.5, color: isDark ? '#e0e0e0' : '#1f1f1f', lineHeight: 1.65 }}>{children}</div>
+        <div style={{ fontSize: 14.5, color: isDark ? '#e0e0e0' : '#1f1f1f', lineHeight: 1.65 }}>{children}</div>
         {quote && (
-          <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.14)'}`, fontSize: 11.5, color: tFaint, lineHeight: 1.5 }}>
+          <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: `2px solid ${isDark ? 'rgba(255,255,255,0.14)' : 'rgba(0,0,0,0.14)'}`, fontSize: 12.5, color: tFaint, lineHeight: 1.5 }}>
             {quote}
           </div>
         )}
         {receipt && (
-          <p style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '6px 0 0', fontSize: 11, color: tFaint }}>
+          <p style={{ display: 'flex', alignItems: 'center', gap: 4, margin: '6px 0 0', fontSize: 12, color: tFaint }}>
             <CheckCheck size={12} style={{ color: '#1a73e8' }} /> {receipt}
           </p>
         )}
@@ -391,12 +391,12 @@ export function SmartReplies({ isDark, accent, options, onPick, label = 'Suggest
 }) {
   return (
     <div>
-      <p style={{ margin: '0 0 8px', fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6' }}>{label}</p>
+      <p style={{ margin: '0 0 8px', fontSize: 12, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6' }}>{label}</p>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
         {options.map((opt, i) => (
           <button key={i} onClick={() => onPick(opt)}
             style={{
-              padding: '7px 16px', borderRadius: 18, fontSize: 13, fontWeight: 600,
+              padding: '7px 16px', borderRadius: 18, fontSize: 13.5, fontWeight: 600,
               border: `1px solid ${accent}55`, color: accent, background: 'transparent', cursor: 'pointer',
             }}
             onMouseEnter={e => { e.currentTarget.style.background = `${accent}12`; }}
@@ -442,15 +442,15 @@ export function MailComposer({
       <div style={{ padding: '10px 14px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${line}` }}>
           <CornerUpLeft size={13} style={{ color: tFaint, flexShrink: 0 }} />
-          <span style={{ fontSize: 12, color: tMuted }}>To:</span>
+          <span style={{ fontSize: 13, color: tMuted }}>To:</span>
           <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '2px 10px 2px 3px', borderRadius: 14, background: isDark ? 'rgba(255,255,255,0.07)' : '#f1f3f4' }}>
             <PersonAvatar {...to} size={18} isDark={isDark} />
-            <span style={{ fontSize: 12, fontWeight: 600, color: isDark ? '#e8eaed' : '#202124' }}>{to.name}</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: isDark ? '#e8eaed' : '#202124' }}>{to.name}</span>
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: `1px solid ${line}` }}>
-          <span style={{ fontSize: 12, color: tMuted, flexShrink: 0 }}>Subject:</span>
-          <span style={{ fontSize: 12.5, fontWeight: 600, color: isDark ? '#e8eaed' : '#202124', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          <span style={{ fontSize: 13, color: tMuted, flexShrink: 0 }}>Subject:</span>
+          <span style={{ fontSize: 13, fontWeight: 600, color: isDark ? '#e8eaed' : '#202124', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {subject.startsWith('Re:') ? subject : `Re: ${subject}`}
           </span>
         </div>
@@ -473,7 +473,7 @@ export function MailComposer({
         <Smile size={15} style={{ color: tFaint }} aria-hidden />
         <span style={{ flex: 1 }} />
         {maxChars != null && (
-          <span style={{ fontSize: 11, fontWeight: 600, color: overLimit ? '#ef4444' : plainLen >= maxChars * 0.96 ? '#ef4444' : tFaint }}>
+          <span style={{ fontSize: 12, fontWeight: 600, color: overLimit ? '#ef4444' : plainLen >= maxChars * 0.96 ? '#ef4444' : tFaint }}>
             {plainLen} / {maxChars}
           </span>
         )}

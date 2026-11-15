@@ -104,6 +104,14 @@ select:focus-visible,
   box-shadow: 0 0 0 3px var(--focus-frame-ring, rgba(0, 191, 99, 0.16)) !important;
 }
 
+/* A file chooser drawn as a label around a visually hidden input: keyboard focus lands on the
+   input, so the label shows the ring. Colour from --ve-focus where a task card sets it. */
+.ve-file-label:focus-within {
+  outline: 2px solid var(--ve-focus, #00bf63);
+  outline-offset: 2px;
+}
+.ve-file-label > input:focus-visible { outline: none !important; }
+
 /* Task-card fields in a virtual experience: the field's own rounded border shows focus, in the
    experience accent (--ve-focus, set by fieldStyle), instead of a separate rectangle outline. */
 .ve-task-field:focus-visible,

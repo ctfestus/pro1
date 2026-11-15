@@ -13,8 +13,9 @@ import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
 import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
+import { CODE_REVIEW_LANGUAGES } from '@/lib/code-review-languages';
 
-const LANGUAGES = ['Python', 'SQL', 'JavaScript', 'TypeScript', 'R', 'Java', 'C#', 'Other'];
+const LANGUAGES: readonly string[] = CODE_REVIEW_LANGUAGES;
 const SQL_DIALECTS = ['PostgreSQL', 'MySQL', 'SQLite', 'SQL Server'];
 
 interface RubricGrade { criterion: string; passed: boolean; comment: string; }
@@ -239,13 +240,11 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         </>)}
         {/* Language selector -- locked when instructor specified a language */}
         {lockedLanguage ? (
+          // The instructor fixed the language: show it, with nothing to switch and nothing to explain.
           <div className="flex items-center gap-2">
-            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold"
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold" title="Language for this task"
               style={{ background: accentColor, color: '#fff' }}>
               {lockedLanguage}
-            </span>
-            <span className="flex items-center gap-1 text-xs" style={{ color: muted }}>
-              <Lock className="w-3 h-3" /> Language set by instructor
             </span>
           </div>
         ) : (

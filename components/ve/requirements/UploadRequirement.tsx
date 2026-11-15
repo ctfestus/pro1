@@ -22,7 +22,7 @@ export function UploadRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const inputId = `ve-upload-${req.id}`;
 
   const fileInput = (
-    <input id={inputId} type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={uploading}
+    <input id={inputId} type="file" accept={VE_SUBMISSION_ACCEPT} className="sr-only" disabled={uploading}
       onChange={async e => { const f = e.target.files?.[0]; if (f) await handleFileUpload(req.id, f); e.target.value = ''; }} />
   );
 
@@ -42,19 +42,19 @@ export function UploadRequirement({ req, rowStyle, ctx }: RequirementProps) {
           </span>
           {/* Replace: the same round icon control as Undo and Edit on the other cards. */}
           <label htmlFor={inputId} title="Replace file" aria-label="Replace file"
-            className="inline-flex h-11 w-11 -m-1.5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-75">
+            className="ve-file-label relative inline-flex h-11 w-11 -m-1.5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-75">
             <span className="inline-flex h-8 w-8 items-center justify-center rounded-full" style={{ background: t.isDark ? 'rgba(255,255,255,0.08)' : '#ffffff', color: t.muted }}>
               {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
             </span>
+            {fileInput}
           </label>
-          {fileInput}
         </div>
       ) : (
         <label htmlFor={inputId}
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}
           onDrop={async e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f && !uploading) await handleFileUpload(req.id, f); }}
-          className="flex cursor-pointer items-center justify-center gap-2.5 rounded-[10px] px-4 py-3.5 text-[13.5px] transition-colors"
+          className="ve-file-label relative flex cursor-pointer items-center justify-center gap-2.5 rounded-[10px] px-4 py-3.5 text-[13.5px] transition-colors"
           style={{ background: t.soft, border: `1.5px dashed ${dragging ? accentColor : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)'}`, color: t.muted }}>
           {uploading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <UploadIcon className="w-4 h-4" />}
           <span>{uploading ? 'Uploading...' : <><b style={{ color: t.text, fontWeight: 600 }}>Choose a file</b> or drop it here</>}</span>
