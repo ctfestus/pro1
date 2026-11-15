@@ -136,14 +136,13 @@ export default function AiStructuredReviewReport({
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ background: `${verdictColor}16`, color: verdictColor }}>{verdict}</span>
-              <span className="text-[11px] font-medium" style={{ color: muted }}>{findings.length} findings detected</span>
             </div>
             <h2 className="mt-4 text-xl font-bold tracking-[-0.02em] sm:text-2xl" style={{ color: text }}>{title}</h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-relaxed" style={{ color: muted }}>{summary}</p>
           </div>
           <div className="rounded-2xl p-4" style={{ background: raised }}>
             <div className="flex items-end justify-between gap-3">
-              <div><span className="text-4xl font-extrabold leading-none tabular-nums" style={{ color: text }}>{safeScore.toFixed(1)}</span><span className="ml-1 text-xs font-semibold" style={{ color: muted }}>/100</span></div>
+              <div><span className="text-4xl font-extrabold leading-none tabular-nums" style={{ color: text }}>{Math.round(safeScore)}</span><span className="ml-1 text-xs font-semibold" style={{ color: muted }}>/100</span></div>
               <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: verdictColor }}>Overall</span>
             </div>
             <div className="mt-4 h-2.5 overflow-hidden rounded-full" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#e7ebf0' }}>

@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
+import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
@@ -135,6 +136,8 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   const [imageDataUrl, setImageDataUrl] = useState<string>(savedImageUrl ?? '');
   const [result, setResult]             = useState<CritiqueResult | null>(savedResult ?? null);
   const [analyzing, setAnalyzing]       = useState(false);
+  // The screenshot chosen but not yet sent for review.
+  const [pendingFile, setPendingFile]   = useState<File | null>(null);
   const [error, setError]               = useState('');
   const [upgradeUrl, setUpgradeUrl]     = useState('');
   const entitlement                     = useAiReviewEntitlement('dashboardReview');
@@ -191,12 +194,13 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const file = e.dataTransfer.files[0];
-    if (file) processFile(file);
-  }, [processFile]);
+    const file = e.dataTransfer.files?.[0];
+    if (file) setPendingFile(file);
+  }, []);
 
   const reset = () => {
     setImageDataUrl('');
+    setPendingFile(null);
     setResult(null);
     setError('');
     setUpgradeUrl('');
@@ -211,7 +215,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       await downloadStructuredReviewPdf({
         overallScore: audit?.overallScore ?? 100,
         executiveSummary: audit?.executiveSummary ?? `${elements.length} dashboard elements were analysed.`,
-        reportLabel: 'AI DASHBOARD INTELLIGENCE',
+        reportLabel: 'DASHBOARD REVIEW',
         reportTitle: 'Your dashboard review',
         reportKicker: 'DASHBOARD REVIEW',
         sourceLabel: 'Dashboard screenshot',
@@ -262,7 +266,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   if (result && !imageDataUrl) {
     return (
       <div className="space-y-3">
-        <AiReviewDisclaimer isDark={isDark} />
+        {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
         {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
           <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
         )}
@@ -316,29 +320,17 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
         <AiReviewWorkspaceHeader icon={<Eye className="w-5 h-5" />} title="Review your dashboard" description="Upload a dashboard screenshot to receive visual, element-level coaching and rubric feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} />
         <AiReviewDisclaimer isDark={isDark} />
       </>)}
-      <div
-        onDrop={handleDrop}
-        onDragOver={e => { e.preventDefault(); setDragging(true); }}
-        onDragLeave={() => setDragging(false)}
-        onClick={() => inputRef.current?.click()}
-        className="cursor-pointer rounded-2xl flex flex-col items-center justify-center gap-3 py-14 px-6 transition-all hover:-translate-y-px"
-        style={{
-          border: `1.5px dashed ${dragging ? accentColor : isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`,
-          background: dragging ? `${accentColor}08` : isDark ? 'rgba(255,255,255,0.055)' : '#ffffff',
-          boxShadow: dragging ? `0 0 0 4px ${accentColor}12` : isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)',
-        }}
-      >
-        <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ background: `${accentColor}15` }}>
-          <UploadIcon className="w-6 h-6" style={{ color: accentColor }} />
-        </div>
-        <div className="text-center">
-          <p className="text-sm font-semibold" style={{ color: text }}>Drop your dashboard screenshot here</p>
-          <p className="text-xs mt-1" style={{ color: muted }}>or click to browse | PNG or JPG</p>
-        </div>
-        {error && <p className="text-xs font-medium text-red-400">{error}</p>}
+      <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<UploadIcon className="w-5 h-5" />}
+        title="Drop your dashboard screenshot here" hint="PNG or JPG" fileName={pendingFile?.name}
+        dragging={dragging} onDragChange={setDragging} onDropFile={handleDrop} onClick={() => inputRef.current?.click()}>
         <input ref={inputRef} type="file" accept="image/png,image/jpeg,image/jpg" className="hidden"
-          onChange={e => { const f = e.target.files?.[0]; if (f) processFile(f); }} />
-      </div>
+          onChange={e => { const f = e.target.files?.[0]; if (f) setPendingFile(f); e.target.value = ''; }} />
+      </AiReviewDropzone>
+      {error && <p className="text-xs font-medium text-red-400">{error}</p>}
+      {/* The same rule as the other reviews: choose the file, then send it. */}
+      <AiReviewSubmitButton isDark={isDark} accentColor={accentColor} disabled={!pendingFile} onClick={() => { if (pendingFile) processFile(pendingFile); }}>
+        <Zap className="w-4 h-4" /> Submit for AI review
+      </AiReviewSubmitButton>
       </div>
       </AiReviewLockOverlay>
     );
@@ -385,7 +377,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   // Interactive result state
   return (
     <div className="space-y-3">
-      <AiReviewDisclaimer isDark={isDark} />
+      {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
       {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
         <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
       )}
@@ -638,7 +630,7 @@ export function AuditReport({ audit, elements, accentColor, isDark }: { audit: A
     <div className="space-y-3">
 
       <AiStructuredReviewReport
-        reportLabel="AI dashboard intelligence"
+        reportLabel="Dashboard review"
         title="Your dashboard review"
         metadata="Dashboard screenshot"
         score={audit.overallScore}

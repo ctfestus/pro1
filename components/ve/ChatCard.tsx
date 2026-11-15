@@ -4,7 +4,7 @@
 // Presentational only: all interaction logic stays in the calling player.
 
 import React from 'react';
-import { Search, Headphones, Plus, SendHorizonal, Mic, Smile, AtSign, Star, ChevronDown } from 'lucide-react';
+import { Star, ChevronDown } from 'lucide-react';
 import { Person, PersonAvatar, MeAvatar, TypingDots, WorkplaceKeyframes, colleaguesFor, slugify, firstArrival, playArrivalChime } from './workplace';
 
 export function channelFor(role?: string, fallback = 'project-war-room'): string {
@@ -64,8 +64,7 @@ export function ChatCard({ isDark, reqId, company, channel, members, unread = fa
         </span>
         <ChevronDown size={12} style={{ color: p.faint, flexShrink: 0 }} aria-hidden />
         <span style={{ flex: 1 }} />
-        <Search size={13} style={{ color: p.faint }} aria-hidden />
-        <Headphones size={13} style={{ color: p.faint }} aria-hidden />
+
       </div>
 
       {/* Channel header */}
@@ -102,17 +101,6 @@ export function ChatCard({ isDark, reqId, company, channel, members, unread = fa
         {children}
       </div>
 
-      {/* Composer (decorative: quick actions above do the real work) */}
-      <div style={{ padding: '0 14px 14px' }} aria-hidden>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, border: 'none', background: isDark ? 'rgba(255,255,255,0.045)' : '#f7f9f8', borderRadius: 12, padding: '10px 12px', boxShadow: `0 0 0 1px ${p.line}` }}>
-          <Plus size={15} style={{ color: p.faint, flexShrink: 0 }} />
-          <span style={{ flex: 1, fontSize: 13, color: p.faint, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Message #{channel}</span>
-          <AtSign size={14} style={{ color: p.faint }} />
-          <Smile size={14} style={{ color: p.faint }} />
-          <Mic size={14} style={{ color: p.faint }} />
-          <SendHorizonal size={14} style={{ color: p.faint }} />
-        </div>
-      </div>
     </div>
   );
 }
@@ -203,6 +191,8 @@ export function ChatThread({ isDark, label, children }: { isDark: boolean; label
     </div>
   );
 }
+
+// Block-kit style decision buttons.
 
 // Block-kit style decision buttons.
 export function ChatDecisionButtons({ isDark, accent, options, onPick, disabled }: {

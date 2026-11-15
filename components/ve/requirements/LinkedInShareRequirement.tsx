@@ -5,17 +5,18 @@ import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { REQ_META, type RequirementProps } from './types';
-import { TaskHeader, taskTheme } from './TaskCard';
+import { TaskHeader, TaskButton, taskTheme, fieldStyle, TASK_FIELD, TASK_SHELL } from './TaskCard';
 
 /** LinkedIn share: suggested post, link claim and the profile check. */
 export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const {
-    isDark, accentColor, fieldBg, fieldBorder, fieldShadow, reviewMode, progress, shareDrafts,
+    isDark, accentColor, reviewMode, progress, shareDrafts,
     setShareDrafts, shareSaving, shareErrors, setShareErrors, shareCopied, setShareCopied,
     submitShareLink, needsProfile, profileDraft, setProfileDraft, profileSaving, profileError,
     setProfileError, saveProfileAndRetry,
   } = ctx;
   const done           = !!progress[req.id]?.completed;
+  const t = taskTheme(isDark, accentColor);
 
   // Clamped with the server's own helper rather than rendered raw: an imported,
   // synced or hand-edited VE can carry any number, and advertising 999,999 XP for a
@@ -28,7 +29,7 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
   const meta    = REQ_META.linkedin_share;
   return (
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-      <TaskHeader t={taskTheme(isDark, accentColor)} icon={<LinkedInIcon className="w-3.5 h-3.5" />}
+      <TaskHeader t={t} icon={<LinkedInIcon className="w-3.5 h-3.5" />}
         label={req.shareRequired !== true ? 'LinkedIn - optional' : 'LinkedIn'} title={req.label}
         description={req.description} done={done ? 'Verified' : null} />
 
@@ -46,7 +47,7 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
           <XpBadgeStack size={60} className="flex-shrink-0" />
           <div className="min-w-0">
             <p className="text-[15px] font-bold leading-tight flex items-center gap-1.5"
-              style={{ color: '#10b981' }}>
+              style={{ color: t.accent }}>
               <Check className="w-4 h-4 flex-shrink-0" strokeWidth={3} />
               LinkedIn share verified
             </p>
@@ -79,9 +80,9 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
       )}
 
       {req.sharePrompt && (
-        <div className="rounded-lg p-3.5" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#F8F8F8', border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}` }}>
+        <div className="rounded-[10px] p-3.5" style={{ background: t.soft }}>
           <div className="flex items-center justify-between gap-3 mb-1.5">
-            <p className="text-[10px] font-bold uppercase tracking-widest" style={{ color: isDark ? '#666' : '#aaa' }}>Suggested post</p>
+            <p className="text-[10.5px] font-bold uppercase tracking-[0.1em]" style={{ color: t.faint }}>Suggested post</p>
             <button
               type="button"
               onClick={() => {
@@ -90,13 +91,13 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
                   setTimeout(() => setShareCopied(null), 1800);
                 }).catch(() => {});
               }}
-              className="px-2.5 py-1.5 rounded-md text-[11.5px] font-semibold transition-all active:scale-[0.97]"
-              style={{ background: isDark ? 'rgba(255,255,255,0.07)' : '#fff', border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.09)'}`, color: isDark ? '#ddd' : '#333' }}
+              className="min-w-[64px] px-2.5 py-1.5 rounded-lg text-[12px] font-bold transition-opacity hover:opacity-80"
+              style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#ffffff', color: t.text }}
             >
               {shareCopied === req.id ? 'Copied' : 'Copy'}
             </button>
           </div>
-          <p className="text-[12.5px] leading-relaxed whitespace-pre-wrap" style={{ color: isDark ? '#aaa' : '#555' }}>{req.sharePrompt}</p>
+          <p className="text-[13.5px] leading-relaxed whitespace-pre-wrap" style={{ color: t.text }}>{req.sharePrompt}</p>
         </div>
       )}
 
@@ -112,13 +113,8 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
       <div className="space-y-1.5">
         <p className="text-[12.5px] font-medium" style={{ color: isDark ? '#888' : '#666' }}>Paste the link to your post</p>
         <div className="flex flex-col sm:flex-row gap-2">
-          {/* The input carries the border and radius itself, rather than sitting bare
-              inside a bordered wrapper: the global focus ring in globals.css is an
-              outline on the INPUT, and an outline follows that element's own radius --
-              so a bare field would ring as a sharp rectangle inside the rounded box. */}
-          <div className="flex-1 min-w-0 relative">
-            <LinkIcon className="w-3 h-3 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
-              style={{ color: isDark ? '#8a8a8a' : '#64748b' }} />
+          <div className={`${TASK_SHELL} flex flex-1 min-w-0 items-center gap-2 rounded-[10px] px-3`} style={fieldStyle(t, error ? 'bad' : claimed ? 'done' : 'normal')}>
+            <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: t.faint }} />
             <input
               type="url" inputMode="url" value={draft} readOnly={reviewMode}
               onChange={e => {
@@ -126,32 +122,20 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
                 if (shareErrors[req.id]) setShareErrors(prev => { const n = { ...prev }; delete n[req.id]; return n; });
               }}
               onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submitShareLink(req.id); } }}
-              placeholder="https://www.linkedin.com/posts/..."
-              className="w-full min-w-0 pl-8 pr-3 py-2.5 rounded-lg text-[12.5px] outline-none"
-              style={{
-                background: isDark ? 'rgba(255,255,255,0.055)' : '#ffffff',
-                border: `1.5px solid ${error ? '#f43f5e' : claimed ? `${accentColor}80` : isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`,
-                boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)',
-                color: isDark ? '#f0f0f0' : '#111',
-              }}
+              placeholder="https://www.linkedin.com/posts/..." aria-label="Link to your post"
+              className="flex-1 min-w-0 bg-transparent py-2.5 text-[13.5px] outline-none" style={{ color: t.text }}
             />
           </div>
           {!reviewMode && (
-            <button
-              type="button"
-              onClick={() => submitShareLink(req.id)}
-              disabled={saving || !draft.trim() || draft.trim() === claimed}
-              className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all active:scale-[0.98] disabled:opacity-45"
-              style={{ background: accentColor, color: '#fff' }}
-            >
+            <TaskButton t={t} onClick={() => submitShareLink(req.id)} disabled={saving || !draft.trim() || draft.trim() === claimed}>
               {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : claimed ? 'Update' : 'Submit'}
-            </button>
+            </TaskButton>
           )}
         </div>
         {/* Asked for once, when there is no profile to check the post's author
             against. Saving it retries the claim straight away. */}
         {needsProfile === req.id && (
-          <div className="rounded-lg p-3 space-y-2" style={{ background: isDark ? 'rgba(255,255,255,0.04)' : '#F8F8F8' }}>
+          <div className="rounded-[10px] p-3 space-y-2" style={{ background: t.soft }}>
             <p className="text-[12.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>
               First, add your LinkedIn profile
             </p>
@@ -164,26 +148,16 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
                 onChange={e => { setProfileDraft(e.target.value); if (profileError) setProfileError(''); }}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); saveProfileAndRetry(req.id); } }}
                 placeholder="linkedin.com/in/your-name"
-                className="flex-1 min-w-0 px-3 py-2.5 rounded-lg text-[12.5px] outline-none"
-                style={{
-                  background: fieldBg,
-                  border: `1.5px solid ${profileError ? '#f43f5e' : fieldBorder}`,
-                  boxShadow: fieldShadow,
-                  color: isDark ? '#f0f0f0' : '#111',
-                }}
+                aria-label="Your LinkedIn profile"
+                className={`${TASK_FIELD} flex-1 min-w-0 px-3 py-2.5 text-[13.5px]`}
+                style={{ ...fieldStyle(t, profileError ? 'bad' : 'normal'), background: isDark ? 'rgba(255,255,255,0.08)' : '#ffffff' }}
               />
-              <button
-                type="button"
-                onClick={() => saveProfileAndRetry(req.id)}
-                disabled={profileSaving || !profileDraft.trim()}
-                className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-[12.5px] font-semibold transition-all active:scale-[0.98] disabled:opacity-45"
-                style={{ background: accentColor, color: '#fff' }}
-              >
+              <TaskButton t={t} onClick={() => saveProfileAndRetry(req.id)} disabled={profileSaving || !profileDraft.trim()}>
                 {profileSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Save and submit'}
-              </button>
+              </TaskButton>
             </div>
             {profileError && (
-              <p className="text-[12px] font-medium flex items-start gap-1.5" style={{ color: '#f43f5e' }}>
+              <p className="text-[12px] font-medium flex items-start gap-1.5" style={{ color: t.bad }}>
                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {profileError}
               </p>
             )}
@@ -191,13 +165,13 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
         )}
 
         {error && (
-          <p className="text-[12px] font-medium flex items-start gap-1.5" style={{ color: '#f43f5e' }}>
+          <p className="text-[12px] font-medium flex items-start gap-1.5" style={{ color: t.bad }}>
             <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {error}
           </p>
         )}
         {!error && claimed && (
           <a href={claimed} target="_blank" rel="noreferrer"
-            className="text-[12px] font-semibold flex items-center gap-1.5 hover:underline" style={{ color: '#10b981' }}>
+            className="text-[12px] font-semibold flex items-center gap-1.5 hover:underline" style={{ color: t.accent }}>
             <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" /> Verified. View your post
           </a>
         )}

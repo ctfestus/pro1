@@ -34,7 +34,7 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
       <TaskHeader t={t} icon={<Sparkles className="w-3.5 h-3.5" />}
         label={manual ? `${REVIEW_KIND[req.type] || ''} review`.trim() : `AI review - ${REVIEW_KIND[req.type] || 'work'}`}
         title={req.label} description={req.description} done={doneText} />
-      {!done && !manual && <AiNote t={t} />}
+      {!manual && <AiNote t={t} />}
     </>
   );
 

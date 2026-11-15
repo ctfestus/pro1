@@ -9,9 +9,23 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  Archive, ArchiveX, Trash2, MailOpen, MoreVertical, Star, Reply, Search,
-  Settings, ChevronLeft, Printer, CornerUpLeft, Paperclip, Smile, Send,
-  Bold, Italic, Underline, List, ListOrdered, CheckCheck, ShieldCheck, Inbox,
+  Archive,
+  Trash2,
+  Star,
+  Reply,
+  ChevronLeft,
+  CornerUpLeft,
+  Paperclip,
+  Smile,
+  Send,
+  Bold,
+  Italic,
+  Underline,
+  List,
+  ListOrdered,
+  CheckCheck,
+  ShieldCheck,
+  Inbox,
   MessageSquare,
 } from 'lucide-react';
 import {
@@ -122,7 +136,7 @@ export function MailCard({
   const tText   = isDark ? '#e8eaed' : '#202124';
   const tMuted  = isDark ? '#9aa0a6' : '#5f6368';
   const tFaint  = isDark ? '#6b7075' : '#9aa0a6';
-  const iconBtn: React.CSSProperties = { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: 'transparent', color: tMuted, opacity: 0.75, cursor: 'default' };
+  const iconBtn: React.CSSProperties = { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%', border: 'none', background: 'transparent', color: tMuted, opacity: 0.45, cursor: 'default' };
   const unread = !read && !done;
 
   return (
@@ -140,8 +154,6 @@ export function MailCard({
           <span style={{ marginLeft: 4, minWidth: 16, height: 16, borderRadius: 8, background: '#D93025', color: '#fff', fontSize: 10, fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '0 5px' }}>1</span>
         )}
         <span style={{ flex: 1 }} />
-        <Search style={{ width: 14, height: 14, color: tFaint }} aria-hidden />
-        <Settings style={{ width: 14, height: 14, color: tFaint }} aria-hidden />
       </div>
 
       {/* Action toolbar (decorative except the chat launcher: sells the client) */}
@@ -150,11 +162,7 @@ export function MailCard({
           <span style={iconBtn}><ChevronLeft size={16} /></span>
           <span style={{ width: 1, height: 14, background: line, margin: '0 4px' }} />
           <span style={iconBtn}><Archive size={14} /></span>
-          <span style={iconBtn}><ArchiveX size={14} /></span>
           <span style={iconBtn}><Trash2 size={14} /></span>
-          <span style={{ width: 1, height: 14, background: line, margin: '0 4px' }} />
-          <span style={iconBtn}><MailOpen size={14} /></span>
-          <span style={iconBtn}><Printer size={14} /></span>
         </span>
         {chatAction && (
           <>
@@ -170,7 +178,6 @@ export function MailCard({
           </>
         )}
         <span style={{ flex: 1 }} />
-        <span aria-hidden style={iconBtn}><MoreVertical size={14} /></span>
       </div>
 
       {/* New-mail toast */}
