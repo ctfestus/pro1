@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { MenuIcon } from '@/components/MenuIcon';
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 import {
   CheckCircle2, Circle, ChevronRight, ChevronLeft, ChevronDown,
   X, Loader2, Trophy, BookOpen, Download, Award, Star,
@@ -35,17 +37,6 @@ import type {
 // Player type: Google Sans for text, Space Grotesk for headings (loaded in app/layout.tsx).
 const VE_BODY_FONT = "'Google Sans', 'Google Sans Text', var(--font-sans), sans-serif";
 const VE_DISPLAY_FONT = "var(--font-display), 'Google Sans', sans-serif";
-
-// Hamburger -- matches the course player (tighter line spacing than lucide's Menu).
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" className={className}>
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <line x1="4" y1="17" x2="20" y2="17" />
-    </svg>
-  );
-}
 
 // Helpers
 import { safeEmbedUrl as getVideoEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
@@ -645,21 +636,6 @@ export default function VirtualExperienceTaker({
 
   // Completion screen
   if (completed && !reviewMode) {
-    const buildLinkedInUrl = (name: string, id: string, orgName?: string, issuedAt?: string | null) => {
-      const issueDate = issuedAt ? new Date(issuedAt) : new Date();
-      const certUrl = `${window.location.origin}/certificate/${id}`;
-      const params = new URLSearchParams({
-        startTask: 'CERTIFICATION_NAME',
-        name,
-        issueYear: String(issueDate.getFullYear()),
-        issueMonth: String(issueDate.getMonth() + 1),
-        certId: id,
-        certUrl,
-      });
-      if (orgName) params.set('organizationName', orgName);
-      return `https://www.linkedin.com/profile/add?${params}`;
-    };
-
     return (
       <div className="min-h-screen flex flex-col" style={{ background: isDark ? '#0e0e0e' : '#F3F4F2', color: text, fontFamily: VE_BODY_FONT }}>
 
@@ -748,12 +724,13 @@ export default function VirtualExperienceTaker({
             {certId ? (
               <div className="space-y-2">
                 <a
-                  href={buildLinkedInUrl(
-                    config.title || config.role || 'Virtual Experience Certificate',
+                  href={linkedInAddCertUrl({
+                    name: config.title || config.role || 'Virtual Experience Certificate',
                     certId,
-                    certInstitutionName || config.company || undefined,
-                    certIssuedAt
-                  )}
+                    certUrl: `${window.location.origin}/certificate/${certId}`,
+                    organizationName: certInstitutionName || config.company || undefined,
+                    issuedAt: certIssuedAt,
+                  })}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl font-bold text-[15px] transition-all hover:opacity-90"

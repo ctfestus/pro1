@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 import { requiredItemIds } from '@/lib/learning-path-tracks';
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { parseReviewNotes } from '@/lib/reviewRecord';
@@ -32,29 +33,6 @@ function inferTopics(questions: any[]): string[] {
 
 function extractModuleTitles(modules: any[]): string[] {
   return (modules ?? []).map((m: any) => m.title ?? m.name).filter(Boolean);
-}
-
-// Build the LinkedIn "Add to profile" deep link that prefills the
-// Licenses and Certifications form. Mirrors the buttons on the certificate
-// and badge pages.
-function buildLinkedInAddUrl(opts: {
-  name: string;
-  organizationName?: string;
-  issuedAt: string;
-  credentialId: string;
-  credentialUrl: string;
-}): string {
-  const d = new Date(opts.issuedAt);
-  const params = new URLSearchParams({
-    startTask:  'CERTIFICATION_NAME',
-    name:       opts.name,
-    issueYear:  String(d.getFullYear()),
-    issueMonth: String(d.getMonth() + 1),
-    certId:     opts.credentialId,
-    certUrl:    opts.credentialUrl,
-  });
-  if (opts.organizationName) params.set('organizationName', opts.organizationName);
-  return `https://www.linkedin.com/profile/add?${params.toString()}`;
 }
 
 // GET /api/linkedin
@@ -175,8 +153,8 @@ export async function GET(req: NextRequest) {
         credentialId:        c.id,
         credentialUrl,
         skills,
-        linkedInAddUrl: buildLinkedInAddUrl({
-          name: cert.courseName, organizationName: org, issuedAt: cert.issuedAt, credentialId: c.id, credentialUrl,
+        linkedInAddUrl: linkedInAddCertUrl({
+          name: cert.courseName, organizationName: org, issuedAt: cert.issuedAt, certId: c.id, certUrl: credentialUrl,
         }),
       };
     }));
@@ -206,8 +184,8 @@ export async function GET(req: NextRequest) {
         awardedMonth:        new Date(b.awarded_at).getMonth() + 1,
         credentialId:        b.id,
         credentialUrl,
-        linkedInAddUrl: buildLinkedInAddUrl({
-          name: meta.name, organizationName: platformName, issuedAt: b.awarded_at, credentialId: b.id, credentialUrl,
+        linkedInAddUrl: linkedInAddCertUrl({
+          name: meta.name, organizationName: platformName, issuedAt: b.awarded_at, certId: b.id, certUrl: credentialUrl,
         }),
       };
     }).filter(Boolean);
