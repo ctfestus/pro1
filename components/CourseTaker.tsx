@@ -19,7 +19,6 @@ import {
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { XpBadgeStack } from '@/components/XpBadge';
-import { AnimatedField } from '@/components/AnimatedField';
 import { useTheme } from '@/components/ThemeProvider';
 import type { QuestionType, DownloadItem, CourseQuestion } from '@/lib/course-schema';
 import { linkedInSharePointsFor } from '@/lib/course-schema';
@@ -256,13 +255,8 @@ export function CourseTaker({
   isSubmitting,
   onSubmit,
   isSuccess,
-  onReset,
   onRetake,
-  onClose,
-  isSharedView,
-  collectStudentInfo = false,
   formId,
-  inlineMode = false,
   postSubmission,
   relatedForms = [],
   certificateId = null,
@@ -277,7 +271,7 @@ export function CourseTaker({
   onLessonComplete,
 }: any) {
   const [phase, setPhase] = useState<'info' | 'course' | 'complete'>(
-    collectStudentInfo || !!initialStudentName ? 'info' : 'course'
+    initialStudentName ? 'info' : 'course'
   );
   const [reviewMode, setReviewMode] = useState(false); // true when student has already earned a cert -- no XP/saves
   const [studentName, setStudentName] = useState(initialStudentName);
@@ -315,8 +309,6 @@ export function CourseTaker({
 
   // Lesson sheet
   const [lessonOpen, setLessonOpen] = useState(false);
-  const lessonOpenRef = useRef(false);
-  useEffect(() => { lessonOpenRef.current = lessonOpen; }, [lessonOpen]);
   useEffect(() => { scoringLockRef.current = false; }, [currentQuestionIndex]);
   // Reset the content scroll to the top whenever the slide changes, so a new
   // lesson always starts at its title rather than the previous scroll position.
@@ -331,7 +323,6 @@ export function CourseTaker({
   const [displayedPoints, setDisplayedPoints] = useState(0);
 
   // Chapters drawer
-  const [showChapters, setShowChapters] = useState(false);
 
   // Sidebar (persistent panel, non-inline mode only) -- closed by default on mobile
   const [sidebarOpen, setSidebarOpen] = useState(() =>
@@ -357,8 +348,6 @@ export function CourseTaker({
   const touchStartY   = useRef(0);
 
   // Progress save/resume state
-  const [savedProgress, setSavedProgress] = useState<any>(null);
-  const [showResumePrompt, setShowResumePrompt] = useState(false);
 
   const sessionTokenRef = useRef<string | null>(null);
   // Prevents double-scoring when Check/Next is clicked twice before React state settles
@@ -832,22 +821,6 @@ export function CourseTaker({
     setPhase('course');
   }, [maxAttempts, formId, questions]);
 
-  // -- Start course -- get Supabase session token then run checks --
-  const handleStartCourse = useCallback(async () => {
-    if (!studentName.trim() || !studentEmail.trim()) return;
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(studentEmail.trim())) {
-      setAttemptError('Please enter a valid email address.');
-      return;
-    }
-
-    setAttemptError('');
-    const { data: { session } } = await supabase.auth.getSession();
-    if (session?.access_token) sessionTokenRef.current = session.access_token;
-    await runCourseChecks(studentEmail.trim().toLowerCase());
-  }, [studentName, studentEmail, runCourseChecks]);
-
   // Exercise checks and solutions are sent with the sign-in as it is now, not as the page last
   // saw it: a token held in the ref can go stale (the tab sat in the background, or the server
   // renewed the cookie session without this tab hearing of it), and the learner then gets a
@@ -1203,43 +1176,6 @@ export function CourseTaker({
       setSubmitSaving(false);
     }
   }, [clearProgress, onSubmit, studentName, studentEmail, totalQuestions, passmark, totalPoints, streak, questions]);
-
-  // Resume from saved progress
-  const handleResume = useCallback(() => {
-    if (!savedProgress) return;
-    maxIdxRef.current = savedProgress.current_question_index ?? 0;
-    setCurrentQuestionIndex(savedProgress.current_question_index);
-    setAnswers(savedProgress.answers ?? {});
-    answersRef.current = savedProgress.answers ?? {};
-    setScore(savedProgress.score ?? 0);
-    setTotalPoints(savedProgress.points ?? 0);
-    setDisplayedPoints(savedProgress.points ?? 0);
-    setStreak(savedProgress.streak ?? 0);
-    setHintsUsed(new Set(savedProgress.hints_used ?? []));
-    setSavedProgress(null);
-    setShowResumePrompt(false);
-    setPhase('course');
-  }, [savedProgress]);
-
-  // Discard saved progress and start fresh
-  const handleStartFresh = useCallback(async () => {
-    if (formId && studentEmail.trim()) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await fetch('/api/course', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-          },
-          body: JSON.stringify({ action: 'clear-progress', course_id: formId }),
-        });
-      } catch { /* ignore */ }
-    }
-    setSavedProgress(null);
-    setShowResumePrompt(false);
-    setPhase('course');
-  }, [formId, studentEmail]);
 
   // -- Answer checking helpers --
   const checkFillBlank = (userAnswer: string, correctAnswer: string): boolean => {
@@ -1602,11 +1538,6 @@ export function CourseTaker({
 
           {/* Footer */}
           <div className={`px-7 sm:px-8 py-4 flex items-center justify-end ${isDark ? 'bg-zinc-900/40' : 'bg-zinc-50/60'}`}>
-            {!isSharedView && (
-              <button onClick={onReset} className={`text-xs flex items-center gap-1.5 font-medium ${mutedColor} hover:opacity-70 transition-opacity`}>
-                <RotateCcw className="w-3 h-3" /> Back to Editor
-              </button>
-            )}
             <p className={`text-xs ${mutedColor}`}>Results recorded</p>
           </div>
         </motion.div>
@@ -1990,197 +1921,19 @@ export function CourseTaker({
                 </div>
               )}
 
-              {/* Resume in-progress */}
-              {!checkingAttempts && !existingCertId && showResumePrompt && savedProgress && (() => {
-                const savedPct = totalSlides > 0 ? Math.round((savedProgress.current_question_index / totalSlides) * 100) : 0;
-                return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 48, height: 48, borderRadius: 14, background: `${accent}1a`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 22 }}>
-                      📖
-                    </div>
-                    <div>
-                      <p className={`text-base font-bold ${textColor}`}>Welcome back, {studentName.split(' ')[0]}!</p>
-                      <p className={`text-xs mt-0.5 ${mutedColor}`}>
-                        Slide {savedProgress.current_question_index + 1} of {totalSlides}
-                        {savedProgress.points > 0 && <> · <span style={{ color: accent }}>{savedProgress.points} XP earned</span></>}
-                      </p>
-                    </div>
-                  </div>
-                  {/* Progress bar */}
-                  <div style={{ height: 6, borderRadius: 99, background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.07)', overflow: 'hidden' }}>
-                    <div style={{ height: '100%', borderRadius: 99, background: accent, width: `${savedPct}%`, transition: 'width 0.6s ease' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                    <button
-                      onClick={handleResume}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '13px', borderRadius: 14, fontWeight: 700, fontSize: 14, color: 'white', background: accent, border: 'none', cursor: 'pointer' }}
-                    >
-                      Continue <ArrowRight className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={handleStartFresh}
-                      style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '11px', borderRadius: 14, fontWeight: 500, fontSize: 13, background: 'transparent', border: `1px solid ${overlayBorder}`, cursor: 'pointer', color: txtMuted }}
-                    >
-                      <RotateCcw className="w-3.5 h-3.5" /> Start over
-                    </button>
-                  </div>
-                </div>
-                );
-              })()}
             </div>
           </motion.div>
         </div>
       );
 
       // Only show the popup while something needs user attention; otherwise render nothing
-      // (handleStartCourse will transition to 'course' phase when all clear)
-      if (existingCertId || showResumePrompt || attemptError) {
+      if (existingCertId || attemptError) {
         return createPortal(popupContent, document.body);
       }
       return null;
     }
 
-    // -- Normal info form (no pre-filled info) --
-    return (
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        className={`max-w-xl mx-auto border rounded-2xl overflow-hidden ${cardBg}`}
-        style={fontStyle}
-      >
-        <div className="p-8 space-y-6">
-          <div>
-            <h2 className={`text-xl font-semibold mb-1 ${textColor}`}>Before you begin</h2>
-            <p className={`text-sm ${mutedColor}`}>Enter your details to record your attempt.</p>
-          </div>
-
-          {(courseTimerMins > 0 || maxAttempts > 0) && (
-            <div className={`flex items-start gap-3 p-3 rounded-xl border text-xs ${isDark ? 'border-zinc-700 bg-zinc-800/40 text-[#A8B5C2]' : 'border-zinc-200 bg-zinc-50 text-[#555555]'}`}>
-              <ShieldAlert className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-500" />
-              <div className="space-y-0.5">
-                {courseTimerMins > 0 && <p>Time limit: <span className="font-semibold text-amber-400">{courseTimerMins} minute{courseTimerMins > 1 ? 's' : ''}</span></p>}
-                {maxAttempts > 0 && <p>Max attempts: <span className="font-semibold">{maxAttempts}</span> per email address</p>}
-                <p className="mt-1">Do not switch tabs or windows during the course.</p>
-              </div>
-            </div>
-          )}
-
-          {learningOutcomes.length > 0 && (
-            <div className={`p-4 rounded-xl border ${isDark ? 'border-zinc-700 bg-zinc-800/40' : 'border-zinc-200 bg-zinc-50'}`}>
-              <p className={`text-xs font-semibold uppercase tracking-[0.14em] mb-2 ${mutedColor}`}>What you will learn</p>
-              <div className="space-y-2">
-                {learningOutcomes.map((outcome, idx) => (
-                  <div key={`${idx}-${outcome}`} className="flex items-start gap-2">
-                    <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }} />
-                    <p className={`text-sm leading-relaxed ${textColor}`}>{outcome}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className={`block text-xs font-medium mb-1.5 ${mutedColor}`}>Full Name</label>
-              <AnimatedField theme={config.theme || 'forest'} mode={config.mode || 'dark'}>
-                <input
-                  type="text"
-                  value={studentName}
-                  onChange={e => setStudentName(e.target.value)}
-                  placeholder="Enter your full name..."
-                  className={`w-full bg-transparent border-none outline-none px-4 py-3 text-sm ${isDark ? 'text-[#ACB8C5] placeholder:text-zinc-600' : 'text-[#111111] placeholder:text-zinc-400'}`}
-                />
-              </AnimatedField>
-            </div>
-            <div>
-              <label className={`block text-xs font-medium mb-1.5 ${mutedColor}`}>Email Address</label>
-              <AnimatedField theme={config.theme || 'forest'} mode={config.mode || 'dark'}>
-                <input
-                  type="email"
-                  value={studentEmail}
-                  onChange={e => { setStudentEmail(e.target.value); setAttemptError(''); }}
-                  placeholder="you@example.com"
-                  className={`w-full bg-transparent border-none outline-none px-4 py-3 text-sm ${isDark ? 'text-[#ACB8C5] placeholder:text-zinc-600' : 'text-[#111111] placeholder:text-zinc-400'}`}
-                />
-              </AnimatedField>
-            </div>
-          </div>
-
-          {attemptError && (
-            <div className="flex items-center gap-2.5 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-sm">
-              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-              {attemptError}
-            </div>
-          )}
-
-          {existingCertId ? (
-            <div className={`rounded-2xl overflow-hidden ${isDark ? 'bg-zinc-800/50 border border-zinc-700/50' : 'bg-zinc-50 border border-zinc-200/80'}`}>
-              <div className="h-0.5 w-full" style={{ background: accent }} />
-              <div className="p-4 space-y-3">
-                <div>
-                  <p className={`text-sm font-semibold ${textColor}`}>You&apos;ve already completed this course</p>
-                  <p className={`text-xs mt-0.5 ${mutedColor}`}>Your certificate is ready to view and share.</p>
-                </div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <a href={`/certificate/${existingCertId}`} target="_blank" rel="noreferrer"
-                    className="px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-1.5 transition-all active:scale-[0.98] hover:opacity-90 whitespace-nowrap"
-                    style={{ background: accent, color: 'white' }}>
-                    🎓 View Certificate
-                  </a>
-                  <button onClick={() => { setExistingCertId(null); setPhase('course'); }}
-                    className={`px-3 py-2 rounded-xl text-sm font-medium flex items-center gap-1.5 transition-all active:scale-[0.98] whitespace-nowrap ${isDark ? 'text-[#A8B5C2] hover:text-[#ACB8C5] hover:bg-zinc-700/60' : 'text-[#555555] hover:text-[#111111] hover:bg-zinc-200/60'}`}>
-                    <RotateCcw className="w-3.5 h-3.5" /> Retake anyway
-                  </button>
-                </div>
-              </div>
-            </div>
-          ) : showResumePrompt && savedProgress ? (
-            <div className={`rounded-2xl overflow-hidden ${isDark ? 'bg-zinc-800/50 border border-zinc-700/50' : 'bg-zinc-50 border border-zinc-200/80'}`}>
-              {(() => {
-                const savedPct = totalSlides > 0 ? Math.round((savedProgress.current_question_index / totalSlides) * 100) : 0;
-                return (<>
-              <div className={`h-0.5 w-full ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
-                <div className="h-full transition-all duration-700" style={{ width: `${savedPct}%`, background: accent }} />
-              </div>
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <p className={`text-sm font-semibold ${textColor}`}>Continue where you left off</p>
-                    <p className={`text-xs mt-0.5 ${mutedColor}`}>
-                      Slide {savedProgress.current_question_index + 1} of {totalSlides}
-                      {savedProgress.points > 0 && <> &middot; <span style={{ color: accent }}>{savedProgress.points} XP earned</span></>}
-                    </p>
-                  </div>
-                  <span className={`text-xs font-semibold tabular-nums px-2 py-1 rounded-lg ${isDark ? 'bg-zinc-700 text-[#A8B5C2]' : 'bg-zinc-200 text-[#555555]'}`}>
-                    {savedPct}%
-                  </span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <button onClick={handleResume} className="py-2.5 rounded-xl text-sm font-bold flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] hover:opacity-90" style={{ background: accent, color: 'white' }}>
-                    Continue <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={handleStartFresh} className={`py-2.5 rounded-xl text-sm font-medium flex items-center justify-center gap-1.5 transition-all active:scale-[0.98] ${isDark ? 'text-[#A8B5C2] hover:text-[#ACB8C5] hover:bg-zinc-700/60' : 'text-[#555555] hover:text-[#111111] hover:bg-zinc-200/60'}`}>
-                    <RotateCcw className="w-3.5 h-3.5" /> Start over
-                  </button>
-                </div>
-              </div>
-              </>);
-              })()}
-            </div>
-          ) : (
-            <button
-              onClick={handleStartCourse}
-              disabled={!studentName.trim() || !studentEmail.trim() || checkingAttempts || !!attemptError}
-              className="w-full py-3.5 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed text-sm"
-              style={{ background: accent }}
-            >
-              {checkingAttempts ? <Loader2 className="w-4 h-4 animate-spin" /> : <>Continue <ChevronRight className="w-4 h-4" /></>}
-            </button>
-          )}
-        </div>
-      </motion.div>
-    );
+    return null;
   }
 
   // -- Complete screen --
@@ -2267,7 +2020,6 @@ export function CourseTaker({
       </motion.div>
     );
 
-    if (inlineMode) return completeCard;
     if (typeof document === 'undefined') return null;
     return createPortal(
       <div style={{ position: 'fixed', inset: 0, zIndex: 250, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(10px)' }}>
@@ -2646,20 +2398,7 @@ export function CourseTaker({
     : slideCounts.authored > 0 ? 100 : 0;
   const timerWarning = timeLeft !== null && timeLeft <= 60;
 
-  // -- Correct answer display for after-check feedback --
-  const correctAnswerDisplay = () => {
-    if (questionType === 'fill_blank') {
-      return currentQuestion.correctAnswer.split('|').map((s: string) => s.trim()).join(' / ');
-    }
-    if (questionType === 'arrange') {
-      return currentQuestion.options.join(' -> ');
-    }
-    if (questionType === 'image') {
-      const idx = currentQuestion.options.indexOf(currentQuestion.correctAnswer);
-      return idx >= 0 ? `Option ${idx + 1}` : currentQuestion.correctAnswer;
-    }
-    return currentQuestion.correctAnswer;
-  };
+
 
 
   // -- Section divider slide --
@@ -2891,13 +2630,12 @@ export function CourseTaker({
   //
   // ONE condition gates both the launch button and the pane. They were separate before, which
   // is exactly how the button ended up rendering in places the pane did not: signed out (every
-  // ask 401s) and in inlineMode (no pane row to dock into, so clicking did nothing).
+  // ask 401s).
   const tutorLesson = currentQuestion?.lessonOnly ? (currentQuestion.lesson || {}) : null;
   const tutorAvailable = Boolean(
     (config as any).enableAiTutor
     && formId
     && signedIn
-    && !inlineMode
     // It answers from the lesson text, so it is only offered where there is text to answer
     // from (a video-only slide has nothing to read).
     && tutorLesson && (tutorLesson.doc || tutorLesson.body),
@@ -2993,12 +2731,9 @@ export function CourseTaker({
         )}
       </AnimatePresence>
 
-      {/* -- Main container (split layout for full-screen, single column for inline) -- */}
+      {/* -- Main container -- */}
       <div
-        className={inlineMode
-          ? `relative flex flex-col rounded-xl overflow-hidden min-h-[500px] ${isDark ? 'bg-black' : 'bg-white'}`
-          : 'fixed inset-0 z-[200] overflow-hidden flex flex-col'
-        }
+        className="fixed inset-0 z-[200] overflow-hidden flex flex-col"
         style={{ color: isDark ? '#ffffff' : '#18181b', ...fontStyle }}
       >
 
@@ -3194,8 +2929,7 @@ export function CourseTaker({
         {/* Body row: sidebar + content */}
         <div className="relative flex flex-1 overflow-hidden" style={{ background: isDark ? '#17181E' : '#F2F5FA' }}>
 
-        {/* -- SIDEBAR (non-inline only) -- */}
-        {!inlineMode && (
+        {/* -- SIDEBAR -- */}
           <>
             {/* Mobile backdrop -- above the SQL player overlay (z-40) so the outline drawer is usable during exercises */}
             {sidebarOpen && (
@@ -3406,11 +3140,10 @@ export function CourseTaker({
               </div>
             </aside>
           </>
-        )}
 
         {/* -- MAIN CONTENT COLUMN -- */}
         <div
-          className={inlineMode ? 'flex-1 flex flex-col' : 'flex-1 overflow-hidden flex flex-col'}
+          className="flex-1 overflow-hidden flex flex-col"
           style={{ background: isDark ? '#17181E' : '#F2F5FA' }}
         >
 
@@ -3427,7 +3160,7 @@ export function CourseTaker({
               savedAnswer={answers[currentQuestion.id]}
               completed={isAnswerCorrect(currentQuestion, answers[currentQuestion.id] ?? '')}
               topOffset={44}
-              leftOffset={!inlineMode && typeof window !== 'undefined' && window.innerWidth >= 640 ? (sidebarOpen ? 372 : 60) : 0}
+              leftOffset={typeof window !== 'undefined' && window.innerWidth >= 640 ? (sidebarOpen ? 372 : 60) : 0}
               sessionToken={sessionTokenRef.current ?? undefined}
               onComplete={handleSqlComplete}
               onCheckAnswer={async (questionId, query, result) => {
@@ -3457,7 +3190,7 @@ export function CourseTaker({
               savedAnswer={answers[currentQuestion.id]}
               completed={isAnswerCorrect(currentQuestion, answers[currentQuestion.id] ?? '')}
               topOffset={44}
-              leftOffset={!inlineMode && typeof window !== 'undefined' && window.innerWidth >= 640 ? (sidebarOpen ? 372 : 60) : 0}
+              leftOffset={typeof window !== 'undefined' && window.innerWidth >= 640 ? (sidebarOpen ? 372 : 60) : 0}
               sessionToken={sessionTokenRef.current ?? undefined}
               onComplete={handlePythonComplete}
               hintPenalty={pointsEnabled ? (ps?.hintPenalty ?? 20) : undefined}
@@ -4443,92 +4176,6 @@ export function CourseTaker({
         </div>{/* end body row */}
       </div>{/* end main container */}
 
-      {/* Chapters drawer - inline mode only (full-screen mode uses persistent sidebar) */}
-      {inlineMode && (
-        <AnimatePresence>
-          {showChapters && (
-            <>
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.15 }}
-                className="fixed inset-0 z-[300] bg-black/50"
-                onClick={() => setShowChapters(false)}
-              />
-              <motion.div
-                initial={{ x: -310 }}
-                animate={{ x: 0 }}
-                exit={{ x: -310 }}
-                transition={{ duration: 0.25, ease: [0.23, 1, 0.32, 1] }}
-                className="fixed left-0 top-0 bottom-0 z-[301] flex flex-col"
-                style={{
-                  width: 300,
-                  background: isDark ? '#111' : '#fff',
-                  borderRight: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.08)'}`,
-                  boxShadow: '4px 0 32px rgba(0,0,0,0.35)',
-                }}
-              >
-                <div className={`flex items-center justify-between px-4 py-3.5 border-b flex-shrink-0 ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
-                  <p className="text-sm font-bold" style={{ color: txt }}>Course Contents</p>
-                  <button onClick={() => setShowChapters(false)} className={`p-1 rounded-lg transition-colors ${isDark ? 'text-zinc-500 hover:text-zinc-300' : 'text-zinc-400 hover:text-zinc-600'}`}>
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-                <div className="flex-1 overflow-y-auto py-2">
-                  {chapters.map((group, gi) => (
-                    <div key={gi}>
-                      <div className="px-4 pt-4 pb-1.5">
-                        <button
-                          onClick={() => { if (group.sectionIdx !== null) { setCurrentQuestionIndex(group.sectionIdx); setShowChapters(false); } }}
-                          disabled={group.sectionIdx === null}
-                          className="text-left w-full"
-                        >
-                          <span className="text-[10px] font-bold uppercase tracking-wide leading-tight" style={{ color: accent }}>{group.sectionTitle}</span>
-                        </button>
-                      </div>
-                      {group.slides.map(({ q, idx }) => {
-                        const answered = !!answers[q.id];
-                        const isCurrent = idx === currentQuestionIndex;
-                        const locked = isSlideLocked(idx);
-                        return (
-                          <button key={q.id}
-                            onClick={() => { if (locked) { notifyLocked(); return; } setCurrentQuestionIndex(idx); setShowChapters(false); }}
-                            className="w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors hover:opacity-80"
-                            style={{ background: isCurrent ? (isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.05)') : 'transparent', opacity: locked ? 0.55 : 1, cursor: locked ? 'not-allowed' : 'pointer' }}
-                          >
-                            <span className="w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold"
-                              style={{ background: isCurrent ? accent : answered ? `${accent}25` : isDark ? '#2a2a2a' : '#f0f0f0', color: isCurrent ? '#fff' : answered ? accent : txtFaint }}>
-                              {answered ? '✓' : locked ? <Lock className="w-3 h-3" /> : (q as any).lessonOnly ? '◉' : idx + 1}
-                            </span>
-                            <span className="flex-1 text-[13px] leading-snug line-clamp-2" style={{ color: isCurrent ? txt : txtMuted }}>
-                              {(q as any).isLinkedInShare
-                                ? ((q as any).linkedInShareTitle || 'LinkedIn Share')
-                                : (q as any).isDownloads
-                                ? ((q as any).downloadsTitle || 'Downloads')
-                                : (q as any).lessonOnly
-                                  ? ((q as any).lesson?.title || 'Lesson Content')
-                                  : REVIEW_TYPES.includes(q.type as QuestionType)
-                                    ? ((q as any).question || 'Project')
-                                    : q.type === 'sql_exercise'
-                                      ? ((q as any).lesson?.title || (q as any).question || 'SQL Exercise')
-                                      : q.type === 'python_exercise'
-                                        ? ((q as any).lesson?.title || (q as any).question || 'Python Exercise')
-                                        : 'Test Your Knowledge'}
-                            </span>
-                            {isCurrent && <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: accent }} />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      )}
-
       {/* Lesson sheet */}
       <AnimatePresence>
         {lessonOpen && currentQuestion?.lesson && (
@@ -4664,7 +4311,6 @@ export function CourseTaker({
     </>
   );
 
-  if (inlineMode) return quizUI;
   if (typeof document === 'undefined') return null;
   return createPortal(quizUI, document.body);
 }

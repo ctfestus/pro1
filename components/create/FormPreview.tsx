@@ -86,7 +86,7 @@ export function FormPreview({ config, isSubmitting, onSubmit, isSuccess, onReset
             </div>
           </div>
         )}
-        <CourseTaker config={config} isSubmitting={isSubmitting} onSubmit={onSubmit} isSuccess={isSuccess} onReset={onReset} isSharedView={isSharedView} inlineMode={!isSharedView} />
+        <CourseTaker config={config} isSubmitting={isSubmitting} onSubmit={onSubmit} isSuccess={isSuccess} />
       </div>
     );
   }

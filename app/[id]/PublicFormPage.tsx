@@ -2067,11 +2067,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             isSubmitting={submitting}
             onSubmit={handleSubmit}
             isSuccess={success}
-            onReset={() => {}}
-            onClose={() => setCourseStarted(false)}
             onRetake={() => { setSuccess(false); setSubmitting(false); setRetakeKey(k => k + 1); }}
-            isSharedView={true}
-            collectStudentInfo={false}
             initialStudentName={prefilledName}
             initialStudentEmail={prefilledEmail}
             formId={form.id}
