@@ -2057,7 +2057,10 @@ function VirtualExperienceCreatePageInner() {
                     shared lesson editor already offers on narrow screens. */}
                 <style>{`.ve-tab > .space-y-4 > div:first-child { border-top: none !important; padding-top: 4px !important; }
 .ve-tab .lesson-editor-toolbar__secondary, .ve-tab .lesson-editor-toolbar__media { display: none !important; }
-.ve-tab .lesson-editor-toolbar__more { display: inline-flex !important; }`}</style>
+.ve-tab .lesson-editor-toolbar__more { display: inline-flex !important; }
+.ve-tab input:focus-visible, .ve-tab textarea:focus-visible, .ve-tab select:focus-visible { outline: none !important; box-shadow: inset 0 0 0 2px ${C.cta} !important; }
+.ve-tab .ve-shell > input:focus-visible, .ve-tab [contenteditable="true"]:focus-visible { outline: none !important; box-shadow: none !important; }
+.ve-tab .ve-shell:focus-within, .ve-tab .lesson-editor-shell:focus-within { outline: 2px solid ${C.cta}; outline-offset: -2px; }`}</style>
                 <motion.div key={activeSection} custom={secDir}
                   initial={{ opacity: 0, x: secDir * 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: secDir * -28 }}
                   transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} className="ve-tab px-6 sm:px-8 py-7">
@@ -2099,7 +2102,7 @@ function VirtualExperienceCreatePageInner() {
                           const logo = toolIcon(t);
                           const initial = t.trim().charAt(0).toUpperCase();
                           return (
-                            <div key={i} className="flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ background: C.field }}>
+                            <div key={i} className="ve-shell flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ background: C.field }}>
                               {logo
                                 ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
                                 : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{initial}</div>
@@ -2211,7 +2214,7 @@ function VirtualExperienceCreatePageInner() {
                 <div className="space-y-4">
 
                 {/* Manager brief card */}
-                <div style={{ ...card, overflow: 'hidden' }}>
+                <div style={card}>
                   {/* Header strip */}
                   <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: C.field }}>
                     <div style={{ width: 32, height: 32, borderRadius: 999, overflow: 'hidden', background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: C.text, flexShrink: 0 }}>
@@ -2350,7 +2353,7 @@ function VirtualExperienceCreatePageInner() {
                     <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Learning outcomes</p>
                     <div className="space-y-2">
                       {(config.learnOutcomes || []).map((o, i) => (
-                        <div key={i} className="flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ background: C.field }}>
+                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ background: C.field }}>
                           <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                             style={{ background: `${C.cta}18` }}>
                             <Check className="w-3 h-3" style={{ color: C.cta }} />
@@ -2394,7 +2397,7 @@ function VirtualExperienceCreatePageInner() {
                               value={mod.title}
                               onChange={e => updateModule(mod.id, { title: e.target.value })}
                               aria-label={`Milestone ${mi + 1} title`}
-                              className="flex-1 bg-transparent text-[15.5px] font-semibold outline-none min-w-0"
+                              className="flex-1 bg-transparent text-[15.5px] font-semibold outline-none min-w-0 rounded-lg px-2 -mx-2 py-1"
                               style={{ color: C.text }}
                               placeholder="Milestone title"
                             />
@@ -2427,7 +2430,7 @@ function VirtualExperienceCreatePageInner() {
                                       value={les.title}
                                       onChange={e => updateLesson(mod.id, les.id, { title: e.target.value })}
                                       aria-label={`Mission ${li + 1} title`}
-                                      className="flex-1 bg-transparent text-[14px] font-semibold outline-none min-w-0 py-1"
+                                      className="flex-1 bg-transparent text-[14px] font-semibold outline-none min-w-0 py-1 rounded-lg px-2 -mx-1"
                                       style={{ color: C.text }}
                                       placeholder="Mission title"
                                     />
@@ -2619,6 +2622,7 @@ function VirtualExperienceCreatePageInner() {
                                               {(req.type === 'briefing' || req.type === 'debrief') ? (
                                                 <>
                                                   <RichTextEditor
+                                                    className="ve-shell"
                                                     value={req.description}
                                                     onChange={html => updateReq(mod.id, les.id, req.id, { description: html })}
                                                     placeholder={req.type === 'briefing' ? 'Write the email body - formatting, bullet points, and images are all supported...' : 'Describe what students should write in their debrief update...'}
@@ -2664,6 +2668,7 @@ function VirtualExperienceCreatePageInner() {
                                                         EMAIL BODY
                                                       </div>
                                                       <RichTextEditor
+                                                    className="ve-shell"
                                                         value={req.emailBody || ''}
                                                         onChange={html => updateReq(mod.id, les.id, req.id, { emailBody: html })}
                                                         placeholder="Write the email the manager sends to the student..."
@@ -3144,7 +3149,7 @@ function VirtualExperienceCreatePageInner() {
                                 style={{ color: C.muted }}>
                                 <Plus className="w-3.5 h-3.5" /> Add mission
                               </button>
-                              <div className="flex items-center gap-2 px-3 rounded-[10px]" style={{ background: C.field }}>
+                              <div className="ve-shell flex items-center gap-2 px-3 rounded-[10px]" style={{ background: C.field }}>
                                 <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }} />
                                 <input
                                   value={mod.solutionVideo || ''}
