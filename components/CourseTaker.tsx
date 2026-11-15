@@ -1,8 +1,7 @@
 ﻿'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { safeEmbedUrl as getVideoEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
-import { HtmlEmbedFrame } from '@/components/HtmlEmbedFrame';
+import { isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { DARK_C, LIGHT_C } from '@/lib/theme';
 import { RecommendedProducts } from '@/components/RecommendedProducts';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -27,7 +26,7 @@ import { preflightLinkedInPostUrl } from '@/lib/linkedin-post-url';
 import { saveMyLinkedInProfileUrl, shareClaimErrorMessage } from '@/lib/linkedin-profile';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
-import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
+import { LessonMedia } from '@/components/course/LessonMedia';
 import { LessonTutorPanel, TutorSignalMark } from '@/components/lesson/LessonTutorPanel';
 import { supabase } from '@/lib/supabase';
 import { postWithFreshSession } from '@/lib/fresh-session-fetch';
@@ -3234,7 +3233,6 @@ export function CourseTaker({
                   })() : /* -- Lesson-only slide: render as unified card like VirtualExperienceTaker -- */
                   currentQuestion.lessonOnly ? (() => {
                     const lesson = currentQuestion.lesson || {} as any;
-                    const embedUrl = lesson.videoUrl ? getVideoEmbedUrl(lesson.videoUrl) : null;
                     const isLast = currentQuestionIndex >= totalSlides - 1;
                     return (
                       <div
@@ -3278,48 +3276,9 @@ export function CourseTaker({
                           </div>
                         </div>
 
-                        {/* Video */}
-                        {embedUrl && (
-                          <div className="px-3 sm:px-8 pt-4 sm:pt-7 pb-2">
-                            {isHtmlEmbedUrl(embedUrl) ? (
-                              <div className="rounded-lg overflow-hidden">
-                                <HtmlEmbedFrame src={embedUrl} />
-                              </div>
-                            ) : (
-                              <div className="rounded-lg overflow-hidden" style={embedUrl.includes('canva.com') ? { height: '80vh' } : { aspectRatio: '16/9' }}>
-                                <iframe
-                                  src={embedUrl}
-                                  className="w-full h-full border-0"
-                                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-                                  allowFullScreen
-                                />
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {/* Image */}
-                        {lesson.imageUrl && (
-                          <div className="px-3 sm:px-8 pt-4 pb-2">
-                            <div className="rounded-lg overflow-hidden">
-                              <img src={lesson.imageUrl} alt="Lesson illustration" className="w-full object-cover" />
-                            </div>
-                          </div>
-                        )}
-
-                        {/* PDF */}
-                        {lesson.pdfUrl && (
-                          <div className="px-3 sm:px-8 pt-4 pb-2">
-                            <PdfCarousel url={lesson.pdfUrl} pages={lesson.pdfPages || 1} fileName={lesson.pdfName} accent={accent} isDark={isDark} />
-                          </div>
-                        )}
-
-                        {/* Audio */}
-                        {lesson.audioUrl && (
-                          <div className="px-3 sm:px-8 pt-4 pb-2">
-                            <LessonAudioPlayer src={lesson.audioUrl} isDark={isDark} />
-                          </div>
-                        )}
+                        <LessonMedia lesson={lesson} accent={accent} isDark={isDark}
+                          itemClassName="px-3 sm:px-8 pt-4 pb-2" videoItemClassName="px-3 sm:px-8 pt-4 sm:pt-7 pb-2"
+                          videoFrameClassName="rounded-lg" imageFrameClassName="rounded-lg" />
 
                         {/* Body */}
                         {(lesson.doc || lesson.body) && (
@@ -3483,37 +3442,8 @@ export function CourseTaker({
                   {/* -- Lesson content for review questions -- */}
                   {REVIEW_TYPES.includes(questionType) && currentQuestion.lesson && (currentQuestion.lesson.doc || currentQuestion.lesson.body || currentQuestion.lesson.videoUrl || currentQuestion.lesson.imageUrl || currentQuestion.lesson.pdfUrl || currentQuestion.lesson.audioUrl) && (
                     <>
-                      {currentQuestion.lesson.videoUrl && getVideoEmbedUrl(currentQuestion.lesson.videoUrl) && (
-                        isHtmlEmbedUrl(currentQuestion.lesson.videoUrl) ? (
-                          <div className="mb-4 rounded-lg overflow-hidden">
-                            <HtmlEmbedFrame src={getVideoEmbedUrl(currentQuestion.lesson.videoUrl)!} />
-                          </div>
-                        ) : (
-                          <div className="mb-4 rounded-lg overflow-hidden" style={getVideoEmbedUrl(currentQuestion.lesson.videoUrl)!.includes('canva.com') ? { height: '80vh' } : { aspectRatio: '16/9' }}>
-                            <iframe
-                              src={getVideoEmbedUrl(currentQuestion.lesson.videoUrl)!}
-                              className="w-full h-full border-0"
-                              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-                              allowFullScreen
-                            />
-                          </div>
-                        )
-                      )}
-                      {currentQuestion.lesson.imageUrl && (
-                        <div className="mb-4 rounded-lg overflow-hidden">
-                          <img src={currentQuestion.lesson.imageUrl} alt="Lesson illustration" className="w-full object-cover" />
-                        </div>
-                      )}
-                      {currentQuestion.lesson.pdfUrl && (
-                        <div className="mb-4">
-                          <PdfCarousel url={currentQuestion.lesson.pdfUrl} pages={currentQuestion.lesson.pdfPages || 1} fileName={currentQuestion.lesson.pdfName} accent={accent} isDark={isDark} />
-                        </div>
-                      )}
-                      {currentQuestion.lesson.audioUrl && (
-                        <div className="mb-4">
-                          <LessonAudioPlayer src={currentQuestion.lesson.audioUrl} isDark={isDark} />
-                        </div>
-                      )}
+                      <LessonMedia lesson={currentQuestion.lesson} accent={accent} isDark={isDark}
+                        itemClassName="mb-4" videoFrameClassName="rounded-lg" imageFrameClassName="rounded-lg" />
                       {(currentQuestion.lesson.doc || currentQuestion.lesson.body) && (
                         currentQuestion.lesson.doc ? (
                           <div className="mb-6">
@@ -3884,33 +3814,8 @@ export function CourseTaker({
               {/* scrollable content */}
               <div className="overflow-y-auto flex-1 overscroll-contain">
                 <div className="max-w-2xl mx-auto px-5 sm:px-8 pt-2 pb-5 sm:pt-3 sm:pb-7 space-y-5 sm:space-y-6">
-                  {currentQuestion.lesson.videoUrl && getVideoEmbedUrl(currentQuestion.lesson.videoUrl) && (
-                    isHtmlEmbedUrl(currentQuestion.lesson.videoUrl) ? (
-                      <div className="rounded-xl overflow-hidden shadow-md">
-                        <HtmlEmbedFrame src={getVideoEmbedUrl(currentQuestion.lesson.videoUrl)!} />
-                      </div>
-                    ) : (
-                      <div className="rounded-xl overflow-hidden shadow-md" style={{ aspectRatio: '16/9' }}>
-                        <iframe
-                          src={getVideoEmbedUrl(currentQuestion.lesson.videoUrl)!}
-                          className="w-full h-full border-0"
-                          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture; fullscreen"
-                          allowFullScreen
-                        />
-                      </div>
-                    )
-                  )}
-                  {currentQuestion.lesson.imageUrl && (
-                    <div className="rounded-xl overflow-hidden shadow-sm">
-                      <img src={currentQuestion.lesson.imageUrl} alt="Lesson illustration" className="w-full object-cover" />
-                    </div>
-                  )}
-                  {currentQuestion.lesson.pdfUrl && (
-                    <PdfCarousel url={currentQuestion.lesson.pdfUrl} pages={currentQuestion.lesson.pdfPages || 1} fileName={currentQuestion.lesson.pdfName} accent={accent} isDark={isDark} />
-                  )}
-                  {currentQuestion.lesson.audioUrl && (
-                    <LessonAudioPlayer src={currentQuestion.lesson.audioUrl} isDark={isDark} />
-                  )}
+                  <LessonMedia lesson={currentQuestion.lesson} accent={accent} isDark={isDark}
+                    videoFrameClassName="rounded-xl shadow-md" imageFrameClassName="rounded-xl shadow-sm" />
                   {(currentQuestion.lesson.doc || currentQuestion.lesson.body) && (
                     currentQuestion.lesson.doc ? (
                       <LessonRenderer key={currentQuestion.id} doc={currentQuestion.lesson.doc} isDark={isDark} accentColor={accent} />
