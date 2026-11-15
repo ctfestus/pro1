@@ -12,10 +12,19 @@ import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 import { courseContentCounts, courseXpOnOffer, crossesLessonMidpoint } from '@/lib/course-progress';
 import dynamic from 'next/dynamic';
-// Loaded when someone opens a course, as the experience and certification players are.
-const CourseTaker = dynamic(() => import('@/components/CourseTaker').then((m) => m.CourseTaker), { ssr: false });
-const VirtualExperienceTaker = dynamic(() => import('@/components/VirtualExperienceTaker'), { ssr: false });
-const CertificationTaker = dynamic(() => import('@/components/CertificationTaker'), { ssr: false });
+// The players load in a second download, so they show the same spinner the course player shows
+// while it checks progress, rather than a blank page. (Options must stay inline object literals.)
+const CourseTaker = dynamic(() => import('@/components/CourseTaker').then((m) => m.CourseTaker), { ssr: false, loading: () => <PlayerLoading /> });
+const VirtualExperienceTaker = dynamic(() => import('@/components/VirtualExperienceTaker'), { ssr: false, loading: () => <PlayerLoading /> });
+const CertificationTaker = dynamic(() => import('@/components/CertificationTaker'), { ssr: false, loading: () => <PlayerLoading /> });
+
+function PlayerLoading() {
+  return (
+    <div role="status" aria-label="Loading" className="flex items-center justify-center" style={{ minHeight: '60vh' }}>
+      <Loader2 className="w-8 h-8 animate-spin" style={{ color: '#a1a1aa' }} />
+    </div>
+  );
+}
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { sanitizeRichText } from '@/lib/sanitize';
