@@ -1668,19 +1668,13 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           {/* Left column */}
           <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* The brief (VE only): who it is from, then what it says. */}
+            {/* The scenario: the situation the learner steps into, in plain words. It is not framed as
+                a note from the manager: the manager speaks for themselves once the experience starts. */}
             {config.background && (
-              <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden', boxShadow: cardShadow }}>
-                <div style={{ padding: '12px 22px', background: gp.subtle, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {guide
-                    ? <GuideAvatar guide={guide} size={26} accent={indColor} />
-                    : <span style={{ width: 26, height: 26, borderRadius: '50%', background: `${indColor}22`, color: indColor, fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{managerInitials}</span>}
-                  <p style={{ flex: 1, minWidth: 0, fontSize: 13, color: gp.muted, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                    From <b style={{ color: gp.title, fontWeight: 600 }}>{guide?.fullName || managerName}</b>
-                  </p>
-                  <span style={{ fontSize: 10.5, color: gp.muted, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>Your brief</span>
-                </div>
-                <div className="rich-content" style={{ padding: '20px 24px', fontSize: 14.5, lineHeight: 1.6, color: gp.body }}
+              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
+                {config.company && <p style={{ fontSize: 12.5, fontWeight: 600, color: gp.muted, margin: '0 0 2px' }}>{config.company}</p>}
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 10, fontFamily: displayFont }}>The scenario</h2>
+                <div className="rich-content" style={{ fontSize: 14.5, lineHeight: 1.6, color: gp.body }}
                   dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.background) || '' }} />
               </div>
             )}
