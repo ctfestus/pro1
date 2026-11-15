@@ -3,14 +3,10 @@
 import { PublicRegistrationsCard } from '@/components/dashboard/PublicRegistrationsCard';
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
+import { exportContent } from '@/lib/dashboard-export';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy,
-  TrendingUp, BarChart2, BarChart3, Settings, MoreHorizontal,
-  Copy, Check, ExternalLink, Code2, GitFork, QrCode, Edit2,
-  AlignLeft, HelpCircle, CalendarDays, Share2, Mail, Send, Bell,
-  Award, Upload, Trash2, RefreshCw, Link as LinkIcon, Sun, Moon, Sparkles, X,
-  ChevronDown, Eye,
+  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, ExternalLink, GitFork, Edit2, AlignLeft, HelpCircle, CalendarDays, Mail, Send, Bell, Award, Sun, Moon, Sparkles, X, ChevronDown, Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -39,25 +35,6 @@ const ResponsesOverTimeChart = dynamic(
 
 const PAGE_SIZE = 50;
 
-function downloadJSON(data: any, name: string) {
-  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${(name || 'export').replace(/[^a-z0-9]/gi, '_').toLowerCase()}.json`;
-  document.body.appendChild(a); a.click(); document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-function exportContent(form: any) {
-  downloadJSON({
-    exportVersion: 1,
-    type: form.content_type,
-    title: form.title,
-    exportedAt: new Date().toISOString(),
-    config: form.config,
-  }, form.title);
-}
 
 type TabId = 'responses' | 'settings' | 'more' | 'email' | 'leaderboard';
 
@@ -66,7 +43,7 @@ const TABS: { id: TabId; label: string; Icon: any; courseOnly?: boolean }[] = [
   { id: 'responses',    label: 'Responses',    Icon: BarChart3                      },
   { id: 'leaderboard',  label: 'Leaderboard',  Icon: Trophy,   courseOnly: true     },
   { id: 'email',        label: 'Email',        Icon: Mail                           },
-  { id: 'more',         label: 'More',         Icon: MoreHorizontal                 },
+  { id: 'more',         label: 'Publish',      Icon: Send                           },
 ];
 
 function getFormType(config: any): 'course' | 'event' | 'form' | 'virtual_experience' {
@@ -1153,7 +1130,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   const [blasting, setBlasting]         = useState(false);
   const [blastResult, setBlastResult]   = useState<{ ok: boolean; msg: string } | null>(null);
   const [blastTone, setBlastTone]       = useState<'friendly' | 'professional' | 'casual'>('friendly');
-  const [blastPurpose, setBlastPurpose] = useState(isEvent ? 'event update' : 'course update');
+  const [blastPurpose, setBlastPurpose] = useState(isEvent ? 'event update' : isVE ? 'experience update' : 'course update');
   const [blastPrompt, setBlastPrompt]   = useState('');
   const [blastAiLoading, setBlastAiLoading] = useState(false);
   const [blastAiResult, setBlastAiResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -1408,7 +1385,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
 
   const label = isDark
     ? 'block text-xs font-medium text-zinc-400 mb-1.5'
-    : 'block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide';
+    : 'block text-[12.5px] font-semibold text-gray-500 mb-1.5';
 
   const input = isDark
     ? 'w-full bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/20 transition-all'
@@ -1416,7 +1393,8 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
 
   const textarea = `${input} resize-none leading-relaxed`;
 
-  const primaryBtn = 'w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed';
+  // Not ready yet reads as grey (the important flag beats the inline accent colour).
+  const primaryBtn = `w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-100 disabled:cursor-not-allowed ${isDark ? 'disabled:bg-[rgba(255,255,255,0.055)]! disabled:text-[#7A8088]!' : 'disabled:bg-[#F4F6F9]! disabled:text-[#8a929e]!'}`;
 
   const feedback = (ok: boolean) => ok
     ? (isDark
@@ -1431,9 +1409,8 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   return (
     <div className="w-full space-y-4 py-2">
       <div className="pb-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: courseAccent }}>Communication</p>
-        <h2 className={isDark ? 'mt-1 text-xl font-bold text-white sm:text-2xl' : 'mt-1 text-xl font-bold text-gray-900 sm:text-2xl'}>Email studio</h2>
-        <p className={isDark ? 'mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500' : 'mt-1 max-w-2xl text-sm leading-relaxed text-gray-400'}>Compose updates, target learners by progress, and test every message before sending.</p>
+        <h2 className={isDark ? 'text-[18px] font-semibold text-white' : 'text-[18px] font-semibold text-gray-900'}>{isEvent ? 'Email attendees' : 'Email learners'}</h2>
+        <p className={isDark ? 'mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500' : 'mt-1 max-w-2xl text-sm leading-relaxed text-gray-400'}>{isEvent ? 'Send an update to everyone registered, and test it before sending.' : 'Send an update to everyone, or only to learners at one stage, and test it before sending.'}</p>
       </div>
 
       {/* -- Blast Email -- */}
@@ -1478,14 +1455,14 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           {(isCourse || isVE) && (
             <div>
               <label className={label}>Audience</label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+              <div className={`grid grid-cols-2 sm:grid-cols-3 ${isVE ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-2`}>
                 {([
-                  { value: 'all',         label: 'All Enrolled'  },
-                  { value: 'not_started', label: 'Not Started'   },
-                  { value: 'in_progress', label: 'In Progress'   },
-                  { value: 'completed',   label: 'Completed'     },
-                  { value: 'failed',      label: 'Failed'        },
-                ] as const).map(seg => {
+                  { value: 'all',         label: 'Everyone'    },
+                  { value: 'not_started', label: 'Not started' },
+                  { value: 'in_progress', label: 'In progress' },
+                  { value: 'completed',   label: 'Completed'   },
+                  { value: 'failed',      label: 'Failed'      },
+                ] as const).filter(seg => !(isVE && seg.value === 'failed')).map(seg => {
                   const count = segmentCounts?.[seg.value];
                   const active = blastSegment === seg.value;
                   return (
@@ -1550,7 +1527,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               <textarea
                 value={blastPrompt}
                 onChange={e => setBlastPrompt(e.target.value)}
-                placeholder="Optional: mention urgency, promo angle, what attendees should do next, or any details to emphasize."
+                placeholder={isEvent ? 'Optional: mention urgency, what attendees should do next, or any details to emphasize.' : 'Optional: what learners should do next, a deadline, or anything to emphasize.'}
                 rows={3}
                 className={textarea}
               />
@@ -1577,7 +1554,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               type="text"
               value={blastSubject}
               onChange={e => { setBlastSubject(e.target.value); setBlastResult(null); }}
-              placeholder="e.g. Important update about your registration"
+              placeholder={isEvent ? 'e.g. Important update about your registration' : isVE ? 'e.g. Week 2 starts Monday' : 'e.g. A new module is open'}
               className={input}
             />
           </div>
@@ -1597,7 +1574,8 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             <p className={isDark ? 'mt-1.5 text-xs text-zinc-500' : 'mt-1.5 text-xs text-gray-400'}>Click an image to change its size. Sign off in your own words: nothing is added under your message.</p>
           </div>
           <div className={isDark ? 'rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-xs text-zinc-500' : 'rounded-xl border border-[rgba(0,0,0,0.07)] bg-[#f5f6f7] px-4 py-3 text-xs text-[#888]'}>
-            Available tags: <code>{'{{name}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{form_title}}'}</code>, <code>{'{{event_title}}'}</code>, <code>{'{{event_date}}'}</code>, <code>{'{{event_time}}'}</code>, <code>{'{{event_timezone}}'}</code>, <code>{'{{event_location}}'}</code>, <code>{'{{meeting_link}}'}</code>, <code>{'{{form_url}}'}</code>
+            Available tags: <code>{'{{name}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{form_title}}'}</code>, <code>{'{{form_url}}'}</code>
+            {isEvent && <>, <code>{'{{event_title}}'}</code>, <code>{'{{event_date}}'}</code>, <code>{'{{event_time}}'}</code>, <code>{'{{event_timezone}}'}</code>, <code>{'{{event_location}}'}</code>, <code>{'{{meeting_link}}'}</code></>}
           
             {isEvent && <span className="mt-1 block">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>}
           </div>
@@ -1723,7 +1701,9 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
         </div>
       )}
 
-      {/* -- Send Now (Quick Send) -- */}
+      {/* -- Send Now (Quick Send): for events and forms it also sends confirmations and follow-ups.
+          For courses and experiences it only repeated the Send test beside Preview, so it is not shown. -- */}
+      {!(isCourse || isVE) && (
       <div className={card}>
         <div className={cardHeader}>
           <div className={sectionIconBg} style={{ background: `${courseAccent}14` }}>
@@ -1794,6 +1774,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
@@ -2055,177 +2036,116 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
     setTimeout(() => setCloned(false), 3000);
   };
 
+  // What this content is called, and whether it gets the wider sharing kit. Courses and virtual
+  // experiences sit behind a login, so the link is all they need: pasted anywhere, it shows the
+  // cover, title and description. Events and forms are shared widely and keep the social buttons,
+  // the embed code and the QR code.
+  const isEvent = !!form.config?.eventDetails?.isEvent;
+  const isExperience = !!(form.config?.isVirtualExperience || form.config?.isGuidedProject);
+  const kind = isExperience ? 'experience' : isCourse ? 'course' : isEvent ? 'event' : 'form';
+  const linkOnly = isExperience || isCourse;
+  const published = currentStatus === 'published';
+  const soft = isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)';
+  const btn = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0';
+  const ghost = { background: soft, color: textPrim };
+  const group = 'space-y-2.5 pt-5';
+  const groupLine = { borderTop: `1px solid ${divider}` };
+
   return (
-    <div className="w-full space-y-4" style={{ color: textPrim }}>
-      <div className="pb-2">
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: courseAccent }}>Course tools</p>
-        <h2 className="mt-1 text-xl font-bold sm:text-2xl" style={{ color: textPrim }}>Manage &amp; distribute</h2>
-        <p className="mt-1 max-w-2xl text-sm leading-relaxed" style={{ color: textMut }}>Control publishing, duplicate the course, and access every sharing format.</p>
-      </div>
-      {/* Publish status */}
-      <div className="flex items-center justify-between gap-4 rounded-2xl p-5 sm:p-6" style={panelStyle}>
-        <div className="flex items-center gap-3">
-          {currentStatus === 'published'
-            ? <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-            : <AlignLeft className="w-5 h-5 text-amber-400 flex-shrink-0" />}
-          <div>
-            <p className="text-base font-semibold" style={{ color: textPrim }}>
-              {currentStatus === 'published' ? 'Published' : 'Draft'}
-            </p>
-            <p className="text-sm mt-0.5" style={{ color: textMut }}>
-              {currentStatus === 'published'
-                ? 'Visible to assigned students'
-                : 'Hidden from students -- publish when ready'}
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => handleStatusToggle(currentStatus === 'published' ? 'draft' : 'published')}
-          disabled={statusUpdating}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border disabled:opacity-60 flex-shrink-0"
-          style={currentStatus === 'published'
-            ? { borderColor: 'rgba(251,191,36,0.3)', color: '#fbbf24' }
-            : { borderColor: 'rgba(52,211,153,0.3)', color: '#34d399' }}
-        >
-          {statusUpdating
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : currentStatus === 'published'
-              ? 'Move to Draft'
-              : 'Publish'}
-        </button>
-      </div>
-      {statusWarning && (
-        <p className="text-xs px-1 pt-2 pb-1" style={{ color: '#f59e0b' }}>{statusWarning}</p>
-      )}
-
-      {/* Clone */}
-      <div className="flex items-center justify-between gap-4 rounded-2xl p-5 sm:p-6" style={panelStyle}>
-        <div className="flex items-center gap-3">
-          <GitFork className="w-5 h-5 text-violet-400 flex-shrink-0" />
-          <div>
-            <p className="text-base font-semibold" style={{ color: textPrim }}>Clone {isCourse ? 'Course' : 'Form'}</p>
-            <p className="text-sm mt-0.5" style={{ color: textMut }}>Duplicate this {contentLabel} as a new draft</p>
-          </div>
-        </div>
-        <button
-          onClick={handleClone}
-          disabled={cloning || cloned}
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all border disabled:opacity-60 flex-shrink-0"
-          style={cloned ? { borderColor: 'rgba(16,185,129,0.3)', color: '#34d399' } : { borderColor: 'rgba(139,92,246,0.3)', color: '#a78bfa' }}
-        >
-          {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? <><Check className="w-4 h-4" /> Cloned!</> : <><GitFork className="w-4 h-4" /> Clone</>}
-        </button>
+    <div className="w-full max-w-3xl space-y-5" style={{ color: textPrim }}>
+      <div>
+        <h2 className="text-[18px] font-semibold" style={{ color: textPrim }}>Publish</h2>
+        <p className="mt-1 text-[13.5px]" style={{ color: textMut }}>Choose when learners can see this {kind}, and share its link.</p>
       </div>
 
-      {/* Share link */}
-      <div className="space-y-3 rounded-2xl p-5 sm:p-6" style={panelStyle}>
-        <div className="flex items-center gap-3 mb-3">
-          <Share2 className="w-5 h-5 text-blue-400 flex-shrink-0" />
-          <div>
-            <p className="text-base font-semibold" style={{ color: textPrim }}>Share Link</p>
-            <p className="text-sm mt-0.5" style={{ color: textMut }}>Copy the direct URL</p>
-          </div>
+      {/* Status first: it is the main thing on this tab */}
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3.5"
+        style={{ background: published ? `${courseAccent}1a` : (isLight ? 'rgba(217,119,6,0.10)' : 'rgba(245,180,84,0.12)') }}>
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[14.5px] font-semibold" style={{ color: textPrim }}>
+            <span className="h-2 w-2 rounded-full" style={{ background: published ? courseAccent : '#d97706' }} />
+            {published ? 'Published' : 'Draft'}
+          </p>
+          <p className="mt-0.5 text-[13px]" style={{ color: textMut }}>
+            {published ? `Learners it is assigned to can open this ${kind}.` : `Learners cannot see this ${kind} yet.`}
+          </p>
         </div>
-        <div className="flex items-center gap-2 rounded-xl overflow-hidden" style={{ background: inputBg, border: `1px solid ${inputBord}` }}>
-          <span className="flex-1 text-sm px-3 py-2.5 truncate font-mono" style={{ color: textMut }}>{formUrl}</span>
-          <button
-            onClick={() => copyLink(formUrl)}
-            className="flex items-center gap-1.5 px-3 py-2.5 text-sm transition-colors flex-shrink-0 hover:opacity-80"
-            style={{ background: btnBg, color: textPrim, borderLeft: `1px solid ${inputBord}` }}
-          >
-            {linkCopied ? <><Check className="w-4 h-4 text-emerald-400" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy</>}
+        <button onClick={() => handleStatusToggle(published ? 'draft' : 'published')} disabled={statusUpdating}
+          className={btn} style={published ? ghost : { background: courseAccent, color: '#fff' }}>
+          {statusUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? 'Move to draft' : 'Publish'}
+        </button>
+      </div>
+      {statusWarning && <p className="text-[12.5px]" style={{ color: '#b45309' }}>{statusWarning}</p>}
+
+      {/* Link */}
+      <div className={group} style={groupLine}>
+        <p className="text-[14px] font-semibold">Link</p>
+        <div className="flex flex-wrap gap-2">
+          <input readOnly value={formUrl} aria-label={`Link to this ${kind}`} onFocus={e => e.currentTarget.select()}
+            className="min-w-0 flex-1 rounded-[10px] px-3 py-2 font-mono text-[12.5px] outline-none"
+            style={{ background: soft, color: textMut, border: 'none' }} />
+          <button onClick={() => copyLink(formUrl)} className={btn} style={ghost}>
+            {linkCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy</>}
           </button>
+          <a href={formUrl} target="_blank" rel="noreferrer" className={btn} style={ghost}>
+            <ExternalLink className="w-4 h-4" /> Open live page
+          </a>
         </div>
-      </div>
-
-      {/* Social share */}
-      <div className="space-y-3 rounded-2xl p-5 sm:p-6" style={panelStyle}>
-        <div className="flex items-center gap-3">
-          <Share2 className="w-5 h-5 text-pink-400 flex-shrink-0" />
-          <div>
-            <p className="text-base font-semibold" style={{ color: textPrim }}>Share on Social</p>
-            <p className="text-sm mt-0.5" style={{ color: textMut }}>Spread the word on your favourite platforms</p>
+        {linkOnly && (
+          <p className="text-[12.5px]" style={{ color: textMut }}>
+            Pasted into WhatsApp, LinkedIn or X, the link shows the cover image, title and description.
+          </p>
+        )}
+        {!linkOnly && (
+          <div className="flex flex-wrap gap-2 pt-1">
+            {socialLinks.map(({ label, href, Icon }) => (
+              <a key={label} href={href} target="_blank" rel="noreferrer" className={btn} style={ghost}>
+                <Icon className="w-4 h-4 flex-shrink-0" /> {label}
+              </a>
+            ))}
           </div>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {socialLinks.map(({ label, href, Icon, color, bg, border }) => (
-            <a
-              key={label}
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-semibold border transition-all hover:opacity-90 active:scale-[0.97]"
-              style={{ background: bg, borderColor: border, color }}
-            >
-              <Icon className="w-4 h-4 flex-shrink-0" />
-              {label}
-            </a>
-          ))}
-        </div>
+        )}
       </div>
 
-      {/* HTML Embed */}
-      <div className="space-y-3 rounded-2xl p-5 sm:p-6" style={panelStyle}>
-        <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Code2 className="w-5 h-5 text-amber-400 flex-shrink-0" />
+      {/* Events and forms: embed code and a QR code for printing */}
+      {!linkOnly && (
+        <div className={group} style={groupLine}>
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-base font-semibold" style={{ color: textPrim }}>HTML Embed</p>
-              <p className="text-sm mt-0.5" style={{ color: textMut }}>Drop this snippet into any webpage</p>
+              <p className="text-[14px] font-semibold">Embed</p>
+              <p className="text-[12.5px]" style={{ color: textMut }}>Paste this code into any web page.</p>
+            </div>
+            <button onClick={() => copyEmbed(embedCode)} className={btn} style={ghost}>
+              {embedCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy embed code</>}
+            </button>
+          </div>
+          <pre className="overflow-x-auto whitespace-pre rounded-[10px] px-4 py-3 font-mono text-[12.5px] leading-relaxed" style={{ background: soft, color: textMut }}>{embedCode}</pre>
+        </div>
+      )}
+      {!linkOnly && (
+        <div className={group} style={groupLine}>
+          <p className="text-[14px] font-semibold">QR code</p>
+          <div className="flex flex-wrap items-start gap-5">
+            <img src={qrUrl} alt={`QR code for this ${kind}`} className="h-32 w-32 flex-shrink-0 rounded-xl" />
+            <div className="space-y-2 pt-1">
+              <p className="text-[13px]" style={{ color: textMut }}>{isEvent ? 'Print or show it at your event so people can scan and open it.' : `Scan to open the ${kind}.`}</p>
+              <a href={qrUrl} download={`qr-${form.slug || form.id}.png`} className={btn} style={ghost}>
+                <Download className="w-4 h-4" /> Download QR code
+              </a>
             </div>
           </div>
-          <button
-            onClick={() => copyEmbed(embedCode)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex-shrink-0 hover:opacity-80"
-            style={{ border: `1px solid ${btnBord}`, background: btnBg, color: textMut }}
-          >
-            {embedCopied ? <><Check className="w-4 h-4 text-emerald-400" /> Copied!</> : <><Copy className="w-4 h-4" /> Copy</>}
-          </button>
         </div>
-        <pre className="rounded-xl px-4 py-3.5 text-sm font-mono overflow-x-auto whitespace-pre leading-relaxed"
-          style={{ background: codeBg, border: `1px solid ${inputBord}`, color: textMut }}>
-          {embedCode}
-        </pre>
-      </div>
+      )}
 
-      {/* QR Code */}
-      <div className="space-y-3 rounded-2xl p-5 sm:p-6" style={panelStyle}>
-        <div className="flex items-center gap-3">
-          <QrCode className="w-5 h-5 text-emerald-400 flex-shrink-0" />
-          <div>
-            <p className="text-base font-semibold" style={{ color: textPrim }}>QR Code</p>
-            <p className="text-sm mt-0.5" style={{ color: textMut }}>Scan to open the {contentLabel}</p>
-          </div>
+      {/* Duplicate */}
+      <div className={`${group} flex flex-wrap items-center justify-between gap-3`} style={groupLine}>
+        <div>
+          <p className="text-[14px] font-semibold">Duplicate</p>
+          <p className="text-[12.5px]" style={{ color: textMut }}>Makes a draft copy you can change.</p>
         </div>
-        <div className="flex items-start gap-5">
-          <img src={qrUrl} alt="QR Code" className="w-32 h-32 rounded-xl flex-shrink-0" style={{ border: `1px solid ${inputBord}` }} />
-          <div className="space-y-2 pt-1">
-            <p className="text-sm leading-relaxed" style={{ color: textMut }}>Print or display at your event. Attendees scan to open instantly.</p>
-            <a href={qrUrl} download={`qr-${form.slug || form.id}.png`} className="inline-flex items-center gap-1.5 text-sm transition-colors hover:opacity-70" style={{ color: textMut }}>
-              <Download className="w-4 h-4" /> Download QR
-            </a>
-          </div>
-        </div>
-      </div>
-
-      {/* Open live */}
-      <div className="flex items-center justify-between gap-4 rounded-2xl p-5 sm:p-6" style={panelStyle}>
-        <div className="flex items-center gap-3">
-          <ExternalLink className="w-5 h-5 flex-shrink-0" style={{ color: textMut }} />
-          <div>
-            <p className="text-base font-semibold" style={{ color: textPrim }}>Open Live Page</p>
-            <p className="text-sm mt-0.5" style={{ color: textMut }}>View as respondents see it</p>
-          </div>
-        </div>
-        <a
-          href={formUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all flex-shrink-0 hover:opacity-80"
-          style={{ border: `1px solid ${btnBord}`, background: btnBg, color: textPrim }}
-        >
-          <ExternalLink className="w-4 h-4" /> Open
-        </a>
+        <button onClick={handleClone} disabled={cloning || cloned} className={btn} style={ghost}>
+          {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? <><Check className="w-4 h-4" /> Copy made</> : <><GitFork className="w-4 h-4" /> Duplicate {kind}</>}
+        </button>
       </div>
     </div>
   );
@@ -2251,6 +2171,15 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
   const needsReview = modules.some((m: any) =>
     (m.lessons || []).some((l: any) =>
       (l.requirements || []).some((r: any) => r.type === 'text' || r.type === 'upload' || (r.type === 'deliverable' && r.emailFrame))));
+  // A learner has something to review once any task an instructor reviews (written answers, uploads,
+  // deliverables, LinkedIn shares, AI reviews) holds their work, or once a review already exists.
+  const reviewedTaskIds: string[] = modules.flatMap((m: any) => (m.lessons || []).flatMap((l: any) => (l.requirements || [])
+    .filter((r: any) => ['text', 'upload', 'deliverable', 'linkedin_share'].includes(r.type) || REVIEW_TYPES.includes(r.type))
+    .map((r: any) => r.id)));
+  const hasWorkToReview = (a: any) => !!a.review || reviewedTaskIds.some(id => {
+    const p = a.progress?.[id];
+    return !!p && (p.completed || !!p.fileUrl || !!p.linkUrl || !!String(p.notes ?? '').trim());
+  });
 
   const [attempts,    setAttempts]    = useState<any[]>([]);
   const [loading,     setLoading]     = useState(true);
@@ -2440,15 +2369,8 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <span className="relative flex h-2 w-2">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-500 opacity-20" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
-            </span>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-500">Experience report</p>
-          </div>
-          <h2 className={`mt-1 text-xl font-bold ${textPrim}`}>Learner progress</h2>
-          <p className={`mt-1 text-sm ${textMut}`}>Track progress, review submitted work, and provide feedback.</p>
+                    <h2 className={`text-[18px] font-semibold ${textPrim}`}>Learner progress</h2>
+          <p className={`mt-1 text-[13.5px] ${textMut}`}>Follow progress and review submitted work.</p>
         </div>
         <button onClick={exportCSV}
           className={`flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-opacity hover:opacity-80 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f3f5f4] text-[#44504a]'}`}>
@@ -2458,14 +2380,14 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
       {/* Stats */}
       <div className={`grid grid-cols-2 overflow-hidden rounded-2xl border sm:grid-cols-4 ${card}`}>
         {[
-          { label: 'Total Learners', value: attempts.length, color: '#00b95c' },
-          { label: 'Not Started',    value: notStarted,       color: '#6b7280' },
-          { label: 'In Progress',    value: inProgress,       color: '#f59e0b' },
-          { label: 'Completed',      value: completed,        color: '#10b981' },
+          { label: 'Learners',    value: attempts.length },
+          { label: 'Not started', value: notStarted },
+          { label: 'In progress', value: inProgress },
+          { label: 'Completed',   value: completed },
         ].map(s => (
           <div key={s.label} className={`p-4 sm:p-5 [&:not(:last-child)]:border-r ${isDark ? 'border-zinc-800/70' : 'border-[rgba(0,0,0,0.06)]'}`}>
-            <p className={`text-xs font-medium uppercase tracking-wide mb-3 ${textMut}`}>{s.label}</p>
-            <p className="text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
+            <p className={`text-[12.5px] font-semibold mb-1.5 ${textMut}`}>{s.label}</p>
+            <p className={`text-[26px] font-semibold tabular-nums ${textPrim}`}>{s.value}</p>
           </div>
         ))}
       </div>
@@ -2473,7 +2395,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
       {/* Table */}
       <div className={`rounded-2xl border overflow-hidden ${card}`}>
         <div className={`px-6 py-4 border-b flex items-center justify-between ${cardHeader}`}>
-          <h3 className={`text-base font-semibold ${textPrim}`}>Student Progress</h3>
+          <h3 className={`text-base font-semibold ${textPrim}`}>Learners</h3>
           <span className={`text-xs ${textMut}`}>{attempts.length} learner{attempts.length === 1 ? '' : 's'}</span>
         </div>
         <div className="overflow-x-auto">
@@ -2503,10 +2425,10 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                     <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 ${textMut}`}>{a.student_email || '--'}</td>
                     <td className="px-3 sm:px-6 py-3">
                       {isCompleted
-                        ? <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}><CheckCircle2 className="w-3 h-3" /> Completed</span>
+                        ? <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-emerald-300 ring-1 ring-emerald-400/60' : 'bg-white text-emerald-700 ring-1 ring-emerald-500'}`}><CheckCircle2 className="w-3 h-3" /> Completed</span>
                         : isStarted
-                        ? <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-50 text-amber-700'}`}><span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" /> In Progress</span>
-                        : <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2 py-0.5 rounded-full ${isDark ? 'bg-zinc-700 text-zinc-400' : 'bg-zinc-100 text-zinc-500'}`}><span className="w-1.5 h-1.5 rounded-full bg-zinc-400" /> Not Started</span>}
+                        ? <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-zinc-300 ring-1 ring-zinc-600' : 'bg-white text-zinc-600 ring-1 ring-zinc-300'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> In progress</span>
+                        : <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-zinc-400 ring-1 ring-zinc-700' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> Not started</span>}
                     </td>
                     <td className="hidden sm:table-cell px-3 sm:px-6 py-3">
                       {isStarted ? (
@@ -2530,13 +2452,13 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                     </td>
                     {needsReview && (
                       <td className="px-3 sm:px-6 py-3">
-                        {isStarted ? (
+                        {hasWorkToReview(a) ? (
                           <button onClick={() => openReview(a)}
                             className={`text-xs font-medium px-3 py-1.5 rounded-xl transition-all hover:opacity-80 ${isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
-                            {a.review ? 'Edit Review' : 'Review'}
+                            {a.review ? 'Edit review' : 'Review'}
                           </button>
                         ) : (
-                          <span className={`text-xs ${textMut}`}>--</span>
+                          <span className={`text-xs ${textMut}`}>{isStarted ? 'Nothing to review yet' : '-'}</span>
                         )}
                       </td>
                     )}
@@ -2560,7 +2482,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
             (l.requirements || []).forEach((r: any) => {
               // Deliverables are listed too: the older email-style ones let students attach a file.
               if (r.type === 'text' || r.type === 'upload' || r.type === 'deliverable' || r.type === 'linkedin_share') {
-                reviewableReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || 'Requirement', type: r.type, reqId: r.id });
+                reviewableReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || `Untitled task (${({ text: 'Short answer', upload: 'File upload', deliverable: 'Deliverable', linkedin_share: 'LinkedIn share' } as Record<string, string>)[r.type] || 'task'})`, type: r.type, reqId: r.id });
               } else if (REVIEW_TYPES.includes(r.type)) {
                 aiReviewReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || REVIEW_LABELS[r.type] || 'AI Review', type: r.type, reqId: r.id });
               }
@@ -2596,14 +2518,14 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                 {/* Student submissions */}
                 {visibleReqs.length > 0 && (
                   <div className="space-y-3">
-                    <p className={`text-[11px] font-bold uppercase tracking-widest ${textMut}`}>Student Submissions</p>
+                    <p className={`text-[12.5px] font-semibold ${textMut}`}>Submitted work</p>
                     {visibleReqs.map(req => {
                       const entry = reviewing.progress?.[req.reqId];
                       const fileUrl = entry?.fileUrl;
                       const textResponse = entry?.notes;
                       return (
                         <div key={req.reqId} className={`rounded-xl p-4 ${isDark ? 'bg-zinc-800' : 'bg-[#f8f8f5]'}`}>
-                          <p className={`text-[11px] font-semibold uppercase tracking-wide mb-0.5 ${textMut}`}>{req.moduleTitle} - {req.lessonTitle}</p>
+                          <p className={`text-[12px] mb-0.5 ${textMut}`}>{req.moduleTitle}, {req.lessonTitle}</p>
                           <p className={`text-sm font-medium mb-2 ${textPrim}`}>{req.label}</p>
                           {req.type === 'linkedin_share' ? (
                             entry?.linkUrl
@@ -2669,13 +2591,13 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                 {/* AI review reports */}
                 {aiReviewReqs.length > 0 && (
                   <div className="space-y-4">
-                    <p className={`text-[11px] font-bold uppercase tracking-widest ${textMut}`}>AI Review Reports</p>
+                    <p className={`text-[12.5px] font-semibold ${textMut}`}>AI review reports</p>
                     {aiReviewReqs.map(req => {
                       const entry = reviewing.progress?.[req.reqId];
                       const rec = parseReviewNotes(entry?.notes);
                       return (
                         <div key={req.reqId} className="space-y-2">
-                          <p className={`text-[11px] font-semibold uppercase tracking-wide ${textMut}`}>{req.moduleTitle} - {req.lessonTitle}</p>
+                          <p className={`text-[12px] ${textMut}`}>{req.moduleTitle}, {req.lessonTitle}</p>
                           <p className={`text-sm font-medium ${textPrim}`}>{req.label}</p>
                           {rec
                             ? <ReviewReportView rec={{ ...rec, type: rec.type ?? req.type }} isDark={isDark} />
@@ -2709,9 +2631,9 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                 <button onClick={closeReview} disabled={revSaving}
                   className={`flex-1 py-2.5 rounded-xl text-sm border disabled:opacity-40 disabled:cursor-not-allowed ${isDark ? 'border-zinc-700 text-zinc-400' : 'border-[rgba(0,0,0,0.1)] text-[#888]'}`}>Cancel</button>
                 <button onClick={submitReview} disabled={revSaving || draftingReqs.size > 0 || revRefreshing}
-                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-all hover:opacity-80 disabled:opacity-60"
-                  style={{ background: '#00b95c' }}>
-                  {revSaving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : draftingReqs.size > 0 ? 'Waiting for AI draft' : 'Submit Review'}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all hover:opacity-80 disabled:opacity-60"
+                  style={{ background: '#00b95c', color: '#ffffff' }}>
+                  {revSaving ? <Loader2 className="w-4 h-4 animate-spin mx-auto" /> : draftingReqs.size > 0 ? 'Waiting for AI draft' : 'Save review'}
                 </button>
               </div>
             </div>
@@ -3035,8 +2957,8 @@ export default function FormDetailPage() {
             <a href={formUrl} target="_blank" rel="noreferrer" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-70" style={{ background: hdrBtnBg, border: `1px solid ${hdrBtnBord}`, color: hdrTextMut }}>
               <ExternalLink className="w-3.5 h-3.5" /> View
             </a>
-            {!isStaff && <button onClick={() => exportContent(form)} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-70" style={{ background: hdrBtnBg, border: `1px solid ${hdrBtnBord}`, color: hdrTextMut }} title="Export">
-              <Download className="w-3.5 h-3.5" /> Export
+            {!isStaff && <button onClick={() => exportContent(form)} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-70" style={{ background: hdrBtnBg, border: `1px solid ${hdrBtnBord}`, color: hdrTextMut }} title="Download this as a file you can import into another workspace">
+              <Download className="w-3.5 h-3.5" /> Export content
             </button>}
             <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors ff-hover" title="Toggle theme" style={{ color: hdrTextMut }}>
               {isLight ? <Moon className="w-4 h-4"/> : <Sun className="w-4 h-4"/>}
@@ -3049,26 +2971,25 @@ export default function FormDetailPage() {
       {/* -- Top tab navigation with a full-width content workspace -- */}
       <div className="px-3 sm:px-6 pt-5 pb-10">
         {(() => {
+          // Experiences have no Settings tab (they are edited in the experience editor), so a link
+          // that lands on the default opens their Report instead of an empty panel.
+          const shownTab: TabId = type === 'virtual_experience' && activeTab === 'settings' ? 'responses' : activeTab;
           const visibleTabs = TABS.filter(tab => (!isStaff || tab.id === 'settings') && (!tab.courseOnly || type === 'course') && !(tab.id === 'settings' && type === 'virtual_experience'));
           const tabLabel = (tab: typeof TABS[number]) => tab.id === 'responses' && (type === 'course' || type === 'virtual_experience') ? 'Report' : tab.label;
           return (
             <div className="max-w-6xl mx-auto flex flex-col gap-4">
               {/* Top: tabs stay reachable and scroll horizontally on narrow screens. */}
               <div className={`${type === 'course' ? 'sticky top-0' : 'sticky top-12 sm:top-14'} z-10 -mx-1 px-1 py-1.5`} style={{ background: bg }}>
-              <nav className="flex items-center gap-1 overflow-x-auto rounded-xl p-1" aria-label="Content dashboard sections" style={{ scrollbarWidth: 'none', background: isLight ? 'rgba(255,255,255,0.68)' : 'rgba(255,255,255,0.035)', backdropFilter: 'blur(14px)' }}>
+              <nav className="flex items-center gap-6 overflow-x-auto px-1" aria-label="Content dashboard sections" style={{ scrollbarWidth: 'none', borderBottom: `1px solid ${navBord}` }}>
                 {visibleTabs.map(tab => {
-                  const isActive = activeTab === tab.id;
-                  const hoverBg = isLight ? 'rgba(0,0,0,0.045)' : 'rgba(255,255,255,0.055)';
-                  const activeBg = `color-mix(in oklab, ${tabAccent} ${isLight ? '10%' : '14%'}, transparent)`;
+                  const isActive = shownTab === tab.id;
                   return (
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      onMouseEnter={e => { if (!isActive) e.currentTarget.style.background = hoverBg; }}
-                      onMouseLeave={e => { if (!isActive) e.currentTarget.style.background = 'transparent'; }}
                       aria-current={isActive ? 'page' : undefined}
-                      className="flex min-h-10 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 py-2 text-left text-sm transition-colors"
-                      style={{ color: isActive ? tabAccent : hdrTextMut, fontWeight: isActive ? 700 : 550, background: isActive ? activeBg : 'transparent' }}
+                      className="flex items-center gap-2 whitespace-nowrap pt-2.5 pb-3 text-left text-sm transition-colors"
+                      style={{ color: isActive ? (isLight ? '#111' : '#f0f0f0') : hdrTextMut, fontWeight: 600, borderBottom: `2px solid ${isActive ? tabAccent : 'transparent'}`, marginBottom: -1 }}
                     >
                       <tab.Icon className="h-4 w-4 flex-shrink-0" />
                       <span>{tabLabel(tab)}</span>
@@ -3087,17 +3008,17 @@ export default function FormDetailPage() {
               <div className="w-full min-w-0 rounded-2xl overflow-hidden" style={{ background: isLight ? '#ffffff' : '#1E1F26', border: isLight ? `1px solid ${navBord}` : '1px solid transparent', boxShadow: 'none' }}>
                 <AnimatePresence mode="wait">
                   <motion.div
-                    key={activeTab}
+                    key={shownTab}
                     initial={{ opacity: 0, x: 24 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -24 }}
                     transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   >
-                  {activeTab === 'settings' && type !== 'virtual_experience' ? (
+                  {shownTab === 'settings' && type !== 'virtual_experience' ? (
                     <FormEditor formId={id as string} contentType={type === 'course' ? 'course' : 'event'} />
                   ) : (
                     <div className="px-4 sm:px-6 py-6 sm:py-8 w-full">
-                      {activeTab === 'responses' && type !== 'virtual_experience' && (
+                      {shownTab === 'responses' && type !== 'virtual_experience' && (
                         <ResponsesTab
                           form={form}
                           responses={responses}
@@ -3111,16 +3032,16 @@ export default function FormDetailPage() {
                           linkedInShares={linkedInShares}
                         />
                       )}
-                      {activeTab === 'responses' && type === 'virtual_experience' && (
+                      {shownTab === 'responses' && type === 'virtual_experience' && (
                         <VirtualExperienceReportTab form={form} />
                       )}
-                      {activeTab === 'leaderboard' && (
+                      {shownTab === 'leaderboard' && (
                         <LeaderboardTab form={form} courseProgress={courseProgress} />
                       )}
-                      {activeTab === 'email' && (
+                      {shownTab === 'email' && (
                         <EmailTab form={form} formUrl={formUrl} courseProgress={courseProgress} cohortStudents={cohortStudents} formCohorts={formCohorts} />
                       )}
-                      {activeTab === 'more' && (
+                      {shownTab === 'more' && (
                         <MoreTab
                           form={form}
                           formUrl={formUrl}
