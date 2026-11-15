@@ -1575,8 +1575,13 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-carousel__arrow:disabled { opacity: 0.4; background: var(--block-chip); }
 
 /* Prompt block: no outer shadow; plain meta row; buttons share one soft shape */
-.lesson-content .lesson-prompt, .lesson-content.dark .lesson-prompt { overflow: visible; border: 0; border-radius: 14px; background: transparent; box-shadow: none; }
+/* The prompt keeps its own white card with the subtle shadow (the user prefers it). */
+.lesson-content .lesson-prompt { overflow: visible; padding: 16px; border: 0; border-radius: 14px; background: #ffffff; box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06); }
+.lesson-content.dark .lesson-prompt { padding: 16px; border: 1px solid rgba(255,255,255,0.065); border-radius: 14px; background: #18181b; box-shadow: none; }
 .lesson-content .lesson-prompt__header { padding: 0 0 12px; }
+.lesson-content .lesson-prompt__copy-label { display: inline-grid; }
+.lesson-content .lesson-prompt__copy-label > span { grid-area: 1 / 1; text-align: left; }
+.lesson-content .lesson-prompt__copy-label > span[aria-hidden="true"] { visibility: hidden; }
 .lesson-content .lesson-prompt__eyebrow { color: var(--lesson-accent-ink); font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; }
 .lesson-content .lesson-prompt__title { font-size: 16px; font-weight: 600; }
 .lesson-content .lesson-prompt__status { padding: 4px 10px; font-size: 11.5px; font-weight: 700; }

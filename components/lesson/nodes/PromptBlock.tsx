@@ -220,7 +220,13 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
             onClick={handleCopy}
           >
             {copyState === 'copied' ? <Check width={14} height={14} /> : <Copy width={14} height={14} />}
-            <span>{copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy prompt'}</span>
+            {/* The longest labels sit hidden in the same cell, so the button keeps one width and
+                the buttons beside it do not shift when it switches to Copied. */}
+            <span className="lesson-prompt__copy-label">
+              <span aria-hidden="true">Copy prompt</span>
+              <span aria-hidden="true">Copy failed</span>
+              <span>{copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy prompt'}</span>
+            </span>
           </button>
           {showChatGpt && (
             <ProviderLink
