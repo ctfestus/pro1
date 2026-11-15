@@ -278,7 +278,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         )}
 
         {/* Code input -- paste or upload */}
-        <div style={{ border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`, borderRadius: 16, overflow: 'hidden', background: isDark ? '#111' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)' }}>
+        <div className="focus-frame" style={{ border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`, borderRadius: 16, overflow: 'hidden', background: isDark ? '#111' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)', ['--focus-frame' as string]: accentColor, ['--focus-frame-ring' as string]: `${accentColor}29` }}>
           <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ background: inner, borderColor: border }}>
             <div className="flex items-center gap-2">
               <Code2 className="w-3.5 h-3.5" style={{ color: muted }} />

@@ -5,7 +5,7 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { resolveDeliverableAccent } from '@/lib/ve-accent';
 import { REQ_META, type RequirementProps } from './types';
-import { TaskHeader, TaskButton, TaskLink, taskTheme, fieldStyle } from './TaskCard';
+import { TaskHeader, TaskButton, TaskLink, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
 /** Tasks, deliverables, and the reflection card that is the fallback for any other type. */
 export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
@@ -79,7 +79,7 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
         <>
           <textarea value={noteVal} onChange={e => setNote(req.id, e.target.value)} readOnly={reviewMode}
             placeholder="Write your notes" aria-label="Write your notes" rows={3}
-            className="w-full resize-y px-3 py-2.5 text-[14px]" style={fieldStyle(t)} />
+            className={`${TASK_FIELD} w-full resize-y px-3 py-2.5 text-[14px]`} style={fieldStyle(t)} />
           {!reviewMode && (
             <div className="flex justify-end">
               <TaskButton t={t} onClick={() => toggleReq(req.id)}>Save reflection</TaskButton>

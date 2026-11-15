@@ -45,7 +45,7 @@ export function RichTextArea({
   const mc = isDark ? '#777' : '#bbb';
   const tb: React.CSSProperties = { width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', border: 'none', background: 'transparent', borderRadius: 4, cursor: 'pointer', color: tc, fontSize: 13 };
   return (
-    <div style={noBorder ? { background: isDark ? 'rgba(255,255,255,0.02)' : '#fff' } : { border: `1.5px solid ${bd}`, borderRadius: 10, overflow: 'hidden', background: isDark ? 'rgba(255,255,255,0.055)' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)' }}>
+    <div className={noBorder ? undefined : 'focus-frame'} style={noBorder ? { background: isDark ? 'rgba(255,255,255,0.02)' : '#fff' } : { border: `1.5px solid ${bd}`, borderRadius: 10, overflow: 'hidden', background: isDark ? 'rgba(255,255,255,0.055)' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)' }}>
       {!readOnly && (
         <div style={{ display: 'flex', alignItems: 'center', gap: 2, padding: '6px 10px', background: isDark ? 'rgba(255,255,255,0.04)' : '#f8fafc', borderBottom: `1px solid ${bd}` }}>
           <button onClick={() => exec('bold')} style={tb} title="Bold"><Bold size={14} /></button>
@@ -378,7 +378,7 @@ export function MailComposer({
   const overLimit = maxChars != null && plainLen > maxChars;
   const sendable = canSend && !sending && !overLimit;
   return (
-    <div style={{ border: `1px solid ${line}`, borderRadius: 12, overflow: 'hidden', background: isDark ? '#1e1f24' : '#fff', boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)' }}>
+    <div className="focus-frame" style={{ border: `1px solid ${line}`, borderRadius: 12, overflow: 'hidden', background: isDark ? '#1e1f24' : '#fff', boxShadow: isDark ? 'none' : '0 1px 4px rgba(0,0,0,0.06)', ['--focus-frame' as string]: accent, ['--focus-frame-ring' as string]: `${accent}29` }}>
       {/* To / Subject headers */}
       <div style={{ padding: '10px 14px 0' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 8, borderBottom: `1px solid ${line}` }}>

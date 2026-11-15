@@ -5,7 +5,7 @@ import AiReviewUpgradePrompt, { AiReviewUpgradeNote, AiReviewDailyLimitNotice } 
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import type { RequirementProps } from './types';
-import { TaskHeader, TaskButton, AiNote, taskTheme, fieldStyle } from './TaskCard';
+import { TaskHeader, TaskButton, AiNote, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
 function isAnswerCorrect(studentAnswer: string, expectedAnswer: string): boolean {
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -103,7 +103,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
           placeholder="Write your answer"
           aria-label="Write your answer"
           rows={4}
-          className="w-full text-[14px] px-3 py-2.5 resize-y"
+          className={`${TASK_FIELD} w-full text-[14px] px-3 py-2.5 resize-y`}
           style={fieldStyle(t, showDone ? 'done' : 'normal')}
         />
         {!showDone && entitlement.locked && (
@@ -250,7 +250,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
         disabled={done && !reviewMode}
         placeholder="Your answer"
         aria-label="Your answer"
-        className="flex-1 min-w-0 text-[14px] px-3 py-2.5"
+        className={`${TASK_FIELD} flex-1 min-w-0 text-[14px] px-3 py-2.5`}
         style={fieldStyle(t, wrongAnswer ? 'bad' : done ? 'done' : 'normal')}
         onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); checkExact(); } }}
       />

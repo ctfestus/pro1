@@ -5,7 +5,7 @@ import { Loader2, AlertTriangle, Link as LinkIcon, Upload as UploadIcon, FileTex
 import { repairVeSubmissionUrl, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import { firstNameOf } from '@/components/ve/workplace';
 import type { RequirementProps } from './types';
-import { TaskHeader, taskTheme, fieldStyle } from './TaskCard';
+import { TaskHeader, taskTheme, fieldStyle, TASK_SHELL } from './TaskCard';
 
 /** File upload or shared link. */
 export function UploadRequirement({ req, rowStyle, ctx }: RequirementProps) {
@@ -59,7 +59,7 @@ export function UploadRequirement({ req, rowStyle, ctx }: RequirementProps) {
       )}
       {uploadErrors[req.id] && <p role="alert" className="text-[12.5px] flex items-center gap-1.5" style={{ color: t.bad }}><AlertTriangle className="w-3.5 h-3.5" />{uploadErrors[req.id]}</p>}
 
-      <div className="flex items-center gap-2 rounded-[10px] px-3" style={fieldStyle(t, linkUrl ? 'done' : 'normal')}>
+      <div className={`${TASK_SHELL} flex items-center gap-2 rounded-[10px] px-3`} style={fieldStyle(t, linkUrl ? 'done' : 'normal')}>
         <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: t.faint }} />
         <input type="url" value={linkUrl} onChange={e => setUploadLink(req.id, e.target.value)}
           placeholder={fileUrl ? 'Or share a link instead' : 'Or paste a link (Google Drive, GitHub...)'}

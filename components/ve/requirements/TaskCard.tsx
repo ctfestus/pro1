@@ -102,8 +102,15 @@ export function AiNote({ t }: { t: TaskTheme }) {
 }
 
 /** Style for text inputs and text areas on a task card. */
+/** Use with className TASK_FIELD (a single field) or TASK_SHELL (an icon plus a borderless input),
+ * so focus shows on the rounded border in the accent instead of the browser's square outline. */
+export const TASK_FIELD = 've-task-field';
+export const TASK_SHELL = 've-task-shell';
+
 export function fieldStyle(t: TaskTheme, state: 'normal' | 'bad' | 'done' = 'normal'): React.CSSProperties {
   return {
+    ['--ve-focus' as string]: t.accent,
+    ['--ve-focus-ring' as string]: `${t.accent}29`,
     background: t.soft,
     color: t.text,
     border: `1.5px solid ${state === 'bad' ? t.bad : state === 'done' ? `${t.accent}66` : 'transparent'}`,
