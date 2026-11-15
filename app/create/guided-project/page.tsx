@@ -24,7 +24,7 @@ import {
 } from '@/lib/ve-deliverable-content';
 import { useTheme } from '@/components/ThemeProvider';
 import {
-  ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, Plus, Trash2, X, Check, Upload, Star, Clock, Link as LinkIcon, FileText, FileCode, Database, PenLine, Table, GripVertical, Video, Search, Eye, Images, Paperclip, Mail, Blocks, Building2, MessageSquareText, Workflow, CheckCircle2, AlertTriangle,
+  ArrowLeft, MoreHorizontal, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, Plus, X, Check, Upload, Star, Clock, Link as LinkIcon, FileText, FileCode, Database, PenLine, Table, GripVertical, Video, Search, Eye, Images, Paperclip, Mail, CheckCircle2, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -179,7 +179,7 @@ const LIGHT_C = {
   page: '#F2F5FA', card: '#ffffff', cardBorder: 'rgba(0,0,0,0.08)',
   cardShadow: '0 1px 4px rgba(0,0,0,0.06)', green: '#00bf63', lime: '#00bf63',
   cta: '#00bf63', ctaText: 'white', text: '#111', muted: '#555', faint: '#888',
-  divider: 'rgba(0,0,0,0.07)', input: '#F8F8F8', pill: '#F2F4F2',
+  divider: 'rgba(0,0,0,0.07)', input: '#F8F8F8', pill: '#F2F4F2', field: '#F4F6F9',
   nav: '#F2F5FA', navBorder: 'rgba(0,0,0,0.07)',
   modeBorder: 'rgba(0,0,0,0.09)',
 };
@@ -187,7 +187,7 @@ const DARK_C = {
   page: '#17181E', card: '#1E1F26', cardBorder: 'rgba(255,255,255,0.07)',
   cardShadow: '0 1px 4px rgba(0,0,0,0.40)', green: '#00bf63', lime: '#00bf63',
   cta: '#00bf63', ctaText: 'white', text: '#f0f0f0', muted: '#aaa', faint: '#777',
-  divider: 'rgba(255,255,255,0.07)', input: 'rgba(255,255,255,0.05)', pill: '#242630',
+  divider: 'rgba(255,255,255,0.07)', input: 'rgba(255,255,255,0.05)', pill: '#242630', field: 'rgba(255,255,255,0.055)',
   nav: '#17181E', navBorder: 'rgba(255,255,255,0.07)',
   modeBorder: 'rgba(255,255,255,0.09)',
 };
@@ -298,13 +298,85 @@ const INDUSTRIES = [
 const VE_SECTIONS = [
   // 'overview' is the Details tab: the experience card, then industry, duration and level, then
   // the cover image and badge. They were three tabs (Overview, Setup, Branding) for one subject.
-  { id: 'overview',   label: 'Details', Icon: Blocks },
-  { id: 'brief',      label: 'Brief', Icon: MessageSquareText },
-  { id: 'curriculum', label: 'Curriculum', Icon: Workflow },
-  { id: 'delivery',   label: 'Publish', Icon: CheckCircle2 },
+  { id: 'overview',   label: 'Details' },
+  { id: 'brief',      label: 'Brief' },
+  { id: 'curriculum', label: 'Curriculum' },
+  { id: 'delivery',   label: 'Publish' },
 ] as const;
 
 function uid() { return Math.random().toString(36).slice(2, 10); }
+
+// What each task type is called in the editor, matching the type list.
+const REQ_TYPE_NAMES: Record<string, string> = {
+  mcq: 'Multiple choice', text: 'Short answer', reflection: 'Reflection', upload: 'File upload',
+  task: 'Deliverable', deliverable: 'Deliverable', linkedin_share: 'LinkedIn share',
+  briefing: 'Manager email', debrief: 'Email reply to manager', scenario_update: 'Team chat update',
+  decision: 'Team chat decision', dashboard_critique: 'AI review: dashboard', code_review: 'AI review: code',
+  excel_review: 'AI review: Excel', document_review: 'AI review: document',
+};
+
+type EditorTheme = { card: string; text: string; muted: string; faint: string; field: string; divider: string };
+
+/** The "..." menu on a milestone, mission or task row: Move to (when there is somewhere to go)
+ * and Delete. Keeps the row itself to its title and type. */
+function RowMenu({ C, label, onDelete, moveTargets }: {
+  C: EditorTheme;
+  label: string;
+  onDelete: () => void;
+  moveTargets?: { group?: string; label: string; onPick: () => void }[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [moving, setMoving] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const close = () => { setOpen(false); setMoving(false); };
+    const onDown = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) close(); };
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') close(); };
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => { document.removeEventListener('mousedown', onDown); document.removeEventListener('keydown', onKey); };
+  }, [open]);
+  const item = 'w-full text-left px-2.5 py-2 rounded-lg text-[13px] transition-colors';
+  const groups = Array.from(new Set((moveTargets ?? []).map(t => t.group ?? '')));
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button type="button" aria-label={label} aria-haspopup="menu" aria-expanded={open}
+        onClick={() => { setOpen(v => !v); setMoving(false); }}
+        className="w-8 h-8 rounded-lg grid place-items-center transition-opacity hover:opacity-70" style={{ color: C.faint }}>
+        <MoreHorizontal className="w-4 h-4" />
+      </button>
+      {open && (
+        <div role="menu" className="absolute right-0 top-9 z-30 min-w-[200px] max-h-72 overflow-auto rounded-xl p-1.5"
+          style={{ background: C.card, boxShadow: `0 0 0 1px ${C.divider}, 0 12px 28px rgba(15,23,42,0.16)` }}>
+          {!moving ? (
+            <>
+              {!!moveTargets?.length && (
+                <button type="button" role="menuitem" className={item} style={{ color: C.text }}
+                  onMouseEnter={e => (e.currentTarget.style.background = C.field)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  onClick={() => setMoving(true)}>Move to...</button>
+              )}
+              <button type="button" role="menuitem" className={item} style={{ color: '#dc2626' }}
+                onMouseEnter={e => (e.currentTarget.style.background = C.field)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                onClick={() => { setOpen(false); onDelete(); }}>Delete</button>
+            </>
+          ) : (
+            groups.map(g => (
+              <div key={g || 'all'}>
+                {g && <p className="px-2.5 pt-2 pb-1 text-[11.5px] font-semibold" style={{ color: C.faint }}>{g}</p>}
+                {(moveTargets ?? []).filter(t => (t.group ?? '') === g).map((t, i) => (
+                  <button key={`${g}-${i}`} type="button" role="menuitem" className={item} style={{ color: C.text }}
+                    onMouseEnter={e => (e.currentTarget.style.background = C.field)} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                    onClick={() => { setOpen(false); setMoving(false); t.onPick(); }}>{t.label || 'Untitled'}</button>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Quick picks under "Skills you will use", mirroring COURSE_CATEGORIES in the course editor.
 // These are only shortcuts: any name can be typed, and its logo resolves through the shared
@@ -384,11 +456,11 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, not
   };
 
   return (
-    <div className="rounded-xl p-3 space-y-2" style={{ background: 'transparent' }}>
-      <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>
-        Grading Rubric
-        <span className="ml-1.5 normal-case font-normal tracking-normal" style={{ color: C.faint }}>
-          · optional · AI grades each criterion as Pass / Fail
+    <div className="space-y-2" style={{ background: 'transparent' }}>
+      <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
+        Grading rubric
+        <span className="ml-1.5 font-normal" style={{ color: C.faint }}>
+          (optional) AI grades each criterion as pass or fail
         </span>
       </p>
       {note && <p className="text-[11px]" style={{ color: C.faint }}>{note}</p>}
@@ -1004,6 +1076,8 @@ function VirtualExperienceCreatePageInner() {
   // Which tasks are open for editing. Closed by default, so an open mission is a short list of
   // rows (number, type, title) rather than every task's full editor; a new task opens itself.
   const [openReqs, setOpenReqs] = useState<Set<string>>(new Set());
+  // The learning outcome row just added, so the cursor goes straight into it.
+  const [focusOutcome, setFocusOutcome] = useState<number | null>(null);
   const toggleReqOpen = (reqId: string) => setOpenReqs(prev => { const next = new Set(prev); if (next.has(reqId)) next.delete(reqId); else next.add(reqId); return next; });
 
   const addReq = (moduleId: string, lessonId: string) => {
@@ -1485,23 +1559,33 @@ function VirtualExperienceCreatePageInner() {
   };
 
   // Render
+  // One field style everywhere in the editor: a soft fill, no border, green on focus (globals.css).
   const inp = {
-    width: '100%', padding: '8px 12px', borderRadius: 10,
-    border: '1px solid transparent', background: C.card,
-    boxShadow: C === DARK_C ? '0 0 0 1px rgba(255,255,255,0.07)' : '0 0 0 1px rgba(15,23,42,0.08)',
-    color: C.text, fontSize: 15, outline: 'none', transition: 'box-shadow 160ms ease, background 160ms ease',
+    width: '100%', padding: '9px 12px', borderRadius: 10,
+    border: '1.5px solid transparent', background: C.field, boxShadow: 'none',
+    color: C.text, fontSize: 14, outline: 'none', transition: 'background 160ms ease',
   } as React.CSSProperties;
 
+  // A section of a tab: no panel of its own, set off from the one above by a hairline and space.
   const card = {
-    background: C.pill, border: '1px solid transparent',
-    borderRadius: 18, boxShadow: 'none',
+    background: 'transparent', border: 'none', borderTop: `1px solid ${C.divider}`,
+    borderRadius: 0, boxShadow: 'none', paddingLeft: 0, paddingRight: 0, paddingTop: 20, paddingBottom: 20,
   } as React.CSSProperties;
 
   return (
     <div className="min-h-screen" style={{ background: C.page, color: C.text, fontFamily: "'Google Sans', 'Inter', sans-serif" }}>
+      {/* The first section on a tab has no line above it (the tab bar draws one). Editors in this
+                    page show the common tools and Add interactive; the rest sit under More, which the
+                    shared lesson editor already offers on narrow screens. */}
+                <style>{`.ve-tab > .space-y-4 > div:first-child { border-top: none !important; padding-top: 4px !important; }
+.ve-tab .lesson-editor-toolbar__secondary, .ve-tab .lesson-editor-toolbar__media { display: none !important; }
+.ve-tab .lesson-editor-toolbar__more { display: inline-flex !important; }
+.ve-tab input:focus-visible, .ve-tab textarea:focus-visible, .ve-tab select:focus-visible { outline: none !important; box-shadow: inset 0 0 0 2px ${C.cta} !important; }
+.ve-tab .ve-shell > input:focus-visible, .ve-tab [contenteditable="true"]:focus-visible { outline: none !important; box-shadow: none !important; }
+.ve-tab .ve-shell:focus-within, .ve-tab .lesson-editor-shell:focus-within { outline: 2px solid ${C.cta}; outline-offset: -2px; }`}</style>
       {/* Experience Studio header */}
       <header className="px-4 sm:px-6 pt-6" style={{ background: C.page }}>
-        <div className={`max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-3 ${step === 2 ? 'rounded-t-2xl' : 'rounded-2xl'}`}
+        <div className={`${step === 2 ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 pt-5 pb-3 rounded-t-2xl`}
           style={{ background: C.card }}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -1512,13 +1596,7 @@ function VirtualExperienceCreatePageInner() {
                 <ArrowLeft className="w-4 h-4" />
               </Link>
               <div className="min-w-0">
-                <div className="flex items-center gap-2 mb-0.5">
-                  <span className="relative flex w-2 h-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full opacity-20" style={{ background: C.cta }}/>
-                    <span className="relative inline-flex rounded-full w-2 h-2" style={{ background: C.cta }}/>
-                  </span>
-                  <span className="text-[10px] font-black uppercase tracking-[0.16em]" style={{ color: C.cta }}>Experience Studio</span>
-                </div>
+                <p className="text-[12px] mb-0.5" style={{ color: C.faint }}>Virtual experience</p>
                 <h1 className="text-[17px] sm:text-[18px] font-bold leading-tight truncate" style={{ color: C.text }}>
                   {step === 2 ? (title || 'Untitled experience') : (effectiveId ? 'Edit Virtual Experience' : 'New Virtual Experience')}
                 </h1>
@@ -1553,13 +1631,13 @@ function VirtualExperienceCreatePageInner() {
                 </button>
               </div>
             ) : (
-              <span className="text-[11px] font-semibold px-3 py-1.5 rounded-full" style={{ background: C.pill, color: C.faint }}>Setup</span>
+              null
             )}
           </div>
         </div>
       </header>
 
-      <div className={`px-4 sm:px-6 pb-4 ${step === 2 ? 'pt-0' : 'pt-3'}`}>
+      <div className="px-4 sm:px-6 pb-4 pt-0">
         {step === 2 && (saveError || saveWarning) && (
           <div className="max-w-6xl mx-auto pt-3">
             <div className="px-4 py-3 rounded-xl text-[13px] flex items-start gap-2"
@@ -1575,13 +1653,13 @@ function VirtualExperienceCreatePageInner() {
 
         {/* STEP 1: Configure */}
         {step === 1 && (
-          <div className="max-w-5xl mx-auto px-0 sm:px-4 py-6">
-          <div className="rounded-2xl overflow-hidden" style={{ background: C.card, border: C === DARK_C ? '1px solid transparent' : `1px solid ${C.cardBorder}`, boxShadow: 'none' }}>
-            <div className="px-6 sm:px-8 pt-6 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
-              <h2 className="text-lg sm:text-xl font-bold leading-tight" style={{ color: C.text }}>What kind of project?</h2>
-              <p className="text-[11px] mt-1 font-medium tracking-wide uppercase" style={{ color: C.faint }}>Choose how to build your virtual experience</p>
+          <div className="max-w-4xl mx-auto pb-6">
+          <div className="rounded-b-2xl" style={{ background: C.card, boxShadow: C === DARK_C ? '0 16px 38px rgba(0,0,0,0.12)' : '0 16px 38px rgba(15,23,42,0.045)' }}>
+            <div className="px-6 sm:px-8 pt-2 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
+              <h2 className="text-[17px] font-semibold leading-tight" style={{ color: C.text }}>How do you want to build it?</h2>
+              <p className="text-[13px] mt-1" style={{ color: C.muted }}>Let AI draft the whole experience, or start from a blank outline.</p>
             </div>
-            <div className="px-6 sm:px-8 py-7 space-y-6">
+            <div className="ve-tab px-6 sm:px-8 py-7 space-y-6">
 
             {/* Creation mode cards */}
             <div className="grid sm:grid-cols-2 gap-3">
@@ -1596,9 +1674,9 @@ function VirtualExperienceCreatePageInner() {
                 {
                   id: 'manual' as const,
                   icon: <PenLine className="w-5 h-5"/>,
-                  title: 'Build Manually',
+                  title: 'Build manually',
                   desc: 'Start with a blank template and write every module, lesson and question yourself. Optionally attach a dataset for students.',
-                  badge: 'Full Control',
+                  badge: 'Full control',
                 },
               ].map(m => (
                 <button key={m.id} onClick={() => setCreationMode(m.id)}
@@ -1641,8 +1719,8 @@ function VirtualExperienceCreatePageInner() {
                   <Star className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[14px] font-bold" style={{ color: C.text }}>Short Course Mode</p>
-                  <p className="text-[12px]" style={{ color: C.muted }}>Simplified experience -- no company/dataset context. Lessons + questions + AI review only.</p>
+                  <p className="text-[14px] font-bold" style={{ color: C.text }}>Short course mode</p>
+                  <p className="text-[12px]" style={{ color: C.muted }}>A simpler format with no company or dataset: lessons, questions and AI review only.</p>
                 </div>
               </div>
               <div className="flex-shrink-0 ml-3">
@@ -1657,89 +1735,67 @@ function VirtualExperienceCreatePageInner() {
             {/* Config card: appears when mode selected */}
             {creationMode && (
               <div className="space-y-6 mt-2">
-                <div style={{ background: C.pill, borderRadius: 16, overflow: 'hidden' }}>
+                <div>
                   {/* Industry */}
-                  <div className="p-5 space-y-3">
-                    <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Industry</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {INDUSTRIES.map(ind => (
-                        <button key={ind.id} onClick={() => setIndustry(ind.id)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all"
-                          style={{
-                            border: `1.5px solid ${industry === ind.id ? C.cta : C.cardBorder}`,
-                            background: industry === ind.id ? `${C.cta}12` : 'transparent',
-                          }}>
-                          <span className="text-base">{ind.emoji}</span>
-                          <span className="text-[13px] font-semibold" style={{ color: C.text }}>{ind.label}</span>
-                          {industry === ind.id && <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: C.cta }}/>}
-                        </button>
-                      ))}
-                      {/* Other / custom industry */}
-                      <button onClick={() => setIndustry('other')}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all"
-                        style={{
-                          border: `1.5px solid ${industry === 'other' ? C.cta : C.cardBorder}`,
-                          background: industry === 'other' ? `${C.cta}12` : 'transparent',
-                        }}>
-                        <span className="text-base">✏️</span>
-                        <span className="text-[13px] font-semibold" style={{ color: C.text }}>Other</span>
-                        {industry === 'other' && <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: C.cta }}/>}
-                      </button>
+                  <div className="pb-5 space-y-3">
+                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Industry</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...INDUSTRIES, { id: 'other', label: 'Other' }].map(ind => {
+                        const selected = industry === ind.id;
+                        return (
+                          <button key={ind.id} type="button" aria-pressed={selected} onClick={() => setIndustry(ind.id)}
+                            className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                            style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
+                            {ind.label}
+                          </button>
+                        );
+                      })}
                     </div>
                     {industry === 'other' && (
                       <input
                         type="text"
                         value={customIndustry}
                         onChange={e => setCustomIndustry(e.target.value)}
-                        placeholder="e.g. Logistics, Agriculture, Real Estate…"
-                        className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
-                        style={{
-                          border: `1.5px solid ${C.cta}`,
-                          background: C.input,
-                          color: C.text,
-                        }}
+                        placeholder="e.g. Logistics, Agriculture, Real Estate"
+                        aria-label="Industry"
+                        style={inp}
                         autoFocus
                       />
                     )}
                   </div>
 
                   {/* Experience Level */}
-                  <div className="px-5 pb-5 pt-4 space-y-3 border-t" style={{ borderColor: C.divider }}>
-                    <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Experience Level</p>
-                    <div className="flex gap-2">
-                      {([
-                        { id: 'beginner',     label: 'Beginner',     desc: 'Foundational' },
-                        { id: 'intermediate', label: 'Intermediate', desc: 'Real-world' },
-                        { id: 'advanced',     label: 'Advanced',     desc: 'Expert-level' },
-                      ] as const).map(d => (
-                        <button key={d.id} onClick={() => setDifficulty(d.id)}
-                          className="flex-1 py-2.5 px-3 rounded-xl text-left transition-all"
-                          style={{
-                            border: `1.5px solid ${difficulty === d.id ? C.cta : C.cardBorder}`,
-                            background: difficulty === d.id ? `${C.cta}12` : 'transparent',
-                          }}>
-                          <p className="text-[13px] font-bold" style={{ color: C.text }}>{d.label}</p>
-                          <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>{d.desc}</p>
-                        </button>
-                      ))}
+                  <div className="pb-5 pt-5 space-y-3 border-t" style={{ borderColor: C.divider }}>
+                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Level</p>
+                    <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.field }}>
+                      {([['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const).map(([id, label]) => {
+                        const selected = difficulty === id;
+                        return (
+                          <button key={id} type="button" aria-pressed={selected} onClick={() => setDifficulty(id)}
+                            className="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors"
+                            style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.muted, boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.12)' : 'none' }}>
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Role / Focus / Tools */}
-                  <div className="px-5 pb-5 pt-4 border-t" style={{ borderColor: C.divider }}>
+                  <div className="pb-5 pt-5 border-t" style={{ borderColor: C.divider }}>
                     <div className="grid sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Role</label>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Role</label>
                         <input style={inp} value={roleHint} onChange={e => setRoleHint(e.target.value)} placeholder="e.g. Data Analyst" />
                       </div>
                       {creationMode !== 'manual' && (
                         <div>
-                          <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Focus Topic</label>
+                          <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Focus topic</label>
                           <input style={inp} value={focusTopic} onChange={e => setFocusTopic(e.target.value)} placeholder="e.g. Fraud detection" />
                         </div>
                       )}
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Tools</label>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Tools</label>
                         <input style={inp} value={toolsInput} onChange={e => setToolsInput(e.target.value)} placeholder="e.g. Excel, Power BI" />
                       </div>
                     </div>
@@ -1747,10 +1803,10 @@ function VirtualExperienceCreatePageInner() {
 
                   {/* Company & Scenario: AI + data modes */}
                   {creationMode !== 'manual' && (
-                    <div className="px-5 pb-5 pt-4 border-t space-y-3" style={{ borderColor: C.divider }}>
+                    <div className="pb-5 pt-5 border-t space-y-3" style={{ borderColor: C.divider }}>
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>
-                          Company Name <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                          Company <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <input
                           style={inp}
@@ -1760,8 +1816,8 @@ function VirtualExperienceCreatePageInner() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>
-                          Scenario <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                          Scenario <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <textarea
                           value={scenario}
@@ -1772,8 +1828,8 @@ function VirtualExperienceCreatePageInner() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1" style={{ color: C.muted }}>
-                          Additional Instructions <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>
+                          Extra instructions for the AI <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <textarea
                           value={customPrompt}
@@ -1801,11 +1857,11 @@ function VirtualExperienceCreatePageInner() {
                   )}
 
                   {/* Dataset */}
-                  <div className="px-5 pb-5 pt-4 border-t space-y-3" style={{ borderColor: C.divider }}>
+                  <div className="pb-5 pt-5 border-t space-y-3" style={{ borderColor: C.divider }}>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>
-                          Dataset <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
+                          Dataset <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </p>
                         {creationMode === 'ai' && (
                           <p className="text-[12px] mt-0.5" style={{ color: C.faint }}>
@@ -1813,13 +1869,13 @@ function VirtualExperienceCreatePageInner() {
                           </p>
                         )}
                       </div>
-                      <div className="flex rounded-xl overflow-hidden text-[12px]" style={{ border: `1px solid ${C.cardBorder}` }}>
+                      <div className="flex rounded-[10px] overflow-hidden text-[12px] p-[3px]" style={{ background: C.field }}>
                         {(['upload', 'link'] as const).map(tab => (
                           <button key={tab} onClick={() => setDatasetInputTab(tab)}
                             className="px-3 py-1.5 font-medium transition-all"
                             style={{
-                              background: datasetInputTab === tab ? C.cta : C.card,
-                              color: datasetInputTab === tab ? C.ctaText : C.muted,
+                              background: datasetInputTab === tab ? C.card : 'transparent',
+                              color: datasetInputTab === tab ? C.text : C.muted, borderRadius: 8,
                             }}>
                             {tab === 'upload'
                               ? <span className="flex items-center gap-1"><Upload className="w-3 h-3"/> Upload / Paste</span>
@@ -1835,7 +1891,7 @@ function VirtualExperienceCreatePageInner() {
                           <input ref={datasetRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetFileUpload}/>
                           <button onClick={() => datasetRef.current?.click()}
                             className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-70"
-                            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted, background: C.card }}>
+                            style={{ border: 'none', color: C.text, background: C.field }}>
                             {uploadingDataset ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
                             {datasetFilename ? datasetFilename : 'Upload CSV or Excel file'}
                           </button>
@@ -1958,7 +2014,6 @@ function VirtualExperienceCreatePageInner() {
           const managerTitle = config.guideSnapshot?.professionalTitle || config.managerTitle || 'Head of Analytics';
           const managerPhoto = config.guideSnapshot?.profilePhotoUrl;
           const managerInitials = managerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
-          const companyInitials = config.company?.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || '??';
           const dataset = config.dataset;
           const experienceAccent = accentColorFor(config.customAccent, config.theme) ?? DEFAULT_VE_ACCENT;
 
@@ -1970,15 +2025,15 @@ function VirtualExperienceCreatePageInner() {
               const si = ids.indexOf(activeSection);
               return (
               <div className="rounded-b-2xl overflow-hidden" style={{ background: C.card, border: 'none', boxShadow: C === DARK_C ? '0 16px 38px rgba(0,0,0,0.12)' : '0 16px 38px rgba(15,23,42,0.045)' }}>
-                <nav className="flex items-center gap-2 overflow-x-auto px-4 sm:px-6 py-3" aria-label="Virtual experience editor sections"
+                <nav className="flex items-center gap-6 overflow-x-auto px-6 sm:px-8" aria-label="Virtual experience editor sections"
                   style={{ scrollbarWidth: 'none', borderBottom: `1px solid ${C.divider}` }}>
                   {VE_SECTIONS.map(section => {
                     const active = activeSection === section.id;
                     return (
                       <button key={section.id} type="button" onClick={() => goToSection(section.id)} aria-current={active ? 'page' : undefined}
-                        className={`flex items-center gap-2 flex-shrink-0 px-3.5 py-2.5 rounded-xl text-[14px] transition-colors ${active ? 'font-bold' : 'font-semibold'}`}
-                        style={{ background: active ? `${C.cta}14` : 'transparent', color: active ? C.cta : C.faint }}>
-                        <section.Icon className="w-4 h-4" /> {section.label}
+                        className="flex-shrink-0 pt-2.5 pb-3 text-[14px] font-semibold transition-colors"
+                        style={{ color: active ? C.text : C.faint, borderBottom: `2px solid ${active ? C.cta : 'transparent'}`, marginBottom: -1 }}>
+                        {section.label}
                       </button>
                     );
                   })}
@@ -1986,86 +2041,46 @@ function VirtualExperienceCreatePageInner() {
                 <AnimatePresence mode="wait" custom={secDir}>
                 <motion.div key={activeSection} custom={secDir}
                   initial={{ opacity: 0, x: secDir * 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: secDir * -28 }}
-                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} className="px-6 sm:px-8 py-7">
+                  transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} className="ve-tab px-6 sm:px-8 py-7">
 
                 {activeSection === 'overview' && (
                 <div className="space-y-4">
 
-                {/* Project card */}
-                <div style={{ ...card, overflow: 'hidden' }}>
-                  {/* Cover */}
-                  {coverImage ? (
-                    <div style={{ height: 160, overflow: 'hidden', position: 'relative' }}>
-                      <img src={resolveCoverUrl(coverImage)} alt="cover" style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={e => (e.target as HTMLImageElement).style.display = 'none'} />
-                      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%)' }} />
-                    </div>
-                  ) : (
-                    <button type="button" onClick={() => document.getElementById('ve-cover-image')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                      className="w-full flex flex-col items-center justify-center gap-2 transition-opacity hover:opacity-75"
-                      style={{ height: 132, background: C.card, color: C.muted }}>
-                      <Images className="w-6 h-6" />
-                      <span className="text-[12px] font-semibold">Add cover image</span>
-                    </button>
-                  )}
-
-                  <div className="p-5 sm:p-6 space-y-3">
-                    {/* Company identity */}
-                    <div className="flex items-end gap-3">
-                      <div style={{ width: 44, height: 44, borderRadius: 12, background: C.card, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 900, color: C.text, flexShrink: 0, letterSpacing: 1 }}>
-                        {companyInitials === '??' ? <Building2 className="w-4 h-4" style={{ color: C.muted }} /> : companyInitials}
+                {/* Basics */}
+                <div style={{ ...card, borderTop: 'none', paddingTop: 4 }} className="space-y-3">
+                    <h3 className="text-[15px] font-semibold" style={{ color: C.text }}>Basics</h3>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Company</label>
+                        <input value={config.company || ''} onChange={e => setConfig(c => c ? { ...c, company: e.target.value } : c)}
+                          style={inp} placeholder="e.g. Kolapay" />
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between gap-3 mb-1.5">
-                          <label className="text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: C.faint }}>Company name</label>
-                          <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: C.cta }}>{config.industry} · Virtual Experience</p>
-                        </div>
-                        <input
-                          value={config.company || ''}
-                          onChange={e => setConfig(c => c ? { ...c, company: e.target.value } : c)}
-                          className="w-full outline-none text-[14px] font-semibold"
-                          style={{ ...inp, color: C.text }}
-                          placeholder="Company name…"
-                        />
+                      <div>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Learner role</label>
+                        <input value={config.role || ''} onChange={e => setConfig(c => c ? { ...c, role: e.target.value } : c)}
+                          style={inp} placeholder="e.g. Data Analyst" />
                       </div>
                     </div>
-
-                    {/* Editable title */}
-                    <label className="block text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: C.faint }}>Experience title</label>
-                    <input
-                      value={title}
-                      onChange={e => setTitle(e.target.value)}
-                      className="!mt-1.5 w-full text-[16px] font-bold outline-none"
-                      style={{ ...inp, color: C.text }}
-                      placeholder="Program title…"
-                    />
-
-                    {/* Editable tagline */}
-                    <label className="block text-[10px] font-black uppercase tracking-[0.14em]" style={{ color: C.faint }}>Tagline</label>
-                    <input
-                      value={config.tagline || ''}
-                      onChange={e => setConfig(c => c ? { ...c, tagline: e.target.value } : c)}
-                      className="!mt-1.5 w-full outline-none text-[13px]"
-                      style={{ ...inp, color: C.muted }}
-                      placeholder="One-line tagline…"
-                    />
-
-                    {/* Meta pills */}
-                    <div className="flex flex-wrap gap-2">
-                      <span className="text-[12px] px-3 py-1 rounded-full font-semibold" style={{ background: C.pill, color: C.text }}>{config.role}</span>
-                      <span className="text-[12px] px-3 py-1 rounded-full font-semibold capitalize" style={{ background: C.pill, color: C.muted }}>{config.difficulty}</span>
-                      {config.duration && <span className="text-[12px] px-3 py-1 rounded-full font-semibold" style={{ background: C.pill, color: C.muted }}>{config.duration}</span>}
-                      {config.modules?.length > 0 && <span className="text-[12px] px-3 py-1 rounded-full font-semibold" style={{ background: C.pill, color: C.muted }}>{config.modules.length} modules</span>}
+                    <div>
+                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Experience title</label>
+                      <input value={title} onChange={e => setTitle(e.target.value)}
+                        style={{ ...inp, fontSize: 16, fontWeight: 600 }} placeholder="e.g. Churn Analyst at Kolapay" />
+                    </div>
+                    <div>
+                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Tagline</label>
+                      <input value={config.tagline || ''} onChange={e => setConfig(c => c ? { ...c, tagline: e.target.value } : c)}
+                        style={inp} placeholder="One line that says what the learner will do" />
                     </div>
 
                     {/* Skills / tools -- editable. Shown to students as "Skills you will use". */}
                     <div>
-                      <p className="text-[11px] font-bold uppercase tracking-widest mb-2" style={{ color: C.faint }}>Skills you will use</p>
+                      <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Skills and tools</p>
                       <div className="space-y-2">
                         {(config.tools || []).map((t, i) => {
                           const logo = toolIcon(t);
                           const initial = t.trim().charAt(0).toUpperCase();
                           return (
-                            <div key={i} className="flex items-center gap-2 px-2.5 py-2 rounded-lg" style={{ background: C.card }}>
+                            <div key={i} className="ve-shell flex items-center gap-2 px-3 py-2 rounded-[10px]" style={{ background: C.field }}>
                               {logo
                                 ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
                                 : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{initial}</div>
@@ -2123,7 +2138,9 @@ function VirtualExperienceCreatePageInner() {
                     </div>
 
                     {/* Dataset - replace/attach/remove works here even for an already-saved VE */}
-                    <div className="p-4 rounded-2xl" style={{ background: C.card, border: `1px dashed ${C.cardBorder}` }}>
+                    <div>
+                    <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Dataset</label>
+                    <div className="p-4 rounded-xl" style={{ background: C.field, border: `1.5px dashed ${C.cardBorder}` }}>
                       <input ref={datasetReplaceRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetReplace} />
                       {dataset ? (
                         <div className="flex items-start gap-2">
@@ -2168,16 +2185,16 @@ function VirtualExperienceCreatePageInner() {
                         </button>
                       )}
                     </div>
-                  </div>
+                    </div>
                 </div>
                 </div>)}
                 {activeSection === 'brief' && (
                 <div className="space-y-4">
 
                 {/* Manager brief card */}
-                <div style={{ ...card, overflow: 'hidden' }}>
+                <div style={card}>
                   {/* Header strip */}
-                  <div className="flex items-center gap-3 px-4 py-3 m-4 mb-0 rounded-2xl" style={{ background: C.card }}>
+                  <div className="flex items-center gap-3 px-4 py-3 rounded-xl" style={{ background: C.field }}>
                     <div style={{ width: 32, height: 32, borderRadius: 999, overflow: 'hidden', background: C.pill, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, fontWeight: 800, color: C.text, flexShrink: 0 }}>
                       {managerPhoto ? <img src={managerPhoto} alt={managerName} className="w-full h-full object-cover" /> : managerInitials}
                     </div>
@@ -2189,11 +2206,11 @@ function VirtualExperienceCreatePageInner() {
                   </div>
 
                   {/* Editable fields */}
-                  <div className="px-5 pt-4 pb-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="pt-4 pb-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="sm:col-span-2">
                       <div className="flex items-end justify-between gap-3 mb-1.5">
                         <div>
-                          <label className="block text-[11px] font-bold uppercase tracking-widest" style={{ color: C.faint }}>Experience guide</label>
+                          <label className="text-[12.5px] font-semibold block" style={{ color: C.muted }}>Experience guide</label>
                           <p className="text-[11px] mt-0.5" style={{ color: C.muted }}>Choose the professional learners will hear from throughout this experience.</p>
                         </div>
                         <div className="flex items-center gap-2 flex-shrink-0">
@@ -2239,7 +2256,7 @@ function VirtualExperienceCreatePageInner() {
                             <p className="text-[13px] font-bold truncate" style={{ color: C.text }}>{g.full_name}</p>
                             <p className="text-[11px] truncate" style={{ color: C.muted }}>{[g.professional_title, g.company].filter(Boolean).join(' · ') || 'Professional profile'}</p>
                           </div>
-                          {g.status === 'archived' && <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: C.faint }}>Archived</span>}
+                          {g.status === 'archived' && <span className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Archived</span>}
                           <button type="button" onClick={() => beginEditGuide(g)} className="text-[11px] font-bold px-2.5 py-1.5 rounded-lg" style={{ color: C.cta, background: `${C.cta}10` }}>Edit</button>
                           <button type="button" onClick={() => setGuideStatus(g, g.status === 'archived' ? 'active' : 'archived')} className="text-[11px] font-semibold px-2.5 py-1.5 rounded-lg" style={{ color: C.muted, background: C.pill }}>{g.status === 'archived' ? 'Restore' : 'Archive'}</button>
                         </div>)}
@@ -2248,7 +2265,7 @@ function VirtualExperienceCreatePageInner() {
                             {g.profile_photo_url ? <img src={g.profile_photo_url} alt={g.full_name} className="w-full h-full object-cover" /> : g.full_name.split(/\s+/).map((x: string) => x[0]).join('').slice(0, 2).toUpperCase()}
                           </div>
                           <div className="flex-1 min-w-0"><p className="text-[13px] font-bold" style={{ color: C.text }}>{g.full_name}</p><p className="text-[11px]" style={{ color: C.muted }}>Instructor · Linked account</p></div>
-                          <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: C.cta }}>Synced</span>
+                          <span className="text-[12.5px] font-semibold" style={{ color: C.cta }}>Synced</span>
                         </div>)}
                       </div>
                     </div>}
@@ -2278,25 +2295,20 @@ function VirtualExperienceCreatePageInner() {
                       </label>
                     </div>}
                     <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Role</label>
-                      <input value={config.role || ''} onChange={e => setConfig(c => c ? { ...c, role: e.target.value } : c)}
-                        style={{ ...inp, fontSize: 13 }} placeholder="e.g. Data Analyst" />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Manager Name</label>
+                      <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>Manager name</label>
                       <input value={config.managerName || ''} onChange={e => setConfig(c => c ? { ...c, managerName: e.target.value, guideId: null, guideSnapshot: null } : c)}
                         style={{ ...inp, fontSize: 13 }} placeholder="e.g. Amara Diallo" />
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-[11px] font-bold uppercase tracking-widest mb-1" style={{ color: C.faint }}>Manager Title</label>
+                    <div>
+                      <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>Manager title</label>
                       <input value={config.managerTitle || ''} onChange={e => setConfig(c => c ? { ...c, managerTitle: e.target.value, guideId: null, guideSnapshot: null } : c)}
                         style={{ ...inp, fontSize: 13 }} placeholder="e.g. Head of Analytics" />
                     </div>
                   </div>
 
                   {/* Scenario / background */}
-                  <div className="px-5 pb-4">
-                    <label className="block text-[12px] font-semibold uppercase tracking-wide mb-1" style={{ color: C.faint }}>Scenario / Background</label>
+                  <div className="pb-1">
+                    <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>Scenario</label>
                     <AiTextarea
                       value={backgroundDraft}
                       onValueChange={text => {
@@ -2316,16 +2328,18 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Learning outcomes card */}
                 <div style={card} className="p-5 space-y-3">
-                    <p className="text-[13px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Learning Outcomes</p>
+                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Learning outcomes</p>
                     <div className="space-y-2">
                       {(config.learnOutcomes || []).map((o, i) => (
-                        <div key={i} className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: C.card }}>
+                        <div key={i} className="ve-shell flex items-center gap-2 rounded-[10px] px-3 py-2.5" style={{ background: C.field }}>
                           <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5"
                             style={{ background: `${C.cta}18` }}>
                             <Check className="w-3 h-3" style={{ color: C.cta }} />
                           </div>
                           <input value={o} onChange={e => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.map((x, j) => j === i ? e.target.value : x) } : c)}
-                            className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: C.muted }} />
+                            ref={el => { if (el && focusOutcome === i) { el.focus(); setFocusOutcome(null); } }}
+                            aria-label={`Learning outcome ${i + 1}`} placeholder="Describe what the learner will be able to do (empty rows are not saved)"
+                            className="flex-1 bg-transparent text-[14px] outline-none" style={{ color: C.text }} />
                           <button onClick={() => setConfig(c => c ? { ...c, learnOutcomes: c.learnOutcomes.filter((_, j) => j !== i) } : c)}
                             style={{ color: C.faint }} className="hover:text-red-400 transition-colors flex-shrink-0">
                             <X className="w-3.5 h-3.5" />
@@ -2333,8 +2347,8 @@ function VirtualExperienceCreatePageInner() {
                         </div>
                       ))}
                     </div>
-                    <button onClick={() => setConfig(c => c ? { ...c, learnOutcomes: [...(c.learnOutcomes||[]), ''] } : c)}
-                      className="text-[13px] font-semibold flex items-center gap-1.5 rounded-xl px-3 py-2 hover:opacity-70" style={{ color: C.muted, background: C.card }}>
+                    <button onClick={() => { setFocusOutcome((config.learnOutcomes || []).length); setConfig(c => c ? { ...c, learnOutcomes: [...(c.learnOutcomes||[]), ''] } : c); }}
+                      className="text-[13px] font-semibold flex items-center gap-1.5 px-2 py-1.5 hover:opacity-70" style={{ color: C.muted }}>
                       <Plus className="w-3.5 h-3.5" /> Add outcome
                     </button>
                 </div>
@@ -2342,46 +2356,34 @@ function VirtualExperienceCreatePageInner() {
                 {activeSection === 'curriculum' && (
                 <div className="space-y-4">
 
-                {/* Program Outline card */}
-                <div style={card} className="overflow-hidden">
-                  <div className="flex items-center justify-between px-5 pt-5 pb-3">
-                    <p className="text-[13px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Program Outline</p>
-                    <button onClick={addModule}
-                      className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-2 rounded-xl transition-all hover:opacity-70"
-                      style={{ color: C.muted, background: C.card }}>
-                      <Plus className="w-3 h-3" /> Add Milestone
-                    </button>
-                  </div>
-
-                  <div className="px-5 pb-5 space-y-4">
+                {/* Outline: milestones as headings, missions and tasks as rows */}
+                <div>
+                  <div>
                     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleModuleDragEnd}>
                     <SortableContext items={(config.modules || []).map(m => m.id)} strategy={verticalListSortingStrategy}>
                     {(config.modules || []).map((mod, mi) => {
                       return (
                       <SortableVEShell key={mod.id} id={mod.id}>
                         {({ dragHandle: moduleDragHandle }) => (
-                        <div className="rounded-2xl group overflow-hidden" style={{ background: C.card, boxShadow: C === DARK_C ? 'none' : '0 1px 2px rgba(15,23,42,0.04)' }}>
+                        <div className="group py-4" style={{ borderTop: mi > 0 ? `1px solid ${C.divider}` : 'none' }}>
 
-                          {/* MODULE HEADER */}
-                          <div className="flex items-center gap-2 px-4 pt-3.5 pb-2.5">
-                            <div className="flex-shrink-0" title="Drag to reorder module">{moduleDragHandle}</div>
-                            <span className="text-[11px] font-black uppercase tracking-widest flex-shrink-0" style={{ color: C.muted }}>Milestone {mi + 1}</span>
+                          {/* Milestone heading */}
+                          <div className="flex items-center gap-2.5 mb-2">
+                            <div className="flex-shrink-0" title="Drag to reorder milestone">{moduleDragHandle}</div>
+                            <span className="text-[12px] font-semibold whitespace-nowrap" style={{ color: C.faint }}>Milestone {mi + 1}</span>
                             <input
                               value={mod.title}
                               onChange={e => updateModule(mod.id, { title: e.target.value })}
-                              className="flex-1 bg-transparent text-[13px] font-bold outline-none min-w-0"
+                              aria-label={`Milestone ${mi + 1} title`}
+                              className="flex-1 bg-transparent text-[15.5px] font-semibold outline-none min-w-0 rounded-lg px-2 -mx-2 py-1"
                               style={{ color: C.text }}
-                              placeholder="Milestone title…"
+                              placeholder="Milestone title"
                             />
-                            <button onClick={() => removeModule(mod.id)}
-                              className="hover:text-red-400 flex-shrink-0 transition-colors"
-                              style={{ color: C.faint }} title="Delete module">
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
+                            <RowMenu C={C} label={`Milestone ${mi + 1} options`} onDelete={() => removeModule(mod.id)} />
                           </div>
 
-                          {/* LESSONS */}
-                          <div className="p-3 space-y-2">
+                          {/* Missions */}
+                          <div className="space-y-1">
                             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleLessonDragEnd(mod.id)}>
                             <SortableContext items={(mod.lessons || []).map(l => l.id)} strategy={verticalListSortingStrategy}>
                             {(mod.lessons || []).map((les, li) => {
@@ -2390,55 +2392,38 @@ function VirtualExperienceCreatePageInner() {
                               return (
                               <SortableVEShell key={les.id} id={les.id}>
                                 {({ dragHandle: lessonDragHandle }) => (
-                                <div className="rounded-xl overflow-hidden group" style={{ background: C.input }}>
+                                <div className="rounded-xl group" style={{ background: expandedModules.has(expandKey) ? C.field : 'transparent' }}>
 
-                                  {/* Lesson header row */}
-                                  <div className="flex items-center gap-2 px-3 py-2.5">
-                                    <div className="flex-shrink-0" title="Drag to reorder lesson">{lessonDragHandle}</div>
-                                    <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-bold"
-                                      style={{ background: C.pill, color: C.muted }}>
-                                      {li + 1}
-                                    </div>
-                                    <span className="text-[10px] font-bold uppercase tracking-widest flex-shrink-0 px-1.5 py-0.5 rounded"
-                                      style={{ background: C.pill, color: C.faint }}>Mission</span>
+                                  {/* Mission row: open it to edit the content and tasks */}
+                                  <div className="flex items-center gap-2 px-2 py-1.5">
+                                    <div className="flex-shrink-0" title="Drag to reorder mission">{lessonDragHandle}</div>
+                                    <button type="button" onClick={() => toggleModule(expandKey)} aria-expanded={expandedModules.has(expandKey)}
+                                      aria-label={expandedModules.has(expandKey) ? 'Close mission' : 'Open mission'}
+                                      className="flex items-center gap-2 flex-shrink-0" style={{ color: C.muted }}>
+                                      {expandedModules.has(expandKey) ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                                      <span className="w-6 h-6 rounded-full flex items-center justify-center text-[12px] font-bold"
+                                        style={{ background: expandedModules.has(expandKey) ? C.card : C.field, color: C.muted }}>{li + 1}</span>
+                                    </button>
                                     <input
                                       value={les.title}
                                       onChange={e => updateLesson(mod.id, les.id, { title: e.target.value })}
-                                      className="flex-1 bg-transparent text-[14px] font-semibold outline-none min-w-0"
+                                      aria-label={`Mission ${li + 1} title`}
+                                      className="flex-1 bg-transparent text-[14px] font-semibold outline-none min-w-0 py-1 rounded-lg px-2 -mx-1"
                                       style={{ color: C.text }}
-                                      placeholder="Mission title…"
+                                      placeholder="Mission title"
                                     />
-                                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                                      <button onClick={() => toggleModule(expandKey)}
-                                        className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-70"
-                                        style={{ background: C.pill, color: C.muted }}>
-                                        {expandedModules.has(expandKey)
-                                          ? <><ChevronDown className="w-3 h-3" /> Hide</>
-                                          : <><ChevronRight className="w-3 h-3" /> {reqCount} task{reqCount !== 1 ? 's' : ''}</>}
-                                      </button>
-                                      {(config.modules || []).filter(m => m.id !== mod.id).length > 0 && (
-                                        <select value="" title="Move this mission to a different milestone"
-                                          onChange={e => { if (e.target.value) moveLessonToModule(mod.id, les.id, e.target.value); }}
-                                          className="flex-shrink-0"
-                                          style={{ padding: '2px 4px', borderRadius: 6, border: `1px solid ${C.cardBorder}`, background: C.card, color: C.muted, fontSize: 11, maxWidth: 96 }}>
-                                          <option value="">Move to…</option>
-                                          {(config.modules || []).filter(m => m.id !== mod.id).map(m => (
-                                            <option key={m.id} value={m.id}>{m.title}</option>
-                                          ))}
-                                        </select>
-                                      )}
-                                      <button onClick={() => removeLesson(mod.id, les.id)}
-                                        className="hover:text-red-400 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0"
-                                        style={{ color: C.faint }}>
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
-                                    </div>
+                                    <button type="button" onClick={() => toggleModule(expandKey)}
+                                      className="hidden sm:block text-[12.5px] whitespace-nowrap flex-shrink-0 transition-opacity hover:opacity-70" style={{ color: C.muted }}>
+                                      {reqCount} task{reqCount !== 1 ? 's' : ''}
+                                    </button>
+                                    <RowMenu C={C} label={`Mission ${li + 1} options`} onDelete={() => removeLesson(mod.id, les.id)}
+                                      moveTargets={(config.modules || []).filter(m => m.id !== mod.id).map(m => ({ label: m.title, onPick: () => moveLessonToModule(mod.id, les.id, m.id) }))} />
                                   </div>
 
-                                  {/* EXPANDED: lesson body + tasks */}
+                                  {/* Open: mission content, media and tasks */}
                                   {expandedModules.has(expandKey) && (
-                                    <div className="px-3 pb-3 space-y-3 border-t" style={{ borderColor: C.divider }}>
-                                      <div className="pt-3">
+                                    <div className="px-3 pb-3 space-y-3">
+                                      <div className="pt-1">
                                         <LessonEditor
                                           key={les.id}
                                           doc={les.doc}
@@ -2450,11 +2435,12 @@ function VirtualExperienceCreatePageInner() {
                                         />
                                       </div>
                                       <div className="flex items-center gap-2">
-                                        <input style={{ ...inp, fontSize: 13, flex: 1 }} value={les.videoUrl || ''} placeholder="YouTube, Vimeo, Bunny or Canva URL..."
-                                          onChange={e => updateLesson(mod.id, les.id, { videoUrl: e.target.value })} />
+                                        <input style={{ ...inp, fontSize: 13, flex: 1, background: C.card }} value={les.videoUrl || ''} placeholder="Video link (YouTube, Vimeo, Bunny or Canva)"
+                                          aria-label="Video link" onChange={e => updateLesson(mod.id, les.id, { videoUrl: e.target.value })} />
                                         <button type="button" onClick={() => openBunnyPicker(`${mod.id}::${les.id}`)}
-                                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium flex-shrink-0"
-                                          style={{ background: '#FF6B35', color: 'white' }}>
+                                          title="Choose a video from the Bunny library"
+                                          className="flex items-center gap-1.5 px-1 py-2 text-[13px] font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
+                                          style={{ color: '#FF6B35' }}>
                                           <Video className="w-3.5 h-3.5"/> Bunny
                                         </button>
                                         {/* Interactive HTML embed: uploads to the public form-assets bucket; the
@@ -2470,8 +2456,8 @@ function VirtualExperienceCreatePageInner() {
                                               updateLesson(mod.id, les.id, { videoUrl: url });
                                             } catch (err: any) { alert('Upload failed: ' + (err?.message || 'Please try again.')); }
                                           }} />
-                                          <div className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium flex-shrink-0"
-                                            style={{ background: C.pill, color: C.muted }}>
+                                          <div className="flex items-center gap-1.5 px-1 py-2 text-[13px] font-semibold flex-shrink-0 whitespace-nowrap transition-opacity hover:opacity-70"
+                                            style={{ color: C.muted }}>
                                             <FileCode className="w-3.5 h-3.5"/> HTML
                                           </div>
                                         </label>
@@ -2488,7 +2474,7 @@ function VirtualExperienceCreatePageInner() {
                                       {/* Tasks */}
                                       <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.muted }}>Tasks</span>
+                                          <span className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Tasks</span>
                                           <div className="flex-1 h-px" style={{ background: C.divider }}/>
                                         </div>
                                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReqDragEnd(mod.id, les.id)}>
@@ -2500,16 +2486,34 @@ function VirtualExperienceCreatePageInner() {
                                           return (
                                             <SortableVEShell key={req.id} id={req.id}>
                                             {({ dragHandle: reqDragHandle }) => (
-                                            <div className="rounded-xl p-3.5 space-y-3 group" style={{ background: C.card, boxShadow: C === DARK_C ? '0 0 0 1px rgba(255,255,255,0.05)' : '0 0 0 1px rgba(15,23,42,0.06)' }}>
+                                            <div className={`rounded-[10px] group ${openReqs.has(req.id) ? 'p-3 space-y-3' : 'px-2 py-1'}`} style={{ background: C.card }}>
                                               <div className="flex items-center gap-2">
                                                 {reqDragHandle}
+                                                {/* The row: type and title. Open it to edit the task. A task with no title
+                                                    says so, since learners see the title as the task's heading. */}
                                                 <button type="button" onClick={() => toggleReqOpen(req.id)} aria-expanded={openReqs.has(req.id)}
                                                   title={openReqs.has(req.id) ? 'Close this task' : 'Open this task to edit it'}
-                                                  className="flex flex-shrink-0 items-center gap-1 rounded-full py-0.5 pl-1 pr-2 text-[11px] font-bold transition-opacity hover:opacity-70"
-                                                  style={{ background: C.card, color: C.muted }}>
-                                                  {openReqs.has(req.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-                                                  Task {qi + 1}
+                                                  className="flex flex-1 min-w-0 items-center gap-2.5 py-1.5 text-left">
+                                                  {openReqs.has(req.id) ? <ChevronDown className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} /> : <ChevronRight className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} />}
+                                                  <span className="flex-shrink-0 whitespace-nowrap rounded-md px-2 py-0.5 text-[12px] font-semibold" style={{ background: C.field, color: C.muted }}>
+                                                    {REQ_TYPE_NAMES[req.type] || 'Task'}
+                                                  </span>
+                                                  {req.label.trim()
+                                                    ? <span className="min-w-0 flex-1 truncate text-[14px]" style={{ color: C.text }}>{req.label}</span>
+                                                    : <span className="min-w-0 flex-1 truncate text-[13.5px] font-semibold" style={{ color: '#b45309' }}>No title yet</span>}
                                                 </button>
+                                                {req.emailFrame && !openReqs.has(req.id) && (
+                                                  <span className="hidden sm:inline-flex flex-shrink-0 items-center gap-1 text-[11.5px] font-semibold" style={{ color: C.cta }}>
+                                                    <Mail className="w-3 h-3" /> Email
+                                                  </span>
+                                                )}
+                                                <RowMenu C={C} label={`Task ${qi + 1} options`} onDelete={() => removeReq(mod.id, les.id, req.id)}
+                                                  moveTargets={(config.modules || []).flatMap(m => (m.lessons || [])
+                                                    .filter(l => !(m.id === mod.id && l.id === les.id))
+                                                    .map(l => ({ group: m.title, label: l.title, onPick: () => moveReqToLesson(mod.id, les.id, req.id, m.id, l.id) })))} />
+                                              </div>
+                                              {openReqs.has(req.id) && (<>
+                                              <div className="flex flex-wrap items-center gap-2">
                                                 <select value={req.type}
                                                   onChange={e => {
                                                     const type = e.target.value as Requirement['type'];
@@ -2582,49 +2586,21 @@ function VirtualExperienceCreatePageInner() {
                                                     <Mail className="h-3 w-3" /> Convert from email
                                                   </button>
                                                 )}
+                                              </div>
+                                              <div>
+                                                <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                                                  Title <span className="font-normal" style={{ color: C.faint }}>(the heading learners see)</span>
+                                                </label>
                                                 <input value={req.label}
                                                   onChange={e => updateReq(mod.id, les.id, req.id, { label: e.target.value })}
-                                                  className="flex-1 bg-transparent text-[13px] font-semibold outline-none"
-                                                  style={{ color: C.text }}
-                                                  placeholder={req.type === 'task' || req.type === 'deliverable' ? 'Deliverable title' : 'Task title'} />
-                                                {(() => {
-                                                  const groups = (config.modules || [])
-                                                    .map(m => ({
-                                                      modId: m.id,
-                                                      modTitle: m.title,
-                                                      lessons: (m.lessons || [])
-                                                        .filter(l => !(m.id === mod.id && l.id === les.id))
-                                                        .map(l => ({ lesId: l.id, lesTitle: l.title })),
-                                                    }))
-                                                    .filter(g => g.lessons.length > 0);
-                                                  if (groups.length === 0) return null;
-                                                  return (
-                                                    <select value="" title="Move this task to a different mission"
-                                                      onChange={e => {
-                                                        const [toModId, toLesId] = e.target.value.split('::');
-                                                        if (toModId && toLesId) moveReqToLesson(mod.id, les.id, req.id, toModId, toLesId);
-                                                      }}
-                                                      className="flex-shrink-0"
-                                                      style={{ padding: '2px 4px', borderRadius: 6, border: `1px solid ${C.cardBorder}`, background: C.card, color: C.muted, fontSize: 11, maxWidth: 96 }}>
-                                                      <option value="">Move to…</option>
-                                                      {groups.map(g => (
-                                                        <optgroup key={g.modId} label={g.modTitle}>
-                                                          {g.lessons.map(l => (
-                                                            <option key={l.lesId} value={`${g.modId}::${l.lesId}`}>{l.lesTitle}</option>
-                                                          ))}
-                                                        </optgroup>
-                                                      ))}
-                                                    </select>
-                                                  );
-                                                })()}
-                                                <button onClick={() => removeReq(mod.id, les.id, req.id)} className="hover:text-red-400 flex-shrink-0" style={{ color: C.faint }}>
-                                                  <X className="w-3.5 h-3.5" />
-                                                </button>
+                                                  autoFocus={!req.label.trim()}
+                                                  style={{ ...inp, fontWeight: 600, boxShadow: req.label.trim() ? 'none' : 'inset 0 0 0 1.5px #f59e0b' }}
+                                                  placeholder={['mcq', 'text', 'decision'].includes(req.type) ? 'e.g. What is the churn rate for March?' : 'e.g. Send the cleaned customer file'} />
                                               </div>
-                                              {openReqs.has(req.id) && (<>
                                               {(req.type === 'briefing' || req.type === 'debrief') ? (
                                                 <>
                                                   <RichTextEditor
+                                                    className="ve-shell"
                                                     value={req.description}
                                                     onChange={html => updateReq(mod.id, les.id, req.id, { description: html })}
                                                     placeholder={req.type === 'briefing' ? 'Write the email body - formatting, bullet points, and images are all supported...' : 'Describe what students should write in their debrief update...'}
@@ -2639,7 +2615,7 @@ function VirtualExperienceCreatePageInner() {
                                                   {req.type === 'briefing' && (
                                                     <div className="space-y-2">
                                                       {(req.attachments || []).map((att, ai) => (
-                                                        <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+                                                        <div key={ai} className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.field }}>
                                                           <Paperclip className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.muted }} />
                                                           <span className="flex-1 truncate" style={{ color: C.text }}>{att.name}</span>
                                                           <button onClick={() => updateReq(mod.id, les.id, req.id, { attachments: req.attachments?.filter((_, i) => i !== ai) })} style={{ color: C.faint }} className="hover:text-red-400 flex-shrink-0">
@@ -2670,6 +2646,7 @@ function VirtualExperienceCreatePageInner() {
                                                         EMAIL BODY
                                                       </div>
                                                       <RichTextEditor
+                                                    className="ve-shell"
                                                         value={req.emailBody || ''}
                                                         onChange={html => updateReq(mod.id, les.id, req.id, { emailBody: html })}
                                                         placeholder="Write the email the manager sends to the student..."
@@ -2692,7 +2669,7 @@ function VirtualExperienceCreatePageInner() {
                                                   ) : (
                                                     <div className="space-y-3">
                                                       <div>
-                                                        <p className="mb-2 text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
+                                                        <p className="text-[12.5px] font-semibold mb-2" style={{ color: C.muted }}>
                                                           Deliverable instructions
                                                         </p>
                                                         <LessonEditor
@@ -2710,11 +2687,11 @@ function VirtualExperienceCreatePageInner() {
                                                         />
                                                       </div>
                                                       <div className="space-y-2">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
+                                                        <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
                                                           Resources
                                                         </p>
                                                         {(req.attachments || []).map((att, ai) => (
-                                                          <div key={`${att.url}-${ai}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px]" style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+                                                          <div key={`${att.url}-${ai}`} className="flex items-center gap-2 rounded-lg px-3 py-2 text-[12px]" style={{ background: C.field }}>
                                                             <Paperclip className="h-3.5 w-3.5 flex-shrink-0" style={{ color: C.muted }} />
                                                             <span className="flex-1 truncate" style={{ color: C.text }}>{att.name}</span>
                                                             <button
@@ -2748,7 +2725,7 @@ function VirtualExperienceCreatePageInner() {
                                                   ) : (
                                                     <input value={req.description}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { description: e.target.value })}
-                                                      style={{ ...inp, background: C.card, fontSize: 12 }}
+                                                      style={{ ...inp, background: C.field, fontSize: 12 }}
                                                       placeholder="Instructions (shown to the learner)" aria-label="Instructions shown to the learner" />
                                                   )}
                                                   {req.type === 'linkedin_share' && (
@@ -2756,7 +2733,7 @@ function VirtualExperienceCreatePageInner() {
                                                       <textarea value={req.sharePrompt || ''}
                                                         onChange={e => updateReq(mod.id, les.id, req.id, { sharePrompt: e.target.value })}
                                                         rows={4}
-                                                        style={{ ...inp, background: C.card, fontSize: 12, resize: 'vertical' }}
+                                                        style={{ ...inp, background: C.field, fontSize: 12, resize: 'vertical' }}
                                                         placeholder="Optional suggested post text the student can copy…" />
                                                       <button
                                                         type="button"
@@ -2776,7 +2753,7 @@ function VirtualExperienceCreatePageInner() {
                                                           onChange={e => updateReq(mod.id, les.id, req.id, {
                                                             sharePoints: clampLinkedInSharePoints(e.target.value),
                                                           })}
-                                                          style={{ ...inp, background: C.card, fontSize: 12, width: 90, padding: '4px 8px' }} />
+                                                          style={{ ...inp, background: C.field, fontSize: 12, width: 90, padding: '4px 8px' }} />
                                                         <span style={{ color: C.faint, fontWeight: 500 }}>0 to {MAX_LINKEDIN_SHARE_POINTS}; 0 awards nothing</span>
                                                       </label>
                                                       <p className="text-[11px]" style={{ color: C.faint }}>
@@ -2801,7 +2778,7 @@ function VirtualExperienceCreatePageInner() {
                                                           onClick={() => opt && updateReq(mod.id, les.id, req.id, { correctAnswer: opt })}
                                                           title={opt ? `Mark "${letter}" as correct answer` : 'Fill in this option first'}
                                                           className="w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 transition-all"
-                                                          style={{ background: isCorrect ? C.cta : C.input, border: `1.5px solid ${isCorrect ? C.cta : C.cardBorder}`, color: isCorrect ? 'white' : C.muted }}>
+                                                          style={{ background: isCorrect ? C.cta : C.field, border: `1.5px solid ${isCorrect ? C.cta : 'transparent'}`, color: isCorrect ? 'white' : C.muted }}>
                                                           {letter}
                                                         </button>
                                                         <input value={opt}
@@ -2810,7 +2787,7 @@ function VirtualExperienceCreatePageInner() {
                                                             updateReq(mod.id, les.id, req.id, { options: newOpts, correctAnswer: req.correctAnswer === opt ? e.target.value : req.correctAnswer });
                                                           }}
                                                           className="flex-1 bg-transparent text-[13px] outline-none"
-                                                          style={{ ...inp, background: C.card, padding: '4px 8px', fontSize: 12, borderColor: isCorrect ? C.cta : C.cardBorder, color: isCorrect ? C.cta : C.text, fontWeight: isCorrect ? 600 : 400 }}
+                                                          style={{ ...inp, background: C.field, padding: '4px 8px', fontSize: 12, borderColor: isCorrect ? C.cta : 'transparent', color: isCorrect ? C.cta : C.text, fontWeight: isCorrect ? 600 : 400 }}
                                                           placeholder={`Option ${letter}…`} />
                                                       </div>
                                                     );
@@ -2873,14 +2850,14 @@ function VirtualExperienceCreatePageInner() {
                                                               onClick={() => opt && updateReq(mod.id, les.id, req.id, { correctAnswer: opt })}
                                                               title={opt ? `Mark option ${letter} as the recommended path` : 'Fill in this option first'}
                                                               className="w-5 h-5 rounded-full flex items-center justify-center text-[12px] font-bold flex-shrink-0 transition-all"
-                                                              style={{ background: recommended ? tc.color : C.input, border: `1.5px solid ${recommended ? tc.color : C.cardBorder}`, color: recommended ? 'white' : C.muted }}>
+                                                              style={{ background: recommended ? C.cta : C.field, border: `1.5px solid ${recommended ? C.cta : 'transparent'}`, color: recommended ? 'white' : C.muted }}>
                                                               {letter}
                                                             </button>
                                                             <input
                                                               value={opt}
                                                               onChange={e => updateDecisionOption(oi, e.target.value)}
                                                               className="flex-1 bg-transparent text-[13px] outline-none"
-                                                              style={{ ...inp, background: C.input, padding: '4px 8px', fontSize: 12, color: C.text }}
+                                                              style={{ ...inp, background: C.field, padding: '4px 8px', fontSize: 12, color: C.text }}
                                                               placeholder={`Decision option ${letter}...`}
                                                             />
                                                             {decisionOptions.length > 2 && (
@@ -2892,7 +2869,7 @@ function VirtualExperienceCreatePageInner() {
                                                           <input
                                                             value={decisionFeedback[oi] || ''}
                                                             onChange={e => updateDecisionFeedback(oi, e.target.value)}
-                                                            style={{ ...inp, background: C.input, fontSize: 12 }}
+                                                            style={{ ...inp, background: C.field, fontSize: 12 }}
                                                             placeholder="Scripted feedback shown after this choice..."
                                                           />
                                                         </div>
@@ -2923,7 +2900,7 @@ function VirtualExperienceCreatePageInner() {
                                                   </div>
                                                   {/* Read by the AI draft of the instructor report when the student uploads an Excel workbook. */}
                                                   <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Worksheets to review (optional, Excel uploads)</p>
+                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Worksheets to review (optional, Excel uploads)</p>
                                                     <textarea
                                                       value={(req.reviewSheetNames ?? []).join('\n')}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
@@ -2931,7 +2908,7 @@ function VirtualExperienceCreatePageInner() {
                                                       spellCheck={false}
                                                       placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
                                                       className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
-                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}`, lineHeight: 1.6 }}
+                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                     <p className="text-[11px] mt-1" style={{ color: C.muted }}>When you draft a report with AI, only these worksheets are read. Leave blank to read the first 5.</p>
                                                   </div>
@@ -2959,10 +2936,10 @@ function VirtualExperienceCreatePageInner() {
                                                   </button>
                                                   {req.aiReview ? (
                                                     <input value={req.context || ''} onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })}
-                                                      style={{ ...inp, background: C.card, fontSize: 12 }} placeholder="Rubric / grading guidance for AI (e.g. 'Award points for mentioning X and Y…')…" />
+                                                      style={{ ...inp, background: C.field, fontSize: 12 }} placeholder="Rubric / grading guidance for AI (e.g. 'Award points for mentioning X and Y...')..." />
                                                   ) : (
                                                     <input value={req.expectedAnswer || ''} onChange={e => updateReq(mod.id, les.id, req.id, { expectedAnswer: e.target.value })}
-                                                      style={{ ...inp, background: C.card, fontSize: 12 }} placeholder="Expected answer for exact match (optional -- leave blank to accept any response)…" />
+                                                      style={{ ...inp, background: C.field, fontSize: 12 }} placeholder="Expected answer for exact match (optional -- leave blank to accept any response)..." />
                                                   )}
                                                 </div>
                                               )}
@@ -2994,20 +2971,20 @@ function VirtualExperienceCreatePageInner() {
                                                     Students paste their code. AI reviews correctness, quality, efficiency, and best practices with line-level feedback
                                                   </div>
                                                   <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Language</p>
+                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Language</p>
                                                     <select
                                                       value={req.reviewLanguage ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { reviewLanguage: e.target.value || undefined })}
                                                       aria-label="Language for this code task"
                                                       className="outline-none text-[12px] px-3 py-2 rounded-lg"
-                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }}>
+                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}>
                                                       <option value="">Learner chooses</option>
                                                       {LOCKABLE_CODE_REVIEW_LANGUAGES.map(lang => <option key={lang} value={lang}>{lang}</option>)}
                                                     </select>
                                                     <p className="text-[11px] mt-1" style={{ color: C.muted }}>Pick a language to fix it for learners. They will not be able to switch.</p>
                                                   </div>
                                                   <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Table Schema / Data Context (optional)</p>
+                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Table schema or data context (optional)</p>
                                                     <textarea
                                                       value={req.schema ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { schema: e.target.value })}
@@ -3015,18 +2992,18 @@ function VirtualExperienceCreatePageInner() {
                                                       spellCheck={false}
                                                       placeholder="Paste CREATE TABLE statements or describe the DataFrame columns. The AI uses this to validate student code against the actual schema."
                                                       className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
-                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}`, lineHeight: 1.6 }}
+                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                   </div>
                                                   <div className="flex items-center gap-3">
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>Minimum pass score</p>
+                                                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
                                                     <input
                                                       type="number" min={0} max={100} step={5}
                                                       value={req.minScore ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
                                                       placeholder="70"
                                                       className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
-                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }}
+                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}
                                                     />
                                                     <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for no gate</p>
                                                   </div>
@@ -3047,7 +3024,7 @@ function VirtualExperienceCreatePageInner() {
                                                     Students upload their .xlsx file. AI reviews formula correctness, formula choice, and value accuracy.
                                                   </div>
                                                   <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Spreadsheet Context (optional)</p>
+                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Spreadsheet context (optional)</p>
                                                     <textarea
                                                       value={req.context ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })}
@@ -3055,11 +3032,11 @@ function VirtualExperienceCreatePageInner() {
                                                       spellCheck={false}
                                                       placeholder="Include the domain so the AI applies the right expertise. e.g. This is a financial model for a retail business. B5 should calculate total revenue using SUMIF on column D, C10 should show profit margin as a percentage. Or: This is an HR payroll sheet. Column F should calculate net pay after tax deductions. Or: This is a BI sales dashboard for a fintech company. D12 should show month-on-month growth using XLOOKUP."
                                                       className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
-                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}`, lineHeight: 1.6 }}
+                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                   </div>
                                                   <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Worksheets to evaluate (optional)</p>
+                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Worksheets to evaluate (optional)</p>
                                                     <textarea
                                                       value={(req.reviewSheetNames ?? []).join('\n')}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { reviewSheetNames: e.target.value.split('\n') })}
@@ -3067,18 +3044,18 @@ function VirtualExperienceCreatePageInner() {
                                                       spellCheck={false}
                                                       placeholder={'One worksheet per line\nRevenue Forecast\nSummary Dashboard'}
                                                       className="w-full resize-none outline-none text-[12px] font-mono px-3 py-2.5 rounded-lg"
-                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}`, lineHeight: 1.6 }}
+                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent', lineHeight: 1.6 }}
                                                     />
                                                   </div>
                                                   <div className="flex items-center gap-3">
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>Minimum pass score</p>
+                                                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Minimum pass score</p>
                                                     <input
                                                       type="number" min={0} max={100} step={5}
                                                       value={req.minScore ?? ''}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : parseFloat(e.target.value) })}
                                                       placeholder="70"
                                                       className="w-20 outline-none text-[12px] font-mono px-2 py-1 rounded-lg"
-                                                      style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }}
+                                                      style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }}
                                                     />
                                                     <p className="text-[11px]" style={{ color: C.muted }}>out of 100 - leave blank for no gate</p>
                                                   </div>
@@ -3100,18 +3077,18 @@ function VirtualExperienceCreatePageInner() {
                                                     <FileText className="w-3 h-3 flex-shrink-0" />Students upload a PDF, Word document, or text file for rubric-based review.
                                                   </div>
                                                   <div>
-                                                    <p className="text-[11px] font-semibold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Document context</p>
+                                                    <p className="text-[12.5px] font-semibold mb-1.5" style={{ color: C.muted }}>Document context</p>
                                                     <textarea value={req.context ?? ''} onChange={e => updateReq(mod.id, les.id, req.id, { context: e.target.value })} rows={3}
                                                       placeholder="Describe the intended audience, purpose, and any important requirements."
-                                                      className="w-full resize-none outline-none text-[12px] px-3 py-2.5 rounded-lg" style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }} />
+                                                      className="w-full resize-none outline-none text-[12px] px-3 py-2.5 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
                                                   </div>
                                                   <div className="flex flex-wrap items-center gap-3">
                                                     <select value={req.documentReviewMode ?? 'ai_only'} onChange={e => updateReq(mod.id, les.id, req.id, { documentReviewMode: e.target.value as Requirement['documentReviewMode'] })} style={{ ...inp, width: 'auto', fontSize: 12 }}>
                                                       <option value="ai_only">AI review</option><option value="manual">Instructor review</option><option value="hybrid">AI + instructor review</option>
                                                     </select>
-                                                    <label className="text-[11px] font-semibold uppercase tracking-widest" style={{ color: C.muted }}>Pass score</label>
+                                                    <label className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Pass score</label>
                                                     <input type="number" min={0} max={100} value={req.minScore ?? ''} onChange={e => updateReq(mod.id, les.id, req.id, { minScore: e.target.value === '' ? undefined : Number(e.target.value) })}
-                                                      placeholder="70" className="w-20 outline-none text-[12px] px-2 py-1.5 rounded-lg" style={{ background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` }} />
+                                                      placeholder="70" className="w-20 outline-none text-[12px] px-2 py-1.5 rounded-lg" style={{ background: C.field, color: C.text, border: '1.5px solid transparent' }} />
                                                     <span className="text-[11px]" style={{ color: C.muted }}>out of 100</span>
                                                   </div>
                                                   <RubricBuilder criteria={req.rubric ?? []}
@@ -3143,23 +3120,23 @@ function VirtualExperienceCreatePageInner() {
                             </SortableContext>
                             </DndContext>
 
-                            {/* Solution video + Add lesson */}
+                            {/* Add mission, then the milestone's optional solution link */}
                             <div className="space-y-2 pt-1">
-                              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl"
-                                style={{ background: C.card }}>
-                                <LinkIcon className="w-3 h-3 flex-shrink-0" style={{ color: C.faint }} />
+                              <button onClick={() => addLesson(mod.id)}
+                                className="flex items-center gap-1.5 text-[13px] font-semibold px-2 py-1.5 transition-opacity hover:opacity-70"
+                                style={{ color: C.muted }}>
+                                <Plus className="w-3.5 h-3.5" /> Add mission
+                              </button>
+                              <div className="ve-shell flex items-center gap-2 px-3 rounded-[10px]" style={{ background: C.field }}>
+                                <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: C.faint }} />
                                 <input
                                   value={mod.solutionVideo || ''}
                                   onChange={e => updateModule(mod.id, { solutionVideo: e.target.value })}
-                                  className="flex-1 bg-transparent text-[12px] outline-none"
-                                  style={{ color: C.muted }}
-                                  placeholder={`Solution video or file link for "${mod.title}" (YouTube, Bunny, Google Drive, PDF…)`} />
+                                  aria-label={`Solution video or file for ${mod.title || 'this milestone'}`}
+                                  className="flex-1 min-w-0 bg-transparent py-2.5 text-[13px] outline-none"
+                                  style={{ color: C.text }}
+                                  placeholder="Solution video or file link for this milestone (optional)" />
                               </div>
-                              <button onClick={() => addLesson(mod.id)}
-                                className="flex items-center gap-1.5 text-[12px] font-medium px-3 py-2.5 rounded-xl w-full justify-center transition-opacity hover:opacity-80"
-                                style={{ background: C.card, color: C.muted }}>
-                                <Plus className="w-3 h-3" /> Add mission to {mod.title}
-                              </button>
                             </div>
                           </div>
                         </div>
@@ -3170,102 +3147,76 @@ function VirtualExperienceCreatePageInner() {
                     </SortableContext>
                     </DndContext>
                   </div>
+                  <button onClick={addModule}
+                    className="flex items-center gap-1.5 text-[13px] font-semibold px-2 py-2 mt-1 transition-opacity hover:opacity-70"
+                    style={{ color: C.muted }}>
+                    <Plus className="w-3.5 h-3.5" /> Add milestone
+                  </button>
                 </div>
                 </div>)}
                 {activeSection === 'overview' && (
                 <div className="space-y-4">
 
-                {/* Industry card */}
-                <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Industry</p>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-                    {INDUSTRIES.map(ind => (
-                      <button key={ind.id} onClick={() => { setIndustry(ind.id); setConfig(c => c ? { ...c, industry: ind.id } : c); }}
-                        className="flex items-center gap-2 px-3 py-3 rounded-xl text-left transition-all"
-                        style={{ border: '1px solid transparent', background: industry === ind.id ? `${C.cta}12` : C.card, boxShadow: industry === ind.id ? `0 0 0 2px ${C.cta}` : 'none' }}>
-                        <span className="text-base">{ind.emoji}</span>
-                        <span className="text-[12px] font-semibold" style={{ color: C.text }}>{ind.label}</span>
-                        {industry === ind.id && <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: C.cta }} />}
-                      </button>
-                    ))}
-                    <button onClick={() => setIndustry('other')}
-                      className="flex items-center gap-2 px-3 py-3 rounded-xl text-left transition-all"
-                      style={{ border: '1px solid transparent', background: industry === 'other' ? `${C.cta}12` : C.card, boxShadow: industry === 'other' ? `0 0 0 2px ${C.cta}` : 'none' }}>
-                      <span className="text-base">✏️</span>
-                      <span className="text-[12px] font-semibold" style={{ color: C.text }}>Other</span>
-                      {industry === 'other' && <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: C.cta }} />}
-                    </button>
+                {/* The experience: industry, level and duration */}
+                <div style={card} className="space-y-4">
+                  <h3 className="text-[15px] font-semibold" style={{ color: C.text }}>The experience</h3>
+                  <div>
+                    <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Industry</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...INDUSTRIES, { id: 'other', label: 'Other' }].map(ind => {
+                        const selected = industry === ind.id;
+                        return (
+                          <button key={ind.id} type="button" aria-pressed={selected}
+                            onClick={() => { setIndustry(ind.id); if (ind.id !== 'other') setConfig(c => c ? { ...c, industry: ind.id } : c); }}
+                            className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                            style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
+                            {ind.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {industry === 'other' && (
+                      <input type="text" value={customIndustry}
+                        onChange={e => { setCustomIndustry(e.target.value); setConfig(c => c ? { ...c, industry: e.target.value } : c); }}
+                        placeholder="e.g. Logistics, Agriculture, Real Estate" aria-label="Industry"
+                        className="mt-2" style={inp} autoFocus />
+                    )}
                   </div>
-                  {industry === 'other' && (
-                    <input
-                      type="text"
-                      value={customIndustry}
-                      onChange={e => {
-                        setCustomIndustry(e.target.value);
-                        setConfig(c => c ? { ...c, industry: e.target.value } : c);
-                      }}
-                      placeholder="e.g. Logistics, Agriculture, Real Estate…"
-                      style={{ ...inp, fontSize: 13 }}
-                      autoFocus
-                    />
-                  )}
-                </div>
-
-                {/* Duration card */}
-                <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Duration</p>
-                  <div className="flex flex-wrap gap-2">
-                    {['1-2 hours', '3-4 hours', '1 day', '1 week'].map(option => {
-                      const selected = config.duration === option;
-                      return (
-                        <button key={option} type="button" onClick={() => setConfig(c => c ? { ...c, duration: option } : c)}
-                          className="rounded-xl px-3 py-2 text-[12px] font-semibold transition-all"
-                          style={{ background: selected ? `${C.cta}14` : C.card, color: selected ? C.cta : C.muted, boxShadow: selected ? `0 0 0 2px ${C.cta}` : 'none' }}>
-                          {option}
-                        </button>
-                      );
-                    })}
+                  <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3">
+                    <div>
+                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Level</label>
+                      <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.field }}>
+                        {([['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const).map(([id, label]) => {
+                          const selected = (config.difficulty || 'intermediate') === id;
+                          return (
+                            <button key={id} type="button" aria-pressed={selected} onClick={() => setConfig(c => c ? { ...c, difficulty: id } : c)}
+                              className="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors"
+                              style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.muted, boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.12)' : 'none' }}>
+                              {label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <p className="text-[12px] mt-1.5" style={{ color: C.faint }}>Shown on the experience page. It does not change the content.</p>
+                    </div>
+                    <div>
+                      <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Duration</label>
+                      <input value={config.duration || ''} onChange={e => setConfig(c => c ? { ...c, duration: e.target.value } : c)}
+                        style={inp} placeholder="e.g. 3 weeks" />
+                      <p className="text-[12px] mt-1.5" style={{ color: C.faint }}>How long it takes to complete.</p>
+                    </div>
                   </div>
-                  <input
-                    value={config.duration || ''}
-                    onChange={e => setConfig(c => c ? { ...c, duration: e.target.value } : c)}
-                    style={{ ...inp, fontSize: 13 }}
-                    placeholder="e.g. 4-6 hours, 2 weeks, 3 days…"
-                  />
-                  <p className="text-[11px]" style={{ color: C.faint }}>Shown to students as an estimate of how long this experience takes to complete.</p>
-                </div>
-
-                {/* Experience level card. The creation screen sets it once; this is where an existing
-                    experience changes it. Saved with the rest of the config. */}
-                <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Experience level</p>
-                  <div className="flex flex-wrap gap-2">
-                    {([
-                      { id: 'beginner',     label: 'Beginner',     desc: 'Foundational' },
-                      { id: 'intermediate', label: 'Intermediate', desc: 'Real-world' },
-                      { id: 'advanced',     label: 'Advanced',     desc: 'Expert-level' },
-                    ] as const).map(d => {
-                      const selected = (config.difficulty || 'intermediate') === d.id;
-                      return (
-                        <button key={d.id} type="button" onClick={() => setConfig(c => c ? { ...c, difficulty: d.id } : c)}
-                          className="rounded-xl px-3 py-2 text-left transition-all"
-                          style={{ background: selected ? `${C.cta}14` : C.card, boxShadow: selected ? `0 0 0 2px ${C.cta}` : 'none' }}>
-                          <span className="block text-[12px] font-semibold" style={{ color: selected ? C.cta : C.text }}>{d.label}</span>
-                          <span className="block text-[11px]" style={{ color: C.faint }}>{d.desc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px]" style={{ color: C.faint }}>Shown to students on the experience page. It does not change the content.</p>
                 </div>
                 </div>)}
                 {activeSection === 'overview' && (
                 <div className="space-y-4">
 
 
-                {/* Accent, as courses have it: a theme colour or a custom one. Unset keeps the default green. */}
-                <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Accent color</p>
+                {/* Look: accent, cover and badge. The accent is chosen as a course's is: a theme colour or a
+                    custom one. Unset keeps the default green. */}
+                <div style={{ ...card, paddingBottom: 12 }} className="space-y-3">
+                  <h3 className="text-[15px] font-semibold" style={{ color: C.text }}>Look</h3>
+                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Accent colour</p>
                   <div className="flex flex-wrap items-start gap-4">
                     {(Object.entries(THEME_ACCENT_COLORS) as [ThemeColor, string][]).map(([key, color]) => {
                       const selected = config.theme === key && !config.customAccent;
@@ -3296,16 +3247,17 @@ function VirtualExperienceCreatePageInner() {
                 </div>
 
                 {/* Cover image card */}
-                <div id="ve-cover-image" style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Cover Image</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pb-5">
+                <div id="ve-cover-image" className="space-y-2 min-w-0">
+                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Cover image</p>
                   {coverImage && (
-                    <img src={resolveCoverUrl(coverImage)} alt="cover" className="w-full object-cover rounded-2xl"
+                    <img src={resolveCoverUrl(coverImage)} alt="cover" className="w-full object-cover rounded-xl"
                       style={{ height: 180 }} onError={e => (e.target as HTMLImageElement).style.display = 'none'} />
                   )}
                   {!coverImage && (
                     <button type="button" onClick={() => coverRef.current?.click()}
-                      className="w-full min-h-36 rounded-2xl flex flex-col items-center justify-center gap-2 transition-opacity hover:opacity-75"
-                      style={{ background: C.card, border: `1px dashed ${C.cardBorder}`, color: C.muted }}>
+                      className="w-full min-h-28 rounded-xl flex flex-col items-center justify-center gap-2 transition-opacity hover:opacity-75"
+                      style={{ background: C.field, border: `1px dashed ${C.cardBorder}`, color: C.muted }}>
                       <Images className="w-6 h-6" />
                       <span className="text-[13px] font-semibold">Upload or choose a cover image</span>
                       <span className="text-[11px]" style={{ color: C.faint }}>Recommended 16:9 landscape image</span>
@@ -3315,12 +3267,12 @@ function VirtualExperienceCreatePageInner() {
                     <input style={{ ...inp, fontSize: 13 }} value={coverImage} onChange={e => setCoverImage(e.target.value)} placeholder="Paste image URL…" />
                     <button onClick={() => coverRef.current?.click()} disabled={uploadingCover}
                       className="flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0 transition-all hover:opacity-70"
-                      style={{ color: C.muted, background: C.card }}>
+                      style={{ color: C.muted, background: C.field }}>
                       {uploadingCover ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                     </button>
                     <button type="button" onClick={() => setShowCoverLibrary(true)} title="Select from library"
                       className="flex items-center justify-center w-11 h-11 rounded-xl flex-shrink-0 transition-all hover:opacity-70"
-                      style={{ color: C.muted, background: C.card }}>
+                      style={{ color: C.muted, background: C.field }}>
                       <Images className="w-4 h-4" />
                     </button>
                   </div>
@@ -3336,14 +3288,12 @@ function VirtualExperienceCreatePageInner() {
                   )}
                 </div>
 
-                {/* Completion badge card */}
-                <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Completion Badge</p>
-                  <p className="text-[12px] leading-relaxed" style={{ color: C.faint }}>
-                    Students earn this badge on completing the virtual experience, alongside their certificate.
-                  </p>
+                {/* Completion badge */}
+                <div className="space-y-2 min-w-0">
+                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Completion badge</p>
+                  <p className="text-[12px] leading-relaxed" style={{ color: C.faint }}>Earned on completing the experience, alongside the certificate.</p>
                   {config?.badgeImageUrl && (
-                    <div className="flex items-center gap-3 rounded-2xl p-3" style={{ background: C.card }}>
+                    <div className="flex items-center gap-3 rounded-xl p-3" style={{ background: C.field }}>
                       <img src={config.badgeImageUrl} alt="Badge" className="w-16 h-16 rounded-xl object-contain flex-shrink-0"
                         style={{ border: `1px solid ${C.cardBorder}`, background: C.input }}/>
                       <button onClick={() => setConfig(c => c ? { ...c, badgeImageUrl: null } : c)}
@@ -3354,12 +3304,13 @@ function VirtualExperienceCreatePageInner() {
                   <div className="flex gap-2">
                     <button onClick={() => badgeInputRef.current?.click()} disabled={uploadingBadge}
                       className="flex items-center gap-2 px-3 py-2.5 rounded-xl text-[13px] font-semibold transition-all hover:opacity-70 disabled:opacity-50"
-                      style={{ color: C.muted, background: C.card }}>
+                      style={{ color: C.muted, background: C.field }}>
                       {uploadingBadge ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4" />}
                       {uploadingBadge ? 'Uploading...' : config?.badgeImageUrl ? 'Change badge' : 'Upload badge'}
                     </button>
                   </div>
                   <input ref={badgeInputRef} type="file" accept="image/*" className="hidden" onChange={handleBadgeUpload} />
+                </div>
                 </div>
                 </div>)}
                 {activeSection === 'delivery' && (
@@ -3367,7 +3318,7 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Target Audience card */}
                 <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Target Audience</p>
+                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Target audience</p>
 
                   <button
                     type="button"
@@ -3428,7 +3379,7 @@ function VirtualExperienceCreatePageInner() {
 
                 {/* Deadline card */}
                 <div style={card} className="p-5 space-y-3">
-                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Deadline</p>
+                  <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Deadline</p>
                   <div className="flex flex-wrap gap-2">
                     {['', '7', '14', '30'].map(days => {
                       const selected = deadlineDays === days;

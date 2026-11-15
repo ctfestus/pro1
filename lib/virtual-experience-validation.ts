@@ -46,7 +46,7 @@ export function validateVirtualExperienceForPublish(config: any): VirtualExperie
 
       requirements.forEach((req: any, reqIndex: number) => {
         const taskLabel = `${lessonLabel}, task ${reqIndex + 1}`;
-        if (!nonEmpty(req?.label)) issues.push({ section: 'curriculum', message: `${taskLabel} needs instructions.` });
+        if (!nonEmpty(req?.label)) issues.push({ section: 'curriculum', message: `${taskLabel} needs a title.` });
 
         if (req?.type === 'mcq') {
           const options = Array.isArray(req.options) ? req.options.filter(nonEmpty) : [];
