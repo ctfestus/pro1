@@ -20,6 +20,7 @@ import { XpBadgeStack } from '@/components/XpBadge';
 import { useTheme } from '@/components/ThemeProvider';
 import type { QuestionType, DownloadItem, CourseQuestion } from '@/lib/course-schema';
 import { linkedInSharePointsFor } from '@/lib/course-schema';
+import { REVIEW_TYPES, isAnswerRight } from '@/lib/answer-rules';
 import { courseProgressCounts, answeredScorableCount, completedLessonCount, courseContentCounts } from '@/lib/course-progress';
 import type { CourseRankResult } from '@/lib/course-rank';
 import { preflightLinkedInPostUrl } from '@/lib/linkedin-post-url';
@@ -65,7 +66,6 @@ function MenuIcon({ className }: { className?: string }) {
 type ShowAnswers = 'per_question' | 'after_quiz' | 'none';
 
 // QuestionType / DownloadItem / CourseQuestion come from the canonical contract in lib/course-schema.
-const REVIEW_TYPES: QuestionType[] = ['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, char => ({
@@ -1129,17 +1129,6 @@ export function CourseTaker({
     }
   }, [clearProgress, onSubmit, studentName, studentEmail, totalQuestions, passmark, totalPoints, streak, questions]);
 
-  // -- Answer checking helpers --
-  const checkFillBlank = (userAnswer: string, correctAnswer: string): boolean => {
-    const accepted = correctAnswer.split('|').map(s => s.trim().toLowerCase());
-    return accepted.includes(userAnswer.trim().toLowerCase());
-  };
-
-  const checkArrange = (order: string[], correctAnswer: string): boolean => {
-    const correct = correctAnswer.split('|||');
-    return order.join('|||') === correct.join('|||');
-  };
-
   const getCurrentAnswer = () => {
     if (questionType === 'fill_blank') return fillBlankAnswer;
     if (questionType === 'arrange') return arrangeOrder.join('|||');
@@ -1193,10 +1182,7 @@ export function CourseTaker({
         return !!parsed?.passed && !!parsed?.proof;
       } catch { return false; }
     }
-    if (REVIEW_TYPES.includes(qType)) return answer === 'completed';
-    if (qType === 'fill_blank') return checkFillBlank(answer, q.correctAnswer);
-    if (qType === 'arrange') return answer === q.correctAnswer;
-    return answer === q.correctAnswer;
+    return isAnswerRight(q, answer);
   };
 
   const getSlideProgressStatus = useCallback((q: any) => {
@@ -2043,14 +2029,7 @@ export function CourseTaker({
     if (scoringLockRef.current) return; // prevent double-fire before state settles
     scoringLockRef.current = true;
     const userAnswer = overrideAnswer ?? getCurrentAnswer();
-    let correct = false;
-    if (questionType === 'fill_blank') {
-      correct = checkFillBlank(userAnswer, currentQuestion.correctAnswer);
-    } else if (questionType === 'arrange') {
-      correct = checkArrange(arrangeOrder, currentQuestion.correctAnswer);
-    } else {
-      correct = userAnswer === currentQuestion.correctAnswer;
-    }
+    const correct = isAnswerRight(currentQuestion, userAnswer);
     setIsCorrect(correct);
     setIsChecking(true);
     if (correct && !reviewMode) {
@@ -2166,14 +2145,7 @@ export function CourseTaker({
       if (scoringLockRef.current) return; // prevent double-fire before state settles
       scoringLockRef.current = true;
       const userAnswer = getCurrentAnswer();
-      let correct = false;
-      if (questionType === 'fill_blank') {
-        correct = checkFillBlank(userAnswer, currentQuestion.correctAnswer);
-      } else if (questionType === 'arrange') {
-        correct = checkArrange(arrangeOrder, currentQuestion.correctAnswer);
-      } else {
-        correct = userAnswer === currentQuestion.correctAnswer;
-      }
+      const correct = isAnswerRight(currentQuestion, userAnswer);
       if (correct) {
         const hintWasUsed = hintsUsed.has(currentQuestion.id);
         newScore = score + (hintWasUsed ? 0.9 : 1);
