@@ -1357,8 +1357,14 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content { --block-soft: #F6F8FB; --block-line: rgba(15,23,42,0.1); --block-dash: rgba(15,23,42,0.22); --block-faint: #8a929e; --block-chip: #ffffff; }
 .lesson-content.dark { --block-soft: rgba(255,255,255,0.045); --block-line: rgba(255,255,255,0.12); --block-dash: rgba(255,255,255,0.24); --block-faint: #7d7d86; --block-chip: rgba(255,255,255,0.08); }
 
-/* Callouts */
-.lesson-content .lesson-callout__title { font-family: var(--ve-display-font, inherit); }
+/* Callouts: a tinted note with one icon on a small white tile and one title. No shadow. */
+.lesson-content .lesson-callout { grid-template-columns: 30px minmax(0,1fr); gap: 12px; padding: 12px 14px; border-radius: 12px; --callout-surface: color-mix(in oklab, var(--callout-accent) 10%, #ffffff); box-shadow: none; }
+.lesson-content.dark .lesson-callout { --callout-surface: color-mix(in oklab, var(--callout-accent) 13%, transparent); }
+.lesson-content .lesson-callout[data-accent="top"], .lesson-content .lesson-callout[data-accent="bottom"], .lesson-content .lesson-callout[data-accent="none"], .lesson-content .lesson-callout[data-accent="right"] { padding: 12px 14px; }
+.lesson-content .lesson-callout__icon-wrap, .lesson-content.dark .lesson-callout__icon-wrap { width: 30px; height: 30px; border-radius: 9px; background: var(--block-chip); }
+.lesson-content .lesson-callout__head { min-height: 0; margin-bottom: 2px; }
+.lesson-content .lesson-callout__title { margin: 0; font-family: var(--ve-display-font, inherit); font-size: 14.5px; font-weight: 600; line-height: 1.45; padding-top: 5px; }
+.lesson-content .lesson-callout__body { font-size: 14px; }
 
 /* Flip cards: the term is the card; a clear hint; how many have been turned */
 .lesson-content .lesson-flip-deck__count { margin: 0 0 10px; color: var(--block-faint); font-size: 12px; font-weight: 600; }
