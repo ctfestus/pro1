@@ -11,8 +11,9 @@ import { AnimatedField, ThemeColor, ThemeMode } from '@/components/AnimatedField
 import { resolveCoverUrl, heroSrcSet } from '@/lib/cloudinary-url';
 import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 import { courseContentCounts, courseXpOnOffer, crossesLessonMidpoint } from '@/lib/course-progress';
-import { CourseTaker } from '@/components/CourseTaker';
 import dynamic from 'next/dynamic';
+// Loaded when someone opens a course, as the experience and certification players are.
+const CourseTaker = dynamic(() => import('@/components/CourseTaker').then((m) => m.CourseTaker), { ssr: false });
 const VirtualExperienceTaker = dynamic(() => import('@/components/VirtualExperienceTaker'), { ssr: false });
 const CertificationTaker = dynamic(() => import('@/components/CertificationTaker'), { ssr: false });
 import { useParams, useSearchParams } from 'next/navigation';

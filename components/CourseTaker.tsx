@@ -11,10 +11,9 @@ import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2, XCircle, Loader2, ChevronRight, RotateCcw,
-  Clock, AlertTriangle, GripVertical,
-  BookOpen, X, ExternalLink, ArrowRight, Download, ArrowDownToLine, Lock,
+  Clock, AlertTriangle, BookOpen, X, ExternalLink, ArrowRight, Download, ArrowDownToLine, Lock,
   Check, Play, FileText, FlaskConical, ListChecks, Copy, MousePointerClick,
-  ArrowUp, ArrowDown, PenLine, Link2, Image as ImageIcon,
+  PenLine, Link2, Image as ImageIcon,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { XpBadgeStack } from '@/components/XpBadge';
@@ -33,37 +32,22 @@ import { supabase } from '@/lib/supabase';
 import { postWithFreshSession } from '@/lib/fresh-session-fetch';
 import { supabaseSession } from '@/lib/fresh-session-supabase';
 import { getFontById, loadGoogleFont } from '@/lib/fonts';
-import {
-  DndContext,
-  closestCenter,
-  KeyboardSensor,
-  PointerSensor,
-  useSensor,
-  useSensors,
-  DragEndEvent,
-} from '@dnd-kit/core';
-import {
-  arrayMove,
-  SortableContext,
-  sortableKeyboardCoordinates,
-  useSortable,
-  verticalListSortingStrategy,
-} from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
-import SyntaxHighlighter from 'react-syntax-highlighter';
-import { atomOneDark, atomOneLight } from 'react-syntax-highlighter/dist/esm/styles/hljs';
 import { ScoreGauge } from '@/components/ScoreGauge';
-import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
-import CodeReviewPlayer from '@/components/CodeReviewPlayer';
-import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
-import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
-import WrittenResponsePlayer from '@/components/WrittenResponsePlayer';
-import PdfCarousel from '@/components/PdfCarousel';
 import { pdfDownloadUrl } from '@/lib/cloudinary-pdf';
 import { contentPath } from '@/lib/content-link';
 import dynamic from 'next/dynamic';
 import { initSQLRuntime, SQLRuntime } from '@/lib/sql-engine';
 
+// Loaded only when a slide needs them, so a course without AI reviews, PDFs, code or ordering
+// questions does not download them. (next/dynamic options must stay inline object literals.)
+const DashboardCritiquePlayer = dynamic(() => import('@/components/DashboardCritiquePlayer'), { ssr: false });
+const CodeReviewPlayer = dynamic(() => import('@/components/CodeReviewPlayer'), { ssr: false });
+const ExcelReviewPlayer = dynamic(() => import('@/components/ExcelReviewPlayer'), { ssr: false });
+const DocumentReviewPlayer = dynamic(() => import('@/components/DocumentReviewPlayer'), { ssr: false });
+const WrittenResponsePlayer = dynamic(() => import('@/components/WrittenResponsePlayer'), { ssr: false });
+const PdfCarousel = dynamic(() => import('@/components/PdfCarousel'), { ssr: false });
+const ArrangeList = dynamic(() => import('@/components/course/ArrangeList'), { ssr: false });
+const CodeSnippet = dynamic(() => import('@/components/course/CodeSnippet'), { ssr: false });
 const SQLExercisePlayer = dynamic(() => import('@/components/sql-course/SQLExercisePlayer'), { ssr: false });
 const PythonExercisePlayer = dynamic(() => import('@/components/sql-course/PythonExercisePlayer'), { ssr: false });
 
@@ -231,61 +215,6 @@ class ShareRequiredError extends Error {
     this.name = 'ShareRequiredError';
     this.missingIds = missingIds;
   }
-}
-
-// -- Sortable item for arrange questions --
-function SortableItem({ id, label, idx, count, accent, isDark, isChecking, onMove }: {
-  id: string; label: string; idx: number; count: number; accent: string; isDark: boolean; isChecking: boolean;
-  onMove: (direction: -1 | 1) => void;
-}) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-    zIndex: isDragging ? 10 : undefined,
-  };
-
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={`group flex items-center gap-3 px-3 py-3 rounded-xl border transition-all duration-150 ${
-        isDark ? 'border-white/[0.07] bg-white/[0.035] text-[#ACB8C5]' : 'border-black/[0.06] bg-zinc-50 text-[#111111]'
-      } ${isChecking ? 'pointer-events-none' : ''}`}
-    >
-      <span
-        className="w-7 h-7 rounded-lg flex-shrink-0 flex items-center justify-center text-[11px] font-bold"
-        style={{ background: `${accent}18`, color: accent }}
-      >
-        {idx + 1}
-      </span>
-      <span className="flex-1 text-sm font-medium">{label}</span>
-      {!isChecking && (
-        <span className="flex items-center gap-1 flex-shrink-0">
-          <button type="button" onClick={() => onMove(-1)} disabled={idx === 0} aria-label={`Move ${label} up`}
-            className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-20"
-            style={{ color: isDark ? '#8b98a5' : '#71717a', background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }}>
-            <ArrowUp className="w-3.5 h-3.5" />
-          </button>
-          <button type="button" onClick={() => onMove(1)} disabled={idx === count - 1} aria-label={`Move ${label} down`}
-            className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors disabled:opacity-20"
-            style={{ color: isDark ? '#8b98a5' : '#71717a', background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }}>
-            <ArrowDown className="w-3.5 h-3.5" />
-          </button>
-          <span
-            className="w-7 h-7 inline-flex items-center justify-center rounded-lg cursor-grab active:cursor-grabbing text-zinc-500 transition-colors"
-            style={{ background: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.035)' }}
-            aria-label={`Drag ${label} to reorder`}
-            {...attributes}
-            {...listeners}
-          >
-            <GripVertical className="w-4 h-4" />
-          </span>
-        </span>
-      )}
-    </div>
-  );
 }
 
 export function CourseTaker({
@@ -685,28 +614,15 @@ export function CourseTaker({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // dnd-kit sensors
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handleDragEnd = (event: DragEndEvent) => {
-    const { active, over } = event;
-    if (over && active.id !== over.id) {
-      setArrangeOrder(items => {
-        const oldIdx = items.indexOf(active.id as string);
-        const newIdx = items.indexOf(over.id as string);
-        return arrayMove(items, oldIdx, newIdx);
-      });
-    }
-  };
-
   const moveArrangeItem = (index: number, direction: -1 | 1) => {
     if (isChecking) return;
     const target = index + direction;
     if (target < 0 || target >= arrangeOrder.length) return;
-    setArrangeOrder(items => arrayMove(items, index, target));
+    setArrangeOrder(items => {
+      const next = [...items];
+      [next[index], next[target]] = [next[target], next[index]];
+      return next;
+    });
   };
 
   // -- Timer --
@@ -3472,7 +3388,7 @@ export function CourseTaker({
                   <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5 sm:pb-8">
                   {moduleNoAt[currentQuestionIndex] > 0 && (
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
-                      Module {moduleNoAt[currentQuestionIndex]} &middot; Q{questionNoAt[currentQuestionIndex]} &middot; Question
+                      Module {moduleNoAt[currentQuestionIndex]} &middot; Q{questionNoAt[currentQuestionIndex]} &middot; {slideKind(currentQuestion)}
                     </p>
                   )}
                   <h2 className={`text-lg sm:text-2xl font-semibold leading-snug mb-5 sm:mb-8 ${textColor}`}>
@@ -3537,25 +3453,14 @@ export function CourseTaker({
                         <p className={`text-xs ${mutedColor}`}>Put the items in the correct sequence.</p>
                         <span className="text-[10px] font-semibold whitespace-nowrap" style={{ color: txtFaint }}>Use arrows or drag</span>
                       </div>
-                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-                        <SortableContext items={arrangeOrder} strategy={verticalListSortingStrategy}>
-                          <div className="space-y-2">
-                            {arrangeOrder.map((item, idx) => (
-                              <SortableItem
-                                key={item}
-                                id={item}
-                                label={item}
-                                idx={idx}
-                                count={arrangeOrder.length}
-                                accent={accent}
-                                isDark={isDark}
-                                isChecking={isChecking}
-                                onMove={(direction) => moveArrangeItem(idx, direction)}
-                              />
-                            ))}
-                          </div>
-                        </SortableContext>
-                      </DndContext>
+                      <ArrangeList
+                        items={arrangeOrder}
+                        onChange={(items) => { if (!isChecking) setArrangeOrder(items); }}
+                        onMove={moveArrangeItem}
+                        accent={accent}
+                        isDark={isDark}
+                        isChecking={isChecking}
+                      />
                       {isChecking && !isCorrect && (
                         <p className="mt-3 text-[13px] px-0.5" style={{ color: txtMuted }}>
                           Correct order: <span className="font-semibold" style={{ color: txt }}>{currentQuestion.options.join(', then ')}</span>
@@ -3776,15 +3681,7 @@ export function CourseTaker({
                           {codeCopied === currentQuestion.id ? <><Check className="w-3.5 h-3.5" /> Copied</> : <><Copy className="w-3.5 h-3.5" /> Copy code</>}
                         </button>
                       </div>
-                      <SyntaxHighlighter
-                        language={currentQuestion.codeLanguage || 'javascript'}
-                        style={isDark ? atomOneDark : atomOneLight}
-                        customStyle={{ margin: 0, borderRadius: 0, fontSize: '14px', lineHeight: '1.7', padding: '20px 24px', background: isDark ? '#0d1117' : '#fbfcfe' }}
-                        lineNumberStyle={{ color: isDark ? '#4b5563' : '#a1aab8', minWidth: '2.5em' }}
-                        showLineNumbers
-                      >
-                        {currentQuestion.codeSnippet}
-                      </SyntaxHighlighter>
+                      <CodeSnippet code={currentQuestion.codeSnippet} language={currentQuestion.codeLanguage || 'javascript'} isDark={isDark} />
                     </div>
                   )}
 
