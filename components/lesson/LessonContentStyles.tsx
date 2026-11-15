@@ -1599,6 +1599,13 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-prompt__button--chatgpt { color: #ffffff; background: #111418; }
 .lesson-content .lesson-prompt__button--claude, .lesson-content.dark .lesson-prompt__button--claude { color: #9A4A2C; background: #F4E9DF; }
 .lesson-content .lesson-prompt__footer .lesson-prompt__brand-icon { display: none; }
+/* Open content on white: the tab bar and accordion titles stay on the grey panel, and the open
+   tab or answer sits on a white panel inset inside it, so the open part stands out. */
+.lesson-content .lesson-tabs__bar, .lesson-content.dark .lesson-tabs__bar { border-bottom: 0; }
+.lesson-content .lesson-tabs__panels { margin: 0 5px 5px; border-radius: 10px; background: #ffffff; }
+.lesson-content.dark .lesson-tabs__panels { background: #1B1C1F; }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__body { margin: 0 5px 5px; padding: 12px 14px; border-radius: 10px; background: #ffffff; }
+.lesson-content.dark .lesson-accordion__item[data-open="true"] .lesson-accordion__body { background: #1B1C1F; }
 `}</style>
   );
 }
