@@ -22,7 +22,6 @@ import {
 } from '@/components/ve/workplace';
 import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
 import { ProjectPlan } from '@/components/ve/ProjectPlan';
-import { MissionTodo, todoSource, jumpToRequirement, type TodoItem } from '@/components/ve/MissionTodo';
 import { MissionSignOff, WelcomeBack } from '@/components/ve/MissionSignOff';
 import { FilesDrawer, type DrawerFile } from '@/components/ve/FilesDrawer';
 import { PhoneTabBar, type PhoneTab } from '@/components/ve/PhoneTabBar';
@@ -75,7 +74,6 @@ function CompanyAvatar({ name, color, size = 40 }: { name: string; color: string
     </div>
   );
 }
-
 
 interface Props {
   formId: string;
@@ -295,17 +293,7 @@ export default function VirtualExperienceTaker({
   const askableBrief = reviewMode || tasksHidden ? undefined
     : (currentLes?.requirements || []).slice(0, arrivedCount).find(r => r.type === 'briefing');
 
-  // The mission's to-do list: what has arrived so far and counts towards finishing it, plus how
-  // many more are still to come. Not shown before the tasks are revealed, nor in review.
-  const showTodo = !!currentLes && !reviewMode && !tasksHidden && currentLes.requirements.length > 0;
-  const todoItems: TodoItem[] = !showTodo ? [] : currentLes!.requirements.slice(0, arrivedCount)
-    .filter(r => reqCountsForCompletion(r, progress))
-    .map(r => ({ id: r.id, label: (r.label || '').trim() || todoSource(r), source: todoSource(r), done: !!progress[r.id]?.completed }));
-  const todoPending = !showTodo ? 0 : currentLes!.requirements.slice(arrivedCount)
-    .filter(r => reqCountsForCompletion(r, progress)).length;
-  const jumpTo = (reqId: string) => jumpToRequirement(reqId, accentColor);
-
-  // What this mission still owes (the same rule the to-do list uses), and whether every reply has
+  // What this mission still owes (what counts towards finishing it), and whether every reply has
   // finished arriving, so the manager signs off only once the conversation is over.
   const missionLeft = currentLes ? currentLes.requirements.filter(reqOwesWork).length : 0;
   const missionSettled = !currentLes || currentLes.requirements.every(reqSettled);
@@ -866,7 +854,6 @@ export default function VirtualExperienceTaker({
         <div className="fixed inset-0 bg-black/60 z-[55] sm:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-
       {/* Sidebar: absolute overlay on mobile, in-flow on sm+ -- rounded card to match the course player */}
       <aside className={`absolute inset-y-0 left-0 z-[56] rounded-r-2xl sm:relative sm:inset-auto sm:z-40 flex-shrink-0 flex flex-col transition-all duration-300 sm:my-3 sm:ml-3 sm:rounded-2xl ${!sidebarOpen ? '-translate-x-full sm:translate-x-0' : 'translate-x-0'}`}
         style={{
@@ -963,12 +950,6 @@ export default function VirtualExperienceTaker({
         <div ref={mainScrollRef} className="flex-1 overflow-y-auto" style={{ background: isDark ? '#141414' : '#F2F5FA' }}>
           <div className="flex justify-center gap-4 w-full px-2 sm:px-4">
           <div className={`${embedUrl && isHtmlEmbedUrl(embedUrl) ? 'max-w-6xl' : 'max-w-4xl'} w-full min-w-0 pt-4 sm:pt-3 pb-4 sm:pb-6 space-y-4`}>
-          {showTodo && todoItems.length > 0 && (
-            <div className="2xl:hidden sticky top-2 z-20">
-              <MissionTodo variant="pill" items={todoItems} pendingCount={todoPending} isDark={isDark}
-                accentColor={accentColor} text={text} muted={muted} onJump={jumpTo} />
-            </div>
-          )}
           {currentLes && welcomeLesson === currentLesId && !reviewMode && (
             <WelcomeBack studentName={studentName} missionTitle={currentLes.title} left={missionLeft}
               isDark={isDark} accentColor={accentColor} text={text} muted={muted} onClose={() => setWelcomeLesson(null)} />
@@ -1260,13 +1241,6 @@ export default function VirtualExperienceTaker({
             </>
           );})() : null}
           </div>
-          {/* Wide screens: the to-do list sits beside the mission and stays in view while scrolling. */}
-          {showTodo && todoItems.length > 0 && (
-            <div className="hidden 2xl:block w-64 flex-shrink-0 self-start sticky top-3 pt-3">
-              <MissionTodo variant="rail" items={todoItems} pendingCount={todoPending} isDark={isDark}
-                accentColor={accentColor} text={text} muted={muted} onJump={jumpTo} />
-            </div>
-          )}
           </div>
         </div>
       </main>
