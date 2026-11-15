@@ -47,6 +47,8 @@ interface ReviewResult {
 }
 
 interface Props {
+  /** Leave out the workspace header and its disclaimer: the host card already shows both. */
+  hideWorkspaceHeader?: boolean;
   reqId: string;
   isDark: boolean;
   accentColor: string;
@@ -81,7 +83,7 @@ function scoreColor(n: number) {
   return '#ef4444';
 }
 
-export default function ExcelReviewPlayer({ reqId, isDark, accentColor, completed, savedResult, reviewsUsed = 0, context, reviewSheetNames, reviewTarget, rubric, minScore, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0, context, reviewSheetNames, reviewTarget, rubric, minScore, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   const shouldLock = maxReviews === undefined || atLimit || reviewsUsed === 0;
   // Offer Reset (try again) only while attempts remain. Once a submission is terminal -- completed
@@ -219,8 +221,10 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, complete
         message="Excel reviews are part of a paid plan. Upgrade to submit your workbook and get feedback."
       >
       <div className="space-y-3">
-        <AiReviewWorkspaceHeader icon={<FileSpreadsheet className="w-5 h-5" />} title="Review your workbook" description="Upload the completed Excel workbook for an evidence-based review against the assignment rubric." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
-        <AiReviewDisclaimer isDark={isDark} />
+        {!hideWorkspaceHeader && (<>
+          <AiReviewWorkspaceHeader icon={<FileSpreadsheet className="w-5 h-5" />} title="Review your workbook" description="Upload the completed Excel workbook for an evidence-based review against the assignment rubric." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
+          <AiReviewDisclaimer isDark={isDark} />
+        </>)}
         {reviewSheetNames && reviewSheetNames.length > 0 && (
           <div className="px-4 py-3" style={{ background: isDark ? 'rgba(255,255,255,0.045)' : '#f8fafc', borderLeft: `3px solid ${accentColor}` }}>
             <p className="text-xs font-semibold" style={{ color: text }}>Required worksheets</p>

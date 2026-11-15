@@ -92,6 +92,30 @@ select:focus-visible,
 @media (hover: hover) { .lesson-audio-player__editor { opacity: 0; transition: opacity .15s ease; } .lesson-audio-player:hover .lesson-audio-player__editor, .lesson-audio-player:focus-within .lesson-audio-player__editor { opacity: 1; } }
 @media (max-width: 520px) { .lesson-audio-player__surface { gap: 5px; padding: 8px; } .lesson-audio-player__volume { display: none; } .lesson-audio-player__icon { width: 26px; height: 26px; flex-basis: 26px; } .lesson-audio-player__play { width: 34px; height: 34px; flex-basis: 34px; } .lesson-audio-player__editor { padding-left: 3px; } }
 @media (prefers-reduced-motion: reduce) { .lesson-audio-player__transcript-toggle svg { transition: none; } }
+/* A framed editor (code box, email composer): when anything inside has focus, the frame's own
+   rounded border shows it, instead of a flat outline drawn inside the frame. Colour from
+   --focus-frame on the frame, platform green by default. */
+.focus-frame textarea:focus-visible,
+.focus-frame [contenteditable="true"]:focus-visible {
+  outline: none !important;
+}
+.focus-frame:focus-within {
+  border-color: var(--focus-frame, #00bf63) !important;
+  box-shadow: 0 0 0 3px var(--focus-frame-ring, rgba(0, 191, 99, 0.16)) !important;
+}
+
+/* Task-card fields in a virtual experience: the field's own rounded border shows focus, in the
+   experience accent (--ve-focus, set by fieldStyle), instead of a separate rectangle outline. */
+.ve-task-field:focus-visible,
+.ve-task-shell > input:focus-visible {
+  outline: none !important;
+}
+.ve-task-field:focus,
+.ve-task-shell:focus-within {
+  border-color: var(--ve-focus, #00bf63) !important;
+  box-shadow: 0 0 0 3px var(--ve-focus-ring, rgba(0, 191, 99, 0.16)) !important;
+}
+
 .ve-field-shell:focus-within {
   border-color: #00bf63 !important;
   box-shadow: 0 0 0 2px rgba(0, 191, 99, 0.14), 0 1px 2px rgba(15, 23, 42, 0.04) !important;

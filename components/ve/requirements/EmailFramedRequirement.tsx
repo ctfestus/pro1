@@ -29,7 +29,9 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
   } = ctx;
   const done           = !!progress[req.id]?.completed;
   const selectedAnswer = progress[req.id]?.selectedAnswer;
-  const isMcq          = req.type === 'mcq' && req.options?.length;
+  // Unused option slots are saved empty; they are not options.
+  const mcqOptions     = (req.options || []).filter(o => String(o ?? '').trim());
+  const isMcq          = req.type === 'mcq' && mcqOptions.length > 0;
 
   const efManager = manager.name;
   const efSubject = req.label || 'Task Assignment';
@@ -54,7 +56,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
       !done ? (
         <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6', margin: '0 0 4px' }}>Reply with your answer</p>
-          {(req.options || []).map((opt, oi) => {
+          {mcqOptions.map((opt, oi) => {
             const letter = oi + 1;
             const isSelected = selectedAnswer === opt;
             const isThisWrong = isSelected && isWrong;

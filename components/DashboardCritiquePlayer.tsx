@@ -47,6 +47,8 @@ interface Audit {
 interface CritiqueResult { elements: CritiqueElement[]; audit?: Audit; }
 
 interface Props {
+  /** Leave out the workspace header and its disclaimer: the host card already shows both. */
+  hideWorkspaceHeader?: boolean;
   reqId: string;
   isDark: boolean;
   accentColor: string;
@@ -123,7 +125,7 @@ const TYPE_COLORS: Record<string, string> = {
   OTHER:          '#94a3b8',
 };
 
-export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, completed, savedResult, savedImageUrl, rubric, minScore, reviewsUsed = 0, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, savedImageUrl, rubric, minScore, reviewsUsed = 0, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   const shouldLock = maxReviews === undefined || atLimit || reviewsUsed === 0;
   // Offer Reset (try again) only while attempts remain. Once a submission is terminal -- completed
@@ -310,8 +312,10 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, co
         message="Dashboard reviews are part of a paid plan. Upgrade to submit your screenshot and get element-level coaching."
       >
       <div className="space-y-3">
-      <AiReviewWorkspaceHeader icon={<Eye className="w-5 h-5" />} title="Review your dashboard" description="Upload a dashboard screenshot to receive visual, element-level coaching and rubric feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} />
-      <AiReviewDisclaimer isDark={isDark} />
+      {!hideWorkspaceHeader && (<>
+        <AiReviewWorkspaceHeader icon={<Eye className="w-5 h-5" />} title="Review your dashboard" description="Upload a dashboard screenshot to receive visual, element-level coaching and rubric feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} />
+        <AiReviewDisclaimer isDark={isDark} />
+      </>)}
       <div
         onDrop={handleDrop}
         onDragOver={e => { e.preventDefault(); setDragging(true); }}

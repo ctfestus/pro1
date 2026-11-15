@@ -1,74 +1,70 @@
 'use client';
 
-import { CheckCircle2, Loader2, AlertTriangle, Link as LinkIcon, Upload as UploadIcon } from 'lucide-react';
+import { useState } from 'react';
+import { Loader2, AlertTriangle, Link as LinkIcon, Upload as UploadIcon, FileText } from 'lucide-react';
 import { repairVeSubmissionUrl, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
+import { firstNameOf } from '@/components/ve/workplace';
 import type { RequirementProps } from './types';
+import { TaskHeader, taskTheme, fieldStyle, TASK_SHELL } from './TaskCard';
 
 /** File upload or shared link. */
 export function UploadRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const {
-    isDark, accentColor, fieldBg, fieldBorder, fieldShadow, progress, handleFileUpload,
-    setUploadLink, uploadingReq, uploadErrors,
+    isDark, accentColor, manager, progress, handleFileUpload, setUploadLink, uploadingReq, uploadErrors,
   } = ctx;
-  const done           = !!progress[req.id]?.completed;
-
-  const fileUrl  = progress[req.id]?.fileUrl || '';
-  const linkUrl  = progress[req.id]?.linkUrl || '';
+  const [dragging, setDragging] = useState(false);
+  const done      = !!progress[req.id]?.completed;
+  const fileUrl   = progress[req.id]?.fileUrl || '';
+  const linkUrl   = progress[req.id]?.linkUrl || '';
   const uploading = uploadingReq === req.id;
+  const t = taskTheme(isDark, accentColor);
+  const fileName = (() => { try { return decodeURIComponent(fileUrl.split('/').pop()?.split('?')[0] || ''); } catch { return ''; } })() || 'Your file';
+  const inputId = `ve-upload-${req.id}`;
+
+  const fileInput = (
+    <input id={inputId} type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={uploading}
+      onChange={async e => { const f = e.target.files?.[0]; if (f) await handleFileUpload(req.id, f); e.target.value = ''; }} />
+  );
+
   return (
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-      <div className="flex items-start gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-          style={{ background: 'rgba(245,158,11,0.12)', color: '#f59e0b' }}>Upload</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</p>
-          {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-        </div>
-        {done && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />}
-      </div>
+      <TaskHeader t={t} icon={<UploadIcon className="w-3.5 h-3.5" />} label="Upload" title={req.label}
+        description={req.description} done={done ? 'Sent' : null} />
 
-      <label className="block cursor-pointer">
-        <div className="rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-1.5 py-5 px-4 transition-all hover:opacity-80"
-          style={{
-            borderColor: fileUrl ? accentColor : fieldBorder,
-            background: fileUrl ? `${accentColor}0d` : fieldBg,
-            boxShadow: fieldShadow,
-          }}>
-          {uploading
-            ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: accentColor }} />
-            : fileUrl
-              ? <CheckCircle2 className="w-4 h-4" style={{ color: accentColor }} />
-              : <UploadIcon className="w-4 h-4" style={{ color: isDark ? '#666' : '#aaa' }} />}
-          <p className="text-[12.5px] font-medium text-center" style={{ color: fileUrl ? accentColor : isDark ? '#666' : '#aaa' }}>
-            {fileUrl ? 'File uploaded. Click to replace.' : 'Click to upload your file'}
-          </p>
-          {fileUrl && (
+      {fileUrl ? (
+        // Sent: the file, who it went to, and a way to swap it.
+        <div className="flex items-center gap-3 rounded-[10px] px-3 py-2.5" style={{ background: t.soft }}>
+          <FileText className="w-4 h-4 flex-shrink-0" style={{ color: t.muted }} />
+          <span className="min-w-0 flex-1">
             <a href={repairVeSubmissionUrl(fileUrl)} target="_blank" rel="noreferrer"
-              onClick={e => e.stopPropagation()}
-              className="text-[11px] underline" style={{ color: accentColor }}>
-              View uploaded file
-            </a>
-          )}
+              className="block truncate text-[13.5px] font-semibold hover:underline" style={{ color: t.text }}>{fileName}</a>
+            <span className="text-[12px]" style={{ color: t.muted }}>Sent to {firstNameOf(manager.name)}</span>
+          </span>
+          <label htmlFor={inputId} className="flex-shrink-0 cursor-pointer text-[12.5px] font-semibold underline underline-offset-2" style={{ color: t.muted }}>
+            {uploading ? 'Uploading...' : 'Replace'}
+          </label>
+          {fileInput}
         </div>
-        <input type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden"
-          onChange={async e => { const f = e.target.files?.[0]; if (f) await handleFileUpload(req.id, f); e.target.value = ''; }} />
-      </label>
-      {uploadErrors[req.id] && <p role="alert" className="text-[12px] mt-2 flex items-center gap-1.5" style={{ color: '#ef4444' }}><AlertTriangle className="w-3.5 h-3.5" />{uploadErrors[req.id]}</p>}
+      ) : (
+        <label htmlFor={inputId}
+          onDragOver={e => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={async e => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f && !uploading) await handleFileUpload(req.id, f); }}
+          className="flex cursor-pointer items-center justify-center gap-2.5 rounded-[10px] px-4 py-3.5 text-[13.5px] transition-colors"
+          style={{ background: t.soft, border: `1.5px dashed ${dragging ? accentColor : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)'}`, color: t.muted }}>
+          {uploading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <UploadIcon className="w-4 h-4" />}
+          <span>{uploading ? 'Uploading...' : <><b style={{ color: t.text, fontWeight: 600 }}>Choose a file</b> or drop it here</>}</span>
+          {fileInput}
+        </label>
+      )}
+      {uploadErrors[req.id] && <p role="alert" className="text-[12.5px] flex items-center gap-1.5" style={{ color: t.bad }}><AlertTriangle className="w-3.5 h-3.5" />{uploadErrors[req.id]}</p>}
 
-      <div className="space-y-1">
-        <p className="text-[12.5px] font-medium" style={{ color: isDark ? '#888' : '#666' }}>Or share a link</p>
-        <div className="ve-field-shell flex items-center gap-2 px-3 py-2 rounded-lg"
-          style={{
-            background: fieldBg,
-            border: `1.5px solid ${linkUrl ? `${accentColor}80` : fieldBorder}`,
-            boxShadow: fieldShadow,
-          }}>
-          <LinkIcon className="w-3 h-3 flex-shrink-0" style={{ color: isDark ? '#666' : '#aaa' }} />
-          <input type="url" value={linkUrl} onChange={e => setUploadLink(req.id, e.target.value)}
-            placeholder="https://docs.google.com/... or GitHub link..."
-            className="flex-1 bg-transparent text-[12.5px] outline-none"
-            style={{ color: isDark ? '#f0f0f0' : '#111' }} />
-        </div>
+      <div className={`${TASK_SHELL} flex items-center gap-2 rounded-[10px] px-3`} style={fieldStyle(t, linkUrl ? 'done' : 'normal')}>
+        <LinkIcon className="w-3.5 h-3.5 flex-shrink-0" style={{ color: t.faint }} />
+        <input type="url" value={linkUrl} onChange={e => setUploadLink(req.id, e.target.value)}
+          placeholder={fileUrl ? 'Or share a link instead' : 'Or paste a link (Google Drive, GitHub...)'}
+          aria-label="Or paste a link"
+          className="flex-1 min-w-0 bg-transparent py-2.5 text-[13.5px] outline-none" style={{ color: t.text }} />
       </div>
     </div>
   );

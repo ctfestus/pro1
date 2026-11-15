@@ -1,11 +1,11 @@
 'use client';
 
-import { CheckCircle2, Circle, X, Loader2, Download, AlertTriangle } from 'lucide-react';
-import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
+import { CheckCircle2, Circle, Loader2, Download, AlertTriangle, PenLine, Sparkles } from 'lucide-react';
 import AiReviewUpgradePrompt, { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import type { RequirementProps } from './types';
+import { TaskHeader, TaskButton, AiNote, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
 function isAnswerCorrect(studentAnswer: string, expectedAnswer: string): boolean {
   const normalize = (s: string) => s.toLowerCase().replace(/\s+/g, ' ').trim();
@@ -15,11 +15,12 @@ function isAnswerCorrect(studentAnswer: string, expectedAnswer: string): boolean
 /** Short answer, with AI review or an exact-match check. */
 export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const {
-    isDark, accentColor, fieldBg, fieldBorder, fieldShadow, config, formId, authHeader, currentLes,
+    isDark, accentColor, config, formId, authHeader, currentLes,
     currentModId, currentLesId, reviewMode, entitlement, progress, setProgress, saveProgress,
     noteValues, setNoteValues, aiReviewing, setAiReviewing, aiFeedback, setAiFeedback,
   } = ctx;
   const done           = !!progress[req.id]?.completed;
+  const t = taskTheme(isDark, accentColor);
 
   const noteVal   = noteValues[req.id] ?? (progress[req.id]?.notes || '');
   const reviewing = !!aiReviewing[req.id];
@@ -87,17 +88,10 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
     };
 
     return (
-      <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-2.5">
-        <div className="flex items-start gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-            style={{ background: 'rgba(0,185,92,0.12)', color: '#00b95c' }}>AI Review</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</p>
-            {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-          </div>
-          {showDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />}
-        </div>
-        <AiReviewDisclaimer isDark={isDark ?? false} />
+      <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
+        <TaskHeader t={t} icon={<Sparkles className="w-3.5 h-3.5" />} label="Written answer" title={req.label}
+          description={req.description}
+          done={showDone ? (feedback && !fbErrored ? `Reviewed ${feedback.score} / 100` : 'Reviewed') : null} />
         <textarea
           value={noteVal}
           onChange={e => {
@@ -106,23 +100,12 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
             if (feedback && !showDone) setAiFeedback(prev => ({ ...prev, [req.id]: null }));
           }}
           disabled={showDone && !reviewMode}
-          placeholder="Type your answer here (2000 characters max)..."
+          placeholder="Write your answer"
+          aria-label="Write your answer"
           rows={4}
-          className="w-full text-[14px] rounded-xl p-3.5 outline-none resize-none"
-          style={{
-            background: fieldBg,
-            color: isDark ? '#f0f0f0' : '#111',
-            border: `1.5px solid ${showDone ? accentColor : fieldBorder}`,
-            boxShadow: fieldShadow,
-            lineHeight: 1.6,
-            opacity: showDone && !reviewMode ? 0.7 : 1,
-          }}
+          className={`${TASK_FIELD} w-full text-[14px] px-3 py-2.5 resize-y`}
+          style={fieldStyle(t, showDone ? 'done' : 'normal')}
         />
-        {!showDone && (
-          <p className="text-[11px] text-right" style={{ color: noteVal.length >= 1920 ? '#ef4444' : isDark ? '#555' : '#aaa' }}>
-            {noteVal.length} / 2000
-          </p>
-        )}
         {!showDone && entitlement.locked && (
           <AiReviewUpgradePrompt
             accentColor={accentColor}
@@ -139,14 +122,17 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
           <AiReviewDailyLimitNotice accentColor={accentColor} isDark={isDark} resetsInSeconds={entitlement.resetsInSeconds} priceLabel={entitlement.priceLabel} limit={entitlement.limit} canUpgrade={entitlement.canUpgrade} upgradeUrl={entitlement.upgradeUrl} />
         )}
         {!showDone && (
-          <button
-            onClick={handleSubmitAi}
-            disabled={noteVal.trim().length === 0 || reviewing || (entitlement.exhausted && !entitlement.locked)}
-            className="flex items-center gap-2 px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
-            {reviewing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {reviewing ? 'AI is reviewing...' : 'Submit for AI Review'}
-          </button>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <AiNote t={t} />
+              <span className="text-[11.5px] tabular-nums" style={{ color: noteVal.length >= 1920 ? t.bad : t.faint }}>{noteVal.length} / 2000</span>
+            </span>
+            <TaskButton t={t} onClick={handleSubmitAi}
+              disabled={noteVal.trim().length === 0 || reviewing || (entitlement.exhausted && !entitlement.locked)}>
+              {reviewing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+              {reviewing ? 'Reviewing...' : 'Send for review'}
+            </TaskButton>
+          </div>
         )}
         {/* Distinct error state: the review never ran, so no pass/fail, no score. */}
         {feedback && fbErrored && (
@@ -225,13 +211,6 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
             <p className="text-[13px] leading-relaxed" style={{ color: isDark ? '#ccc' : '#444' }}>{feedback.feedback}</p>
           </div>
         )}
-        {showDone && !feedback && (
-          <div className="rounded-lg p-3 flex items-center gap-2"
-            style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)' }}>
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: '#10b981' }} />
-            <p className="text-[13px] font-semibold" style={{ color: '#10b981' }}>Answer accepted. Well done!</p>
-          </div>
-        )}
       </div>
     );
   }
@@ -242,18 +221,22 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
     ? isAnswerCorrect(progress[req.id]?.notes || '', req.expectedAnswer)
     : submitted && !req.expectedAnswer;
   const wrongAnswer = submitted && req.expectedAnswer && !isCorrect;
+  // Same rule as before: compare against the expected answer, or accept anything when there is none.
+  const checkExact = () => {
+    if (noteVal.trim().length === 0) return;
+    const correct = req.expectedAnswer ? isAnswerCorrect(noteVal, req.expectedAnswer) : true;
+    setProgress(prev => {
+      const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: correct } };
+      saveProgress(next, currentModId, currentLesId);
+      return next;
+    });
+  };
   return (
-    <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-2.5">
-      <div className="flex items-start gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-          style={{ background: 'rgba(0,185,92,0.12)', color: '#00b95c' }}>Short Answer</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</p>
-          {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-        </div>
-        {done && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />}
-      </div>
-      <textarea
+    <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
+      <TaskHeader t={t} icon={<PenLine className="w-3.5 h-3.5" />} label="Short answer" title={req.label}
+        description={req.description} done={done ? 'Correct' : null} />
+      <div className="flex flex-col sm:flex-row gap-2.5">
+      <input
         value={noteVal}
         onChange={e => {
           setNoteValues(prev => ({ ...prev, [req.id]: e.target.value }));
@@ -265,54 +248,18 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
           }
         }}
         disabled={done && !reviewMode}
-        placeholder="Type your answer here..."
-        rows={3}
-        className="w-full text-[14px] rounded-xl p-3.5 outline-none resize-none"
-        style={{
-          background: fieldBg,
-          color: isDark ? '#f0f0f0' : '#111',
-          border: `1.5px solid ${
-            wrongAnswer ? '#ef4444' :
-            done ? accentColor :
-            fieldBorder
-          }`,
-          boxShadow: fieldShadow,
-          lineHeight: 1.6,
-          opacity: done && !reviewMode ? 0.7 : 1,
-        }}
+        placeholder="Your answer"
+        aria-label="Your answer"
+        className={`${TASK_FIELD} flex-1 min-w-0 text-[14px] px-3 py-2.5`}
+        style={fieldStyle(t, wrongAnswer ? 'bad' : done ? 'done' : 'normal')}
+        onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); checkExact(); } }}
       />
       {!done && (
-        <button
-          onClick={() => {
-            if (noteVal.trim().length === 0) return;
-            const correct = req.expectedAnswer
-              ? isAnswerCorrect(noteVal, req.expectedAnswer)
-              : true;
-            setProgress(prev => {
-              const next = { ...prev, [req.id]: { ...prev[req.id], notes: noteVal, completed: correct } };
-              saveProgress(next, currentModId, currentLesId);
-              return next;
-            });
-          }}
-          disabled={noteVal.trim().length === 0}
-          className="px-4 py-1.5 rounded-lg text-[13px] font-semibold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
-          style={{ background: accentColor, color: isDark ? '#111' : '#fff' }}>
-          Submit Answer
-        </button>
+        <TaskButton t={t} onClick={() => checkExact()} disabled={noteVal.trim().length === 0}>Check answer</TaskButton>
       )}
+      </div>
       {wrongAnswer && (
-        <div className="rounded-lg p-3 flex items-start gap-2"
-          style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.3)' }}>
-          <X className="w-3.5 h-3.5 flex-shrink-0 mt-0.5" style={{ color: '#ef4444' }} />
-          <p className="text-[13px]" style={{ color: '#ef4444' }}>Incorrect. Try again.</p>
-        </div>
-      )}
-      {done && (
-        <div className="rounded-lg p-3 flex items-start gap-2"
-          style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.3)' }}>
-          <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#10b981' }} />
-          <p className="text-[13px] font-semibold" style={{ color: '#10b981' }}>Correct. Well done!</p>
-        </div>
+        <p className="text-[13px] font-semibold" style={{ color: t.bad }}>Not quite. Try again.</p>
       )}
     </div>
   );

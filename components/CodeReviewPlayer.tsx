@@ -44,6 +44,8 @@ interface ReviewResult {
 }
 
 interface Props {
+  /** Leave out the workspace header and its disclaimer: the host card already shows both. */
+  hideWorkspaceHeader?: boolean;
   reqId: string;
   isDark: boolean;
   accentColor: string;
@@ -77,7 +79,7 @@ function scoreColor(n: number) {
   return '#ef4444';
 }
 
-export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed, savedResult, reviewsUsed = 0, rubric, schema, minScore, reviewLanguage, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0, rubric, schema, minScore, reviewLanguage, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   // Lock the "already completed" views only when: no per-question limit (VE/assignment), at limit,
   // or state was lost on page reload (no saved report and no further attempts).
@@ -229,8 +231,10 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
         message="Code reviews are part of a paid plan. Upgrade to submit your code and get line-level feedback."
       >
       <div className="space-y-3">
-        <AiReviewWorkspaceHeader icon={<FileCode className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
-        <AiReviewDisclaimer isDark={isDark} />
+        {!hideWorkspaceHeader && (<>
+          <AiReviewWorkspaceHeader icon={<FileCode className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
+          <AiReviewDisclaimer isDark={isDark} />
+        </>)}
         {/* Language selector -- locked when instructor specified a language */}
         {lockedLanguage ? (
           <div className="flex items-center gap-2">
@@ -274,7 +278,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
         )}
 
         {/* Code input -- paste or upload */}
-        <div style={{ border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`, borderRadius: 16, overflow: 'hidden', background: isDark ? '#111' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)' }}>
+        <div className="focus-frame" style={{ border: `1.5px solid ${isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`, borderRadius: 16, overflow: 'hidden', background: isDark ? '#111' : '#fff', boxShadow: isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)', ['--focus-frame' as string]: accentColor, ['--focus-frame-ring' as string]: `${accentColor}29` }}>
           <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ background: inner, borderColor: border }}>
             <div className="flex items-center gap-2">
               <Code2 className="w-3.5 h-3.5" style={{ color: muted }} />

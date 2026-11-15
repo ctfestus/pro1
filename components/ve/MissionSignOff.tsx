@@ -8,7 +8,7 @@ import { PersonAvatar, firstNameOf, type Person } from '@/components/ve/workplac
  * way on is finishing the project.
  */
 export function MissionSignOff({
-  manager, studentName, isDark, accentColor, text, nextTitle, onNext, canFinish, finishing, onFinish,
+  manager, studentName, isDark, accentColor, text, nextTitle, onNext, canFinish, finishing, onFinish, readingOnly = false,
 }: {
   manager: Person;
   studentName: string;
@@ -22,6 +22,8 @@ export function MissionSignOff({
   canFinish: boolean;
   finishing: boolean;
   onFinish: () => void;
+  /** The mission is only something to read, so there is no work to praise yet. */
+  readingOnly?: boolean;
 }) {
   const first = firstNameOf(studentName) || 'there';
   const btn = 'inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl font-bold text-[13.5px] transition-all hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed';
@@ -32,7 +34,15 @@ export function MissionSignOff({
       <PersonAvatar {...manager} size={34} presence="active" isDark={isDark} />
       <div className="min-w-0 flex-1">
         <p className="text-[13px] font-bold" style={{ color: text }}>{manager.name}</p>
-        {nextTitle ? (
+        {readingOnly && nextTitle ? (
+          <p className="text-[14px] leading-relaxed mt-0.5" style={{ color: text }}>
+            When you have read this, {first}, your next brief is ready: <b className="font-semibold">{nextTitle}</b>.
+          </p>
+        ) : readingOnly && canFinish ? (
+          <p className="text-[14px] leading-relaxed mt-0.5" style={{ color: text }}>
+            When you have read this, {first}, finish the project to see your results.
+          </p>
+        ) : nextTitle ? (
           <p className="text-[14px] leading-relaxed mt-0.5" style={{ color: text }}>
             Good work on this, {first}. Your next brief is ready: <b className="font-semibold">{nextTitle}</b>.
           </p>

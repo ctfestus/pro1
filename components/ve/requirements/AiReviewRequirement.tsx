@@ -1,12 +1,17 @@
 'use client';
 
-import { CheckCircle2 } from 'lucide-react';
+import { Sparkles } from 'lucide-react';
 import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
 import DocumentReviewPlayer from '@/components/DocumentReviewPlayer';
 import ExcelReviewPlayer from '@/components/ExcelReviewPlayer';
 import { buildReviewNotes, parseReviewNotes, isFullReport } from '@/lib/reviewRecord';
 import type { RequirementProps } from './types';
+import { TaskHeader, AiNote, taskTheme } from './TaskCard';
+
+const REVIEW_KIND: Record<string, string> = {
+  dashboard_critique: 'Dashboard', code_review: 'Code', excel_review: 'Excel', document_review: 'Document',
+};
 
 /** Dashboard critique, code review, Excel review and document review cards. */
 export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
@@ -14,22 +19,32 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     isDark, accentColor, formId, currentModId, currentLesId, progress, setProgress, saveProgress,
   } = ctx;
   const done           = !!progress[req.id]?.completed;
+  const t = taskTheme(isDark, accentColor);
+  // Done reads as the score where there is one. A manual document review is marked by a person,
+  // so it only says it was submitted.
+  const savedReport = parseReviewNotes(progress[req.id]?.notes)?.report;
+  const rawScore = savedReport?.overallScore ?? savedReport?.audit?.overallScore;
+  const manual = req.type === 'document_review' && req.documentReviewMode === 'manual';
+  const doneText = !done ? null
+    : manual ? 'Submitted'
+    : typeof rawScore === 'number' && Number.isFinite(rawScore) ? `Reviewed ${Math.round(rawScore)} / 100`
+    : 'Reviewed';
+  const header = (
+    <>
+      <TaskHeader t={t} icon={<Sparkles className="w-3.5 h-3.5" />}
+        label={manual ? `${REVIEW_KIND[req.type] || ''} review`.trim() : `AI review - ${REVIEW_KIND[req.type] || 'work'}`}
+        title={req.label} description={req.description} done={doneText} />
+      {!done && !manual && <AiNote t={t} />}
+    </>
+  );
 
   // Dashboard Critique
   if (req.type === 'dashboard_critique') {
     const saved = progress[req.id];
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-4">
-        <div className="flex items-start gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-            style={{ background: `${accentColor}18`, color: accentColor }}>AI Critique</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</p>
-            {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-          </div>
-          {done && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />}
-        </div>
-        <DashboardCritiquePlayer
+        {header}
+        <DashboardCritiquePlayer hideWorkspaceHeader
           reqId={req.id}
           isDark={isDark ?? false}
           accentColor={accentColor}
@@ -55,16 +70,8 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     const saved = progress[req.id];
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-4">
-        <div className="flex items-start gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-            style={{ background: `${accentColor}18`, color: accentColor }}>AI Code Review</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</p>
-            {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-          </div>
-          {done && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />}
-        </div>
-        <CodeReviewPlayer
+        {header}
+        <CodeReviewPlayer hideWorkspaceHeader
           reqId={req.id}
           isDark={isDark ?? false}
           accentColor={accentColor}
@@ -90,16 +97,8 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     const saved = progress[req.id];
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-4">
-        <div className="flex items-start gap-2">
-          <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-            style={{ background: `rgba(34,197,94,0.12)`, color: '#22c55e' }}>AI Excel Review</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</p>
-            {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-          </div>
-          {done && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />}
-        </div>
-        <ExcelReviewPlayer
+        {header}
+        <ExcelReviewPlayer hideWorkspaceHeader
           reqId={req.id}
           isDark={isDark ?? false}
           accentColor={accentColor}
@@ -127,8 +126,8 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     const report = parseReviewNotes(saved?.notes)?.report;
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-4">
-        <div className="flex items-start gap-2"><span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5" style={{ background: `${accentColor}18`, color: accentColor }}>AI Document Review</span><div className="flex-1"><p className="text-[14.5px] font-semibold" style={{ color: isDark ? '#f0f0f0' : '#111' }}>{req.label}</p>{req.description && <p className="text-[12.5px] mt-0.5" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}</div></div>
-        <DocumentReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={done}
+        {header}
+        <DocumentReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={done}
           savedResult={isFullReport('document_review', report) ? report as any : undefined} context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode}
           onComplete={(result, passed) => setProgress(prev => { const next = { ...prev, [req.id]: { completed: passed, notes: buildReviewNotes('document_review', result, prev[req.id]?.notes) } }; saveProgress(next, currentModId, currentLesId); return next; })} />
       </div>

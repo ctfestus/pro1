@@ -1,81 +1,63 @@
 'use client';
 
-import { CheckCircle2 } from 'lucide-react';
+import { HelpCircle } from 'lucide-react';
 import type { RequirementProps } from './types';
+import { TaskHeader, taskTheme } from './TaskCard';
 
 /** Multiple choice question card. */
-export function McqRequirement({ req, qi, rowStyle, ctx }: RequirementProps) {
+export function McqRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const {
     isDark, accentColor, currentModId, currentLesId, progress, setProgress, saveProgress,
   } = ctx;
   const done           = !!progress[req.id]?.completed;
   const selectedAnswer = progress[req.id]?.selectedAnswer;
+  const t = taskTheme(isDark, accentColor);
+  // The editor keeps a fixed number of option slots, so unused ones are saved empty. Skip them.
+  const options = (req.options || []).filter(o => String(o ?? '').trim());
+
+  // A right answer completes and saves; a wrong one is remembered for this visit only, so the
+  // learner sees which one missed and tries again. Same rule as before the redesign.
+  const choose = (opt: string) => {
+    if (done) return;
+    const correct = opt === req.correctAnswer;
+    setProgress(prev => {
+      const next = { ...prev, [req.id]: { ...prev[req.id], selectedAnswer: opt, completed: correct } };
+      if (correct) saveProgress(next, currentModId, currentLesId);
+      return next;
+    });
+  };
 
   return (
-    <div style={rowStyle} className="px-3 sm:px-8 py-4 sm:py-5 space-y-3">
-      {/* Question header */}
-      <div className="flex items-start gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5 flex-shrink-0"
-          style={{ background: `${accentColor}15`, color: accentColor }}>Q{qi + 1}</span>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14.5px] font-semibold leading-snug" style={{ color: isDark ? '#f0f0f0' : '#111' }}>
-            {req.label}
-          </p>
-          {req.description && (
-            <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>
-          )}
-        </div>
-        {done && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accentColor }} />}
-      </div>
-
-      {/* Options */}
-      <div className="space-y-1.5">
-        {(req.options || []).map((opt, oi) => {
-          const letter      = oi + 1;
-          const isSelected  = selectedAnswer === opt;
-          const isCorrect   = opt === req.correctAnswer;
-          const showCorrect = done && isCorrect;
-          const showWrong   = isSelected && !done && !isCorrect;
-
+    <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
+      <TaskHeader t={t} icon={<HelpCircle className="w-3.5 h-3.5" />} label="Question" title={req.label}
+        description={req.description} done={done ? 'Correct' : null} />
+      <div className="flex flex-col gap-2" role="radiogroup" aria-label={req.label}>
+        {options.map((opt, oi) => {
+          const letter    = String.fromCharCode(65 + oi);
+          const isRight   = done && opt === req.correctAnswer;
+          const isMissed  = !done && selectedAnswer === opt && opt !== req.correctAnswer;
           return (
-            <button key={oi}
-              onClick={() => {
-                if (done) return;
-                const correct = opt === req.correctAnswer;
-                setProgress(prev => {
-                  const next = { ...prev, [req.id]: { ...prev[req.id], selectedAnswer: opt, completed: correct } };
-                  if (correct) saveProgress(next, currentModId, currentLesId);
-                  return next;
-                });
-              }}
-              disabled={done}
-              className="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl text-left text-[14px] transition-all disabled:cursor-default"
+            <button key={oi} type="button" role="radio" aria-checked={selectedAnswer === opt}
+              onClick={() => choose(opt)} disabled={done}
+              className="w-full flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[14px] transition-colors disabled:cursor-default"
               style={{
-                background: showCorrect
-                  ? `${accentColor}12`
-                  : showWrong
-                    ? 'rgba(239,68,68,0.07)'
-                    : isSelected
-                      ? `${accentColor}08`
-                      : isDark ? 'rgba(255,255,255,0.055)' : '#ffffff',
-                border: 'none',
-                color: showCorrect ? accentColor : showWrong ? '#ef4444' : isDark ? '#e0e0e0' : '#222',
+                background: isRight ? `${accentColor}1a` : isMissed ? `${t.bad}14` : t.soft,
+                color: t.text,
+                opacity: done && !isRight ? 0.55 : 1,
               }}>
-              <span className="flex-1 text-[14.5px]">{opt}</span>
-              {showCorrect && <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" style={{ color: accentColor }} />}
-              {showWrong && <span className="text-[12.5px] flex-shrink-0" style={{ color: '#ef4444' }}>Try again</span>}
-              <span className="text-[13px] font-bold flex-shrink-0 tabular-nums" style={{ color: showCorrect ? accentColor : showWrong ? '#ef4444' : isSelected ? accentColor : (isDark ? '#888' : '#999') }}>{letter}</span>
+              <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[7px] text-[12px] font-bold"
+                style={{
+                  background: isRight ? accentColor : isDark ? 'rgba(255,255,255,0.08)' : '#ffffff',
+                  color: isRight ? (isDark ? '#111' : '#fff') : isMissed ? t.bad : t.muted,
+                }}>
+                {letter}
+              </span>
+              <span className="flex-1 min-w-0">{opt}</span>
+              {isMissed && <span className="flex-shrink-0 text-[12.5px] font-semibold" style={{ color: t.bad }}>Not this one. Try again.</span>}
             </button>
           );
         })}
       </div>
-
-      {done && (
-        <div className="flex items-center gap-1.5 text-[12.5px] font-semibold px-2.5 py-1.5 rounded-lg w-fit"
-          style={{ background: `${accentColor}10`, color: accentColor }}>
-          <CheckCircle2 className="w-3 h-3"/> Correct. Well done!
-        </div>
-      )}
     </div>
   );
 }

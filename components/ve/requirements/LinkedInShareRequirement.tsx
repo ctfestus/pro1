@@ -5,6 +5,7 @@ import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { clampLinkedInSharePoints } from '@/lib/course-schema';
 import { REQ_META, type RequirementProps } from './types';
+import { TaskHeader, taskTheme } from './TaskCard';
 
 /** LinkedIn share: suggested post, link claim and the profile check. */
 export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProps) {
@@ -27,25 +28,9 @@ export function LinkedInShareRequirement({ req, rowStyle, ctx }: RequirementProp
   const meta    = REQ_META.linkedin_share;
   return (
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-      <div className="flex items-start gap-2.5">
-        <span className="flex-shrink-0 flex items-center justify-center rounded-lg mt-0.5"
-          style={{ width: 30, height: 30, background: '#0A66C2' }}>
-          <LinkedInIcon className="w-4 h-4" style={{ color: '#fff' }} />
-        </span>
-        <div className="flex-1 min-w-0">
-          <p className="text-[14.5px] font-semibold flex items-center gap-2" style={{ color: isDark ? '#f0f0f0' : '#111' }}>
-            {req.label}
-            {req.shareRequired !== true && (
-              <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded flex-shrink-0"
-                style={{ background: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)', color: isDark ? '#888' : '#666' }}>
-                Optional
-              </span>
-            )}
-          </p>
-          {req.description && <p className="text-[12.5px] mt-0.5 leading-snug" style={{ color: isDark ? '#888' : '#666' }}>{req.description}</p>}
-        </div>
-        {done && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-1" style={{ color: accentColor }} />}
-      </div>
+      <TaskHeader t={taskTheme(isDark, accentColor)} icon={<LinkedInIcon className="w-3.5 h-3.5" />}
+        label={req.shareRequired !== true ? 'LinkedIn - optional' : 'LinkedIn'} title={req.label}
+        description={req.description} done={done ? 'Verified' : null} />
 
       {/* Three states, and the claimed one deliberately names NO amount.
           What a claim actually paid is the snapshot on linkedin_shares.points,
