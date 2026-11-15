@@ -1574,9 +1574,18 @@ function VirtualExperienceCreatePageInner() {
 
   return (
     <div className="min-h-screen" style={{ background: C.page, color: C.text, fontFamily: "'Google Sans', 'Inter', sans-serif" }}>
+      {/* The first section on a tab has no line above it (the tab bar draws one). Editors in this
+                    page show the common tools and Add interactive; the rest sit under More, which the
+                    shared lesson editor already offers on narrow screens. */}
+                <style>{`.ve-tab > .space-y-4 > div:first-child { border-top: none !important; padding-top: 4px !important; }
+.ve-tab .lesson-editor-toolbar__secondary, .ve-tab .lesson-editor-toolbar__media { display: none !important; }
+.ve-tab .lesson-editor-toolbar__more { display: inline-flex !important; }
+.ve-tab input:focus-visible, .ve-tab textarea:focus-visible, .ve-tab select:focus-visible { outline: none !important; box-shadow: inset 0 0 0 2px ${C.cta} !important; }
+.ve-tab .ve-shell > input:focus-visible, .ve-tab [contenteditable="true"]:focus-visible { outline: none !important; box-shadow: none !important; }
+.ve-tab .ve-shell:focus-within, .ve-tab .lesson-editor-shell:focus-within { outline: 2px solid ${C.cta}; outline-offset: -2px; }`}</style>
       {/* Experience Studio header */}
       <header className="px-4 sm:px-6 pt-6" style={{ background: C.page }}>
-        <div className={`max-w-6xl mx-auto px-4 sm:px-6 pt-5 pb-3 ${step === 2 ? 'rounded-t-2xl' : 'rounded-2xl'}`}
+        <div className={`${step === 2 ? 'max-w-6xl' : 'max-w-4xl'} mx-auto px-4 sm:px-6 pt-5 pb-3 rounded-t-2xl`}
           style={{ background: C.card }}>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
@@ -1622,13 +1631,13 @@ function VirtualExperienceCreatePageInner() {
                 </button>
               </div>
             ) : (
-              <span className="text-[11px] font-semibold px-3 py-1.5 rounded-full" style={{ background: C.pill, color: C.faint }}>Setup</span>
+              null
             )}
           </div>
         </div>
       </header>
 
-      <div className={`px-4 sm:px-6 pb-4 ${step === 2 ? 'pt-0' : 'pt-3'}`}>
+      <div className="px-4 sm:px-6 pb-4 pt-0">
         {step === 2 && (saveError || saveWarning) && (
           <div className="max-w-6xl mx-auto pt-3">
             <div className="px-4 py-3 rounded-xl text-[13px] flex items-start gap-2"
@@ -1644,13 +1653,13 @@ function VirtualExperienceCreatePageInner() {
 
         {/* STEP 1: Configure */}
         {step === 1 && (
-          <div className="max-w-5xl mx-auto px-0 sm:px-4 py-6">
-          <div className="rounded-2xl overflow-hidden" style={{ background: C.card, border: C === DARK_C ? '1px solid transparent' : `1px solid ${C.cardBorder}`, boxShadow: 'none' }}>
-            <div className="px-6 sm:px-8 pt-6 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
-              <h2 className="text-lg sm:text-xl font-bold leading-tight" style={{ color: C.text }}>What kind of project?</h2>
-              <p className="text-[11px] mt-1 font-medium tracking-wide uppercase" style={{ color: C.faint }}>Choose how to build your virtual experience</p>
+          <div className="max-w-4xl mx-auto pb-6">
+          <div className="rounded-b-2xl" style={{ background: C.card, boxShadow: C === DARK_C ? '0 16px 38px rgba(0,0,0,0.12)' : '0 16px 38px rgba(15,23,42,0.045)' }}>
+            <div className="px-6 sm:px-8 pt-2 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
+              <h2 className="text-[17px] font-semibold leading-tight" style={{ color: C.text }}>How do you want to build it?</h2>
+              <p className="text-[13px] mt-1" style={{ color: C.muted }}>Let AI draft the whole experience, or start from a blank outline.</p>
             </div>
-            <div className="px-6 sm:px-8 py-7 space-y-6">
+            <div className="ve-tab px-6 sm:px-8 py-7 space-y-6">
 
             {/* Creation mode cards */}
             <div className="grid sm:grid-cols-2 gap-3">
@@ -1665,9 +1674,9 @@ function VirtualExperienceCreatePageInner() {
                 {
                   id: 'manual' as const,
                   icon: <PenLine className="w-5 h-5"/>,
-                  title: 'Build Manually',
+                  title: 'Build manually',
                   desc: 'Start with a blank template and write every module, lesson and question yourself. Optionally attach a dataset for students.',
-                  badge: 'Full Control',
+                  badge: 'Full control',
                 },
               ].map(m => (
                 <button key={m.id} onClick={() => setCreationMode(m.id)}
@@ -1710,8 +1719,8 @@ function VirtualExperienceCreatePageInner() {
                   <Star className="w-4 h-4" />
                 </div>
                 <div>
-                  <p className="text-[14px] font-bold" style={{ color: C.text }}>Short Course Mode</p>
-                  <p className="text-[12px]" style={{ color: C.muted }}>Simplified experience -- no company/dataset context. Lessons + questions + AI review only.</p>
+                  <p className="text-[14px] font-bold" style={{ color: C.text }}>Short course mode</p>
+                  <p className="text-[12px]" style={{ color: C.muted }}>A simpler format with no company or dataset: lessons, questions and AI review only.</p>
                 </div>
               </div>
               <div className="flex-shrink-0 ml-3">
@@ -1726,89 +1735,67 @@ function VirtualExperienceCreatePageInner() {
             {/* Config card: appears when mode selected */}
             {creationMode && (
               <div className="space-y-6 mt-2">
-                <div style={{ background: C.pill, borderRadius: 16, overflow: 'hidden' }}>
+                <div>
                   {/* Industry */}
-                  <div className="p-5 space-y-3">
-                    <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Industry</p>
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                      {INDUSTRIES.map(ind => (
-                        <button key={ind.id} onClick={() => setIndustry(ind.id)}
-                          className="flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all"
-                          style={{
-                            border: `1.5px solid ${industry === ind.id ? C.cta : C.cardBorder}`,
-                            background: industry === ind.id ? `${C.cta}12` : 'transparent',
-                          }}>
-                          <span className="text-base">{ind.emoji}</span>
-                          <span className="text-[13px] font-semibold" style={{ color: C.text }}>{ind.label}</span>
-                          {industry === ind.id && <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: C.cta }}/>}
-                        </button>
-                      ))}
-                      {/* Other / custom industry */}
-                      <button onClick={() => setIndustry('other')}
-                        className="flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all"
-                        style={{
-                          border: `1.5px solid ${industry === 'other' ? C.cta : C.cardBorder}`,
-                          background: industry === 'other' ? `${C.cta}12` : 'transparent',
-                        }}>
-                        <span className="text-base">✏️</span>
-                        <span className="text-[13px] font-semibold" style={{ color: C.text }}>Other</span>
-                        {industry === 'other' && <Check className="w-3 h-3 ml-auto flex-shrink-0" style={{ color: C.cta }}/>}
-                      </button>
+                  <div className="pb-5 space-y-3">
+                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Industry</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[...INDUSTRIES, { id: 'other', label: 'Other' }].map(ind => {
+                        const selected = industry === ind.id;
+                        return (
+                          <button key={ind.id} type="button" aria-pressed={selected} onClick={() => setIndustry(ind.id)}
+                            className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                            style={{ background: selected ? `${C.cta}1a` : C.field, color: selected ? C.cta : C.text, boxShadow: selected ? `inset 0 0 0 1.5px ${C.cta}` : 'none' }}>
+                            {ind.label}
+                          </button>
+                        );
+                      })}
                     </div>
                     {industry === 'other' && (
                       <input
                         type="text"
                         value={customIndustry}
                         onChange={e => setCustomIndustry(e.target.value)}
-                        placeholder="e.g. Logistics, Agriculture, Real Estate…"
-                        className="w-full px-3 py-2.5 rounded-xl text-sm outline-none transition-all"
-                        style={{
-                          border: `1.5px solid ${C.cta}`,
-                          background: C.input,
-                          color: C.text,
-                        }}
+                        placeholder="e.g. Logistics, Agriculture, Real Estate"
+                        aria-label="Industry"
+                        style={inp}
                         autoFocus
                       />
                     )}
                   </div>
 
                   {/* Experience Level */}
-                  <div className="px-5 pb-5 pt-4 space-y-3 border-t" style={{ borderColor: C.divider }}>
-                    <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Experience Level</p>
-                    <div className="flex gap-2">
-                      {([
-                        { id: 'beginner',     label: 'Beginner',     desc: 'Foundational' },
-                        { id: 'intermediate', label: 'Intermediate', desc: 'Real-world' },
-                        { id: 'advanced',     label: 'Advanced',     desc: 'Expert-level' },
-                      ] as const).map(d => (
-                        <button key={d.id} onClick={() => setDifficulty(d.id)}
-                          className="flex-1 py-2.5 px-3 rounded-xl text-left transition-all"
-                          style={{
-                            border: `1.5px solid ${difficulty === d.id ? C.cta : C.cardBorder}`,
-                            background: difficulty === d.id ? `${C.cta}12` : 'transparent',
-                          }}>
-                          <p className="text-[13px] font-bold" style={{ color: C.text }}>{d.label}</p>
-                          <p className="text-[11px] mt-0.5" style={{ color: C.faint }}>{d.desc}</p>
-                        </button>
-                      ))}
+                  <div className="pb-5 pt-5 space-y-3 border-t" style={{ borderColor: C.divider }}>
+                    <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>Level</p>
+                    <div className="inline-flex rounded-[10px] p-[3px]" style={{ background: C.field }}>
+                      {([['beginner', 'Beginner'], ['intermediate', 'Intermediate'], ['advanced', 'Advanced']] as const).map(([id, label]) => {
+                        const selected = difficulty === id;
+                        return (
+                          <button key={id} type="button" aria-pressed={selected} onClick={() => setDifficulty(id)}
+                            className="rounded-lg px-3.5 py-1.5 text-[13px] font-semibold transition-colors"
+                            style={{ background: selected ? C.card : 'transparent', color: selected ? C.text : C.muted, boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.12)' : 'none' }}>
+                            {label}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
                   {/* Role / Focus / Tools */}
-                  <div className="px-5 pb-5 pt-4 border-t" style={{ borderColor: C.divider }}>
+                  <div className="pb-5 pt-5 border-t" style={{ borderColor: C.divider }}>
                     <div className="grid sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Role</label>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Role</label>
                         <input style={inp} value={roleHint} onChange={e => setRoleHint(e.target.value)} placeholder="e.g. Data Analyst" />
                       </div>
                       {creationMode !== 'manual' && (
                         <div>
-                          <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Focus Topic</label>
+                          <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Focus topic</label>
                           <input style={inp} value={focusTopic} onChange={e => setFocusTopic(e.target.value)} placeholder="e.g. Fraud detection" />
                         </div>
                       )}
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>Tools</label>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>Tools</label>
                         <input style={inp} value={toolsInput} onChange={e => setToolsInput(e.target.value)} placeholder="e.g. Excel, Power BI" />
                       </div>
                     </div>
@@ -1816,10 +1803,10 @@ function VirtualExperienceCreatePageInner() {
 
                   {/* Company & Scenario: AI + data modes */}
                   {creationMode !== 'manual' && (
-                    <div className="px-5 pb-5 pt-4 border-t space-y-3" style={{ borderColor: C.divider }}>
+                    <div className="pb-5 pt-5 border-t space-y-3" style={{ borderColor: C.divider }}>
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>
-                          Company Name <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                          Company <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <input
                           style={inp}
@@ -1829,8 +1816,8 @@ function VirtualExperienceCreatePageInner() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1.5" style={{ color: C.muted }}>
-                          Scenario <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <label className="text-[12.5px] font-semibold block mb-1.5" style={{ color: C.muted }}>
+                          Scenario <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <textarea
                           value={scenario}
@@ -1841,8 +1828,8 @@ function VirtualExperienceCreatePageInner() {
                         />
                       </div>
                       <div>
-                        <label className="block text-[12px] font-bold uppercase tracking-widest mb-1" style={{ color: C.muted }}>
-                          Additional Instructions <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <label className="text-[12.5px] font-semibold block mb-1" style={{ color: C.muted }}>
+                          Extra instructions for the AI <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </label>
                         <textarea
                           value={customPrompt}
@@ -1870,11 +1857,11 @@ function VirtualExperienceCreatePageInner() {
                   )}
 
                   {/* Dataset */}
-                  <div className="px-5 pb-5 pt-4 border-t space-y-3" style={{ borderColor: C.divider }}>
+                  <div className="pb-5 pt-5 border-t space-y-3" style={{ borderColor: C.divider }}>
                     <div className="flex items-center justify-between">
                       <div>
-                        <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>
-                          Dataset <span className="normal-case font-normal tracking-normal" style={{ color: C.faint }}>(optional)</span>
+                        <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
+                          Dataset <span className="font-normal" style={{ color: C.faint }}>(optional)</span>
                         </p>
                         {creationMode === 'ai' && (
                           <p className="text-[12px] mt-0.5" style={{ color: C.faint }}>
@@ -1882,13 +1869,13 @@ function VirtualExperienceCreatePageInner() {
                           </p>
                         )}
                       </div>
-                      <div className="flex rounded-xl overflow-hidden text-[12px]" style={{ border: `1px solid ${C.cardBorder}` }}>
+                      <div className="flex rounded-[10px] overflow-hidden text-[12px] p-[3px]" style={{ background: C.field }}>
                         {(['upload', 'link'] as const).map(tab => (
                           <button key={tab} onClick={() => setDatasetInputTab(tab)}
                             className="px-3 py-1.5 font-medium transition-all"
                             style={{
-                              background: datasetInputTab === tab ? C.cta : C.card,
-                              color: datasetInputTab === tab ? C.ctaText : C.muted,
+                              background: datasetInputTab === tab ? C.card : 'transparent',
+                              color: datasetInputTab === tab ? C.text : C.muted, borderRadius: 8,
                             }}>
                             {tab === 'upload'
                               ? <span className="flex items-center gap-1"><Upload className="w-3 h-3"/> Upload / Paste</span>
@@ -1904,7 +1891,7 @@ function VirtualExperienceCreatePageInner() {
                           <input ref={datasetRef} type="file" accept=".csv,.tsv,.txt,.xlsx,.xls,.zip,.json" className="hidden" onChange={handleDatasetFileUpload}/>
                           <button onClick={() => datasetRef.current?.click()}
                             className="flex items-center gap-1.5 text-[13px] font-medium px-3 py-1.5 rounded-xl border transition-all hover:opacity-70"
-                            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted, background: C.card }}>
+                            style={{ border: 'none', color: C.text, background: C.field }}>
                             {uploadingDataset ? <Loader2 className="w-3.5 h-3.5 animate-spin"/> : <Upload className="w-3.5 h-3.5"/>}
                             {datasetFilename ? datasetFilename : 'Upload CSV or Excel file'}
                           </button>
@@ -2052,15 +2039,6 @@ function VirtualExperienceCreatePageInner() {
                   })}
                 </nav>
                 <AnimatePresence mode="wait" custom={secDir}>
-                {/* The first section on a tab has no line above it (the tab bar draws one). Editors in this
-                    page show the common tools and Add interactive; the rest sit under More, which the
-                    shared lesson editor already offers on narrow screens. */}
-                <style>{`.ve-tab > .space-y-4 > div:first-child { border-top: none !important; padding-top: 4px !important; }
-.ve-tab .lesson-editor-toolbar__secondary, .ve-tab .lesson-editor-toolbar__media { display: none !important; }
-.ve-tab .lesson-editor-toolbar__more { display: inline-flex !important; }
-.ve-tab input:focus-visible, .ve-tab textarea:focus-visible, .ve-tab select:focus-visible { outline: none !important; box-shadow: inset 0 0 0 2px ${C.cta} !important; }
-.ve-tab .ve-shell > input:focus-visible, .ve-tab [contenteditable="true"]:focus-visible { outline: none !important; box-shadow: none !important; }
-.ve-tab .ve-shell:focus-within, .ve-tab .lesson-editor-shell:focus-within { outline: 2px solid ${C.cta}; outline-offset: -2px; }`}</style>
                 <motion.div key={activeSection} custom={secDir}
                   initial={{ opacity: 0, x: secDir * 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: secDir * -28 }}
                   transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }} className="ve-tab px-6 sm:px-8 py-7">
