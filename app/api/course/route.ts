@@ -2,7 +2,6 @@
 import { requireStudentUser, isAuthError } from '@/lib/api-auth';
 import { createClient } from '@supabase/supabase-js';
 import { createHmac, timingSafeEqual } from 'crypto';
-import { hasNudgeBeenSent, recordNudge } from '@/lib/nudge-helpers';
 import { getRedis, leaderboardKey, studentNameKey } from '@/lib/redis';
 import { publishActivity } from '@/lib/activity';
 import { getTenantSettings } from '@/lib/get-tenant-settings';
@@ -1172,23 +1171,6 @@ export async function POST(req: NextRequest) {
     } catch (err: any) {
       console.error('[course/complete-attempt]', err);
       return NextResponse.json({ error: 'Failed to complete attempt.' }, { status: 500 });
-    }
-  }
-
-  // -- Delete active in-progress attempt (fresh restart) ---
-  if (action === 'clear-progress') {
-    const sessionUser = await getSessionUser(req);
-    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    const { course_id } = body;
-    if (!course_id) return NextResponse.json({ error: 'course_id required' }, { status: 400 });
-    try {
-      const supabase = adminClient();
-      await supabase.from('course_attempts').delete()
-        .eq('course_id', course_id).eq('student_id', sessionUser.id).is('completed_at', null);
-      return NextResponse.json({ ok: true });
-    } catch (err: any) {
-      console.error('[course/clear-progress]', err);
-      return NextResponse.json({ error: 'Failed to clear progress.' }, { status: 500 });
     }
   }
 

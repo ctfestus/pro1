@@ -18,7 +18,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
-import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles, HelpCircle } from 'lucide-react';
+import { Check, Plus, X, CheckCircle2, XCircle, RotateCcw, Loader2, Sparkles } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewPassed } from '@/lib/review-gate';
 import { AiReviewUpgradeNote, aiReviewResetWording, aiReviewAllowanceWording } from '@/components/AiReviewUpgradePrompt';
@@ -408,7 +408,6 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
 
   return (
     <NodeViewWrapper className={`lesson-check ${accent.className}`.trim()} data-state={state} contentEditable={false} style={wrapperStyle}>
-      <span className="lesson-check__label"><HelpCircle width={13} height={13} aria-hidden="true" /> Knowledge check</span>
       {format === 'written' && <span className="lesson-check__instruction">{instruction}</span>}
       {question && <p className="lesson-check__question">{question}</p>}
 

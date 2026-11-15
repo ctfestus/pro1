@@ -8,7 +8,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ArrowDown, ArrowUp, Copy, List, Plus, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Plus, X } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -177,7 +177,6 @@ function StepCardsView({ node, editor, getPos, updateAttributes }: NodeViewProps
 
   return (
     <NodeViewWrapper className={`lesson-step-cards ${accent.className}`.trim()} style={accent.style}>
-      {!editable && <span className="lesson-block-label" contentEditable={false}><List width={13} height={13} aria-hidden="true" /> Steps</span>}
       <NodeViewContent className="lesson-step-cards__items" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>

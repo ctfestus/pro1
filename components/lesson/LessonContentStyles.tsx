@@ -1115,7 +1115,6 @@ ${stepReveal}
 .lesson-content.dark .lesson-prompt { border: 1px solid rgba(255,255,255,0.065); background: #18181b; box-shadow: 0 20px 48px rgba(0,0,0,0.3); }
 .lesson-content .lesson-prompt__header { display: flex; align-items: center; gap: 12px; padding: 16px 16px 14px; }
 .lesson-content .lesson-prompt__heading { min-width: 0; flex: 1; }
-.lesson-content .lesson-prompt__eyebrow { display: block; margin-bottom: 1px; color: var(--lesson-accent-ink); font-size: 9.5px; font-weight: 800; letter-spacing: 0.15em; line-height: 1.4; text-transform: uppercase; }
 .lesson-content .lesson-prompt__title { margin: 0; color: #18181b; font-size: 15px; font-weight: 730; line-height: 1.35; }
 .lesson-content.dark .lesson-prompt__title { color: #fafafa; }
 .lesson-content .lesson-prompt__title-input { display: block; width: 100%; padding: 0; border: 0; outline: 0; color: #18181b; background: transparent; font: inherit; font-size: 15px; font-weight: 730; line-height: 1.35; }
@@ -1314,14 +1313,14 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content [data-node-view-content-react] > .node-timelineEntry:last-child .lesson-timeline__entry::after { display: none; }
 /* Wide enough for a short phrase (not just a year), right-aligned so short labels
    still hug the line; longer ones wrap within the column without shifting the dots. */
-.lesson-content .lesson-timeline__date-col { min-width: 0; padding-top: 1px; text-align: right; overflow-wrap: anywhere; }
+.lesson-content .lesson-timeline__date-col { min-width: 0; padding-top: 1px; text-align: right; overflow-wrap: break-word; }
 .lesson-content .lesson-timeline__dot { position: relative; min-width: 0; }
 .lesson-content .lesson-timeline__dot::before { content: ''; position: absolute; left: 50%; top: 5px; z-index: 1; width: 12px; height: 12px; transform: translateX(-50%); border: 3px solid color-mix(in oklab, var(--lesson-accent) 17%, #fff); border-radius: 999px; background: var(--lesson-accent); box-shadow: 0 0 0 4px var(--lesson-accent-ring); }
 .lesson-content.dark .lesson-timeline__dot::before { border-color: color-mix(in oklab, var(--lesson-accent) 18%, #18181b); }
-.lesson-content .lesson-timeline__content { min-width: 0; padding-bottom: 1px; }
+.lesson-content .lesson-timeline__content { min-width: 0; padding-bottom: 1px; overflow-wrap: anywhere; }
 .lesson-content .lesson-timeline__meta { display: flex; align-items: flex-start; gap: 8px; min-height: 24px; margin-bottom: 5px; }
 .lesson-content .lesson-timeline__date { display: inline-flex; max-width: 100%; padding: 3px 7px; border-radius: 7px; color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); font-size: 10.5px; font-weight: 760; letter-spacing: 0.025em; line-height: 1.35; text-align: right; }
-.lesson-content .lesson-timeline__title { color: #18181b; font-size: 1.04rem; font-weight: 720; line-height: 1.45; }
+.lesson-content .lesson-timeline__title { min-width: 0; overflow-wrap: anywhere; color: #18181b; font-size: 1.04rem; font-weight: 720; line-height: 1.45; }
 .lesson-content.dark .lesson-timeline__title { color: #fafafa; }
 .lesson-content .lesson-timeline__body { color: #52525b; }
 .lesson-content.dark .lesson-timeline__body { color: #b4b4bc; }
@@ -1409,7 +1408,6 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-check__option[data-wrong="true"] .lesson-check__letter { color: #f43f5e; }
 
 .lesson-content .lesson-check, .lesson-content.dark .lesson-check { padding: 4px 0; background: transparent; }
-.lesson-content .lesson-check__label { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--block-faint); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .lesson-content .lesson-check__instruction { display: block; margin: -2px 0 6px; color: var(--block-faint); font-size: 12.5px; }
 .lesson-content .lesson-check__question { font-size: 16px; font-weight: 600; }
 .lesson-content .lesson-check__option, .lesson-content.dark .lesson-check__option { background: var(--block-soft); }
@@ -1462,15 +1460,16 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-timeline__title { font-family: var(--ve-display-font, inherit); }
 /* No rounding: with rounded corners the browser draws a dashed border as a solid line. */
 .lesson-content .lesson-timeline__entry::after, .lesson-content.dark .lesson-timeline__entry::after { width: 0; border-radius: 0; background: none; border-left: 2px dashed var(--block-dash); }
+/* The date column fits the longest date (Timeline.tsx sets --tl-date-w, capped at 40% of the
+   width) and the line moves right with it, so dates wrap only past that cap. */
 @media (min-width: 561px) {
-  .lesson-content .lesson-timeline__entry { grid-template-columns: 56px 24px minmax(0, 1fr); }
-  .lesson-content .lesson-timeline__entry::after { left: 80px; }
+  .lesson-content .lesson-timeline__entry { grid-template-columns: var(--tl-date-w, 56px) 24px minmax(0, 1fr); }
+  .lesson-content .lesson-timeline__entry::after { left: calc(var(--tl-date-w, 56px) + 24px); }
 }
 
 /* Carousel: count and arrows in the header, slides on the soft panel */
 .lesson-content .lesson-carousel { padding: 12px 16px; border-radius: 14px; background: var(--block-soft); }
 .lesson-content .lesson-carousel__head { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
-.lesson-content .lesson-carousel__label { margin-right: auto; color: var(--block-faint); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; }
 .lesson-content .lesson-carousel__count { margin-right: 4px; color: var(--block-faint); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
 .lesson-content .lesson-carousel__arrow, .lesson-content .lesson-carousel__arrow:hover:not(:disabled) { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; color: inherit; background: var(--block-chip); box-shadow: none; transform: none; }
 .lesson-content .lesson-carousel__slide { background: transparent; box-shadow: none; }
@@ -1488,10 +1487,6 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
   .lesson-content .lesson-prompt__button { flex: 1 1 auto; }
 }
 /* ---- Second pass against the approved proposal: exact colours, sizes and labels ---- */
-/* A small grey label above blocks that name what they are (flip cards, steps, timeline, slides). */
-.lesson-content .lesson-block-label, .lesson-content .lesson-carousel__label { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 10px; color: var(--block-faint); font-size: 10.5px; font-weight: 700; letter-spacing: 0.1em; line-height: 1.4; text-transform: uppercase; }
-.lesson-content .lesson-carousel__label { margin-bottom: 0; }
-.ve-task-instructions .lesson-content .lesson-block-label { display: none; }
 
 /* Flip cards: the back is a light accent panel with dark text; the term is a small accent label. */
 .lesson-content .lesson-flip-deck__count { margin: -2px 0 10px; color: #5c6570; font-weight: 400; }
@@ -1582,7 +1577,6 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-prompt__copy-label { display: inline-grid; }
 .lesson-content .lesson-prompt__copy-label > span { grid-area: 1 / 1; text-align: left; }
 .lesson-content .lesson-prompt__copy-label > span[aria-hidden="true"] { visibility: hidden; }
-.lesson-content .lesson-prompt__eyebrow { color: var(--lesson-accent-ink); font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; }
 .lesson-content .lesson-prompt__title { font-size: 16px; font-weight: 600; }
 .lesson-content .lesson-prompt__status { padding: 4px 10px; font-size: 11.5px; font-weight: 700; }
 .lesson-content .lesson-prompt__surface { margin: 0; border-radius: 12px; padding: 12px 16px 14px; background: var(--block-soft); }
