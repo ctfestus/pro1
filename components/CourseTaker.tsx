@@ -2449,7 +2449,7 @@ export function CourseTaker({
       // Laid over the player, so the course stays in view behind a light scrim.
       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(15,23,42,0.35)' }}>
         <div role="dialog" aria-modal="true" aria-labelledby="pending-title"
-          className="w-full max-w-sm rounded-2xl p-5 flex flex-col gap-3"
+          className="w-full max-w-sm max-h-[85dvh] rounded-2xl p-5 flex flex-col gap-3"
           style={{ background: isDark ? '#1E1F26' : '#ffffff', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
           <div>
             <p id="pending-title" className={`text-[16px] font-semibold ${textColor}`}>
@@ -2465,7 +2465,8 @@ export function CourseTaker({
                   : 'Go back to them, or submit now and they count as wrong.'}
             </p>
           </div>
-          <div className="flex flex-col gap-1">
+          {/* Only the list scrolls, so Submit anyway and Keep going stay in view however long it gets. */}
+          <div className="flex flex-col gap-1 min-h-0 overflow-y-auto -mx-1 px-1">
             {finishPending.map((q: any) => {
               const idx = questions.findIndex((qq: any) => qq.id === q.id);
               const mod = moduleNoAt[idx];
@@ -2473,7 +2474,7 @@ export function CourseTaker({
                 <button
                   key={q.id}
                   onClick={() => goToQuestion(idx)}
-                  className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-opacity hover:opacity-80"
+                  className="flex-shrink-0 flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-opacity hover:opacity-80"
                   style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f5f7', color: txt }}
                 >
                   <span className="min-w-0 truncate">{slideTitle(q)}</span>
@@ -2482,7 +2483,7 @@ export function CourseTaker({
               );
             })}
           </div>
-          <div className="flex justify-end gap-2 pt-1">
+          <div className="flex-shrink-0 flex justify-end gap-2 pt-1">
             {pendingShares.length === 0 && (
             <button
               onClick={() => { setFinishPending(null); finishCourse(score); }}
