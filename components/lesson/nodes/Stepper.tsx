@@ -139,12 +139,13 @@ function StepperView({ node, editor, getPos, updateAttributes }: NodeViewProps) 
     <NodeViewWrapper className={`lesson-stepper ${accent.className}`.trim()} style={accent.style} data-revealed={shown} data-reveal={revealMode} data-complete={sequential && shown >= count ? 'true' : 'false'} data-editable={editable ? 'true' : 'false'}>
       <NodeViewContent className="lesson-stepper__steps" />
       {sequential && shown < count && (
-        <button type="button" className="lesson-stepper__next" onClick={() => setRevealed((r) => Math.min(r + 1, count))}>
-          <span className="lesson-stepper__next-dot" aria-hidden="true" />
-          <span>Continue</span>
+        <div className="lesson-stepper__next-row">
+          <button type="button" className="lesson-stepper__next" onClick={() => setRevealed((r) => Math.min(r + 1, count))}>
+            <span>Continue</span>
+            <ChevronDown width={15} height={15} aria-hidden="true" />
+          </button>
           <span className="lesson-stepper__progress">Step {shown} of {count}</span>
-          <ChevronDown width={15} height={15} aria-hidden="true" />
-        </button>
+        </div>
       )}
       {sequential && shown >= count && count > 1 && (
         <div className="lesson-stepper__done">

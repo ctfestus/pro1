@@ -3,7 +3,7 @@
 // Callout block: a styled note / tip / warning / info / success box that holds any
 // block content. Has an editable title, an editable eyebrow label, a pickable icon, a variant
 // (which sets the color scheme), and optional border-style + free border-color overrides.
-// Authors can also pick the corner shape, which edge the accent bar sits on, and a free accent
+// Authors can also pick the corner shape, an optional accent bar on one edge, and a free accent
 // color that replaces the variant's color across the bar, icon, label and tint.
 //
 // The variant sets the COLOR scheme and supplies the default label + icon. `label` and `icon`
@@ -36,15 +36,16 @@ const VARIANTS: Record<CalloutVariant, { label: string; Icon: typeof Info }> = {
 };
 
 type CalloutShape = 'rounded' | 'square';
-type CalloutAccentPosition = 'left' | 'top' | 'right' | 'bottom' | 'none';
+type CalloutAccentPosition = 'top' | 'right' | 'bottom' | 'none';
 
 const SHAPE_OPTIONS: { value: CalloutShape; label: string }[] = [
   { value: 'rounded', label: 'Rounded' },
   { value: 'square', label: 'Square' },
 ];
 
+// The left bar was the old default and is retired: the approved look is a tinted note with no side
+// bar, so 'left' (stored on every callout made before) now reads as 'none'.
 const ACCENT_POSITION_OPTIONS: { value: CalloutAccentPosition; label: string }[] = [
-  { value: 'left', label: 'Left' },
   { value: 'top', label: 'Top' },
   { value: 'right', label: 'Right' },
   { value: 'bottom', label: 'Bottom' },
@@ -109,7 +110,7 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
   const shape: CalloutShape = node.attrs.shape === 'square' ? 'square' : 'rounded';
   const accentPosition: CalloutAccentPosition = ACCENT_POSITION_OPTIONS.some((o) => o.value === node.attrs.accentPosition)
     ? (node.attrs.accentPosition as CalloutAccentPosition)
-    : 'left';
+    : 'none';
   const accentColor = ((node.attrs.accentColor as string) || '').trim();
   const actionLabel = (node.attrs.actionLabel as string) || '';
   const actionUrl = (node.attrs.actionUrl as string) || '';
@@ -163,14 +164,13 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
                 placeholder={fallback.label}
                 onCommit={(v) => updateAttributes({ label: v })}
               />
-            ) : (
-              <span className="lesson-callout__eyebrow">{label}</span>
-            )}
+            ) : null}
             {editable ? (
               <NodeTextInput className="lesson-callout__title-input" value={title} placeholder="Optional title" onCommit={(v) => updateAttributes({ title: v })} />
-            ) : title ? (
-              <p className="lesson-callout__title">{title}</p>
-            ) : null}
+            ) : (
+              // The learner sees one icon and one title. With no title, the label is the title.
+              <p className="lesson-callout__title">{title.trim() || label}</p>
+            )}
           </div>
           {editable && (
             <div className="lesson-callout__controls">
@@ -231,9 +231,9 @@ export const Callout = Node.create({
       icon: { default: '' },
       borderStyle: { default: 'none' },
       borderColor: { default: '' },
-      // Defaults reproduce the original look: rounded corners, bar on the left, variant color.
+      // Rounded corners, no accent bar, variant color.
       shape: { default: 'rounded' },
-      accentPosition: { default: 'left' },
+      accentPosition: { default: 'none' },
       accentColor: { default: '' },
       actionLabel: { default: '' },
       actionUrl: { default: '' },

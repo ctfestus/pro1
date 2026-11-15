@@ -847,7 +847,7 @@ export default function VirtualExperienceTaker({
   // Main layout
   return (
     <div className="relative flex flex-col h-screen overflow-hidden"
-      style={{ background: bg, color: text, fontFamily: VE_BODY_FONT, ['--ve-accent' as string]: accentColor }}>
+      style={{ background: bg, color: text, fontFamily: VE_BODY_FONT, ['--ve-accent' as string]: accentColor, ['--ve-display-font' as string]: VE_DISPLAY_FONT }}>
 
       <WorkplaceTopBar
         isDark={isDark} accentColor={accentColor} text={navText} muted={navMuted}
@@ -996,7 +996,10 @@ export default function VirtualExperienceTaker({
               const gateActive = !reviewMode && hasContent && hasReqs && !allCurrentDone;
               const hasContinued = continuedLessons.has(currentLes.id);
               const showGateButton = gateActive && !hasContinued;
-              const isCollapsible = gateActive && hasContinued;
+              // Once the learner has started the work, the brief stays folded for the visit, even after
+              // the last task is done. Unfolding it then pushed everything below it down the page,
+              // which read as a jump to the top.
+              const isCollapsible = !reviewMode && hasContent && hasReqs && hasContinued;
               const isContentExpanded = !isCollapsible || contentExpanded.has(currentLes.id);
               return (
             <>

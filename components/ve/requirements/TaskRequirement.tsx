@@ -1,11 +1,11 @@
 'use client';
 
-import { CheckSquare, Package, MessageCircle, Paperclip, Check } from 'lucide-react';
+import { Package, MessageCircle, Paperclip, Check } from 'lucide-react';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { resolveDeliverableAccent } from '@/lib/ve-accent';
 import { REQ_META, type RequirementProps } from './types';
-import { TaskHeader, TaskButton, TaskLink, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
+import { TaskHeader, TaskButton, TaskLink, TaskUndoButton, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
 /** Tasks, deliverables, and the reflection card that is the fallback for any other type. */
 export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
@@ -15,22 +15,27 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const done    = !!progress[req.id]?.completed;
   const noteVal = noteValues[req.id] ?? (progress[req.id]?.notes || '');
 
-  // Task and deliverable: read the instructions, then mark it done. A deliverable may carry its
+  // Deliverable: read the instructions, then mark it complete. The editor offers this as
+  // "Deliverable (Brief + Checkbox)" and saves it as type 'task' ('deliverable' is the older
+  // name), so both read as a deliverable to the learner. A deliverable may carry its
   // own accent colour; it styles the card's button and pill, while embedded instructions keep the
   // experience accent.
   if (req.type === 'task' || req.type === 'deliverable') {
-    const isTask = req.type === 'task';
     const t = taskTheme(isDark, resolveDeliverableAccent(req.accentColor, accentColor, !!isDark));
     const attachments = req.attachments || [];
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
-        <TaskHeader t={t} icon={isTask ? <CheckSquare className="w-3.5 h-3.5" /> : <Package className="w-3.5 h-3.5" />}
-          label={isTask ? 'Task' : 'Deliverable'} title={req.label}
+        <TaskHeader t={t} icon={<Package className="w-3.5 h-3.5" />}
+          label="Deliverable" title={req.label}
           description={!req.descriptionDoc && req.descriptionFormat !== 'rich' ? req.description : undefined}
-          done={done ? (isTask ? 'Done' : 'Complete') : null} />
+          done={done ? 'Complete' : null} />
 
         {req.descriptionDoc ? (
-          <LessonRenderer doc={req.descriptionDoc} isDark={isDark} accentColor={accentColor} />
+          // Scoped so guided steps inside a deliverable read as a plain numbered list: the card has
+          // its own "Mark complete", so a second Continue button there would compete with it.
+          <div className="ve-task-instructions">
+            <LessonRenderer doc={req.descriptionDoc} isDark={isDark} accentColor={accentColor} />
+          </div>
         ) : req.descriptionFormat === 'rich' && req.description ? (
           <div className="rich-content text-[13.5px] leading-relaxed" style={{ color: t.text }}
             dangerouslySetInnerHTML={{ __html: sanitizeRichTextWithImages(req.description) }} />
@@ -52,8 +57,8 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
         {!reviewMode && (
           <div className="flex items-center gap-3 pt-1">
             {done
-              ? <TaskLink t={t} onClick={() => toggleReq(req.id)}>Undo</TaskLink>
-              : <TaskButton t={t} onClick={() => toggleReq(req.id)}><Check className="w-4 h-4" strokeWidth={3} /> {isTask ? 'Mark as done' : 'Mark deliverable complete'}</TaskButton>}
+              ? <TaskUndoButton t={t} onClick={() => toggleReq(req.id)} />
+              : <TaskButton t={t} onClick={() => toggleReq(req.id)}><Check className="w-4 h-4" strokeWidth={3} /> Mark deliverable complete</TaskButton>}
           </div>
         )}
       </div>

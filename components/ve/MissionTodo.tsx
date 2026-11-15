@@ -21,6 +21,8 @@ export function todoSource(req: Requirement): string {
     case 'text': return 'Short answer';
     case 'reflection': return 'Reflection';
     case 'upload': return 'Upload';
+    // The editor's "Deliverable (Brief + Checkbox)" saves as 'task'.
+    case 'task':
     case 'deliverable': return 'Deliverable';
     case 'linkedin_share': return 'LinkedIn';
     case 'dashboard_critique':

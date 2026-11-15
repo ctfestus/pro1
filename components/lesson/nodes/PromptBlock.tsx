@@ -11,6 +11,7 @@ import {
   Check,
   Copy,
   ExternalLink,
+  MessageSquare,
 } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -207,6 +208,7 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
 
       <div className="lesson-prompt__footer">
         <div className="lesson-prompt__guidance">
+          <MessageSquare width={14} height={14} aria-hidden="true" />
           <span>{claudeTooLong ? 'This prompt is too long for a Claude handoff. Copy it instead.' : 'Review and personalize the prompt before sending.'}</span>
         </div>
         <div className="lesson-prompt__actions">
@@ -218,7 +220,13 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
             onClick={handleCopy}
           >
             {copyState === 'copied' ? <Check width={14} height={14} /> : <Copy width={14} height={14} />}
-            <span>{copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy prompt'}</span>
+            {/* The longest labels sit hidden in the same cell, so the button keeps one width and
+                the buttons beside it do not shift when it switches to Copied. */}
+            <span className="lesson-prompt__copy-label">
+              <span aria-hidden="true">Copy prompt</span>
+              <span aria-hidden="true">Copy failed</span>
+              <span>{copyState === 'copied' ? 'Copied' : copyState === 'failed' ? 'Copy failed' : 'Copy prompt'}</span>
+            </span>
           </button>
           {showChatGpt && (
             <ProviderLink
@@ -235,7 +243,6 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
               href={claudeUrl}
               className="lesson-prompt__button lesson-prompt__button--claude"
               label="Claude"
-              showLabel={false}
               title={claudeTooLong ? `Claude prompt links support up to ${CLAUDE_PROMPT_MAX_LENGTH.toLocaleString()} characters` : claudeUrl ? 'Open a new Claude chat with this prompt' : 'Add a prompt to enable this action'}
             >
               <img className="lesson-prompt__brand-icon lesson-prompt__brand-icon--wide" src={CLAUDE_ICON} alt="" aria-hidden="true" />

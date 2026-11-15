@@ -16,7 +16,7 @@ import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { Fragment } from '@tiptap/pm/model';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, type NodeViewProps } from '@tiptap/react';
-import { ChevronLeft, ChevronRight, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Monitor, Plus, Trash2, Image as ImageIcon } from 'lucide-react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, Segmented, StyleMenu, MenuRow, accentScope, BORDER_STYLE_OPTIONS, type BorderStyle } from '@/components/lesson/nodes/StyleControls';
@@ -104,7 +104,10 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
 
   return (
     <NodeViewWrapper className={`lesson-carousel ${accent.className}`.trim()} data-active={current} data-hint={!editable && !hasNavigated && count > 1 ? 'true' : 'false'} style={cardVars}>
-      <div className="lesson-carousel__viewport">
+      {/* Count and arrows sit in the carousel's own header, where the learner looks for them. */}
+      <div className="lesson-carousel__head" contentEditable={false}>
+        <span className="lesson-carousel__label"><Monitor width={13} height={13} aria-hidden="true" /> Slides</span>
+        <span className="lesson-carousel__count" aria-live="polite">{current + 1} of {count}</span>
         <button
           type="button"
           className="lesson-carousel__arrow"
@@ -113,17 +116,8 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => go(current - 1)}
         >
-          <ChevronLeft width={18} height={18} aria-hidden="true" />
+          <ChevronLeft width={16} height={16} aria-hidden="true" />
         </button>
-        <div className="lesson-carousel__stage">
-          {!editable && !hasNavigated && count > 1 && (
-            <div className="lesson-carousel__hint" role="status">
-              <span className="lesson-carousel__hint-dot" aria-hidden="true" />
-              <span>Use the arrows to explore</span>
-            </div>
-          )}
-          <NodeViewContent className="lesson-carousel__slides" />
-        </div>
         <button
           type="button"
           className="lesson-carousel__arrow"
@@ -132,8 +126,13 @@ function CarouselView({ node, editor, getPos, updateAttributes }: NodeViewProps)
           onMouseDown={(event) => event.preventDefault()}
           onClick={() => go(current + 1)}
         >
-          <ChevronRight width={18} height={18} aria-hidden="true" />
+          <ChevronRight width={16} height={16} aria-hidden="true" />
         </button>
+      </div>
+      <div className="lesson-carousel__viewport">
+        <div className="lesson-carousel__stage">
+          <NodeViewContent className="lesson-carousel__slides" />
+        </div>
       </div>
 
       <div className="lesson-carousel__footer" contentEditable={false}>
