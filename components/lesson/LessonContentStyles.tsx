@@ -1361,7 +1361,8 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
 .lesson-content .lesson-callout { grid-template-columns: 30px minmax(0,1fr); gap: 12px; padding: 12px 14px; border-radius: 12px; --callout-surface: color-mix(in oklab, var(--callout-accent) 10%, #ffffff); box-shadow: none; }
 .lesson-content.dark .lesson-callout { --callout-surface: color-mix(in oklab, var(--callout-accent) 13%, transparent); }
 .lesson-content .lesson-callout[data-accent="top"], .lesson-content .lesson-callout[data-accent="bottom"], .lesson-content .lesson-callout[data-accent="none"], .lesson-content .lesson-callout[data-accent="right"] { padding: 12px 14px; }
-.lesson-content .lesson-callout__icon-wrap, .lesson-content.dark .lesson-callout__icon-wrap { width: 30px; height: 30px; border-radius: 9px; background: var(--block-chip); }
+.lesson-content .lesson-callout__icon-wrap { width: 30px; height: 30px; border-radius: 9px; background: #ffffff; }
+.lesson-content.dark .lesson-callout__icon-wrap { background: #1B1C1F; }
 .lesson-content .lesson-callout__head { min-height: 0; margin-bottom: 2px; }
 .lesson-content .lesson-callout__title { margin: 0; font-family: var(--ve-display-font, inherit); font-size: 14.5px; font-weight: 600; line-height: 1.45; padding-top: 5px; }
 .lesson-content .lesson-callout__body { font-size: 14px; }
