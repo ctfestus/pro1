@@ -1068,7 +1068,7 @@ export default function VirtualExperienceTaker({
                     )}
 
                     {showGateButton && (
-                      <div className="px-4 sm:px-8 pb-8 flex flex-col items-center gap-2"
+                      <div className="px-4 sm:px-8 pb-8 flex flex-col items-start gap-2"
                         style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#F2F5FA'}` }}>
                         <button onClick={() => continueToTasks(currentLes.id)}
                           className="flex items-center gap-2 px-6 py-3 rounded-2xl font-bold text-[14px] transition-all hover:opacity-90"
