@@ -1550,7 +1550,6 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           initialLessonId={projectInitLesId}
           isDark={studentTheme === 'dark'}
           accentColor={indColor}
-          shortCourse={!!form.is_short_course}
           logoUrl={logoUrl}
           logoDarkUrl={logoDarkUrl}
           previewMode={projectPreviewMode}
@@ -1579,11 +1578,10 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     const managerName = (config as any).managerName || 'Your manager';
     const managerInitials = managerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
     const dataset = (config as any).dataset;
-    const isShortCourse = !!(form as any).is_short_course;
     // The real professional behind the experience. Shown before enrolment on the hero,
     // the brief and the sidebar; null when the VE has no consented guide, in which case
     // the fictional manager is used instead.
-    const guide = isShortCourse ? null : publicGuide(config);
+    const guide = publicGuide(config);
     // Borderless, like every other card on this page.
     const guideTheme = { text: gp.title, muted: gp.muted, faint: gp.muted, surface: gp.card, border: 'transparent', accent: indColor };
     // Facts a learner wants before starting, from fields the experience already has.
@@ -1591,7 +1589,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     const facts: { Icon: typeof Clock; label: string }[] = [
       ...(duration ? [{ Icon: Clock, label: duration }] : []),
       ...(totalLessons ? [{ Icon: ListChecks, label: `${totalLessons} ${totalLessons === 1 ? 'mission' : 'missions'}` }] : []),
-      ...(!isShortCourse && config.difficulty ? [{ Icon: Zap, label: String(config.difficulty).replace(/^./, (c: string) => c.toUpperCase()) }] : []),
+      ...(config.difficulty ? [{ Icon: Zap, label: String(config.difficulty).replace(/^./, (c: string) => c.toUpperCase()) }] : []),
       { Icon: BadgeCheck, label: 'Certificate on completion' },
     ];
     const ctaStyle = { width: '100%', padding: '13px', borderRadius: 12, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' } as const;
@@ -1607,8 +1605,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <img src={(isLight ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
           </Link>
-          <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: `${indColor}18`, color: indColor, fontWeight: 700, letterSpacing: '0.02em', textTransform: isShortCourse ? 'none' : 'capitalize' }}>
-            {isShortCourse ? 'Short Course' : config.industry}
+          <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: `${indColor}18`, color: indColor, fontWeight: 700, letterSpacing: '0.02em', textTransform: 'capitalize'}}>
+            {config.industry}
           </span>
         </nav>
 
@@ -1623,14 +1621,12 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           {/* Content */}
           <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 32px' }}>
             {/* Company and role (VE only). The role sits on a frosted chip so it reads on any cover. */}
-            {!isShortCourse && (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
                 <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>{config.company}</span>
                 {config.role && (
                   <span style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)' }}>{config.role}</span>
                 )}
               </div>
-            )}
             {/* Title and tagline in one column at a reading width, as on the course hero, so a
                 long title wraps short of the far edge. The title balances its lines. */}
             <div style={{ maxWidth: 680 }}>
@@ -1673,7 +1669,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
             {/* The brief (VE only): who it is from, then what it says. */}
-            {!isShortCourse && config.background && (
+            {config.background && (
               <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden', boxShadow: cardShadow }}>
                 <div style={{ padding: '12px 22px', background: gp.subtle, display: 'flex', alignItems: 'center', gap: 10 }}>
                   {guide
@@ -1760,14 +1756,14 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 <button onClick={handleStartProject} style={ctaStyle}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
-                  {isShortCourse ? 'Start Course' : 'Start Virtual Experience'} <ArrowRight style={{ width: 15, height: 15 }} />
+                  Start Virtual Experience <ArrowRight style={{ width: 15, height: 15 }} />
                 </button>
               )}
 
               {/* Dataset download (VE only). Signed-out visitors are sent to sign in first:
                   the dataset belongs to the experience, not to its public sales page. Their
                   preview carries only hasDataset, never the dataset or its link. */}
-              {!isShortCourse && (signedOut ? (form.hasDataset && !form.locked) : (dataset?.csvContent || dataset?.url)) && (signedOut ? (
+              {(signedOut ? (form.hasDataset && !form.locked) : (dataset?.csvContent || dataset?.url)) && (signedOut ? (
                 <Link href={backHere} style={secondaryStyle}>
                   <Lock style={{ width: 14, height: 14 }} /> Sign in to download dataset
                 </Link>

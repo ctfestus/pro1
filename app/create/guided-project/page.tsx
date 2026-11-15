@@ -531,7 +531,6 @@ function VirtualExperienceCreatePageInner() {
 
   // Step 1 state
   const [creationMode, setCreationMode] = useState<'ai' | 'data' | 'manual' | null>(null);
-  const [isShortCourse, setIsShortCourse] = useState(false);
   const [industry,    setIndustry]    = useState('fintech');
   const [customIndustry, setCustomIndustry] = useState('');
   const effectiveIndustry = industry === 'other' ? (customIndustry.trim() || 'other') : industry;
@@ -699,7 +698,6 @@ function VirtualExperienceCreatePageInner() {
             setIndustry('fintech');
           }
           setDifficulty(cfg.difficulty || 'intermediate');
-          setIsShortCourse(!!(ve as any).is_short_course);
           if (cfg.dataset?.url) setDatasetUrl(cfg.dataset.url);
           if (cfg.dataset?.filename) setDatasetFilename(cfg.dataset.filename);
           if (cfg.dataset?.description) setDatasetDescription(cfg.dataset.description);
@@ -1009,7 +1007,7 @@ function VirtualExperienceCreatePageInner() {
   // someone tries to leave, not on every keystroke. A loaded experience starts clean; a new one
   // (generated or blank) counts as unsaved until its first save.
   const savedSnapshot = useRef<string | null>(null);
-  const snapshotNow = () => JSON.stringify([config, title, coverImage, selectedCohorts, availableToEveryone, deadlineDays, industry, customIndustry, difficulty, isShortCourse]);
+  const snapshotNow = () => JSON.stringify([config, title, coverImage, selectedCohorts, availableToEveryone, deadlineDays, industry, customIndustry, difficulty]);
   const hasUnsavedChanges = () => step === 2 && !!config && savedSnapshot.current !== null && savedSnapshot.current !== snapshotNow();
   const unsavedRef = useRef(hasUnsavedChanges);
   unsavedRef.current = hasUnsavedChanges;
@@ -1530,7 +1528,6 @@ function VirtualExperienceCreatePageInner() {
           group_ids:  [],
           deadline_days: deadlineDays ? Number(deadlineDays) : null,
           status,
-          is_short_course: isShortCourse,
         }),
       });
 
@@ -1703,34 +1700,6 @@ function VirtualExperienceCreatePageInner() {
               ))}
             </div>
 
-            {/* Short Course toggle */}
-            <button
-              type="button"
-              onClick={() => setIsShortCourse(v => !v)}
-              className="w-full flex items-center justify-between p-4 rounded-2xl text-left transition-all"
-              style={{
-                border: 'none',
-                background: isShortCourse ? `${C.cta}14` : C.pill,
-                boxShadow: isShortCourse ? `0 0 0 2px ${C.cta}` : 'none',
-              }}
-            >
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: C.card, color: C.muted }}>
-                  <Star className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className="text-[14px] font-bold" style={{ color: C.text }}>Short course mode</p>
-                  <p className="text-[12px]" style={{ color: C.muted }}>A simpler format with no company or dataset: lessons, questions and AI review only.</p>
-                </div>
-              </div>
-              <div className="flex-shrink-0 ml-3">
-                <div className="w-10 h-6 rounded-full relative transition-colors flex-shrink-0"
-                  style={{ background: isShortCourse ? C.cta : C.divider }}>
-                  <div className="w-4 h-4 rounded-full bg-white absolute top-1 transition-all"
-                    style={{ left: isShortCourse ? '22px' : '4px', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                </div>
-              </div>
-            </button>
 
             {/* Config card: appears when mode selected */}
             {creationMode && (

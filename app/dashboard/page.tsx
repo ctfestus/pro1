@@ -176,7 +176,7 @@ export default function DashboardPage() {
           guideId: v.guide_id, guideSnapshot: v.guide_snapshot, dataset: v.dataset,
           coverImage: v.cover_image, deadline_days: v.deadline_days,
           theme: v.theme, mode: v.mode, font: v.font, customAccent: v.custom_accent,
-          isShortCourse: !!v.is_short_course, badgeImageUrl: v.badge_image_url,
+          badgeImageUrl: v.badge_image_url,
         }});
       }
 

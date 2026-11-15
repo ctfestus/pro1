@@ -647,7 +647,6 @@ export default function CreateAssignmentPage() {
           mode: ve.mode,
           font: ve.font,
           customAccent: ve.custom_accent,
-          isShortCourse: !!ve.is_short_course,
           badgeImageUrl: ve.badge_image_url,
           managerName: ve.manager_name,
           managerTitle: ve.manager_title,

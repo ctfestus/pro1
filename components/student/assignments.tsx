@@ -181,7 +181,6 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
                 mode: veData.mode,
                 font: veData.font,
                 customAccent: veData.custom_accent,
-                isShortCourse: !!veData.is_short_course,
                 badgeImageUrl: veData.badge_image_url,
               },
             });
