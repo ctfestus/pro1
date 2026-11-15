@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_VE_ACCENT,
-  DELIVERABLE_ACCENT_PRESETS,
   contrastRatio,
-  deliverableAccentForType,
   onAccent,
   readableAccent,
   resolveDeliverableAccent,
@@ -55,17 +53,4 @@ describe('deliverable accent', () => {
     expect(shown).toMatch(/^#[0-9a-f]{6}$/);
   });
 
-  it('ships presets that already meet the contrast floor in both themes', () => {
-    for (const color of DELIVERABLE_ACCENT_PRESETS.filter(c => c !== DEFAULT_VE_ACCENT)) {
-      expect(readableAccent(color, false)).toBe(color);
-      expect(readableAccent(color, true)).toBe(color);
-    }
-  });
-
-  it('drops the color when a deliverable becomes another requirement type', () => {
-    expect(deliverableAccentForType('#3E93FF', 'task')).toBe('#3E93FF');
-    expect(deliverableAccentForType('#3E93FF', 'deliverable')).toBe('#3E93FF');
-    expect(deliverableAccentForType('#3E93FF', 'mcq')).toBeUndefined();
-    expect(deliverableAccentForType('#3E93FF', 'upload')).toBeUndefined();
-  });
 });

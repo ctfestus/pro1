@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LOCKABLE_CODE_REVIEW_LANGUAGES } from '@/lib/code-review-languages';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
-import { DEFAULT_VE_ACCENT, DELIVERABLE_ACCENT_PRESETS, deliverableAccentForType, isVeAccent } from '@/lib/ve-accent';
+import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
 import { uploadToGithub } from '@/lib/uploadToGithub';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -23,10 +23,7 @@ import {
 } from '@/lib/ve-deliverable-content';
 import { useTheme } from '@/components/ThemeProvider';
 import {
-  ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, ChevronLeft,
-  Plus, Trash2, X, Check, Upload, Pencil, Star, Clock, Download,
-  Link as LinkIcon, FileText, FileCode, Database, PenLine, Table, GripVertical, Video, Search, Eye, Images, Paperclip, Mail,
-  Blocks, Building2, MessageSquareText, Workflow, Palette, CheckCircle2, AlertTriangle,
+  ArrowLeft, Sparkles, Loader2, Save, ChevronDown, ChevronUp, ChevronRight, Plus, Trash2, X, Check, Upload, Star, Clock, Link as LinkIcon, FileText, FileCode, Database, PenLine, Table, GripVertical, Video, Search, Eye, Images, Paperclip, Mail, Blocks, Building2, MessageSquareText, Workflow, CheckCircle2, AlertTriangle,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -295,11 +292,11 @@ const INDUSTRIES = [
 
 // Carousel sections for the step-2 editor
 const VE_SECTIONS = [
-  { id: 'overview',   label: 'Overview', Icon: Blocks },
-  { id: 'setup',      label: 'Setup', Icon: Building2 },
+  // 'overview' is the Details tab: the experience card, then industry, duration and level, then
+  // the cover image and badge. They were three tabs (Overview, Setup, Branding) for one subject.
+  { id: 'overview',   label: 'Details', Icon: Blocks },
   { id: 'brief',      label: 'Brief', Icon: MessageSquareText },
   { id: 'curriculum', label: 'Curriculum', Icon: Workflow },
-  { id: 'branding',   label: 'Branding', Icon: Palette },
   { id: 'delivery',   label: 'Publish', Icon: CheckCircle2 },
 ] as const;
 
@@ -928,9 +925,41 @@ function VirtualExperienceCreatePageInner() {
     updateModule(moduleId, { lessons: [...(config?.modules.find(m => m.id === moduleId)?.lessons ?? []), lesson] });
   };
 
+  // Deleting is immediate and there is no undo, so anything that holds work asks first. An empty
+  // milestone, mission or task goes without a prompt.
+  // Unsaved changes. Nothing here autosaves, so leaving the page (closing the tab, reloading, or
+  // the back arrow) with changes since the last save asks first. The comparison runs only when
+  // someone tries to leave, not on every keystroke. A loaded experience starts clean; a new one
+  // (generated or blank) counts as unsaved until its first save.
+  const savedSnapshot = useRef<string | null>(null);
+  const snapshotNow = () => JSON.stringify([config, title, coverImage, selectedCohorts, availableToEveryone, deadlineDays, industry, customIndustry, difficulty, isShortCourse]);
+  const hasUnsavedChanges = () => step === 2 && !!config && savedSnapshot.current !== null && savedSnapshot.current !== snapshotNow();
+  const unsavedRef = useRef(hasUnsavedChanges);
+  unsavedRef.current = hasUnsavedChanges;
+  useEffect(() => {
+    if (step !== 2 || !config || savedSnapshot.current !== null) return;
+    // Give a loaded experience a moment for its editors to settle before taking the baseline.
+    if (!editId) { savedSnapshot.current = ''; return; }
+    const timer = setTimeout(() => { if (savedSnapshot.current === null) savedSnapshot.current = snapshotNow(); }, 1200);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, config, editId]);
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { if (unsavedRef.current()) { e.preventDefault(); e.returnValue = ''; } };
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, []);
+
   const removeLesson = (moduleId: string, lessonId: string) => {
     const m = config?.modules.find(m => m.id === moduleId);
-    if (m) updateModule(moduleId, { lessons: m.lessons.filter(l => l.id !== lessonId) });
+    if (!m) return;
+    const les = m.lessons.find(l => l.id === lessonId);
+    const hasWork = !!les && (les.requirements.length > 0 || !!(les.body || '').replace(/<[^>]*>/g, '').trim() || !!les.doc);
+    if (hasWork) {
+      const n = les!.requirements.length;
+      if (!window.confirm(`Delete the mission "${les!.title || 'Untitled'}"${n ? ` and its ${n} task${n === 1 ? '' : 's'}` : ''}? This cannot be undone.`)) return;
+    }
+    updateModule(moduleId, { lessons: m.lessons.filter(l => l.id !== lessonId) });
   };
 
   // Moves a mission to a different milestone (appended at the end), since the
@@ -961,11 +990,20 @@ function VirtualExperienceCreatePageInner() {
   };
 
   const removeModule = (moduleId: string) => {
+    const mod = config?.modules.find(m => m.id === moduleId);
+    const n = mod?.lessons.length ?? 0;
+    if (n > 0 && !window.confirm(`Delete the milestone "${mod!.title || 'Untitled'}" and its ${n} mission${n === 1 ? '' : 's'}? This cannot be undone.`)) return;
     setConfig(c => c ? { ...c, modules: c.modules.filter(m => m.id !== moduleId) } : c);
   };
 
+  // Which tasks are open for editing. Closed by default, so an open mission is a short list of
+  // rows (number, type, title) rather than every task's full editor; a new task opens itself.
+  const [openReqs, setOpenReqs] = useState<Set<string>>(new Set());
+  const toggleReqOpen = (reqId: string) => setOpenReqs(prev => { const next = new Set(prev); if (next.has(reqId)) next.delete(reqId); else next.add(reqId); return next; });
+
   const addReq = (moduleId: string, lessonId: string) => {
     const req: Requirement = { id: `req-${uid()}`, label: '', description: '', type: 'mcq', options: ['', '', '', ''], correctAnswer: '' };
+    setOpenReqs(prev => new Set([...prev, req.id]));
     updateLesson(moduleId, lessonId, {
       requirements: [...(config?.modules.find(m=>m.id===moduleId)?.lessons.find(l=>l.id===lessonId)?.requirements ?? []), req],
     });
@@ -973,7 +1011,11 @@ function VirtualExperienceCreatePageInner() {
 
   const removeReq = (moduleId: string, lessonId: string, reqId: string) => {
     const l = config?.modules.find(m=>m.id===moduleId)?.lessons.find(l=>l.id===lessonId);
-    if (l) updateLesson(moduleId, lessonId, { requirements: l.requirements.filter(r => r.id !== reqId) });
+    if (!l) return;
+    const req = l.requirements.find(r => r.id === reqId);
+    const hasWork = !!req && [req.label, req.description, req.emailBody, req.expectedAnswer, req.schema, req.context, req.sharePrompt].some(v => !!(v || '').replace(/<[^>]*>/g, '').trim());
+    if (hasWork && !window.confirm(`Delete the task "${(req!.label || 'Untitled').slice(0, 60)}"? This cannot be undone.`)) return;
+    updateLesson(moduleId, lessonId, { requirements: l.requirements.filter(r => r.id !== reqId) });
   };
 
   // Moves a task/deliverable to a different mission (appended at the end), since
@@ -1377,7 +1419,7 @@ function VirtualExperienceCreatePageInner() {
       const readinessIssues = validateVirtualExperienceForPublish(config);
       if (readinessIssues.length) {
         setSaveError(readinessIssues[0].message);
-        setActiveSection(readinessIssues[0].section);
+        setActiveSection(readinessIssues[0].section === 'branding' ? 'overview' : readinessIssues[0].section);
         return;
       }
     }
@@ -1428,6 +1470,7 @@ function VirtualExperienceCreatePageInner() {
       if (json.slug) setVeSlug(json.slug);
       if (json.registrationWarning) setSaveWarning(json.registrationWarning);
       setSaveSuccess(true);
+      savedSnapshot.current = snapshotNow();
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (e: any) {
       setSaveError(e.message);
@@ -1449,10 +1492,6 @@ function VirtualExperienceCreatePageInner() {
     borderRadius: 18, boxShadow: 'none',
   } as React.CSSProperties;
 
-  const REQ_COLORS: Record<string, string> = {
-    task: '#3b82f6', deliverable: '#10b981', reflection: '#8b5cf6',
-  };
-
   return (
     <div className="min-h-screen" style={{ background: C.page, color: C.text, fontFamily: "'Google Sans', 'Inter', sans-serif" }}>
       {/* Experience Studio header */}
@@ -1462,6 +1501,7 @@ function VirtualExperienceCreatePageInner() {
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3 min-w-0">
               <Link href="/dashboard" aria-label="Back to dashboard"
+                onClick={e => { if (hasUnsavedChanges() && !window.confirm('You have unsaved changes. Leave without saving?')) e.preventDefault(); }}
                 className="flex items-center justify-center w-9 h-9 rounded-xl transition-all hover:opacity-70 flex-shrink-0"
                 style={{ color: C.muted, background: C.pill }}>
                 <ArrowLeft className="w-4 h-4" />
@@ -1495,7 +1535,7 @@ function VirtualExperienceCreatePageInner() {
                   </span>
                 )}
                 <button onClick={() => handleSave('draft')} disabled={saving}
-                  className="hidden sm:flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:opacity-70"
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-[12px] font-semibold transition-colors hover:opacity-70"
                   style={{ color: C.muted, background: 'transparent' }}>
                   {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
                   Save draft
@@ -1937,22 +1977,6 @@ function VirtualExperienceCreatePageInner() {
                     );
                   })}
                 </nav>
-                <div className="flex items-center justify-between gap-4 px-6 sm:px-8 pt-6 pb-5" style={{ borderBottom: `1px solid ${C.divider}` }}>
-                  <div className="min-w-0">
-                    <h2 className="text-lg sm:text-xl font-bold leading-tight truncate" style={{ color: C.text }}>{VE_SECTIONS[si]?.label}</h2>
-                    <p className="text-[11px] mt-1 font-medium tracking-wide uppercase" style={{ color: C.faint }}>Step {si + 1} of {ids.length}</p>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <button type="button" disabled={si <= 0} onClick={() => goToSection(ids[si - 1])} aria-label="Previous"
-                      className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70 disabled:opacity-30" style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                      <ChevronLeft className="w-4 h-4" />
-                    </button>
-                    <button type="button" disabled={si >= ids.length - 1} onClick={() => goToSection(ids[si + 1])} aria-label="Next"
-                      className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70 disabled:opacity-30" style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-                      <ChevronRight className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
                 <AnimatePresence mode="wait" custom={secDir}>
                 <motion.div key={activeSection} custom={secDir}
                   initial={{ opacity: 0, x: secDir * 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: secDir * -28 }}
@@ -1970,12 +1994,11 @@ function VirtualExperienceCreatePageInner() {
                       <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.55) 0%, transparent 60%)' }} />
                     </div>
                   ) : (
-                    <button type="button" onClick={() => goToSection('branding')}
+                    <button type="button" onClick={() => document.getElementById('ve-cover-image')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                       className="w-full flex flex-col items-center justify-center gap-2 transition-opacity hover:opacity-75"
                       style={{ height: 132, background: C.card, color: C.muted }}>
                       <Images className="w-6 h-6" />
                       <span className="text-[12px] font-semibold">Add cover image</span>
-                      <span className="text-[10px]" style={{ color: C.faint }}>Opens Branding</span>
                     </button>
                   )}
 
@@ -2357,7 +2380,6 @@ function VirtualExperienceCreatePageInner() {
                             <SortableContext items={(mod.lessons || []).map(l => l.id)} strategy={verticalListSortingStrategy}>
                             {(mod.lessons || []).map((les, li) => {
                               const reqCount  = les.requirements?.length || 0;
-                              const estTime   = reqCount <= 2 ? '15-30 mins' : reqCount <= 4 ? '30-60 mins' : '45-90 mins';
                               const expandKey = `${mod.id}-${les.id}`;
                               return (
                               <SortableVEShell key={les.id} id={les.id}>
@@ -2381,16 +2403,12 @@ function VirtualExperienceCreatePageInner() {
                                       placeholder="Mission title…"
                                     />
                                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                                      <div className="flex items-center gap-1" style={{ color: C.faint }}>
-                                        <Clock className="w-3 h-3" />
-                                        <span className="text-[11px]">{estTime}</span>
-                                      </div>
                                       <button onClick={() => toggleModule(expandKey)}
                                         className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-70"
                                         style={{ background: C.pill, color: C.muted }}>
                                         {expandedModules.has(expandKey)
                                           ? <><ChevronDown className="w-3 h-3" /> Hide</>
-                                          : <><ChevronRight className="w-3 h-3" /> {reqCount} deliverable{reqCount !== 1 ? 's' : ''}</>}
+                                          : <><ChevronRight className="w-3 h-3" /> {reqCount} task{reqCount !== 1 ? 's' : ''}</>}
                                       </button>
                                       {(config.modules || []).filter(m => m.id !== mod.id).length > 0 && (
                                         <select value="" title="Move this mission to a different milestone"
@@ -2421,6 +2439,8 @@ function VirtualExperienceCreatePageInner() {
                                           bodyFallback={les.body}
                                           onChange={({ doc, body }) => updateLesson(mod.id, les.id, { doc, body })}
                                           placeholder="Write the mission content here. What should the student read, understand, or do?"
+                                          isDark={C === DARK_C}
+                                          accentColor={DEFAULT_VE_ACCENT}
                                         />
                                       </div>
                                       <div className="flex items-center gap-2">
@@ -2462,36 +2482,28 @@ function VirtualExperienceCreatePageInner() {
                                       {/* Tasks */}
                                       <div className="space-y-2">
                                         <div className="flex items-center gap-2">
-                                          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.muted }}>Deliverables</span>
+                                          <span className="text-[11px] font-black uppercase tracking-widest" style={{ color: C.muted }}>Tasks</span>
                                           <div className="flex-1 h-px" style={{ background: C.divider }}/>
                                         </div>
                                         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleReqDragEnd(mod.id, les.id)}>
                                         <SortableContext items={les.requirements.map(r => r.id)} strategy={verticalListSortingStrategy}>
                                         {les.requirements.map((req, qi) => {
                                           const opts = req.options?.length === 4 ? req.options : ['', '', '', ''];
-                                          const TYPE_COLORS: Record<string, { bg: string; color: string; label: string }> = {
-                                            mcq:    { bg: `${C.cta}18`,              color: C.cta,       label: 'Multiple Choice' },
-                                            text:               { bg: 'rgba(139,92,246,0.12)',   color: '#8b5cf6',   label: 'Short Answer'       },
-                                            upload:             { bg: 'rgba(245,158,11,0.12)',   color: '#f59e0b',   label: 'File Upload'         },
-                                            task:               { bg: 'rgba(59,130,246,0.12)',   color: '#3b82f6',   label: 'Deliverable (Brief + Checkbox)' },
-                                            briefing:           { bg: 'rgba(59,130,246,0.12)',   color: '#3b82f6',   label: 'Inbox Email' },
-                                            scenario_update:    { bg: 'rgba(245,158,11,0.12)',   color: '#f59e0b',   label: 'Team Chat Update' },
-                                            decision:           { bg: 'rgba(139,92,246,0.12)',   color: '#8b5cf6',   label: 'Chat Decision Thread' },
-                                            debrief:            { bg: 'rgba(20,184,166,0.12)',   color: '#14b8a6',   label: 'Email Update Composer' },
-                                            dashboard_critique: { bg: 'rgba(16,185,129,0.12)',   color: '#10b981',   label: 'AI Dashboard Critique' },
-                                            code_review:        { bg: 'rgba(99,102,241,0.12)',   color: '#6366f1',   label: 'AI Code Review' },
-                                            excel_review:       { bg: 'rgba(34,197,94,0.12)',    color: '#22c55e',   label: 'AI Excel Review' },
-                                            document_review:    { bg: 'rgba(14,165,233,0.12)',   color: '#0ea5e9',   label: 'AI Document Review' },
-                                          };
-                                          const tc = TYPE_COLORS[req.type] || TYPE_COLORS.mcq;
+                                          // One neutral style for the notes that say what a task type does.
+                                          const tc = { bg: C.pill, color: C.muted };
                                           return (
                                             <SortableVEShell key={req.id} id={req.id}>
                                             {({ dragHandle: reqDragHandle }) => (
                                             <div className="rounded-xl p-3.5 space-y-3 group" style={{ background: C.card, boxShadow: C === DARK_C ? '0 0 0 1px rgba(255,255,255,0.05)' : '0 0 0 1px rgba(15,23,42,0.06)' }}>
                                               <div className="flex items-center gap-2">
                                                 {reqDragHandle}
-                                                <span className="text-[11px] font-bold px-2 py-0.5 rounded-full flex-shrink-0"
-                                                  style={{ background: C.card, color: C.muted }}>Deliverable {qi + 1}</span>
+                                                <button type="button" onClick={() => toggleReqOpen(req.id)} aria-expanded={openReqs.has(req.id)}
+                                                  title={openReqs.has(req.id) ? 'Close this task' : 'Open this task to edit it'}
+                                                  className="flex flex-shrink-0 items-center gap-1 rounded-full py-0.5 pl-1 pr-2 text-[11px] font-bold transition-opacity hover:opacity-70"
+                                                  style={{ background: C.card, color: C.muted }}>
+                                                  {openReqs.has(req.id) ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+                                                  Task {qi + 1}
+                                                </button>
                                                 <select value={req.type}
                                                   onChange={e => {
                                                     const type = e.target.value as Requirement['type'];
@@ -2504,7 +2516,7 @@ function VirtualExperienceCreatePageInner() {
                                                         : req.description,
                                                       descriptionFormat: isDeliverable && wasDeliverable ? req.descriptionFormat : undefined,
                                                       descriptionDoc: isDeliverable && wasDeliverable ? req.descriptionDoc : undefined,
-                                                      accentColor: deliverableAccentForType(req.accentColor, type),
+                                                      accentColor: undefined,
                                                       options: type === 'mcq'
                                                         ? ['', '', '', '']
                                                         : type === 'decision'
@@ -2524,28 +2536,32 @@ function VirtualExperienceCreatePageInner() {
                                                     });
                                                   }}
                                                   style={{ padding: '6px 9px', borderRadius: 9, border: '1px solid transparent', background: C.input, color: C.text, fontSize: 11, fontWeight: 700 }}>
-                                                  <option value="mcq">Multiple Choice</option>
-                                                  <option value="text">Short Answer</option>
-                                                  <option value="upload">File Upload</option>
-                                                  <option value="linkedin_share">LinkedIn Post Share</option>
-                                                  <option value="task">Deliverable (Brief + Checkbox)</option>
-                                                  <option value="briefing">Inbox Email</option>
-                                                  <option value="scenario_update">Team Chat Update</option>
-                                                  <option value="decision">Chat Decision Thread</option>
-                                                  <option value="debrief">Email Update Composer</option>
-                                                  <option value="dashboard_critique">AI Dashboard Critique</option>
-                                                  <option value="code_review">AI Code Review</option>
-                                                  <option value="excel_review">AI Excel Review</option>
-                                                  <option value="document_review">AI Document Review</option>
+                                                  <option value="mcq">Multiple choice</option>
+                                                  <option value="text">Short answer</option>
+                                                  <option value="reflection">Reflection</option>
+                                                  <option value="upload">File upload</option>
+                                                  <option value="task">Deliverable</option>
+                                                  {/* The older deliverable type: listed only where a task still has it, so it shows correctly. */}
+                                                  {req.type === 'deliverable' && <option value="deliverable">Deliverable (older)</option>}
+                                                  <option value="linkedin_share">LinkedIn share</option>
+                                                  <option value="briefing">Manager email</option>
+                                                  <option value="debrief">Email reply to manager</option>
+                                                  <option value="scenario_update">Team chat update</option>
+                                                  <option value="decision">Team chat decision</option>
+                                                  <option value="dashboard_critique">AI review: dashboard</option>
+                                                  <option value="code_review">AI review: code</option>
+                                                  <option value="excel_review">AI review: Excel</option>
+                                                  <option value="document_review">AI review: document</option>
                                                 </select>
                                                 {!['briefing','scenario_update','decision','debrief','task','deliverable'].includes(req.type) && (
                                                   <button
                                                     type="button"
                                                     onClick={() => updateReq(mod.id, les.id, req.id, { emailFrame: !req.emailFrame })}
-                                                    title={req.emailFrame ? 'Remove email frame' : 'Deliver via email thread'}
+                                                    role="switch" aria-checked={!!req.emailFrame}
+                                                    title={req.emailFrame ? 'This task arrives as an email from the manager. Click to show it as a plain card.' : 'Click to send this task as an email from the manager.'}
                                                     className="flex-shrink-0 flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold transition-all"
-                                                    style={{ background: req.emailFrame ? 'rgba(59,130,246,0.15)' : C.card, color: req.emailFrame ? '#3b82f6' : C.muted, border: `1px solid ${req.emailFrame ? '#3b82f6' : C.cardBorder}` }}>
-                                                    <Mail className="w-3 h-3" /> {req.emailFrame ? 'Email' : 'Email'}
+                                                    style={{ background: req.emailFrame ? `${C.cta}1f` : C.card, color: req.emailFrame ? C.cta : C.muted, border: `1px solid ${req.emailFrame ? C.cta : C.cardBorder}` }}>
+                                                    <Mail className="w-3 h-3" /> {req.emailFrame ? 'Sent as email' : 'Send as email'}
                                                   </button>
                                                 )}
                                                 {(req.type === 'task' || req.type === 'deliverable') && req.emailFrame && (
@@ -2564,7 +2580,7 @@ function VirtualExperienceCreatePageInner() {
                                                   onChange={e => updateReq(mod.id, les.id, req.id, { label: e.target.value })}
                                                   className="flex-1 bg-transparent text-[13px] font-semibold outline-none"
                                                   style={{ color: C.text }}
-                                                  placeholder={req.type === 'task' || req.type === 'deliverable' ? 'Deliverable title...' : 'Task description...'} />
+                                                  placeholder={req.type === 'task' || req.type === 'deliverable' ? 'Deliverable title' : 'Task title'} />
                                                 {(() => {
                                                   const groups = (config.modules || [])
                                                     .map(m => ({
@@ -2599,6 +2615,7 @@ function VirtualExperienceCreatePageInner() {
                                                   <X className="w-3.5 h-3.5" />
                                                 </button>
                                               </div>
+                                              {openReqs.has(req.id) && (<>
                                               {(req.type === 'briefing' || req.type === 'debrief') ? (
                                                 <>
                                                   <RichTextEditor
@@ -2688,45 +2705,6 @@ function VirtualExperienceCreatePageInner() {
                                                       </div>
                                                       <div className="space-y-2">
                                                         <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
-                                                          Deliverable color
-                                                        </p>
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                          {(() => {
-                                                            const own = isVeAccent(req.accentColor) ? req.accentColor : null;
-                                                            const experienceAccent = DEFAULT_VE_ACCENT;
-                                                            return (
-                                                              <>
-                                                                <button type="button" aria-pressed={!own}
-                                                                  onClick={() => updateReq(mod.id, les.id, req.id, { accentColor: undefined })}
-                                                                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                                                  style={{ background: !own ? `${experienceAccent}1a` : C.input, color: !own ? C.text : C.muted, boxShadow: !own ? `0 0 0 1.5px ${experienceAccent}` : 'none' }}>
-                                                                  <span className="h-3 w-3 rounded-full" style={{ background: experienceAccent }} />
-                                                                  Default
-                                                                </button>
-                                                                {DELIVERABLE_ACCENT_PRESETS.filter(color => color.toLowerCase() !== experienceAccent.toLowerCase()).map(color => {
-                                                                  const selected = own?.toLowerCase() === color.toLowerCase();
-                                                                  return (
-                                                                    <button key={color} type="button" title={color} aria-label={`Use deliverable color ${color}`} aria-pressed={selected}
-                                                                      onClick={() => updateReq(mod.id, les.id, req.id, { accentColor: color })}
-                                                                      className="grid h-6 w-6 place-items-center rounded-full transition-transform hover:scale-110"
-                                                                      style={{ background: color, boxShadow: selected ? `0 0 0 2px ${C.card}, 0 0 0 3.5px ${color}` : 'none' }}>
-                                                                      {selected && <Check className="h-3 w-3" style={{ color: '#fff' }} />}
-                                                                    </button>
-                                                                  );
-                                                                })}
-                                                                <label className="flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: C.input, color: C.muted }}>
-                                                                  <input type="color" value={own ?? experienceAccent}
-                                                                    onChange={e => updateReq(mod.id, les.id, req.id, { accentColor: e.target.value })}
-                                                                    className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0" />
-                                                                  Custom
-                                                                </label>
-                                                              </>
-                                                            );
-                                                          })()}
-                                                        </div>
-                                                      </div>
-                                                      <div className="space-y-2">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
                                                           Resources
                                                         </p>
                                                         {(req.attachments || []).map((att, ai) => (
@@ -2765,7 +2743,7 @@ function VirtualExperienceCreatePageInner() {
                                                     <input value={req.description}
                                                       onChange={e => updateReq(mod.id, les.id, req.id, { description: e.target.value })}
                                                       style={{ ...inp, background: C.card, fontSize: 12 }}
-                                                      placeholder={req.type === 'mcq' ? 'Hint: which column(s) to analyse...' : req.type === 'upload' ? 'Instructions for the student...' : req.type === 'linkedin_share' ? 'What should they post about?' : 'Prompt or context...'} />
+                                                      placeholder="Instructions (shown to the learner)" aria-label="Instructions shown to the learner" />
                                                   )}
                                                   {req.type === 'linkedin_share' && (
                                                     <>
@@ -2934,7 +2912,7 @@ function VirtualExperienceCreatePageInner() {
                                               )}
                                               {req.type === 'upload' && (
                                                 <div className="space-y-1.5">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: `${C.cta}0a`, color: C.muted }}>
+                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.pill, color: C.muted }}>
                                                     <LinkIcon className="w-3 h-3 flex-shrink-0" />Students will upload a file or paste a link
                                                   </div>
                                                   {/* Read by the AI draft of the instructor report when the student uploads an Excel workbook. */}
@@ -2955,7 +2933,7 @@ function VirtualExperienceCreatePageInner() {
                                               )}
                                               {req.type === 'text' && (
                                                 <div className="space-y-1.5">
-                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: 'rgba(139,92,246,0.06)', color: C.muted }}>
+                                                  <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[12px]" style={{ background: C.pill, color: C.muted }}>
                                                     <FileText className="w-3 h-3 flex-shrink-0" />Students will type a written response
                                                   </div>
                                                   {/* AI Review toggle */}
@@ -3136,6 +3114,7 @@ function VirtualExperienceCreatePageInner() {
                                                     C={C} inp={inp} sessionToken={sessionToken} />
                                                 </div>
                                               )}
+                                              </>)}
                                             </div>
                                             )}
                                             </SortableVEShell>
@@ -3187,7 +3166,7 @@ function VirtualExperienceCreatePageInner() {
                   </div>
                 </div>
                 </div>)}
-                {activeSection === 'setup' && (
+                {activeSection === 'overview' && (
                 <div className="space-y-4">
 
                 {/* Industry card */}
@@ -3274,38 +3253,12 @@ function VirtualExperienceCreatePageInner() {
                   <p className="text-[11px]" style={{ color: C.faint }}>Shown to students on the experience page. It does not change the content.</p>
                 </div>
                 </div>)}
-                {activeSection === 'branding' && (
+                {activeSection === 'overview' && (
                 <div className="space-y-4">
 
-                {/* Tool logos live in dashboard Branding now: one icon per tool name, shared by
-                    courses, learning paths and experiences alike, rather than re-uploaded here. */}
-                {(config.tools || []).length > 0 && (
-                  <div style={card} className="p-5 space-y-2">
-                    <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Tool Logos</p>
-                    <p className="text-[11px]" style={{ color: C.faint }}>
-                      Logos are matched to each skill name from the shared tool icons. Add or change one in
-                      dashboard Branding and it updates everywhere that tool appears.
-                    </p>
-                    <div className="flex flex-wrap gap-2 pt-1">
-                      {(config.tools || []).map((t, i) => {
-                        const logo = toolIcon(t);
-                        return (
-                          <div key={`${i}-${t}`} className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg" style={{ background: C.card }}>
-                            {logo
-                              ? <img src={logo} alt={t} className="w-4 h-4 rounded object-contain flex-shrink-0" />
-                              : <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center text-[9px] font-bold" style={{ background: C.pill, color: C.muted }}>{t.trim().charAt(0).toUpperCase()}</div>
-                            }
-                            <span className="text-[12px] font-medium" style={{ color: C.text }}>{t}</span>
-                            {!logo && <span className="text-[10px]" style={{ color: C.faint }}>no icon yet</span>}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
                 {/* Cover image card */}
-                <div style={card} className="p-5 space-y-3">
+                <div id="ve-cover-image" style={card} className="p-5 space-y-3">
                   <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Cover Image</p>
                   {coverImage && (
                     <img src={resolveCoverUrl(coverImage)} alt="cover" className="w-full object-cover rounded-2xl"
@@ -3465,30 +3418,6 @@ function VirtualExperienceCreatePageInner() {
                   <p className="text-[11px]" style={{ color: C.faint }}>Students have this many days from when their cohort is assigned to complete the experience. Leave blank for no deadline.</p>
                 </div>
 
-                {/* Save section */}
-                <div className="space-y-2 rounded-2xl p-5 pb-16 sm:pb-5" style={{ background: C.pill }}>
-                  {saveError && (
-                    <div className="px-4 py-3 rounded-xl text-[13px]" style={{ background: 'rgba(239,68,68,0.08)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.2)' }}>
-                      {saveError}
-                    </div>
-                  )}
-                  {saveSuccess && (
-                    <div className="px-4 py-3 rounded-xl text-[13px] flex items-center gap-2" style={{ background: 'rgba(22,163,74,0.08)', color: '#16a34a', border: '1px solid rgba(22,163,74,0.2)' }}>
-                      <Check className="w-4 h-4" /> Saved. Your changes are kept and you can continue editing.
-                    </div>
-                  )}
-                  <button onClick={() => handleSave('published')} disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl font-bold text-[15px] transition-all hover:opacity-90 disabled:opacity-60"
-                    style={{ background: C.cta, color: C.ctaText }}>
-                    {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    {effectiveId ? 'Update Program' : 'Publish Program'}
-                  </button>
-                  <button onClick={() => handleSave('draft')} disabled={saving}
-                    className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-semibold text-[15px] transition-all hover:opacity-70 disabled:opacity-60"
-                    style={{ color: C.muted, background: C.card }}>
-                    <Save className="w-4 h-4" /> Save as Draft
-                  </button>
-                </div>
                 </div>)}
 
                 </motion.div>

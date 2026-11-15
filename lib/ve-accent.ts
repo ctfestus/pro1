@@ -1,7 +1,6 @@
-// A deliverable can carry its own color (requirement.accentColor); unset, it uses the player's
-// fixed accent. The card builds tints by appending alpha digits (`${accent}18`), so only a
-// six-digit hex is accepted -- anything else from imports or AI edits falls back.
-export const DELIVERABLE_ACCENT_PRESETS = ['#00b95c', '#0d9488', '#3E93FF', '#d97706', '#ea580c', '#f43f5e'];
+// A deliverable saved with its own color (requirement.accentColor) by the older VE editor, which
+// the assignment player still honours. The card builds tints by appending alpha digits
+// (`${accent}18`), so only a six-digit hex is accepted -- anything else falls back.
 
 // Matches the fixed accent both VE players use.
 export const DEFAULT_VE_ACCENT = '#00b95c';
@@ -67,7 +66,3 @@ export function resolveDeliverableAccent(ownAccent: unknown, fallback: string, i
   return isVeAccent(ownAccent) ? readableAccent(ownAccent, isDark) : fallback;
 }
 
-// Only deliverables carry their own color; switching a requirement to another type drops it.
-export function deliverableAccentForType(accentColor: string | undefined, type: string): string | undefined {
-  return type === 'task' || type === 'deliverable' ? accentColor : undefined;
-}
