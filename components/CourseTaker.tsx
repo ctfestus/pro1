@@ -16,6 +16,8 @@ import {
   PenLine, Link2, Image as ImageIcon,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
+import { MenuIcon } from '@/components/MenuIcon';
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 import { XpBadgeStack } from '@/components/XpBadge';
 import { useTheme } from '@/components/ThemeProvider';
 import type { QuestionType, DownloadItem, CourseQuestion } from '@/lib/course-schema';
@@ -37,7 +39,7 @@ import { ScoreGauge } from '@/components/ScoreGauge';
 import { pdfDownloadUrl } from '@/lib/cloudinary-pdf';
 import { contentPath } from '@/lib/content-link';
 import dynamic from 'next/dynamic';
-import { initSQLRuntime, SQLRuntime } from '@/lib/sql-engine';
+import { useSqlRuntime } from '@/lib/use-sql-runtime';
 
 // Loaded only when a slide needs them, so a course without AI reviews, PDFs, code or ordering
 // questions does not download them. (next/dynamic options must stay inline object literals.)
@@ -53,16 +55,6 @@ const SQLExercisePlayer = dynamic(() => import('@/components/sql-course/SQLExerc
 const PythonExercisePlayer = dynamic(() => import('@/components/sql-course/PythonExercisePlayer'), { ssr: false });
 
 // Hamburger -- slightly tighter line spacing than lucide's Menu (lines at 7/12/17 vs 6/12/18)
-function MenuIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.25} strokeLinecap="round" className={className}>
-      <line x1="4" y1="7" x2="20" y2="7" />
-      <line x1="4" y1="12" x2="20" y2="12" />
-      <line x1="4" y1="17" x2="20" y2="17" />
-    </svg>
-  );
-}
-
 type ShowAnswers = 'per_question' | 'after_quiz' | 'none';
 
 // QuestionType / DownloadItem / CourseQuestion come from the canonical contract in lib/course-schema.
@@ -428,22 +420,6 @@ export function CourseTaker({
       answerText: typeof shadow?.answerText === 'string' ? shadow.answerText : undefined,
     };
   })();
-  const [sqlRuntime, setSqlRuntime] = useState<SQLRuntime | null>(null);
-  const [sqlPreparing, setSqlPreparing] = useState(false);
-  const [sqlPrepareError, setSqlPrepareError] = useState('');
-  const sqlRuntimeRef = useRef<SQLRuntime | null>(null);
-  const sqlInitStartedRef = useRef(false);
-  const sqlTables = useMemo(() => {
-    const byKey = new Map<string, any>();
-    for (const q of questions) {
-      if ((q as any)?.type !== 'sql_exercise') continue;
-      for (const table of ((q as any).sqlTables ?? [])) {
-        const key = `${table.tableName}|${table.fileUrl || table.csvUrl || table.seedSql || ''}`;
-        if (table.tableName && !byKey.has(key)) byKey.set(key, table);
-      }
-    }
-    return Array.from(byKey.values());
-  }, [questions]);
 
   const accentColors: Record<string, string> = {
     forest: '#00bf63', lime: '#ADEE66', emerald: '#10b981', rose: '#f43f5e', amber: '#f59e0b', ocean: '#3E93FF',
@@ -453,46 +429,8 @@ export function CourseTaker({
   const fontOption = getFontById(config.font ?? 'google-sans-text');
   useEffect(() => { loadGoogleFont(fontOption); }, [fontOption]);
 
-  useEffect(() => {
-    if (questionType !== 'sql_exercise' || sqlRuntimeRef.current || sqlInitStartedRef.current || sqlTables.length === 0) return;
-    let cancelled = false;
-    sqlInitStartedRef.current = true;
-    setSqlPreparing(true);
-    setSqlPrepareError('');
-    initSQLRuntime(sqlTables)
-      .then(runtime => {
-        if (cancelled) {
-          runtime.close();
-          return;
-        }
-        sqlRuntimeRef.current = runtime;
-        setSqlRuntime(runtime);
-      })
-      .catch(err => {
-        if (!cancelled) setSqlPrepareError(err?.message || 'Could not prepare the SQL environment.');
-      })
-      .finally(() => {
-        if (!cancelled) setSqlPreparing(false);
-        if (!sqlRuntimeRef.current) sqlInitStartedRef.current = false;
-      });
-    return () => { cancelled = true; };
-  }, [questionType, sqlTables]);
-
-  useEffect(() => {
-    return () => {
-      sqlRuntimeRef.current?.close();
-      sqlRuntimeRef.current = null;
-      sqlInitStartedRef.current = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (phase !== 'complete') return;
-    sqlRuntimeRef.current?.close();
-    sqlRuntimeRef.current = null;
-    sqlInitStartedRef.current = false;
-    setSqlRuntime(null);
-  }, [phase]);
+  // The in-browser SQL engine: loaded at the first SQL exercise, freed on the results screen.
+  const { sqlRuntime, sqlPreparing, sqlPrepareError } = useSqlRuntime(questions, questionType === 'sql_exercise', phase === 'complete');
 
 
   // Auto-collapse sidebar when entering SQL/Python exercise questions to give the editor more space
@@ -1311,26 +1249,6 @@ export function CourseTaker({
     const submittedPct    = serverResult?.score  ?? (totalQuestions > 0 ? Math.round((score / totalQuestions) * 100) : 100);
     const submittedPassed = serverResult?.passed ?? (totalQuestions === 0 ? true : submittedPct >= passmark);
 
-    const buildLinkedInUrl = (name: string, certId: string, orgName?: string, issuedAt?: string | null) => {
-      const issueDate = issuedAt ? new Date(issuedAt) : new Date();
-      const certUrl = `${window.location.origin}/certificate/${certId}`;
-      const params = new URLSearchParams({
-        startTask: 'CERTIFICATION_NAME',
-        name,
-        issueYear: String(issueDate.getFullYear()),
-        issueMonth: String(issueDate.getMonth() + 1),
-        certId,
-        certUrl,
-      });
-      if (orgName) params.set('organizationName', orgName);
-      return `https://www.linkedin.com/profile/add?${params}`;
-    };
-
-    const LinkedInIcon = () => (
-      <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4" aria-hidden="true">
-        <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1-2.063-2.065 2.064 2.064 0 1 1 2.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
-      </svg>
-    );
     const isLessonOnly = totalQuestions === 0;
     // Derive the correct count from the confirmed percentage so that after a page
     // refresh (where the session score counter resets to 0) the display still shows
@@ -1408,13 +1326,13 @@ export function CourseTaker({
                   View Your Certificate
                 </a>
                 <a
-                  href={buildLinkedInUrl(config.title || 'Course Certificate', certificateId, certInstitutionName || undefined, certIssuedAt)}
+                  href={linkedInAddCertUrl({ name: config.title || 'Course Certificate', certId: certificateId, certUrl: `${window.location.origin}/certificate/${certificateId}`, organizationName: certInstitutionName || undefined, issuedAt: certIssuedAt })}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center justify-center gap-2 w-full py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-90"
                   style={{ background: '#0A66C2', color: '#fff' }}
                 >
-                  <LinkedInIcon /> Add to LinkedIn Profile
+                  <LinkedInIcon className="w-4 h-4" /> Add to LinkedIn Profile
                 </a>
               </div>
             )}

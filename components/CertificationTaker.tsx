@@ -6,11 +6,11 @@
 // auto-submits, and a document-level protection layer (block copy/cut/paste/right-click + text
 // selection, log tab-switch / blur). Reuses the CourseQuestion shape and the SQL/Python players.
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, Clock, Loader2, CheckCircle2, XCircle, ShieldAlert, Award, AlertTriangle, Circle, Check, ListChecks, Sparkle, ChevronRight, FileText, ExternalLink, BarChart3, Image as ImageIcon, BookOpen, BookOpenCheck, FileCheck2, Play, LogOut } from 'lucide-react';
-import { initSQLRuntime, SQLRuntime } from '@/lib/sql-engine';
+import { useSqlRuntime } from '@/lib/use-sql-runtime';
 import SQLExercisePlayer from '@/components/sql-course/SQLExercisePlayer';
 import PythonExercisePlayer from '@/components/sql-course/PythonExercisePlayer';
 import { CertificationPlayground } from '@/components/CertificationPlayground';
@@ -265,41 +265,12 @@ export default function CertificationTaker({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // -- SQL runtime preparation (mirrors CourseTaker) --
-  const [sqlRuntime, setSqlRuntime] = useState<SQLRuntime | null>(null);
-  const [sqlPreparing, setSqlPreparing] = useState(false);
-  const [sqlPrepareError, setSqlPrepareError] = useState('');
-  const sqlRuntimeRef = useRef<SQLRuntime | null>(null);
-  const sqlInitStartedRef = useRef(false);
-  const sqlTables = useMemo(() => {
-    const byKey = new Map<string, any>();
-    for (const q of questions) {
-      if ((q as any)?.type !== 'sql_exercise') continue;
-      for (const table of ((q as any).sqlTables ?? [])) {
-        const key = `${table.tableName}|${table.fileUrl || table.csvUrl || table.seedSql || ''}`;
-        if (table.tableName && !byKey.has(key)) byKey.set(key, table);
-      }
-    }
-    return Array.from(byKey.values());
-  }, [questions]);
 
   const currentQuestion = questions[index];
   const qType = (currentQuestion as any)?.type ?? 'multiple_choice';
 
-  useEffect(() => {
-    if (phase !== 'exam' || qType !== 'sql_exercise' || sqlRuntimeRef.current || sqlInitStartedRef.current || sqlTables.length === 0) return;
-    let cancelled = false;
-    sqlInitStartedRef.current = true;
-    setSqlPreparing(true);
-    setSqlPrepareError('');
-    initSQLRuntime(sqlTables)
-      .then(rt => { if (cancelled) { rt.close(); return; } sqlRuntimeRef.current = rt; setSqlRuntime(rt); })
-      .catch(err => { if (!cancelled) setSqlPrepareError(err?.message || 'Could not prepare the SQL environment.'); })
-      .finally(() => { if (!cancelled) setSqlPreparing(false); if (!sqlRuntimeRef.current) sqlInitStartedRef.current = false; });
-    return () => { cancelled = true; };
-  }, [phase, qType, sqlTables]);
-
-  useEffect(() => () => { sqlRuntimeRef.current?.close(); sqlRuntimeRef.current = null; }, []);
+  // The in-browser SQL engine (shared with the course player), loaded at the first SQL exercise.
+  const { sqlRuntime, sqlPreparing, sqlPrepareError } = useSqlRuntime(questions, phase === 'exam' && qType === 'sql_exercise');
 
   // -- Submit (server re-scores) --
   const submit = useCallback(async () => {
