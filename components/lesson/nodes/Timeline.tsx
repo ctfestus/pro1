@@ -7,9 +7,10 @@
 // is a layout element, not a progressive reveal -- that is what the stepper is for).
 // Add/remove entries in the editor. Theming via `.lesson-timeline*` CSS.
 
+import { useLayoutEffect, useRef } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ArrowDown, ArrowUp, CalendarDays, Copy, Plus, Trash2 } from 'lucide-react';
+import { ArrowDown, ArrowUp, Copy, Plus, Trash2 } from 'lucide-react';
 import { NodeTextInput } from '@/components/lesson/nodes/NodeTextInput';
 import { ColorField, StyleMenu, MenuRow, accentScope } from '@/components/lesson/nodes/StyleControls';
 import { NodeDeleteButton } from '@/components/lesson/nodes/NodeControls';
@@ -100,8 +101,39 @@ function TimelineEntryView({ node, getPos, editor, updateAttributes }: NodeViewP
   );
 }
 
+// Narrowest and widest the date column may be, as on the refined look (56px) and a share of the
+// block's width. Between the two it fits the longest date, so a date only wraps past the cap.
+const DATE_COL_MIN = 56;
+const DATE_COL_MAX_SHARE = 0.4;
+
 function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps) {
   const editable = editor.isEditable;
+  const wrapRef = useRef<HTMLDivElement>(null);
+
+  // Size the date column to the longest date. Each date is measured on one line, then the
+  // column is set between the minimum and the cap; re-run when the block resizes or changes.
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap || editable) return;
+    const fit = () => {
+      let widest = 0;
+      wrap.querySelectorAll<HTMLElement>('.lesson-timeline__date').forEach((el) => {
+        // On one line and free of the column's max-width, so the reading is the date's own width.
+        const { whiteSpace, maxWidth } = el.style;
+        el.style.whiteSpace = 'nowrap';
+        el.style.maxWidth = 'none';
+        widest = Math.max(widest, Math.ceil(el.getBoundingClientRect().width));
+        el.style.whiteSpace = whiteSpace;
+        el.style.maxWidth = maxWidth;
+      });
+      const cap = Math.floor(wrap.clientWidth * DATE_COL_MAX_SHARE);
+      wrap.style.setProperty('--tl-date-w', `${Math.max(DATE_COL_MIN, Math.min(widest, cap))}px`);
+    };
+    fit();
+    const ro = new ResizeObserver(fit);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, [node, editable]);
   const count = node.childCount;
   const accentColor = (node.attrs.accentColor as string) || '';
   // Drives the connector rail, the milestone dots, and the date chips.
@@ -116,8 +148,7 @@ function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps)
   };
 
   return (
-    <NodeViewWrapper className={`lesson-timeline ${accent.className}`.trim()} style={accent.style}>
-      {!editable && <span className="lesson-block-label" contentEditable={false}><CalendarDays width={13} height={13} aria-hidden="true" /> Timeline</span>}
+    <NodeViewWrapper ref={wrapRef} className={`lesson-timeline ${accent.className}`.trim()} style={accent.style}>
       <NodeViewContent className="lesson-timeline__entries" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>

@@ -210,7 +210,6 @@ function FlipDeckView({ node, editor, getPos, updateAttributes }: NodeViewProps)
 
   return (
     <NodeViewWrapper className={`lesson-flip-deck ${accent.className}`.trim()} style={accent.style}>
-      {!editable && <span className="lesson-block-label" contentEditable={false}><Copy width={13} height={13} aria-hidden="true" /> Flip cards</span>}
       {!editable && count > 1 && (
         <p ref={countRef} className="lesson-flip-deck__count" contentEditable={false}>{flippedCount} of {count} flipped</p>
       )}

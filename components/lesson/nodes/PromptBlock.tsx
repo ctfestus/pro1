@@ -131,7 +131,6 @@ function PromptBlockView({ node, updateAttributes, editor, getPos }: NodeViewPro
     >
       <div className="lesson-prompt__header">
         <div className="lesson-prompt__heading">
-          <span className="lesson-prompt__eyebrow">Interactive prompt</span>
           {editable ? (
             <NodeTextInput
               className="lesson-prompt__title-input"
