@@ -1157,7 +1157,8 @@ export default function VirtualExperienceTaker({
                 {!reviewMode && !showGateButton && allCurrentDone && missionSettled && (
                   <MissionSignOff manager={manager} studentName={studentName} isDark={isDark} accentColor={accentColor} text={text}
                     nextTitle={nextMission?.title} onNext={goNext}
-                    canFinish={canComplete} finishing={saving} onFinish={handleComplete} />
+                    canFinish={canComplete} finishing={saving} onFinish={handleComplete}
+                    readingOnly={currentLes.requirements.length === 0} />
                 )}
 
               </div>{/* end unified card */}

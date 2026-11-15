@@ -40,6 +40,8 @@ interface ReviewResult {
 }
 
 interface Props {
+  /** Leave out the workspace header and its disclaimer: the host card already shows both. */
+  hideWorkspaceHeader?: boolean;
   reqId: string;
   isDark: boolean;
   accentColor: string;
@@ -74,7 +76,7 @@ function scoreColor(n: number) {
 }
 
 export default function DocumentReviewPlayer({
-  reqId, isDark, accentColor, completed, savedResult, reviewsUsed = 0,
+  reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0,
   context, rubric, minScore, maxReviews, documentReviewMode = 'ai_only', showAttemptCount, onComplete,
 }: Props) {
   const isManual = documentReviewMode === 'manual';
@@ -235,8 +237,10 @@ export default function DocumentReviewPlayer({
         message="Document reviews are part of a paid plan. Upgrade to submit your report and get feedback."
       >
       <div className="space-y-3">
-        <AiReviewWorkspaceHeader icon={<FileText className="w-5 h-5" />} title={isManual ? 'Submit your document' : 'Review your document'} description={isManual ? 'Upload the finished document for instructor review.' : 'Upload your report for structured feedback against the assignment rubric.'} accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
-        <AiReviewDisclaimer isDark={isDark} />
+        {!hideWorkspaceHeader && (<>
+          <AiReviewWorkspaceHeader icon={<FileText className="w-5 h-5" />} title={isManual ? 'Submit your document' : 'Review your document'} description={isManual ? 'Upload the finished document for instructor review.' : 'Upload your report for structured feedback against the assignment rubric.'} accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
+          <AiReviewDisclaimer isDark={isDark} />
+        </>)}
         <div
           onDragOver={e => { e.preventDefault(); setDragging(true); }}
           onDragLeave={() => setDragging(false)}

@@ -25,28 +25,16 @@ function emailFrameHandles(req: Requirement, isMcq: boolean): boolean {
 
 /** One requirement of the current mission, rendered on the surface its type uses. */
 export function RequirementItem({ req, qi, ctx }: { req: Requirement; qi: number; ctx: VeRequirementContext }) {
-  const { isDark, accentColor, progress } = ctx;
-  const done  = !!progress[req.id]?.completed;
+  const { isDark } = ctx;
   const isMcq = !!(req.type === 'mcq' && req.options?.length);
 
+  // Emails and team chat draw their own surface. Every other task sits straight on the mission
+  // card with a hairline above it: no box inside a box, and the card shows its own done state.
   const workplaceSurface = req.emailFrame || ['briefing', 'scenario_update', 'decision', 'debrief'].includes(req.type);
-  const classicActionSurface = ['task', 'deliverable', 'linkedin_share'].includes(req.type);
   const rowStyle: React.CSSProperties = workplaceSurface ? {
     background: 'transparent',
-  } : classicActionSurface ? {
-    borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'}`,
-    borderLeft: done ? `3px solid ${accentColor}` : `3px solid ${accentColor}30`,
-    background: done ? (isDark ? `${accentColor}08` : `${accentColor}05`) : 'transparent',
-    transition: 'background 0.2s, border-left-color 0.2s',
   } : {
-    margin: '10px clamp(12px, 3vw, 24px) 16px',
-    borderRadius: 16,
-    background: done
-      ? (isDark ? `${accentColor}0d` : `${accentColor}08`)
-      : (isDark ? 'rgba(255,255,255,0.035)' : '#f7f8f7'),
-    boxShadow: isDark ? '0 0 0 1px rgba(255,255,255,0.055)' : '0 0 0 1px rgba(15,23,42,0.055)',
-    overflow: 'hidden',
-    transition: 'background 0.2s, box-shadow 0.2s',
+    borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.06)'}`,
   };
 
   const props = { req, qi, rowStyle, ctx };

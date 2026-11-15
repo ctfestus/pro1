@@ -44,6 +44,8 @@ interface ReviewResult {
 }
 
 interface Props {
+  /** Leave out the workspace header and its disclaimer: the host card already shows both. */
+  hideWorkspaceHeader?: boolean;
   reqId: string;
   isDark: boolean;
   accentColor: string;
@@ -77,7 +79,7 @@ function scoreColor(n: number) {
   return '#ef4444';
 }
 
-export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed, savedResult, reviewsUsed = 0, rubric, schema, minScore, reviewLanguage, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0, rubric, schema, minScore, reviewLanguage, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   // Lock the "already completed" views only when: no per-question limit (VE/assignment), at limit,
   // or state was lost on page reload (no saved report and no further attempts).
@@ -229,8 +231,10 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, completed
         message="Code reviews are part of a paid plan. Upgrade to submit your code and get line-level feedback."
       >
       <div className="space-y-3">
-        <AiReviewWorkspaceHeader icon={<FileCode className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
-        <AiReviewDisclaimer isDark={isDark} />
+        {!hideWorkspaceHeader && (<>
+          <AiReviewWorkspaceHeader icon={<FileCode className="w-5 h-5" />} title="Review your code" description="Paste code or upload a source file to receive structured, rubric-aware feedback." accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
+          <AiReviewDisclaimer isDark={isDark} />
+        </>)}
         {/* Language selector -- locked when instructor specified a language */}
         {lockedLanguage ? (
           <div className="flex items-center gap-2">
