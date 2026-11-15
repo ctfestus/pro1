@@ -415,6 +415,12 @@ export function CourseTaker({
   const [streakToast, setStreakToast] = useState<string | null>(null);
   const [lockedToast, setLockedToast] = useState<string | null>(null);
   const questions = useMemo(() => config.questions || [], [config.questions]);
+  // Question number (Q1, Q2, ...) for every scored slide, in course order; 0 for the rest. The
+  // outline, the eyebrow and the unfinished-items buttons all use it, so "Q3" means one thing.
+  const questionNoAt = useMemo(() => {
+    let n = 0;
+    return questions.map((q: any) => (isScorableSlide(q) ? ++n : 0));
+  }, [questions]);
   // Module number for every slide (0 before the first module), for the eyebrow over each item.
   const moduleNoAt = useMemo(() => {
     let n = 0;
@@ -2028,10 +2034,11 @@ export function CourseTaker({
                       <button
                         key={q.id}
                         onClick={() => handleGoBack(idx)}
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 max-w-full truncate"
+                        title={slideTitle(q)}
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
                         style={{ color: txt, background: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff' }}
                       >
-                        {slideTitle(q)}
+                        Q{questionNoAt[idx]}
                       </button>
                     );
                   })}
@@ -2465,20 +2472,20 @@ export function CourseTaker({
                   : 'Go back to them, or submit now and they count as wrong.'}
             </p>
           </div>
-          {/* Only the list scrolls, so Submit anyway and Keep going stay in view however long it gets. */}
-          <div className="flex flex-col gap-1 min-h-0 overflow-y-auto -mx-1 px-1">
+          {/* Small buttons, numbered as in the outline. Only this area scrolls, so Submit anyway and
+              Keep going stay in view however many there are. */}
+          <div className="flex flex-wrap gap-1.5 min-h-0 overflow-y-auto">
             {finishPending.map((q: any) => {
               const idx = questions.findIndex((qq: any) => qq.id === q.id);
-              const mod = moduleNoAt[idx];
               return (
                 <button
                   key={q.id}
                   onClick={() => goToQuestion(idx)}
-                  className="flex-shrink-0 flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-opacity hover:opacity-80"
-                  style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f5f7', color: txt }}
+                  title={slideTitle(q)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80"
+                  style={{ color: accent, background: `${accent}15` }}
                 >
-                  <span className="min-w-0 truncate">{slideTitle(q)}</span>
-                  {mod > 0 && <span className="flex-shrink-0 text-[12px]" style={{ color: txtFaint }}>Module {mod}</span>}
+                  {q.isLinkedInShare ? 'Share' : `Q${questionNoAt[idx]}`}
                 </button>
               );
             })}
@@ -2902,7 +2909,7 @@ export function CourseTaker({
                                   <span className="flex items-center gap-1.5 mt-0.5 text-[12px]"
                                     style={{ color: txtFaint }}>
                                     <KindIcon className="w-3 h-3 flex-shrink-0" />
-                                    {kind}
+                                    {questionNoAt[idx] > 0 && <>Q{questionNoAt[idx]} &middot; </>}{kind}
                                   </span>
                                 </span>
                               </button>
@@ -3480,7 +3487,7 @@ export function CourseTaker({
                   <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5 sm:pb-8">
                   {moduleNoAt[currentQuestionIndex] > 0 && (
                     <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
-                      Module {moduleNoAt[currentQuestionIndex]} &middot; Question
+                      Module {moduleNoAt[currentQuestionIndex]} &middot; Q{questionNoAt[currentQuestionIndex]} &middot; Question
                     </p>
                   )}
                   <h2 className={`text-lg sm:text-2xl font-semibold leading-snug mb-5 sm:mb-8 ${textColor}`}>
