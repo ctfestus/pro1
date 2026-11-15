@@ -1023,7 +1023,8 @@ export default function AssignmentExperiencePlayer({
                               !isDone ? (
                                 <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
                                   <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6', margin: '0 0 4px' }}>Reply with your answer</p>
-                                  {(req.options || []).map((opt, oi) => {
+                                  {/* Unused option slots are saved empty; skip them. */}
+                                  {(req.options || []).filter(o => String(o ?? '').trim()).map((opt, oi) => {
                                     const letter = oi + 1;
                                     const isSelected = selected === opt;
                                     const isThisWrong = isSelected && isWrong;
@@ -1561,7 +1562,8 @@ export default function AssignmentExperiencePlayer({
                                 {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5 ml-auto" style={{ color: accent }}/>}
                               </div>
                               <div className="space-y-2">
-                                {(req.options ?? []).map((opt, oi) => {
+                                {/* Unused option slots are saved empty; skip them. */}
+                                {(req.options ?? []).filter(o => String(o ?? '').trim()).map((opt, oi) => {
                                   const isSelected = selected === opt;
                                   const isCorrect  = req.correctAnswer && normalize(opt) === normalize(req.correctAnswer);
                                   const showResult = answered;
