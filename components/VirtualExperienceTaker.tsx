@@ -18,7 +18,7 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import VeInstructorReview, { hasInstructorReview } from '@/components/VeInstructorReview';
 import { repairVeSubmissionUrl, safeVeUploadName, validateVeSubmissionFile, veSubmissionFolder } from '@/lib/ve-upload';
 import {
-  Person, PersonAvatar, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, localDayTime, firstNameOf,
+  Person, ArrivalIndicator, arrivalKindFor, companyDomain, personEmail, firstNameOf,
 } from '@/components/ve/workplace';
 import { WorkplaceTopBar } from '@/components/ve/WorkplaceTopBar';
 import { ProjectPlan } from '@/components/ve/ProjectPlan';
@@ -193,10 +193,6 @@ export default function VirtualExperienceTaker({
   // land on. Not in preview, where nothing was saved to come back to.
   const [welcomeLesson, setWelcomeLesson] = useState<string | null>(() =>
     !previewMode && Object.values(initialProgress).some(p => p?.completed) ? startLesson : null);
-  // When the learner opened this mission, by their own clock: the brief greets them with it.
-  // Taken once per mission so it does not tick.
-  const [missionOpenedAt, setMissionOpenedAt] = useState<Date | null>(null);
-  useEffect(() => { setMissionOpenedAt(new Date()); }, [currentLesId]);
   const saveTimeout  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const mainScrollRef = useRef<HTMLDivElement>(null);
   const [typingDecisions, setTypingDecisions] = useState<Set<string>>(new Set());
@@ -986,22 +982,6 @@ export default function VirtualExperienceTaker({
                 style={{
                   background: isDark ? '#1e1e1e' : '#ffffff',
                 }}>
-
-                {/* A mission with content reads as a brief the manager shared: one line, never wrapping. */}
-                {hasContent && (
-                  <div className="flex flex-nowrap items-center gap-3 sm:gap-4 px-4 sm:px-8 py-3 whitespace-nowrap overflow-hidden"
-                    style={{ background: isDark ? 'rgba(255,255,255,0.03)' : '#F8FAFC', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#EEF2F7'}` }}>
-                    <span className="inline-flex items-center gap-2 text-[12.5px] min-w-0 flex-1" style={{ color: muted }}>
-                      <PersonAvatar {...manager} size={22} isDark={isDark} />
-                      <span className="truncate">
-                        From <b className="font-semibold" style={{ color: text }}>{manager.name}</b>
-                      </span>
-                    </span>
-                    <span className="flex-shrink-0 text-[12px] tabular-nums" style={{ color: muted }}>
-                      {missionOpenedAt ? localDayTime(missionOpenedAt) : ''}
-                    </span>
-                  </div>
-                )}
 
                 {/* Lesson header inside card */}
                 <div className="px-4 sm:px-8 pt-5 sm:pt-7 pb-5"
