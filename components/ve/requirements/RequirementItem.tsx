@@ -26,7 +26,7 @@ function emailFrameHandles(req: Requirement, isMcq: boolean): boolean {
 /** One requirement of the current mission, rendered on the surface its type uses. */
 export function RequirementItem({ req, qi, ctx }: { req: Requirement; qi: number; ctx: VeRequirementContext }) {
   const { isDark } = ctx;
-  const isMcq = !!(req.type === 'mcq' && req.options?.length);
+  const isMcq = req.type === 'mcq' && (req.options || []).some(o => String(o ?? '').trim());
 
   // Emails and team chat draw their own surface. Every other task sits straight on the mission
   // card with a hairline above it: no box inside a box, and the card shows its own done state.

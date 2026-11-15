@@ -12,6 +12,8 @@ export function McqRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const done           = !!progress[req.id]?.completed;
   const selectedAnswer = progress[req.id]?.selectedAnswer;
   const t = taskTheme(isDark, accentColor);
+  // The editor keeps a fixed number of option slots, so unused ones are saved empty. Skip them.
+  const options = (req.options || []).filter(o => String(o ?? '').trim());
 
   // A right answer completes and saves; a wrong one is remembered for this visit only, so the
   // learner sees which one missed and tries again. Same rule as before the redesign.
@@ -30,7 +32,7 @@ export function McqRequirement({ req, rowStyle, ctx }: RequirementProps) {
       <TaskHeader t={t} icon={<HelpCircle className="w-3.5 h-3.5" />} label="Question" title={req.label}
         description={req.description} done={done ? 'Correct' : null} />
       <div className="flex flex-col gap-2" role="radiogroup" aria-label={req.label}>
-        {(req.options || []).map((opt, oi) => {
+        {options.map((opt, oi) => {
           const letter    = String.fromCharCode(65 + oi);
           const isRight   = done && opt === req.correctAnswer;
           const isMissed  = !done && selectedAnswer === opt && opt !== req.correctAnswer;
