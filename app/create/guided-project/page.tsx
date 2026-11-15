@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { LOCKABLE_CODE_REVIEW_LANGUAGES } from '@/lib/code-review-languages';
 import { supabase } from '@/lib/supabase';
 import { uploadToCloudinary, uploadCoverImage } from '@/lib/uploadToCloudinary';
-import { DEFAULT_VE_ACCENT, DELIVERABLE_ACCENT_PRESETS, deliverableAccentForType, isVeAccent } from '@/lib/ve-accent';
+import { DEFAULT_VE_ACCENT } from '@/lib/ve-accent';
 import { uploadToGithub } from '@/lib/uploadToGithub';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -2380,7 +2380,6 @@ function VirtualExperienceCreatePageInner() {
                             <SortableContext items={(mod.lessons || []).map(l => l.id)} strategy={verticalListSortingStrategy}>
                             {(mod.lessons || []).map((les, li) => {
                               const reqCount  = les.requirements?.length || 0;
-                              const estTime   = reqCount <= 2 ? '15-30 mins' : reqCount <= 4 ? '30-60 mins' : '45-90 mins';
                               const expandKey = `${mod.id}-${les.id}`;
                               return (
                               <SortableVEShell key={les.id} id={les.id}>
@@ -2404,10 +2403,6 @@ function VirtualExperienceCreatePageInner() {
                                       placeholder="Mission title…"
                                     />
                                     <div className="flex items-center gap-1.5 flex-shrink-0">
-                                      <div className="flex items-center gap-1" style={{ color: C.faint }}>
-                                        <Clock className="w-3 h-3" />
-                                        <span className="text-[11px]">{estTime}</span>
-                                      </div>
                                       <button onClick={() => toggleModule(expandKey)}
                                         className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-lg transition-all hover:opacity-70"
                                         style={{ background: C.pill, color: C.muted }}>
@@ -2521,7 +2516,7 @@ function VirtualExperienceCreatePageInner() {
                                                         : req.description,
                                                       descriptionFormat: isDeliverable && wasDeliverable ? req.descriptionFormat : undefined,
                                                       descriptionDoc: isDeliverable && wasDeliverable ? req.descriptionDoc : undefined,
-                                                      accentColor: deliverableAccentForType(req.accentColor, type),
+                                                      accentColor: undefined,
                                                       options: type === 'mcq'
                                                         ? ['', '', '', '']
                                                         : type === 'decision'
@@ -2707,45 +2702,6 @@ function VirtualExperienceCreatePageInner() {
                                                           isDark={C === DARK_C}
                                                           accentColor={DEFAULT_VE_ACCENT}
                                                         />
-                                                      </div>
-                                                      <div className="space-y-2">
-                                                        <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>
-                                                          Deliverable color
-                                                        </p>
-                                                        <div className="flex flex-wrap items-center gap-2">
-                                                          {(() => {
-                                                            const own = isVeAccent(req.accentColor) ? req.accentColor : null;
-                                                            const experienceAccent = DEFAULT_VE_ACCENT;
-                                                            return (
-                                                              <>
-                                                                <button type="button" aria-pressed={!own}
-                                                                  onClick={() => updateReq(mod.id, les.id, req.id, { accentColor: undefined })}
-                                                                  className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold"
-                                                                  style={{ background: !own ? `${experienceAccent}1a` : C.input, color: !own ? C.text : C.muted, boxShadow: !own ? `0 0 0 1.5px ${experienceAccent}` : 'none' }}>
-                                                                  <span className="h-3 w-3 rounded-full" style={{ background: experienceAccent }} />
-                                                                  Default
-                                                                </button>
-                                                                {DELIVERABLE_ACCENT_PRESETS.filter(color => color.toLowerCase() !== experienceAccent.toLowerCase()).map(color => {
-                                                                  const selected = own?.toLowerCase() === color.toLowerCase();
-                                                                  return (
-                                                                    <button key={color} type="button" title={color} aria-label={`Use deliverable color ${color}`} aria-pressed={selected}
-                                                                      onClick={() => updateReq(mod.id, les.id, req.id, { accentColor: color })}
-                                                                      className="grid h-6 w-6 place-items-center rounded-full transition-transform hover:scale-110"
-                                                                      style={{ background: color, boxShadow: selected ? `0 0 0 2px ${C.card}, 0 0 0 3.5px ${color}` : 'none' }}>
-                                                                      {selected && <Check className="h-3 w-3" style={{ color: '#fff' }} />}
-                                                                    </button>
-                                                                  );
-                                                                })}
-                                                                <label className="flex cursor-pointer items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold" style={{ background: C.input, color: C.muted }}>
-                                                                  <input type="color" value={own ?? experienceAccent}
-                                                                    onChange={e => updateReq(mod.id, les.id, req.id, { accentColor: e.target.value })}
-                                                                    className="h-4 w-4 cursor-pointer rounded border-0 bg-transparent p-0" />
-                                                                  Custom
-                                                                </label>
-                                                              </>
-                                                            );
-                                                          })()}
-                                                        </div>
                                                       </div>
                                                       <div className="space-y-2">
                                                         <p className="text-[10px] font-black uppercase tracking-widest" style={{ color: C.muted }}>

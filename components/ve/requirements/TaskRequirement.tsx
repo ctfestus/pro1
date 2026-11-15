@@ -3,7 +3,6 @@
 import { Package, MessageCircle, Paperclip, Check, Pencil, RotateCcw } from 'lucide-react';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
-import { resolveDeliverableAccent } from '@/lib/ve-accent';
 import { REQ_META, type RequirementProps } from './types';
 import { TaskHeader, TaskButton, TaskIconButton, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
@@ -16,12 +15,11 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
   const noteVal = noteValues[req.id] ?? (progress[req.id]?.notes || '');
 
   // Deliverable: read the instructions, then mark it complete. The editor offers this as
-  // "Deliverable (Brief + Checkbox)" and saves it as type 'task' ('deliverable' is the older
-  // name), so both read as a deliverable to the learner. A deliverable may carry its
-  // own accent colour; it styles the card's button and pill, while embedded instructions keep the
-  // experience accent.
+  // "Deliverable" and saves it as type 'task' ('deliverable' is the older name), so both read as
+  // a deliverable to the learner. Every deliverable uses the experience accent; a colour saved on
+  // an older deliverable is ignored, so all tasks in an experience match.
   if (req.type === 'task' || req.type === 'deliverable') {
-    const t = taskTheme(isDark, resolveDeliverableAccent(req.accentColor, accentColor, !!isDark));
+    const t = taskTheme(isDark, accentColor);
     const attachments = req.attachments || [];
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
