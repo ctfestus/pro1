@@ -1,5 +1,7 @@
 'use client';
 
+import { accentColorFor } from '@/lib/theme-types';
+import { DEFAULT_VE_ACCENT, readableAccent } from '@/lib/ve-accent';
 import { useEffect, useRef, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
@@ -1493,7 +1495,10 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
     const totalReqs   = modules.reduce((a: number, m: any) =>
       a + (m.lessons ?? []).reduce((b: number, l: any) => b + (l.requirements?.length || 0), 0), 0);
 
-    const indColor = '#00b95c';
+    // The experience's own accent, chosen in the editor like a course's (a theme colour or a custom
+    // one), kept readable on the theme it shows on. None chosen: the default green.
+    const veChosenAccent = accentColorFor(config.customAccent, config.theme);
+    const indColor = veChosenAccent ? readableAccent(veChosenAccent, studentTheme === 'dark') : DEFAULT_VE_ACCENT;
 
     const handleStartProject = async () => {
       const { data: { user } } = await supabase.auth.getUser();
