@@ -1387,9 +1387,17 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
     ? 'block text-xs font-medium text-zinc-400 mb-1.5'
     : 'block text-[12.5px] font-semibold text-gray-500 mb-1.5';
 
+  // One soft field style, no border, green ring on focus (as the experience editor).
   const input = isDark
-    ? 'w-full bg-zinc-800/60 border border-zinc-700/60 rounded-xl px-4 py-3 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-emerald-500/60 focus:ring-1 focus:ring-emerald-500/20 transition-all'
-    : 'w-full bg-[#f5f6f7] border border-[rgba(0,0,0,0.07)] rounded-xl px-4 py-3 text-sm text-[#111] placeholder:text-[#aaa] focus:outline-none focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400/20 transition-all';
+    ? 'w-full bg-[rgba(255,255,255,0.055)] border-0 rounded-[10px] px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
+    : 'w-full bg-[#F4F6F9] border-0 rounded-[10px] px-3 py-2.5 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
+  // A field sitting on the soft AI panel is white, so it still reads as a field.
+  const inputOnSoft = isDark
+    ? 'w-full bg-[#1B1C1F] border-0 rounded-[10px] px-3 py-2.5 text-sm text-white placeholder:text-zinc-500 focus:outline-none focus:shadow-[inset_0_0_0_2px_#1FD17A]'
+    : 'w-full bg-white border-0 rounded-[10px] px-3 py-2.5 text-sm text-[#111] placeholder:text-[#8a929e] focus:outline-none focus:shadow-[inset_0_0_0_2px_#00bf63]';
+  const chipBg = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
+  const chipText = isDark ? '#e4e4e7' : '#111';
+  const softBtn = `inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[10px] px-4 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed ${isDark ? 'bg-[rgba(255,255,255,0.055)] text-zinc-200 disabled:text-zinc-500' : 'bg-[#F4F6F9] text-gray-900 disabled:text-[#8a929e]'}`;
 
   const textarea = `${input} resize-none leading-relaxed`;
 
@@ -1413,49 +1421,29 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
         <p className={isDark ? 'mt-1 max-w-2xl text-sm leading-relaxed text-zinc-500' : 'mt-1 max-w-2xl text-sm leading-relaxed text-gray-400'}>{isEvent ? 'Send an update to everyone registered, and test it before sending.' : 'Send an update to everyone, or only to learners at one stage, and test it before sending.'}</p>
       </div>
 
-      {/* -- Blast Email -- */}
-      <div className={card}>
-        <div className={cardHeader}>
-          <div className={sectionIconBg} style={{ background: `${courseAccent}14` }}>
-            <Mail className="w-4 h-4" style={{ color: courseAccent }} />
-          </div>
-          <div>
-            <p className={cardTitle}>Broadcast Email</p>
-            <p className={cardSub}>
-              {isEvent
-                ? 'Send a message to all registrants with an email address'
-                : (isCourse || isVE)
-                  ? 'Send a message to enrolled students filtered by their progress'
-                  : 'Send a message to all respondents with an email address'}
-            </p>
-          </div>
-        </div>
-        <div className="p-6 space-y-4">
+      {/* -- Broadcast: who, an optional AI draft, the message, then test and send -- */}
+      <div className="space-y-5">
           {(isCourse || isVE) && formCohorts.length > 0 && (
             <div>
-              <label className={label}>Cohort</label>
-              <div className="flex flex-wrap gap-2">
-                {[{ id: 'all', name: 'All Cohorts' }, ...formCohorts].map(c => (
-                  <button
-                    key={c.id}
-                    onClick={() => { setSelectedCohortId(c.id); setBlastResult(null); }}
-                    className="rounded-xl border px-3 py-1.5 text-xs font-semibold transition-opacity hover:opacity-75"
-                    style={{
-                      borderColor: selectedCohortId === c.id ? `${courseAccent}55` : isDark ? 'rgba(63,63,70,0.6)' : 'rgba(0,0,0,0.07)',
-                      background: selectedCohortId === c.id ? `${courseAccent}12` : 'transparent',
-                      color: selectedCohortId === c.id ? courseAccent : isDark ? '#71717a' : '#888',
-                    }}
-                  >
-                    {c.name}
-                  </button>
-                ))}
+              <span className={label}>Cohort</span>
+              <div className="flex flex-wrap gap-1.5">
+                {[{ id: 'all', name: 'All cohorts' }, ...formCohorts].map(c => {
+                  const on = selectedCohortId === c.id;
+                  return (
+                    <button key={c.id} type="button" aria-pressed={on} onClick={() => { setSelectedCohortId(c.id); setBlastResult(null); }}
+                      className="rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                      style={{ background: on ? `${courseAccent}1a` : chipBg, color: on ? courseAccent : chipText, boxShadow: on ? `inset 0 0 0 1.5px ${courseAccent}` : 'none' }}>
+                      {c.name}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
           {(isCourse || isVE) && (
             <div>
-              <label className={label}>Audience</label>
-              <div className={`grid grid-cols-2 sm:grid-cols-3 ${isVE ? 'lg:grid-cols-4' : 'lg:grid-cols-5'} gap-2`}>
+              <span className={label}>Send to</span>
+              <div className="flex flex-wrap gap-1.5">
                 {([
                   { value: 'all',         label: 'Everyone'    },
                   { value: 'not_started', label: 'Not started' },
@@ -1464,73 +1452,40 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                   { value: 'failed',      label: 'Failed'      },
                 ] as const).filter(seg => !(isVE && seg.value === 'failed')).map(seg => {
                   const count = segmentCounts?.[seg.value];
-                  const active = blastSegment === seg.value;
+                  const on = blastSegment === seg.value;
                   return (
-                    <button
-                      key={seg.value}
-                      onClick={() => { setBlastSegment(seg.value); setBlastResult(null); }}
-                      className="flex flex-col items-center gap-0.5 rounded-xl border px-2 py-2.5 text-xs font-semibold transition-opacity hover:opacity-75"
-                      style={{
-                        borderColor: active ? `${courseAccent}55` : isDark ? 'rgba(63,63,70,0.6)' : 'rgba(0,0,0,0.07)',
-                        background: active ? `${courseAccent}12` : 'transparent',
-                        color: active ? courseAccent : isDark ? '#71717a' : '#888',
-                      }}
-                    >
-                      {count !== undefined && (
-                        <span className={`text-base font-bold leading-none ${active ? '' : isDark ? 'text-zinc-300' : 'text-zinc-700'}`}>
-                          {count}
-                        </span>
-                      )}
-                      <span>{seg.label}</span>
+                    <button key={seg.value} type="button" aria-pressed={on} onClick={() => { setBlastSegment(seg.value); setBlastResult(null); }}
+                      className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-[13px] font-semibold transition-colors"
+                      style={{ background: on ? `${courseAccent}1a` : chipBg, color: on ? courseAccent : chipText, boxShadow: on ? `inset 0 0 0 1.5px ${courseAccent}` : 'none' }}>
+                      {seg.label}
+                      {count !== undefined && <span className="tabular-nums" style={{ opacity: on ? 1 : 0.65 }}>{count}</span>}
                     </button>
                   );
                 })}
               </div>
             </div>
           )}
-          <div className={isDark ? 'rounded-xl border border-zinc-800 bg-zinc-950/50 p-4 space-y-3' : 'rounded-xl border border-[rgba(0,0,0,0.07)] bg-[#f5f6f7] p-4 space-y-3'}>
-            <div className="flex items-start gap-3">
-              <div className={sectionIconBg} style={{ background: `${courseAccent}14` }}>
-                <Sparkles className="w-4 h-4" style={{ color: courseAccent }} />
-              </div>
-              <div className="min-w-0">
-                <p className={cardTitle}>AI Draft</p>
-                <p className={cardSub}>Generate the subject and message for your broadcast email.</p>
-              </div>
+
+          {/* Optional AI draft: tone and what it is about; the purpose stays the content's default. */}
+          <div className="space-y-3 rounded-xl p-4" style={{ background: chipBg }}>
+            <div className="flex items-center justify-between gap-3">
+              <p className={isDark ? 'text-[13.5px] font-semibold text-white' : 'text-[13.5px] font-semibold text-gray-900'}>Draft with AI</p>
+              <span className={isDark ? 'text-[12.5px] text-zinc-500' : 'text-[12.5px] text-gray-500'}>Optional</span>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
               <div>
-                <label className={label}>Tone</label>
-                <select
-                  value={blastTone}
-                  onChange={e => setBlastTone(e.target.value as 'friendly' | 'professional' | 'casual')}
-                  className={input}
-                >
+                <label className={label} htmlFor="blast-tone">Tone</label>
+                <select id="blast-tone" value={blastTone} onChange={e => setBlastTone(e.target.value as 'friendly' | 'professional' | 'casual')} className={inputOnSoft}>
                   <option value="friendly">Friendly</option>
                   <option value="professional">Professional</option>
                   <option value="casual">Casual</option>
                 </select>
               </div>
               <div>
-                <label className={label}>Purpose</label>
-                <input
-                  type="text"
-                  value={blastPurpose}
-                  onChange={e => setBlastPurpose(e.target.value)}
-                  placeholder="e.g. reminder, venue change, last call"
-                  className={input}
-                />
+                <label className={label} htmlFor="blast-about">What is it about?</label>
+                <input id="blast-about" type="text" value={blastPrompt} onChange={e => setBlastPrompt(e.target.value)} className={inputOnSoft}
+                  placeholder={isEvent ? 'e.g. The venue has changed; doors open at 6pm' : isVE ? 'e.g. Week 2 starts Monday; the board pack is due Friday' : 'e.g. A new module is open; finish it by Friday'} />
               </div>
-            </div>
-            <div>
-              <label className={label}>Extra instructions</label>
-              <textarea
-                value={blastPrompt}
-                onChange={e => setBlastPrompt(e.target.value)}
-                placeholder={isEvent ? 'Optional: mention urgency, what attendees should do next, or any details to emphasize.' : 'Optional: what learners should do next, a deadline, or anything to emphasize.'}
-                rows={3}
-                className={textarea}
-              />
             </div>
             {blastAiResult && (
               <div className={feedback(blastAiResult.ok)}>
@@ -1538,28 +1493,21 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
                 <span>{blastAiResult.msg}</span>
               </div>
             )}
-            <button
-              onClick={handleGenerateBroadcastEmail}
-              disabled={blastAiLoading}
-              className={primaryBtn}
-              style={{ background: courseAccent }}
-            >
-              {blastAiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <><Sparkles className="w-4 h-4" /> Generate Broadcast Email</>}
+            <button type="button" onClick={handleGenerateBroadcastEmail} disabled={blastAiLoading}
+              className="inline-flex items-center gap-2 rounded-[10px] px-4 py-2 text-[13px] font-bold transition-opacity hover:opacity-90 disabled:opacity-60"
+              style={{ background: courseAccent, color: '#fff' }}>
+              {blastAiLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Draft the email'}
             </button>
           </div>
 
           <div>
-            <label className={label}>Subject</label>
-            <input
-              type="text"
-              value={blastSubject}
-              onChange={e => { setBlastSubject(e.target.value); setBlastResult(null); }}
+            <label className={label} htmlFor="blast-subject">Subject</label>
+            <input id="blast-subject" type="text" value={blastSubject} onChange={e => { setBlastSubject(e.target.value); setBlastResult(null); }}
               placeholder={isEvent ? 'e.g. Important update about your registration' : isVE ? 'e.g. Week 2 starts Monday' : 'e.g. A new module is open'}
-              className={input}
-            />
+              className={input} />
           </div>
           <div>
-            <label className={label}>Message</label>
+            <span className={label}>Message</span>
             <RichTextEditor
               value={blastBody}
               onChange={html => { setBlastBody(html); setBlastResult(null); }}
@@ -1573,25 +1521,24 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
             />
             <p className={isDark ? 'mt-1.5 text-xs text-zinc-500' : 'mt-1.5 text-xs text-gray-400'}>Click an image to change its size. Sign off in your own words: nothing is added under your message.</p>
           </div>
-          <div className={isDark ? 'rounded-xl border border-zinc-800 bg-zinc-950/40 px-4 py-3 text-xs text-zinc-500' : 'rounded-xl border border-[rgba(0,0,0,0.07)] bg-[#f5f6f7] px-4 py-3 text-xs text-[#888]'}>
-            Available tags: <code>{'{{name}}'}</code>, <code>{'{{email}}'}</code>, <code>{'{{form_title}}'}</code>, <code>{'{{form_url}}'}</code>
-            {isEvent && <>, <code>{'{{event_title}}'}</code>, <code>{'{{event_date}}'}</code>, <code>{'{{event_time}}'}</code>, <code>{'{{event_timezone}}'}</code>, <code>{'{{event_location}}'}</code>, <code>{'{{meeting_link}}'}</code></>}
-          
-            {isEvent && <span className="mt-1 block">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>}
+          <div className={isDark ? 'flex flex-wrap items-center gap-1.5 text-[12.5px] text-zinc-500' : 'flex flex-wrap items-center gap-1.5 text-[12.5px] text-gray-500'}>
+            <span>Personalise with</span>
+            {['{{name}}', '{{email}}', '{{form_title}}', '{{form_url}}', ...(isEvent ? ['{{event_title}}', '{{event_date}}', '{{event_time}}', '{{event_timezone}}', '{{event_location}}', '{{meeting_link}}'] : [])].map(tag => (
+              <code key={tag} className="rounded-md px-1.5 py-0.5 text-[12px]" style={{ background: chipBg, color: isDark ? '#e4e4e7' : '#111' }}>{tag}</code>
+            ))}
+            {isEvent && <span className="basis-full">A button can link to <code>{'{{meeting_link}}'}</code> to give each registrant their own join link.</span>}
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={handlePreview} disabled={previewing || !blastSubject.trim() || !blastHasBody}
-              className={`inline-flex h-11 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-40 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f1f2f4] text-gray-800'}`}>
+              className={softBtn}>
               {previewing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Eye className="w-4 h-4" />} Preview
             </button>
-            <div className="flex flex-1 gap-2">
-              <input type="email" value={testTo} onChange={e => { setTestTo(e.target.value); setBlastResult(null); }}
-                placeholder="you@example.com" aria-label="Send a test to" className={`${input} min-w-0 flex-1`} />
-              <button type="button" onClick={handleTestSend} disabled={testSending || !testTo.trim() || !blastSubject.trim() || !blastHasBody}
-                className={`inline-flex h-11 flex-shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold disabled:opacity-40 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f1f2f4] text-gray-800'}`}>
-                {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send test
-              </button>
-            </div>
+            <input type="email" value={testTo} onChange={e => { setTestTo(e.target.value); setBlastResult(null); }}
+              placeholder="you@example.com" aria-label="Send a test to" className={`${input} min-w-[160px] flex-1`} />
+            <button type="button" onClick={handleTestSend} disabled={testSending || !testTo.trim() || !blastSubject.trim() || !blastHasBody}
+              className={softBtn}>
+              {testSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />} Send test
+            </button>
           </div>
           {blastResult && (
             <div className={feedback(blastResult.ok)}>
@@ -1599,22 +1546,15 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
               <span>{blastResult.msg}</span>
             </div>
           )}
-          <button
-            onClick={handleBlast}
-            disabled={blasting || !blastSubject.trim() || !blastHasBody}
-            className={primaryBtn}
-            style={{ background: courseAccent }}
-          >
+          <button onClick={handleBlast} disabled={blasting || !blastSubject.trim() || !blastHasBody}
+            className={primaryBtn} style={{ background: courseAccent }}>
             {blasting
               ? <Loader2 className="w-4 h-4 animate-spin" />
-              : <><Send className="w-4 h-4" /> Send to {(isCourse || isVE) && segmentCounts ? `${segmentCounts[blastSegment]} student${segmentCounts[blastSegment] !== 1 ? 's' : ''}` : 'all'}</>}
+              : <><Send className="w-4 h-4" /> Send to {(isCourse || isVE) && segmentCounts ? `${segmentCounts[blastSegment]} ${isEvent ? 'attendee' : 'learner'}${segmentCounts[blastSegment] !== 1 ? 's' : ''}` : 'all'}</>}
           </button>
-          <p className={isDark ? 'text-xs text-zinc-600 text-center' : 'text-xs text-gray-400 text-center'}>
-            {(isCourse || isVE)
-              ? 'Only enrolled students with an email address will receive this.'
-              : 'Only recipients who provided an email address will receive this.'}
+          <p className={isDark ? 'text-xs text-zinc-500' : 'text-xs text-gray-500'}>
+            {(blastSubject.trim() && blastHasBody) ? ((isCourse || isVE) ? 'Only enrolled learners with an email address will receive this.' : 'Only recipients who gave an email address will receive this.') : 'The button turns green once there is a subject and a message.'}
           </p>
-        </div>
       </div>
 
       {blastPreview && (
@@ -2053,10 +1993,6 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
 
   return (
     <div className="w-full max-w-3xl space-y-5" style={{ color: textPrim }}>
-      <div>
-        <h2 className="text-[18px] font-semibold" style={{ color: textPrim }}>Publish</h2>
-        <p className="mt-1 text-[13.5px]" style={{ color: textMut }}>Choose when learners can see this {kind}, and share its link.</p>
-      </div>
 
       {/* Status first: it is the main thing on this tab */}
       <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3.5"
@@ -2085,10 +2021,10 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
             className="min-w-0 flex-1 rounded-[10px] px-3 py-2 font-mono text-[12.5px] outline-none"
             style={{ background: soft, color: textMut, border: 'none' }} />
           <button onClick={() => copyLink(formUrl)} className={btn} style={ghost}>
-            {linkCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy</>}
+            {linkCopied ? 'Copied' : 'Copy'}
           </button>
           <a href={formUrl} target="_blank" rel="noreferrer" className={btn} style={ghost}>
-            <ExternalLink className="w-4 h-4" /> Open live page
+            Open live page
           </a>
         </div>
         {linkOnly && (
@@ -2144,7 +2080,7 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
           <p className="text-[12.5px]" style={{ color: textMut }}>Makes a draft copy you can change.</p>
         </div>
         <button onClick={handleClone} disabled={cloning || cloned} className={btn} style={ghost}>
-          {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? <><Check className="w-4 h-4" /> Copy made</> : <><GitFork className="w-4 h-4" /> Duplicate {kind}</>}
+          {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? 'Copy made' : `Duplicate ${kind}`}
         </button>
       </div>
     </div>
@@ -2152,7 +2088,7 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
 }
 
 // -- Virtual Experience Report Tab ---
-function VirtualExperienceReportTab({ form }: { form: any }) {
+function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n: number) => void }) {
   const { theme } = useTheme();
   const isDark = theme !== 'light';
   const card       = isDark ? 'bg-zinc-900/50 border-zinc-800/50' : 'bg-white border-[rgba(0,0,0,0.07)]';
@@ -2254,11 +2190,11 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
     const load = async () => {
       setLoading(true);
       const list = await fetchAttempts();
-      if (list) setAttempts(list);
+      if (list) { setAttempts(list); onCount?.(list.length); }
       setLoading(false);
     };
     load();
-  }, [fetchAttempts]);
+  }, [fetchAttempts, onCount]);
 
   // Reports can take a while to write, so do not drop them on a stray click without asking.
   const closeReview = () => {
@@ -2374,41 +2310,36 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
         </div>
         <button onClick={exportCSV}
           className={`flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-opacity hover:opacity-80 ${isDark ? 'bg-zinc-800 text-zinc-200' : 'bg-[#f3f5f4] text-[#44504a]'}`}>
-          <Download className="h-3.5 w-3.5" /> Export CSV
+          Export CSV
         </button>
       </div>
       {/* Stats */}
-      <div className={`grid grid-cols-2 overflow-hidden rounded-2xl border sm:grid-cols-4 ${card}`}>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
         {[
           { label: 'Learners',    value: attempts.length },
           { label: 'Not started', value: notStarted },
           { label: 'In progress', value: inProgress },
           { label: 'Completed',   value: completed },
         ].map(s => (
-          <div key={s.label} className={`p-4 sm:p-5 [&:not(:last-child)]:border-r ${isDark ? 'border-zinc-800/70' : 'border-[rgba(0,0,0,0.06)]'}`}>
-            <p className={`text-[12.5px] font-semibold mb-1.5 ${textMut}`}>{s.label}</p>
-            <p className={`text-[26px] font-semibold tabular-nums ${textPrim}`}>{s.value}</p>
+          <div key={s.label} className="rounded-xl px-4 py-3" style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
+            <p className={`text-[12.5px] font-semibold ${textMut}`}>{s.label}</p>
+            <p className={`text-[24px] font-semibold tabular-nums ${textPrim}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Table */}
-      <div className={`rounded-2xl border overflow-hidden ${card}`}>
-        <div className={`px-6 py-4 border-b flex items-center justify-between ${cardHeader}`}>
-          <h3 className={`text-base font-semibold ${textPrim}`}>Learners</h3>
-          <span className={`text-xs ${textMut}`}>{attempts.length} learner{attempts.length === 1 ? '' : 's'}</span>
-        </div>
+      <div>
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className={`border-b ${tableHead}`}>
-              <tr>
-                <th className="px-3 sm:px-6 py-3 font-medium">Student</th>
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Email</th>
-                <th className="px-3 sm:px-6 py-3 font-medium">Status</th>
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Requirements</th>
-                {needsReview && <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Score</th>}
-                <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Last Active</th>
-                {needsReview && <th className="px-3 sm:px-6 py-3 font-medium">Review</th>}
+            <thead className={`border-b ${isDark ? 'border-zinc-800' : 'border-[rgba(15,23,42,0.08)]'}`}>
+              <tr className={`text-[12.5px] ${textMut}`}>
+                <th className="px-2.5 py-2 font-semibold">Learner</th>
+                <th className="px-2.5 py-2 font-semibold">Status</th>
+                <th className="hidden sm:table-cell px-2.5 py-2 font-semibold">Tasks</th>
+                {needsReview && <th className="hidden sm:table-cell px-2.5 py-2 font-semibold">Score</th>}
+                <th className="hidden sm:table-cell px-2.5 py-2 font-semibold">Last active</th>
+                {needsReview && <th className="px-2.5 py-2 font-semibold">Review</th>}
               </tr>
             </thead>
             <tbody className={`divide-y ${divider}`}>
@@ -2421,44 +2352,46 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                 const isStarted   = !!a.started_at;
                 return (
                   <tr key={a.id ?? `unenrolled-${i}`} className={`transition-colors ${tableRow}`}>
-                    <td className={`px-3 sm:px-6 py-3 font-medium ${textPrim}`}>{a.student_name || '--'}</td>
-                    <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 ${textMut}`}>{a.student_email || '--'}</td>
-                    <td className="px-3 sm:px-6 py-3">
+                    <td className="px-2.5 py-3">
+                      <p className={`font-semibold ${textPrim}`}>{a.student_name || a.student_email || 'Unnamed learner'}</p>
+                      {a.student_name && a.student_email && <p className={`text-[12.5px] ${textMut}`}>{a.student_email}</p>}
+                    </td>
+                    <td className="px-2.5 py-3">
                       {isCompleted
                         ? <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-emerald-300 ring-1 ring-emerald-400/60' : 'bg-white text-emerald-700 ring-1 ring-emerald-500'}`}><CheckCircle2 className="w-3 h-3" /> Completed</span>
                         : isStarted
                         ? <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-zinc-300 ring-1 ring-zinc-600' : 'bg-white text-zinc-600 ring-1 ring-zinc-300'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> In progress</span>
                         : <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-0.5 rounded-full ${isDark ? 'text-zinc-400 ring-1 ring-zinc-700' : 'bg-white text-zinc-500 ring-1 ring-zinc-200'}`}><span className="w-1.5 h-1.5 rounded-full bg-current" /> Not started</span>}
                     </td>
-                    <td className="hidden sm:table-cell px-3 sm:px-6 py-3">
+                    <td className="hidden sm:table-cell px-2.5 py-3">
                       {isStarted ? (
                         <div className="flex items-center gap-2">
                           <div className={`h-1.5 w-20 rounded-full overflow-hidden ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
-                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#10b981' }} />
+                            <div className="h-full rounded-full" style={{ width: `${pct}%`, background: '#00bf63' }} />
                           </div>
-                          <span className={`text-xs ${textMut}`}>{doneReqs}/{counts.totalReqs}</span>
+                          <span className={`whitespace-nowrap text-[12.5px] tabular-nums ${textMut}`}>{doneReqs} of {counts.totalReqs}</span>
                         </div>
                       ) : (
                         <span className={`text-xs ${textMut}`}>--</span>
                       )}
                     </td>
                     {needsReview && (
-                      <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 ${textMut}`}>
-                        {a.review?.score !== undefined ? <span className="font-semibold" style={{ color: '#10b981' }}>{a.review.score}/100</span> : '--'}
+                      <td className={`hidden sm:table-cell px-2.5 py-3 ${textMut}`}>
+                        {a.review?.score !== undefined ? <span className="font-bold" style={{ color: '#00873f' }}>{a.review.score}</span> : '-'}
                       </td>
                     )}
-                    <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 text-xs ${textMut}`}>
-                      {a.updated_at ? new Date(a.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '--'}
+                    <td className={`hidden sm:table-cell px-2.5 py-3 text-[13px] ${textMut}`}>
+                      {a.updated_at ? new Date(a.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '-'}
                     </td>
                     {needsReview && (
-                      <td className="px-3 sm:px-6 py-3">
+                      <td className="px-2.5 py-3">
                         {hasWorkToReview(a) ? (
                           <button onClick={() => openReview(a)}
-                            className={`text-xs font-medium px-3 py-1.5 rounded-xl transition-all hover:opacity-80 ${isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
+                            className={`text-[13px] font-bold transition-opacity hover:opacity-70 ${isDark ? 'text-emerald-300' : 'text-[#00873f]'}`}>
                             {a.review ? 'Edit review' : 'Review'}
                           </button>
                         ) : (
-                          <span className={`text-xs ${textMut}`}>{isStarted ? 'Nothing to review yet' : '-'}</span>
+                          <span className={`text-[13px] ${textMut}`}>{isStarted ? 'Nothing to review yet' : '-'}</span>
                         )}
                       </td>
                     )}
@@ -2466,7 +2399,7 @@ function VirtualExperienceReportTab({ form }: { form: any }) {
                 );
               })}
               {attempts.length === 0 && (
-                <tr><td colSpan={needsReview ? 7 : 5} className={`px-6 py-12 text-center ${textMut}`}>No assigned students or learner activity yet.</td></tr>
+                <tr><td colSpan={needsReview ? 6 : 4} className={`px-6 py-12 text-center ${textMut}`}>No assigned students or learner activity yet.</td></tr>
               )}
             </tbody>
           </table>
@@ -2663,6 +2596,8 @@ export default function FormDetailPage() {
   const [isStaff, setIsStaff] = useState(false);
   const initialTab = (searchParams.get('tab') as TabId) || 'settings';
   const [activeTab, setActiveTab] = useState<TabId>(initialTab);
+  // Learners on an experience, shown on its Report tab once the report has loaded them.
+  const [veLearnerCount, setVeLearnerCount] = useState(0);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -2929,44 +2864,6 @@ export default function FormDetailPage() {
   return (
     <main className="min-h-screen font-sans" style={{ background: bg, color: textPrim }}>
       {/* The course editor provides its own focused studio header and actions. */}
-      {type !== 'course' && <header className="sticky top-0 z-20 backdrop-blur-md" style={{ background: navBg }}>
-        <div className="px-4 sm:px-6 py-3 sm:py-4 flex items-center gap-2 sm:gap-4">
-          <Link href="/dashboard" className="transition-colors flex-shrink-0 hover:opacity-60" style={{ color: hdrTextMut }}>
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-
-          {/* Logo + Breadcrumb */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <Link href="/dashboard" className="flex items-center gap-1.5 hover:opacity-70 transition-opacity flex-shrink-0">
-              <img src={(isLight ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" className="h-6 w-auto" />
-            </Link>
-            <span className="font-semibold truncate" style={{ color: hdrTextPrim }}>{form.title}</span>
-          </div>
-
-          {/* Right actions */}
-          <div className="ml-auto flex items-center gap-2 flex-shrink-0">
-            {type === 'virtual_experience' ? (
-              <Link href={`/create/guided-project?id=${form.id}`} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-70" style={{ background: hdrBtnBg, border: `1px solid ${hdrBtnBord}`, color: hdrTextMut }}>
-                <Edit2 className="w-3.5 h-3.5" /> Edit
-              </Link>
-            ) : (
-              <button onClick={() => setActiveTab('settings')} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-70" style={{ background: hdrBtnBg, border: `1px solid ${hdrBtnBord}`, color: hdrTextMut }}>
-                <Edit2 className="w-3.5 h-3.5" /> Edit
-              </button>
-            )}
-            <a href={formUrl} target="_blank" rel="noreferrer" className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-70" style={{ background: hdrBtnBg, border: `1px solid ${hdrBtnBord}`, color: hdrTextMut }}>
-              <ExternalLink className="w-3.5 h-3.5" /> View
-            </a>
-            {!isStaff && <button onClick={() => exportContent(form)} className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:opacity-70" style={{ background: hdrBtnBg, border: `1px solid ${hdrBtnBord}`, color: hdrTextMut }} title="Download this as a file you can import into another workspace">
-              <Download className="w-3.5 h-3.5" /> Export content
-            </button>}
-            <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors ff-hover" title="Toggle theme" style={{ color: hdrTextMut }}>
-              {isLight ? <Moon className="w-4 h-4"/> : <Sun className="w-4 h-4"/>}
-            </button>
-          </div>
-        </div>
-
-      </header>}
 
       {/* -- Top tab navigation with a full-width content workspace -- */}
       <div className="px-3 sm:px-6 pt-5 pb-10">
@@ -2978,9 +2875,44 @@ export default function FormDetailPage() {
           const tabLabel = (tab: typeof TABS[number]) => tab.id === 'responses' && (type === 'course' || type === 'virtual_experience') ? 'Report' : tab.label;
           return (
             <div className="max-w-6xl mx-auto flex flex-col gap-4">
-              {/* Top: tabs stay reachable and scroll horizontally on narrow screens. */}
-              <div className={`${type === 'course' ? 'sticky top-0' : 'sticky top-12 sm:top-14'} z-10 -mx-1 px-1 py-1.5`} style={{ background: bg }}>
-              <nav className="flex items-center gap-6 overflow-x-auto px-1" aria-label="Content dashboard sections" style={{ scrollbarWidth: 'none', borderBottom: `1px solid ${navBord}` }}>
+              {/* One card: the title row, the tabs and the tab's content on the same surface. */}
+              <div className="w-full min-w-0 rounded-2xl" style={{ background: isLight ? '#ffffff' : '#1E1F26', boxShadow: isLight ? '0 16px 38px rgba(15,23,42,0.045)' : 'none' }}>
+              {type !== 'course' && (
+          <div className="px-5 sm:px-6 pt-4 pb-2 flex items-center gap-3">
+            <Link href="/dashboard" aria-label="Back to dashboard" className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] transition-opacity hover:opacity-70" style={{ color: hdrTextMut, background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)' }}>
+              <ArrowLeft className="w-4 h-4" />
+            </Link>
+
+            {/* What this is, then its name */}
+            <div className="min-w-0">
+              <p className="text-[12px]" style={{ color: hdrTextMut }}>{type === 'virtual_experience' ? 'Virtual experience' : type === 'event' ? 'Event' : 'Form'}</p>
+              <p className="text-[17px] font-semibold truncate" style={{ color: hdrTextPrim }}>{form.title}</p>
+            </div>
+
+            {/* Right actions */}
+            <div className="ml-auto flex items-center gap-2 flex-shrink-0">
+              {type === 'virtual_experience' ? (
+                <Link href={`/create/guided-project?id=${form.id}`} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
+                  Edit
+                </Link>
+              ) : (
+                <button onClick={() => setActiveTab('settings')} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
+                  Edit
+                </button>
+              )}
+              <a href={formUrl} target="_blank" rel="noreferrer" className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
+                View
+              </a>
+              {!isStaff && <button onClick={() => exportContent(form)} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }} title="Download this as a file you can import into another workspace">
+                Export content
+              </button>}
+              <button onClick={toggleTheme} className="p-2 rounded-lg transition-colors ff-hover" title="Toggle theme" style={{ color: hdrTextMut }}>
+                {isLight ? <Moon className="w-4 h-4"/> : <Sun className="w-4 h-4"/>}
+              </button>
+            </div>
+          </div>
+              )}
+              <nav className="flex items-center gap-6 overflow-x-auto px-5 sm:px-6" aria-label="Content dashboard sections" style={{ scrollbarWidth: 'none', borderBottom: `1px solid ${navBord}` }}>
                 {visibleTabs.map(tab => {
                   const isActive = shownTab === tab.id;
                   return (
@@ -2991,21 +2923,18 @@ export default function FormDetailPage() {
                       className="flex items-center gap-2 whitespace-nowrap pt-2.5 pb-3 text-left text-sm transition-colors"
                       style={{ color: isActive ? (isLight ? '#111' : '#f0f0f0') : hdrTextMut, fontWeight: 600, borderBottom: `2px solid ${isActive ? tabAccent : 'transparent'}`, marginBottom: -1 }}
                     >
-                      <tab.Icon className="h-4 w-4 flex-shrink-0" />
                       <span>{tabLabel(tab)}</span>
-                      {tab.id === 'responses' && totalCount > 0 && (
+                      {tab.id === 'responses' && (type === 'virtual_experience' ? veLearnerCount : totalCount) > 0 && (
                         <span className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold" style={{ background: isActive ? `color-mix(in oklab, ${tabAccent} 18%, transparent)` : (isLight ? 'rgba(0,0,0,0.06)' : '#3f3f46'), color: isActive ? tabAccent : hdrTextMut }}>
-                          {totalCount}
+                          {type === 'virtual_experience' ? veLearnerCount : totalCount}
                         </span>
                       )}
                     </button>
                   );
                 })}
               </nav>
-              </div>
 
-              {/* Full-width content workspace. */}
-              <div className="w-full min-w-0 rounded-2xl overflow-hidden" style={{ background: isLight ? '#ffffff' : '#1E1F26', border: isLight ? `1px solid ${navBord}` : '1px solid transparent', boxShadow: 'none' }}>
+              <div className="w-full min-w-0">
                 <AnimatePresence mode="wait">
                   <motion.div
                     key={shownTab}
@@ -3033,7 +2962,7 @@ export default function FormDetailPage() {
                         />
                       )}
                       {shownTab === 'responses' && type === 'virtual_experience' && (
-                        <VirtualExperienceReportTab form={form} />
+                        <VirtualExperienceReportTab form={form} onCount={setVeLearnerCount} />
                       )}
                       {shownTab === 'leaderboard' && (
                         <LeaderboardTab form={form} courseProgress={courseProgress} />
@@ -3053,6 +2982,7 @@ export default function FormDetailPage() {
                   )}
                   </motion.div>
                 </AnimatePresence>
+              </div>
               </div>
             </div>
           );
