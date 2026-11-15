@@ -23,6 +23,7 @@ import { pointsSystemFromCourseRow } from '@/lib/course-schema';
 import { StudentModeBanner } from '@/components/student/StudentModeBanner';
 import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student/courses-paths';
 import { publicGuide, GuideAvatar, GuideByline, GuideCard } from '@/components/ve/guide';
+import { MissionOutline } from '@/components/ve/MissionOutline';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
 import { enrollLabel } from '@/lib/unlock-pricing';
@@ -1554,26 +1555,42 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
     const veOutcomes = ((config.learnOutcomes ?? []) as string[]).filter(o => String(o ?? '').trim());
 
+    // Same palette and type as the player (components/VirtualExperienceTaker.tsx), so the page a
+    // learner reads before starting looks like the place they land in. Borderless cards.
     const isLight = studentTheme === 'light';
     const gp = {
-      bg:        isLight ? '#F5F5F3' : '#0d0d0d',
-      card:      isLight ? '#ffffff' : '#161616',
+      bg:        isLight ? '#F2F5FA' : '#141414',
+      card:      isLight ? '#ffffff' : '#1e1e1e',
       border:    isLight ? 'rgba(0,0,0,0.09)' : 'rgba(255,255,255,0.08)',
-      divider:   isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.05)',
-      title:     isLight ? '#0d0d0d' : '#f0f0f0',
+      divider:   isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)',
+      title:     isLight ? '#111111' : '#f0f0f0',
       body:      isLight ? '#333' : '#bbb',
-      muted:     isLight ? '#777' : '#666',
-      subtle:    isLight ? '#f4f5f7' : '#1E1F26',
+      muted:     isLight ? '#666' : '#888',
+      subtle:    isLight ? '#F6F8FB' : '#242424',
     };
-    const companyInitials = config.company?.split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase() || '??';
-    const managerInitials = ((config as any).managerName || 'M').split(' ').map((w: string) => w[0]).join('').slice(0,2).toUpperCase();
+    const displayFont = 'var(--font-display), sans-serif';
+    // A soft lift off the page. Shadows barely show on dark, so there a faint outline does the job.
+    const cardShadow = isLight ? '0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06)' : '0 0 0 1px rgba(255,255,255,0.06)';
+    const managerName = (config as any).managerName || 'Your manager';
+    const managerInitials = managerName.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase();
     const dataset = (config as any).dataset;
     const isShortCourse = !!(form as any).is_short_course;
     // The real professional behind the experience. Shown before enrolment on the hero,
-    // the brief header and the sidebar; null when the VE has no consented guide, in
-    // which case every block below falls back to the fictional manager as before.
+    // the brief and the sidebar; null when the VE has no consented guide, in which case
+    // the fictional manager is used instead.
     const guide = isShortCourse ? null : publicGuide(config);
-    const guideTheme = { text: gp.title, muted: gp.muted, faint: gp.muted, surface: gp.card, border: gp.border, accent: indColor };
+    // Borderless, like every other card on this page.
+    const guideTheme = { text: gp.title, muted: gp.muted, faint: gp.muted, surface: gp.card, border: 'transparent', accent: indColor };
+    // Facts a learner wants before starting, from fields the experience already has.
+    const duration = String((config as any).duration ?? '').trim();
+    const facts: { Icon: typeof Clock; label: string }[] = [
+      ...(duration ? [{ Icon: Clock, label: duration }] : []),
+      ...(totalLessons ? [{ Icon: ListChecks, label: `${totalLessons} ${totalLessons === 1 ? 'mission' : 'missions'}` }] : []),
+      ...(!isShortCourse && config.difficulty ? [{ Icon: Zap, label: String(config.difficulty).replace(/^./, (c: string) => c.toUpperCase()) }] : []),
+      { Icon: BadgeCheck, label: 'Certificate on completion' },
+    ];
+    const ctaStyle = { width: '100%', padding: '13px', borderRadius: 12, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' } as const;
+    const secondaryStyle = { width: '100%', padding: '11px', borderRadius: 12, background: gp.subtle, color: gp.body, fontSize: 13, fontWeight: 600, border: 'none', textDecoration: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 } as const;
 
     return (
       <div style={{ minHeight: '100vh', background: gp.bg, color: gp.title, fontFamily: fontFace }}>
@@ -1581,19 +1598,13 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         <style>{googleFontImport}</style>
 
         {/* -- Sticky nav -- */}
-        <nav style={{ position: 'sticky', top: 0, zIndex: 30, backdropFilter: 'blur(14px)', background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(13,13,13,0.88)', borderBottom: `1px solid ${isLight ? 'rgba(0,0,0,0.07)' : gp.border}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56 }}>
+        <nav style={{ position: 'sticky', top: 0, zIndex: 30, backdropFilter: 'blur(14px)', background: isLight ? 'rgba(255,255,255,0.98)' : 'rgba(20,20,20,0.9)', borderBottom: `1px solid ${gp.divider}`, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56 }}>
           <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
             <img src={(isLight ? logoUrl : logoDarkUrl || logoUrl) || undefined} alt="" style={{ height: 28, width: 'auto' }} />
           </Link>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            {isShortCourse
-              ? <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: `${indColor}18`, color: indColor, fontWeight: 700, letterSpacing: '0.02em' }}>Short Course</span>
-              : <>
-                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: `${indColor}18`, color: indColor, fontWeight: 700, textTransform: 'capitalize', letterSpacing: '0.02em' }}>{config.industry}</span>
-                  <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: gp.divider, color: gp.muted, fontWeight: 600, textTransform: 'capitalize' }}>{config.difficulty}</span>
-                </>
-            }
-          </div>
+          <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 999, background: `${indColor}18`, color: indColor, fontWeight: 700, letterSpacing: '0.02em', textTransform: isShortCourse ? 'none' : 'capitalize' }}>
+            {isShortCourse ? 'Short Course' : config.industry}
+          </span>
         </nav>
 
         {/* -- Hero banner -- */}
@@ -1603,30 +1614,40 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             : <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(135deg, ${indColor}55 0%, #0a0a0a 70%)` }} />
           }
           {/* Gradient overlay */}
-          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.82) 0%, rgba(0,0,0,0.3) 55%, transparent 100%)' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.35) 55%, transparent 100%)' }} />
           {/* Content */}
-          <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 36px' }}>
-            {/* Company row (VE only) */}
+          <div style={{ position: 'relative', zIndex: 2, maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px 32px' }}>
+            {/* Company and role (VE only). The role sits on a frosted chip so it reads on any cover. */}
             {!isShortCourse && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.75)' }}>{config.company}</span>
-                <span style={{ fontSize: 11, padding: '2px 8px', borderRadius: 6, background: `${indColor}30`, color: indColor, fontWeight: 700, border: `1px solid ${indColor}40` }}>{config.role}</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 13, fontWeight: 700, color: '#ffffff' }}>{config.company}</span>
+                {config.role && (
+                  <span style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 999, background: 'rgba(255,255,255,0.16)', color: '#ffffff', fontWeight: 600, border: '1px solid rgba(255,255,255,0.22)', backdropFilter: 'blur(6px)' }}>{config.role}</span>
+                )}
               </div>
             )}
             {/* Title and tagline in one column at a reading width, as on the course hero, so a
                 long title wraps short of the far edge. The title balances its lines. */}
             <div style={{ maxWidth: 680 }}>
-              <h1 style={{ fontSize: 'clamp(22px,4.5vw,36px)', fontWeight: 800, color: '#ffffff', lineHeight: 1.2, marginBottom: 10, letterSpacing: '-0.02em', textWrap: 'balance' }}>
+              <h1 style={{ fontSize: 'clamp(24px,4.5vw,38px)', fontWeight: 700, color: '#ffffff', lineHeight: 1.15, marginBottom: 10, letterSpacing: '-0.01em', textWrap: 'balance', fontFamily: displayFont }}>
                 {config.title || form.title}
               </h1>
               {config.tagline && (
-                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.65)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' }}>{config.tagline}</p>
+                <p style={{ fontSize: 15, color: 'rgba(255,255,255,0.72)', lineHeight: 1.55, margin: 0, textWrap: 'pretty' }}>{config.tagline}</p>
               )}
+            </div>
+            {/* What it takes, at a glance */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px 18px', marginTop: 16 }}>
+              {facts.map(({ Icon, label }) => (
+                <span key={label} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, color: 'rgba(255,255,255,0.9)' }}>
+                  <Icon style={{ width: 15, height: 15, color: '#ffffff', opacity: 0.85 }} /> {label}
+                </span>
+              ))}
             </div>
             {/* Manager credit -- the reason to enrol, above the fold. Fixed light-on-dark
                 palette because the hero sits on the cover image, not the page surface. */}
             {guide && (
-              <div style={{ marginTop: 16 }}>
+              <div style={{ marginTop: 18 }}>
                 <GuideByline
                   guide={guide}
                   size={30}
@@ -1644,24 +1665,19 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px 80px', gap: 20, alignItems: 'start' }}>
 
           {/* Left column */}
-          <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
 
-            {/* Manager brief (VE only) */}
+            {/* The brief (VE only): who it is from, then what it says. */}
             {!isShortCourse && config.background && (
-              <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden', border: `1px solid ${gp.border}` }}>
-                {/* Email header */}
-                <div style={{ padding: '14px 20px', background: gp.subtle, borderBottom: `1px solid ${gp.divider}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-                  {/* The brief stays in-fiction (the guide's role inside the simulated company);
-                      their real employer is credited in the sidebar profile instead. */}
-                  {guide && <GuideAvatar guide={guide} size={34} accent={indColor} />}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 14.5, fontWeight: 700, color: gp.title, margin: 0, lineHeight: 1.3 }}>
-                      {guide?.fullName || (config as any).managerName || 'Your Manager'}
-                      <span style={{ fontWeight: 400, fontSize: 13, color: gp.muted }}> · {(config as any).managerTitle || 'Manager'}, {config.company}</span>
-                    </p>
-                    <p style={{ fontSize: 12, color: gp.muted, margin: 0, marginTop: 1 }}>To: You (New {config.role})</p>
-                  </div>
-                  <span style={{ fontSize: 10, padding: '3px 9px', borderRadius: 6, background: `${indColor}15`, color: indColor, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', flexShrink: 0 }}>Your Brief</span>
+              <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden', boxShadow: cardShadow }}>
+                <div style={{ padding: '12px 22px', background: gp.subtle, display: 'flex', alignItems: 'center', gap: 10 }}>
+                  {guide
+                    ? <GuideAvatar guide={guide} size={26} accent={indColor} />
+                    : <span style={{ width: 26, height: 26, borderRadius: '50%', background: `${indColor}22`, color: indColor, fontSize: 10.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{managerInitials}</span>}
+                  <p style={{ flex: 1, minWidth: 0, fontSize: 13, color: gp.muted, margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    From <b style={{ color: gp.title, fontWeight: 600 }}>{guide?.fullName || managerName}</b>
+                  </p>
+                  <span style={{ fontSize: 10.5, color: gp.muted, fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', flexShrink: 0 }}>Your brief</span>
                 </div>
                 <div className="rich-content" style={{ padding: '20px 24px', fontSize: 14.5, lineHeight: 1.6, color: gp.body }}
                   dangerouslySetInnerHTML={{ __html: sanitizeRichText(config.background) || '' }} />
@@ -1671,8 +1687,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             {/* What you'll learn. Blank rows are filtered, not just counted: the editor saves an
                 unfilled outcome as an empty string, which rendered as a tick with no text. */}
             {veOutcomes.length > 0 && (
-              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', border: `1px solid ${gp.border}` }}>
-                <h2 style={{ fontSize: 14, fontWeight: 700, color: gp.title, marginBottom: 16, letterSpacing: '-0.01em' }}>What you&apos;ll learn</h2>
+              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 14, fontFamily: displayFont }}>What you&apos;ll learn</h2>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(240px,1fr))', gap: '10px 20px' }}>
                   {veOutcomes.map((o: string, i: number) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 9 }}>
@@ -1688,34 +1704,11 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               </div>
             )}
 
-            {/* Project outline */}
+            {/* The missions, drawn the way the player's mission list draws them */}
             {modules.length > 0 && (
-              <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden', border: `1px solid ${gp.border}` }}>
-                <div style={{ padding: '18px 24px 14px', borderBottom: `1px solid ${gp.divider}` }}>
-                  <h2 style={{ fontSize: 14, fontWeight: 700, color: gp.title, margin: 0, letterSpacing: '-0.01em' }}>Project Outline</h2>
-                </div>
-                {modules.map((mod: any, mi: number) => (
-                  <div key={mod.id} style={{ borderBottom: mi < modules.length - 1 ? `1px solid ${gp.divider}` : 'none' }}>
-                    {/* Module header */}
-                    <div style={{ padding: '13px 24px', display: 'flex', alignItems: 'center', gap: 10, background: gp.subtle }}>
-                      <div style={{ width: 22, height: 22, borderRadius: 7, background: `${indColor}18`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <span style={{ fontSize: 10, fontWeight: 800, color: indColor }}>{mi + 1}</span>
-                      </div>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: gp.title, flex: 1 }}>{mod.title}</span>
-                      <span style={{ fontSize: 11, color: gp.muted, fontWeight: 500 }}>{mod.lessons?.length || 0} mission{mod.lessons?.length !== 1 ? 's' : ''}</span>
-                    </div>
-                    {/* Lessons */}
-                    {(mod.lessons || []).map((les: any, li: number) => (
-                      <div key={les.id} style={{ padding: '10px 16px 10px 32px', display: 'flex', alignItems: 'center', gap: 8, borderTop: `1px solid ${gp.divider}` }}>
-                        <BookOpen style={{ width: 12, height: 12, color: gp.muted, flexShrink: 0 }} />
-                        <span style={{ fontSize: 14, color: gp.body, flex: 1, lineHeight: 1.4 }}>{les.title}</span>
-                        {les.requirements?.length > 0 && (
-                          <span style={{ fontSize: 11, color: gp.muted, fontWeight: 500, flexShrink: 0 }}>{les.requirements.length} deliverable{les.requirements.length !== 1 ? 's' : ''}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                ))}
+              <div style={{ background: gp.card, borderRadius: 14, padding: '22px 24px', boxShadow: cardShadow }}>
+                <h2 style={{ fontSize: 16, fontWeight: 600, color: gp.title, marginBottom: 16, fontFamily: displayFont }}>Missions</h2>
+                <MissionOutline modules={modules} isDark={!isLight} text={gp.title} muted={gp.muted} divider={gp.divider} />
               </div>
             )}
           </div>
@@ -1724,105 +1717,74 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
             {/* Enrollment card */}
-            <div style={{ background: gp.card, borderRadius: 14, overflow: 'hidden', border: `1px solid ${gp.border}` }}>
-              {/* Cover thumbnail */}
-              {config.coverImage && (
-                <div style={{ height: 140, overflow: 'hidden', position: 'relative' }}>
-                  <img src={resolveCoverUrl(config.coverImage)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to top, rgba(0,0,0,0.35) 0%, transparent 60%)' }} />
+            <div style={{ background: gp.card, borderRadius: 14, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: cardShadow }}>
+              {/* Tools */}
+              {config.tools?.length > 0 && (
+                <div>
+                  <p style={{ fontSize: 11, fontWeight: 700, color: gp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Tools</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                    {/* Defensive rather than trusting the stored list: skills also arrive from
+                        AI generation, content import and the MCP, so a blank name must not
+                        render an empty chip and a duplicate must not collide on its key. */}
+                    {config.tools
+                      .map((raw: string) => String(raw ?? '').trim())
+                      .filter(Boolean)
+                      .map((t: string, i: number) => {
+                      const logo = toolIcon(t);
+                      return (
+                        <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11.5, padding: '4px 10px', borderRadius: 8, background: gp.subtle, color: gp.body, fontWeight: 600 }}>
+                          {logo && <img src={logo} alt={t} style={{ width: 14, height: 14, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }} />}
+                          {t}
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-              <div style={{ padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {/* Tools */}
-                {config.tools?.length > 0 && (
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 600, color: gp.muted, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 7 }}>Tools</p>
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                      {/* Defensive rather than trusting the stored list: skills also arrive from
-                          AI generation, content import and the MCP, so a blank name must not
-                          render an empty chip and a duplicate must not collide on its key. */}
-                      {config.tools
-                        .map((raw: string) => String(raw ?? '').trim())
-                        .filter(Boolean)
-                        .map((t: string, i: number) => {
-                        const logo = toolIcon(t);
-                        return (
-                          <span key={`${i}-${t}`} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, padding: '4px 10px', borderRadius: 6, background: gp.subtle, color: gp.body, fontWeight: 600, border: `1px solid ${gp.divider}` }}>
-                            {logo && <img src={logo} alt={t} style={{ width: 14, height: 14, objectFit: 'contain', borderRadius: 2, flexShrink: 0 }} />}
-                            {t}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
 
-                {/* CTA */}
-                {form.locked ? (
-                  <Link
-                    href="/pricing"
-                    style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
-                  >
-                    {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
-                  </Link>
-                ) : signedOut ? (
-                  <Link
-                    href={backHere}
-                    style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
-                  >
-                    Start for free <ArrowRight style={{ width: 15, height: 15 }} />
-                  </Link>
-                ) : (
-                <button onClick={handleStartProject}
-                  style={{ width: '100%', padding: '13px', borderRadius: 10, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
+              {/* CTA */}
+              {form.locked ? (
+                <Link href="/pricing" style={ctaStyle}>
+                  {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
+                </Link>
+              ) : signedOut ? (
+                <Link href={backHere} style={ctaStyle}>
+                  Start for free <ArrowRight style={{ width: 15, height: 15 }} />
+                </Link>
+              ) : (
+                <button onClick={handleStartProject} style={ctaStyle}
                   onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '0.9'; }}
                   onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.opacity = '1'; }}>
                   {isShortCourse ? 'Start Course' : 'Start Virtual Experience'} <ArrowRight style={{ width: 15, height: 15 }} />
                 </button>
-                )}
+              )}
 
-                {/* Dataset download (VE only). Signed-out visitors are sent to sign in first:
-                    the dataset belongs to the experience, not to its public sales page. Their
-                    preview carries only hasDataset, never the dataset or its link. */}
-                {!isShortCourse && (signedOut ? (form.hasDataset && !form.locked) : (dataset?.csvContent || dataset?.url)) && (signedOut ? (
-                  <Link
-                    href={backHere}
-                    style={{ width: '100%', padding: '11px', borderRadius: 10, background: 'transparent', color: gp.body, fontSize: 13, fontWeight: 600, border: `1px solid ${gp.border}`, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                    <Lock style={{ width: 14, height: 14 }} /> Sign in to download dataset
-                  </Link>
-                ) : (
-                  <button onClick={() => {
-                    if (dataset.url) {
-                      window.open(dataset.url, '_blank', 'noopener,noreferrer');
-                    } else if (dataset.csvContent) {
-                      const blob = new Blob([dataset.csvContent], { type: 'text/csv' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a'); a.href = url; a.download = dataset.filename || 'dataset.csv'; a.click(); URL.revokeObjectURL(url);
-                    }
-                  }}
-                  style={{ width: '100%', padding: '11px', borderRadius: 10, background: 'transparent', color: gp.body, fontSize: 13, fontWeight: 600, border: `1px solid ${gp.border}`, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 }}>
-                  <Download style={{ width: 14, height: 14 }} /> Download Dataset
-                  </button>
-                ))}
-              </div>
+              {/* Dataset download (VE only). Signed-out visitors are sent to sign in first:
+                  the dataset belongs to the experience, not to its public sales page. Their
+                  preview carries only hasDataset, never the dataset or its link. */}
+              {!isShortCourse && (signedOut ? (form.hasDataset && !form.locked) : (dataset?.csvContent || dataset?.url)) && (signedOut ? (
+                <Link href={backHere} style={secondaryStyle}>
+                  <Lock style={{ width: 14, height: 14 }} /> Sign in to download dataset
+                </Link>
+              ) : (
+                <button onClick={() => {
+                  if (dataset.url) {
+                    window.open(dataset.url, '_blank', 'noopener,noreferrer');
+                  } else if (dataset.csvContent) {
+                    const blob = new Blob([dataset.csvContent], { type: 'text/csv' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a'); a.href = url; a.download = dataset.filename || 'dataset.csv'; a.click(); URL.revokeObjectURL(url);
+                  }
+                }}
+                style={secondaryStyle}>
+                <Download style={{ width: 14, height: 14 }} /> Download Dataset
+                </button>
+              ))}
             </div>
 
             {/* Guide profile (VE only) -- the real professional playing the manager, with
                 their actual title, employer and LinkedIn. */}
-            {guide && <GuideCard guide={guide} theme={guideTheme} />}
-
-            {/* Difficulty badge (VE only) */}
-            {!isShortCourse && (
-              <div style={{ background: gp.card, borderRadius: 14, padding: '14px 18px', border: `1px solid ${gp.border}`, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: `${indColor}15`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  <Star style={{ width: 16, height: 16, color: indColor }} />
-                </div>
-                <div>
-                  <p style={{ fontSize: 12, color: gp.muted, margin: 0, fontWeight: 500 }}>Difficulty</p>
-                  <p style={{ fontSize: 13, color: gp.title, margin: 0, fontWeight: 700, textTransform: 'capitalize' }}>{config.difficulty}</p>
-                </div>
-              </div>
-            )}
+            {guide && <div style={{ borderRadius: 14, boxShadow: cardShadow }}><GuideCard guide={guide} theme={guideTheme} /></div>}
           </div>
         </div>
 

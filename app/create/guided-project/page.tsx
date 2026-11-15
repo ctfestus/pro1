@@ -3234,6 +3234,30 @@ function VirtualExperienceCreatePageInner() {
                   />
                   <p className="text-[11px]" style={{ color: C.faint }}>Shown to students as an estimate of how long this experience takes to complete.</p>
                 </div>
+
+                {/* Experience level card. The creation screen sets it once; this is where an existing
+                    experience changes it. Saved with the rest of the config. */}
+                <div style={card} className="p-5 space-y-3">
+                  <p className="text-[12px] font-bold uppercase tracking-widest" style={{ color: C.muted }}>Experience level</p>
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      { id: 'beginner',     label: 'Beginner',     desc: 'Foundational' },
+                      { id: 'intermediate', label: 'Intermediate', desc: 'Real-world' },
+                      { id: 'advanced',     label: 'Advanced',     desc: 'Expert-level' },
+                    ] as const).map(d => {
+                      const selected = (config.difficulty || 'intermediate') === d.id;
+                      return (
+                        <button key={d.id} type="button" onClick={() => setConfig(c => c ? { ...c, difficulty: d.id } : c)}
+                          className="rounded-xl px-3 py-2 text-left transition-all"
+                          style={{ background: selected ? `${C.cta}14` : C.card, boxShadow: selected ? `0 0 0 2px ${C.cta}` : 'none' }}>
+                          <span className="block text-[12px] font-semibold" style={{ color: selected ? C.cta : C.text }}>{d.label}</span>
+                          <span className="block text-[11px]" style={{ color: C.faint }}>{d.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px]" style={{ color: C.faint }}>Shown to students on the experience page. It does not change the content.</p>
+                </div>
                 </div>)}
                 {activeSection === 'branding' && (
                 <div className="space-y-4">

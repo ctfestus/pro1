@@ -101,18 +101,21 @@ export function ProjectPlan({
                     onClick={() => !locked && onOpen(mod.id, lesson.id, idx)}
                     disabled={locked}
                     aria-current={isCurr ? 'step' : undefined}
-                    className="w-full flex items-stretch gap-2.5 text-left px-2 rounded-xl transition-colors disabled:cursor-not-allowed"
+                    className="relative w-full flex items-stretch gap-2.5 text-left px-2 rounded-xl transition-colors disabled:cursor-not-allowed"
                     style={{ background: isCurr ? `${accentColor}14` : 'transparent' }}>
-                    {/* Marker plus the line down to the next mission in this week: solid accent once this
-                        mission is done, so the line fills in as the learner moves forward. */}
+                    {/* The line down to the next mission in this week: solid accent once this mission is
+                        done, so it fills in as the learner moves forward. Drawn from just below this
+                        marker to just above the next one, over the row highlight, so the selected
+                        mission's background does not cut it off. Marker: 8px down, 26px tall, centred
+                        8 + 13px in; 5px gap at each end. */}
+                    {hasNext && (
+                      <span aria-hidden="true" className="absolute pointer-events-none" style={{
+                        left: 20, top: 8 + 26 + 5, bottom: -3, width: 0, zIndex: 1,
+                        borderLeft: status === 'done' ? `2px solid ${accentColor}` : `2px dashed ${faint}80`,
+                      }} />
+                    )}
                     <span className="flex flex-col items-center flex-shrink-0 pt-2">
                       <StatusMarker status={status} number={idx + 1} accentColor={accentColor} faint={faint} isDark={isDark} />
-                      {hasNext && (
-                        <span aria-hidden="true" style={{
-                          flex: 1, width: 0, minHeight: 12, marginTop: 4,
-                          borderLeft: status === 'done' ? `2px solid ${accentColor}` : `2px dashed ${faint}80`,
-                        }} />
-                      )}
                     </span>
                     <span className={`flex-1 min-w-0 pt-2 ${hasNext ? 'pb-4' : 'pb-2'}`} style={{ fontFamily: 'var(--font-display), sans-serif' }}>
                       <span className="block text-[13px] font-semibold leading-snug truncate"
