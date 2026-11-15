@@ -15,7 +15,7 @@
 import { useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
-import { ImagePlus, Minus, Plus, X } from 'lucide-react';
+import { ImagePlus, Plus, X, ChevronDown } from 'lucide-react';
 import { ImageLibrary } from '@/components/ImageLibrary';
 import { BrandfetchLogoPicker } from '@/components/BrandfetchLogoPicker';
 import { BRANDFETCH_CLIENT_ID, resolveBrandLogoUrl } from '@/lib/brandfetch';
@@ -71,8 +71,7 @@ function AccordionItemView({ node, updateAttributes, editor, getPos }: NodeViewP
   };
   const toggleIcon = (
     <span className="lesson-accordion__toggle-icon" aria-hidden="true">
-      <Plus className="lesson-accordion__plus" width={17} height={17} />
-      <Minus className="lesson-accordion__minus" width={17} height={17} />
+      <ChevronDown className="lesson-accordion__chevron" width={17} height={17} />
     </span>
   );
 

@@ -6,7 +6,7 @@
 // click in the player). Flip is local runtime state -- nothing about which side is
 // showing is persisted. The 3D flip + theming live in `.lesson-flip*` CSS.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { ReactNodeViewRenderer, NodeViewWrapper, NodeViewContent, useEditorState, type NodeViewProps } from '@tiptap/react';
 import { ArrowDown, ArrowUp, BookOpen, Brain, CalendarDays, Clock3, Code2, Copy, Globe2, HelpCircle, Image as ImageIcon, Lightbulb, MessageCircle, Plus, Puzzle, RefreshCw, Rocket, ShieldCheck, Sparkles, Target, Trash2, TrendingUp, Users, WandSparkles, X, Zap } from 'lucide-react';
@@ -164,7 +164,7 @@ function FlipCardView({ node, getPos, editor, updateAttributes }: NodeViewProps)
           <span className="lesson-flip__face lesson-flip__face--front" aria-hidden={flipped}>
             {(iconUrl || FrontIcon) && <span className="lesson-flip__front-icon">{iconUrl ? <img src={iconUrl} alt="" /> : FrontIcon && <FrontIcon width={21} height={21} aria-hidden="true" />}</span>}
             <span className="lesson-flip__text">{front}</span>
-            <span className="lesson-flip__hint"><RefreshCw width={12} height={12} /> Tap to reveal</span>
+            <span className="lesson-flip__hint"><RefreshCw width={12} height={12} /> Tap to flip</span>
           </span>
           <span className="lesson-flip__face lesson-flip__face--back" aria-hidden={!flipped}>
             <span className="lesson-flip__side-label">Answer</span>
@@ -193,8 +193,26 @@ function FlipDeckView({ node, editor, getPos, updateAttributes }: NodeViewProps)
   // Drives the card face accents.
   const accent = accentScope(accentColor);
 
+  // How many cards the learner has turned. Each card keeps its own flipped state, so the deck
+  // watches their data-flipped attribute rather than owning the state. Cards start face down.
+  const countRef = useRef<HTMLParagraphElement>(null);
+  const [flippedCount, setFlippedCount] = useState(0);
+  useEffect(() => {
+    if (editable) return;
+    const deck = countRef.current?.closest('.lesson-flip-deck');
+    if (!deck) return;
+    const observer = new MutationObserver(() => {
+      setFlippedCount(deck.querySelectorAll('.lesson-flip[data-flipped="true"]').length);
+    });
+    observer.observe(deck, { subtree: true, attributes: true, attributeFilter: ['data-flipped'] });
+    return () => observer.disconnect();
+  }, [editable]);
+
   return (
     <NodeViewWrapper className={`lesson-flip-deck ${accent.className}`.trim()} style={accent.style}>
+      {!editable && count > 1 && (
+        <p ref={countRef} className="lesson-flip-deck__count" contentEditable={false}>{flippedCount} of {count} flipped</p>
+      )}
       <NodeViewContent className="lesson-flip-deck__grid" />
       {editable && (
         <div className="lesson-block-footer" contentEditable={false}>

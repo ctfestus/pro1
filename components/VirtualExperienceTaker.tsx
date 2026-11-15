@@ -847,7 +847,7 @@ export default function VirtualExperienceTaker({
   // Main layout
   return (
     <div className="relative flex flex-col h-screen overflow-hidden"
-      style={{ background: bg, color: text, fontFamily: VE_BODY_FONT, ['--ve-accent' as string]: accentColor }}>
+      style={{ background: bg, color: text, fontFamily: VE_BODY_FONT, ['--ve-accent' as string]: accentColor, ['--ve-display-font' as string]: VE_DISPLAY_FONT }}>
 
       <WorkplaceTopBar
         isDark={isDark} accentColor={accentColor} text={navText} muted={navMuted}

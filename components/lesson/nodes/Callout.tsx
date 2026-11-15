@@ -163,7 +163,8 @@ function CalloutView({ node, updateAttributes, editor, getPos }: NodeViewProps) 
                 placeholder={fallback.label}
                 onCommit={(v) => updateAttributes({ label: v })}
               />
-            ) : (
+            ) : label.trim().toLowerCase() !== title.trim().toLowerCase() && (
+              // A title that repeats the label ("TIP", then "Tip") shows once.
               <span className="lesson-callout__eyebrow">{label}</span>
             )}
             {editable ? (

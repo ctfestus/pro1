@@ -29,7 +29,7 @@ export function LessonContentStyles() {
     const completed = Array.from({ length: Math.max(0, revealed - 1) }, (_, i) =>
       `.lesson-content .lesson-stepper[data-editable="false"][data-reveal="sequential"][data-revealed="${revealed}"] .lesson-step[data-step-index="${i}"]`,
     ).join(',\n');
-    return `${show} { display: flex; }\n${last} { animation: lesson-step-in 0.34s cubic-bezier(0.2,0.7,0.3,1); }\n${last}::after { display: none; }\n${current} .lesson-step__main { background: color-mix(in oklab, var(--lesson-accent-base) 5%, transparent); }\n${current} .lesson-step__num { box-shadow: 0 0 0 5px var(--lesson-accent-ring); }${completed ? `\n${completed} .lesson-step__num { display: none; }\n${completed} .lesson-step__check { display: inline-flex; }` : ''}`;
+    return `${show} { display: flex; }\n${last} { animation: lesson-step-in 0.34s cubic-bezier(0.2,0.7,0.3,1); }\n${last}::after { display: none; }\n${current} .lesson-step__main { background: color-mix(in oklab, var(--lesson-accent-base) 5%, transparent); }\n${current} .lesson-step__num { box-shadow: 0 0 0 5px var(--lesson-accent-ring); }${completed ? `\n${completed} .lesson-step__num { display: none; }\n${completed} .lesson-step__check { display: inline-flex; }\n${completed} .lesson-step__marker { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }` : ''}`;
   }).join('\n');
 
   // Authored inline links get a marker chosen by where they lead, so it carries
@@ -1347,6 +1347,102 @@ ${fileLink} { width: 0.68em; height: 0.68em; transform: translateY(0.02em); -web
   .lesson-content .lesson-timeline__dot { grid-column: 1; grid-row: 1 / span 2; }
   .lesson-content .lesson-timeline__content { grid-column: 2; grid-row: 2; }
   .lesson-content .lesson-timeline__date, .lesson-content .lesson-timeline__date-input { width: fit-content; max-width: 100%; text-align: left; }
+}
+
+/* ---- Refined block look (virtual experience refinement, November 2026) -----------------------
+   One container style (a soft panel, no outline or drop shadow), the mission list's numbered
+   markers and dashed line, and controls inside the block. Block titles use --ve-display-font,
+   which only the virtual experience player sets, so course lessons keep their own type. Author
+   settings (callout accent bar, accordion border, accents) still apply. */
+.lesson-content { --block-soft: #F6F8FB; --block-line: rgba(15,23,42,0.1); --block-dash: rgba(15,23,42,0.22); --block-faint: #8a929e; --block-chip: #ffffff; }
+.lesson-content.dark { --block-soft: rgba(255,255,255,0.045); --block-line: rgba(255,255,255,0.12); --block-dash: rgba(255,255,255,0.24); --block-faint: #7d7d86; --block-chip: rgba(255,255,255,0.08); }
+
+/* Callouts */
+.lesson-content .lesson-callout__title { font-family: var(--ve-display-font, inherit); }
+
+/* Flip cards: the term is the card; a clear hint; how many have been turned */
+.lesson-content .lesson-flip-deck__count { margin: 0 0 10px; color: var(--block-faint); font-size: 12px; font-weight: 600; }
+.lesson-content .lesson-flip__face { box-shadow: none; }
+.lesson-content .lesson-flip__card:hover .lesson-flip__face { box-shadow: none; }
+.lesson-content .lesson-flip__face--front, .lesson-content.dark .lesson-flip__face--front { align-items: flex-start; justify-content: space-between; padding: 18px 16px 16px; text-align: left; background: var(--block-soft); }
+.lesson-content .lesson-flip__face--front .lesson-flip__text { font-family: var(--ve-display-font, inherit); font-size: 16px; font-weight: 600; }
+.lesson-content .lesson-flip__face--front .lesson-flip__hint { position: static; color: var(--lesson-accent-ink); font-size: 12px; font-weight: 700; }
+.lesson-content .lesson-flip__face--back { align-items: flex-start; justify-content: flex-start; padding: 36px 16px 16px; text-align: left; }
+
+/* Tabs: underlined, on a soft panel */
+.lesson-content .lesson-tabs, .lesson-content.dark .lesson-tabs { border-radius: 14px; background: var(--block-soft); box-shadow: none; }
+.lesson-content .lesson-tabs__bar, .lesson-content.dark .lesson-tabs__bar { gap: 18px; padding: 0 16px; background: transparent; border-bottom: 1px solid var(--block-line); }
+.lesson-content .lesson-tabs__style, .lesson-content.dark .lesson-tabs__style { background: var(--block-soft); box-shadow: -8px 0 10px var(--block-soft); }
+.lesson-content .lesson-tabs__tab, .lesson-content .lesson-tabs__tab[data-active="true"], .lesson-content.dark .lesson-tabs__tab[data-active="true"] { padding: 0; border-radius: 0; background: transparent; box-shadow: none; }
+.lesson-content .lesson-tabs__tab[data-active="true"] { color: #111111; }
+.lesson-content.dark .lesson-tabs__tab[data-active="true"] { color: #fafafa; }
+.lesson-content .lesson-tabs__tab::after { left: 0; bottom: -1px; width: 100%; height: 2px; transform: scaleX(0.4); }
+.lesson-content .lesson-tabs__tab[data-active="true"]::after { transform: scaleX(1); }
+.lesson-content .lesson-tabs__trigger { padding: 12px 0 10px; font-size: 13.5px; font-weight: 700; }
+
+/* Accordion: soft rows, a chevron that turns as a row opens. An author-set border still shows. */
+.lesson-content .lesson-accordion__items, .lesson-content.dark .lesson-accordion__items { border-width: var(--acc-border-width, 0); border-radius: 14px; background: var(--block-soft); box-shadow: none; }
+.lesson-content .lesson-accordion__head { min-height: 54px; padding: 13px 16px; font-family: var(--ve-display-font, inherit); }
+.lesson-content .lesson-accordion__toggle-icon,
+.lesson-content .lesson-accordion__head:hover .lesson-accordion__toggle-icon,
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__toggle-icon { color: var(--block-faint); background: transparent; }
+.lesson-content .lesson-accordion__chevron { transition: transform 0.22s cubic-bezier(0.2,0.7,0.3,1); }
+.lesson-content .lesson-accordion__item[data-open="true"] .lesson-accordion__chevron { transform: rotate(180deg); }
+
+/* Knowledge check: the same A/B/C chips as the experience's question card */
+.lesson-content .lesson-check, .lesson-content.dark .lesson-check { background: var(--block-soft); box-shadow: none; }
+.lesson-content .lesson-check__question { font-family: var(--ve-display-font, inherit); }
+.lesson-content .lesson-check__option { background: var(--block-chip); }
+.lesson-content .lesson-check__letter { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; flex: 0 0 24px; border-radius: 7px; color: var(--block-faint); background: var(--block-soft); font-size: 12px; font-weight: 700; }
+.lesson-content .lesson-check__option[data-correct="true"] .lesson-check__letter { color: #ffffff; background: #10b981; }
+.lesson-content .lesson-check__option[data-wrong="true"] .lesson-check__letter { color: #f43f5e; }
+
+/* Step cards: one list with the mission list's markers and dashed line */
+.lesson-content .lesson-step-cards__items > [data-node-view-content-react] { gap: 0; }
+.lesson-content .lesson-step-card, .lesson-content.dark .lesson-step-card { position: relative; grid-template-columns: 26px minmax(0, 1fr); gap: 12px; padding: 0 0 18px; border-radius: 0; background: transparent; box-shadow: none; }
+.lesson-content .lesson-step-card::after { content: ''; position: absolute; left: 12px; top: 31px; bottom: 5px; border-left: 2px dashed var(--block-dash); }
+.lesson-content .lesson-step-cards__items > [data-node-view-content-react] > :last-child .lesson-step-card { padding-bottom: 0; }
+.lesson-content .lesson-step-cards__items > [data-node-view-content-react] > :last-child .lesson-step-card::after { display: none; }
+.lesson-content .lesson-step-card__number { width: 26px; height: 26px; color: #4b5563; background: var(--block-soft); box-shadow: none; font-size: 12px; font-weight: 700; }
+.lesson-content.dark .lesson-step-card__number { color: #c4c4c4; }
+.lesson-content .lesson-step-card__header { min-height: 26px; margin-bottom: 1px; }
+.lesson-content .lesson-step-card__title { font-family: var(--ve-display-font, inherit); font-size: 1rem; font-weight: 650; }
+
+/* Guided steps: same experience, polished */
+.lesson-content .lesson-step__title { font-family: var(--ve-display-font, inherit); }
+.lesson-content .lesson-stepper[data-complete="true"] .lesson-step__marker { color: var(--lesson-accent-ink); background: var(--lesson-accent-ring); }
+.lesson-content .lesson-stepper__next-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 16px 0 0 48px; }
+.lesson-content .lesson-stepper__next { gap: 6px; margin: 0; padding: 10px 16px; border-radius: 10px; font-size: 13.5px; font-weight: 700; }
+.lesson-content .lesson-stepper__progress { padding-left: 0; border-left: 0; color: var(--block-faint); opacity: 1; font-size: 12.5px; font-weight: 600; }
+
+/* Timeline: the day as a plain label, then the same markers and line */
+.lesson-content .lesson-timeline__date { padding: 0; color: var(--block-faint); background: transparent; font-weight: 700; }
+.lesson-content .lesson-timeline__title { font-family: var(--ve-display-font, inherit); }
+/* No rounding: with rounded corners the browser draws a dashed border as a solid line. */
+.lesson-content .lesson-timeline__entry::after, .lesson-content.dark .lesson-timeline__entry::after { width: 0; border-radius: 0; background: none; border-left: 2px dashed var(--block-dash); }
+@media (min-width: 561px) {
+  .lesson-content .lesson-timeline__entry { grid-template-columns: 56px 24px minmax(0, 1fr); }
+  .lesson-content .lesson-timeline__entry::after { left: 80px; }
+}
+
+/* Carousel: count and arrows in the header, slides on the soft panel */
+.lesson-content .lesson-carousel { padding: 12px 16px; border-radius: 14px; background: var(--block-soft); }
+.lesson-content .lesson-carousel__head { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
+.lesson-content .lesson-carousel__count { margin-right: 4px; color: var(--block-faint); font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.lesson-content .lesson-carousel__arrow, .lesson-content .lesson-carousel__arrow:hover:not(:disabled) { width: 30px; height: 30px; flex: 0 0 30px; border-radius: 9px; color: inherit; background: var(--block-chip); box-shadow: none; transform: none; }
+.lesson-content .lesson-carousel__slide { background: transparent; box-shadow: none; }
+.lesson-content .lesson-carousel__title { font-family: var(--ve-display-font, inherit); }
+
+/* Prompt block: same parts; matching buttons, no empty space, wraps on a phone */
+.lesson-content .lesson-prompt { box-shadow: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px rgba(15,23,42,0.06); }
+.lesson-content .lesson-prompt__text { min-height: 0; }
+.lesson-content .lesson-prompt__title { font-family: var(--ve-display-font, inherit); }
+.lesson-content .lesson-prompt__button { min-height: 36px; padding: 0 14px; border-radius: 10px; font-size: 13px; font-weight: 700; }
+@media (max-width: 560px) {
+  .lesson-content .lesson-stepper__next-row { margin-left: 44px; }
+  .lesson-content .lesson-prompt__footer { flex-direction: column; align-items: stretch; }
+  .lesson-content .lesson-prompt__actions { flex-wrap: wrap; justify-content: stretch; }
+  .lesson-content .lesson-prompt__button { flex: 1 1 auto; }
 }
 `}</style>
   );

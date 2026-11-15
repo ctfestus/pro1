@@ -414,6 +414,8 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
       {format === 'choice' && (
         <div className="lesson-check__options" role="group" aria-label={question || 'Knowledge check answers'}>
           {options.map((opt, i) => {
+            if (!String(opt ?? '').trim()) return null;
+            const letter = String.fromCharCode(65 + options.slice(0, i).filter(o => String(o ?? '').trim()).length);
             const showCorrect = answered && i === correctIndex;
             const showWrong = answered && selected === i && i !== correctIndex;
             return (
@@ -428,10 +430,10 @@ function KnowledgeCheckView({ node, updateAttributes, editor, getPos }: NodeView
                 aria-pressed={selected === i}
                 onClick={() => setSelected(i)}
               >
+                <span className="lesson-check__letter" aria-hidden="true">{letter}</span>
                 <span className="lesson-check__opt-text">{opt}</span>
                 <span className="lesson-check__option-end" aria-hidden="true">
                   {showCorrect ? <Check width={14} height={14} /> : showWrong ? <X width={14} height={14} /> : null}
-                  <span className="lesson-check__option-number">{i + 1}</span>
                 </span>
               </button>
             );
