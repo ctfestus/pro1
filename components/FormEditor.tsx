@@ -4,7 +4,7 @@ import { contentPath } from '@/lib/content-link';
 import { THEME_ACCENT_COLORS } from '@/lib/theme-types';
 import { VenueFields } from '@/components/VenueFields';
 import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { useTheme } from '@/components/ThemeProvider';
 import { PlanAccessPicker } from '@/components/PlanAccessPicker';
@@ -14,19 +14,17 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2, Save, Check, Plus, Trash2, Image as ImageIcon, Images, Sun, Moon,
   X, MapPin, ArrowUpRight, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Sparkles,
-  Building2, GripVertical, BookOpen, Monitor, Smartphone, RotateCcw, ExternalLink, Video, Search,
-  HelpCircle, CalendarDays, ClipboardList, Share2, CheckCircle2, Zap, Settings, Upload, Download, Link2, FileText,
+  GripVertical, BookOpen, Monitor, ExternalLink, Video, Search,
+  CalendarDays, ClipboardList, CheckCircle2, Settings, Upload, Download, Link2, FileText,
   Lock, LockOpen, Users, Music, FileCode,
   ArrowUp, ArrowDown, PenLine, Blocks,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
-import type { ThemeColor, ThemeMode } from '@/lib/theme-types';
 import type {
   FieldType, FormField, QuestionType, DownloadItem, CourseQuestion,
-  EventDetails, PostSubmission, PointsMilestone, PointsSystem, FormConfig,
+  PointsSystem, FormConfig,
 } from '@/lib/course-schema';
 import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
-import dynamic from 'next/dynamic';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
@@ -35,10 +33,10 @@ import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
 import { lessonHtmlToDoc } from '@/components/lesson/extensions';
 import { QuestionTypePicker, TYPE_LABELS } from '@/components/create/QuestionTypePicker';
 import type { QuestionTypeOrDownloads } from '@/components/create/QuestionTypePicker';
-import { getFontById, loadGoogleFont } from '@/lib/fonts';
+import { getFontById } from '@/lib/fonts';
 import { FontPickerModal } from '@/components/FontPickerModal';
 import { supabase } from '@/lib/supabase';
-import { uploadToCloudinary, uploadToCloudinaryWithMeta, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@/lib/uploadToCloudinary';
+import { uploadToCloudinaryWithMeta, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@/lib/uploadToCloudinary';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { deleteUploadedFile } from '@/lib/storage-cleanup';
@@ -76,14 +74,6 @@ const DEFAULT_POINTS: PointsSystem = {
 // --- Constants ---
 const COURSE_CATEGORIES = ['Excel', 'Power BI', 'SQL', 'Tableau', 'AI'] as const;
 
-const buttonThemes: Record<ThemeColor, string> = {
-  forest:  'bg-[#00bf63] hover:bg-[#00994f] text-white',
-  lime:    'bg-[#ADEE66] hover:bg-[#9ad94d] text-black',
-  emerald: 'bg-emerald-500 hover:bg-emerald-600 text-white',
-  rose:    'bg-rose-500 hover:bg-rose-600 text-white',
-  amber:   'bg-amber-500 hover:bg-amber-600 text-white',
-  ocean:   'bg-[#3E93FF] hover:bg-[#2f7fe0] text-white',
-};
 
 const themeAccentColors = THEME_ACCENT_COLORS;
 
@@ -172,26 +162,7 @@ const FIELD_TYPE_LABELS: Record<FieldType, string> = {
 };
 
 // --- Helpers ---
-const formatDateParts = (dateString?: string) => {
-  if (!dateString) return null;
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return null;
-    return {
-      monthShort: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-      day: date.toLocaleDateString('en-US', { day: 'numeric' }),
-      fullDate: date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
-    };
-  } catch { return null; }
-};
 
-const formatLocation = (locationString?: string) => {
-  if (!locationString) return { main: '', sub: '' };
-  const parts = locationString.split(',');
-  return parts.length > 1
-    ? { main: parts[0].trim(), sub: parts.slice(1).join(',').trim() }
-    : { main: locationString, sub: '' };
-};
 
 const isRequired = (f: FormField) => f.required !== false;
 
@@ -349,25 +320,6 @@ function LockToggle({ locked, onToggle, accentColor }: { locked: boolean; onTogg
   );
 }
 
-function EditorSection({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const FE = useFEC();
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="last:border-b-0" style={{ borderBottom: `1px solid ${FE.divider}` }}>
-      <button type="button" onClick={() => setOpen(!open)} className="w-full flex items-center justify-between py-3 px-1 group">
-        <span className="text-[12.5px] font-semibold tracking-widest uppercase transition-colors" style={{ color: FE.faint }}>{title}</span>
-        {open ? <ChevronUp className="w-3.5 h-3.5" style={{ color: FE.faint }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: FE.faint }} />}
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
-            <div className="pb-4 space-y-3">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
 // --- Sortable Field Card ---
 interface FieldCardProps {
@@ -527,7 +479,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const [newFieldRequired, setNewFieldRequired] = useState(true);
   const [newSocialPlatforms, setNewSocialPlatforms] = useState<string[]>(['linkedin', 'twitter']);
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
-  const [newQuestionType, setNewQuestionType] = useState<QuestionType | 'downloads'>('multiple_choice');
+  const [newQuestionType] = useState<QuestionType | 'downloads'>('multiple_choice');
   const [pickerCtx, setPickerCtx] = useState<
     | { mode: 'bottom' }
     | { mode: 'insert'; afterIndex: number }
@@ -2287,6 +2239,11 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         >{label}</button>
                       ))}
                     </div>
+                    <p className="text-[10px] leading-relaxed" style={{ color: FE.faint }}>
+                      {(formConfig.lessonTiming ?? 'after') === 'before'
+                        ? 'Lesson opens automatically before each question. Students read first, then answer.'
+                        : 'Lesson is offered after answering. "Why?" if wrong, "Review Lesson" if right.'}
+                    </p>
                   </div>
                   {/* AI tutor */}
                   <div className="space-y-3 border-t pt-5" style={{ borderColor: FE.divider }}>
@@ -2318,6 +2275,21 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           style={(formConfig.passmark ?? 50) === pct ? { background: accentColor, color: 'white', boxShadow: '0 1px 3px rgba(15,23,42,0.12)' } : { background: 'transparent', color: FE.muted }}
                         >{pct}%</button>
                       ))}
+                      {/* Any other mark from 1 to 100. */}
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        aria-label="Custom pass mark"
+                        placeholder="Custom"
+                        value={![50, 60, 70, 80].includes(formConfig.passmark ?? 50) ? (formConfig.passmark ?? '') : ''}
+                        onChange={e => {
+                          const v = parseInt(e.target.value);
+                          if (!isNaN(v) && v >= 1 && v <= 100) updateConfig({ passmark: v });
+                        }}
+                        className="min-h-9 w-24 rounded-lg border px-3 py-1.5 text-xs font-semibold outline-none transition-all placeholder:font-medium"
+                        style={{ background: FE.input, borderColor: FE.inputBorder, color: FE.text }}
+                      />
                     </div>
                   </div>
                   {/* Timer */}
@@ -2401,8 +2373,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                     {aiError && <p className="text-[11px]" style={{ color: '#ef4444' }}>{aiError}</p>}
                     {!aiError && aiSuccess && <p className="text-[11px]" style={{ color: '#10b981' }}>{aiSuccess}</p>}
 
-                    {!!formConfig.learnOutcomes?.length && (
-                      <div className="space-y-2 pt-1" style={{ borderTop: `1px solid ${FE.divider}` }}>
+                    {/* Always shown, so the first outcome can be typed as well as generated. */}
+                    <div className="space-y-2 pt-1" style={{ borderTop: `1px solid ${FE.divider}` }}>
                         <div className="flex items-center justify-between">
                           <label className={labelCls} style={{ ...labelStyle, marginBottom: 0 }}>Learning outcomes</label>
                           <button
@@ -2438,8 +2410,10 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                             </button>
                           </div>
                         ))}
+                        {!formConfig.learnOutcomes?.length && (
+                          <p className="text-[11px]" style={{ color: FE.faint }}>No outcomes yet. Add one, or generate them above.</p>
+                        )}
                       </div>
-                    )}
                   </div>
 
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleQuestionDragStart} onDragEnd={handleQuestionDragEnd}>

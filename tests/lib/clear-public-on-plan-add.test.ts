@@ -50,9 +50,10 @@ describe('closing open access when content joins a plan', () => {
 
   it('tells the editor, so its next save does not undo the change', () => {
     expect(picker).toContain('onPublicAccessClosed?.()');
+    // Every editor that shows the plan picker. Courses and events have one editor
+    // (components/FormEditor); /create only picks a starting point and saves a draft.
     for (const editor of [
       'components/FormEditor.tsx',
-      'app/create/page.tsx',
       'app/create/certification/page.tsx',
     ]) {
       expect(read(editor)).toContain('onPublicAccessClosed');
