@@ -54,7 +54,6 @@ const CodeSnippet = dynamic(() => import('@/components/course/CodeSnippet'), { s
 const SQLExercisePlayer = dynamic(() => import('@/components/sql-course/SQLExercisePlayer'), { ssr: false });
 const PythonExercisePlayer = dynamic(() => import('@/components/sql-course/PythonExercisePlayer'), { ssr: false });
 
-// Hamburger -- slightly tighter line spacing than lucide's Menu (lines at 7/12/17 vs 6/12/18)
 type ShowAnswers = 'per_question' | 'after_quiz' | 'none';
 
 // QuestionType / DownloadItem / CourseQuestion come from the canonical contract in lib/course-schema.

@@ -38,7 +38,6 @@ import type {
 const VE_BODY_FONT = "'Google Sans', 'Google Sans Text', var(--font-sans), sans-serif";
 const VE_DISPLAY_FONT = "var(--font-display), 'Google Sans', sans-serif";
 
-// Hamburger -- matches the course player (tighter line spacing than lucide's Menu).
 // Helpers
 import { safeEmbedUrl as getVideoEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { HtmlEmbedFrame } from '@/components/HtmlEmbedFrame';
