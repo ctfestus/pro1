@@ -12,9 +12,9 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2, XCircle, Loader2, ChevronRight, RotateCcw,
   Clock, EyeOff, AlertTriangle, ShieldAlert, GripVertical,
-  ChevronLeft, BookOpen, X, ExternalLink, ArrowRight, MoreHorizontal, Zap,
+  ChevronLeft, BookOpen, X, ExternalLink, ArrowRight, Zap,
   ArrowLeftToLine, ArrowRightFromLine, Download, ArrowDownToLine, Lock,
-  Check, Play, FileText, FlaskConical, ListChecks, Copy,
+  Check, Play, FileText, FlaskConical, ListChecks, Copy, MousePointerClick,
   ArrowUp, ArrowDown, PenLine, Link2, Image as ImageIcon, Lightbulb,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
@@ -173,6 +173,45 @@ function burstConfetti(canvas: HTMLCanvasElement, accent: string) {
  * blocks and LinkedIn share slides all render as slides but must never count toward the score or
  * the percentage. The server applies the same filter in /api/course complete-attempt.
  */
+// A question's own words, as one plain line for the course outline. Fill-in-the-blank gaps
+// (three or more underscores) read as a single blank.
+function questionLabel(q: any): string {
+  const text = String(q?.question || '').replace(/<[^>]*>/g, ' ').replace(/_{3,}/g, '___').replace(/\s+/g, ' ').trim();
+  return text || 'Question';
+}
+
+// An item's name in the outline, and anywhere else the learner is pointed back to it.
+function slideTitle(q: any): string {
+  if (q?.isLinkedInShare) return q.linkedInShareTitle || 'LinkedIn Share';
+  if (q?.isDownloads) return q.downloadsTitle || 'Downloads';
+  if (q?.lessonOnly) return q.lesson?.title || 'Lesson Content';
+  if (REVIEW_TYPES.includes(q?.type)) return q.question || 'Project';
+  if (q?.type === 'sql_exercise') return q.lesson?.title || q.question || 'SQL Exercise';
+  if (q?.type === 'python_exercise') return q.lesson?.title || q.question || 'Python Exercise';
+  return questionLabel(q);
+}
+
+// What kind of item a slide is, in the words the learner sees in the outline.
+function slideKind(q: any): string {
+  if (q?.isLinkedInShare) return 'Share';
+  if (q?.isDownloads) return 'Downloads';
+  if (q?.lessonOnly) {
+    const v = q.lesson?.videoUrl;
+    if (v) return isHtmlEmbedUrl(v) ? 'Interactive' : 'Video';
+    return 'Reading';
+  }
+  if (REVIEW_TYPES.includes(q?.type)) return 'Project';
+  if (q?.type === 'sql_exercise' || q?.type === 'python_exercise') return 'Lab';
+  return 'Question';
+}
+
+// "2 questions", "1 reading": the counts on a module's opening card.
+const KIND_NOUN: Record<string, [string, string]> = {
+  Reading: ['reading', 'readings'], Video: ['video', 'videos'], Interactive: ['interactive tool', 'interactive tools'],
+  Question: ['question', 'questions'], Project: ['project', 'projects'], Lab: ['lab', 'labs'],
+  Share: ['LinkedIn post', 'LinkedIn posts'], Downloads: ['downloads page', 'downloads pages'],
+};
+
 function isScorableSlide(q: any): boolean {
   return !q?.lessonOnly && !q?.isSection && !q?.isDownloads && !q?.isLinkedInShare;
 }
@@ -331,9 +370,6 @@ export function CourseTaker({
   const [collapsedSections, setCollapsedSections] = useState<Set<number>>(new Set());
 
   // 3-dot menu + XP badge
-  const [showMenu, setShowMenu] = useState(false);
-  const [xpNotify, setXpNotify] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // Anti-cheat state
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
@@ -379,6 +415,11 @@ export function CourseTaker({
   const [streakToast, setStreakToast] = useState<string | null>(null);
   const [lockedToast, setLockedToast] = useState<string | null>(null);
   const questions = useMemo(() => config.questions || [], [config.questions]);
+  // Module number for every slide (0 before the first module), for the eyebrow over each item.
+  const moduleNoAt = useMemo(() => {
+    let n = 0;
+    return questions.map((q: any) => { if (q?.isSection) n += 1; return n; });
+  }, [questions]);
   const learningOutcomes: string[] = config.learnOutcomes || [];
   const currentQuestion = questions[currentQuestionIndex];
   const totalQuestions = questions.filter(isScorableSlide).length;
@@ -527,15 +568,6 @@ export function CourseTaker({
     setSqlRuntime(null);
   }, [phase]);
 
-  // Close 3-dot menu on outside click
-  useEffect(() => {
-    if (!showMenu) return;
-    const handler = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [showMenu]);
 
   // Auto-collapse sidebar when entering SQL/Python exercise questions to give the editor more space
   useEffect(() => {
@@ -547,7 +579,10 @@ export function CourseTaker({
   }, [questionType]);
   const fontStyle = { fontFamily: fontOption.cssFamily };
   const isDark = (config.mode ?? 'dark') === 'auto' ? appTheme === 'dark' : (config.mode ?? 'dark') !== 'light';
-  const cardBg = isDark ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200 shadow-sm';
+  // Results cards set their surface directly: the app's light theme repaints the dark zinc
+  // classes, which turned a dark-mode course's results into light cards with light text.
+  const cardBg = isDark ? '' : 'shadow-sm';
+  const cardSurface = { background: isDark ? '#1E1F26' : '#ffffff', borderColor: isDark ? '#2a2b33' : '#e4e4e7' };
   const textColor = isDark ? 'text-[#ACB8C5]' : 'text-[#111111]';
   const mutedColor = isDark ? 'text-[#A8B5C2]' : 'text-[#555555]';
   const faintColor = isDark ? 'text-[#6b7a89]' : 'text-[#888888]';
@@ -558,6 +593,10 @@ export function CourseTaker({
   const txt      = isDark ? DARK_C.text  : LIGHT_C.text;
   const txtMuted = isDark ? DARK_C.muted : LIGHT_C.muted;
   const txtFaint = isDark ? DARK_C.faint : LIGHT_C.faint;
+  // Answer states: one green and one red everywhere in the player (the red matches the
+  // virtual experience badges). The lighter pair keeps them readable on dark cards.
+  const rightInk = isDark ? '#34d399' : '#047857';
+  const wrongInk = isDark ? '#F28B82' : '#D93025';
 
   // Shuffle helper
   const shuffle = (arr: string[]) => {
@@ -1400,7 +1439,7 @@ export function CourseTaker({
     const correctCount = Math.round((submittedPct / 100) * totalQuestions);
     const scoreDisplay = String(correctCount);
 
-    const resultColor = submittedPassed ? '#10b981' : '#f43f5e';
+    const resultColor = submittedPassed ? '#10b981' : wrongInk;
 
     return (
       <div className={`max-w-2xl mx-auto space-y-3 pt-8 px-4 sm:px-6`} style={fontStyle}>
@@ -1410,6 +1449,7 @@ export function CourseTaker({
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           className={`rounded-xl overflow-hidden ${cardBg}`}
+          style={cardSurface}
         >
           {/* Accent top bar */}
           <div className="h-1 w-full" style={{ background: resultColor }} />
@@ -1435,8 +1475,8 @@ export function CourseTaker({
                     <div className="flex flex-col items-center gap-2.5">
                       <ScoreGauge score={submittedPct} passmark={passmark} passed={submittedPassed} width={190}
                         track={isDark ? 'rgba(255,255,255,0.10)' : 'rgba(0,0,0,0.08)'}
-                        scoreColor={isDark ? '#f4f4f5' : '#18181b'} mutedColor={txtMuted} tickColor={isDark ? '#f4f4f5' : '#18181b'} />
-                      <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold tracking-wider text-white" style={{ background: resultColor }}>
+                        scoreColor={isDark ? '#f4f4f5' : '#18181b'} mutedColor={txtMuted} tickColor={isDark ? '#f4f4f5' : '#18181b'} failColor={wrongInk} />
+                      <span className="inline-block px-3 py-1 rounded-full text-[11px] font-bold tracking-wider" style={{ background: resultColor, color: !submittedPassed && isDark ? '#2B0B09' : '#ffffff' }}>
                         {submittedPassed ? 'PASSED' : 'FAILED'}
                       </span>
                       <p className={`text-sm ${mutedColor}`}>
@@ -1537,8 +1577,18 @@ export function CourseTaker({
           </div>
 
           {/* Footer */}
-          <div className={`px-7 sm:px-8 py-4 flex items-center justify-end ${isDark ? 'bg-zinc-900/40' : 'bg-zinc-50/60'}`}>
+          <div className={`px-7 sm:px-8 py-4 flex items-center justify-between gap-3 flex-wrap`} style={{ background: isDark ? 'rgba(255,255,255,0.03)' : '#fafafa' }}>
             <p className={`text-xs ${mutedColor}`}>Results recorded</p>
+            {/* The next step for a learner who did not pass sits in the card it follows from. */}
+            {!submittedPassed && !isLessonOnly && onRetake && (
+              <button
+                onClick={onRetake}
+                className="flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all hover:opacity-90 active:scale-[0.98]"
+                style={{ background: accent, color: 'white' }}
+              >
+                Retake course
+              </button>
+            )}
           </div>
         </motion.div>
 
@@ -1608,6 +1658,7 @@ export function CourseTaker({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.15 }}
             className={`border rounded-2xl overflow-hidden ${cardBg}`}
+            style={cardSurface}
           >
             <div className={`px-5 py-3.5 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-200'}`}>
               <h3 className={`text-sm font-semibold ${textColor}`}>Answer Review</h3>
@@ -1631,10 +1682,10 @@ export function CourseTaker({
                     className={`px-5 py-4 flex gap-3 ${idx < questions.length - 1 ? (isDark ? 'border-b border-zinc-800/60' : 'border-b border-zinc-100') : ''}`}
                   >
                     {/* Status dot */}
-                    <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5 ${correct ? 'bg-emerald-500/15' : 'bg-rose-500/15'}`}>
+                    <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5 ${correct ? 'bg-emerald-500/15' : ''}`} style={correct ? undefined : { background: isDark ? 'rgba(242,139,130,0.15)' : 'rgba(217,48,37,0.1)' }}>
                       {correct
                         ? <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                        : <XCircle className="w-3.5 h-3.5 text-rose-500" />}
+                        : <XCircle className="w-3.5 h-3.5" style={{ color: wrongInk }} />}
                     </div>
                     <div className="flex-1 min-w-0 space-y-1">
                       <p className={`text-sm leading-snug ${textColor}`}>
@@ -1644,7 +1695,7 @@ export function CourseTaker({
                       {!correct && (
                         <div className="space-y-0.5 mt-1.5">
                           {userAnswer
-                            ? <p className="text-xs text-rose-400">Your answer: <span className="font-medium">{formatAnswer(q, userAnswer)}</span></p>
+                            ? <p className="text-xs" style={{ color: wrongInk }}>Your answer: <span className="font-medium">{formatAnswer(q, userAnswer)}</span></p>
                             : <p className={`text-xs italic ${mutedColor}`}>Not answered</p>}
                           <p className="text-xs text-emerald-400">Correct: <span className="font-medium">{correctDisplay}</span></p>
                         </div>
@@ -1821,22 +1872,6 @@ export function CourseTaker({
           </motion.div>
         )}
 
-        {/* -- Retake button (failed only) -- */}
-        {!submittedPassed && !isLessonOnly && onRetake && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-          >
-            <button
-              onClick={onRetake}
-              className={`flex items-center justify-center gap-2 w-full py-3.5 rounded-2xl font-semibold text-sm border transition-all hover:opacity-80 active:scale-[0.98]`}
-              style={{ background: 'transparent', borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.1)', color: txtMuted }}
-            >
-              <RotateCcw className="w-4 h-4" /> Retake Course
-            </button>
-          </motion.div>
-        )}
       </div>
     );
   }
@@ -1879,8 +1914,8 @@ export function CourseTaker({
               {!checkingAttempts && attemptError && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(239,68,68,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      <AlertTriangle className="w-5 h-5 text-rose-400" />
+                    <div style={{ width: 40, height: 40, borderRadius: 12, background: isDark ? 'rgba(242,139,130,0.12)' : 'rgba(217,48,37,0.08)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <AlertTriangle className="w-5 h-5" style={{ color: wrongInk }} />
                     </div>
                     <div>
                       <p className={`text-sm font-semibold ${textColor}`}>Attempts exhausted</p>
@@ -1957,7 +1992,7 @@ export function CourseTaker({
         animate={{ opacity: 1, scale: 1, y: 0 }}
         transition={{ duration: 0.2, ease: 'easeOut' }}
         className={`w-full max-w-lg border rounded-2xl overflow-hidden ${cardBg}`}
-        style={fontStyle}
+        style={{ ...fontStyle, ...cardSurface }}
       >
         <div className="p-8 text-center space-y-5">
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full mx-auto bg-zinc-500/10">
@@ -1972,14 +2007,14 @@ export function CourseTaker({
 
           {/* Unanswered warning */}
           {unansweredCount > 0 && (
-            <div className="rounded-xl border border-red-500/25 bg-red-500/8 p-4 text-left space-y-3">
+            <div className="rounded-xl p-4 text-left space-y-3" style={{ background: isDark ? 'rgba(242,139,130,0.08)' : 'rgba(217,48,37,0.06)' }}>
               <div className="flex items-start gap-2.5">
-                <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0 mt-0.5" />
+                <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: wrongInk }} />
                 <div>
-                  <p className="text-sm font-semibold text-red-400">
+                  <p className="text-sm font-semibold" style={{ color: wrongInk }}>
                     {unansweredCount} question{unansweredCount > 1 ? 's' : ''} unanswered
                   </p>
-                  <p className="text-xs text-red-400/70 mt-0.5">
+                  <p className="text-xs mt-0.5" style={{ color: txtMuted }}>
                     Go back to answer them or submit anyway.
                   </p>
                 </div>
@@ -1993,9 +2028,10 @@ export function CourseTaker({
                       <button
                         key={q.id}
                         onClick={() => handleGoBack(idx)}
-                        className="px-2.5 py-1 rounded-lg text-xs font-semibold text-red-300 border border-red-500/30 bg-red-500/10 hover:bg-red-500/20 transition-colors"
+                        className="px-2.5 py-1 rounded-lg text-xs font-semibold transition-opacity hover:opacity-80 max-w-full truncate"
+                        style={{ color: txt, background: isDark ? 'rgba(255,255,255,0.06)' : '#ffffff' }}
                       >
-                        Q{idx + 1}
+                        {slideTitle(q)}
                       </button>
                     );
                   })}
@@ -2116,8 +2152,6 @@ export function CourseTaker({
         setStreak(newStreak);
         setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60 });
         setTimeout(() => setFloatingPoints(null), 1200);
-        setXpNotify(true);
-        setTimeout(() => setXpNotify(false), 2500);
         if (isStreak) {
           setStreakToast(`${newStreak} in a row! Streak bonus`);
           setTimeout(() => setStreakToast(null), 2200);
@@ -2313,8 +2347,6 @@ export function CourseTaker({
         setStreak(newStreak);
         setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60 });
         setTimeout(() => setFloatingPoints(null), 1200);
-        setXpNotify(true);
-        setTimeout(() => setXpNotify(false), 2500);
         if (isStreak) {
           setStreakToast(`${newStreak} in a row! Streak bonus`);
           setTimeout(() => setStreakToast(null), 2200);
@@ -2369,8 +2401,6 @@ export function CourseTaker({
         setStreak(newStreak);
         setFloatingPoints({ id: Date.now(), text: label, x: 50, y: 60 });
         setTimeout(() => setFloatingPoints(null), 1200);
-        setXpNotify(true);
-        setTimeout(() => setXpNotify(false), 2500);
         if (isStreak) {
           setStreakToast(`${newStreak} in a row! Streak bonus`);
           setTimeout(() => setStreakToast(null), 2200);
@@ -2401,161 +2431,8 @@ export function CourseTaker({
 
 
 
-  // -- Section divider slide --
-  if (currentQuestion.isSection) {
-    const isLast = currentQuestionIndex >= totalSlides - 1;
-    const coverImage = (config as any).coverImage as string | undefined;
-    // How many non-section, non-lessonOnly slides follow this section before the next section
-    const slidesInSection = (() => {
-      let count = 0;
-      for (let i = currentQuestionIndex + 1; i < questions.length; i++) {
-        const q = questions[i] as any;
-        if (q.isSection) break;
-        if (!q.lessonOnly) count++;
-      }
-      return count;
-    })();
-
-    return (
-      <>
-      <div className="relative flex flex-col min-h-screen overflow-hidden" style={{ fontFamily: fontStyle.fontFamily }}>
-
-        {/* Full-bleed background -- cover image with overlay, or gradient fallback */}
-        {coverImage ? (
-          <>
-            <img src={resolveCoverUrl(coverImage)} alt="" className="absolute inset-0 w-full h-full object-cover" style={{ filter: 'brightness(0.35) saturate(1.2)' }} />
-            <div className="absolute inset-0" style={{ background: `linear-gradient(135deg, ${accent}55 0%, transparent 60%, rgba(0,0,0,0.6) 100%)` }} />
-          </>
-        ) : (
-          <div className="absolute inset-0" style={{ background: isDark
-            ? `linear-gradient(135deg, #0a0a0f 0%, ${accent}22 50%, #0a0a0f 100%)`
-            : `linear-gradient(135deg, #0f0f1a 0%, ${accent}33 50%, #1a1a2e 100%)` }} />
-        )}
-
-        {/* Noise texture overlay for depth */}
-        <div className="absolute inset-0 opacity-[0.03]"
-          style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")` }} />
-
-        {/* Glowing accent orb top-right */}
-        <div className="absolute -top-32 -right-32 w-96 h-96 rounded-full blur-[120px] opacity-30 pointer-events-none" style={{ background: accent }} />
-        {/* Subtle orb bottom-left */}
-        <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full blur-[100px] opacity-20 pointer-events-none" style={{ background: accent }} />
-
-        {/* Content */}
-        <div className="relative z-10 flex flex-col min-h-screen items-center justify-center px-6 py-16">
-          <div className="absolute top-4 left-4 flex items-center gap-2">
-            {currentQuestionIndex > 0 && (
-              <button
-                onClick={handleBack}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:brightness-110"
-                style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.2)' }}
-                title="Previous"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-                Back
-              </button>
-            )}
-          </div>
-          <motion.div
-            key={`section-${currentQuestionIndex}`}
-            initial={{ opacity: 0, y: 32 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.45, ease: [0.23, 1, 0.32, 1] }}
-            className="w-full max-w-lg text-center"
-          >
-            {/* Section pill */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.85 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ delay: 0.1, duration: 0.35 }}
-              className="flex items-center justify-center mb-6"
-            >
-              <span
-                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[11px] font-bold tracking-[0.18em] uppercase border"
-                style={{ background: 'rgba(255,255,255,0.12)', borderColor: 'rgba(255,255,255,0.25)', color: '#ffffff' }}
-              >
-                <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: accent }} />
-                Section {currentSectionNumber}{totalSections > 1 ? ` of ${totalSections}` : ''}
-              </span>
-            </motion.div>
-
-            {/* Title */}
-            <motion.h2
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.18, duration: 0.4 }}
-              className="text-4xl sm:text-5xl font-black leading-[1.1] tracking-tight mb-4"
-              style={{ color: '#ffffff' }}
-            >
-              {currentQuestion.sectionTitle || 'New Section'}
-            </motion.h2>
-
-            {/* Description */}
-            {currentQuestion.sectionDescription && (
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.28, duration: 0.4 }}
-                className="text-sm sm:text-base leading-relaxed mb-6"
-                style={{ color: 'rgba(255,255,255,0.7)' }}
-              >
-                {currentQuestion.sectionDescription}
-              </motion.p>
-            )}
-
-            {/* Meta row */}
-            {slidesInSection > 0 && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 0.35, duration: 0.35 }}
-                className="flex items-center justify-center gap-2 mb-8"
-              >
-                <span className="inline-flex items-center gap-1.5 text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.15)' }}>
-                  <BookOpen className="w-3 h-3" /> {slidesInSection} question{slidesInSection !== 1 ? 's' : ''}
-                </span>
-              </motion.div>
-            )}
-
-            {/* CTA button */}
-            <motion.button
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.38, duration: 0.35 }}
-              onClick={handleNext}
-              className="inline-flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-base transition-all active:scale-[0.97] hover:brightness-110 shadow-2xl"
-              style={{ background: accent, color: '#ffffff', boxShadow: `0 8px 40px ${accent}55` }}
-            >
-              {isLast ? 'Finish Course' : 'Begin Section'}
-              <ChevronRight className="w-5 h-5" />
-            </motion.button>
-          </motion.div>
-        </div>
-
-        {/* Bottom progress strip */}
-        <div className="relative z-10 px-6 pb-8 flex items-center gap-2 justify-center">
-          {questions.map((q: any, i: number) => {
-            if (q.isSection) {
-              return (
-                <div key={q.id} className="h-1 rounded-full transition-all duration-300"
-                  style={{ width: i === currentQuestionIndex ? 24 : 8, background: i <= currentQuestionIndex ? accent : 'rgba(255,255,255,0.2)' }} />
-              );
-            }
-            return (
-              <div key={q.id} className="h-1 w-1.5 rounded-full"
-                style={{ background: answers[q.id] ? accent : 'rgba(255,255,255,0.15)' }} />
-            );
-          })}
-        </div>
-      </div>
-
-      </>
-    );
-  }
-
-
-  // -- Unanswered questions confirmation modal --
+  // -- Unanswered questions confirmation: laid over the player (rendered inside quizUI) --
+  let pendingModal: React.ReactNode = null;
   if (finishPending) {
     const goToQuestion = (idx: number) => {
       setFinishPending(null);
@@ -2568,61 +2445,64 @@ export function CourseTaker({
     // A required share slide is a hard gate, so it must not be escapable via "Submit anyway".
     const pendingShares = finishPending.filter((q: any) => q.isLinkedInShare);
     const pendingQuestions = finishPending.length - pendingShares.length;
-    const modal = (
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.7)' }}>
-        <div className={`w-full max-w-sm rounded-2xl p-6 space-y-4 ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-zinc-200'}`}>
-          <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className={`font-semibold ${textColor}`}>
-                {pendingShares.length > 0 && pendingQuestions === 0
-                  ? `${pendingShares.length} LinkedIn share${pendingShares.length > 1 ? 's' : ''} outstanding`
-                  : `${finishPending.length} item${finishPending.length > 1 ? 's' : ''} outstanding`}
-              </p>
-              <p className={`text-sm mt-0.5 ${mutedColor}`}>
-                {pendingShares.length > 0
-                  ? 'Submit your post link to finish this course.'
-                  : 'Go back to answer them or submit anyway.'}
-              </p>
-            </div>
+    pendingModal = (
+      // Laid over the player, so the course stays in view behind a light scrim.
+      <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4" style={{ background: isDark ? 'rgba(0,0,0,0.5)' : 'rgba(15,23,42,0.35)' }}>
+        <div role="dialog" aria-modal="true" aria-labelledby="pending-title"
+          className="w-full max-w-sm rounded-2xl p-5 flex flex-col gap-3"
+          style={{ background: isDark ? '#1E1F26' : '#ffffff', boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+          <div>
+            <p id="pending-title" className={`text-[16px] font-semibold ${textColor}`}>
+              {pendingShares.length > 0 && pendingQuestions === 0
+                ? `${pendingShares.length} LinkedIn share${pendingShares.length > 1 ? 's' : ''} not done yet`
+                : `${finishPending.length} item${finishPending.length > 1 ? 's' : ''} not done yet`}
+            </p>
+            <p className="text-[13px] mt-1" style={{ color: txtMuted }}>
+              {pendingShares.length > 0
+                ? 'Submit your post link to finish this course.'
+                : finishPending.length === 1
+                  ? 'Go back to it, or submit now and it counts as wrong.'
+                  : 'Go back to them, or submit now and they count as wrong.'}
+            </p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col gap-1">
             {finishPending.map((q: any) => {
               const idx = questions.findIndex((qq: any) => qq.id === q.id);
+              const mod = moduleNoAt[idx];
               return (
                 <button
                   key={q.id}
                   onClick={() => goToQuestion(idx)}
-                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
-                  style={{ borderColor: accent, color: accent, background: `${accent}15` }}
+                  className="flex items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-[13px] transition-opacity hover:opacity-80"
+                  style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f5f7', color: txt }}
                 >
-                  {q.isLinkedInShare ? 'Share' : `Q${idx + 1}`}
+                  <span className="min-w-0 truncate">{slideTitle(q)}</span>
+                  {mod > 0 && <span className="flex-shrink-0 text-[12px]" style={{ color: txtFaint }}>Module {mod}</span>}
                 </button>
               );
             })}
           </div>
-          <div className="flex gap-2 pt-1">
+          <div className="flex justify-end gap-2 pt-1">
             {pendingShares.length === 0 && (
             <button
               onClick={() => { setFinishPending(null); finishCourse(score); }}
-              className={`flex-1 py-2.5 rounded-xl text-sm font-medium transition-colors ${isDark ? 'bg-zinc-800 text-[#A8B5C2] hover:bg-zinc-700' : 'bg-zinc-100 text-[#555555] hover:bg-zinc-200'}`}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+              style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f5f7', color: txt }}
             >
               Submit anyway
             </button>
             )}
             <button
               onClick={() => setFinishPending(null)}
-              className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
-              style={{ background: accent }}
+              className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-opacity hover:opacity-80"
+              style={{ background: accent, color: 'white' }}
             >
-              Keep answering
+              Keep going
             </button>
           </div>
         </div>
       </div>
     );
-    if (typeof document === 'undefined') return null;
-    return createPortal(modal, document.body);
   }
 
   // The tutor sits beside the lesson as a sibling of the content column, so whether it is
@@ -2716,14 +2596,14 @@ export function CourseTaker({
             exit={{ opacity: 0, y: 16 }}
             transition={{ duration: 0.2 }}
             className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 px-4 py-3 rounded-2xl shadow-2xl"
-            style={{ background: '#18181b', border: '1px solid rgba(239,68,68,0.4)', maxWidth: 420, width: 'calc(100vw - 32px)' }}
+            style={{ background: '#18181b', border: '1px solid rgba(242,139,130,0.4)', maxWidth: 420, width: 'calc(100vw - 32px)' }}
           >
-            <AlertTriangle className="w-4 h-4 text-rose-400 flex-shrink-0" />
+            <AlertTriangle className="w-4 h-4 flex-shrink-0" style={{ color: '#F28B82' }} />
             <p className="flex-1 text-xs text-[#A8B5C2]">{submitError}</p>
             <button
               onClick={() => finishCourse(score)}
               className="flex-shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold text-white transition-opacity hover:opacity-80"
-              style={{ background: '#ef4444' }}
+              style={{ background: '#D93025' }}
             >
               Retry
             </button>
@@ -2781,7 +2661,7 @@ export function CourseTaker({
                   </div>
                 )}
                 {timeLeft !== null && (
-                  <span className={`flex items-center gap-1 text-xs font-semibold tabular-nums ${timerWarning ? 'text-rose-400' : mutedColor}`}>
+                  <span className={`flex items-center gap-1 text-xs font-semibold tabular-nums ${mutedColor}`} style={timerWarning ? { color: wrongInk } : undefined}>
                     <Clock className="w-3 h-3" />
                     {formatTime(timeLeft)}
                   </span>
@@ -2792,59 +2672,12 @@ export function CourseTaker({
                     Review Mode
                   </span>
                 )}
-                <div ref={menuRef} className="relative">
-                  <button
-                    onClick={() => setShowMenu(v => !v)}
-                    className={`relative p-1.5 rounded-lg transition-colors ${isDark ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'}`}
-                    title="Course info"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                    {xpNotify && (
-                      <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    )}
-                  </button>
-                  <AnimatePresence>
-                    {showMenu && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                        transition={{ duration: 0.12 }}
-                        className={`absolute right-0 top-9 z-50 w-52 rounded-xl shadow-xl border overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'}`}
-                        onMouseLeave={() => setShowMenu(false)}
-                      >
-                        <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-100'}`}>
-                          <p className={`text-[10px] font-semibold uppercase tracking-widest ${mutedColor}`}>Course Progress</p>
-                        </div>
-                        <div className="px-4 py-3 space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className={`text-xs ${mutedColor}`}>Current</span>
-                            <span className="text-xs font-semibold" style={{ color: accent }}>{currentQuestionIndex + 1} of {totalSlides}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className={`text-xs ${mutedColor}`}>Total slides</span>
-                            <span className="text-xs font-semibold" style={{ color: isDark ? '#fff' : '#18181b' }}>{totalSlides}</span>
-                          </div>
-                          {pointsEnabled && (
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${mutedColor}`}>XP earned</span>
-                              <span className="text-xs font-bold tabular-nums flex items-center gap-1" style={{ color: isDark ? '#facc15' : '#10b981' }}>
-                                ⭐ {displayedPoints.toLocaleString()}
-                                {streak >= 2 && <span className="text-orange-400">🔥{streak}</span>}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
               </div>
             </>
           ) : (
             <>
               {/* Default nav -- left: outline toggle (mobile) + logo */}
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center gap-1.5 flex-shrink-0 min-w-0">
                 {!sidebarOpen && (
                   <button
                     onClick={() => setSidebarOpen(true)}
@@ -2860,10 +2693,15 @@ export function CourseTaker({
                   </Link>
                 )}
               </div>
+              {/* Phones: the outline is a drawer, so the bar names the course and how far along it is. */}
+              <span className="sm:hidden flex-1 min-w-0 truncate text-[13px] font-semibold px-2" style={{ color: isDark ? '#f0f0f0' : '#18181b' }}>
+                {config.title}
+              </span>
               {/* Default nav -- right: controls */}
               <div className="flex items-center gap-1">
+                <span className="sm:hidden text-[12px] font-semibold tabular-nums" style={{ color: txtMuted }}>{Math.round(progressPct)}%</span>
                 {timeLeft !== null && (
-                  <span className={`flex items-center gap-1 text-xs font-semibold tabular-nums mr-2 ${timerWarning ? 'text-rose-400' : mutedColor}`}>
+                  <span className={`flex items-center gap-1 text-xs font-semibold tabular-nums mr-2 ${mutedColor}`} style={timerWarning ? { color: wrongInk } : undefined}>
                     <Clock className="w-3 h-3" />
                     {formatTime(timeLeft)}
                   </span>
@@ -2874,53 +2712,6 @@ export function CourseTaker({
                     Review Mode
                   </span>
                 )}
-                <div ref={menuRef} className="relative">
-                  <button
-                    onClick={() => setShowMenu(v => !v)}
-                    className={`relative p-1.5 rounded-lg transition-colors ${isDark ? 'text-zinc-500 hover:text-zinc-300 hover:bg-zinc-800' : 'text-zinc-400 hover:text-zinc-600 hover:bg-zinc-100'}`}
-                    title="Course info"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                    {xpNotify && (
-                      <span className="absolute top-0.5 right-0.5 w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                    )}
-                  </button>
-                  <AnimatePresence>
-                    {showMenu && (
-                      <motion.div
-                        initial={{ opacity: 0, scale: 0.95, y: -4 }}
-                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                        exit={{ opacity: 0, scale: 0.95, y: -4 }}
-                        transition={{ duration: 0.12 }}
-                        className={`absolute right-0 top-9 z-50 w-52 rounded-xl shadow-xl border overflow-hidden ${isDark ? 'bg-zinc-900 border-zinc-700' : 'bg-white border-zinc-200'}`}
-                        onMouseLeave={() => setShowMenu(false)}
-                      >
-                        <div className={`px-4 py-3 border-b ${isDark ? 'border-zinc-800' : 'border-zinc-100'}`}>
-                          <p className={`text-[10px] font-semibold uppercase tracking-widest ${mutedColor}`}>Course Progress</p>
-                        </div>
-                        <div className="px-4 py-3 space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className={`text-xs ${mutedColor}`}>Current</span>
-                            <span className="text-xs font-semibold" style={{ color: accent }}>{currentQuestionIndex + 1} of {totalSlides}</span>
-                          </div>
-                          <div className="flex justify-between items-center">
-                            <span className={`text-xs ${mutedColor}`}>Total slides</span>
-                            <span className="text-xs font-semibold" style={{ color: isDark ? '#fff' : '#18181b' }}>{totalSlides}</span>
-                          </div>
-                          {pointsEnabled && (
-                            <div className="flex justify-between items-center">
-                              <span className={`text-xs ${mutedColor}`}>XP earned</span>
-                              <span className="text-xs font-bold tabular-nums flex items-center gap-1" style={{ color: isDark ? '#facc15' : '#10b981' }}>
-                                ⭐ {displayedPoints.toLocaleString()}
-                                {streak >= 2 && <span className="text-orange-400">🔥{streak}</span>}
-                              </span>
-                            </div>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
               </div>
             </>
           )}
@@ -3055,30 +2846,15 @@ export function CourseTaker({
                             const isCurrent = idx === currentQuestionIndex;
                             const locked = isSlideLocked(idx);
 
-                            const title = (q as any).isLinkedInShare
-                              ? ((q as any).linkedInShareTitle || 'LinkedIn Share')
-                              : (q as any).isDownloads
-                              ? ((q as any).downloadsTitle || 'Downloads')
-                              : (q as any).lessonOnly
-                                ? ((q as any).lesson?.title || 'Lesson Content')
-                                : REVIEW_TYPES.includes(q.type as QuestionType)
-                                  ? ((q as any).question || 'Project')
-                                  : q.type === 'sql_exercise'
-                                    ? ((q as any).lesson?.title || (q as any).question || 'SQL Exercise')
-                                    : q.type === 'python_exercise'
-                                      ? ((q as any).lesson?.title || (q as any).question || 'Python Exercise')
-                                      : 'Test Your Knowledge';
+                            const title = slideTitle(q);
 
-                            let kind = 'Quiz';
+                            const kind = slideKind(q);
                             // Widened past the lucide type so the LinkedIn brand mark can be used here too.
-                            let KindIcon: React.ComponentType<{ className?: string }> = ListChecks;
-                            if ((q as any).isLinkedInShare) { kind = 'Share'; KindIcon = LinkedInIcon; }
-                            else if ((q as any).isDownloads) { kind = 'Downloads'; KindIcon = Download; }
-                            else if ((q as any).lessonOnly) {
-                              if ((q as any).lesson?.videoUrl) { kind = 'Video'; KindIcon = Play; }
-                              else { kind = 'Reading'; KindIcon = FileText; }
-                            } else if (REVIEW_TYPES.includes(q.type as QuestionType)) { kind = 'Project'; KindIcon = FlaskConical; }
-                            else if (q.type === 'sql_exercise' || q.type === 'python_exercise') { kind = 'Lab'; KindIcon = FlaskConical; }
+                            const KindIcon: React.ComponentType<{ className?: string }> =
+                              kind === 'Share' ? LinkedInIcon : kind === 'Downloads' ? Download
+                              : kind === 'Interactive' ? MousePointerClick : kind === 'Video' ? Play
+                              : kind === 'Reading' ? FileText : kind === 'Project' || kind === 'Lab' ? FlaskConical
+                              : ListChecks;
 
                             return (
                               <button
@@ -3223,8 +2999,52 @@ export function CourseTaker({
           >
             <div className="max-w-4xl mx-auto w-full">
                 <div key={currentQuestionIndex}>
-                  {/* -- LinkedIn share slide -- */}
-                  {(currentQuestion as any).isLinkedInShare ? (() => {
+                  {/* -- Module start: a card in the player, so the outline stays in view -- */}
+                  {currentQuestion.isSection ? (() => {
+                    const isLast = currentQuestionIndex >= totalSlides - 1;
+                    const counts: Record<string, number> = {};
+                    for (let i = currentQuestionIndex + 1; i < questions.length; i++) {
+                      const q = questions[i] as any;
+                      if (q.isSection) break;
+                      const k = slideKind(q);
+                      counts[k] = (counts[k] || 0) + 1;
+                    }
+                    return (
+                      <div className="rounded-xl overflow-hidden" style={{ background: isDark ? '#1E1F26' : '#ffffff' }}>
+                        <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5 sm:pb-8">
+                          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
+                            Module {currentSectionNumber}{totalSections > 1 ? ` of ${totalSections}` : ''}
+                          </p>
+                          <h1 className="text-xl font-bold leading-snug" style={{ color: isDark ? '#ACB8C5' : '#111' }}>
+                            {currentQuestion.sectionTitle || 'New module'}
+                          </h1>
+                          {currentQuestion.sectionDescription && (
+                            <p className="mt-2 text-[15px] leading-relaxed" style={{ color: txtMuted }}>{currentQuestion.sectionDescription}</p>
+                          )}
+                          {Object.keys(counts).length > 0 && (
+                            <div className="mt-4 flex flex-wrap gap-1.5">
+                              {Object.entries(counts).map(([k, n]) => (
+                                <span key={k} className="text-[12px] px-2.5 py-1 rounded-full"
+                                  style={{ color: txtMuted, background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f5f7' }}>
+                                  {n} {(KIND_NOUN[k] || [k.toLowerCase(), k.toLowerCase()])[n === 1 ? 0 : 1]}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                          <button
+                            onClick={handleNext}
+                            className="mt-6 w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 sm:py-3 rounded-xl text-[14px] font-semibold transition-all active:scale-[0.98]"
+                            style={{ background: accent, color: 'white' }}
+                          >
+                            {isLast ? 'Finish Course' : 'Start module'}
+                            <ChevronRight className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })() :
+                  /* -- LinkedIn share slide -- */
+                  (currentQuestion as any).isLinkedInShare ? (() => {
                     const q: any = currentQuestion;
                     const isLast = currentQuestionIndex >= totalSlides - 1;
                     const required = q.linkedInShareRequired === true;
@@ -3351,7 +3171,7 @@ export function CourseTaker({
                                 className="flex-1 min-w-0 px-4 py-3 rounded-xl text-[13.5px] outline-none"
                                 style={{
                                   background: isDark ? 'rgba(255,255,255,0.04)' : '#fff',
-                                  border: `1px solid ${error ? '#f43f5e' : claimed ? `${accent}60` : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                                  border: `1px solid ${error ? wrongInk : claimed ? `${accent}60` : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
                                   color: txt,
                                 }}
                               />
@@ -3387,7 +3207,7 @@ export function CourseTaker({
                                     className="flex-1 min-w-0 px-4 py-3 rounded-xl text-[13.5px] outline-none"
                                     style={{
                                       background: isDark ? 'rgba(255,255,255,0.05)' : '#fff',
-                                      border: `1px solid ${profileError ? '#f43f5e' : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
+                                      border: `1px solid ${profileError ? wrongInk : isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
                                       color: txt,
                                     }}
                                   />
@@ -3402,7 +3222,7 @@ export function CourseTaker({
                                   </button>
                                 </div>
                                 {profileError && (
-                                  <p className="text-[12.5px] font-medium flex items-start gap-1.5" style={{ color: '#f43f5e' }}>
+                                  <p className="text-[12.5px] font-medium flex items-start gap-1.5" style={{ color: wrongInk }}>
                                     <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {profileError}
                                   </p>
                                 )}
@@ -3410,7 +3230,7 @@ export function CourseTaker({
                             )}
 
                             {error && (
-                              <p className="text-[12.5px] font-medium flex items-start gap-1.5" style={{ color: '#f43f5e' }}>
+                              <p className="text-[12.5px] font-medium flex items-start gap-1.5" style={{ color: wrongInk }}>
                                 <AlertTriangle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" /> {error}
                               </p>
                             )}
@@ -3545,7 +3365,10 @@ export function CourseTaker({
                           className="px-4 sm:px-8 pt-5 sm:pt-8 pb-4 sm:pb-5"
                           style={{ borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : '#F2F5FA'}` }}
                         >
-                          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>Lesson</p>
+                          <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
+                            {moduleNoAt[currentQuestionIndex] > 0 && <>Module {moduleNoAt[currentQuestionIndex]} &middot; </>}
+                            {slideKind(currentQuestion)}
+                          </p>
                           <div className="flex items-start justify-between gap-3">
                             <h1 className="text-xl font-bold leading-snug" style={{ color: isDark ? '#ACB8C5' : '#111' }}>
                               {lesson.title || 'Lesson Content'}
@@ -3654,39 +3477,14 @@ export function CourseTaker({
                     }}
                   >
                   <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5 sm:pb-8">
-                  {/* Hint button -- hidden for review types */}
-                  {currentQuestion.hint && !hintsUsed.has(currentQuestion.id) && !isChecking && !REVIEW_TYPES.includes(questionType) && (
-                    <div className="flex items-center mb-5">
-                      <button
-                        onClick={() => {
-                          setHintVisible(true);
-                          setHintsUsed(prev => new Set(prev).add(currentQuestion.id));
-                        }}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold transition-colors"
-                        style={{ color: isDark ? '#fbbf24' : '#a16207', background: isDark ? 'rgba(245,158,11,0.09)' : '#fffbeb' }}
-                      >
-                        <Lightbulb className="w-3.5 h-3.5" /> Hint
-                      </button>
-                    </div>
+                  {moduleNoAt[currentQuestionIndex] > 0 && (
+                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
+                      Module {moduleNoAt[currentQuestionIndex]} &middot; Question
+                    </p>
                   )}
-
-                  {/* Hint display */}
-                  {hintVisible && currentQuestion.hint && (
-                    <motion.div
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      className="mb-5 flex items-start gap-3 rounded-xl px-4 py-3 text-sm"
-                      style={{ color: isDark ? '#fcd34d' : '#92400e', background: isDark ? 'rgba(245,158,11,0.09)' : '#fffbeb' }}
-                    >
-                      <Lightbulb className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                      <span className="flex-1 leading-relaxed">{currentQuestion.hint}</span>
-                      <span className="text-[10px] opacity-60 whitespace-nowrap">Score x0.9</span>
-                    </motion.div>
-                  )}
-
                   <h2 className={`text-lg sm:text-2xl font-semibold leading-snug mb-5 sm:mb-8 ${textColor}`}>
-                    {questionType === 'fill_blank' && currentQuestion.question.includes('___')
-                      ? currentQuestion.question.split('___').map((part: string, partIdx: number, parts: string[]) => (
+                    {questionType === 'fill_blank' && /_{3,}/.test(currentQuestion.question)
+                      ? currentQuestion.question.split(/_{3,}/).map((part: string, partIdx: number, parts: string[]) => (
                         <span key={`${partIdx}-${part}`}>
                           {part}
                           {partIdx < parts.length - 1 && <span className="mx-1 inline-block min-w-20 border-b-2 align-baseline" style={{ borderColor: accent, color: accent }} aria-label="blank">&nbsp;</span>}
@@ -3705,17 +3503,12 @@ export function CourseTaker({
                             <PenLine className="w-3.5 h-3.5" />
                           </span>
                           <span className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: txtMuted }}>Your answer</span>
-                          {isChecking && (
-                            <span className="ml-auto">
-                              {isCorrect ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <XCircle className="w-4 h-4 text-rose-500" />}
-                            </span>
-                          )}
                         </div>
                         <div
-                          className="rounded-xl overflow-hidden px-4 py-3.5 transition-all focus-within:ring-2"
+                          className="rounded-xl overflow-hidden px-4 py-3.5 transition-all focus-within:ring-2 flex items-center gap-3"
                           style={{
                             background: isDark ? 'rgba(255,255,255,0.07)' : '#f4f5f7',
-                            border: `1.5px solid ${isChecking ? (isCorrect ? '#10b98188' : '#f43f5e88') : (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)')}`,
+                            border: `1.5px solid ${isChecking ? (isCorrect ? rightInk : wrongInk) : (isDark ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.10)')}`,
                             '--tw-ring-color': `${accent}42`,
                           } as React.CSSProperties}
                         >
@@ -3731,21 +3524,15 @@ export function CourseTaker({
                             className={`w-full bg-transparent border-none outline-none focus-visible:!outline-none focus-visible:!shadow-none px-0 py-0.5 text-base font-semibold caret-current ${isDark ? 'text-[#F1F5F9] placeholder:text-[#7F8996]' : 'text-[#111111] placeholder:text-[#747A84]'} disabled:opacity-70`}
                             style={{ caretColor: accent, borderRadius: 0 }}
                           />
+                          {isChecking && (isCorrect
+                            ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: rightInk }} aria-label="Correct" />
+                            : <XCircle className="w-4 h-4 flex-shrink-0" style={{ color: wrongInk }} aria-label="Not quite" />)}
                         </div>
                       </div>
-                      {isChecking && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className={`mt-3 px-4 py-3 rounded-xl border text-sm flex items-center gap-2 ${isCorrect ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}
-                        >
-                          {isCorrect ? <CheckCircle2 className="w-4 h-4 flex-shrink-0" /> : <XCircle className="w-4 h-4 flex-shrink-0" />}
-                          <span>
-                            {isCorrect ? 'Correct!' : (
-                              <>Incorrect. Accepted: <span className="font-semibold">{currentQuestion.correctAnswer.split('|').map((s: string) => s.trim()).join(' / ')}</span></>
-                            )}
-                          </span>
-                        </motion.div>
+                      {isChecking && !isCorrect && (
+                        <p className="text-[13px] px-0.5" style={{ color: txtMuted }}>
+                          Accepted answer: <span className="font-semibold" style={{ color: txt }}>{currentQuestion.correctAnswer.split('|').map((s: string) => s.trim()).join(' / ')}</span>
+                        </p>
                       )}
                     </div>
                   )}
@@ -3776,21 +3563,10 @@ export function CourseTaker({
                           </div>
                         </SortableContext>
                       </DndContext>
-                      {isChecking && (
-                        <motion.div
-                          initial={{ opacity: 0, y: 4 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className={`mt-3 px-4 py-3 rounded-xl border text-sm ${isCorrect ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-rose-500/10 border-rose-500/20 text-rose-400'}`}
-                        >
-                          {isCorrect ? (
-                            <span className="flex items-center gap-2"><CheckCircle2 className="w-4 h-4" /> Correct order!</span>
-                          ) : (
-                            <div className="space-y-1">
-                              <span className="flex items-center gap-2"><XCircle className="w-4 h-4" /> Incorrect order.</span>
-                              <p className="text-xs opacity-80">Correct: {currentQuestion.options.join(' -> ')}</p>
-                            </div>
-                          )}
-                        </motion.div>
+                      {isChecking && !isCorrect && (
+                        <p className="mt-3 text-[13px] px-0.5" style={{ color: txtMuted }}>
+                          Correct order: <span className="font-semibold" style={{ color: txt }}>{currentQuestion.options.join(', then ')}</span>
+                        </p>
                       )}
                     </div>
                   )}
@@ -3803,7 +3579,7 @@ export function CourseTaker({
                         const isSelected = selectedOption === option;
                         const showCorrect = isChecking && option === currentQuestion.correctAnswer;
                         const showWrong = isChecking && isSelected && !isCorrect;
-                        const stateColor = showCorrect ? '#10b981' : showWrong ? '#f43f5e' : isSelected ? accent : undefined;
+                        const stateColor = showCorrect ? '#10b981' : showWrong ? wrongInk : isSelected ? accent : undefined;
                         return (
                           <button
                             key={idx}
@@ -4026,11 +3802,11 @@ export function CourseTaker({
                         const isSelected = selectedOption === option;
                         const showCorrect = isChecking && option === currentQuestion.correctAnswer;
                         const showWrong = isChecking && isSelected && !isCorrect;
-                        const stateColor = showCorrect ? '#10b981' : showWrong ? '#f43f5e' : isSelected ? accent : undefined;
+                        const stateColor = showCorrect ? '#10b981' : showWrong ? wrongInk : isSelected ? accent : undefined;
                         const optionBg = showCorrect
                           ? (isDark ? 'rgba(16,185,129,0.12)' : '#ecfdf5')
                           : showWrong
-                            ? (isDark ? 'rgba(244,63,94,0.12)' : '#fff1f2')
+                            ? (isDark ? 'rgba(242,139,130,0.12)' : 'rgba(217,48,37,0.07)')
                             : isSelected
                               ? `${accent}14`
                               : (isDark ? 'rgba(255,255,255,0.035)' : '#f7f7f8');
@@ -4045,7 +3821,7 @@ export function CourseTaker({
                           >
                             <span className="w-5 h-5 flex-shrink-0 flex items-center justify-center" style={{ color: stateColor || txtFaint }}>
                               {showCorrect && <CheckCircle2 className="w-4 h-4 text-emerald-500" />}
-                              {showWrong && <XCircle className="w-4 h-4 text-rose-500" />}
+                              {showWrong && <XCircle className="w-4 h-4" style={{ color: wrongInk }} />}
                               {!showCorrect && !showWrong && <span className="w-3.5 h-3.5 rounded-full border-2" style={{ borderColor: isSelected ? accent : (isDark ? '#52525b' : '#d4d4d8'), background: isSelected ? accent : 'transparent', boxShadow: isSelected ? `inset 0 0 0 3px ${isDark ? '#24252b' : '#fff'}` : 'none' }} />}
                             </span>
                             <span className="flex-1 text-[15px] font-medium leading-snug">{option}</span>
@@ -4055,6 +3831,30 @@ export function CourseTaker({
                           </button>
                         );
                       })}
+                    </div>
+                  )}
+
+                  {/* Hint: a quiet link under the answers. Opening it costs a little score, as before. */}
+                  {currentQuestion.hint && !REVIEW_TYPES.includes(questionType) && (!isChecking || hintVisible) && (
+                    <div className="mt-4 space-y-1.5">
+                      {!isChecking && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setHintVisible(v => !v);
+                            setHintsUsed(prev => new Set(prev).add(currentQuestion.id));
+                          }}
+                          className="text-[13px] font-semibold underline underline-offset-4"
+                          style={{ color: txtMuted }}
+                        >
+                          {hintVisible ? 'Hide hint' : 'Show hint'}
+                        </button>
+                      )}
+                      {hintVisible && (
+                        <p className="text-[14px] leading-relaxed" style={{ color: txtMuted }}>
+                          {currentQuestion.hint} <span className="text-[11px] whitespace-nowrap" style={{ color: txtFaint }}>Score x0.9</span>
+                        </p>
+                      )}
                     </div>
                   )}
                   </div>{/* end inner padding */}
@@ -4084,72 +3884,69 @@ export function CourseTaker({
                     }
 
                     const hasLesson = (currentQuestion?.lesson?.doc || currentQuestion?.lesson?.body || currentQuestion?.lesson?.videoUrl || currentQuestion?.lesson?.imageUrl || currentQuestion?.lesson?.pdfUrl || currentQuestion?.lesson?.audioUrl) && (config as any).lessonTiming !== 'before';
-                    return (
-                      <div className="px-4 sm:px-8 py-3 sm:py-4" style={{ background: isDark ? '#1E1F26' : '#ffffff', borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.045)'}` }}>
-                        {isChecking && currentQuestion?.explanation && (
-                          <div className="mb-3 rounded-xl px-3.5 py-3 text-sm leading-relaxed" style={{ color: txtMuted, background: isDark ? 'rgba(255,255,255,0.035)' : '#f7f7f8' }}>
-                            <span className="block mb-1 font-bold text-[10px] uppercase tracking-[0.12em]" style={{ color: txtFaint }}>Explanation</span>
-                            <span>{currentQuestion.explanation}</span>
+                    const isLastSlide = currentQuestionIndex >= totalSlides - 1;
+                    if (showAnswers === 'per_question') {
+                      // Nothing to say until there is an answer: choice questions check on click, so only
+                      // fill-in and ordering questions need a Check button before then.
+                      if (!isChecking) {
+                        if (questionType !== 'fill_blank' && questionType !== 'arrange') return null;
+                        return (
+                          <div className="px-4 sm:px-8 py-3 sm:py-4 flex justify-end" style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.045)'}` }}>
+                            <button onClick={() => handleCheck()} disabled={!isAnswered()}
+                              className="w-full sm:w-auto px-6 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 disabled:cursor-not-allowed"
+                              style={{ background: isAnswered() ? accent : (isDark ? '#27272a' : '#e4e4e7'), color: isAnswered() ? 'white' : txtFaint }}>
+                              Check answer
+                            </button>
                           </div>
-                        )}
-                        <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 sm:gap-4">
-                          {isChecking ? (
-                            <div
-                              className="flex items-center gap-2 px-3 py-2 rounded-xl font-semibold text-sm flex-shrink-0"
-                              style={{
-                                background: isCorrect ? (isDark ? 'rgba(16,185,129,0.10)' : '#ecfdf5') : (isDark ? 'rgba(244,63,94,0.10)' : '#fff1f2'),
-                                color: isCorrect
-                                  ? (isDark ? '#34d399' : '#059669')
-                                  : (isDark ? '#fca5a5' : '#dc2626'),
-                              }}>
-                              {isCorrect ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
-                              {isCorrect ? 'Correct!' : 'Incorrect!'}
+                        );
+                      }
+                      // One result line, said once. Phones read result, explanation, then the button;
+                      // wider screens put the explanation first and the result beside the button.
+                      return (
+                        <div className="px-4 sm:px-8 py-3 sm:py-4 flex flex-col gap-3 sm:grid sm:grid-cols-[1fr_auto] sm:items-center sm:gap-x-4"
+                          style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.045)'}` }}>
+                          <p className="order-1 sm:order-2 flex items-center gap-2 font-bold text-[14px]" style={{ color: isCorrect ? rightInk : wrongInk }}>
+                            {isCorrect ? <CheckCircle2 className="w-4 h-4" /> : <XCircle className="w-4 h-4" />}
+                            {isCorrect ? 'Correct' : 'Not quite'}
+                          </p>
+                          {currentQuestion?.explanation && (
+                            <div className="order-2 sm:order-1 sm:col-span-2 rounded-xl px-3.5 py-3 text-sm leading-relaxed" style={{ color: txtMuted, background: isDark ? 'rgba(255,255,255,0.035)' : '#f7f7f8' }}>
+                              <span className="block mb-1 font-bold text-[10px] uppercase tracking-[0.12em]" style={{ color: txtFaint }}>Explanation</span>
+                              <span>{currentQuestion.explanation}</span>
                             </div>
-                          ) : null}
-                          <div className="flex items-center justify-end gap-2 sm:gap-3 sm:ml-auto">
-                            {showAnswers === 'per_question' ? (
-                              isChecking ? (
-                                <>
-                                  {hasLesson && (
-                                    <button onClick={() => setLessonOpen(true)}
-                                      className={`px-4 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-95 ${isCorrect ? (isDark ? 'bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25' : 'bg-emerald-50 text-emerald-600') : (isDark ? 'bg-rose-500/15 text-rose-400 hover:bg-rose-500/25' : 'bg-rose-50 text-rose-600')}`}>
-                                      <BookOpen className="w-4 h-4 inline mr-1.5 -mt-0.5" />
-                                      {isCorrect ? 'Review Lesson' : 'Why?'}
-                                    </button>
-                                  )}
-                                  <button onClick={handleNext}
-                                    className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
-                                    style={{ background: isCorrect ? '#10b981' : '#DB585A', color: 'white' }}>
-                                    {currentQuestionIndex < totalSlides - 1 ? 'Continue' : 'Finish'}
-                                    <ChevronRight className="w-4 h-4" />
-                                  </button>
-                                </>
-                              ) : (
-                                (questionType === 'fill_blank' || questionType === 'arrange') && (
-                                  <button onClick={() => handleCheck()} disabled={!isAnswered()}
-                                    className="px-6 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
-                                    style={{ background: isAnswered() ? accent : (isDark ? '#27272a' : '#e4e4e7'), color: isAnswered() ? 'white' : txtFaint }}>
-                                    Check Answer
-                                  </button>
-                                )
-                              )
-                            ) : (
-                              <>
-                                {relatedAssignment && currentQuestionIndex === totalQuestions - 1 && (
-                                  <p className="text-xs hidden sm:block" style={{ color: txtMuted }}>
-                                    Complete to unlock <span className="font-semibold" style={{ color: accent }}>{relatedAssignment.title}</span>
-                                  </p>
-                                )}
-                                <button onClick={handleNextDirect} disabled={!isAnswered() && questionType !== 'arrange'}
-                                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
-                                  style={{ background: (isAnswered() || questionType === 'arrange') ? accent : (isDark ? '#3f3f46' : '#d4d4d8'), color: 'white' }}>
-                                  {currentQuestionIndex < totalSlides - 1 ? 'Continue' : 'Finish Course'}
-                                  <ChevronRight className="w-4 h-4" />
-                                </button>
-                              </>
+                          )}
+                          <div className="order-3 flex items-center gap-2 sm:justify-end">
+                            {hasLesson && (
+                              <button onClick={() => setLessonOpen(true)}
+                                className="px-4 py-2.5 rounded-xl text-sm font-semibold transition-all active:scale-95"
+                                style={{ background: isDark ? 'rgba(255,255,255,0.06)' : '#f4f5f7', color: txt }}>
+                                <BookOpen className="w-4 h-4 inline mr-1.5 -mt-0.5" />
+                                {isCorrect ? 'Review lesson' : 'Why?'}
+                              </button>
                             )}
+                            <button onClick={handleNext}
+                              className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95"
+                              style={{ background: accent, color: 'white' }}>
+                              {isLastSlide ? 'Finish' : 'Continue'}
+                              <ChevronRight className="w-4 h-4" />
+                            </button>
                           </div>
                         </div>
+                      );
+                    }
+                    return (
+                      <div className="px-4 sm:px-8 py-3 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 sm:gap-4" style={{ borderTop: `1px solid ${isDark ? 'rgba(255,255,255,0.055)' : 'rgba(0,0,0,0.045)'}` }}>
+                        {relatedAssignment && currentQuestionIndex === totalQuestions - 1 && (
+                          <p className="text-xs hidden sm:block" style={{ color: txtMuted }}>
+                            Complete to unlock <span className="font-semibold" style={{ color: accent }}>{relatedAssignment.title}</span>
+                          </p>
+                        )}
+                        <button onClick={handleNextDirect} disabled={!isAnswered() && questionType !== 'arrange'}
+                          className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-6 py-2.5 rounded-xl font-semibold text-sm transition-all active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                          style={{ background: (isAnswered() || questionType === 'arrange') ? accent : (isDark ? '#3f3f46' : '#d4d4d8'), color: 'white' }}>
+                          {isLastSlide ? 'Finish Course' : 'Continue'}
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
                       </div>
                     );
                   })()}
@@ -4277,7 +4074,7 @@ export function CourseTaker({
                     <button
                       onClick={() => { setLessonOpen(false); handleNext(); }}
                       className="w-full py-4 rounded-xl text-[15px] font-semibold transition-all active:scale-[0.98]"
-                      style={{ background: isCorrect ? '#10b981' : '#DB585A', color: 'white' }}
+                      style={{ background: accent, color: 'white' }}
                     >
                       Continue
                     </button>
@@ -4288,6 +4085,8 @@ export function CourseTaker({
           </>
         )}
       </AnimatePresence>
+
+      {pendingModal}
 
       {/* Floating XP */}
       <AnimatePresence>

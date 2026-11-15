@@ -12,6 +12,7 @@ interface ScoreGaugeProps {
   mutedColor?: string;        // "Overall score" label colour
   tickColor?: string;         // pass-mark tick colour
   width?: number;             // rendered width in px (default 200)
+  failColor?: string;         // fill when not passed (the player's one red; lighter on dark)
 }
 
 const R = 82, STROKE = 14, CX = 108, CY = 108;
@@ -20,10 +21,10 @@ const PATH = `M ${CX - R} ${CY} A ${R} ${R} 0 0 1 ${CX + R} ${CY}`;
 
 export function ScoreGauge({
   score, passmark, passed,
-  track = 'rgba(0,0,0,0.10)', scoreColor = '#111', mutedColor = '#6b7280', tickColor = '#111', width = 200,
+  track = 'rgba(0,0,0,0.10)', scoreColor = '#111', mutedColor = '#6b7280', tickColor = '#111', width = 200, failColor = '#D93025',
 }: ScoreGaugeProps) {
   const s = Math.max(0, Math.min(100, Math.round(score)));
-  const fill = passed ? '#16a34a' : '#f43f5e';
+  const fill = passed ? '#16a34a' : failColor;
   const pf = Math.max(0, Math.min(100, passmark)) / 100;
   const pcos = Math.cos(pf * Math.PI), psin = Math.sin(pf * Math.PI);
   const tickIn = R - STROKE / 2 - 2, tickOut = R + STROKE / 2 + 2;
