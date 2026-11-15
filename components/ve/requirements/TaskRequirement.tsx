@@ -1,11 +1,11 @@
 'use client';
 
-import { Package, MessageCircle, Paperclip, Check } from 'lucide-react';
+import { Package, MessageCircle, Paperclip, Check, Pencil, RotateCcw } from 'lucide-react';
 import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { resolveDeliverableAccent } from '@/lib/ve-accent';
 import { REQ_META, type RequirementProps } from './types';
-import { TaskHeader, TaskButton, TaskLink, TaskUndoButton, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
+import { TaskHeader, TaskButton, TaskIconButton, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
 /** Tasks, deliverables, and the reflection card that is the fallback for any other type. */
 export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
@@ -28,7 +28,8 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
         <TaskHeader t={t} icon={<Package className="w-3.5 h-3.5" />}
           label="Deliverable" title={req.label}
           description={!req.descriptionDoc && req.descriptionFormat !== 'rich' ? req.description : undefined}
-          done={done ? 'Complete' : null} />
+          done={done ? 'Complete' : null}
+          doneAction={!reviewMode && <TaskIconButton t={t} label="Undo" icon={<RotateCcw className="w-4 h-4" />} onClick={() => toggleReq(req.id)} />} />
 
         {req.descriptionDoc ? (
           // Scoped so guided steps inside a deliverable read as a plain numbered list: the card has
@@ -54,11 +55,9 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
           </div>
         )}
 
-        {!reviewMode && (
+        {!reviewMode && !done && (
           <div className="flex items-center gap-3 pt-1">
-            {done
-              ? <TaskUndoButton t={t} onClick={() => toggleReq(req.id)} />
-              : <TaskButton t={t} onClick={() => toggleReq(req.id)}><Check className="w-4 h-4" strokeWidth={3} /> Mark deliverable complete</TaskButton>}
+            <TaskButton t={t} onClick={() => toggleReq(req.id)}><Check className="w-4 h-4" strokeWidth={3} /> Mark deliverable complete</TaskButton>
           </div>
         )}
       </div>
@@ -72,14 +71,12 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
   return (
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
       <TaskHeader t={t} icon={<MessageCircle className="w-3.5 h-3.5" />} label={meta.label} title={req.label}
-        description={req.description} done={done ? 'Saved' : null} />
+        description={req.description} done={done ? 'Saved' : null}
+        doneAction={!reviewMode && <TaskIconButton t={t} label="Edit" icon={<Pencil className="w-4 h-4" />} onClick={() => toggleReq(req.id)} />} />
       {done ? (
-        <>
-          {noteVal.trim() && (
-            <p className="whitespace-pre-wrap rounded-[10px] px-3 py-2.5 text-[14px]" style={{ background: t.soft, color: t.text }}>{noteVal}</p>
-          )}
-          {!reviewMode && <TaskLink t={t} onClick={() => toggleReq(req.id)}>Edit</TaskLink>}
-        </>
+        noteVal.trim() ? (
+          <p className="whitespace-pre-wrap rounded-[10px] px-3 py-2.5 text-[14px]" style={{ background: t.soft, color: t.text }}>{noteVal}</p>
+        ) : null
       ) : (
         <>
           <textarea value={noteVal} onChange={e => setNote(req.id, e.target.value)} readOnly={reviewMode}

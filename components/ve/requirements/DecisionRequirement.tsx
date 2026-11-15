@@ -1,8 +1,9 @@
 'use client';
 
-import { ChatCard, ChatMsg, ChatTypingMsg, ChatThread, ChatDecisionButtons } from '@/components/ve/ChatCard';
+import { ChatCard, ChatMsg, ChatTypingMsg, ChatThread } from '@/components/ve/ChatCard';
 import { firstNameOf, workStamp, startTypingSound, anchorZone, colleaguesFor, hashStr, type Person } from '@/components/ve/workplace';
 import type { RequirementProps } from './types';
+import { TaskOption, taskTheme } from './TaskCard';
 
 /** A decision posted in team chat; the manager and a colleague reply to the pick. */
 export function DecisionRequirement({ req, qi, rowStyle, ctx }: RequirementProps) {
@@ -43,8 +44,15 @@ export function DecisionRequirement({ req, qi, rowStyle, ctx }: RequirementProps
           <p style={{ margin: 0 }}>{req.label}</p>
           {req.description && <p style={{ margin: '4px 0 0', opacity: 0.75 }}>{req.description}</p>}
           {!done && (
-            <ChatDecisionButtons isDark={isDark} accent={accentColor} options={options}
-              onPick={chooseDecision} disabled={reviewMode} />
+            // The same lettered options as a question card or a question sent by email.
+            <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8, maxWidth: 520 }}>
+              {options.map((opt, oi) => (
+                <TaskOption key={oi} t={taskTheme(isDark, accentColor)} letter={String.fromCharCode(65 + oi)}
+                  onClick={() => chooseDecision(opt)} disabled={reviewMode}>
+                  {opt}
+                </TaskOption>
+              ))}
+            </div>
           )}
         </ChatMsg>
         {done && selectedAnswer && (

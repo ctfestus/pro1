@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Loader2, AlertTriangle, Link as LinkIcon, Upload as UploadIcon, FileText } from 'lucide-react';
+import { Loader2, AlertTriangle, Link as LinkIcon, Upload as UploadIcon, FileText, RefreshCw } from 'lucide-react';
 import { repairVeSubmissionUrl, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import { firstNameOf } from '@/components/ve/workplace';
 import type { RequirementProps } from './types';
@@ -40,8 +40,12 @@ export function UploadRequirement({ req, rowStyle, ctx }: RequirementProps) {
               className="block truncate text-[13.5px] font-semibold hover:underline" style={{ color: t.text }}>{fileName}</a>
             <span className="text-[12px]" style={{ color: t.muted }}>Sent to {firstNameOf(manager.name)}</span>
           </span>
-          <label htmlFor={inputId} className="flex-shrink-0 cursor-pointer text-[12.5px] font-semibold underline underline-offset-2" style={{ color: t.muted }}>
-            {uploading ? 'Uploading...' : 'Replace'}
+          {/* Replace: the same round icon control as Undo and Edit on the other cards. */}
+          <label htmlFor={inputId} title="Replace file" aria-label="Replace file"
+            className="inline-flex h-11 w-11 -m-1.5 flex-shrink-0 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-75">
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full" style={{ background: t.isDark ? 'rgba(255,255,255,0.08)' : '#ffffff', color: t.muted }}>
+              {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+            </span>
           </label>
           {fileInput}
         </div>

@@ -1,12 +1,13 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Loader2, CheckCircle2, Zap, RotateCcw, Code2, Download, Upload, FileCode, Lock, ChevronDown, ShieldCheck, TriangleAlert, Lightbulb, ArrowUpRight } from 'lucide-react';
+import { CheckCircle2, Zap, RotateCcw, Code2, Download, Upload, FileCode, Lock, ChevronDown, ShieldCheck, TriangleAlert, Lightbulb, ArrowUpRight } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import { downloadCodeReviewPdf } from '@/lib/downloadReviewPdf';
 import { CODE_FILE_EXTENSIONS } from '@/lib/rubric-criteria';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
+import { AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
@@ -94,7 +95,8 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
     : null;
 
   const [code, setCode]         = useState('');
-  const [language, setLanguage] = useState(lockedLanguage ?? 'Python');
+  // A task that comes with a database schema is a SQL task, so start on SQL rather than Python.
+  const [language, setLanguage] = useState(lockedLanguage ?? (schema?.trim() ? 'SQL' : 'Python'));
   const [dialect, setDialect]   = useState('PostgreSQL');
   // Show the saved report on mount whenever one exists. When retries remain, the result view's
   // Reset button (rendered while !atLimit) lets the student start another attempt.
@@ -354,13 +356,9 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} canUpgrade={entitlement.canUpgrade} message={error} upgradeUrl={upgradeUrl} />}
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
-        <button onClick={handleSubmit} disabled={analyzing}
-          className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-60"
-          style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
-          {analyzing
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing...</>
-            : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
-        </button>
+        <AiReviewSubmitButton isDark={isDark} accentColor={accentColor} disabled={!code.trim()} busy={analyzing} onClick={handleSubmit}>
+          <Zap className="w-4 h-4" /> Submit for AI review
+        </AiReviewSubmitButton>
       </div>
       </AiReviewLockOverlay>
     );
@@ -389,7 +387,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
 
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
-      <AiReviewDisclaimer isDark={isDark} />
+      {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
       <section className="overflow-hidden rounded-[24px]" style={{ background: reportSurface }}>
         <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3.5 sm:px-6" style={{ borderBottom: `1px solid ${border}` }}>
           <div className="flex items-center gap-2.5">
@@ -415,14 +413,14 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.1em]" style={{ background: `${verdictColor}16`, color: verdictColor }}>{verdict}</span>
-              <span className="text-[11px] font-semibold" style={{ color: muted }}>{result.issues.length} findings detected</span>
+
             </div>
             <h2 className="mt-4 text-xl font-bold tracking-[-0.02em] sm:text-2xl" style={{ color: text }}>Your code review</h2>
             <p className="mt-2 max-w-2xl text-[13px] leading-relaxed" style={{ color: muted }}>{result.executiveSummary}</p>
           </div>
           <div className="rounded-2xl p-4" style={{ background: card }}>
             <div className="flex items-end justify-between gap-3">
-              <div><span className="text-4xl font-extrabold leading-none tabular-nums" style={{ color: text }}>{result.overallScore.toFixed(1)}</span><span className="ml-1 text-xs font-semibold" style={{ color: muted }}>/100</span></div>
+              <div><span className="text-4xl font-extrabold leading-none tabular-nums" style={{ color: text }}>{Math.round(result.overallScore)}</span><span className="ml-1 text-xs font-semibold" style={{ color: muted }}>/100</span></div>
               <span className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: verdictColor }}>Overall</span>
             </div>
             <div className="mt-4 h-2.5 overflow-hidden rounded-full" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#e4e9ef' }}>

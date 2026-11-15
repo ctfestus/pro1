@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Loader2, CheckCircle2, Zap, RotateCcw, FileText, Download, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, Zap, RotateCcw, FileText, Download, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
+import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
@@ -176,7 +177,7 @@ export default function DocumentReviewPlayer({
       await downloadStructuredReviewPdf({
         overallScore: result.overallScore,
         executiveSummary: [result.warning, result.executiveSummary].filter(Boolean).join('\n\n'),
-        reportLabel: 'AI DOCUMENT INTELLIGENCE',
+        reportLabel: 'DOCUMENT REVIEW',
         reportTitle: 'Your document review',
         reportKicker: 'DOCUMENT REVIEW',
         sourceLabel: 'Submitted document',
@@ -241,43 +242,21 @@ export default function DocumentReviewPlayer({
           <AiReviewWorkspaceHeader icon={<FileText className="w-5 h-5" />} title={isManual ? 'Submit your document' : 'Review your document'} description={isManual ? 'Upload the finished document for instructor review.' : 'Upload your report for structured feedback against the assignment rubric.'} accentColor={accentColor} isDark={isDark} reviewsUsed={reviewsUsed} maxReviews={maxReviews} analyzing={analyzing} />
           <AiReviewDisclaimer isDark={isDark} />
         </>)}
-        <div
-          onDragOver={e => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          onClick={() => inputRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-3 cursor-pointer transition-all hover:-translate-y-px"
-          style={{
-            border: `1.5px dashed ${dragging || file ? accentColor : border}`,
-            borderRadius: 16,
-            padding: '42px 24px',
-            background: dragging || file ? `${accentColor}08` : inner,
-            boxShadow: dragging ? `0 0 0 4px ${accentColor}12` : 'none',
-          }}>
+        <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<FileText className="w-5 h-5" />}
+          title="Drop your document here" hint="PDF, DOCX, DOC or TXT" fileName={file?.name}
+          dragging={dragging} onDragChange={setDragging} onDropFile={onDrop} onClick={() => inputRef.current?.click()}>
           <input ref={inputRef} type="file" accept=".pdf,.docx,.doc,.txt" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) pickFile(f); }} />
-          <span className="inline-flex w-12 h-12 items-center justify-center rounded-xl" style={{ color: file ? '#22c55e' : accentColor, background: file ? 'rgba(34,197,94,0.10)' : `${accentColor}14` }}><FileText className="w-6 h-6" /></span>
-          {file
-            ? <p style={{ fontSize: 13, fontWeight: 600, color: text }}>{file.name}</p>
-            : <>
-                <p style={{ fontSize: 13, fontWeight: 600, color: text }}>Drop your report here</p>
-                <p style={{ fontSize: 12, color: muted }}>or click to browse &middot; PDF, DOCX, DOC, TXT</p>
-              </>
-          }
-        </div>
+        </AiReviewDropzone>
 
         {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} canUpgrade={entitlement.canUpgrade} message={error} upgradeUrl={upgradeUrl} />}
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
-        <button onClick={handleSubmit} disabled={analyzing || !file}
-          className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
-          style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
-          {analyzing
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> {isManual ? 'Submitting...' : 'Reviewing...'}</>
-            : isManual
-              ? <><FileText className="w-4 h-4" /> Submit for Instructor Review</>
-              : <><Zap className="w-4 h-4" /> {isHybrid ? 'Submit for AI + Instructor Review' : 'Submit for AI Review'}</>}
-        </button>
+        <AiReviewSubmitButton isDark={isDark} accentColor={accentColor} disabled={!file} busy={analyzing} busyLabel={isManual ? 'Submitting...' : 'Reviewing...'} onClick={handleSubmit}>
+          {isManual
+            ? <><FileText className="w-4 h-4" /> Submit for instructor review</>
+            : <><Zap className="w-4 h-4" /> {isHybrid ? 'Submit for AI and instructor review' : 'Submit for AI review'}</>}
+        </AiReviewSubmitButton>
       </div>
       </AiReviewLockOverlay>
     );
@@ -287,7 +266,7 @@ export default function DocumentReviewPlayer({
 
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
-      <AiReviewDisclaimer isDark={isDark} />
+      {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
       {result?.warning && (
         <div role="alert" className="flex items-start gap-2 rounded-lg p-3" style={{ background: card, color: text }}>
           <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -299,7 +278,7 @@ export default function DocumentReviewPlayer({
       )}
 
       <AiStructuredReviewReport
-        reportLabel="AI document intelligence"
+        reportLabel="Document review"
         title="Your document review"
         metadata={`Submitted document${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
         score={result.overallScore}

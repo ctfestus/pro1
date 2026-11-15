@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { Check, Info, RotateCcw } from 'lucide-react';
+import { Check, Info } from 'lucide-react';
 import { onAccent } from '@/lib/ve-accent';
 
 /**
@@ -35,7 +35,7 @@ export function taskTheme(isDark: boolean, accent: string): TaskTheme {
   };
 }
 
-export function TaskHeader({ t, icon, label, title, description, done }: {
+export function TaskHeader({ t, icon, label, title, description, done, doneAction }: {
   t: TaskTheme;
   icon: React.ReactNode;
   label: string;
@@ -44,6 +44,8 @@ export function TaskHeader({ t, icon, label, title, description, done }: {
   description?: string;
   /** What happened, shown as a green pill once the task is done: "Correct", "Saved", "Reviewed 86 / 100". */
   done?: string | null;
+  /** A secondary action shown beside the done pill, so it reads as acting on it: Undo, Edit. */
+  doneAction?: React.ReactNode;
 }) {
   return (
     <div className="flex items-start gap-3">
@@ -57,9 +59,12 @@ export function TaskHeader({ t, icon, label, title, description, done }: {
         {description && <p className="mt-0.5 text-[13.5px] leading-relaxed" style={{ color: t.muted }}>{description}</p>}
       </div>
       {done && (
-        <span className="flex-shrink-0 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold whitespace-nowrap"
-          style={{ background: `${t.accent}1a`, color: t.accent }} role="status">
-          <Check className="w-3.5 h-3.5" strokeWidth={3} /> {done}
+        <span className="flex flex-shrink-0 items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[12px] font-bold whitespace-nowrap"
+            style={{ background: `${t.accent}1a`, color: t.accent }} role="status">
+            <Check className="w-3.5 h-3.5" strokeWidth={3} /> {done}
+          </span>
+          {doneAction}
         </span>
       )}
     </div>
@@ -75,30 +80,62 @@ export function TaskButton({ t, onClick, disabled, children, type = 'button' }: 
   type?: 'button' | 'submit';
 }) {
   return (
+    // Not ready yet reads as grey, not as a washed-out version of the live button.
     <button type={type} onClick={onClick} disabled={disabled}
-      className="inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-[13.5px] font-bold whitespace-nowrap transition-opacity hover:opacity-90 disabled:opacity-45 disabled:cursor-not-allowed"
-      style={{ background: t.accent, color: onAccent(t.accent) }}>
+      className="inline-flex items-center justify-center gap-2 rounded-[10px] px-4 py-2.5 text-[13.5px] font-bold whitespace-nowrap transition-opacity hover:opacity-90 disabled:opacity-100 disabled:cursor-not-allowed"
+      style={disabled ? { background: t.soft, color: t.faint } : { background: t.accent, color: onAccent(t.accent) }}>
       {children}
     </button>
   );
 }
 
-/** A quiet text action under a done card: Undo, Replace. */
-export function TaskLink({ t, onClick, children }: { t: TaskTheme; onClick: () => void; children: React.ReactNode }) {
+/** A secondary action on a done card (Undo, Edit, Replace): a round icon button with a name for
+ * hover and screen readers. The tap area is 44px; the visible circle is 32px. */
+export function TaskIconButton({ t, label, icon, onClick }: { t: TaskTheme; label: string; icon: React.ReactNode; onClick?: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="text-[12.5px] font-semibold underline underline-offset-2 transition-opacity hover:opacity-70" style={{ color: t.muted }}>
-      {children}
+    <button type="button" onClick={onClick} title={label} aria-label={label}
+      className="inline-flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-full -m-1.5 transition-opacity hover:opacity-75">
+      <span className="inline-flex h-8 w-8 items-center justify-center rounded-full" style={{ background: t.soft, color: t.muted }}>{icon}</span>
     </button>
   );
 }
 
-/** Undo a completed task: a small round icon button, labelled for hover and screen readers. */
-export function TaskUndoButton({ t, onClick }: { t: TaskTheme; onClick: () => void }) {
+/**
+ * One answer option: a lettered chip, the text, and a note when the pick missed. Used by the
+ * question card, a question sent as an email, and a decision in team chat, so a choice looks and
+ * behaves the same wherever it arrives.
+ */
+export function TaskOption({ t, letter, children, state = 'idle', note, onClick, disabled, role, checked }: {
+  t: TaskTheme;
+  letter: string;
+  children: React.ReactNode;
+  /** idle: can be picked. right: the correct pick. missed: a wrong pick. faded: the others once answered. */
+  state?: 'idle' | 'right' | 'missed' | 'faded';
+  note?: string;
+  onClick?: () => void;
+  disabled?: boolean;
+  role?: 'radio';
+  checked?: boolean;
+}) {
+  const right = state === 'right';
+  const missed = state === 'missed';
   return (
-    <button type="button" onClick={onClick} title="Undo" aria-label="Undo"
-      className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-opacity hover:opacity-75"
-      style={{ background: t.soft, color: t.muted }}>
-      <RotateCcw className="w-4 h-4" />
+    <button type="button" role={role} aria-checked={role ? !!checked : undefined} onClick={onClick} disabled={disabled}
+      className="w-full flex items-center gap-3 rounded-[10px] px-3 py-2.5 text-left text-[14px] transition-colors disabled:cursor-default"
+      style={{
+        background: right ? `${t.accent}1a` : missed ? `${t.bad}14` : t.soft,
+        color: t.text,
+        opacity: state === 'faded' ? 0.55 : 1,
+      }}>
+      <span className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-[7px] text-[12px] font-bold"
+        style={{
+          background: right ? t.accent : t.isDark ? 'rgba(255,255,255,0.08)' : '#ffffff',
+          color: right ? onAccent(t.accent) : missed ? t.bad : t.muted,
+        }}>
+        {letter}
+      </span>
+      <span className="flex-1 min-w-0">{children}</span>
+      {missed && note && <span className="flex-shrink-0 text-[12.5px] font-semibold" style={{ color: t.bad }}>{note}</span>}
     </button>
   );
 }

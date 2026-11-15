@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle2, Circle, X, Loader2, Paperclip, Send, Reply, AlertTriangle, Link as LinkIcon } from 'lucide-react';
+import { CheckCircle2, Circle, Loader2, Paperclip, Send, Reply, AlertTriangle, Link as LinkIcon } from 'lucide-react';
 import AiReviewUpgradePrompt, { AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import CodeReviewPlayer from '@/components/CodeReviewPlayer';
 import DashboardCritiquePlayer from '@/components/DashboardCritiquePlayer';
@@ -15,12 +15,13 @@ import { sanitizeRichText, sanitizeEmailContent } from '@/lib/sanitize';
 import { refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { repairVeSubmissionUrl, VE_SUBMISSION_ACCEPT } from '@/lib/ve-upload';
 import type { RequirementProps } from './types';
+import { AiNote, TaskButton, TaskOption, taskTheme } from './TaskCard';
 
 /** Any assessment requirement with emailFrame set, shown as a manager email thread.
  * The player only renders this for types it handles (see emailFrameHandles). */
 export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementProps) {
   const {
-    isDark, accentColor, fieldBg, fieldBorder, fieldShadow, config, manager, meEmail, studentName,
+    isDark, accentColor, config, manager, meEmail, studentName,
     formId, authHeader, flatIdx, currentModId, currentLesId, reviewMode, entitlement, progress,
     setProgress, saveProgress, noteValues, setNoteValues, setNote, handleFileUpload, uploadingReq,
     uploadErrors, openReplies, setOpenReplies, efReviewing, setEfReviewing, efTyping, setEfTyping,
@@ -33,6 +34,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
   const mcqOptions     = (req.options || []).filter(o => String(o ?? '').trim());
   const isMcq          = req.type === 'mcq' && mcqOptions.length > 0;
 
+  const t = taskTheme(isDark, accentColor);
   const efManager = manager.name;
   const efSubject = req.label || 'Task Assignment';
   const efStamp = workStamp(flatIdx, qi, req.id);
@@ -43,7 +45,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
         sender={manager} toName={studentName} toEmail={meEmail} stamp={efStamp}
         bodyHtml={(req.emailBody || req.description) ? sanitizeEmailContent(applyNameTags(req.emailBody || req.description || '', studentName)) : undefined}
         attachments={efAttachments.length ? efAttachments : undefined}
-        company={config.company} done={done} muteArrival={reviewMode} signatureAfterChildren>
+        company={config.company} done={done} muteArrival={reviewMode}>
         {children}
       </MailCard>
     </div>
@@ -56,34 +58,22 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
       !done ? (
         <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 8 }}>
           <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6', margin: '0 0 4px' }}>Reply with your answer</p>
-          {mcqOptions.map((opt, oi) => {
-            const letter = oi + 1;
-            const isSelected = selectedAnswer === opt;
-            const isThisWrong = isSelected && isWrong;
-            const bgCol = isThisWrong ? 'rgba(239,68,68,0.06)' : isSelected ? `${accentColor}08` : (isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.04)');
-            return (
-              <button key={oi}
-                onClick={() => {
-                  if (done) return;
-                  const correct = opt === req.correctAnswer;
-                  setProgress(prev => {
-                    const next = { ...prev, [req.id]: { ...prev[req.id], selectedAnswer: opt, completed: correct } };
-                    if (correct) saveProgress(next, currentModId, currentLesId);
-                    return next;
-                  });
-                  anchorZone(req.id);
-                }}
-                style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 16px', borderRadius: 12, border: `1px solid ${isThisWrong ? 'rgba(239,68,68,0.4)' : isSelected ? `${accentColor}55` : 'transparent'}`, background: bgCol, textAlign: 'left', cursor: 'pointer', fontSize: 14, color: isDark ? '#e0e0e0' : '#1f1f1f', transition: 'all 0.15s', width: '100%' }}>
-                <span style={{ flex: 1 }}>{opt}</span>
-                <span style={{ fontSize: 13, fontWeight: 700, flexShrink: 0, fontVariantNumeric: 'tabular-nums', color: isThisWrong ? '#ef4444' : isSelected ? accentColor : (isDark ? '#888' : '#999') }}>{letter}</span>
-              </button>
-            );
-          })}
-          {isWrong && (
-            <p style={{ fontSize: 12.5, color: '#ef4444', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: 5 }}>
-              <X className="w-3.5 h-3.5" /> That is not the right answer. Try again.
-            </p>
-          )}
+          {mcqOptions.map((opt, oi) => (
+            <TaskOption key={oi} t={t} letter={String.fromCharCode(65 + oi)}
+              state={selectedAnswer === opt && isWrong ? 'missed' : 'idle'} note="Not this one. Try again."
+              onClick={() => {
+                if (done) return;
+                const correct = opt === req.correctAnswer;
+                setProgress(prev => {
+                  const next = { ...prev, [req.id]: { ...prev[req.id], selectedAnswer: opt, completed: correct } };
+                  if (correct) saveProgress(next, currentModId, currentLesId);
+                  return next;
+                });
+                anchorZone(req.id);
+              }}>
+              {opt}
+            </TaskOption>
+          ))}
         </div>
       ) : (
         <div style={{ padding: '16px 22px 20px', display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -128,8 +118,8 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
     const fbTone = !feedback ? null : fbErrored
       ? { bg: isDark ? 'rgba(148,163,184,0.10)' : 'rgba(148,163,184,0.12)', border: isDark ? 'rgba(148,163,184,0.30)' : 'rgba(148,163,184,0.40)', color: isDark ? '#cbd5e1' : '#64748b', label: 'Review unavailable' }
       : feedback.passed
-      ? { bg: isDark ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.06)', border: 'rgba(16,185,129,0.25)', color: '#10b981', label: 'Correct' }
-      : { bg: isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)', border: 'rgba(245,158,11,0.25)', color: '#f59e0b', label: 'Incorrect' };
+      ? { bg: `${accentColor}12`, border: `${accentColor}40`, color: accentColor, label: 'Correct' }
+      : { bg: `${t.bad}12`, border: `${t.bad}40`, color: t.bad, label: 'Incorrect' };
     const evaluating = !!aiReviewing[req.id];
     // What the thread shows as "sent": the in-flight attempt first, then saved notes
     const sentText = efPending[req.id] || progress[req.id]?.notes || noteValues[req.id] || '';
@@ -239,8 +229,8 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
               <div className="rich-content" dangerouslySetInnerHTML={{ __html: sanitizeRichText(r.me) }} />
             </MailThreadMsg>
             <MailThreadMsg isDark={isDark} from={manager} time="Earlier">
-              <div style={{ borderRadius: 10, padding: '12px 16px', background: r.passed ? (isDark ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.06)') : (isDark ? 'rgba(245,158,11,0.08)' : 'rgba(245,158,11,0.06)'), border: `1px solid ${r.passed ? 'rgba(16,185,129,0.25)' : 'rgba(245,158,11,0.25)'}` }}>
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: r.passed ? '#10b981' : '#f59e0b', marginBottom: 8 }}>
+              <div style={{ borderRadius: 10, padding: '12px 16px', background: r.passed ? `${accentColor}12` : `${t.bad}12`, border: `1px solid ${r.passed ? `${accentColor}40` : `${t.bad}40`}` }}>
+                <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: r.passed ? accentColor : t.bad, marginBottom: 8 }}>
                   {r.passed ? <CheckCircle2 className="w-4 h-4" /> : <Circle className="w-4 h-4" />}
                   {r.passed ? 'Correct' : 'Incorrect'}
                 </div>
@@ -324,10 +314,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
       ) : !replyOpen ? (
         <div style={{ padding: '14px 22px' }}>
           {!reviewMode && (
-            <button onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}
-              style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 18, border: `1px solid ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: isDark ? '#ddd' : '#444', cursor: 'pointer' }}>
-              <Reply className="w-4 h-4" /> Reply
-            </button>
+            <TaskButton t={t} onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}><Reply className="w-4 h-4" /> Reply</TaskButton>
           )}
         </div>
       ) : (
@@ -415,50 +402,38 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
         isTask ? (
           <div style={{ padding: '14px 22px' }}>
             {!reviewMode && (
-              <button onClick={handleEfSend}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '8px 20px', borderRadius: 6, border: `1px solid ${accentColor}`, background: `${accentColor}12`, fontSize: 13.5, fontWeight: 600, color: accentColor, cursor: 'pointer' }}>
-                <CheckCircle2 className="w-4 h-4" /> I am done with this task
-              </button>
+              <TaskButton t={t} onClick={handleEfSend}><CheckCircle2 className="w-4 h-4" /> I am done with this task</TaskButton>
             )}
           </div>
         ) : !replyOpen ? (
           // Upload / Deliverable: show open-compose button
           <div style={{ padding: '14px 22px' }}>
             {!reviewMode && (
-              <button onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}
-                style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 18px', borderRadius: 6, border: `1px solid ${isDark ? 'rgba(255,255,255,0.18)' : 'rgba(0,0,0,0.18)'}`, background: 'transparent', fontSize: 13.5, fontWeight: 600, color: isDark ? '#ddd' : '#444', cursor: 'pointer' }}>
-                <Paperclip className="w-4 h-4" /> {isDeliverable ? 'Submit deliverable' : 'Attach your work'}
-              </button>
+              <TaskButton t={t} onClick={() => setOpenReplies(prev => new Set([...prev, req.id]))}><Paperclip className="w-4 h-4" /> {isDeliverable ? 'Submit deliverable' : 'Attach your work'}</TaskButton>
             )}
           </div>
         ) : (
           // Compose: attach file / paste link
           <div style={{ padding: '14px 22px 18px' }}>
-            <div style={{ border: `1px solid ${isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`, borderRadius: 10, overflow: 'hidden' }}>
-              <div style={{ padding: '8px 14px', background: isDark ? '#222' : '#f8f8f8', borderBottom: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, fontSize: 12, color: isDark ? '#888' : '#999' }}>
-                {isDeliverable ? 'Attach your deliverable' : 'Attach your file'}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, padding: '14px 16px', borderRadius: 10, border: `1.5px dashed ${fileUrl ? `${accentColor}80` : isDark ? 'rgba(255,255,255,0.14)' : 'rgba(15,23,42,0.14)'}`, background: t.soft, cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13.5, color: t.muted }}>
+                {uploading ? <Loader2 className="w-4 h-4 animate-spin" style={{ color: accentColor }} /> : <Paperclip className="w-4 h-4" />}
+                <span>{uploading ? 'Uploading...' : fileUrl ? <b style={{ color: t.text, fontWeight: 600 }}>File attached. Choose another to replace it</b> : <><b style={{ color: t.text, fontWeight: 600 }}>Choose a file</b> to attach</>}</span>
+                <input type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={uploading} onChange={async e => {
+                  const file = e.target.files?.[0]; if (!file) return;
+                  await handleFileUpload(req.id, file, true);
+                  e.target.value = '';
+                }} />
+              </label>
+              {uploadErrors[req.id] && <p role="alert" style={{ margin: 0, color: t.bad, fontSize: 12.5 }}>{uploadErrors[req.id]}</p>}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px', borderRadius: 10, background: t.soft }}>
+                <LinkIcon className="w-3.5 h-3.5" style={{ color: t.faint, flexShrink: 0 }} />
+                <input type="url" value={linkUrl} onChange={e => setProgress(prev => ({ ...prev, [req.id]: { ...prev[req.id], linkUrl: e.target.value } }))}
+                  placeholder="Or paste a link (Google Drive, GitHub...)" aria-label="Or paste a link"
+                  style={{ flex: 1, minWidth: 0, padding: '10px 0', border: 'none', background: 'transparent', color: t.text, fontSize: 13.5, outline: 'none' }} />
               </div>
-              <div style={{ padding: '14px 16px', background: isDark ? '#1a1a1a' : '#fff', display: 'flex', flexDirection: 'column', gap: 10 }}>
-                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '9px 16px', borderRadius: 10, border: `1.5px dashed ${fileUrl ? `${accentColor}80` : fieldBorder}`, background: fileUrl ? `${accentColor}08` : fieldBg, boxShadow: fieldShadow, cursor: uploading ? 'not-allowed' : 'pointer', fontSize: 13, color: fileUrl ? accentColor : isDark ? '#c3c3c3' : '#475569' }}>
-                  {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Paperclip className="w-4 h-4" />}
-                  {uploading ? 'Uploading...' : (fileUrl ? 'Replace file' : 'Attach file')}
-                  <input type="file" accept={VE_SUBMISSION_ACCEPT} className="hidden" disabled={uploading} onChange={async e => {
-                    const file = e.target.files?.[0]; if (!file) return;
-                    await handleFileUpload(req.id, file, true);
-                    e.target.value = '';
-                  }} />
-                </label>
-                {uploadErrors[req.id] && <p role="alert" style={{ margin: '8px 0 0', color: '#ef4444', fontSize: 12 }}>{uploadErrors[req.id]}</p>}
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <input value={linkUrl} onChange={e => setProgress(prev => ({ ...prev, [req.id]: { ...prev[req.id], linkUrl: e.target.value } }))}
-                    placeholder="Or paste a link..." style={{ flex: 1, padding: '9px 12px', borderRadius: 10, border: `1.5px solid ${fieldBorder}`, background: fieldBg, boxShadow: fieldShadow, color: isDark ? '#ddd' : '#333', fontSize: 13, outline: 'none' }} />
-                </div>
-                {(fileUrl || linkUrl) && (
-                  <button onClick={handleEfSend}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '7px 20px', borderRadius: 6, background: accentColor, color: '#fff', fontSize: 13.5, fontWeight: 600, border: 'none', cursor: 'pointer', alignSelf: 'flex-start' }}>
-                    <Send className="w-3.5 h-3.5" /> {isDeliverable ? 'Submit deliverable' : 'Submit'}
-                  </button>
-                )}
+              <div>
+                <TaskButton t={t} onClick={handleEfSend} disabled={!(fileUrl || linkUrl)}><Send className="w-3.5 h-3.5" /> {isDeliverable ? 'Submit deliverable' : 'Send'}</TaskButton>
               </div>
             </div>
           </div>
@@ -510,27 +485,28 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
             <p style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.4, textTransform: 'uppercase', color: isDark ? '#6b7075' : '#9aa0a6', margin: '0 0 10px' }}>
               {req.type === 'dashboard_critique' ? 'Attach your dashboard for review' : req.type === 'code_review' ? 'Paste or upload your code' : req.type === 'excel_review' ? 'Upload your Excel file' : 'Upload your document'}
             </p>
+            {!(req.type === 'document_review' && req.documentReviewMode === 'manual') && <div style={{ marginBottom: 10 }}><AiNote t={t} /></div>}
             {req.type === 'dashboard_critique' && (
-              <DashboardCritiquePlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
+              <DashboardCritiquePlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 savedResult={undefined} savedImageUrl={undefined} rubric={req.rubric}
                 onReviewStart={startReview} onReviewError={onReviewError}
                 onComplete={(result) => { finishReview(); markDone(buildReviewNotes('dashboard_critique', result, saved?.notes), true); }} />
             )}
             {req.type === 'code_review' && (
-              <CodeReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
+              <CodeReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 savedResult={undefined} rubric={req.rubric} schema={req.schema} minScore={req.minScore}
                 onReviewStart={startReview} onReviewError={onReviewError}
                 onComplete={(result, passed) => { finishReview(); markDone(buildReviewNotes('code_review', result, saved?.notes), passed); }} />
             )}
             {req.type === 'excel_review' && (
-              <ExcelReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
+              <ExcelReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 savedResult={undefined} context={req.context} reviewSheetNames={req.reviewSheetNames}
                 reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} rubric={req.rubric} minScore={req.minScore}
                 onReviewStart={startReview} onReviewError={onReviewError}
                 onComplete={(result, passed) => { finishReview(); markDone(buildReviewNotes('excel_review', result, saved?.notes), passed); }} />
             )}
             {req.type === 'document_review' && (
-              <DocumentReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
+              <DocumentReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode}
                 onComplete={(result, passed) => markDone(buildReviewNotes('document_review', result, saved?.notes), passed)} />
             )}
@@ -575,25 +551,26 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
               <p style={{ margin: '0 0 18px' }}>Thanks for sending over your {typeLabel}. I have completed the review - please find my detailed feedback below.</p>
               <div style={{ background: isDark ? '#111' : '#f8fafc', borderRadius: 10, padding: 16, border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}` }}>
                 {req.type === 'dashboard_critique' && savedReport && (
-                  <DashboardCritiquePlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                  <DashboardCritiquePlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={savedReport as any} savedImageUrl={undefined} rubric={req.rubric} onComplete={() => {}} />
                 )}
                 {req.type === 'code_review' && savedReport && (
-                  <CodeReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                  <CodeReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={isFullReport('code_review', savedReport) ? savedReport as any : undefined}
                     rubric={req.rubric} schema={req.schema} minScore={req.minScore} onComplete={() => {}} />
                 )}
                 {req.type === 'excel_review' && savedReport && (
-                  <ExcelReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                  <ExcelReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={isFullReport('excel_review', savedReport) ? savedReport as any : undefined}
                     context={req.context} reviewSheetNames={req.reviewSheetNames} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
                 )}
                 {req.type === 'document_review' && savedReport && (
-                  <DocumentReviewPlayer reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                  <DocumentReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={isFullReport('document_review', savedReport) ? savedReport as any : undefined}
                     context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode} onComplete={() => {}} />
                 )}
               </div>
+              <div style={{ marginTop: 12 }}><AiNote t={t} /></div>
               <p style={{ margin: '18px 0 0' }}>Let me know if anything is unclear.</p>
               <p style={{ margin: '4px 0 0' }}>Best,<br />{firstNameOf(manager.name)}</p>
             </MailThreadMsg>

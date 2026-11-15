@@ -1,10 +1,11 @@
 'use client';
 
 import React, { useRef, useState } from 'react';
-import { Loader2, CheckCircle2, Zap, RotateCcw, FileSpreadsheet, Upload, Download, TriangleAlert } from 'lucide-react';
+import { CheckCircle2, Zap, RotateCcw, FileSpreadsheet, Upload, Download, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
+import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
@@ -171,7 +172,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
       if (!result) return;
       await downloadStructuredReviewPdf({
         ...result,
-        reportLabel: 'AI WORKBOOK INTELLIGENCE',
+        reportLabel: 'WORKBOOK REVIEW',
         reportTitle: 'Your workbook review',
         reportKicker: 'EXCEL REVIEW',
         sourceLabel: 'Excel workbook',
@@ -231,42 +232,19 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
             <p className="text-xs mt-1" style={{ color: muted }}>{reviewSheetNames.join(', ')}</p>
           </div>
         )}
-        {/* Drop zone */}
-        <div
-          onDragOver={e => { e.preventDefault(); setDragging(true); }}
-          onDragLeave={() => setDragging(false)}
-          onDrop={onDrop}
-          onClick={() => inputRef.current?.click()}
-          className="flex flex-col items-center justify-center gap-3 cursor-pointer transition-all hover:-translate-y-px"
-          style={{
-            border: `1.5px dashed ${dragging || file ? accentColor : isDark ? 'rgba(255,255,255,0.16)' : '#cbd5e1'}`,
-            borderRadius: 16,
-            padding: '42px 24px',
-            background: dragging || file ? `${accentColor}08` : isDark ? 'rgba(255,255,255,0.055)' : '#ffffff',
-            boxShadow: dragging ? `0 0 0 4px ${accentColor}12` : isDark ? 'none' : '0 1px 2px rgba(15,23,42,0.04)',
-          }}>
+        <AiReviewDropzone isDark={isDark} accentColor={accentColor} icon={<FileSpreadsheet className="w-5 h-5" />}
+          title="Drop your Excel file here" hint="Excel workbook (.xlsx)" fileName={file?.name}
+          dragging={dragging} onDragChange={setDragging} onDropFile={onDrop} onClick={() => inputRef.current?.click()}>
           <input ref={inputRef} type="file" accept=".xlsx" className="hidden"
             onChange={e => { const f = e.target.files?.[0]; if (f) pickFile(f); }} />
-          <span className="inline-flex w-12 h-12 items-center justify-center rounded-xl" style={{ color: file ? '#22c55e' : accentColor, background: file ? 'rgba(34,197,94,0.10)' : `${accentColor}14` }}><FileSpreadsheet className="w-6 h-6" /></span>
-          {file
-            ? <p style={{ fontSize: 13, fontWeight: 600, color: text }}>{file.name}</p>
-            : <>
-                <p style={{ fontSize: 13, fontWeight: 600, color: text }}>Drop your Excel file here</p>
-                <p style={{ fontSize: 12, color: muted }}>or click to browse - .xlsx</p>
-              </>
-          }
-        </div>
+        </AiReviewDropzone>
 
         {upgradeUrl && <AiReviewUpgradePrompt accentColor={accentColor} isDark={isDark} planName={entitlement.planName} priceLabel={entitlement.priceLabel} canUpgrade={entitlement.canUpgrade} message={error} upgradeUrl={upgradeUrl} />}
         {error && !upgradeUrl && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
-        <button onClick={handleSubmit} disabled={analyzing || !file}
-          className="flex w-full sm:w-auto items-center justify-center gap-2 px-6 py-3 text-sm font-semibold transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-45"
-          style={{ background: accentColor, color: '#fff', borderRadius: 12 }}>
-          {analyzing
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Reviewing...</>
-            : <><Zap className="w-4 h-4" /> Submit for AI Review</>}
-        </button>
+        <AiReviewSubmitButton isDark={isDark} accentColor={accentColor} disabled={!file} busy={analyzing} onClick={handleSubmit}>
+          <Zap className="w-4 h-4" /> Submit for AI review
+        </AiReviewSubmitButton>
       </div>
       </AiReviewLockOverlay>
     );
@@ -294,7 +272,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
 
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
-      <AiReviewDisclaimer isDark={isDark} />
+      {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
       {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
         <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
       )}
@@ -315,7 +293,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
       )}
 
       <AiStructuredReviewReport
-        reportLabel="AI workbook intelligence"
+        reportLabel="Workbook review"
         title="Your workbook review"
         metadata={`Excel workbook${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
         score={result.overallScore}

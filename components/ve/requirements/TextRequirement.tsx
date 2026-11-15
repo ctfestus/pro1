@@ -150,21 +150,21 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
         {feedback && !fbErrored && (
           <div className="rounded-xl p-4 space-y-2"
             style={{
-              background: feedback.passed ? 'rgba(16,185,129,0.07)' : 'rgba(245,158,11,0.07)',
-              border: `1px solid ${feedback.passed ? 'rgba(16,185,129,0.3)' : 'rgba(245,158,11,0.3)'}`,
+              background: feedback.passed ? `${t.accent}12` : `${t.bad}12`,
+              border: 'none',
             }}>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 {feedback.passed
-                  ? <CheckCircle2 className="w-4 h-4" style={{ color: '#10b981' }} />
-                  : <Circle className="w-4 h-4" style={{ color: '#f59e0b' }} />}
-                <span className="text-[13px] font-bold" style={{ color: feedback.passed ? '#10b981' : '#f59e0b' }}>
+                  ? <CheckCircle2 className="w-4 h-4" style={{ color: t.accent }} />
+                  : <Circle className="w-4 h-4" style={{ color: t.bad }} />}
+                <span className="text-[13px] font-bold" style={{ color: feedback.passed ? t.accent : t.bad }}>
                   {feedback.passed ? 'Passed' : 'Not quite there yet'}
                 </span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-[12px] font-bold tabular-nums px-2 py-0.5 rounded-full"
-                  style={{ background: feedback.passed ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)', color: feedback.passed ? '#10b981' : '#f59e0b' }}>
+                  style={{ background: feedback.passed ? `${t.accent}26` : `${t.bad}26`, color: feedback.passed ? t.accent : t.bad }}>
                   {feedback.score}/100
                 </span>
                 <button
@@ -235,6 +235,10 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
     <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-3">
       <TaskHeader t={t} icon={<PenLine className="w-3.5 h-3.5" />} label="Short answer" title={req.label}
         description={req.description} done={done ? 'Correct' : null} />
+      {done && !reviewMode ? (
+        // Answered: the answer as plain text on the soft panel, so it no longer reads as a field.
+        <p className="rounded-[10px] px-3 py-2.5 text-[14px]" style={{ background: t.soft, color: t.text }}>{noteVal}</p>
+      ) : (
       <div className="flex flex-col sm:flex-row gap-2.5">
       <input
         value={noteVal}
@@ -258,6 +262,7 @@ export function TextRequirement({ req, rowStyle, ctx }: RequirementProps) {
         <TaskButton t={t} onClick={() => checkExact()} disabled={noteVal.trim().length === 0}>Check answer</TaskButton>
       )}
       </div>
+      )}
       {wrongAnswer && (
         <p className="text-[13px] font-semibold" style={{ color: t.bad }}>Not quite. Try again.</p>
       )}
