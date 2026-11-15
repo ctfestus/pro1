@@ -1,7 +1,7 @@
 'use client';
 
 import type React from 'react';
-import { Check, Info } from 'lucide-react';
+import { Check, Info, RotateCcw } from 'lucide-react';
 import { onAccent } from '@/lib/ve-accent';
 
 /**
@@ -88,6 +88,17 @@ export function TaskLink({ t, onClick, children }: { t: TaskTheme; onClick: () =
   return (
     <button type="button" onClick={onClick} className="text-[12.5px] font-semibold underline underline-offset-2 transition-opacity hover:opacity-70" style={{ color: t.muted }}>
       {children}
+    </button>
+  );
+}
+
+/** Undo a completed task: a small round icon button, labelled for hover and screen readers. */
+export function TaskUndoButton({ t, onClick }: { t: TaskTheme; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} title="Undo" aria-label="Undo"
+      className="inline-flex h-8 w-8 items-center justify-center rounded-full transition-opacity hover:opacity-75"
+      style={{ background: t.soft, color: t.muted }}>
+      <RotateCcw className="w-4 h-4" />
     </button>
   );
 }

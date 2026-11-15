@@ -5,7 +5,7 @@ import { LessonRenderer } from '@/components/lesson/LessonRenderer';
 import { sanitizeRichTextWithImages } from '@/lib/sanitize';
 import { resolveDeliverableAccent } from '@/lib/ve-accent';
 import { REQ_META, type RequirementProps } from './types';
-import { TaskHeader, TaskButton, TaskLink, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
+import { TaskHeader, TaskButton, TaskLink, TaskUndoButton, taskTheme, fieldStyle, TASK_FIELD } from './TaskCard';
 
 /** Tasks, deliverables, and the reflection card that is the fallback for any other type. */
 export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
@@ -57,7 +57,7 @@ export function TaskRequirement({ req, rowStyle, ctx }: RequirementProps) {
         {!reviewMode && (
           <div className="flex items-center gap-3 pt-1">
             {done
-              ? <TaskLink t={t} onClick={() => toggleReq(req.id)}>Undo</TaskLink>
+              ? <TaskUndoButton t={t} onClick={() => toggleReq(req.id)} />
               : <TaskButton t={t} onClick={() => toggleReq(req.id)}><Check className="w-4 h-4" strokeWidth={3} /> Mark deliverable complete</TaskButton>}
           </div>
         )}
