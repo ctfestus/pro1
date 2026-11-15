@@ -13,8 +13,9 @@ import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
 import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
+import { CODE_REVIEW_LANGUAGES } from '@/lib/code-review-languages';
 
-const LANGUAGES = ['Python', 'SQL', 'JavaScript', 'TypeScript', 'R', 'Java', 'C#', 'Other'];
+const LANGUAGES: readonly string[] = CODE_REVIEW_LANGUAGES;
 const SQL_DIALECTS = ['PostgreSQL', 'MySQL', 'SQLite', 'SQL Server'];
 
 interface RubricGrade { criterion: string; passed: boolean; comment: string; }

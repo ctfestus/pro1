@@ -79,6 +79,7 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
           savedResult={(() => { const rep = parseReviewNotes(saved?.notes)?.report; return isFullReport('code_review', rep) ? rep : undefined; })()}
           rubric={req.rubric}
           schema={req.schema}
+          reviewLanguage={req.reviewLanguage}
           minScore={req.minScore}
           onComplete={(result, passed) => {
             setProgress(prev => {
