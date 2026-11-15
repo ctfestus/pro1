@@ -2039,7 +2039,9 @@ export function CourseTaker({
       if (confettiRef.current) burstConfetti(confettiRef.current, accent);
       // Points system
       if (pointsEnabled && !reviewMode) {
-        const { earned, label, isStreak } = calcPoints(hintVisible);
+        // The hint can be hidden again, so the penalty follows whether it was opened, not whether
+        // it is showing right now.
+        const { earned, label, isStreak } = calcPoints(hintWasUsed);
         setTotalPoints(prev => prev + earned);
         const newStreak = streak + 1;
         setStreak(newStreak);
@@ -2061,7 +2063,7 @@ export function CourseTaker({
     // Compute updated score/points for saving (state updates are async)
     const hintWasUsed = hintsUsed.has(currentQuestion.id);
     const newScore  = score + (correct ? (hintWasUsed ? 0.9 : 1) : 0);
-    const newPoints = correct && pointsEnabled ? totalPoints + calcPoints(hintVisible).earned : totalPoints;
+    const newPoints = correct && pointsEnabled ? totalPoints + calcPoints(hintsUsed.has(currentQuestion.id)).earned : totalPoints;
     const newStreak = correct && pointsEnabled ? streak + 1 : (pointsEnabled ? 0 : streak);
     saveProgress(newAnswers, currentQuestionIndex + 1, newScore, newPoints, newStreak, hintsUsed);
   };
@@ -3358,11 +3360,10 @@ export function CourseTaker({
                     }}
                   >
                   <div className="px-4 sm:px-8 pt-5 sm:pt-8 pb-5 sm:pb-8">
-                  {moduleNoAt[currentQuestionIndex] > 0 && (
-                    <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
-                      Module {moduleNoAt[currentQuestionIndex]} &middot; Q{questionNoAt[currentQuestionIndex]} &middot; {slideKind(currentQuestion)}
-                    </p>
-                  )}
+                  <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: accent }}>
+                    {moduleNoAt[currentQuestionIndex] > 0 && <>Module {moduleNoAt[currentQuestionIndex]} &middot; </>}
+                    Q{questionNoAt[currentQuestionIndex]} &middot; {slideKind(currentQuestion)}
+                  </p>
                   <h2 className={`text-lg sm:text-2xl font-semibold leading-snug mb-5 sm:mb-8 ${textColor}`}>
                     {questionType === 'fill_blank' && /_{3,}/.test(currentQuestion.question)
                       ? currentQuestion.question.split(/_{3,}/).map((part: string, partIdx: number, parts: string[]) => (

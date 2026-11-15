@@ -132,7 +132,10 @@ function TimelineView({ node, editor, getPos, updateAttributes }: NodeViewProps)
     fit();
     const ro = new ResizeObserver(fit);
     ro.observe(wrap);
-    return () => ro.disconnect();
+    // A web font that finishes loading after the first measure changes the dates' widths.
+    let live = true;
+    void document.fonts?.ready.then(() => { if (live) fit(); });
+    return () => { live = false; ro.disconnect(); };
   }, [node, editable]);
   const count = node.childCount;
   const accentColor = (node.attrs.accentColor as string) || '';
