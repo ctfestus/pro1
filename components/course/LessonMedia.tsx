@@ -5,6 +5,7 @@
 // review question, and the lesson sheet opened from a question); each passes its own spacing and
 // corner classes so they keep their look while sharing one copy of the logic.
 
+import { Fragment } from 'react';
 import dynamic from 'next/dynamic';
 import { safeEmbedUrl, isHtmlEmbedUrl } from '@/lib/safe-embed-url';
 import { HtmlEmbedFrame } from '@/components/HtmlEmbedFrame';
@@ -38,8 +39,10 @@ export function LessonMedia({
   imageFrameClassName?: string;
 }) {
   const embedUrl = lesson.videoUrl ? safeEmbedUrl(lesson.videoUrl) : null;
+  // No class: the item goes straight into the parent, so its spacing rules see only real content
+  // (a PDF still downloading renders nothing and must not leave an empty, spaced box).
   const item = (key: string, node: React.ReactNode, className = itemClassName) =>
-    className == null ? <div key={key}>{node}</div> : <div key={key} className={className}>{node}</div>;
+    className == null ? <Fragment key={key}>{node}</Fragment> : <div key={key} className={className}>{node}</div>;
 
   return (
     <>
