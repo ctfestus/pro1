@@ -15,6 +15,7 @@ import { isIndividualCohort } from '@/lib/cohort-kind';
 import {
   Award, BarChart3, BookOpen, ChevronLeft, ChevronRight, Download, Lock, Medal, RefreshCw, Trophy, Users, Zap,
 } from 'lucide-react';
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 
 const BADGE_TABS = [
   { id: 'achievement',       label: 'Achievements'       },
@@ -52,14 +53,13 @@ function BadgeRow({ title, badges, earnedIds, certIdMap, badgeUuidMap, appUrl, a
         style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
         {badges.map((b: any) => {
           const earned = earnedIds.has(b.id);
-          const now = new Date();
           const certPageId   = certIdMap[b.id];
           const certPageUrl  = certPageId  ? `${appUrl}/certificate/${certPageId}` : null;
           const badgeUuid    = badgeUuidMap[b.id];
           const badgePageUrl = badgeUuid   ? `${appUrl}/b/${badgeUuid}`             : null;
           const shareUrl     = certPageUrl ?? badgePageUrl ?? null;
           const liCertUrl    = shareUrl
-            ? `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(b.name)}&organizationName=${encodeURIComponent(appName ?? '')}&issueYear=${now.getFullYear()}&issueMonth=${now.getMonth() + 1}&certUrl=${encodeURIComponent(shareUrl)}&certId=${encodeURIComponent(certPageId ?? badgeUuid ?? b.id)}`
+            ? linkedInAddCertUrl({ name: b.name, organizationName: appName ?? undefined, certId: certPageId ?? badgeUuid ?? b.id, certUrl: shareUrl })
             : null;
           const liPostUrl    = shareUrl ? `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(shareUrl)}` : null;
           return (

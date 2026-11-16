@@ -1,5 +1,6 @@
 import { loadBadge } from "@/lib/badge";
 import { getTenantSettings } from "@/lib/get-tenant-settings";
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 
 // Server component: the badge is fetched and rendered on the server so it
 // appears in the initial HTML (no client-side spinner) -- important for a public
@@ -35,8 +36,6 @@ export default async function BadgePage({ params }: { params: Promise<{ id: stri
 
   const awarded      = new Date(data.awardedAt);
   const awardedDate  = awarded.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-  const awardedYear  = awarded.getFullYear();
-  const awardedMonth = awarded.getMonth() + 1;
 
   const initials = data.studentName
     .split(' ')
@@ -45,7 +44,7 @@ export default async function BadgePage({ params }: { params: Promise<{ id: stri
     .join('');
 
   const liUrl = t.appUrl
-    ? `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(data.badgeName)}&issueYear=${awardedYear}&issueMonth=${awardedMonth}&certUrl=${encodeURIComponent(pageUrl)}&certId=${encodeURIComponent(id)}`
+    ? linkedInAddCertUrl({ name: data.badgeName, issuedAt: data.awardedAt, certId: id, certUrl: pageUrl })
     : '#';
 
   return (
