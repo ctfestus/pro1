@@ -60,21 +60,6 @@ interface Props {
 
 const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
-function severityColor(s: SectionIssue['severity']) {
-  if (s === 'critical')    return '#ef4444';
-  if (s === 'improvement') return '#f59e0b';
-  return '#3b82f6';
-}
-function severityLabel(s: SectionIssue['severity']) {
-  if (s === 'critical')    return 'Critical';
-  if (s === 'improvement') return 'Improvement';
-  return 'Suggestion';
-}
-function scoreColor(n: number) {
-  if (n >= 80) return '#22c55e';
-  if (n >= 60) return '#f59e0b';
-  return '#ef4444';
-}
 
 export default function DocumentReviewPlayer({
   reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0,
@@ -99,12 +84,10 @@ export default function DocumentReviewPlayer({
   const entitlement = useAiReviewEntitlement('documentReview');
   const inputRef   = useRef<HTMLInputElement>(null);
 
-  const bg     = isDark ? '#0f0f0f' : '#f8fafc';
   const card   = isDark ? '#1a1a1a' : '#ffffff';
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
   const text   = isDark ? '#f0f0f0' : '#111';
   const muted  = isDark ? '#888' : '#666';
-  const inner  = isDark ? '#222' : '#f3f4f6';
 
   function onDrop(e: React.DragEvent) {
     e.preventDefault();
@@ -262,7 +245,6 @@ export default function DocumentReviewPlayer({
     );
   }
 
-  const legacyReportEnabled = false as boolean;
 
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
@@ -305,138 +287,6 @@ export default function DocumentReviewPlayer({
         </>}
       />
 
-      {result && legacyReportEnabled && <>
-      {/* Legacy result sections retained temporarily for backward-safe data rendering. */}
-      {result.sections.length > 0 && (
-        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 20px', borderBottom: `1px solid ${border}` }}>
-            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>Section Feedback</p>
-          </div>
-          {result.sections.map((issue, i) => {
-            const color = severityColor(issue.severity);
-            return (
-              <div key={i} style={{ display: 'flex', borderBottom: i < result.sections.length - 1 ? `1px solid ${border}` : 'none' }}>
-                <div style={{ width: 3, flexShrink: 0, background: color }} />
-                <div style={{ flex: 1, padding: '16px 20px' }}>
-                  <div className="flex items-center gap-3 mb-2 flex-wrap">
-                    <span style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em',
-                      padding: '3px 8px', background: `${color}15`, color, borderRadius: 3 }}>
-                      {severityLabel(issue.severity)}
-                    </span>
-                    <span style={{ fontSize: 10, fontWeight: 600, color: muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>{issue.name}</span>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: text }}>{issue.title}</p>
-                  </div>
-                  <p style={{ fontSize: 12.5, lineHeight: 1.6, color: muted, marginBottom: issue.recommendation ? 12 : 0 }}>{issue.detail}</p>
-                  {issue.recommendation && (
-                    <div style={{ background: isDark ? 'rgba(37,99,235,0.08)' : '#eff6ff', borderLeft: '2px solid #3b82f6', padding: '10px 14px' }}>
-                      <p style={{ fontSize: 9, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.12em', color: '#3b82f6', marginBottom: 5 }}>Recommendation</p>
-                      <p style={{ fontSize: 12.5, color: isDark ? '#93c5fd' : '#1e40af', lineHeight: 1.6 }}>{issue.recommendation}</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {/* Rubric */}
-      {result.rubricGrades && result.rubricGrades.length > 0 && (() => {
-        const passed = result.rubricGrades!.filter(g => g.passed).length;
-        const total  = result.rubricGrades!.length;
-        const pct    = Math.round((passed / total) * 100);
-        const trackColor = pct === 100 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444';
-        return (
-          <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden' }}>
-            <div className="flex items-center justify-between" style={{ padding: '12px 20px', borderBottom: `1px solid ${border}` }}>
-              <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>Assignment Rubric</p>
-              <div className="flex items-center gap-3">
-                <div style={{ width: 80, height: 2, background: border, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${pct}%`, background: trackColor }} />
-                </div>
-                <span style={{ fontSize: 12, fontWeight: 700, color: text, fontVariantNumeric: 'tabular-nums' }}>
-                  {passed}<span style={{ fontWeight: 400, color: muted }}>/{total}</span>
-                </span>
-              </div>
-            </div>
-            {result.rubricGrades!.map((grade, i) => (
-              <div key={i} className="flex items-start gap-4"
-                style={{ padding: '14px 20px', borderBottom: i < result.rubricGrades!.length - 1 ? `1px solid ${border}` : 'none' }}>
-                <div style={{ width: 2, alignSelf: 'stretch', flexShrink: 0, background: grade.passed ? '#22c55e' : border, marginTop: 2, marginBottom: 2 }} />
-                <div className="flex-1 min-w-0">
-                  <p style={{ fontSize: 13, fontWeight: 600, color: text, marginBottom: 4 }}>{grade.criterion}</p>
-                  <p style={{ fontSize: 12, color: muted, lineHeight: 1.6 }}>{grade.comment}</p>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 800, letterSpacing: '0.1em', flexShrink: 0, marginTop: 2, color: grade.passed ? '#22c55e' : muted }}>
-                  {grade.passed ? 'PASS' : 'FAIL'}
-                </span>
-              </div>
-            ))}
-          </div>
-        );
-      })()}
-
-      {/* Category scores */}
-      <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden' }}>
-        <div style={{ padding: '12px 20px', borderBottom: `1px solid ${border}` }}>
-          <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>Score Breakdown</p>
-        </div>
-        {result.categories.map((cat, i) => (
-          <div key={cat.name} className="flex items-start gap-5"
-            style={{ padding: '16px 20px', borderBottom: i < result.categories.length - 1 ? `1px solid ${border}` : 'none' }}>
-            <div style={{ width: 36, flexShrink: 0, textAlign: 'center' }}>
-              <span style={{ fontSize: 22, fontWeight: 900, color: scoreColor(cat.score), lineHeight: 1, display: 'block', fontVariantNumeric: 'tabular-nums' }}>{cat.score}</span>
-              <span style={{ fontSize: 9, color: muted }}>/100</span>
-            </div>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div className="flex items-center justify-between mb-1.5">
-                <p style={{ fontSize: 13, fontWeight: 700, color: text }}>{cat.name}</p>
-                <span style={{ fontSize: 10, fontWeight: 700, color: scoreColor(cat.score), textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                  {cat.score >= 80 ? 'Excellent' : cat.score >= 60 ? 'Good' : cat.score >= 40 ? 'Needs Work' : 'Critical'}
-                </span>
-              </div>
-              <div style={{ height: 2, background: border, overflow: 'hidden', marginBottom: 8 }}>
-                <div style={{ height: '100%', width: `${cat.score}%`, background: scoreColor(cat.score) }} />
-              </div>
-              <p style={{ fontSize: 12, color: muted, lineHeight: 1.5, marginBottom: 6 }}>{cat.summary}</p>
-              {cat.strengths.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 mb-1">
-                  {cat.strengths.map((s, si) => (
-                    <span key={si} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(34,197,94,0.1)', color: '#22c55e', borderRadius: 4 }}>{s}</span>
-                  ))}
-                </div>
-              )}
-              {cat.gaps.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {cat.gaps.map((g, gi) => (
-                    <span key={gi} style={{ fontSize: 11, padding: '2px 8px', background: 'rgba(239,68,68,0.1)', color: '#ef4444', borderRadius: 4 }}>{g}</span>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Top recommendations */}
-      {result.topRecommendations.length > 0 && (
-        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden' }}>
-          <div style={{ padding: '16px 20px', borderBottom: `1px solid ${border}` }}>
-            <p style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.14em', color: accentColor }}>Priority Actions</p>
-          </div>
-          {result.topRecommendations.map((r, i) => (
-            <div key={i} className="flex items-start gap-4"
-              style={{ padding: '16px 20px', borderBottom: i < result.topRecommendations.length - 1 ? `1px solid ${border}` : 'none' }}>
-              <span style={{ flexShrink: 0, width: 22, height: 22, background: accentColor, color: '#ffffff',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 10, fontWeight: 900, borderRadius: 7 }}>
-                {i + 1}
-              </span>
-              <p style={{ fontSize: 13, lineHeight: 1.65, color: text }}>{r}</p>
-            </div>
-          ))}
-        </div>
-      )}
-      </>}
 
       {/* Pass/fail gate */}
       {minScore && !reviewPassed(result, minScore, rubric?.length) ? (

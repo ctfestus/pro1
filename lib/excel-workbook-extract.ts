@@ -3,7 +3,6 @@
 
 import ExcelJS from 'exceljs';
 
-const MAX_FORMULAS = 200;
 const MAX_SHEETS = 5;
 const MAX_ROWS_PER_SHEET = 5_000;
 const MAX_TOTAL_CELLS = 50_000;
@@ -58,8 +57,6 @@ export async function extractFromWorkbook(buffer: ArrayBuffer, requestedSheetNam
     const charCeiling = totalChars + Math.ceil((MAX_TEXT_BYTES - totalChars) / sheetsLeft);
 
     const lines: string[] = [`Sheet: ${ws.name}`];
-    let formulaCount = 0;
-    let formulaLimitNoted = false;
     let rowCount = 0;
     let sheetTruncated = false;
 
@@ -74,15 +71,6 @@ export async function extractFromWorkbook(buffer: ArrayBuffer, requestedSheetNam
           ? ` [number format: ${JSON.stringify(cell.numFmt)}]`
           : '';
         if (cell.formula) {
-          // A listing cap, not an extraction limit: the sheet was read, the prompt just stops
-          // enumerating. It must not mark the sheet as partially extracted.
-          if (formulaCount >= MAX_FORMULAS) {
-            if (!formulaLimitNoted) {
-              lines.push(`  ... (formula listing capped at ${MAX_FORMULAS} formulas)`);
-              formulaLimitNoted = true;
-            }
-            return;
-          }
           const raw = cell.value;
           const result = raw !== null && typeof raw === 'object' && 'result' in raw
             ? (raw as any).result
@@ -92,7 +80,6 @@ export async function extractFromWorkbook(buffer: ArrayBuffer, requestedSheetNam
           if (totalChars + line.length > charCeiling) { sheetTruncated = true; return; }
           totalChars += line.length;
           lines.push(line);
-          formulaCount++;
         } else if (cell.value !== null && cell.value !== undefined && cell.value !== '') {
           const line = `  ${addr}: ${cell.value}${numberFormat}`;
           if (totalChars + line.length > charCeiling) { sheetTruncated = true; return; }

@@ -242,7 +242,6 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   const hovered = hoveredId ? result?.elements.find(el => el.id === hoveredId) : null;
   const typeColor = hovered ? (TYPE_COLORS[hovered.elementType] ?? TYPE_COLORS.OTHER) : accentColor;
 
-  const bg   = isDark ? '#0f0f0f' : '#f8fafc';
   const card = isDark ? '#1a1a1a' : '#ffffff';
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
   const text = isDark ? '#f0f0f0' : '#111';
@@ -584,47 +583,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
 
 
 
-const CATEGORY_ICONS: Record<string, React.ReactElement> = {
-  'Layout & Structure': (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5">
-      <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-      <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-    </svg>
-  ),
-  'Visual Design': (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5">
-      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/>
-      <path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>
-    </svg>
-  ),
-  'Data Clarity': (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5">
-      <path d="M3 3v18h18"/><path d="M7 16l4-4 4 4 4-7"/>
-    </svg>
-  ),
-  'Insight & Storytelling': (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} className="w-5 h-5">
-      <path d="M12 2a7 7 0 0 1 7 7c0 2.5-1.3 4.7-3.3 6L15 17H9l-.7-2C6.3 13.7 5 11.5 5 9a7 7 0 0 1 7-7z"/>
-      <path d="M9 21h6M10 17v4M14 17v4"/>
-    </svg>
-  ),
-};
-
-function scoreBarColor(score: number) {
-  if (score >= 80) return '#22c55e';
-  if (score >= 60) return '#f59e0b';
-  if (score >= 40) return '#f59e0b';
-  return '#ef4444';
-}
-
 export function AuditReport({ audit, elements, accentColor, isDark }: { audit: Audit; elements: CritiqueElement[]; accentColor: string; isDark: boolean }) {
-  const legacyReportEnabled = false as boolean;
-  const card    = isDark ? '#272727' : '#ffffff';
-  const inner   = isDark ? '#303030' : '#f7f7f9';
-  const text    = isDark ? '#f0f0f0' : '#0a0a0a';
-  const sub     = isDark ? '#777'    : '#6b6b7b';
-  const dim     = isDark ? '#2e2e2e' : '#e2e2e8';
-  const shadow  = isDark ? 'none'    : '0 2px 16px rgba(0,0,0,0.06)';
 
   return (
     <div className="space-y-3">
@@ -653,125 +612,6 @@ export function AuditReport({ audit, elements, accentColor, isDark }: { audit: A
         isDark={isDark}
       />
 
-      {legacyReportEnabled && <>
-      {/* Legacy result sections retained temporarily for backward-safe data rendering. */}
-      {audit.rubricGrades && audit.rubricGrades.length > 0 && (() => {
-        const passed     = audit.rubricGrades.filter(g => g.passed).length;
-        const total      = audit.rubricGrades.length;
-        const pct        = Math.round((passed / total) * 100);
-        const trackColor = pct === 100 ? '#22c55e' : pct >= 60 ? '#f59e0b' : '#ef4444';
-        return (
-          <div style={{ background: card, borderRadius: 20, boxShadow: shadow }}>
-            <div style={{ padding: '22px 28px 16px' }} className="flex items-center gap-4">
-              <p className="flex-1 text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: sub }}>
-                Assignment Rubric
-              </p>
-              <div className="flex items-center gap-3 flex-shrink-0">
-                <div className="h-1 rounded-full overflow-hidden" style={{ width: 80, background: dim }}>
-                  <div className="h-full rounded-full" style={{ width: `${pct}%`, background: trackColor }} />
-                </div>
-                <span className="text-[13px] font-bold tabular-nums" style={{ color: text }}>
-                  {passed}<span className="font-normal" style={{ color: sub }}>/{total}</span>
-                </span>
-              </div>
-            </div>
-            <div style={{ padding: '0 16px 16px' }} className="space-y-2">
-              {audit.rubricGrades.map((grade, i) => (
-                <div key={i} className="flex items-start gap-4"
-                  style={{ background: inner, borderRadius: 14, padding: '16px 18px' }}>
-                  <div className="flex-shrink-0 mt-[5px] w-[7px] h-[7px] rounded-full"
-                    style={{ background: grade.passed ? '#22c55e' : dim }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13.5px] font-semibold leading-snug" style={{ color: text }}>
-                      {grade.criterion}
-                    </p>
-                    <p className="text-[12.5px] mt-2 leading-relaxed" style={{ color: sub }}>
-                      {grade.comment}
-                    </p>
-                  </div>
-                  <span className="flex-shrink-0 text-[11px] font-bold tracking-wide mt-0.5"
-                    style={{ color: grade.passed ? '#22c55e' : sub }}>
-                    {grade.passed ? 'PASS' : 'FAIL'}
-                  </span>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
-      })()}
-
-      {/* Category Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {audit.categories.map(cat => {
-          const barColor = scoreBarColor(cat.score);
-          const icon     = CATEGORY_ICONS[cat.name] ?? CATEGORY_ICONS['Data Clarity'];
-          const rec      = cat.gaps[0] ?? cat.strengths[0] ?? cat.summary;
-          const status   = cat.score >= 80 ? 'Excellent' : cat.score >= 60 ? 'Good' : cat.score >= 40 ? 'Needs Work' : 'Critical';
-          return (
-            <div key={cat.name} className="flex flex-col"
-              style={{ background: card, borderRadius: 20, boxShadow: shadow }}>
-              <div style={{ padding: '22px 22px 0' }}>
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-xl flex items-center justify-center"
-                      style={{ background: inner, color: barColor }}>
-                      {icon}
-                    </div>
-                    <p className="text-[13px] font-bold" style={{ color: text }}>{cat.name}</p>
-                  </div>
-                  <span className="text-[11px] font-semibold" style={{ color: barColor }}>{status}</span>
-                </div>
-                <div className="flex items-end gap-1.5 mb-3">
-                  <span style={{ fontSize: 36, fontWeight: 900, lineHeight: 1, color: text, letterSpacing: '-0.02em' }}>
-                    {cat.score}
-                  </span>
-                  <span className="mb-1 text-[13px] font-medium" style={{ color: dim }}>/100</span>
-                </div>
-                <div className="h-1 rounded-full overflow-hidden mb-5" style={{ background: dim }}>
-                  <div className="h-full rounded-full" style={{ width: `${cat.score}%`, background: barColor }} />
-                </div>
-              </div>
-              <div className="flex-1" style={{ padding: '0 22px 18px' }}>
-                <p className="text-[10px] font-bold uppercase tracking-[0.12em] mb-2" style={{ color: sub }}>
-                  Key Observation
-                </p>
-                <p className="text-[13px] leading-[1.65]" style={{ color: sub }}>{cat.summary}</p>
-              </div>
-              <div style={{ padding: '0 14px 14px' }}>
-                <div style={{ background: inner, borderRadius: 14, padding: '14px 16px' }}>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.12em] mb-2" style={{ color: sub }}>
-                    Recommendation
-                  </p>
-                  <p className="text-[13px] leading-[1.65]" style={{ color: text }}>{rec}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Top Priority Actions */}
-      {audit.topRecommendations.length > 0 && (
-        <div style={{ background: card, borderRadius: 20, padding: '22px 28px 28px', boxShadow: shadow }}>
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] mb-6" style={{ color: accentColor }}>
-            Top Priority Actions
-          </p>
-          <ol className="space-y-5">
-            {audit.topRecommendations.map((r, i) => (
-              <li key={i} className="flex items-start gap-4">
-                <span style={{
-                  flexShrink: 0, width: 26, height: 26, borderRadius: 8,
-                  background: accentColor, color: '#ffffff',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 11, fontWeight: 800, marginTop: 1,
-                }}>{i + 1}</span>
-                <p className="text-[13.5px] leading-[1.65]" style={{ color: text }}>{r}</p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      )}
-      </>}
     </div>
   );
 }

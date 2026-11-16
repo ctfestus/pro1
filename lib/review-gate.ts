@@ -5,8 +5,8 @@
 // alone grades the wrong question: it judges how good the formulas that ARE present are, so a
 // workbook that ignored every rubric criterion (hardcoded totals left in place, required cells
 // never filled) still scores highly and clears the gate. Where a rubric exists it is the
-// instructor's statement of what the task actually required, so it decides the gate and the
-// quality score stays as commentary.
+// instructor's statement of what the task actually required, so it decides both the gate and the
+// score the student is shown. Reports saved before that still carry a separate quality score.
 //
 // One contract governs how a model response becomes a grade, and `collectRubricGrades` is the
 // only place it is applied:
@@ -138,11 +138,16 @@ export function rubricPassRate(
   return totalWeight > 0 ? Math.round(passedWeight / totalWeight * 1000) / 10 : 0;
 }
 
-/** Apply Excel's criterion-ID contract and pass rate without changing the quality score. */
-export function scoreRubricReview<T extends GatedReviewResult>(result: T, criteria: readonly string[]): T {
+/**
+ * Turn a rubric review into its report. The score is the share of the rubric met, so the number a
+ * student reads is the number that gates them; a rubric review carries no quality categories.
+ * A review with no rubric is returned as the model scored it.
+ */
+export function scoreRubricReview<T extends object>(result: T, criteria: readonly string[]) {
   if (!criteria.length) return result;
-  const { grades } = collectRubricGrades(criteria, result.rubricGrades);
-  return { ...result, rubricGrades: grades, rubricScore: rubricPassRate(grades, criteria) };
+  const { grades } = collectRubricGrades(criteria, (result as { rubricGrades?: unknown } | null)?.rubricGrades);
+  const rubricScore = rubricPassRate(grades, criteria) ?? 0;
+  return { ...result, categories: [], rubricGrades: grades, rubricScore, overallScore: rubricScore };
 }
 
 export function reviewGate(result: GatedReviewResult, criteriaCount = 0): ReviewGate {

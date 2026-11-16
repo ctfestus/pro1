@@ -55,12 +55,12 @@ describe('reviewGate', () => {
 
 describe('weighted rubric gates', () => {
   const criteria = ['Correct joins: 70 marks', 'Readable output (30 marks)', 'Assessment Note: Accept valid alternatives'];
-  it('uses instructor marks, ignores assessment notes, and keeps quality for display', () => {
+  it('uses instructor marks, ignores assessment notes, and shows the rubric score', () => {
     const result = scoreRubricReview({ overallScore: 99, rubricGrades: [
       { id: 2, criterion: 'Invented: 100 marks', passed: true },
       { id: 1, passed: false },
     ] }, criteria);
-    expect(result.overallScore).toBe(99);
+    expect(result.overallScore).toBe(30);
     expect(reviewGate(result).score).toBe(30);
     expect(reviewPassed(result, 80)).toBe(false);
   });

@@ -151,13 +151,14 @@ export default function AiStructuredReviewReport({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-px sm:grid-cols-4" style={{ background: border }}>
+        {/* A rubric review has no quality categories, so the two tiles that count them are left out. */}
+        <div className={`grid grid-cols-2 gap-px ${categories.length > 0 ? 'sm:grid-cols-4' : ''}`} style={{ background: border }}>
           {[
-            { label: metricLabels.strengths ?? 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e' },
+            { label: metricLabels.strengths ?? 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e', fromCategories: true },
             { label: metricLabels.risks ?? 'Risks', value: errors.length + warnings.length, icon: TriangleAlert, color: '#f59e0b' },
-            { label: metricLabels.opportunities ?? 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6' },
+            { label: metricLabels.opportunities ?? 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6', fromCategories: true },
             { label: metricLabels.rubric ?? 'Rubric passed', value: rubricGrades.length ? `${rubricPassed}/${rubricGrades.length}` : 'N/A', icon: CheckCircle2, color: accentColor },
-          ].map(metric => (
+          ].filter(metric => categories.length > 0 || !metric.fromCategories).map(metric => (
             <div key={metric.label} className="flex items-center gap-3 px-4 py-4 sm:px-5" style={{ background: card }}>
               <metric.icon className="h-4 w-4 shrink-0" style={{ color: metric.color }} />
               <div className="min-w-0"><span className="block text-lg font-bold leading-none tabular-nums" style={{ color: text }}>{metric.value}</span><span className="mt-1 block truncate text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: muted }}>{metric.label}</span></div>

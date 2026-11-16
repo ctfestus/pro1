@@ -242,7 +242,7 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(options.usageContext.metadata.extractionTruncated).toBe(false);
   });
 
-  it('caps formula listings without turning an ordinary formula-heavy sheet into a partial review', async () => {
+  it('lists every formula on a formula-heavy sheet, so none goes ungraded for being unlisted', async () => {
     mockGenerateJSON.mockResolvedValue({ ...baseReview });
 
     const { status, json } = await review(undefined, {
@@ -254,7 +254,8 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(status).toBe(200);
     expect(json.passed).toBe(true);
     expect(json.partiallyReviewedSheetNames).toEqual([]);
-    expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('formula listing capped at 200 formulas');
+    expect(String(mockGenerateJSON.mock.calls[0][0])).not.toContain('formula listing capped');
+    expect(String(mockGenerateJSON.mock.calls[0][0])).toContain('A201: =201+1');
     expect(mockSpendRateLimit).toHaveBeenCalledTimes(1);
   });
 
@@ -415,7 +416,9 @@ describe('POST /api/excel-review - rubric gating', () => {
     const { json } = await review(CRITERIA);
     expect(json.rubricScore).toBe(25);
     expect(json.rubricCriteriaCount).toBe(4);
-    expect(json.overallScore).toBe(98);
+    // The score shown is the rubric score, not the model's separate quality score.
+    expect(json.overallScore).toBe(25);
+    expect(json.categories).toEqual([]);
   });
 
   it('cannot be bypassed by a response that omits the grades entirely', async () => {
@@ -435,7 +438,7 @@ describe('POST /api/excel-review - rubric gating', () => {
       { id: 3, passed: false, comment: 'Guidance only' },
     ] });
     const { json } = await review(['Calculation: 80 marks', 'Presentation: 20 marks', 'Assessment Note: Accept valid alternatives'], { minScore: 80 });
-    expect(json.overallScore).toBe(98);
+    expect(json.overallScore).toBe(80);
     expect(json.rubricScore).toBe(80);
     expect(json.passed).toBe(true);
   });
@@ -569,6 +572,10 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(mockGenerateJSON).toHaveBeenCalledTimes(2);
     expect(json.rubricGrades).toHaveLength(4);
     expect(json.rubricScore).toBe(50);
+    // The retry asks for the missing verdicts only, not for the whole report again.
+    const [retryPrompt, retrySchema] = mockGenerateJSON.mock.calls[1];
+    expect(String(retryPrompt)).toContain('for these criterion ids and no others: 2, 3, 4.');
+    expect(Object.keys((retrySchema as any).properties)).toEqual(['rubricGrades']);
   });
 
   it('counts still-ungraded criteria as not met when the retry also comes up short', async () => {
@@ -619,9 +626,11 @@ describe('POST /api/excel-review - rubric gating', () => {
     });
     await review(CRITERIA);
     const [prompt, schema] = mockGenerateJSON.mock.calls[0];
-    expect(String(prompt)).toContain('GRADE EACH CRITERION BY ID');
-    expect(String(prompt)).toContain('Grade every id exactly once');
+    expect(String(prompt)).toContain('INSTRUCTOR RUBRIC - THIS IS THE WHOLE REVIEW');
+    expect(String(prompt)).toContain('each id exactly once');
     expect(String(prompt)).toContain('Ids you omit are marked as not met');
+    expect(String(prompt)).not.toContain('FORMULA CHOICE');
+    expect((schema as any).properties).not.toHaveProperty('categories');
     expect(String(prompt)).toContain(`id 4: ${CRITERIA[3]}`);
     expect((schema as any).properties.rubricGrades.items.required).toEqual(['id', 'passed', 'comment']);
     expect(String(prompt)).toContain('Absence of evidence is a fail');

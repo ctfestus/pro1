@@ -1,111 +1,103 @@
 
-import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
+import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateVisionJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 
 export const dynamic = 'force-dynamic';
+// A review on a thinking model can run past the platform default; without this it is cut off mid-call.
+export const maxDuration = 120;
 
 // 10 MB base64 limit ≈ ~7.5 MB raw image -- enough for any screenshot
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-// 3 analyses per day per user
-// Read from settings rather than declared here, so the AI features tab is the one place
-// this number lives. A constant left behind would quietly ignore whatever an admin typed.
 
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
+const ELEMENTS = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      id:          { type: 'string' },
+      label:       { type: 'string' },
+      elementType: { type: 'string' },
+      bounds: {
+        type: 'object',
+        properties: {
+          x: { type: 'number' },
+          y: { type: 'number' },
+          w: { type: 'number' },
+          h: { type: 'number' },
+        },
+        required: ['x', 'y', 'w', 'h'],
+      },
+      strengths:      { type: 'array', items: { type: 'string' } },
+      weaknesses:     { type: 'array', items: { type: 'string' } },
+      recommendation: { type: 'string' },
+    },
+    required: ['id', 'label', 'elementType', 'bounds', 'strengths', 'weaknesses', 'recommendation'],
+  },
+};
 
-async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse> {
-  const auth = await requireUser(req);
-  if (isAuthError(auth)) return auth.error;
-  return auth;
-}
-
-async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
-  // Whether this reviewer is included at all, and how many a day, both come from settings now --
-  // a free learner is refused because the free column says 0, not because a route says so.
-  return chargeAiFeature(auth, getRedis(), 'dashboardReview', {
-    unavailableMessage: 'Service temporarily unavailable',
-  });
-}
-
-
-const responseSchema = {
+const AUDIT = {
   type: 'object',
   properties: {
-    elements: {
+    overallScore: { type: 'number' },
+    executiveSummary: { type: 'string' },
+    categories: {
       type: 'array',
       items: {
         type: 'object',
         properties: {
-          id:          { type: 'string' },
-          label:       { type: 'string' },
-          elementType: { type: 'string' },
-          bounds: {
-            type: 'object',
-            properties: {
-              x: { type: 'number' },
-              y: { type: 'number' },
-              w: { type: 'number' },
-              h: { type: 'number' },
-            },
-            required: ['x', 'y', 'w', 'h'],
-          },
-          strengths:      { type: 'array', items: { type: 'string' } },
-          weaknesses:     { type: 'array', items: { type: 'string' } },
-          recommendation: { type: 'string' },
+          name:       { type: 'string' },
+          score:      { type: 'number' },
+          summary:    { type: 'string' },
+          strengths:  { type: 'array', items: { type: 'string' } },
+          gaps:       { type: 'array', items: { type: 'string' } },
+          priority:   { type: 'string' },
         },
-        required: ['id', 'label', 'elementType', 'bounds', 'strengths', 'weaknesses', 'recommendation'],
+        required: ['name', 'score', 'summary', 'strengths', 'gaps', 'priority'],
       },
     },
-    audit: {
-      type: 'object',
-      properties: {
-        overallScore: { type: 'number' },
-        executiveSummary: { type: 'string' },
-        categories: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              name:       { type: 'string' },
-              score:      { type: 'number' },
-              summary:    { type: 'string' },
-              strengths:  { type: 'array', items: { type: 'string' } },
-              gaps:       { type: 'array', items: { type: 'string' } },
-              priority:   { type: 'string' },
-            },
-            required: ['name', 'score', 'summary', 'strengths', 'gaps', 'priority'],
-          },
-        },
-        topRecommendations: { type: 'array', items: { type: 'string' } },
-        rubricGrades: {
-          type: 'array',
-          items: {
-            type: 'object',
-            properties: {
-              id:        { type: 'integer', description: 'The 1-based position in the instructor rubric.' },
-              criterion: { type: 'string' },
-              passed:    { type: 'boolean' },
-              comment:   { type: 'string' },
-            },
-            required: ['id', 'criterion', 'passed', 'comment'],
-          },
-        },
-      },
-      required: ['overallScore', 'executiveSummary', 'categories', 'topRecommendations'],
-    },
+    topRecommendations: { type: 'array', items: { type: 'string' } },
   },
-  required: ['elements', 'audit'],
+  required: ['overallScore', 'executiveSummary', 'categories', 'topRecommendations'],
 };
+
+// With a rubric the audit is the grades, a summary and the fixes; the design audit is not asked for.
+function schemaFor(hasRubric: boolean) {
+  return {
+    type: 'object',
+    properties: { elements: ELEMENTS, audit: hasRubric ? reviewSchema({ hasRubric: true }) : AUDIT },
+    required: ['elements', 'audit'],
+  };
+}
+
+const OUTPUT_FORMAT = `BOUNDING BOX FORMAT -- normalized 0.0-1.0 relative to full image dimensions:
+{ "x": left edge, "y": top edge, "w": width, "h": height }
+Boxes must be tight to the element, not loose approximations.
+
+elementType values: HEADER | KPI_CARD | BAR_CHART | LINE_CHART | PIE_CHART | STACKED_CHART | SCATTER_CHART | TABLE | FILTER | LEGEND | SECTION_TITLE | NAVIGATION | ANNOTATION | OTHER
+
+Return ONLY valid JSON matching the schema. No markdown fences, no explanation text outside the JSON.`;
+
+// With a rubric this replaces the design audit below, which is what pulled a report off the rubric.
+function rubricPrompt(rubric: string[]) {
+  return `You are a senior dashboard designer marking a student's dashboard screenshot against the instructor's rubric.
+
+${rubricInstructions(rubric)}
+Put rubricGrades, executiveSummary and topRecommendations inside "audit".
+
+ELEMENTS
+Box only the dashboard components a rubric criterion is about, one entry per component. For each:
+- strengths: what in it meets a criterion, naming the criterion id; [] if nothing.
+- weaknesses: only where it fails a criterion, naming the criterion id; [] otherwise.
+- recommendation: the change that would meet the failed criterion, or "" when it fails none.
+Never mention implementation tools or code.
+
+${OUTPUT_FORMAT}`;
+}
 
 const SYSTEM_PROMPT = `You are a Senior Partner at McKinsey & Company specialising in data storytelling, executive dashboard design, and information architecture. You have advised Fortune 500 clients on turning raw data into board-level decision tools. You hold the same design standards as Edward Tufte, Stephen Few, and the Google Material Design team.
 
@@ -122,10 +114,6 @@ Detect and box EVERY visible component individually:
 - Every page header, section title, or navigation bar
 - Every legend, axis label block, or annotation
 - Any logo, timestamp, or page number in the corners
-
-BOUNDING BOX FORMAT -- normalized 0.0-1.0 relative to full image dimensions:
-{ "x": left edge, "y": top edge, "w": width, "h": height }
-Boxes must be tight to the element, not loose approximations.
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 FEEDBACK STANDARDS -- McKINSEY PARTNER LEVEL
@@ -211,22 +199,20 @@ Score out of 100: penalise for descriptive-only titles (no insight), missing ben
 
 For each category provide:
 - score (0-100, be honest -- a score of 80+ must be genuinely earned)
-- summary (2-3 sentences, McKinsey-level directness -- what the score reflects)
-- strengths (1-3 specific things working well in this category)
-- gaps (1-3 specific failures that pulled the score down; empty [] only if truly flawless)
+- summary (1-2 sentences, McKinsey-level directness -- what the score reflects)
+- strengths (up to 3 specific things working well in this category)
+- gaps (up to 3 specific failures that pulled the score down; [] when there are none)
 - priority: "HIGH" | "MEDIUM" | "LOW" -- how urgently this category needs attention
 
 Also provide:
-- overallScore: when an instructor rubric is supplied, score rubric completion only (one decimal), with at least 80 when every criterion passes; optional design improvements must not reduce this score. Only when no rubric is supplied, use the weighted average of the 4 category scores.
+- overallScore: the weighted average of the 4 category scores (one decimal).
 - executiveSummary: 3-4 sentences. Write as if briefing a C-suite sponsor on this analyst's dashboard. Be direct about what works and what needs to change before this reaches a real audience.
-- topRecommendations: exactly 3 strings -- the single highest-impact actions across the entire dashboard, ordered by priority. Each must be concrete and specific (e.g., "Replace the 6-colour pie chart with a ranked horizontal bar chart sorted by value descending").
+- topRecommendations: up to 3 strings -- the single highest-impact actions across the entire dashboard, ordered by priority. Each must be concrete and specific (e.g., "Replace the 6-colour pie chart with a ranked horizontal bar chart sorted by value descending").
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 OUTPUT FORMAT
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-elementType values: HEADER | KPI_CARD | BAR_CHART | LINE_CHART | PIE_CHART | STACKED_CHART | SCATTER_CHART | TABLE | FILTER | LEGEND | SECTION_TITLE | NAVIGATION | ANNOTATION | OTHER
-
-Return ONLY valid JSON matching the schema. No markdown fences, no explanation text outside the JSON.`;
+${OUTPUT_FORMAT}`;
 
 export async function POST(req: NextRequest) {
   // Set only once an attempt has actually been taken, so a failure before that point cannot hand
@@ -234,10 +220,11 @@ export async function POST(req: NextRequest) {
   let refundAttempt: (() => Promise<void>) | null = null;
 
   try {
-    const auth = await authenticate(req);
-    if (auth instanceof NextResponse) return auth;
+    const auth = await requireUser(req);
+    if (isAuthError(auth)) return auth.error;
 
-    const { imageBase64, mimeType = 'image/png', rubric } = await req.json();
+    const { imageBase64, mimeType = 'image/png', rubric: rawRubric } = await req.json();
+    const rubric: string[] = Array.isArray(rawRubric) ? rawRubric.filter(c => typeof c === 'string' && c.trim()) : [];
     if (!imageBase64) return NextResponse.json({ error: 'imageBase64 required' }, { status: 400 });
 
     if (imageBase64.length > MAX_IMAGE_BYTES) {
@@ -249,34 +236,29 @@ export async function POST(req: NextRequest) {
 
     // Charged only once the request is worth running. Taking the attempt first meant a missing or
     // oversized screenshot drained an allowance for a review that was never going to happen.
-    const charge = await checkRateLimit(auth);
+    const charge = await chargeAiFeature(auth, getRedis(), 'dashboardReview', {
+      unavailableMessage: 'Service temporarily unavailable',
+    });
     if (charge.response) return charge.response;
     // Only an attempt the counter really took can be given back.
     const receipt = charge.receipt;
     if (receipt) refundAttempt = () => refundAiFeature(receipt);
 
 
+    const fullPrompt = `${rubric.length > 0 ? rubricPrompt(rubric) : SYSTEM_PROMPT}\n\n${REVIEW_GRADING_INSTRUCTIONS}`;
 
-    const rubricSection = Array.isArray(rubric) && rubric.length > 0
-      ? `\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\nThe instructor has defined the following specific criteria for this assignment. In the audit.rubricGrades array, evaluate EVERY criterion below with a "passed" boolean and a 1-2 sentence "comment" explaining your judgement.\n\nCriteria:\n${rubric.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\nGrade strictly -- if the dashboard partially meets a criterion, mark passed: false and explain what's missing.`
-      : '';
-
-    const fullPrompt = SYSTEM_PROMPT + rubricSection + '\n\n' + REVIEW_GRADING_INSTRUCTIONS;
-
-    const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, responseSchema, { feature: 'dashboard-critique',
+    const parsed = await generateVisionJSON(fullPrompt, { data: imageBase64, mimeType }, schemaFor(rubric.length > 0), { feature: 'dashboard-critique',
       temperature: 0.35,
       usageContext: {
         operation: 'dashboard-critique',
         metadata: {
           imageBytesApprox: Math.floor(imageBase64.length * 0.75),
           mimeType,
-          rubricCriteria: Array.isArray(rubric) ? rubric.length : 0,
+          rubricCriteria: rubric.length,
         },
       },
     });
-    return NextResponse.json({ ...parsed,
-      audit: scoreRubricReview(parsed.audit, Array.isArray(rubric) ? rubric : []),
-    });
+    return NextResponse.json({ ...parsed, audit: scoreRubricReview(parsed.audit, rubric) });
   } catch (err: any) {
     console.error('dashboard-critique error:', err);
     // The review never happened, so it should not have cost them an attempt.

@@ -1,12 +1,12 @@
 
 import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, RUBRIC_GRADES, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
-import { refundAiFeature, reserveAiFeatureLimit, spendAiFeatureReservation, type AiFeatureReservation } from '@/lib/ai-feature-gate';
+import { refundAiFeature, reserveAiFeatureLimit, spendAiFeatureReservation } from '@/lib/ai-feature-gate';
 import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
-import { collectRubricGrades, reviewPassed, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
+import { UNGRADED_COMMENT, collectRubricGrades, reviewPassed, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
 import {
   canAccessAssignedVirtualExperience,
   findExcelReviewItem,
@@ -18,20 +18,8 @@ import {
 
 export const dynamic = 'force-dynamic';
 
-// Read from settings rather than declared here, so the AI features tab is the one place
-// this number lives. A constant left behind would quietly ignore whatever an admin typed.
-
-async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse> {
-  const auth = await requireUser(req);
-  if (isAuthError(auth)) return auth.error;
-  return auth;
-}
-
-async function reserveReview(auth: AuthedUser): Promise<AiFeatureReservation | NextResponse> {
-  return reserveAiFeatureLimit(auth, getRedis(), 'excelReview', {
-    unavailableMessage: 'Service temporarily unavailable',
-  });
-}
+// A review on a thinking model can run past the platform default; without this it is cut off mid-call.
+export const maxDuration = 120;
 
 async function loadVirtualExperience(auth: AuthedUser, target: Extract<ExcelReviewTarget, { source: 'virtual_experience' }>): Promise<any | null> {
   const direct = await auth.getActorDb()
@@ -85,64 +73,18 @@ async function resolveReviewConfig(auth: AuthedUser, target: ExcelReviewTarget):
 }
 
 
+const FINDINGS = { key: 'issues', fields: ['cell', 'severity', 'title', 'detail', 'fix'] };
 
-const responseSchema = {
-  type: 'object',
-  properties: {
-    overallScore: { type: 'number' },
-    executiveSummary: { type: 'string' },
-    issues: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          cell:     { type: 'string' },
-          severity: { type: 'string' },
-          title:    { type: 'string' },
-          detail:   { type: 'string' },
-          fix:      { type: 'string' },
-        },
-        required: ['cell', 'severity', 'title', 'detail', 'fix'],
-      },
-    },
-    categories: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name:      { type: 'string' },
-          score:     { type: 'number' },
-          summary:   { type: 'string' },
-          strengths: { type: 'array', items: { type: 'string' } },
-          gaps:      { type: 'array', items: { type: 'string' } },
-        },
-        required: ['name', 'score', 'summary', 'strengths', 'gaps'],
-      },
-    },
-    topRecommendations: { type: 'array', items: { type: 'string' } },
-    rubricGrades: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id:      { type: 'number' },
-          passed:  { type: 'boolean' },
-          comment: { type: 'string' },
-        },
-        required: ['id', 'passed', 'comment'],
-      },
-    },
-  },
-  required: ['overallScore', 'executiveSummary', 'issues', 'categories', 'topRecommendations'],
-};
+const READING = `You are given the extracted contents of a student's spreadsheet: cell addresses, their formulas, and their computed values. A formula cell is listed as "=..." and a constant is listed as a bare value, so a cell with no "=" holds a typed constant.`;
 
-// With a rubric in play the grades decide whether the student passes, so they cannot be optional:
-// left out of `required`, the model drops them often enough that the gate would silently fall back
-// to the quality score -- the exact behaviour this route is meant to stop.
-function schemaFor(hasRubric: boolean) {
-  if (!hasRubric) return responseSchema;
-  return { ...responseSchema, required: [...responseSchema.required, 'rubricGrades'] };
-}
+// With a rubric this replaces the formula audit below, which is what pulled a report off the rubric.
+const RUBRIC_PROMPT = `You are a senior Excel specialist marking a student's workbook against the instructor's rubric.
+
+${READING}`;
+
+const RUBRIC_EVIDENCE = `Absence of evidence is a fail, not a pass: if a criterion requires formulas in named cells and those cells hold typed constants, or are missing entirely, it fails. Never pass a criterion because the displayed value looks right. Name the cells or sheets you checked in each comment.
+
+For each entry in "issues" provide: cell (the cell reference, e.g. "B5" or "Sheet1!C12"), severity ("error" for a failed criterion), title (starting "Criterion <id>:"), detail (1-2 sentences on what is wrong), and fix (the exact corrected formula or change to make).`;
 
 const SYSTEM_PROMPT = `You are a panel of senior Excel specialists -- a Financial Modeller, Finance Analyst, Fintech Analyst, Business Intelligence Analyst, Data Analyst, and Data Scientist -- each with 15+ years of hands-on Excel experience working across African business contexts including banking, fintech, FMCG, telecoms, retail, healthcare, and public sector.
 
@@ -152,7 +94,7 @@ You adapt your domain lens to the spreadsheet being reviewed: if it is a financi
 
 You are given the extracted contents of a student's spreadsheet: cell addresses, their formulas, and their computed values.
 
-Review the spreadsheet focusing ONLY on two things:
+Review the spreadsheet focusing ONLY on three things:
 
 1. FORMULA CORRECTNESS
 Are the formulas logically correct? Do they produce the right result given what the spreadsheet is supposed to do? Check for: wrong cell references, off-by-one row/column errors, incorrect range selection, wrong aggregation scope, formula errors (#REF!, #DIV/0!, #VALUE!), incorrect logical conditions in IF/IFS statements.
@@ -182,7 +124,9 @@ A cell holding a typed constant where the task calls for a calculation is an "er
 Also provide:
 - overallScore: weighted average (one decimal)
 - executiveSummary: 2-3 sentences briefing a technical reviewer on this student's submission
-- topRecommendations: exactly 3 highest-impact changes ordered by priority
+- topRecommendations: up to 3 highest-impact changes ordered by priority; fewer, or none, when the workbook does not need them
+
+For each category give a 1-sentence summary, up to 3 strengths and up to 3 gaps ([] when there are none).
 
 Return ONLY valid JSON. No markdown fences.`;
 
@@ -192,10 +136,12 @@ export async function POST(req: NextRequest) {
   let refundAttempt: (() => Promise<void>) | null = null;
 
   try {
-    const auth = await authenticate(req);
-    if (auth instanceof NextResponse) return auth;
+    const auth = await requireUser(req);
+    if (isAuthError(auth)) return auth.error;
 
-    const reservation = await reserveReview(auth);
+    const reservation = await reserveAiFeatureLimit(auth, getRedis(), 'excelReview', {
+      unavailableMessage: 'Service temporarily unavailable',
+    });
     if (reservation instanceof NextResponse) return reservation;
 
     const formData = await req.formData();
@@ -251,13 +197,13 @@ export async function POST(req: NextRequest) {
       ? `\nEXTRACTION LIMITATION:\nThese worksheets were only partially extracted: ${extraction.partiallyReviewedSheetNames.join(', ')}. Judge only what is listed above. A criterion whose evidence would sit in cells you cannot see is not met: mark it as not passed, and say in its comment that the required cells could not be read. State the evidence limitation in the summary.\n`
       : '';
 
-    const rubricBlock = rubric.length > 0
-      ? `\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION BY ID\nThis rubric is what the student was actually asked to do, and it decides whether they pass. Return one "rubricGrades" entry per criterion: its "id" exactly as numbered below, a "passed" boolean, and a 1-2 sentence "comment" naming the cells or sheets you checked.\n\nGrade every id exactly once. Ids you omit are marked as not met and count against the student, ids you repeat are ignored after the first, and ids that are not on this list are discarded -- so a criterion you skip cannot be made up for by grading another one twice.\n\nMark a criterion "passed" only when the extracted contents show it was met. Absence of evidence is a fail, not a pass: if a criterion requires formulas in named cells and those cells hold constants, or are missing entirely, it fails. Never pass a criterion because the displayed value looks right.\n\nCriteria:\n${rubric.map((c, i) => `id ${rubricCriterionId(i)}: ${c}`).join('\n')}\n`
-      : '';
+    const hasRubric = rubric.length > 0;
+    const instructions = hasRubric
+      ? `${RUBRIC_PROMPT}\n${contextBlock}${sheetBlock}\n${rubricInstructions(rubric, 'issues')}\n\n${RUBRIC_EVIDENCE}\n`
+      : `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}`;
+    const prompt = `${instructions}${truncationBlock}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
 
-    const prompt = `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}${rubricBlock}${truncationBlock}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
-
-    const schema = schemaFor(rubric.length > 0);
+    const schema = reviewSchema({ findings: FINDINGS, hasRubric });
     const usageContext = {
       operation: 'excel-review',
       metadata: {
@@ -276,11 +222,9 @@ export async function POST(req: NextRequest) {
     // Only an attempt the counter really took can be given back.
     const receipt = charge.receipt;
     if (receipt) refundAttempt = () => refundAiFeature(receipt);
-    // The narrative half of the review always comes from the first attempt; only the grades
-    // merge, so the report a student reads is one coherent response rather than two spliced.
     const parsed = await generateJSON(prompt, schema, { feature: 'excel-review',  temperature: 0.2, usageContext });
 
-    if (rubric.length === 0) {
+    if (!hasRubric) {
       const result = { ...parsed, rubricScore: null };
       return NextResponse.json({
         ...result,
@@ -295,16 +239,20 @@ export async function POST(req: NextRequest) {
     let graded = collectRubricGrades(rubric, parsed?.rubricGrades);
 
     // An ungraded criterion counts as not met, so a response that skipped one would fail the
-    // student for the model's sloppiness. Ask once more before that happens and merge the two
-    // responses: the retry fills in the criteria the first attempt left out, and where both graded
-    // the same criterion the first attempt's verdict stands. Choosing one whole response instead
-    // would throw away a retry that covered different criteria rather than more of them.
+    // student for the model's sloppiness. Ask once more, for the missing verdicts only, and merge:
+    // the retry fills in what the first attempt left out, and where both graded the same criterion
+    // the first attempt's verdict stands. The report itself always comes from the first attempt.
     if (graded.ungraded > 0) {
+      const missing = graded.grades.flatMap((grade, i) => grade.comment === UNGRADED_COMMENT ? [rubricCriterionId(i)] : []);
       try {
-        const retry = await generateJSON(prompt, schema, { feature: 'excel-review',
-          temperature: 0.2,
-          usageContext: { ...usageContext, metadata: { ...usageContext.metadata, gradeRetry: true } },
-        });
+        const retry = await generateJSON(
+          `${prompt}\n\nReturn "rubricGrades" only, for these criterion ids and no others: ${missing.join(', ')}.`,
+          { type: 'object', properties: { rubricGrades: RUBRIC_GRADES }, required: ['rubricGrades'] },
+          { feature: 'excel-review',
+            temperature: 0.2,
+            usageContext: { ...usageContext, metadata: { ...usageContext.metadata, gradeRetry: true } },
+          },
+        );
         graded = collectRubricGrades(rubric, parsed?.rubricGrades, retry?.rubricGrades);
       } catch (err) {
         console.warn('excel-review: rubric grade retry failed', err);
@@ -314,11 +262,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // The pass gate reads this, not overallScore. Computed here so every consumer -- the VE
-    // player, the course player, and any saved report re-rendered later -- gates identically.
-    const rubricScore = rubricPassRate(graded.grades, rubric);
+    // The share of the rubric met is both the gate and the score shown. Computed here so every
+    // consumer -- the VE player, the course player, and any saved report re-rendered later -- agrees.
+    const rubricScore = rubricPassRate(graded.grades, rubric) ?? 0;
     const result = {
       ...parsed,
+      categories: [],
+      overallScore: rubricScore,
       rubricGrades: graded.grades,
       rubricScore,
       rubricCriteriaCount: rubric.length,
