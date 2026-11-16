@@ -25,6 +25,7 @@ import type {
   PointsSystem, FormConfig,
 } from '@/lib/course-schema';
 import { questionNumbers, itemIssues, courseIssues } from '@/lib/course-validation';
+import { groupOutline, moveModule, moduleIds } from '@/lib/course-outline';
 import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { RichTextEditor } from '@/components/RichTextEditor';
@@ -490,7 +491,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     | null
   >(null);
   // Every delete in the outline asks first: one click used to remove a question for good.
-  const [pendingDelete, setPendingDelete] = useState<{ ids: string[]; title: string; body: string; confirm: string } | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ ids: string[]; title: string; body: string; confirm: string; alt?: { label: string; ids: string[] } } | null>(null);
   const [aiTopic, setAiTopic] = useState('');
   const [aiQuestionCount, setAiQuestionCount] = useState(5);
   const [aiQuestionType, setAiQuestionType] = useState<'multiple_choice' | 'fill_blank' | 'arrange' | 'sql_exercise' | 'python_exercise'>('multiple_choice');
@@ -529,6 +530,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  // Modules folded to their heading in the outline (editor view only, not saved).
+  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
   const [closedLessons, setClosedLessons] = useState<Set<string>>(new Set());
   const [availableForms, setAvailableForms] = useState<{ id: string; title: string; slug: string }[]>([]);
@@ -1105,6 +1108,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     setActiveQuestionId(null);
     const { active, over } = event;
     if (!over || active.id === over.id || !formConfig?.questions) return;
+    const moving = formConfig.questions.find(q => q.id === active.id);
+    // A module moves as a whole: its heading and everything in it.
+    if (moving?.isSection) {
+      updateConfig({ questions: moveModule(formConfig.questions, String(active.id), String(over.id)) });
+      return;
+    }
     const oldIdx = formConfig.questions.findIndex(q => q.id === active.id);
     const newIdx = formConfig.questions.findIndex(q => q.id === over.id);
     updateConfig({ questions: arrayMove(formConfig.questions, oldIdx, newIdx) });
@@ -1319,13 +1328,14 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     const idx = qs.findIndex(x => x.id === q.id);
     const plain = (t?: string) => (t ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
     if (q.isSection) {
-      let count = 0;
-      for (let i = idx + 1; i < qs.length && !qs[i].isSection; i++) count++;
-      setPendingDelete({ ids: [q.id], confirm: 'Delete module',
-        title: `Delete the module "${q.sectionTitle || 'Untitled'}"?`,
-        body: count > 0
-          ? `Only the module heading goes. Its ${count} lesson${count === 1 ? '' : 's'} and question${count === 1 ? '' : 's'} stay and join the module above.`
-          : 'The module heading will be removed from the course.' });
+      const name = q.sectionTitle || 'Untitled';
+      const withContent = moduleIds(qs, q.id, true);
+      const count = withContent.length - 1;
+      setPendingDelete(count > 0
+        ? { ids: withContent, confirm: 'Delete with content', title: `Delete the module "${name}"?`,
+            body: `It holds ${count === 1 ? '1 lesson or question' : `${count} lessons and questions`}.`,
+            alt: { label: 'Keep its content', ids: [q.id] } }
+        : { ids: [q.id], confirm: 'Delete module', title: `Delete the module "${name}"?`, body: 'It has no content. Only the heading is removed.' });
     } else if (q.lessonOnly) {
       setPendingDelete({ ids: [q.id], confirm: 'Delete', title: `Delete the lesson "${q.lesson?.title || 'Untitled'}"?`, body: 'Its content will be removed from the course.' });
     } else if (q.isDownloads || q.isLinkedInShare) {
@@ -1579,6 +1589,11 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const activeStudioMode = courseStudioModes.find(mode => mode.sections.includes(activeSection as never)) ?? courseStudioModes[0];
   // Learner numbering (Q1, Q2 ...) for the outline, and what still blocks publishing.
   const qNumbers = questionNumbers(formConfig.questions ?? []);
+  const outlineGroups = groupOutline(formConfig.questions ?? []);
+  const visibleOutlineIds = outlineGroups.flatMap(g => [
+    ...(g.section ? [g.section.id] : []),
+    ...(g.section && collapsedModules.has(g.section.id) ? [] : g.items.map(i => i.id)),
+  ]);
   const publishIssues = formConfig.isCourse ? courseIssues(formConfig) : [];
   const contentCount = (formConfig.questions ?? []).filter(q => !q.isSection).length;
   /** "Go to it": open the tab and the outline row the issue is about. */
@@ -2519,8 +2534,10 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                   </div>
 
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleQuestionDragStart} onDragEnd={handleQuestionDragEnd}>
-                    <SortableContext items={(formConfig.questions ?? []).map(q => q.id)} strategy={verticalListSortingStrategy}>
-                  {formConfig.questions?.map((q, qIdx) => {
+                    <SortableContext items={visibleOutlineIds} strategy={verticalListSortingStrategy}>
+                  {(() => {
+                  // Each row renders as before; the module groups below place it under its module.
+                  const renderItem = (q: CourseQuestion, qIdx: number) => {
                     const qType: QuestionType = q.type ?? 'multiple_choice';
                     const qNo = qNumbers[qIdx];
                     const isExpanded = expandedQuestions.has(q.id);
@@ -2558,18 +2575,25 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                               {dragHandle}
                               <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left">
                                 <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
-                                  {q.sectionTitle || 'Untitled module'}
+                                  Module {outlineGroups.filter(g => g.section).findIndex(g => g.section!.id === q.id) + 1}: {q.sectionTitle || 'Untitled'}
                                 </span>
                               </button>
                               {!q.sectionTitle?.trim() && (
                                 <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: 'rgba(217,119,6,0.12)', color: '#b45309' }}>Needs a name</span>
                               )}
+                              {(() => {
+                                const n = outlineGroups.find(g => g.section?.id === q.id)?.items.length ?? 0;
+                                return <span className="text-[11.5px] whitespace-nowrap" style={{ color: FE.muted }}>{n} item{n === 1 ? '' : 's'}</span>;
+                              })()}
                               <button type="button" onClick={() => askDelete(q)} aria-label="Delete module"
                                 className="p-1 rounded transition-colors hover:text-red-500" style={{ color: FE.faint }}>
                                 <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                              <button type="button" onClick={() => toggleQuestion(q.id)} className="p-1 transition-colors" style={{ color: FE.faint }}>
-                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              {/* Folds the module to its heading; clicking the name opens its name and description. */}
+                              <button type="button" aria-label={collapsedModules.has(q.id) ? 'Expand module' : 'Collapse module'} aria-expanded={!collapsedModules.has(q.id)}
+                                onClick={() => setCollapsedModules(prev => { const next = new Set(prev); if (next.has(q.id)) next.delete(q.id); else next.add(q.id); return next; })}
+                                className="p-1 transition-colors" style={{ color: FE.faint }}>
+                                {collapsedModules.has(q.id) ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                               </button>
                             </div>
                             {isExpanded && (
@@ -3792,7 +3816,37 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       {insertDivider}
                       </React.Fragment>
                     );
-                  })}
+                  };
+                  const all = formConfig.questions ?? [];
+                  return outlineGroups.map(group => {
+                    const collapsed = !!group.section && collapsedModules.has(group.section.id);
+                    const lastIdx = group.items.length ? all.indexOf(group.items[group.items.length - 1]) : group.start;
+                    return (
+                      <div key={group.section?.id ?? 'loose'} className="mb-2">
+                        {group.section ? renderItem(group.section, group.start) : (
+                          <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: FE.faint }}>Not in a module</p>
+                        )}
+                        {!collapsed && (
+                          <div className={group.section ? 'ml-3 pl-3 border-l-2' : ''} style={group.section ? { borderColor: FE.divider } : undefined}>
+                            {group.items.map(item => renderItem(item, all.indexOf(item)))}
+                            {group.section && (
+                              <div className="flex gap-1 pt-0.5 pb-1">
+                                <button type="button" onClick={() => insertLessonAt(lastIdx)}
+                                  className="px-2 py-1 rounded-md text-xs font-semibold hover:opacity-70" style={{ color: accentColor }}>
+                                  + Add lesson
+                                </button>
+                                <button type="button" onClick={() => setPickerCtx({ mode: 'insert', afterIndex: lastIdx })}
+                                  className="px-2 py-1 rounded-md text-xs font-semibold hover:opacity-70" style={{ color: accentColor }}>
+                                  + Add question
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  });
+                  })()}
                     </SortableContext>
                     <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18,0.67,0.6,1.22)' }}>
                       {activeQuestionId ? (() => {
@@ -4303,9 +4357,16 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
             style={{ background: FE.card, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
             <p id="delete-title" className="text-[15px] font-semibold" style={{ color: FE.text }}>{pendingDelete.title}</p>
             <p className="text-[13px]" style={{ color: FE.muted }}>{pendingDelete.body}</p>
-            <div className="flex justify-end gap-2 pt-1">
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
               <button type="button" autoFocus onClick={() => setPendingDelete(null)}
                 className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: FE.pill, color: FE.text }}>Cancel</button>
+              {pendingDelete.alt && (
+                <button type="button" onClick={() => {
+                  const ids = new Set(pendingDelete.alt!.ids);
+                  updateConfig({ questions: (formConfig.questions ?? []).filter(x => !ids.has(x.id)) });
+                  setPendingDelete(null);
+                }} className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: FE.pill, color: FE.text }}>{pendingDelete.alt.label}</button>
+              )}
               <button type="button" onClick={() => {
                 const ids = new Set(pendingDelete.ids);
                 updateConfig({ questions: (formConfig.questions ?? []).filter(x => !ids.has(x.id)) });
