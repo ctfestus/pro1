@@ -4,6 +4,7 @@ import { useEffect, useState, useRef, useCallback, useMemo, type ReactNode } fro
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import { supabase } from '@/lib/supabase';
+import { useSessionToken } from '@/lib/use-session-token';
 import { LIGHT_C, useC } from '@/lib/theme';
 import { uploadToCloudinary } from '@/lib/uploadToCloudinary';
 import {
@@ -646,10 +647,13 @@ export default function OpenCertificatesPage() {
     });
   }, []);
 
+  // `token` says the page has loaded a session; requests send the current one, which Supabase
+  // replaces about every hour.
+  const liveToken = useSessionToken(token ?? '');
   const headers = useCallback((): HeadersInit => ({
     'Content-Type': 'application/json',
-    Authorization: `Bearer ${token}`,
-  }), [token]);
+    Authorization: `Bearer ${liveToken}`,
+  }), [liveToken]);
 
   const freshAuthHeader = useCallback(async (): Promise<HeadersInit> => {
     const { data } = await supabase.auth.getSession();

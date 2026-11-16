@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { useSessionToken } from '@/lib/use-session-token';
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2, ArrowLeft, Camera, Check, AlertCircle,
@@ -334,7 +335,9 @@ export default function SettingsPage() {
   const [thumbUploading, setThumbUploading] = useState<string | null>(null);
   const avatarRef = useRef<HTMLInputElement>(null);
 
-  const [accessToken, setAccessToken]   = useState<string | null>(null);
+  // Kept current, so a settings page left open does not send an expired token.
+  const [loadedAccessToken, setAccessToken] = useState<string | null>(null);
+  const accessToken = useSessionToken(loadedAccessToken ?? '') || null;
   const [certUploading, setCertUploading] = useState<string | null>(null);
   const [avatarCropSrc, setAvatarCropSrc] = useState<string | null>(null);
 

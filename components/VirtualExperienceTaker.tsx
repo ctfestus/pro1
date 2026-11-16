@@ -9,6 +9,7 @@ import {
   Link as LinkIcon, Eye, SkipForward, MessageSquare,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useSessionToken } from '@/lib/use-session-token';
 import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { sanitizeRichText } from '@/lib/sanitize';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
@@ -86,11 +87,13 @@ interface Props {
 
 // Component
 export default function VirtualExperienceTaker({
-  formId, formSlug, config, studentName, studentEmail, userId, sessionToken,
+  formId, formSlug, config, studentName, studentEmail, userId, sessionToken: initialSessionToken,
   initialProgress = {}, initialModuleId, initialLessonId,
   isDark = true, accentColor = '#00b95c',
   logoUrl = '', logoDarkUrl = '', previewMode = false,
 }: Props) {
+  // Kept current, so a session left open does not send an expired token.
+  const sessionToken = useSessionToken(initialSessionToken);
   const authHeader = useMemo(
     () => sessionToken ? { Authorization: `Bearer ${sessionToken}` } : {} as Record<string, string>,
     [sessionToken],
