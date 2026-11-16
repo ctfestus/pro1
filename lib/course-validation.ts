@@ -43,7 +43,14 @@ export function itemIssues(q: any, qNo = 0): CourseIssue[] {
     if (!nonEmpty(q.lesson?.title)) add('Needs a title', 'A lesson has no title');
     return out;
   }
-  if (q?.isDownloads || q?.isLinkedInShare) return out;
+  if (q?.isDownloads) {
+    const items: any[] = Array.isArray(q.downloadItems) ? q.downloadItems : [];
+    if (!items.length) add('No files', 'A downloads page has no files');
+    else if (items.some(i => !nonEmpty(i?.title))) add('Item needs a name', 'A downloads item has no name');
+    else if (items.some(i => (i?.type === 'link' ? !nonEmpty(i?.linkUrl) : !nonEmpty(i?.fileUrl)))) add('Missing a file', 'A downloads item has no file or link');
+    return out;
+  }
+  if (q?.isLinkedInShare) return out;
 
   const type = q?.type ?? 'multiple_choice';
   const name = qNo > 0 ? `Q${qNo}` : 'A question';

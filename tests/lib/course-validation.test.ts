@@ -45,6 +45,13 @@ describe('course validation', () => {
     expect(issues).toEqual(['Module 2: a lesson has no title', 'Module 2: Q2 has no correct answer']);
   });
 
+  it('flags a downloads page with no files, an unnamed item or a missing file', () => {
+    expect(itemIssues({ id: 'd', isDownloads: true, downloadItems: [] })[0].flag).toBe('No files');
+    expect(itemIssues({ id: 'd', isDownloads: true, downloadItems: [{ id: 'f', type: 'file', title: '' }] })[0].flag).toBe('Item needs a name');
+    expect(itemIssues({ id: 'd', isDownloads: true, downloadItems: [{ id: 'f', type: 'link', title: 'Guide', linkUrl: '' }] })[0].flag).toBe('Missing a file');
+    expect(itemIssues({ id: 'd', isDownloads: true, downloadItems: [{ id: 'f', type: 'file', title: 'Data', fileUrl: 'https://x/a.csv' }] })).toEqual([]);
+  });
+
   it('treats an untouched draft name and an empty course as not ready', () => {
     const issues = courseIssues({ title: 'Untitled course', questions: [] }).map(i => i.message);
     expect(issues).toEqual(['The course needs a title', 'Add at least one lesson or question']);

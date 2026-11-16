@@ -17,9 +17,8 @@ import {
   GripVertical, BookOpen, Monitor, ExternalLink, Video, Search,
   CalendarDays, ClipboardList, CheckCircle2, Settings, Upload, Download, Link2, FileText,
   Lock, LockOpen, Users, Music, FileCode,
-  ArrowUp, ArrowDown, PenLine, Blocks,
+  ArrowUp, ArrowDown, Blocks,
 } from 'lucide-react';
-import { LinkedInIcon } from '@/components/LinkedInIcon';
 import type {
   FieldType, FormField, QuestionType, DownloadItem, CourseQuestion,
   PointsSystem, FormConfig,
@@ -2543,8 +2542,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                     const isExpanded = expandedQuestions.has(q.id);
 
                     const insertDivider = (
-                      <div key={`insert-${q.id}`} className="group relative flex items-center justify-center gap-1.5 h-5 my-0.5">
-                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px transition-colors" style={{ background: FE.divider }} />
+                      <div key={`insert-${q.id}`} className="group relative flex items-center justify-center gap-1.5 h-1.5 hover:h-6 transition-all">
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: FE.divider }} />
                         <button
                           type="button"
                           onClick={() => setPickerCtx({ mode: 'insert', afterIndex: qIdx })}
@@ -2564,17 +2563,50 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       </div>
                     );
 
+                    // Shared by the downloads and LinkedIn steps: the same row header as lessons and questions.
+                    const stepRowStyle = { background: isExpanded ? FE.card : FE.groupBg, border: `1px solid ${isExpanded ? FE.cardBorder : 'transparent'}` };
+                    const stepHeader = (dragHandle: React.ReactNode, title: string, kind: string) => (
+                      <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
+                        {dragHandle}
+                        <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left min-w-0">
+                          <span className="text-[13px] truncate block" style={{ color: FE.text }}>{title}</span>
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {(() => {
+                            const issue = itemIssues(q, qNo)[0];
+                            return issue ? <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: 'rgba(217,119,6,0.12)', color: '#b45309' }}>{issue.flag}</span> : null;
+                          })()}
+                          <span className="text-[11px] font-semibold rounded-lg px-2 py-1" style={{ background: FE.card, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>{kind}</span>
+                          <LockToggle locked={!!q.lockUntilPrevious} onToggle={() => handleUpdateQuestion(q.id, { lockUntilPrevious: !q.lockUntilPrevious })} accentColor={accentColor} />
+                          <button type="button" onClick={() => toggleQuestion(q.id)} aria-label={isExpanded ? 'Close' : 'Open'} className="p-1 transition-colors" style={{ color: FE.faint }}>
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                    const stepDelete = (label: string) => (
+                      <div className="flex justify-end">
+                        <button type="button" onClick={() => askDelete(q)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors hover:text-red-500" style={{ color: FE.faint }}>
+                          <Trash2 className="w-3.5 h-3.5" /> {label}
+                        </button>
+                      </div>
+                    );
+                    const fieldLabel = (text: string, note?: string) => (
+                      <label className={labelCls} style={labelStyle}>{text}{note && <span style={{ color: FE.faint, fontWeight: 500 }}> ({note})</span>}</label>
+                    );
+
                     // -- Section divider card --
                     if (q.isSection) {
                       return (
                         <React.Fragment key={q.id}>
                         <SortableQuestionShell id={q.id}>
                           {({ dragHandle }) => (
-                          <div data-item-id={q.id} className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${accentColor}40`, borderLeft: `3px solid ${accentColor}` }}>
+                          <div data-item-id={q.id} className="overflow-hidden" style={{ background: `${accentColor}1a` }}>
                             <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
                               {dragHandle}
                               <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left">
-                                <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
+                                <span className="text-[12px] font-bold tracking-[0.08em] uppercase" style={{ color: accentColor }}>
                                   Module {outlineGroups.filter(g => g.section).findIndex(g => g.section!.id === q.id) + 1}: {q.sectionTitle || 'Untitled'}
                                 </span>
                               </button>
@@ -2622,9 +2654,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       );
                     }
 
-                    // -- LinkedIn share block card --
-                    // Keep in sync with the identical card in app/create/page.tsx: create and edit
-                    // are two separate editors.
+                    // -- LinkedIn share step --
                     if (q.isLinkedInShare) {
                       const patch = (changes: Partial<CourseQuestion>) =>
                         updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, ...changes } : qq) });
@@ -2634,60 +2664,45 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         <React.Fragment key={q.id}>
                         <SortableQuestionShell id={q.id}>
                           {({ dragHandle }) => (
-                        <div className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid #0A66C240`, borderLeft: '3px solid #0A66C2' }}>
-                          <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
-                            {dragHandle}
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left">
-                              <span className="text-[10px] font-bold tracking-widest uppercase flex items-center gap-1.5" style={{ color: '#0A66C2' }}>
-                                <LinkedInIcon className="w-3 h-3" /> {q.linkedInShareTitle || 'LinkedIn Share'}
-                              </span>
-                            </button>
-                            <LockToggle
-                              locked={!!q.lockUntilPrevious}
-                              onToggle={() => patch({ lockUntilPrevious: !q.lockUntilPrevious })}
-                              accentColor={accentColor}
-                            />
-                            <button type="button" onClick={() => askDelete(q)} aria-label="Delete"
-                              className="p-1 rounded transition-colors hover:text-red-500" style={{ color: FE.faint }}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="p-1 transition-colors" style={{ color: FE.faint }}>
-                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
+                        <div data-item-id={q.id} className="rounded-xl overflow-hidden transition-colors" style={stepRowStyle}>
+                          {stepHeader(dragHandle, q.linkedInShareTitle || 'LinkedIn share', 'LinkedIn share')}
                           {isExpanded && <div className="px-3.5 py-3 space-y-3">
+                            {stepDelete('Delete step')}
+                            <div>
+                            {fieldLabel('Title', 'the heading learners see')}
                             <input
                               value={q.linkedInShareTitle || ''}
                               onChange={e => patch({ linkedInShareTitle: e.target.value })}
-                              placeholder="Slide title e.g. Share your certificate on LinkedIn"
-                              className={`${inputCls} font-semibold`}
+                              placeholder="e.g. Share your certificate on LinkedIn"
+                              className={inputCls}
                               style={inputStyle}
                             />
+                            </div>
+                            <div>
+                            {fieldLabel('Instructions', 'optional')}
                             <RichTextEditor
                               value={q.linkedInShareDescription || ''}
                               onChange={html => patch({ linkedInShareDescription: html })}
                               placeholder="Tell students what to post and why it helps them..."
                               enableAiAssist
                             />
+                            </div>
                             {/* Suggested caption the student can copy straight into LinkedIn. */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold tracking-widest uppercase" style={{ color: FE.faint }}>
-                                Suggested post text
-                              </label>
+                            <div>
+                              {fieldLabel('Suggested post text', 'optional, learners can copy it')}
                               <textarea
                                 value={q.linkedInSharePrompt || ''}
                                 onChange={e => patch({ linkedInSharePrompt: e.target.value })}
-                                placeholder="Optional. Students can copy this as a starting point for their post."
+                                placeholder="e.g. I just finished a course on cleaning sales data. Here is what I built..."
+
                                 rows={4}
                                 className={inputCls}
                                 style={inputStyle}
                               />
                             </div>
-                            <div className="flex flex-wrap items-end gap-3">
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-bold tracking-widest uppercase" style={{ color: FE.faint }}>
-                                  Bonus XP (max {MAX_LINKEDIN_SHARE_POINTS})
-                                </label>
+                            <div className="flex flex-wrap items-end gap-5">
+                              <div>
+                                {fieldLabel('Bonus XP', `max ${MAX_LINKEDIN_SHARE_POINTS}`)}
                                 <input
                                   type="number"
                                   min={0}
@@ -2698,17 +2713,18 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                   style={{ ...inputStyle, width: 110 }}
                                 />
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => patch({ linkedInShareRequired: !required })}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
-                                style={required
-                                  ? { background: accentColor, color: 'white' }
-                                  : { background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.faint }}
-                              >
-                                {required ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
-                                {required ? 'Required to continue' : 'Optional'}
-                              </button>
+                              <div>
+                                {fieldLabel('Learners must share to continue')}
+                                <div className="flex w-fit gap-1 rounded-xl p-1" style={{ background: FE.groupBg }}>
+                                  {([{ v: false, label: 'Optional' }, { v: true, label: 'Required' }] as const).map(({ v, label }) => (
+                                    <button key={label} type="button" onClick={() => patch({ linkedInShareRequired: v })} aria-pressed={required === v}
+                                      className="min-h-9 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all"
+                                      style={required === v ? { background: accentColor, color: '#fff' } : { background: 'transparent', color: FE.muted }}>
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                             <p className="text-[11px] leading-relaxed" style={{ color: FE.faint }}>
                               Students paste the link to their own LinkedIn post. The link is checked, and a post
@@ -2733,45 +2749,34 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         <React.Fragment key={q.id}>
                         <SortableQuestionShell id={q.id}>
                           {({ dragHandle }) => (
-                        <div className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                          <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
-                            {dragHandle}
-                            <span className="w-8 h-8 inline-flex flex-shrink-0 items-center justify-center rounded-lg" style={{ color: accentColor, background: `${accentColor}15` }}><Download className="w-4 h-4" /></span>
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 min-w-0 text-left">
-                              <span className="text-xs font-semibold truncate block" style={{ color: FE.text }}>{q.downloadsTitle || 'Downloads'}</span>
-                              <span className="text-[9px]" style={{ color: FE.faint }}>{dlItems.length} resource{dlItems.length === 1 ? '' : 's'}</span>
-                            </button>
-                            <LockToggle
-                              locked={!!q.lockUntilPrevious}
-                              onToggle={() => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, lockUntilPrevious: !qq.lockUntilPrevious } : qq) })}
-                              accentColor={accentColor}
-                            />
-                            <button type="button" onClick={() => askDelete(q)} aria-label="Delete"
-                              className="p-1 rounded transition-colors hover:text-red-500" style={{ color: FE.faint }}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="p-1 transition-colors" style={{ color: FE.faint }}>
-                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
+                        <div data-item-id={q.id} className="rounded-xl overflow-hidden transition-colors" style={stepRowStyle}>
+                          {stepHeader(dragHandle, q.downloadsTitle || 'Downloads', `Downloads (${dlItems.length})`)}
                           {isExpanded && <div className="px-3.5 py-3 space-y-3">
+                            {stepDelete('Delete downloads')}
+                            <div>
+                            {fieldLabel('Title', 'the heading learners see')}
                             <input
                               value={q.downloadsTitle || ''}
                               onChange={e => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, downloadsTitle: e.target.value } : qq) })}
-                              placeholder="Section title e.g. Course Materials"
-                              className={`${inputCls} font-semibold`}
+                              placeholder="e.g. Course files"
+                              className={inputCls}
                               style={inputStyle}
                             />
+                            </div>
+                            <div>
+                            {fieldLabel('Description', 'optional')}
                             <RichTextEditor
                               value={q.downloadsDescription || ''}
                               onChange={html => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, downloadsDescription: html } : qq) })}
-                              placeholder="Describe what students will find here..."
+                              placeholder="What learners will find here"
                               enableAiAssist
                             />
+                            </div>
+                            {fieldLabel('Files and links')}
                             {dlItems.length > 0 ? (
                               <div className="space-y-2 pt-1">
                                 {dlItems.map((item, itemIdx) => (
-                                  <div key={item.id} className="rounded-xl p-3 space-y-2.5" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
+                                  <div key={item.id} className="rounded-xl p-3 space-y-2.5" style={{ background: FE.groupBg }}>
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2 min-w-0">
                                         <span className="w-7 h-7 inline-flex flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-bold" style={{ color: accentColor, background: `${accentColor}15` }}>{itemIdx + 1}</span>
@@ -2793,19 +2798,25 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                         <button type="button" aria-label={`Remove resource ${itemIdx + 1}`} onClick={() => updateItems(dlItems.filter(it => it.id !== item.id))} className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/10"><X className="w-3.5 h-3.5 text-red-400" /></button>
                                       </div>
                                     </div>
+                                    <div>
+                                    {fieldLabel('Name', 'what learners see')}
                                     <input
                                       value={item.title}
                                       onChange={e => updateItems(dlItems.map(it => it.id === item.id ? { ...it, title: e.target.value } : it))}
-                                      placeholder={item.type === 'file' ? 'File name or label...' : 'Link label...'}
+                                      placeholder={item.type === 'file' ? 'e.g. March sales export' : 'e.g. Excel shortcuts guide'}
                                       className={inputCls}
-                                      style={inputStyle}
+                                      style={!item.title?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
                                     />
+                                    </div>
+                                    <div>
+                                    {fieldLabel('Description', 'optional')}
                                     <RichTextEditor
                                       value={item.description || ''}
                                       onChange={html => updateItems(dlItems.map(it => it.id === item.id ? { ...it, description: html } : it))}
-                                      placeholder="Short description (optional)..."
+                                      placeholder="What this file is for"
                                       enableAiAssist
                                     />
+                                    </div>
                                     {item.type === 'file' ? (
                                       item.fileUrl ? (
                                         <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg" style={{ background: `${accentColor}10`, border: `1px solid ${accentColor}30` }}>
@@ -2845,13 +2856,16 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                         </label>
                                       )
                                     ) : (
+                                      <div>
+                                      {fieldLabel('Link')}
                                       <input
                                         value={item.linkUrl || ''}
                                         onChange={e => updateItems(dlItems.map(it => it.id === item.id ? { ...it, linkUrl: e.target.value } : it))}
                                         placeholder="https://..."
                                         className={inputCls}
-                                        style={inputStyle}
+                                        style={!item.linkUrl?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
                                       />
+                                      </div>
                                     )}
                                   </div>
                                 ))}
@@ -2864,14 +2878,14 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                             )}
                             <div className="flex gap-2 pt-1">
                               <button type="button" onClick={() => updateItems([...dlItems, { id: Math.random().toString(36).substring(7), title: '', type: 'file' }])}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all hover:opacity-80"
-                                style={{ background: `${accentColor}12`, color: accentColor }}>
-                                <Upload className="w-3 h-3" /> Add File
+                                className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80"
+                                style={{ color: accentColor }}>
+                                + Add file
                               </button>
                               <button type="button" onClick={() => updateItems([...dlItems, { id: Math.random().toString(36).substring(7), title: '', type: 'link' }])}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all hover:opacity-80"
-                                style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
-                                <Link2 className="w-3 h-3" /> Add Link
+                                className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80"
+                                style={{ color: accentColor }}>
+                                + Add link
                               </button>
                             </div>
                           </div>}
@@ -2887,7 +2901,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       <React.Fragment key={q.id}>
                       <SortableQuestionShell id={q.id}>
                         {({ dragHandle }) => (
-                      <div data-item-id={q.id} className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
+                      <div data-item-id={q.id} className="rounded-xl overflow-hidden transition-colors" style={{ background: isExpanded ? FE.card : FE.groupBg, border: `1px solid ${isExpanded ? FE.cardBorder : 'transparent'}` }}>
                         <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
                           {dragHandle}
                           <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left min-w-0">
@@ -2905,7 +2919,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                               ) : null;
                             })()}
                             {q.lessonOnly ? (
-                              <span className="text-[11px] font-semibold rounded-lg px-2 py-1" style={{ border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
+                              <span className="text-[11px] font-semibold rounded-lg px-2 py-1" style={{ background: FE.card, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
                                 {q.lesson?.videoUrl ? (isHtmlEmbedUrl(q.lesson.videoUrl) ? 'Interactive' : 'Video') : 'Reading'}
                               </span>
                             ) : (
@@ -2913,7 +2927,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                               type="button"
                               onClick={() => setPickerCtx({ mode: 'change', qId: q.id })}
                               className="flex items-center gap-1 text-[11px] font-semibold rounded-lg px-2 py-1 transition-opacity hover:opacity-70 cursor-pointer"
-                              style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}
+                              style={{ background: FE.card, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}
                             >
                               {TYPE_LABELS[qType] ?? qType}
                               <ChevronDown className="w-3 h-3 ml-0.5 flex-shrink-0" />
@@ -3028,8 +3042,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           {qType === 'image' && (
                             <div className="space-y-2.5">
                               <div className="flex items-center justify-between gap-3">
-                                <label className={labelCls} style={labelStyle}>Image options</label>
-                                <span className="text-[9px] font-semibold" style={{ color: FE.faint }}>Choose the correct image</span>
+                                <label className={labelCls} style={labelStyle}>Image options <span style={{ color: FE.faint }}>(pick the correct one)</span></label>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 {q.options.map((opt, optIdx) => {
@@ -3165,14 +3178,11 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           )}
 
                           {qType === 'fill_blank' && (
-                            <div className="rounded-xl p-3 space-y-2.5" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
-                              <div className="flex items-center gap-2">
-                                <span className="w-8 h-8 inline-flex items-center justify-center rounded-lg" style={{ color: accentColor, background: `${accentColor}16` }}><PenLine className="w-4 h-4" /></span>
-                                <div><p className="text-xs font-semibold" style={{ color: FE.text }}>Accepted answers</p><p className="text-[9px]" style={{ color: FE.faint }}>Learners can enter any answer separated by |</p></div>
-                              </div>
+                            <div className="space-y-2">
+                              <label className={labelCls} style={labelStyle}>Accepted answers <span style={{ color: FE.faint }}>(separate alternatives with |)</span></label>
                               <input type="text" value={q.correctAnswer}
                                 onChange={e => handleUpdateQuestion(q.id, { correctAnswer: e.target.value })}
-                                className={inputCls} style={inputStyle} placeholder="e.g. Paris" />
+                                className={inputCls} style={!q.correctAnswer?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid '+'rgba(217,119,6,0.55)' } : inputStyle} placeholder="e.g. TRIM | trim()" />
                               {q.correctAnswer.trim() && (
                                 <div className="flex flex-wrap gap-1.5">
                                   {q.correctAnswer.split('|').map(answer => answer.trim()).filter(Boolean).map((answer, answerIdx) => (
@@ -3186,13 +3196,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           {qType === 'arrange' && (
                             <div className="space-y-2">
                               <div className="flex items-center justify-between gap-3">
-                                <label className={labelCls} style={labelStyle}>Correct sequence</label>
-                                <span className="text-[9px] font-semibold" style={{ color: FE.faint }}>Top item appears first</span>
+                                <label className={labelCls} style={labelStyle}>Correct order <span style={{ color: FE.faint }}>(top item comes first)</span></label>
                               </div>
                               {q.options.map((item, itemIdx) => (
-                                <div key={itemIdx} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
+                                <div key={itemIdx} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={!item.trim() ? { background: 'rgba(217,119,6,0.08)', border: '1px solid '+'rgba(217,119,6,0.55)' } : { background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
                                   <span className="w-7 h-7 inline-flex flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-bold" style={{ color: accentColor, background: `${accentColor}15` }}>{itemIdx + 1}</span>
-                                  <input type="text" value={item}
+                                  <input type="text" value={item} placeholder="Empty item. Fill it in or remove it." aria-label={`Item ${itemIdx + 1}`}
                                     onChange={e => {
                                       const newOpts = [...q.options]; newOpts[itemIdx] = e.target.value;
                                       handleUpdateQuestion(q.id, { options: newOpts, correctAnswer: newOpts.join('|||') });
@@ -3229,10 +3238,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
 
                           {/* AI Review config */}
                           {(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'] as const).includes(qType as any) && (
-                            <div className="space-y-3 rounded-xl p-3" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                              <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
-                                {qType === 'code_review' ? 'Code Review' : qType === 'excel_review' ? 'Excel Review' : qType === 'dashboard_critique' ? 'Dashboard Critique' : qType === 'written_response' ? 'Written Response' : 'Document Review'} Config
-                              </p>
+                            // Fields sit directly in the open row, like every other kind of question.
+                            <div className="space-y-3">
 
                               <div>
                                 <label className={labelCls} style={labelStyle}>{qType === 'written_response' ? 'Question / prompt' : 'Project brief / prompt'}</label>
@@ -3322,8 +3329,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                     max={2000}
                                     value={q.writtenMaxWords ?? 0}
                                     onChange={e => handleUpdateQuestion(q.id, { writtenMaxWords: Math.max(0, Number(e.target.value) || 0) })}
-                                    className={`${inputCls} w-24`}
-                                    style={inputStyle}
+                                    className={inputCls}
+                                    style={{ ...inputStyle, width: 112 }}
                                   />
                                 </div>
                               </>)}
@@ -3337,15 +3344,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                     className={`${inputCls} py-1.5`}
                                     style={inputStyle}
                                   >
-                                    <option value="ai_only">AI Only -- AI reviews and auto-grades</option>
-                                    <option value="manual">Manual -- Instructor reviews and grades</option>
-                                    <option value="hybrid">Hybrid -- AI reviews, instructor can override grade</option>
+                                    <option value="ai_only">AI only: the AI reviews and grades</option>
+                                    <option value="manual">Manual: you review and grade</option>
+                                    <option value="hybrid">Hybrid: the AI reviews, you can change the grade</option>
                                   </select>
                                 </div>
                               )}
 
                               <div>
-                                <label className={labelCls} style={labelStyle}>Rubric criteria</label>
+                                <label className={labelCls} style={labelStyle}>Rubric <span style={{ color: FE.faint }}>(what the AI grades against)</span></label>
                                 <div className="mb-2">
                                   {(() => {
                                     const busy: RubricImportKind | null = extractingRubric === `${q.id}:reference_solution`
@@ -3375,8 +3382,9 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                           handleUpdateQuestion(q.id, { rubric: next });
                                         }}
                                         className={`${inputCls} py-1.5 flex-1`}
-                                        style={inputStyle}
-                                        placeholder={`Criterion ${cIdx + 1}`}
+                                        style={!criterion.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid '+'rgba(217,119,6,0.55)' } : inputStyle}
+                                        placeholder="Empty criterion. Fill it in or remove it."
+                                        aria-label={`Criterion ${cIdx + 1}`}
                                       />
                                       <button
                                         type="button"
@@ -3401,15 +3409,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
 
                               {!(qType === 'document_review' && ((q as any).documentReviewMode === 'manual')) && (
                                 <div>
-                                  <label className={labelCls} style={labelStyle}>Minimum passing score (%)</label>
+                                  <label className={labelCls} style={labelStyle}>Pass mark <span style={{ color: FE.faint }}>(% the AI review must give)</span></label>
                                   <input
                                     type="number"
                                     min={0}
                                     max={100}
                                     value={q.minScore ?? 70}
                                     onChange={e => handleUpdateQuestion(q.id, { minScore: Number(e.target.value) })}
-                                    className={`${inputCls} w-24`}
-                                    style={inputStyle}
+                                    className={inputCls}
+                                    style={{ ...inputStyle, width: 112 }}
                                   />
                                 </div>
                               )}
@@ -3417,8 +3425,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           )}
 
                           {qType === 'sql_exercise' && (
-                            <div className="space-y-3 rounded-xl p-3" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                              <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>SQL Exercise Config</p>
+                            <div className="space-y-3">
                               <div>
                                 <label className={labelCls} style={labelStyle}>Student task</label>
                                 <AiTextarea value={q.question} onValueChange={value => handleUpdateQuestion(q.id, { question: value })} className={`${inputCls} min-h-[72px] resize-y`} style={inputStyle} placeholder="Ask the student to write a query..." />
@@ -3431,7 +3438,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                   </button>
                                 </div>
                                 {(q.sqlTables ?? []).map((table, tableIdx) => (
-                                  <div key={table.id ?? tableIdx} className="grid gap-2 rounded-lg p-2" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
+                                  <div key={table.id ?? tableIdx} className="grid gap-2 rounded-xl p-3" style={{ background: FE.groupBg }}>
                                     <div className="flex gap-2">
                                       <input value={table.tableName} onChange={e => {
                                         const tables = [...(q.sqlTables ?? [])];
@@ -3473,7 +3480,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                     </div>
                                     {table.seedSql?.trim() || (!table.fileUrl && !table.csvUrl && !table.fileName) ? (
                                       <div>
-                                        <label className={labelCls} style={labelStyle}>CREATE TABLE / INSERT seed SQL</label>
+                                        <label className={labelCls} style={labelStyle}>Table data as SQL <span style={{ color: FE.faint }}>(CREATE TABLE and INSERT statements)</span></label>
                                         <AiTextarea
                                           value={table.seedSql ?? ''}
                                           onValueChange={value => {
@@ -3502,12 +3509,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                   <span className="text-xs" style={{ color: q.sqlExpectedResult ? '#10b981' : FE.faint }}>{q.sqlExpectedResult ? `${q.sqlExpectedResult.rows.length} expected row(s) saved` : 'Expected result not computed'}</span>
                                 </div>
                               </div>
-                              <div className="grid sm:grid-cols-2 gap-2">
-                                <label className="flex items-center gap-2 text-xs" style={{ color: FE.muted }}>
+                              <div className="flex flex-wrap items-end gap-5">
+                                <label className="flex items-center gap-2 text-xs pb-2.5" style={{ color: FE.muted }}>
                                   <input type="checkbox" checked={!!q.sqlResultOrdered} onChange={e => handleUpdateQuestion(q.id, { sqlResultOrdered: e.target.checked })} />
-                                  Require row order
+                                  Rows must be in the same order
                                 </label>
-                                <input type="number" value={q.sqlNumericTolerance ?? 0} onChange={e => handleUpdateQuestion(q.id, { sqlNumericTolerance: Number(e.target.value) })} className={`${inputCls} py-1.5`} style={inputStyle} placeholder="Numeric tolerance" />
+                                <div>
+                                  <label htmlFor={`tol-${q.id}`} className={labelCls} style={labelStyle}>Number tolerance <span style={{ color: FE.faint }}>(how far off a number may be, 0 for exact)</span></label>
+                                  <input id={`tol-${q.id}`} type="number" min={0} value={q.sqlNumericTolerance ?? 0} onChange={e => handleUpdateQuestion(q.id, { sqlNumericTolerance: Number(e.target.value) })} className={inputCls} style={{ ...inputStyle, width: 112 }} />
+                                </div>
                               </div>
                               <div>
                                 <label className={labelCls} style={labelStyle}>Required SQL patterns <span style={{ color: FE.faint }}>(optional)</span></label>
@@ -3521,15 +3531,14 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                 <p className="mt-1 text-[11px]" style={{ color: FE.faint }}>One per line. Plain words must appear as SQL keywords; /regex/i is also supported.</p>
                               </div>
                               <div>
-                                <label className={labelCls} style={labelStyle}>Hints</label>
+                                <label className={labelCls} style={labelStyle}>Hints <span style={{ color: FE.faint }}>(optional, one per line)</span></label>
                                 <AiTextarea value={(q.sqlHints ?? []).join('\n')} onValueChange={value => handleUpdateQuestion(q.id, { sqlHints: value.split('\n').map(s => s.trim()).filter(Boolean) })} className={`${inputCls} min-h-[70px] resize-y`} style={inputStyle} placeholder="One hint per line" />
                               </div>
                             </div>
                           )}
 
                           {qType === 'python_exercise' && (
-                            <div className="space-y-3 rounded-xl p-3" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                              <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>Python Exercise Config</p>
+                            <div className="space-y-3">
                               <div>
                                 <label className={labelCls} style={labelStyle}>Student task</label>
                                 <RichTextEditor value={q.question} onChange={html => handleUpdateQuestion(q.id, { question: html })} placeholder="Ask the student to write a Python script..." enableAiAssist />
@@ -3579,7 +3588,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                 )}
                               </div>
                               <div>
-                                <label className={labelCls} style={labelStyle}>Hints</label>
+                                <label className={labelCls} style={labelStyle}>Hints <span style={{ color: FE.faint }}>(optional, one per line)</span></label>
                                 <AiTextarea value={(q.pythonHints ?? []).join('\n')} onValueChange={value => handleUpdateQuestion(q.id, { pythonHints: value.split('\n').map(s => s.trim()).filter(Boolean) })} className={`${inputCls} min-h-[70px] resize-y`} style={inputStyle} placeholder="One hint per line" />
                               </div>
                             </div>
@@ -3822,26 +3831,32 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                     const collapsed = !!group.section && collapsedModules.has(group.section.id);
                     const lastIdx = group.items.length ? all.indexOf(group.items[group.items.length - 1]) : group.start;
                     return (
-                      <div key={group.section?.id ?? 'loose'} className="mb-2">
+                      // One box per module: its heading strip on top, its content inside, as soft rows.
+                      <div key={group.section?.id ?? 'loose'} className="mb-2.5 rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
                         {group.section ? renderItem(group.section, group.start) : (
-                          <p className="px-1 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: FE.faint }}>Not in a module</p>
+                          <p className="px-3.5 py-2.5 text-[12px] font-bold uppercase tracking-[0.08em]" style={{ background: FE.groupBg, color: FE.muted }}>Not in a module</p>
                         )}
                         {!collapsed && (
-                          <div className={group.section ? 'ml-3 pl-3 border-l-2' : ''} style={group.section ? { borderColor: FE.divider } : undefined}>
-                            {group.items.map(item => renderItem(item, all.indexOf(item)))}
+                          <>
+                            {group.items.length > 0 && (
+                              <div className="relative py-2 pr-2 pl-[22px]">
+                                <span aria-hidden="true" className="absolute left-3.5 top-2 bottom-2 w-0.5 rounded-full" style={{ background: FE.divider }} />
+                                {group.items.map(item => renderItem(item, all.indexOf(item)))}
+                              </div>
+                            )}
                             {group.section && (
-                              <div className="flex gap-1 pt-0.5 pb-1">
+                              <div className={`flex gap-1.5 pl-[22px] pb-2 ${group.items.length ? '' : 'pt-2'}`}>
                                 <button type="button" onClick={() => insertLessonAt(lastIdx)}
-                                  className="px-2 py-1 rounded-md text-xs font-semibold hover:opacity-70" style={{ color: accentColor }}>
+                                  className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80" style={{ color: accentColor }}>
                                   + Add lesson
                                 </button>
                                 <button type="button" onClick={() => setPickerCtx({ mode: 'insert', afterIndex: lastIdx })}
-                                  className="px-2 py-1 rounded-md text-xs font-semibold hover:opacity-70" style={{ color: accentColor }}>
+                                  className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80" style={{ color: accentColor }}>
                                   + Add question
                                 </button>
                               </div>
                             )}
-                          </div>
+                          </>
                         )}
                       </div>
                     );
