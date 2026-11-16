@@ -3614,7 +3614,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                   onChange={e => handleUpdateQuestion(q.id, { lesson: { ...q.lesson, title: e.target.value } })}
                                   autoFocus={needsTitle}
                                   className={inputCls}
-                                  style={needsTitle ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', borderColor: 'rgba(217,119,6,0.55)' } : inputStyle}
+                                  style={needsTitle ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
                                   placeholder={q.lessonOnly ? 'Add a title' : 'Lesson title (optional)...'}
                                 />
                                 <LessonEditor
