@@ -2,14 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useTheme } from '@/components/ThemeProvider';
-import { useTenant } from '@/components/TenantProvider';
 import { motion } from 'motion/react';
 import {
-  Sparkles, Loader2, Check, Plus, Trash2, X, ChevronDown, ChevronUp,
-  Upload, Link2, FileText, Database, ArrowLeft, Code2, RefreshCw,
+  Loader2, Check, Plus, Trash2, X, ChevronDown, ChevronUp,
+  Upload, Link2, FileText, Database, Code2,
 } from 'lucide-react';
 import type { FormConfig } from '@/lib/course-schema';
 import { useC } from '@/components/create/theme';
+import { BriefPanel, Chips, Field, GenerateButton, OutlineHeader, OutlineModules, SidePanel, newLessonId, useBrand } from '@/components/create/generator-ui';
 import { TEMPLATES } from '@/components/create/shared';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { AiTextarea } from '@/components/AiTextarea';
@@ -32,27 +32,38 @@ function attachQuestionLessonDocs(questions: any[]): any[] {
 
 // --- Types: the content contract is canonical in lib/course-schema (imported above) ---
 
+// Brief choices and outline lesson types for the AI course generators.
+const INDUSTRIES = ['Finance', 'Healthcare', 'Retail', 'Marketing', 'HR', 'EdTech', 'Logistics', 'Consulting'];
+const LEVELS = ['Beginner', 'Intermediate', 'Advanced'];
+const PY_FOCUS_AREAS = ['Data Analysis', 'Data Visualization', 'Machine Learning', 'Statistics', 'Data Cleaning', 'Automation'];
+const SQL_TYPES = [
+  { value: 'sql', label: 'SQL exercise' }, { value: 'mcq', label: 'Multiple choice' },
+  { value: 'debug', label: 'Fix the query' }, { value: 'completion', label: 'Complete the query' },
+];
+const PY_TYPES = [{ value: 'python_exercise', label: 'Python exercise' }, { value: 'multiple_choice', label: 'Multiple choice' }];
+const DOC_TYPES = [
+  { value: 'multiple_choice', label: 'Multiple choice' }, { value: 'fill_blank', label: 'Fill in the blank' },
+  { value: 'arrange', label: 'Put in order' }, { value: 'sql_exercise', label: 'SQL exercise' },
+  { value: 'python_exercise', label: 'Python exercise' }, { value: 'code', label: 'Code snippet' },
+  { value: 'code_review', label: 'AI code review' }, { value: 'excel_review', label: 'AI Excel review' },
+  { value: 'dashboard_critique', label: 'AI dashboard critique' }, { value: 'document_review', label: 'AI document review' },
+  { value: 'written_response', label: 'AI written response' },
+];
+const DOC_DEPTHS = [{ key: 'primer', label: 'Quick primer' }, { key: 'balanced', label: 'Balanced' }, { key: 'comprehensive', label: 'Comprehensive' }] as const;
+const DOC_PRACTICE = [{ key: 'hands_on', label: 'Hands-on heavy' }, { key: 'balanced', label: 'Balanced' }, { key: 'knowledge', label: 'Knowledge checks' }] as const;
+const DOC_TONES = [{ key: 'professional', label: 'Professional' }, { key: 'conversational', label: 'Conversational' }, { key: 'academic', label: 'Academic' }] as const;
+const DOC_IMAGES = [{ key: 'source', label: 'From the document' }, { key: 'stock', label: 'Stock photos' }] as const;
+const DOC_VIDEOS = [{ key: true, label: 'Include YouTube videos' }, { key: false, label: 'No videos' }] as const;
+
 // --- Main Page ---
 export default function Page() {
   const C = useC();
   const { theme } = useTheme();
-  const { accentColor: brandAccent } = useTenant();
-  // Calm blue accent for wizard selections / CTAs (less loud than the brand amber).
-  const ctaBg     = '#3E93FF';
-  const ctaFg     = '#ffffff';
-  const ctaBorder = 'none';
+  const { brand } = useBrand();
+  const red = theme === 'dark' ? '#F28B82' : '#D93025';
   const router = useRouter();
   const inputStyle = { background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text };
-  const labelStyle = { color: C.faint };
-  const wizardPanelStyle = {
-    background: C.card,
-    border: theme === 'dark' ? `1px solid ${C.inputBorder}` : `1px solid ${C.cardBorder}`,
-    boxShadow: theme === 'dark' ? 'none' : '0 18px 50px rgba(15, 23, 42, 0.06)',
-  };
-  const wizardSoftStyle = {
-    background: C.groupBg,
-    border: `1px solid ${C.inputBorder}`,
-  };
+  const fieldCls = 'w-full rounded-[10px] px-3 py-2 text-sm';
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
   const [isLoadingEdit, setIsLoadingEdit] = useState(true); // stays true until useEffect resolves
   const [user, setUser] = useState<any>(null);
@@ -89,6 +100,7 @@ export default function Page() {
   const [docExtract, setDocExtract] = useState<{ sourceText: string; pdfUrl?: string; pageCount?: number } | null>(null);
   const [docOutline, setDocOutline] = useState<any | null>(null);
   const [docModuleLoading, setDocModuleLoading] = useState<number | null>(null);
+  const [docMoreOpen, setDocMoreOpen] = useState(false);
   // Bunny video picker
 
   useEffect(() => {
@@ -282,33 +294,31 @@ export default function Page() {
     }
   };
 
-  const handleRegenerateSqlModule = async (modIdx: number) => {
-    if (!sqlOutline) return;
-    setSqlModuleLoading(modIdx);
+  // Regenerate one module of a SQL or Python outline, keeping the rest.
+  const regenerateOutlineModule = async (action: string, brief: object, outline: any, setOutline: (fn: (prev: any) => any) => void, setLoading: (i: number | null) => void, modIdx: number) => {
+    if (!outline) return;
+    setLoading(modIdx);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const res = await fetch('/api/ai-course', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({
-          action: 'generate_sql_course_outline',
-          ...sqlBrief,
-          moduleIndex: modIdx,
-          existingOutline: sqlOutline,
-        }),
+        body: JSON.stringify({ action, ...brief, moduleIndex: modIdx, existingOutline: outline }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to regenerate module.');
-      setSqlOutline((prev: any) => ({
+      setOutline((prev: any) => ({
         ...prev,
         modules: prev.modules.map((m: any, i: number) => i === modIdx ? data.module ?? m : m),
       }));
     } catch (err: any) {
       showToast(err.message || 'Failed to regenerate module.', 'error');
     } finally {
-      setSqlModuleLoading(null);
+      setLoading(null);
     }
   };
+  const handleRegenerateSqlModule = (modIdx: number) => regenerateOutlineModule('generate_sql_course_outline', sqlBrief, sqlOutline, setSqlOutline, setSqlModuleLoading, modIdx);
+  const handleRegeneratePyModule = (modIdx: number) => regenerateOutlineModule('generate_python_course_outline', pyBrief, pyOutline, setPyOutline, setPyModuleLoading, modIdx);
 
   const handleGenerateSqlFullCourse = async () => {
     if (!sqlOutline) return;
@@ -573,6 +583,15 @@ export default function Page() {
   // -- Course management --
 
   // -- Shared view --
+  // What "More options" on the document brief is set to, shown while it is closed.
+  const docOptionsSummary = [
+    { primer: 'Quick primer', balanced: 'Balanced depth', comprehensive: 'Comprehensive' }[docBrief.depth],
+    { hands_on: 'hands-on practice', balanced: 'balanced practice', knowledge: 'knowledge checks' }[docBrief.practice],
+    `${docBrief.tone} tone`,
+    docBrief.imageMode.length === 2 ? 'document and stock images' : docBrief.imageMode[0] === 'source' ? 'images from the document' : docBrief.imageMode[0] === 'stock' ? 'stock images' : 'no images',
+    docBrief.includeVideos ? 'YouTube videos' : 'no videos',
+  ].join(', ');
+
   // -- Loading edit --
   if (isLoadingEdit) {
     return (
@@ -589,184 +608,89 @@ export default function Page() {
         {toastView}
         <div className={`relative z-10 flex-1 flex flex-col items-center ${(sqlWizardStep || docWizardStep || pyWizardStep) ? 'justify-start pt-8 sm:pt-12 pb-24' : 'justify-center py-16 sm:py-20'} px-4 sm:px-6 ${(sqlWizardStep === 'outline' || docWizardStep === 'outline' || pyWizardStep === 'outline') ? 'max-w-6xl' : 'max-w-4xl'} mx-auto w-full`}>
 
-          {/* SQL Course Wizard -- Brief step */}
+          {/* SQL course: brief */}
           {sqlWizardStep === 'brief' && (
-            <motion.div key="sql-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-3xl mx-auto">
-              <div className="flex items-center justify-between mb-5">
-                <button type="button" onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
-                  <ArrowLeft className="w-4 h-4" /> Back to dashboard
-                </button>
-                <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#3b82f6' }}>Course Studio</span>
-              </div>
-              <div className="rounded-[28px] p-6 sm:p-9" style={wizardPanelStyle}>
-              <div className="flex items-start gap-4 mb-8">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: '#3b82f618' }}>
-                  <Database className="w-5 h-5" style={{ color: '#3b82f6' }} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] mb-1.5" style={{ color: '#3b82f6' }}>Build with AI</p>
-                  <h2 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>Create a SQL course</h2>
-                  <p className="text-sm mt-1 max-w-xl" style={{ color: C.muted }}>Set the learning direction. You can review and refine every module before the course is created.</p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Course Title</label>
-                  <input type="text" value={sqlBrief.title} onChange={e => setSqlBrief(p => ({ ...p, title: e.target.value }))} placeholder="e.g. SQL for Financial Analysts" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Industry</label>
-                    <select value={sqlBrief.industry} onChange={e => setSqlBrief(p => ({ ...p, industry: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
-                      {['Finance', 'Healthcare', 'Retail', 'Marketing', 'HR', 'EdTech', 'Logistics', 'Consulting'].map(ind => <option key={ind} value={ind}>{ind}</option>)}
+            <motion.div key="sql-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+              <BriefPanel icon={<Database className="w-5 h-5" />} title="Create a SQL course" description="Describe the course. You review the outline before anything is generated." onBack={() => router.push('/dashboard')}>
+                <Field label="Course title">
+                  <input type="text" value={sqlBrief.title} onChange={e => setSqlBrief(p => ({ ...p, title: e.target.value }))} placeholder="e.g. SQL for Financial Analysts" className={fieldCls} style={inputStyle} />
+                </Field>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Industry">
+                    <select value={sqlBrief.industry} onChange={e => setSqlBrief(p => ({ ...p, industry: e.target.value }))} className={fieldCls} style={inputStyle}>
+                      {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Skill Level</label>
-                    <select value={sqlBrief.level} onChange={e => setSqlBrief(p => ({ ...p, level: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
-                      {['Beginner', 'Intermediate', 'Advanced'].map(lv => <option key={lv} value={lv}>{lv}</option>)}
+                  </Field>
+                  <Field label="Skill level">
+                    <select value={sqlBrief.level} onChange={e => setSqlBrief(p => ({ ...p, level: e.target.value }))} className={fieldCls} style={inputStyle}>
+                      {LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
                     </select>
-                  </div>
+                  </Field>
                 </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Target Role</label>
-                  <input type="text" value={sqlBrief.role} onChange={e => setSqlBrief(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Data Analyst, Business Intelligence Developer" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Specific Focus <span style={{ color: C.faint }}>(optional)</span></label>
-                  <AiTextarea value={sqlBrief.promptText} onValueChange={value => setSqlBrief(p => ({ ...p, promptText: value }))} placeholder="Any specific topics, datasets, or skills to focus on..." rows={3} className="w-full rounded-lg px-3 py-2 text-sm resize-none" style={inputStyle} />
-                </div>
-                <button type="button" onClick={handleGenerateSqlOutline} disabled={!!aiLoadingLabel || !sqlBrief.title.trim()} className="flex items-center justify-center gap-2 w-full py-3.5 mt-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40" style={{ background: ctaBg, color: ctaFg, border: ctaBorder }}>
-                  <Sparkles className="w-4 h-4" /> Generate Outline
-                </button>
-              </div>
-              </div>
+                <Field label="Target role">
+                  <input type="text" value={sqlBrief.role} onChange={e => setSqlBrief(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Data Analyst, Business Intelligence Developer" className={fieldCls} style={inputStyle} />
+                </Field>
+                <Field label="Specific focus" optional>
+                  <AiTextarea value={sqlBrief.promptText} onValueChange={value => setSqlBrief(p => ({ ...p, promptText: value }))} placeholder="Any topics, datasets or skills to focus on" rows={3} className={`${fieldCls} resize-none`} style={inputStyle} />
+                </Field>
+                <GenerateButton full label="Generate outline" onClick={handleGenerateSqlOutline} disabled={!!aiLoadingLabel || !sqlBrief.title.trim()} />
+              </BriefPanel>
             </motion.div>
           )}
 
-          {/* SQL Course Wizard -- Outline review step */}
+          {/* SQL course: outline review */}
           {sqlWizardStep === 'outline' && sqlOutline && (
             <motion.div key="sql-outline" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full pb-12">
-              <div className="rounded-[24px] p-5 sm:p-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4" style={wizardPanelStyle}>
-                <button type="button" onClick={() => setSqlWizardStep('brief')} className="w-10 h-10 rounded-xl flex items-center justify-center transition-opacity hover:opacity-60 shrink-0" style={wizardSoftStyle} title="Back to course brief">
-                  <ArrowLeft className="w-4 h-4" style={{ color: C.muted }} />
-                </button>
-                <div className="flex-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] mb-1" style={{ color: '#3b82f6' }}>Outline ready · Step 2 of 2</p>
-                  <h2 className="text-xl font-semibold tracking-tight" style={{ color: C.text }}>Review your SQL course</h2>
-                  <p className="text-sm" style={{ color: C.muted }}>Edit titles, lesson types, and the shared dataset before generating.</p>
+              <OutlineHeader title="Review your SQL course" description="Rename modules and lessons, change lesson types or regenerate a module, then generate the course."
+                onBack={() => setSqlWizardStep('brief')} onGenerate={handleGenerateSqlFullCourse} disabled={!!aiLoadingLabel} />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                <div className="lg:col-span-2">
+                  <OutlineModules modules={sqlOutline.modules ?? []} onChange={modules => setSqlOutline((prev: any) => ({ ...prev, modules }))} typeOptions={SQL_TYPES}
+                    newLesson={() => ({ id: newLessonId(), title: 'New lesson', skillFocus: '', questionType: 'sql', questionSummary: '' })}
+                    onRegenerate={handleRegenerateSqlModule} regenerating={sqlModuleLoading} />
                 </div>
-                <button type="button" onClick={handleGenerateSqlFullCourse} disabled={!!aiLoadingLabel} className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40" style={{ background: ctaBg, color: ctaFg, border: ctaBorder }}>
-                  <Sparkles className="w-3.5 h-3.5" /> Generate Full Course
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                {/* Modules -- 2/3 width */}
-                <div className="lg:col-span-2 flex flex-col gap-3">
-                  {(sqlOutline.modules ?? []).map((mod: any, modIdx: number) => (
-                    <div key={mod.id || modIdx} className="rounded-[20px] p-5" style={wizardPanelStyle}>
-                      <div className="flex items-start gap-2 mb-1">
-                        <span className="text-xs font-bold mt-2 flex-shrink-0" style={{ color: C.faint }}>M{modIdx + 1}</span>
-                        <div className="flex-1 min-w-0">
-                          <input value={mod.title} onChange={e => setSqlOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, i: number) => i === modIdx ? { ...m, title: e.target.value } : m) }))} className="w-full text-sm font-semibold bg-transparent border-none outline-none py-1" style={{ color: C.text }} />
-                          <input value={mod.description} onChange={e => setSqlOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, i: number) => i === modIdx ? { ...m, description: e.target.value } : m) }))} className="w-full text-xs bg-transparent border-none outline-none pb-1" style={{ color: C.muted }} />
-                        </div>
-                        <button type="button" onClick={() => handleRegenerateSqlModule(modIdx)} disabled={sqlModuleLoading !== null} className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg flex-shrink-0 transition-opacity disabled:opacity-40" style={{ background: C.pill, color: C.muted }}>
-                          {sqlModuleLoading === modIdx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                          Regenerate
-                        </button>
-                        <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, modules: prev.modules.filter((_: any, i: number) => i !== modIdx) }))} className="flex-shrink-0 transition-opacity hover:opacity-70" title="Delete module" style={{ color: C.faint }}>
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                      <div className="flex flex-col gap-1.5 mt-2 ml-5">
-                        {(mod.lessons ?? []).map((lesson: any, lessonIdx: number) => {
-                          const typeBg: Record<string, string> = { sql: '#3b82f6', mcq: '#475569', debug: '#d97706', completion: '#16a34a' };
-                          const col = typeBg[lesson.questionType] ?? '#475569';
-                          return (
-                            <div key={lesson.id || lessonIdx} className="flex items-center gap-2 group">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0" style={{ background: col, color: '#fff' }}>{lesson.questionType}</span>
-                              <input value={lesson.title} onChange={e => setSqlOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.map((l: any, li: number) => li === lessonIdx ? { ...l, title: e.target.value } : l) }) }))} className="flex-1 text-xs bg-transparent border-none outline-none" style={{ color: C.text }} />
-                              <select value={lesson.questionType} onChange={e => setSqlOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.map((l: any, li: number) => li === lessonIdx ? { ...l, questionType: e.target.value } : l) }) }))} className="text-[10px] rounded px-1 py-0.5 flex-shrink-0" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text }}>
-                                {['sql', 'mcq', 'debug', 'completion'].map(qt => <option key={qt} value={qt}>{qt}</option>)}
-                              </select>
-                              <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.filter((_: any, li: number) => li !== lessonIdx) }) }))} className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ color: C.faint }}>
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                        <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: [...m.lessons, { id: Math.random().toString(36).slice(2, 9), title: 'New lesson', skillFocus: '', questionType: 'sql', questionSummary: '' }] }) }))} className="flex items-center gap-1 text-xs mt-1 transition-opacity hover:opacity-60" style={{ color: C.faint }}>
-                          <Plus className="w-3 h-3" /> Add lesson
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Shared Dataset -- 1/3 width */}
-                <div className="flex flex-col gap-3">
-                  <div className="rounded-[20px] p-5" style={wizardPanelStyle}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Database className="w-4 h-4" style={{ color: '#3b82f6' }} />
-                      <h3 className="text-sm font-semibold" style={{ color: C.text }}>Shared Dataset</h3>
-                    </div>
-                    <p className="text-xs mb-3" style={{ color: C.muted }}>{sqlOutline.sharedDataset?.description ?? ''}</p>
-                    <div className="flex flex-col gap-2">
-                      {(sqlOutline.sharedDataset?.tables ?? []).map((table: any, tableIdx: number) => (
-                        <div key={tableIdx} className="rounded-lg overflow-hidden" style={{ border: `1px solid ${C.cardBorder}` }}>
+                <SidePanel title="Shared dataset" description={sqlOutline.sharedDataset?.description}>
+                  <div className="flex flex-col gap-2">
+                    {(sqlOutline.sharedDataset?.tables ?? []).map((table: any, tableIdx: number) => {
+                      const setTable = (patch: any) => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.map((t: any, i: number) => i === tableIdx ? { ...t, ...patch } : t) } }));
+                      const open = sqlExpandedTables.has(tableIdx);
+                      return (
+                        <div key={tableIdx} className="rounded-[10px] overflow-hidden" style={{ border: `1px solid ${C.inputBorder}` }}>
                           <div className="flex items-center gap-2 px-3 py-2">
                             <div className="flex-1 min-w-0">
-                              <input value={table.tableName} onChange={e => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.map((t: any, i: number) => i === tableIdx ? { ...t, tableName: e.target.value } : t) } }))} className="text-xs font-mono font-semibold bg-transparent border-none outline-none w-full" style={{ color: C.text }} />
-                              <input value={table.description} onChange={e => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.map((t: any, i: number) => i === tableIdx ? { ...t, description: e.target.value } : t) } }))} className="text-[10px] bg-transparent border-none outline-none w-full mt-0.5" style={{ color: C.faint }} />
+                              <input value={table.tableName} onChange={e => setTable({ tableName: e.target.value })} aria-label="Table name" className="text-xs font-mono font-semibold bg-transparent border-none outline-none w-full" style={{ color: C.text }} />
+                              <input value={table.description} onChange={e => setTable({ description: e.target.value })} aria-label="Table description" className="text-[11px] bg-transparent border-none outline-none w-full mt-0.5" style={{ color: C.faint }} />
                             </div>
-                            <button type="button" onClick={() => setSqlExpandedTables(prev => { const next = new Set(prev); next.has(tableIdx) ? next.delete(tableIdx) : next.add(tableIdx); return next; })} className="flex-shrink-0 transition-opacity hover:opacity-60" style={{ color: C.faint }}>
-                              {sqlExpandedTables.has(tableIdx) ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            <button type="button" onClick={() => setSqlExpandedTables(prev => { const next = new Set(prev); if (next.has(tableIdx)) next.delete(tableIdx); else next.add(tableIdx); return next; })}
+                              title={open ? 'Hide setup SQL' : 'Edit setup SQL'} aria-label={open ? 'Hide setup SQL' : 'Edit setup SQL'} className="shrink-0 transition-opacity hover:opacity-60" style={{ color: C.faint }}>
+                              {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                             </button>
-                            <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.filter((_: any, i: number) => i !== tableIdx) } }))} className="flex-shrink-0 transition-opacity hover:opacity-60 ml-0.5" style={{ color: '#ef4444' }}>
+                            <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.filter((_: any, i: number) => i !== tableIdx) } }))}
+                              title="Remove table" aria-label="Remove table" className="shrink-0 transition-opacity hover:opacity-60" style={{ color: red }}>
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
                           </div>
-                          {sqlExpandedTables.has(tableIdx) && (
-                            <AiTextarea value={table.seedSql} onValueChange={value => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: prev.sharedDataset.tables.map((t: any, i: number) => i === tableIdx ? { ...t, seedSql: value } : t) } }))} rows={8} className="w-full text-[11px] font-mono px-3 py-2 resize-none border-t outline-none" style={{ background: C.input, borderColor: C.cardBorder, color: C.text }} />
+                          {open && (
+                            <AiTextarea value={table.seedSql} onValueChange={value => setTable({ seedSql: value })} rows={8} className="w-full text-[11px] font-mono px-3 py-2 resize-none border-t outline-none" style={{ background: C.input, borderColor: C.inputBorder, color: C.text }} />
                           )}
                         </div>
-                      ))}
-                      <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: [...(prev.sharedDataset?.tables ?? []), { tableName: 'new_table', description: '', seedSql: 'CREATE TABLE new_table (\n  id INTEGER\n);\n' }] } }))} className="flex items-center gap-1 text-xs mt-1 transition-opacity hover:opacity-60" style={{ color: C.faint }}>
-                        <Plus className="w-3 h-3" /> Add table
-                      </button>
-                    </div>
+                      );
+                    })}
+                    <button type="button" onClick={() => setSqlOutline((prev: any) => ({ ...prev, sharedDataset: { ...prev.sharedDataset, tables: [...(prev.sharedDataset?.tables ?? []), { tableName: 'new_table', description: '', seedSql: 'CREATE TABLE new_table (\n  id INTEGER\n);\n' }] } }))}
+                      className="flex items-center gap-1 text-xs font-semibold mt-1 px-1 py-1 self-start transition-opacity hover:opacity-80" style={{ color: brand }}>
+                      <Plus className="w-3 h-3" /> Add table
+                    </button>
                   </div>
-                </div>
+                </SidePanel>
               </div>
             </motion.div>
           )}
 
-          {/* Document -> Course Wizard -- Input step */}
+          {/* Document course: source and brief */}
           {docWizardStep === 'input' && (
-            <motion.div key="doc-input" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-3xl mx-auto">
-              <div className="flex items-center justify-between mb-5">
-                <button type="button" onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
-                  <ArrowLeft className="w-4 h-4" /> Back to dashboard
-                </button>
-                <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: brandAccent }}>Course Studio</span>
-              </div>
-              <div className="rounded-[28px] p-6 sm:p-9" style={wizardPanelStyle}>
-              <div className="flex items-start gap-4 mb-8">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: `${brandAccent}18` }}>
-                  <FileText className="w-5 h-5" style={{ color: brandAccent }} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] mb-1.5" style={{ color: brandAccent }}>Transform source material</p>
-                  <h2 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>Create from a document</h2>
-                  <p className="text-sm mt-1 max-w-xl" style={{ color: C.muted }}>Turn a file, page, or pasted source into a structured course with lessons and practice.</p>
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-4">
-                {/* Source method tabs */}
-                <div className="grid grid-cols-3 gap-1.5 p-1.5 rounded-2xl" style={wizardSoftStyle}>
+            <motion.div key="doc-input" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+              <BriefPanel icon={<FileText className="w-5 h-5" />} title="Create from a document" description="Turn a file, page or pasted text into a course with lessons and practice." onBack={() => router.push('/dashboard')}>
+                <div className="grid grid-cols-3 gap-1 p-1 rounded-xl" style={{ background: C.pill }}>
                   {([
                     { key: 'file', label: 'Upload', icon: Upload },
                     { key: 'text', label: 'Paste text', icon: FileText },
@@ -775,7 +699,7 @@ export default function Page() {
                     const Icon = opt.icon;
                     const active = docSourceMethod === opt.key;
                     return (
-                      <button key={opt.key} type="button" onClick={() => setDocSourceMethod(opt.key)} className="flex items-center justify-center gap-2 py-2.5 rounded-xl text-xs font-semibold transition-all" style={active ? { background: C.card, color: C.text, boxShadow: theme === 'dark' ? 'none' : '0 4px 12px rgba(15,23,42,.08)' } : { background: 'transparent', color: C.muted }}>
+                      <button key={opt.key} type="button" onClick={() => setDocSourceMethod(opt.key)} aria-pressed={active} className="flex items-center justify-center gap-2 py-2 rounded-[9px] text-xs font-semibold transition-colors" style={active ? { background: C.card, color: C.text } : { background: 'transparent', color: C.muted }}>
                         <Icon className="w-3.5 h-3.5" /> {opt.label}
                       </button>
                     );
@@ -783,362 +707,165 @@ export default function Page() {
                 </div>
 
                 {docSourceMethod === 'file' && (
-                  <label className="flex flex-col items-center justify-center gap-2.5 py-10 rounded-2xl cursor-pointer transition-colors text-center" style={{ background: C.groupBg, border: `1.5px dashed ${docFile ? brandAccent : C.inputBorder}` }}>
-                    <span className="w-11 h-11 rounded-2xl flex items-center justify-center" style={{ background: `${brandAccent}14` }}><Upload className="w-5 h-5" style={{ color: brandAccent }} /></span>
-                    <span className="text-sm font-medium" style={{ color: C.text }}>{docFile ? docFile.name : 'Choose a file'}</span>
+                  <label className="flex flex-col items-center justify-center gap-1 py-8 rounded-2xl cursor-pointer text-center" style={{ border: `1.5px dashed ${docFile ? brand : C.inputBorder}` }}>
+                    <Upload className="w-5 h-5 mb-1.5" style={{ color: docFile ? brand : C.faint }} />
+                    <span className="text-sm font-semibold" style={{ color: C.text }}>{docFile ? docFile.name : 'Choose a file'}</span>
                     <span className="text-xs" style={{ color: C.faint }}>PDF, DOCX, DOC, TXT, PPTX, PPT (max 20 MB)</span>
                     <input type="file" accept=".pdf,.docx,.doc,.txt,.pptx,.ppt" className="hidden" onChange={e => setDocFile(e.target.files?.[0] ?? null)} />
                   </label>
                 )}
                 {docSourceMethod === 'text' && (
-                  <AiTextarea value={docText} onValueChange={setDocText} placeholder="Paste your documentation, product guide, or notes here..." rows={8} className="w-full rounded-lg px-3 py-2 text-sm resize-none" style={inputStyle} />
+                  <AiTextarea value={docText} onValueChange={setDocText} placeholder="Paste your documentation, product guide or notes here" rows={8} className={`${fieldCls} resize-none`} style={inputStyle} />
                 )}
                 {docSourceMethod === 'url' && (
-                  <input type="url" value={docUrl} onChange={e => setDocUrl(e.target.value)} placeholder="https://docs.example.com/guide" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
+                  <input type="url" value={docUrl} onChange={e => setDocUrl(e.target.value)} placeholder="https://docs.example.com/guide" className={fieldCls} style={inputStyle} />
                 )}
 
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Course Title <span style={{ color: C.faint }}>(optional)</span></label>
-                  <input type="text" value={docBrief.title} onChange={e => setDocBrief(p => ({ ...p, title: e.target.value }))} placeholder="Leave blank to let AI propose one" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Audience <span style={{ color: C.faint }}>(optional)</span></label>
-                    <input type="text" value={docBrief.audience} onChange={e => setDocBrief(p => ({ ...p, audience: e.target.value }))} placeholder="e.g. New customers, sales team" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Level</label>
-                    <select value={docBrief.level} onChange={e => setDocBrief(p => ({ ...p, level: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
-                      {['Beginner', 'Intermediate', 'Advanced'].map(lv => <option key={lv} value={lv}>{lv}</option>)}
+                <Field label="Course title" optional>
+                  <input type="text" value={docBrief.title} onChange={e => setDocBrief(p => ({ ...p, title: e.target.value }))} placeholder="Leave blank and AI proposes one" className={fieldCls} style={inputStyle} />
+                </Field>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Audience" optional>
+                    <input type="text" value={docBrief.audience} onChange={e => setDocBrief(p => ({ ...p, audience: e.target.value }))} placeholder="e.g. New customers, sales team" className={fieldCls} style={inputStyle} />
+                  </Field>
+                  <Field label="Level">
+                    <select value={docBrief.level} onChange={e => setDocBrief(p => ({ ...p, level: e.target.value }))} className={fieldCls} style={inputStyle}>
+                      {LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
                     </select>
-                  </div>
+                  </Field>
                 </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Course Goal <span style={{ color: C.faint }}>(what should learners be able to DO?)</span></label>
-                  <AiTextarea value={docBrief.goal} onValueChange={value => setDocBrief(p => ({ ...p, goal: value }))} placeholder="e.g. Confidently write SQL queries to answer real business questions" rows={2} className="w-full rounded-lg px-3 py-2 text-sm resize-none" style={inputStyle} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Specific Focus <span style={{ color: C.faint }}>(optional)</span></label>
-                  <AiTextarea value={docBrief.focus} onValueChange={value => setDocBrief(p => ({ ...p, focus: value }))} placeholder="Any sections, topics, or angles to emphasize or skip..." rows={2} className="w-full rounded-lg px-3 py-2 text-sm resize-none" style={inputStyle} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Depth</label>
-                  <div className="flex flex-wrap gap-2">
-                    {([
-                      { key: 'primer',        label: 'Quick primer' },
-                      { key: 'balanced',      label: 'Balanced' },
-                      { key: 'comprehensive', label: 'Comprehensive' },
-                    ] as const).map(opt => {
-                      const active = docBrief.depth === opt.key;
-                      return (
-                        <button key={opt.key} type="button" onClick={() => setDocBrief(p => ({ ...p, depth: opt.key }))} className="px-3 py-1.5 rounded-full text-xs font-medium transition-all" style={active ? { background: ctaBg, color: ctaFg, border: ctaBorder } : { background: C.pill, color: C.muted }}>
-                          {active ? <Check className="w-3 h-3 inline mr-1" /> : null}{opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>How thorough the course should be (controls how many modules and lessons).</p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Practice Style</label>
-                  <div className="flex flex-wrap gap-2">
-                    {([
-                      { key: 'hands_on',  label: 'Hands-on heavy' },
-                      { key: 'balanced',  label: 'Balanced' },
-                      { key: 'knowledge', label: 'Knowledge checks' },
-                    ] as const).map(opt => {
-                      const active = docBrief.practice === opt.key;
-                      return (
-                        <button key={opt.key} type="button" onClick={() => setDocBrief(p => ({ ...p, practice: opt.key }))} className="px-3 py-1.5 rounded-full text-xs font-medium transition-all" style={active ? { background: ctaBg, color: ctaFg, border: ctaBorder } : { background: C.pill, color: C.muted }}>
-                          {active ? <Check className="w-3 h-3 inline mr-1" /> : null}{opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Lean toward applied exercises (SQL, reviews) or quick knowledge checks.</p>
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Tone</label>
-                  <div className="flex flex-wrap gap-2">
-                    {([
-                      { key: 'professional',  label: 'Professional' },
-                      { key: 'conversational', label: 'Conversational' },
-                      { key: 'academic',      label: 'Academic' },
-                    ] as const).map(opt => {
-                      const active = docBrief.tone === opt.key;
-                      return (
-                        <button key={opt.key} type="button" onClick={() => setDocBrief(p => ({ ...p, tone: opt.key }))} className="px-3 py-1.5 rounded-full text-xs font-medium transition-all" style={active ? { background: ctaBg, color: ctaFg, border: ctaBorder } : { background: C.pill, color: C.muted }}>
-                          {active ? <Check className="w-3 h-3 inline mr-1" /> : null}{opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Lesson Images</label>
-                  <div className="flex flex-wrap gap-2">
-                    {([
-                      { key: 'source', label: 'From the document' },
-                      { key: 'stock',  label: 'Stock photos' },
-                    ] as const).map(opt => {
-                      const active = docBrief.imageMode.includes(opt.key);
-                      return (
-                        <button key={opt.key} type="button" onClick={() => setDocBrief(p => ({ ...p, imageMode: active ? p.imageMode.filter(m => m !== opt.key) : [...p.imageMode, opt.key] }))} className="px-3 py-1.5 rounded-full text-xs font-medium transition-all" style={active ? { background: ctaBg, color: ctaFg, border: ctaBorder } : { background: C.pill, color: C.muted }}>
-                          {active ? <Check className="w-3 h-3 inline mr-1" /> : null}{opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>Document pages are used for uploaded PDFs; stock photos cover everything else.</p>
-                </div>
+                <Field label="What should learners be able to do?">
+                  <AiTextarea value={docBrief.goal} onValueChange={value => setDocBrief(p => ({ ...p, goal: value }))} placeholder="e.g. Confidently write SQL queries to answer real business questions" rows={2} className={`${fieldCls} resize-none`} style={inputStyle} />
+                </Field>
 
-                {/* Videos */}
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Lesson Videos</label>
-                  <div className="flex flex-wrap gap-2">
-                    {([
-                      { val: true,  label: 'Include YouTube videos' },
-                      { val: false, label: 'No videos' },
-                    ] as const).map(opt => {
-                      const active = docBrief.includeVideos === opt.val;
-                      return (
-                        <button key={String(opt.val)} type="button" onClick={() => setDocBrief(p => ({ ...p, includeVideos: opt.val }))} className="px-3 py-1.5 rounded-full text-xs font-medium transition-all" style={active ? { background: ctaBg, color: ctaFg, border: ctaBorder } : { background: C.pill, color: C.muted }}>
-                          {active ? <Check className="w-3 h-3 inline mr-1" /> : null}{opt.label}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {docBrief.includeVideos && (
-                    <div className="mt-2.5">
-                      <input type="text" value={docBrief.preferredChannels} onChange={e => setDocBrief(p => ({ ...p, preferredChannels: e.target.value }))} placeholder="Channel name, @handle, or link, comma separated (optional)" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
-                      <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>e.g. freeCodeCamp, @AlexTheAnalyst, or a channel URL. Videos will be pulled from these channels when they have a relevant match.</p>
+                <div className="pt-3" style={{ borderTop: `1px solid ${C.divider}` }}>
+                  <button type="button" onClick={() => setDocMoreOpen(o => !o)} aria-expanded={docMoreOpen} className="w-full flex items-center gap-3 text-left">
+                    <span className="flex-1 min-w-0">
+                      <span className="block text-sm font-semibold" style={{ color: C.text }}>More options</span>
+                      {!docMoreOpen && <span className="block text-xs mt-0.5" style={{ color: C.faint }}>{docOptionsSummary}</span>}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 shrink-0 transition-transform ${docMoreOpen ? 'rotate-180' : ''}`} style={{ color: C.faint }} />
+                  </button>
+                  {docMoreOpen && (
+                    <div className="flex flex-col gap-4 mt-4">
+                      <Field label="Specific focus" optional>
+                        <AiTextarea value={docBrief.focus} onValueChange={value => setDocBrief(p => ({ ...p, focus: value }))} placeholder="Any sections, topics or angles to stress or skip" rows={2} className={`${fieldCls} resize-none`} style={inputStyle} />
+                      </Field>
+                      <Field label="Depth" hint="How thorough the course is: sets how many modules and lessons.">
+                        <Chips options={DOC_DEPTHS} isOn={k => docBrief.depth === k} onPick={k => setDocBrief(p => ({ ...p, depth: k }))} />
+                      </Field>
+                      <Field label="Practice style" hint="Lean toward applied exercises (SQL, reviews) or quick knowledge checks.">
+                        <Chips options={DOC_PRACTICE} isOn={k => docBrief.practice === k} onPick={k => setDocBrief(p => ({ ...p, practice: k }))} />
+                      </Field>
+                      <Field label="Tone">
+                        <Chips options={DOC_TONES} isOn={k => docBrief.tone === k} onPick={k => setDocBrief(p => ({ ...p, tone: k }))} />
+                      </Field>
+                      <Field label="Lesson images" hint="Document pages are used for uploaded PDFs; stock photos cover everything else.">
+                        <Chips options={DOC_IMAGES} isOn={k => docBrief.imageMode.includes(k)} onPick={k => setDocBrief(p => ({ ...p, imageMode: p.imageMode.includes(k) ? p.imageMode.filter(m => m !== k) : [...p.imageMode, k] }))} />
+                      </Field>
+                      <Field label="Lesson videos">
+                        <Chips options={DOC_VIDEOS} isOn={k => docBrief.includeVideos === k} onPick={k => setDocBrief(p => ({ ...p, includeVideos: k }))} />
+                        {docBrief.includeVideos && (
+                          <div className="mt-2.5">
+                            <input type="text" value={docBrief.preferredChannels} onChange={e => setDocBrief(p => ({ ...p, preferredChannels: e.target.value }))} placeholder="Channel name, @handle or link, comma separated (optional)" aria-label="Preferred YouTube channels" className={fieldCls} style={inputStyle} />
+                            <p className="text-[11px] mt-1.5" style={{ color: C.faint }}>e.g. freeCodeCamp, @AlexTheAnalyst or a channel URL. Videos come from these channels when they have a relevant match.</p>
+                          </div>
+                        )}
+                      </Field>
                     </div>
                   )}
                 </div>
 
-                <button type="button" onClick={handleGenerateDocOutline} disabled={!!aiLoadingLabel} className="flex items-center justify-center gap-2 w-full py-3.5 mt-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40" style={{ background: ctaBg, color: ctaFg, border: ctaBorder }}>
-                  <Sparkles className="w-4 h-4" /> Generate Outline
-                </button>
-              </div>
-              </div>
+                <GenerateButton full label="Generate outline" onClick={handleGenerateDocOutline} disabled={!!aiLoadingLabel} />
+              </BriefPanel>
             </motion.div>
           )}
 
-          {/* Document -> Course Wizard -- Outline review step */}
+          {/* Document course: outline review */}
           {docWizardStep === 'outline' && docOutline && (
             <motion.div key="doc-outline" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-5xl mx-auto pb-12">
-              <div className="rounded-[24px] p-5 sm:p-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4" style={wizardPanelStyle}>
-                <button type="button" onClick={() => setDocWizardStep('input')} className="w-10 h-10 rounded-xl flex items-center justify-center transition-opacity hover:opacity-60 shrink-0" style={wizardSoftStyle} title="Back to source settings">
-                  <ArrowLeft className="w-4 h-4" style={{ color: C.muted }} />
-                </button>
-                <div className="flex-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] mb-1" style={{ color: brandAccent }}>Outline ready · Step 2 of 2</p>
-                  <h2 className="text-xl font-semibold tracking-tight" style={{ color: C.text }}>Review your document course</h2>
-                  <p className="text-sm" style={{ color: C.muted }}>Edit module titles, lesson names, and activity types before generating.</p>
-                </div>
-                <button type="button" onClick={handleGenerateDocFullCourse} disabled={!!aiLoadingLabel} className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40" style={{ background: ctaBg, color: ctaFg, border: ctaBorder }}>
-                  <Sparkles className="w-3.5 h-3.5" /> Generate Full Course
-                </button>
-              </div>
-
-              <div className="flex flex-col gap-3">
-                {(docOutline.modules ?? []).map((mod: any, modIdx: number) => (
-                  <div key={mod.id || modIdx} className="rounded-[20px] p-5" style={wizardPanelStyle}>
-                    <div className="flex items-start gap-2 mb-1">
-                      <span className="text-xs font-bold mt-2 flex-shrink-0" style={{ color: C.faint }}>M{modIdx + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <input value={mod.title} onChange={e => setDocOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, i: number) => i === modIdx ? { ...m, title: e.target.value } : m) }))} className="w-full text-sm font-semibold bg-transparent border-none outline-none py-1" style={{ color: C.text }} />
-                        <input value={mod.description} onChange={e => setDocOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, i: number) => i === modIdx ? { ...m, description: e.target.value } : m) }))} className="w-full text-xs bg-transparent border-none outline-none pb-1" style={{ color: C.muted }} />
-                      </div>
-                      <button type="button" onClick={() => handleRegenerateDocModule(modIdx)} disabled={docModuleLoading !== null} className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg flex-shrink-0 transition-opacity disabled:opacity-40" style={{ background: C.pill, color: C.muted }}>
-                        {docModuleLoading === modIdx ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                        Regenerate
-                      </button>
-                      <button type="button" onClick={() => setDocOutline((prev: any) => ({ ...prev, modules: prev.modules.filter((_: any, i: number) => i !== modIdx) }))} className="flex-shrink-0 transition-opacity hover:opacity-70" title="Delete module" style={{ color: C.faint }}>
-                        <X className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                    <div className="flex flex-col gap-1.5 mt-2 ml-5">
-                      {(mod.lessons ?? []).map((lesson: any, lessonIdx: number) => {
-                        const typeBg: Record<string, string> = { multiple_choice: '#475569', fill_blank: '#16a34a', arrange: '#d97706', sql_exercise: '#3b82f6', python_exercise: '#f59e0b', code: '#0ea5e9', code_review: '#0891b2', excel_review: '#15803d', dashboard_critique: '#0d9488', document_review: '#b45309', written_response: '#7c2d12' };
-                        const typeLabel: Record<string, string> = { multiple_choice: 'MCQ', fill_blank: 'FILL', arrange: 'ORDER', sql_exercise: 'SQL', python_exercise: 'PYTHON', code: 'CODE', code_review: 'CODE REVIEW', excel_review: 'EXCEL', dashboard_critique: 'DASHBOARD', document_review: 'DOCUMENT', written_response: 'WRITTEN' };
-                        const docLessonTypes = ['multiple_choice', 'fill_blank', 'arrange', 'sql_exercise', 'python_exercise', 'code', 'code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'];
-                        const col = typeBg[lesson.questionType] ?? '#475569';
-                        return (
-                          <div key={lesson.id || lessonIdx} className="flex items-center gap-2 group">
-                            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0" style={{ background: col, color: '#fff' }}>{typeLabel[lesson.questionType] ?? 'MCQ'}</span>
-                            <input value={lesson.title} onChange={e => setDocOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.map((l: any, li: number) => li === lessonIdx ? { ...l, title: e.target.value } : l) }) }))} className="flex-1 text-xs bg-transparent border-none outline-none" style={{ color: C.text }} />
-                            <select value={lesson.questionType} onChange={e => setDocOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.map((l: any, li: number) => li === lessonIdx ? { ...l, questionType: e.target.value } : l) }) }))} className="text-[10px] rounded px-1 py-0.5 flex-shrink-0" style={{ background: C.input, border: `1px solid ${C.inputBorder}`, color: C.text }}>
-                              {docLessonTypes.map(qt => <option key={qt} value={qt}>{typeLabel[qt] ?? qt}</option>)}
-                            </select>
-                            <button type="button" onClick={() => setDocOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.filter((_: any, li: number) => li !== lessonIdx) }) }))} className="opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" style={{ color: C.faint }}>
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        );
-                      })}
-                      <button type="button" onClick={() => setDocOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: [...m.lessons, { id: Math.random().toString(36).slice(2, 9), title: 'New lesson', summary: '', questionType: 'multiple_choice' }] }) }))} className="flex items-center gap-1 text-xs mt-1 transition-opacity hover:opacity-60" style={{ color: C.faint }}>
-                        <Plus className="w-3 h-3" /> Add lesson
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <OutlineHeader title="Review your document course" description="Rename modules and lessons, change lesson types or regenerate a module, then generate the course."
+                onBack={() => setDocWizardStep('input')} onGenerate={handleGenerateDocFullCourse} disabled={!!aiLoadingLabel} />
+              <OutlineModules modules={docOutline.modules ?? []} onChange={modules => setDocOutline((prev: any) => ({ ...prev, modules }))} typeOptions={DOC_TYPES}
+                newLesson={() => ({ id: newLessonId(), title: 'New lesson', summary: '', questionType: 'multiple_choice' })}
+                onRegenerate={handleRegenerateDocModule} regenerating={docModuleLoading} />
             </motion.div>
           )}
 
-          {/* Python Course Wizard -- Brief step */}
+          {/* Python course: brief */}
           {pyWizardStep === 'brief' && (
-            <motion.div key="py-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-3xl mx-auto">
-              <div className="flex items-center justify-between mb-5">
-                <button type="button" onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
-                  <ArrowLeft className="w-4 h-4" /> Back to dashboard
-                </button>
-                <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#f59e0b' }}>Course Studio</span>
-              </div>
-              <div className="rounded-[28px] p-6 sm:p-9" style={wizardPanelStyle}>
-              <div className="flex items-start gap-4 mb-8">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: '#f59e0b18' }}>
-                  <Code2 className="w-5 h-5" style={{ color: '#f59e0b' }} />
-                </div>
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] mb-1.5" style={{ color: '#f59e0b' }}>Build with AI</p>
-                  <h2 className="text-2xl font-semibold tracking-tight" style={{ color: C.text }}>Create a Python course</h2>
-                  <p className="text-sm mt-1 max-w-xl" style={{ color: C.muted }}>Set the learning direction. You can review and refine every module before the course is created.</p>
-                </div>
-              </div>
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Course Title</label>
-                  <input type="text" value={pyBrief.title} onChange={e => setPyBrief(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Python for Financial Analysts" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Industry</label>
-                    <select value={pyBrief.industry} onChange={e => setPyBrief(p => ({ ...p, industry: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
-                      {['Finance', 'Healthcare', 'Retail', 'Marketing', 'HR', 'EdTech', 'Logistics', 'Consulting'].map(ind => <option key={ind} value={ind}>{ind}</option>)}
+            <motion.div key="py-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full">
+              <BriefPanel icon={<Code2 className="w-5 h-5" />} title="Create a Python course" description="Describe the course. You review the outline before anything is generated." onBack={() => router.push('/dashboard')}>
+                <Field label="Course title">
+                  <input type="text" value={pyBrief.title} onChange={e => setPyBrief(p => ({ ...p, title: e.target.value }))} placeholder="e.g. Python for Financial Analysts" className={fieldCls} style={inputStyle} />
+                </Field>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <Field label="Industry">
+                    <select value={pyBrief.industry} onChange={e => setPyBrief(p => ({ ...p, industry: e.target.value }))} className={fieldCls} style={inputStyle}>
+                      {INDUSTRIES.map(ind => <option key={ind} value={ind}>{ind}</option>)}
                     </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Skill Level</label>
-                    <select value={pyBrief.level} onChange={e => setPyBrief(p => ({ ...p, level: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
-                      {['Beginner', 'Intermediate', 'Advanced'].map(lv => <option key={lv} value={lv}>{lv}</option>)}
+                  </Field>
+                  <Field label="Skill level">
+                    <select value={pyBrief.level} onChange={e => setPyBrief(p => ({ ...p, level: e.target.value }))} className={fieldCls} style={inputStyle}>
+                      {LEVELS.map(lv => <option key={lv} value={lv}>{lv}</option>)}
                     </select>
-                  </div>
+                  </Field>
                 </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Focus Area</label>
-                  <select value={pyBrief.focus} onChange={e => setPyBrief(p => ({ ...p, focus: e.target.value }))} className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle}>
-                    {['Data Analysis', 'Data Visualization', 'Machine Learning', 'Statistics', 'Data Cleaning', 'Automation'].map(f => <option key={f} value={f}>{f}</option>)}
+                <Field label="Focus area">
+                  <select value={pyBrief.focus} onChange={e => setPyBrief(p => ({ ...p, focus: e.target.value }))} className={fieldCls} style={inputStyle}>
+                    {PY_FOCUS_AREAS.map(f => <option key={f} value={f}>{f}</option>)}
                   </select>
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Target Role</label>
-                  <input type="text" value={pyBrief.role} onChange={e => setPyBrief(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Data Analyst, Business Analyst" className="w-full rounded-lg px-3 py-2 text-sm" style={inputStyle} />
-                </div>
-                <div>
-                  <label className="text-xs font-medium mb-1.5 block" style={labelStyle}>Specific Focus <span style={{ color: C.faint }}>(optional)</span></label>
-                  <AiTextarea value={pyBrief.promptText} onValueChange={value => setPyBrief(p => ({ ...p, promptText: value }))} placeholder="Any specific libraries, datasets, or skills to focus on..." rows={3} className="w-full rounded-lg px-3 py-2 text-sm resize-none" style={inputStyle} />
-                </div>
-                <button type="button" onClick={handleGeneratePythonOutline} disabled={!!aiLoadingLabel || !pyBrief.title.trim()} className="flex items-center justify-center gap-2 w-full py-3.5 mt-2 rounded-xl text-sm font-semibold transition-all hover:opacity-90 disabled:opacity-40" style={{ background: ctaBg, color: ctaFg, border: ctaBorder }}>
-                  <Sparkles className="w-4 h-4" /> Generate Outline
-                </button>
-              </div>
-              </div>
+                </Field>
+                <Field label="Target role">
+                  <input type="text" value={pyBrief.role} onChange={e => setPyBrief(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Data Analyst, Business Analyst" className={fieldCls} style={inputStyle} />
+                </Field>
+                <Field label="Specific focus" optional>
+                  <AiTextarea value={pyBrief.promptText} onValueChange={value => setPyBrief(p => ({ ...p, promptText: value }))} placeholder="Any libraries, datasets or skills to focus on" rows={3} className={`${fieldCls} resize-none`} style={inputStyle} />
+                </Field>
+                <GenerateButton full label="Generate outline" onClick={handleGeneratePythonOutline} disabled={!!aiLoadingLabel || !pyBrief.title.trim()} />
+              </BriefPanel>
             </motion.div>
           )}
 
-          {/* Python Course Wizard -- Outline review step */}
+          {/* Python course: outline review */}
           {pyWizardStep === 'outline' && pyOutline && (
             <motion.div key="py-outline" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full pb-12">
-              <div className="rounded-[24px] p-5 sm:p-6 mb-6 flex flex-col sm:flex-row sm:items-center gap-4" style={wizardPanelStyle}>
-                <button type="button" onClick={() => setPyWizardStep('brief')} className="w-10 h-10 rounded-xl flex items-center justify-center transition-opacity hover:opacity-60 shrink-0" style={wizardSoftStyle} title="Back to course brief">
-                  <ArrowLeft className="w-4 h-4" style={{ color: C.muted }} />
-                </button>
-                <div className="flex-1">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] mb-1" style={{ color: '#f59e0b' }}>Outline ready · Step 2 of 2</p>
-                  <h2 className="text-xl font-semibold tracking-tight" style={{ color: C.text }}>Review your Python course</h2>
-                  <p className="text-sm" style={{ color: C.muted }}>Edit module and lesson titles, then confirm the dataset plan.</p>
+              <OutlineHeader title="Review your Python course" description="Rename modules and lessons, change lesson types or regenerate a module, then generate the course."
+                onBack={() => setPyWizardStep('brief')} onGenerate={handleGeneratePythonFullCourse} disabled={!!aiLoadingLabel} />
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+                <div className="lg:col-span-2">
+                  <OutlineModules modules={pyOutline.modules ?? []} onChange={modules => setPyOutline((prev: any) => ({ ...prev, modules }))} typeOptions={PY_TYPES}
+                    newLesson={() => ({ id: newLessonId(), title: 'New lesson', skillFocus: '', questionType: 'python_exercise', questionSummary: '' })}
+                    onRegenerate={handleRegeneratePyModule} regenerating={pyModuleLoading} />
                 </div>
-                <button type="button" onClick={handleGeneratePythonFullCourse} disabled={!!aiLoadingLabel} className="flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-opacity disabled:opacity-40" style={{ background: ctaBg, color: ctaFg, border: ctaBorder }}>
-                  <Sparkles className="w-3.5 h-3.5" /> Generate Full Course
-                </button>
-              </div>
-
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-                {/* Modules -- 2/3 width */}
-                <div className="lg:col-span-2 flex flex-col gap-3">
-                  {(pyOutline.modules ?? []).map((mod: any, modIdx: number) => (
-                    <div key={mod.id || modIdx} className="rounded-[20px] overflow-hidden" style={wizardPanelStyle}>
-                      <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: `1px solid ${C.divider}` }}>
-                        <button type="button"
-                          onClick={() => {
-                            setPyModuleLoading(modIdx);
-                            supabase.auth.getSession().then(({ data: { session } }) => {
-                              fetch('/api/ai-course', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session?.access_token}` },
-                                body: JSON.stringify({ action: 'generate_python_course_outline', ...pyBrief, moduleIndex: modIdx, existingOutline: pyOutline }),
-                              }).then(r => r.json()).then(data => {
-                                if (data.module) setPyOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, i: number) => i === modIdx ? data.module : m) }));
-                              }).finally(() => setPyModuleLoading(null));
-                            });
-                          }}
-                          disabled={pyModuleLoading !== null}
-                          className="p-1 rounded transition-opacity hover:opacity-60 disabled:opacity-30 flex-shrink-0" title="Regenerate this module" style={{ color: '#f59e0b' }}>
-                          <RefreshCw className={`w-3.5 h-3.5 ${pyModuleLoading === modIdx ? 'animate-spin' : ''}`} />
-                        </button>
-                        <input value={mod.title} onChange={e => setPyOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, i: number) => i !== modIdx ? m : { ...m, title: e.target.value }) }))} className="flex-1 text-sm font-semibold bg-transparent border-none outline-none" style={{ color: C.text }} />
-                      </div>
-                      <div className="flex flex-col gap-1.5 p-3 ml-5">
-                        {(mod.lessons ?? []).map((lesson: any, lessonIdx: number) => {
-                          const typeColors: Record<string, string> = { python_exercise: '#f59e0b', multiple_choice: '#475569' };
-                          const typeLabels: Record<string, string> = { python_exercise: 'PY', multiple_choice: 'MCQ' };
-                          const col = typeColors[lesson.questionType] ?? '#475569';
-                          return (
-                            <div key={lesson.id || lessonIdx} className="flex items-center gap-2 group">
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded uppercase flex-shrink-0" style={{ background: col, color: '#fff' }}>{typeLabels[lesson.questionType] ?? 'PY'}</span>
-                              <input value={lesson.title} onChange={e => setPyOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.map((l: any, li: number) => li !== lessonIdx ? l : { ...l, title: e.target.value }) }) }))} className="flex-1 text-xs bg-transparent border-none outline-none" style={{ color: C.text }} />
-                              <button type="button" onClick={() => setPyOutline((prev: any) => ({ ...prev, modules: prev.modules.map((m: any, mi: number) => mi !== modIdx ? m : { ...m, lessons: m.lessons.filter((_: any, li: number) => li !== lessonIdx) }) }))} className="opacity-0 group-hover:opacity-100 transition-opacity" style={{ color: C.faint }}>
-                                <X className="w-3 h-3" />
-                              </button>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Dataset plan -- 1/3 width */}
                 <div className="flex flex-col gap-3">
-                  <div className="rounded-[20px] p-5" style={wizardPanelStyle}>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: '#f59e0b' }}>Dataset Plan</p>
-                    <p className="text-xs mb-3" style={{ color: C.muted }}>{pyOutline.datasetPlan?.description}</p>
-                    {(pyOutline.datasetPlan?.datasets ?? []).map((ds: any, i: number) => (
-                      <div key={i} className="mb-3 last:mb-0 rounded-lg p-3" style={{ background: C.groupBg, border: `1px solid ${C.inputBorder}` }}>
-                        <p className="text-xs font-mono font-bold mb-1" style={{ color: '#f59e0b' }}>{ds.variableName}</p>
-                        <p className="text-xs mb-1.5" style={{ color: C.muted }}>{ds.description}</p>
-                        <div className="flex flex-wrap gap-1">
-                          {(ds.columns ?? []).map((col: string) => (
-                            <span key={col} className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: C.pill, color: C.muted }}>{col}</span>
-                          ))}
+                  <SidePanel title="Dataset plan" description={pyOutline.datasetPlan?.description}>
+                    <div className="flex flex-col gap-2">
+                      {(pyOutline.datasetPlan?.datasets ?? []).map((ds: any, i: number) => (
+                        <div key={i} className="rounded-[10px] p-3" style={{ background: C.input }}>
+                          <p className="text-xs font-mono font-semibold" style={{ color: C.text }}>{ds.variableName}</p>
+                          <p className="text-xs mt-0.5 mb-1.5" style={{ color: C.muted }}>{ds.description}</p>
+                          <div className="flex flex-wrap gap-1">
+                            {(ds.columns ?? []).map((col: string) => (
+                              <span key={col} className="text-[10px] px-1.5 py-0.5 rounded font-mono" style={{ background: C.card, color: C.muted }}>{col}</span>
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    ))}
-                    <div className="mt-3 rounded-lg p-3" style={{ background: '#f59e0b0d', border: '1px solid #f59e0b22' }}>
-                      <p className="text-[11px] font-semibold mb-1" style={{ color: '#f59e0b' }}>After generating</p>
-                      <p className="text-[11px]" style={{ color: C.muted }}>Prepare CSV files matching these schemas and upload them to each exercise in the course editor.</p>
-                    </div>
-                  </div>
-                  <div className="rounded-[20px] p-5" style={wizardPanelStyle}>
-                    <p className="text-xs font-bold uppercase tracking-widest mb-2" style={{ color: C.muted }}>Outcomes</p>
-                    <ul className="text-xs space-y-1.5" style={{ color: C.text }}>
-                      {(pyOutline.learningOutcomes ?? []).map((o: string, i: number) => (
-                        <li key={i} className="flex items-start gap-1.5"><span style={{ color: '#f59e0b' }}>+</span>{o}</li>
                       ))}
-                    </ul>
-                  </div>
+                      <p className="text-[11px] rounded-[10px] p-3" style={{ background: C.pill, color: C.muted }}>
+                        <span className="font-semibold" style={{ color: C.text }}>After generating: </span>prepare CSV files matching these schemas and upload them to each exercise in the course editor.
+                      </p>
+                    </div>
+                  </SidePanel>
+                  {(pyOutline.learningOutcomes ?? []).length > 0 && (
+                    <SidePanel title="Outcomes">
+                      <ul className="text-xs space-y-1.5" style={{ color: C.text }}>
+                        {(pyOutline.learningOutcomes ?? []).map((o: string, i: number) => (
+                          <li key={i} className="flex items-start gap-1.5"><Check className="w-3 h-3 mt-0.5 shrink-0" style={{ color: brand }} />{o}</li>
+                        ))}
+                      </ul>
+                    </SidePanel>
+                  )}
                 </div>
               </div>
             </motion.div>
