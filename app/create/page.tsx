@@ -13,7 +13,7 @@ import { BriefPanel, Chips, Field, GenerateButton, OutlineHeader, OutlineModules
 import { TEMPLATES } from '@/components/create/shared';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { AiTextarea } from '@/components/AiTextarea';
-import { lessonHtmlToDoc } from '@/components/lesson/extensions';
+import { loadLessonHtmlToDoc } from '@/components/lesson/loadLessonHtmlToDoc';
 import { supabase } from '@/lib/supabase';
 import { formatSQLPreflightIssue, preflightSQLExercises } from '@/lib/sql-exercise-preflight';
 import { formatPythonPreflightIssue, preflightPythonExercises } from '@/lib/python-exercise-preflight';
@@ -22,7 +22,8 @@ import { useRouter } from 'next/navigation';
 // Convert AI-generated question lessons (HTML body) into canonical interactive docs
 // so full course generation produces doc-canonical lessons, matching the per-lesson
 // generate_lesson flow. Body is kept as the lossy fallback. Runs client-side.
-function attachQuestionLessonDocs(questions: any[]): any[] {
+async function attachQuestionLessonDocs(questions: any[]): Promise<any[]> {
+  const lessonHtmlToDoc = await loadLessonHtmlToDoc();
   return (questions || []).map((q: any) => {
     if (!q?.lesson?.body || q.lesson.doc) return q;
     try { return { ...q, lesson: { ...q.lesson, doc: lessonHtmlToDoc(q.lesson.body) } }; }
@@ -349,7 +350,7 @@ export default function Page() {
         mode: 'dark',
         font: 'google-sans-text',
         fields: [],
-        questions: attachQuestionLessonDocs(data.questions || []),
+        questions: await attachQuestionLessonDocs(data.questions || []),
         learnOutcomes: data.learnOutcomes || [],
       });
       setSqlWizardStep(null);
@@ -417,7 +418,7 @@ export default function Page() {
         mode: 'dark',
         font: 'google-sans-text',
         fields: [],
-        questions: attachQuestionLessonDocs(data.questions || []),
+        questions: await attachQuestionLessonDocs(data.questions || []),
         learnOutcomes: data.learnOutcomes || [],
       });
       setPyWizardStep(null);
@@ -565,7 +566,7 @@ export default function Page() {
         mode: 'dark',
         font: 'google-sans-text',
         fields: [],
-        questions: attachQuestionLessonDocs(data.questions || []),
+        questions: await attachQuestionLessonDocs(data.questions || []),
         learnOutcomes: data.learnOutcomes || [],
       });
       setDocWizardStep(null);

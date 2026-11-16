@@ -87,7 +87,7 @@ function SortableVEShell({ id, children }: {
 }
 import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { AiTextarea } from '@/components/AiTextarea';
-import { lessonHtmlToDoc } from '@/components/lesson/extensions';
+import { loadLessonHtmlToDoc } from '@/components/lesson/loadLessonHtmlToDoc';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense } from 'react';
@@ -95,7 +95,7 @@ import { Suspense } from 'react';
 // Convert AI-generated lesson bodies (HTML) into canonical interactive docs so VE
 // lessons stay doc-canonical, matching the course generate_lesson flow. The HTML
 // `body` is kept as the lossy fallback. Runs client-side (generateJSON needs a DOM).
-function attachLessonDocs<T extends { modules?: unknown[] }>(cfg: T): T {
+function attachLessonDocs<T extends { modules?: unknown[] }>(cfg: T, lessonHtmlToDoc: (html: string) => LessonDoc): T {
   if (!cfg?.modules) return cfg;
   return {
     ...cfg,
@@ -122,7 +122,7 @@ function attachLessonDocs<T extends { modules?: unknown[] }>(cfg: T): T {
 // Mission docs are retained when their HTML fallback is unchanged. Deliverable docs are always
 // retained because the Improve endpoint only receives their lossy HTML fallback; authors use the
 // document-aware AI tools inside the interactive instructions editor to change those safely.
-function preserveLessonDocs<T extends { modules?: unknown[] }>(cfg: T, prior: { modules?: any[] } | null | undefined): T {
+function preserveLessonDocs<T extends { modules?: unknown[] }>(cfg: T, prior: { modules?: any[] } | null | undefined, lessonHtmlToDoc: (html: string) => LessonDoc): T {
   if (!cfg?.modules) return cfg;
   // Compare bodies ignoring whitespace so harmless reformatting by the AI is not
   // mistaken for a rewrite (which would trigger a lossy doc rebuild).
@@ -1227,7 +1227,7 @@ function VirtualExperienceCreatePageInner() {
       if (!res.ok) throw new Error(json.error || 'Generation failed');
       // Merge instructor-provided URL/description into dataset (whether AI-generated or instructor-provided)
       mergeDraftDatasetIntoGeneratedConfig(json.config);
-      setConfig(attachLessonDocs(json.config));
+      setConfig(attachLessonDocs(json.config, await loadLessonHtmlToDoc()));
       setBackgroundDraft(htmlToPlainText(json.config.background || ''));
       setTitle(json.config.company ? `${json.config.company} - ${effectiveIndustry.charAt(0).toUpperCase()+effectiveIndustry.slice(1)} Project` : 'Virtual Experience');
       setCoverImage(json.config.coverImage || '');
@@ -1254,7 +1254,7 @@ function VirtualExperienceCreatePageInner() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Generation failed');
       mergeDraftDatasetIntoGeneratedConfig(json.config);
-      setConfig(attachLessonDocs(json.config));
+      setConfig(attachLessonDocs(json.config, await loadLessonHtmlToDoc()));
       setBackgroundDraft(htmlToPlainText(json.config.background || ''));
       setTitle(json.config.company ? `${json.config.company} - ${effectiveIndustry.charAt(0).toUpperCase()+effectiveIndustry.slice(1)} Project` : 'Virtual Experience');
       setCoverImage(json.config.coverImage || '');
@@ -1419,7 +1419,7 @@ function VirtualExperienceCreatePageInner() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed');
       if (json.config) {
-        setConfig(preserveLessonDocs(json.config, config) as ProjectConfig);
+        setConfig(preserveLessonDocs(json.config, config, await loadLessonHtmlToDoc()) as ProjectConfig);
         setImproveInstruction('');
         setShowImprove(false);
       }
