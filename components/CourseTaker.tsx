@@ -12,7 +12,7 @@ import {
   CheckCircle2, XCircle, Loader2, ChevronRight, RotateCcw,
   Clock, AlertTriangle, BookOpen, X, ExternalLink, ArrowRight, Download, ArrowDownToLine, Lock,
   Check, Play, FileText, FlaskConical, ListChecks, Copy, MousePointerClick,
-  PenLine, Link2, Image as ImageIcon,
+  PenLine, Link2, Image as ImageIcon, CalendarDays,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { MenuIcon } from '@/components/MenuIcon';
@@ -1570,7 +1570,9 @@ export function CourseTaker({
                 <p className={`text-xs font-semibold tracking-widest uppercase px-1 ${mutedColor}`}>You might also like</p>
                 {relatedForms.map((rf: any) => {
                   const rfConfig = rf.config || {};
-                  const href = rf.slug ? `/${rf.slug}` : `/${rf.id}`;
+                  const isCourseItem = rfConfig.isCourse === true;
+                  const href = contentPath({ id: rf.id, slug: rf.slug, config: rfConfig });
+                  const ItemIcon = isCourseItem ? BookOpen : CalendarDays;
                   return (
                     <a key={rf.id} href={href}
                       className={`flex rounded-2xl overflow-hidden transition-all duration-200 hover:scale-[1.02] hover:shadow-lg ${isDark ? 'bg-zinc-900 border border-zinc-800' : 'bg-white border border-zinc-100 shadow-sm'}`}>
@@ -1579,7 +1581,7 @@ export function CourseTaker({
                           <img src={resolveCoverUrl(rfConfig.coverImage)} alt="" className="w-full h-full object-cover" style={{ minHeight: '100px' }} onError={e => (e.currentTarget.style.display = 'none')} />
                         </div>
                       ) : (
-                        <div className={`w-28 flex-shrink-0 flex items-center justify-center text-2xl ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`} style={{ minHeight: '100px' }}>🗓</div>
+                        <div className={`w-28 flex-shrink-0 flex items-center justify-center ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`} style={{ minHeight: '100px' }}><ItemIcon className={`w-6 h-6 ${mutedColor}`} /></div>
                       )}
                       <div className="flex-1 min-w-0 p-4 flex flex-col justify-between gap-2">
                         <div>
@@ -1589,7 +1591,7 @@ export function CourseTaker({
                           )}
                         </div>
                         <span className="inline-flex items-center gap-1 text-xs font-semibold" style={{ color: accent }}>
-                          Register now <ArrowRight className="w-3 h-3" />
+                          {isCourseItem ? 'Start course' : 'Register now'} <ArrowRight className="w-3 h-3" />
                         </span>
                       </div>
                     </a>

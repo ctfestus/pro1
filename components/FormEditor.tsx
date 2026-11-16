@@ -538,7 +538,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
   const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
   const [closedLessons, setClosedLessons] = useState<Set<string>>(new Set());
-  const [availableForms, setAvailableForms] = useState<{ id: string; title: string; slug: string }[]>([]);
+  const [availableForms, setAvailableForms] = useState<{ id: string; title: string; slug: string; kind: 'Course' | 'Event' }[]>([]);
   const [cohorts, setCohorts]               = useState<{ id: string; name: string }[]>([]);
   const [partners, setPartners]               = useState<{ id: string; name: string; is_active: boolean }[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
@@ -706,12 +706,15 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
     (async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.user) return;
-      const { data } = await supabase
-        .from('events')
-        .select('id, title, slug')
-        .eq('user_id', session.user.id)
-        .order('created_at', { ascending: false });
-      if (data) setAvailableForms(data.filter((f: any) => f.id !== formId));
+      // Your events and courses: learners who finish can be pointed at either.
+      const [{ data: events }, { data: courses }] = await Promise.all([
+        supabase.from('events').select('id, title, slug').eq('user_id', session.user.id).order('created_at', { ascending: false }),
+        supabase.from('courses').select('id, title, slug').eq('user_id', session.user.id).order('created_at', { ascending: false }),
+      ]);
+      setAvailableForms([
+        ...(courses ?? []).map((c: any) => ({ ...c, kind: 'Course' as const })),
+        ...(events ?? []).map((e: any) => ({ ...e, kind: 'Event' as const })),
+      ].filter(f => f.id !== formId));
     })();
   }, [formConfig?.postSubmission?.type, formId]);
 
@@ -4220,7 +4223,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                       { value: 'default', label: 'Thank you', description: 'Show the standard completion screen', Icon: CheckCircle2 },
                       { value: 'redirect', label: 'Redirect URL', description: 'Send learners to another page', Icon: ExternalLink },
                       { value: 'button', label: 'CTA Button', description: 'Offer one clear next action', Icon: ArrowUpRight },
-                      { value: 'events', label: 'Show Events', description: 'Recommend related experiences', Icon: CalendarDays },
+                      { value: 'events', label: 'Recommend next', description: 'Suggest courses or events to take next', Icon: CalendarDays },
                       { value: 'notice', label: 'Notice', description: 'Display a custom final message', Icon: ClipboardList },
                     ] as const).map(({ value, label, description, Icon }) => (
                       <button
@@ -4286,9 +4289,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 {/* Show Events */}
                 {(formConfig.postSubmission?.type === 'events') && (
                   <div className="space-y-2">
-                    <label className={labelCls} style={labelStyle}>Select forms/events to show</label>
+                    <label className={labelCls} style={labelStyle}>Courses and events to suggest</label>
                     {availableForms.length === 0 ? (
-                      <p className="text-[11px] py-2" style={{ color: FE.faint }}>No other forms found.</p>
+                      <p className="text-[11px] py-2" style={{ color: FE.faint }}>You have no other courses or events yet.</p>
                     ) : (
                       <div className="space-y-1.5 max-h-48 overflow-y-auto custom-scrollbar">
                         {availableForms.map(f => {
@@ -4306,7 +4309,8 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                                 className="w-3.5 h-3.5 rounded"
                                 style={{ accentColor: accentColor }}
                               />
-                              <span className="text-xs truncate" style={{ color: FE.text }}>{(f as any).config?.title || f.title || f.slug}</span>
+                              <span className="text-xs truncate flex-1 min-w-0" style={{ color: FE.text }}>{f.title || f.slug}</span>
+                              <span className="text-[11px] flex-shrink-0" style={{ color: FE.faint }}>{f.kind}</span>
                             </label>
                           );
                         })}
