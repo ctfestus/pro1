@@ -548,6 +548,21 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     if (!isLoading && savedSnapshot === null && currentSnapshot) setSavedSnapshot(currentSnapshot);
   }, [isLoading, currentSnapshot, savedSnapshot]);
   const isDirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+
+  // Whatever is added to the outline (a question, lesson, module, downloads or LinkedIn step,
+  // at the end or between rows) opens at once, ready to fill in. Only a single new item:
+  // AI generation adds many at once and is left closed.
+  const knownItemIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (isLoading || !formConfig) return;
+    const ids = (formConfig.questions ?? []).map(q => q.id);
+    if (knownItemIds.current === null) { knownItemIds.current = new Set(ids); return; }
+    const added = ids.filter(id => !knownItemIds.current!.has(id));
+    knownItemIds.current = new Set(ids);
+    if (added.length !== 1) return;
+    setExpandedQuestions(prev => new Set([...prev, added[0]]));
+    setTimeout(() => document.querySelector(`[data-item-id="${added[0]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 120);
+  }, [formConfig, isLoading]);
   // Leaving with unsaved changes asks first.
   useEffect(() => {
     if (!isDirty) return;
@@ -1190,7 +1205,6 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     const qs = [...(formConfig.questions || [])];
     qs.splice(afterIndex + 1, 0, lesson);
     updateConfig({ questions: qs });
-    setExpandedQuestions(prev => new Set([...prev, lesson.id]));
   };
 
   const handleAddSection = () => {
@@ -2948,6 +2962,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           <div>
                             <label className={labelCls} style={labelStyle}>Question</label>
                             <input type="text" value={q.question} onChange={e => handleUpdateQuestion(q.id, { question: e.target.value })} className={inputCls} style={inputStyle}
+                              autoFocus={!q.question}
                               placeholder={qType === 'fill_blank' ? 'e.g. The capital of France is ___' : 'Enter your question...'} />
                             {qType === 'fill_blank' && (
                               <div className="mt-2 rounded-lg px-3 py-2" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
