@@ -1633,21 +1633,13 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
           <div className="relative z-10" style={{ background: FE.card, borderBottom: `1px solid ${FE.cardBorder}` }}>
             <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
               <div className="min-w-0 mr-auto">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-2.5 w-2.5 items-center justify-center" aria-hidden="true">
-                    <span className="absolute h-2.5 w-2.5 animate-ping rounded-full opacity-20 motion-reduce:animate-none" style={{ background: accentColor }} />
-                    <span className="relative h-1.5 w-1.5 rounded-full" style={{ background: accentColor }} />
-                  </span>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: accentColor }}>Course Studio</p>
-                </div>
-                <p className="mt-1 truncate text-base font-semibold leading-tight sm:text-lg" style={{ color: FE.text }}>{formConfig.title || 'Untitled course'}</p>
+                <p className="truncate text-base font-semibold leading-tight sm:text-lg" style={{ color: FE.text }}>{formConfig.title || 'Untitled course'}</p>
               </div>
               <button type="button" onClick={() => window.open(`/${customSlug || formId}`, '_blank', 'noopener,noreferrer')}
                 className="hidden items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:flex"
                 style={{ background: FE.groupBg, color: FE.muted }}>
                 <ExternalLink className="h-3.5 w-3.5" /> Preview
               </button>
-              <span className="hidden text-[11px] sm:inline" style={{ color: FE.faint }}>{isSaving ? 'Saving changes…' : saved ? 'All changes saved' : 'Editing course'}</span>
             </div>
             <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-3 sm:px-6" aria-label="Course studio modes" style={{ scrollbarWidth: 'none' }}>
               {courseStudioModes.map(mode => {
@@ -1668,15 +1660,17 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
           <div>
           {(() => {
             const navSections = editorSections;
-            const ids = formConfig.isCourse ? courseStudioModes.map(mode => mode.sections[0]) : editorSectionIds;
-            const i = formConfig.isCourse ? courseStudioModes.findIndex(mode => mode.id === activeStudioMode.id) : ids.indexOf(activeSection);
-            const currentLabel = formConfig.isCourse ? activeStudioMode.label : navSections[editorSectionIds.indexOf(activeSection)]?.label;
+            // Courses: the highlighted step above already names the step and switches between them.
+            if (formConfig.isCourse) return null;
+            const ids = editorSectionIds;
+            const i = ids.indexOf(activeSection);
+            const currentLabel = navSections[editorSectionIds.indexOf(activeSection)]?.label;
             return (
               <div className="px-5 py-4 sm:px-8" style={{ borderBottom: `1px solid ${FE.cardBorder}` }}>
                 <div className="flex items-center justify-between gap-4">
                   <div className="min-w-0">
                     <h2 className="truncate text-lg font-bold leading-tight sm:text-xl" style={{ color: FE.text }}>{currentLabel}</h2>
-                    <p className="mt-1 text-[11px] font-medium" style={{ color: FE.faint }}>{formConfig.isCourse ? `${activeStudioMode.label} workspace` : `Step ${i + 1} of ${ids.length}`}</p>
+                    <p className="mt-1 text-[11px] font-medium" style={{ color: FE.faint }}>Step {i + 1} of {ids.length}</p>
                   </div>
                   <div className="flex flex-shrink-0 items-center gap-2">
                     <button type="button" disabled={i <= 0} onClick={() => goToSection(ids[i - 1], ids)} aria-label="Previous"
