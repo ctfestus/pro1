@@ -2587,21 +2587,31 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                               </button>
                             </div>
                             {isExpanded && (
-                            <div className="px-3.5 py-3 space-y-2">
+                            // White like every other open row, below the tinted heading strip.
+                            <div className="px-3.5 py-3 space-y-3" style={{ background: FE.card, borderBottom: `1px solid ${FE.divider}` }}>
+                              <div>
+                              <label htmlFor={`module-name-${q.id}`} className={labelCls} style={labelStyle}>Module name</label>
                               <input
+                                id={`module-name-${q.id}`}
                                 value={q.sectionTitle || ''}
                                 onChange={e => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, sectionTitle: e.target.value } : qq) })}
-                                placeholder="Module name"
-                                className={`${inputCls} font-semibold`}
-                                style={inputStyle}
+                                placeholder="e.g. Week 1: Cleaning the data"
+                                autoFocus={!q.sectionTitle}
+                                className={inputCls}
+                                style={!q.sectionTitle?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
                               />
+                              </div>
+                              <div>
+                              <label htmlFor={`module-desc-${q.id}`} className={labelCls} style={labelStyle}>Description <span style={{ color: FE.faint }}>(optional, shown when the module starts)</span></label>
                               <input
+                                id={`module-desc-${q.id}`}
                                 value={q.sectionDescription || ''}
                                 onChange={e => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, sectionDescription: e.target.value } : qq) })}
-                                placeholder="Optional description…"
+                                placeholder="What learners will do in this module"
                                 className={inputCls}
                                 style={inputStyle}
                               />
+                              </div>
                             </div>
                             )}
                           </div>
