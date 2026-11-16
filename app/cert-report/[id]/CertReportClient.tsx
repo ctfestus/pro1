@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTenant } from '@/components/TenantProvider';
 import { ShieldCheck, Calendar, Link2, Check, CheckCircle2, XCircle, Award, ExternalLink } from 'lucide-react';
 import type { CertReportData, SkillResult } from '@/lib/cert-report';
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 
 // Official LinkedIn brand mark (fills currentColor so it inherits the button colour).
 function LinkedInIcon({ className }: { className?: string }) {
@@ -25,18 +26,15 @@ export default function CertReportClient({ data }: { data: CertReportData }) {
   // The report uses a professional success-green accent (not the tenant brand, which can be purple).
   const accent = '#16a34a';
   const org = orgName || appName || 'our platform';
-  const issued = new Date(data.issuedAt);
   const firstName = data.studentName.split(' ')[0] || data.studentName;
 
   const reportUrl = () => `${window.location.origin}/cert-report/${data.certId}`;
   const certUrl = () => `${window.location.origin}/certificate/${data.certId}`;
   const openNew = (url: string) => window.open(url, '_blank', 'noopener,noreferrer');
   const shareToLinkedIn = () => openNew(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(reportUrl())}`);
-  const addToLinkedIn = () => openNew(
-    `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(data.certTitle)}` +
-    `&organizationName=${encodeURIComponent(org)}&issueYear=${issued.getFullYear()}&issueMonth=${issued.getMonth() + 1}` +
-    `&certUrl=${encodeURIComponent(certUrl())}&certId=${encodeURIComponent(data.certId)}`,
-  );
+  const addToLinkedIn = () => openNew(linkedInAddCertUrl({
+    name: data.certTitle, organizationName: org, issuedAt: data.issuedAt, certId: data.certId, certUrl: certUrl(),
+  }));
 
   const [copied, setCopied] = useState<'link' | 'text' | null>(null);
   const copy = (val: string, which: 'link' | 'text') => {

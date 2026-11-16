@@ -5,6 +5,7 @@ import CertificateTemplate, { CertificateSettings } from "@/components/Certifica
 import { Download, Loader2, Check, Link as LinkIcon, ChevronDown, BadgeCheck } from "lucide-react";
 import { useTheme } from "@/components/ThemeProvider";
 import { sanitizeRichText } from "@/lib/sanitize";
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 
 const CERT_W = 1860;
 const CERT_H = 1200;
@@ -110,9 +111,6 @@ export default function OpenCertPageClient({
   const thumbScaleMob = THUMB_W_MOB / CERT_W;
   const thumbHMob     = Math.round(CERT_H * thumbScaleMob);
 
-  const d          = new Date(issuedAt);
-  const issueYear  = d.getFullYear();
-  const issueMonth = d.getMonth() + 1;
 
   const initials = recipientName
     .split(" ").slice(0, 2).map(p => p[0]?.toUpperCase() ?? "").join("");
@@ -179,7 +177,7 @@ export default function OpenCertPageClient({
   };
 
   const linkedInUrl = certUrl
-    ? `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(programName)}&organizationName=${encodeURIComponent(settings.institutionName)}&issueYear=${issueYear}&issueMonth=${issueMonth}&certId=${encodeURIComponent(certId)}&certUrl=${encodeURIComponent(certUrl)}`
+    ? linkedInAddCertUrl({ name: programName, organizationName: settings.institutionName, issuedAt, certId, certUrl })
     : "#";
 
   const tw = isMobile ? THUMB_W_MOB : THUMB_W;

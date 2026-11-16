@@ -4,6 +4,7 @@ import { useRef, useState, useEffect } from "react";
 import CertificateTemplate, { CertificateSettings } from "@/components/CertificateTemplate";
 import { resolveCoverUrl } from "@/lib/cloudinary-url";
 import { Download, Loader2, Check, Link as LinkIcon } from "lucide-react";
+import { linkedInAddCertUrl } from '@/lib/linkedin-cert-url';
 
 const CERT_W = 1860;
 const CERT_H = 1200;
@@ -76,8 +77,6 @@ export default function CertificatePageClient({
   const previewW = Math.round(CERT_W * mainScale);
   const previewH = Math.round(CERT_H * mainScale);
 
-  const issueYear  = new Date(issuedAt).getFullYear();
-  const issueMonth = new Date(issuedAt).getMonth() + 1;
 
   const initials = studentName
     .split(" ")
@@ -132,7 +131,7 @@ export default function CertificatePageClient({
   };
 
   const linkedInUrl = certUrl
-    ? `https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME&name=${encodeURIComponent(courseName)}&organizationName=${encodeURIComponent(settings.institutionName)}&issueYear=${issueYear}&issueMonth=${issueMonth}&certId=${encodeURIComponent(certId)}&certUrl=${encodeURIComponent(certUrl)}`
+    ? linkedInAddCertUrl({ name: courseName, organizationName: settings.institutionName, issuedAt, certId, certUrl })
     : "#";
 
   const certTypeMeta = CERT_TYPE_BADGE[certType];

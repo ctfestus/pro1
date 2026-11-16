@@ -6,14 +6,13 @@ import { supabase } from '@/lib/supabase';
 import { exportContent } from '@/lib/dashboard-export';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, ExternalLink, GitFork, Edit2, AlignLeft, HelpCircle, CalendarDays, Mail, Send, Bell, Award, Sun, Moon, Sparkles, X, ChevronDown, Eye,
+  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import { useParams, useSearchParams, useRouter } from 'next/navigation';
 import FormEditor from '@/components/FormEditor';
 import { useTheme } from '@/components/ThemeProvider';
-import { useTenant } from '@/components/TenantProvider';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
@@ -55,12 +54,6 @@ function getFormType(config: any): 'course' | 'event' | 'form' | 'virtual_experi
   return 'form';
 }
 
-const TYPE_META = {
-  course:          { label: 'Course',          Icon: HelpCircle,  color: '#f59e0b', badge: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  event:           { label: 'Event',           Icon: CalendarDays, color: '#1f1bc3', badge: 'bg-blue-500/10 text-blue-400 border-blue-500/20'   },
-  form:            { label: 'Form',            Icon: AlignLeft,   color: '#10b981', badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  virtual_experience:  { label: 'Virtual Experience',  Icon: Award,       color: '#6366f1', badge: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
-};
 
 const COURSE_THEME_ACCENTS: Record<string, string> = {
   forest: '#00bf63',
@@ -1010,7 +1003,7 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   const [blasting, setBlasting]         = useState(false);
   const [blastResult, setBlastResult]   = useState<{ ok: boolean; msg: string } | null>(null);
   const [blastTone, setBlastTone]       = useState<'friendly' | 'professional' | 'casual'>('friendly');
-  const [blastPurpose, setBlastPurpose] = useState(isEvent ? 'event update' : isVE ? 'experience update' : 'course update');
+  const blastPurpose = isEvent ? 'event update' : isVE ? 'experience update' : 'course update';
   const [blastPrompt, setBlastPrompt]   = useState('');
   const [blastAiLoading, setBlastAiLoading] = useState(false);
   const [blastAiResult, setBlastAiResult] = useState<{ ok: boolean; msg: string } | null>(null);
@@ -1279,7 +1272,6 @@ function EmailTab({ form, formUrl, courseProgress = [], cohortStudents = [], for
   const chipText = isDark ? '#e4e4e7' : '#111';
   const softBtn = `inline-flex h-10 flex-shrink-0 items-center justify-center gap-2 rounded-[10px] px-4 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:cursor-not-allowed ${isDark ? 'bg-[rgba(255,255,255,0.055)] text-zinc-200 disabled:text-zinc-500' : 'bg-[#F4F6F9] text-gray-900 disabled:text-[#8a929e]'}`;
 
-  const textarea = `${input} resize-none leading-relaxed`;
 
   // Not ready yet reads as grey (the important flag beats the inline accent colour).
   const primaryBtn = `w-full py-3 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98] disabled:opacity-100 disabled:cursor-not-allowed ${isDark ? 'disabled:bg-[rgba(255,255,255,0.055)]! disabled:text-[#7A8088]!' : 'disabled:bg-[#F4F6F9]! disabled:text-[#8a929e]!'}`;
@@ -1930,12 +1922,9 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
 function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n: number) => void }) {
   const { theme } = useTheme();
   const isDark = theme !== 'light';
-  const card       = isDark ? 'bg-zinc-900/50 border-zinc-800/50' : 'bg-white border-[rgba(0,0,0,0.07)]';
-  const cardHeader = isDark ? 'border-zinc-800' : 'border-[rgba(0,0,0,0.07)]';
   const divider    = isDark ? 'divide-zinc-800/50' : 'divide-[rgba(0,0,0,0.05)]';
   const textPrim   = isDark ? 'text-white' : 'text-[#111]';
   const textMut    = isDark ? 'text-zinc-500' : 'text-[#888]';
-  const tableHead  = isDark ? 'bg-zinc-950 text-zinc-400 border-zinc-800' : 'bg-[#f5f6f7] text-[#888] border-[rgba(0,0,0,0.06)]';
   const tableRow   = isDark ? 'hover:bg-zinc-800/20' : 'hover:bg-[#f5f6f7]';
 
   const cfg     = form.config || {};
@@ -2418,7 +2407,6 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
 
 // -- Main Page ---
 export default function FormDetailPage() {
-  const { logoUrl, logoDarkUrl } = useTenant();
   const { id } = useParams();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -2669,19 +2657,13 @@ export default function FormDetailPage() {
     : formPath;
 
   const bg       = isLight ? '#F2F5FA' : '#17181E';
-  const navBg    = bg;
   const navBord  = isLight ? 'rgba(0,0,0,0.07)' : 'rgba(255,255,255,0.07)';
   const textPrim = isLight ? '#111' : '#fff';
   const textMut  = isLight ? '#555' : '#71717a';
-  const btnBg    = isLight ? '#f5f6f7' : '#27272a';
-  const btnBord  = isLight ? 'rgba(0,0,0,0.09)' : '#3f3f46';
   const green    = '#00bf63';
-  const lime     = '#ADEE66';
 
   const hdrTextPrim = textPrim;
   const hdrTextMut  = textMut;
-  const hdrBtnBg    = btnBg;
-  const hdrBtnBord  = btnBord;
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center" style={{ background: bg }}><Loader2 className="w-8 h-8 animate-spin" style={{ color: green }} /></div>;
@@ -2691,14 +2673,7 @@ export default function FormDetailPage() {
   }
 
   const type = getFormType(form.config);
-  const meta = TYPE_META[type];
   const tabAccent = form.config?.customAccent || COURSE_THEME_ACCENTS[form.config?.theme] || green;
-
-  const lightBadge: Record<string, string> = {
-    course: 'bg-amber-50 text-amber-700 border-amber-200',
-    event:  'bg-blue-50 text-blue-700 border-blue-200',
-    form:   'bg-emerald-50 text-emerald-700 border-emerald-200',
-  };
 
   return (
     <main className="min-h-screen font-sans" style={{ background: bg, color: textPrim }}>
