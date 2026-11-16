@@ -29,10 +29,12 @@ describe('course open access is explicit', () => {
     expect(formsRoute).toContain('courseAvailableToEveryone ? []');
     expect(formsRoute).toContain('isCourse && available_to_everyone === true ? []');
     expect(formsRoute).toContain('submittedCourseCohorts ? false');
-    expect(createEditor).toContain('const [courseAvailableToEveryone, setCourseAvailableToEveryone] = useState(false)');
-    expect(createEditor).toContain('available_to_everyone: courseAvailableToEveryone');
-    expect(createEditor).toContain('Nobody can access this yet. Choose Everyone or select at least one cohort.');
-    expect(createEditor).not.toContain('No cohort selected -- course will be public.');
+    // A new course is created as a draft that nobody can access until the instructor chooses;
+    // the choice itself is made in the one editor (components/FormEditor), checked above.
+    expect(createEditor).toContain('available_to_everyone: false');
+    expect(createEditor).not.toContain('available_to_everyone: true');
+    expect(editor).toContain('Nobody can access this yet. Choose Everyone or select at least one cohort.');
+    expect(editor).not.toContain('No cohort selected -- course will be public.');
   });
 
   it('includes explicit global courses in both student discovery surfaces', () => {

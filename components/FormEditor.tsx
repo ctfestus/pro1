@@ -4,7 +4,7 @@ import { contentPath } from '@/lib/content-link';
 import { THEME_ACCENT_COLORS } from '@/lib/theme-types';
 import { VenueFields } from '@/components/VenueFields';
 import { SpeakersEditor, useSpeakerDraft } from '@/components/SpeakersEditor';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { safeEmbedUrl, isHtmlEmbedUrl, HTML_EMBED_SANDBOX } from '@/lib/safe-embed-url';
 import { useTheme } from '@/components/ThemeProvider';
 import { PlanAccessPicker } from '@/components/PlanAccessPicker';
@@ -14,19 +14,18 @@ import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2, Save, Check, Plus, Trash2, Image as ImageIcon, Images, Sun, Moon,
   X, MapPin, ArrowUpRight, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Sparkles,
-  Building2, GripVertical, BookOpen, Monitor, Smartphone, RotateCcw, ExternalLink, Video, Search,
-  HelpCircle, CalendarDays, ClipboardList, Share2, CheckCircle2, Zap, Settings, Upload, Download, Link2, FileText,
+  GripVertical, BookOpen, Monitor, ExternalLink, Video, Search,
+  CalendarDays, ClipboardList, CheckCircle2, Settings, Upload, Download, Link2, FileText,
   Lock, LockOpen, Users, Music, FileCode,
-  ArrowUp, ArrowDown, PenLine, Blocks,
+  ArrowUp, ArrowDown, Blocks,
 } from 'lucide-react';
-import { LinkedInIcon } from '@/components/LinkedInIcon';
-import type { ThemeColor, ThemeMode } from '@/lib/theme-types';
 import type {
   FieldType, FormField, QuestionType, DownloadItem, CourseQuestion,
-  EventDetails, PostSubmission, PointsMilestone, PointsSystem, FormConfig,
+  PointsSystem, FormConfig,
 } from '@/lib/course-schema';
+import { questionNumbers, itemIssues, courseIssues } from '@/lib/course-validation';
+import { groupOutline, moveModule, moduleIds } from '@/lib/course-outline';
 import { pointsSystemFromCourseRow, newLinkedInShareSlide, DEFAULT_LINKEDIN_SHARE_POINTS, MAX_LINKEDIN_SHARE_POINTS } from '@/lib/course-schema';
-import dynamic from 'next/dynamic';
 import GeneratingOverlay from '@/components/GeneratingOverlay';
 import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
@@ -35,10 +34,10 @@ import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
 import { lessonHtmlToDoc } from '@/components/lesson/extensions';
 import { QuestionTypePicker, TYPE_LABELS } from '@/components/create/QuestionTypePicker';
 import type { QuestionTypeOrDownloads } from '@/components/create/QuestionTypePicker';
-import { getFontById, loadGoogleFont } from '@/lib/fonts';
+import { getFontById } from '@/lib/fonts';
 import { FontPickerModal } from '@/components/FontPickerModal';
 import { supabase } from '@/lib/supabase';
-import { uploadToCloudinary, uploadToCloudinaryWithMeta, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@/lib/uploadToCloudinary';
+import { uploadToCloudinaryWithMeta, MAX_UPLOAD_BYTES, MAX_UPLOAD_LABEL } from '@/lib/uploadToCloudinary';
 import { uploadToStorage } from '@/lib/uploadToStorage';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { deleteUploadedFile } from '@/lib/storage-cleanup';
@@ -76,14 +75,6 @@ const DEFAULT_POINTS: PointsSystem = {
 // --- Constants ---
 const COURSE_CATEGORIES = ['Excel', 'Power BI', 'SQL', 'Tableau', 'AI'] as const;
 
-const buttonThemes: Record<ThemeColor, string> = {
-  forest:  'bg-[#00bf63] hover:bg-[#00994f] text-white',
-  lime:    'bg-[#ADEE66] hover:bg-[#9ad94d] text-black',
-  emerald: 'bg-emerald-500 hover:bg-emerald-600 text-white',
-  rose:    'bg-rose-500 hover:bg-rose-600 text-white',
-  amber:   'bg-amber-500 hover:bg-amber-600 text-white',
-  ocean:   'bg-[#3E93FF] hover:bg-[#2f7fe0] text-white',
-};
 
 const themeAccentColors = THEME_ACCENT_COLORS;
 
@@ -172,26 +163,7 @@ const FIELD_TYPE_LABELS: Record<FieldType, string> = {
 };
 
 // --- Helpers ---
-const formatDateParts = (dateString?: string) => {
-  if (!dateString) return null;
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return null;
-    return {
-      monthShort: date.toLocaleDateString('en-US', { month: 'short' }).toUpperCase(),
-      day: date.toLocaleDateString('en-US', { day: 'numeric' }),
-      fullDate: date.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }),
-    };
-  } catch { return null; }
-};
 
-const formatLocation = (locationString?: string) => {
-  if (!locationString) return { main: '', sub: '' };
-  const parts = locationString.split(',');
-  return parts.length > 1
-    ? { main: parts[0].trim(), sub: parts.slice(1).join(',').trim() }
-    : { main: locationString, sub: '' };
-};
 
 const isRequired = (f: FormField) => f.required !== false;
 
@@ -341,33 +313,16 @@ function LockToggle({ locked, onToggle, accentColor }: { locked: boolean; onTogg
       type="button"
       onClick={onToggle}
       title={locked ? 'Locked until the previous lesson is completed' : 'Lock until the previous lesson is completed'}
-      className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all"
-      style={locked ? { background: accentColor ?? '#10b981', color: 'white' } : { background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.faint }}
+      aria-pressed={locked}
+      aria-label={locked ? 'Unlock' : 'Lock until the previous item is completed'}
+      className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-all"
+      style={locked ? { background: `${accentColor ?? '#10b981'}1a`, color: accentColor ?? '#10b981' } : { color: FE.faint }}
     >
-      {locked ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />} Lock
+      {locked ? <Lock className="w-3.5 h-3.5" /> : <LockOpen className="w-3.5 h-3.5" />}
     </button>
   );
 }
 
-function EditorSection({ title, children, defaultOpen = true }: { title: string; children: React.ReactNode; defaultOpen?: boolean }) {
-  const FE = useFEC();
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="last:border-b-0" style={{ borderBottom: `1px solid ${FE.divider}` }}>
-      <button type="button" onClick={() => setOpen(!open)} className="w-full flex items-center justify-between py-3 px-1 group">
-        <span className="text-[12.5px] font-semibold tracking-widest uppercase transition-colors" style={{ color: FE.faint }}>{title}</span>
-        {open ? <ChevronUp className="w-3.5 h-3.5" style={{ color: FE.faint }} /> : <ChevronDown className="w-3.5 h-3.5" style={{ color: FE.faint }} />}
-      </button>
-      <AnimatePresence initial={false}>
-        {open && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.18 }} className="overflow-hidden">
-            <div className="pb-4 space-y-3">{children}</div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
 
 // --- Sortable Field Card ---
 interface FieldCardProps {
@@ -527,13 +482,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const [newFieldRequired, setNewFieldRequired] = useState(true);
   const [newSocialPlatforms, setNewSocialPlatforms] = useState<string[]>(['linkedin', 'twitter']);
   const [expandedFields, setExpandedFields] = useState<Set<string>>(new Set());
-  const [newQuestionType, setNewQuestionType] = useState<QuestionType | 'downloads'>('multiple_choice');
+  const [newQuestionType] = useState<QuestionType | 'downloads'>('multiple_choice');
   const [pickerCtx, setPickerCtx] = useState<
     | { mode: 'bottom' }
     | { mode: 'insert'; afterIndex: number }
     | { mode: 'change'; qId: string }
     | null
   >(null);
+  // Every delete in the outline asks first: one click used to remove a question for good.
+  const [pendingDelete, setPendingDelete] = useState<{ ids: string[]; title: string; body: string; confirm: string; alt?: { label: string; ids: string[] } } | null>(null);
   const [aiTopic, setAiTopic] = useState('');
   const [aiQuestionCount, setAiQuestionCount] = useState(5);
   const [aiQuestionType, setAiQuestionType] = useState<'multiple_choice' | 'fill_blank' | 'arrange' | 'sql_exercise' | 'python_exercise'>('multiple_choice');
@@ -572,6 +529,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   const [activeId, setActiveId] = useState<string | null>(null);
   const [activeQuestionId, setActiveQuestionId] = useState<string | null>(null);
+  // Modules folded to their heading in the outline (editor view only, not saved).
+  const [collapsedModules, setCollapsedModules] = useState<Set<string>>(new Set());
   const [expandedQuestions, setExpandedQuestions] = useState<Set<string>>(new Set());
   const [closedLessons, setClosedLessons] = useState<Set<string>>(new Set());
   const [availableForms, setAvailableForms] = useState<{ id: string; title: string; slug: string }[]>([]);
@@ -579,6 +538,40 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const [partners, setPartners]               = useState<{ id: string; name: string; is_active: boolean }[]>([]);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [courseAvailableToEveryone, setCourseAvailableToEveryone] = useState(false);
+
+  // Real unsaved-change tracking: what is on screen compared with what was last loaded or saved.
+  // (The label used to read "Unsaved changes" whenever it was not briefly showing "Saved!".)
+  const [savedSnapshot, setSavedSnapshot] = useState<string | null>(null);
+  const currentSnapshot = useMemo(
+    () => (formConfig ? JSON.stringify([formConfig, customSlug, selectedCohortIds, courseAvailableToEveryone]) : null),
+    [formConfig, customSlug, selectedCohortIds, courseAvailableToEveryone],
+  );
+  useEffect(() => {
+    if (!isLoading && savedSnapshot === null && currentSnapshot) setSavedSnapshot(currentSnapshot);
+  }, [isLoading, currentSnapshot, savedSnapshot]);
+  const isDirty = savedSnapshot !== null && currentSnapshot !== savedSnapshot;
+
+  // Whatever is added to the outline (a question, lesson, module, downloads or LinkedIn step,
+  // at the end or between rows) opens at once, ready to fill in. Only a single new item:
+  // AI generation adds many at once and is left closed.
+  const knownItemIds = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (isLoading || !formConfig) return;
+    const ids = (formConfig.questions ?? []).map(q => q.id);
+    if (knownItemIds.current === null) { knownItemIds.current = new Set(ids); return; }
+    const added = ids.filter(id => !knownItemIds.current!.has(id));
+    knownItemIds.current = new Set(ids);
+    if (added.length !== 1) return;
+    setExpandedQuestions(prev => new Set([...prev, added[0]]));
+    setTimeout(() => document.querySelector(`[data-item-id="${added[0]}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 120);
+  }, [formConfig, isLoading]);
+  // Leaving with unsaved changes asks first.
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ''; };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [isDirty]);
   const savedCohortIds = useRef<string[]>([]);
   const toggleCohort = (id: string) => {
     if (contentType === 'course') setCourseAvailableToEveryone(false);
@@ -1078,6 +1071,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
         }
       }
       savedCohortIds.current = [...selectedCohortIds];
+      setSavedSnapshot(JSON.stringify([configToSave, customSlug, selectedCohortIds, courseAvailableToEveryone]));
 
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -1113,6 +1107,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     setActiveQuestionId(null);
     const { active, over } = event;
     if (!over || active.id === over.id || !formConfig?.questions) return;
+    const moving = formConfig.questions.find(q => q.id === active.id);
+    // A module moves as a whole: its heading and everything in it.
+    if (moving?.isSection) {
+      updateConfig({ questions: moveModule(formConfig.questions, String(active.id), String(over.id)) });
+      return;
+    }
     const oldIdx = formConfig.questions.findIndex(q => q.id === active.id);
     const newIdx = formConfig.questions.findIndex(q => q.id === over.id);
     updateConfig({ questions: arrayMove(formConfig.questions, oldIdx, newIdx) });
@@ -1175,14 +1175,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     if (!formConfig) return;
     if (type === 'downloads') { handleAddDownloads(); return; }
     if (type === 'linkedin_share') { handleAddLinkedInShare(); return; }
+    if (type === 'lesson') { insertLessonAt((formConfig.questions?.length ?? 0) - 1); return; }
     const id = Math.random().toString(36).substring(7);
     const defaults: Record<QuestionType, Partial<CourseQuestion>> = {
-      multiple_choice:     { options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A' },
+      multiple_choice:     { options: ['', '', '', ''], correctAnswer: '' },
       fill_blank:          { options: [], correctAnswer: '' },
       arrange:             { options: ['Step 1', 'Step 2', 'Step 3', 'Step 4'], correctAnswer: 'Step 1|||Step 2|||Step 3|||Step 4' },
       image:               { options: ['0', '1'], correctAnswer: '0', optionImages: ['', ''] },
-      image_choice:        { options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A', imageUrl: '' },
-      code:                { options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A', codeSnippet: '', codeLanguage: 'javascript' },
+      image_choice:        { options: ['', '', '', ''], correctAnswer: '', imageUrl: '' },
+      code:                { options: ['', '', '', ''], correctAnswer: '', codeSnippet: '', codeLanguage: 'javascript' },
       code_review:         { options: [], correctAnswer: '', rubric: ['Code runs without errors', 'Follows naming conventions', 'Logic is correct'], reviewLanguage: 'javascript', minScore: 70 },
       excel_review:        { options: [], correctAnswer: '', rubric: ['Correct formulas used', 'Data is accurate', 'Formatting is clean'], context: '', minScore: 70 },
       dashboard_critique:  { options: [], correctAnswer: '', rubric: ['Visuals are appropriate', 'Insights are accurate', 'Layout is clear'], context: '', minScore: 70 },
@@ -1195,10 +1196,23 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
       questions: [...(formConfig.questions || []), {
         id,
         type,
-        question: 'New Question',
+        question: '',
         ...defaults[type],
       } as CourseQuestion],
     });
+  };
+
+  /** A new, empty lesson: it opens at once so the title can be typed. */
+  const newLesson = (): CourseQuestion => ({
+    id: Math.random().toString(36).substring(7), type: 'multiple_choice', question: '', options: [], correctAnswer: '',
+    lessonOnly: true, lesson: { title: '', body: '', imageUrl: '', videoUrl: '' },
+  } as CourseQuestion);
+  const insertLessonAt = (afterIndex: number) => {
+    if (!formConfig) return;
+    const lesson = newLesson();
+    const qs = [...(formConfig.questions || [])];
+    qs.splice(afterIndex + 1, 0, lesson);
+    updateConfig({ questions: qs });
   };
 
   const handleAddSection = () => {
@@ -1206,7 +1220,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     const id = Math.random().toString(36).substring(7);
     updateConfig({
       questions: [...(formConfig.questions || []), {
-        id, isSection: true, sectionTitle: 'New Section', sectionDescription: '', question: '', options: [], correctAnswer: '',
+        id, isSection: true, sectionTitle: '', sectionDescription: '', question: '', options: [], correctAnswer: '',
       } as CourseQuestion],
     });
   };
@@ -1216,7 +1230,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     const id = Math.random().toString(36).substring(7);
     const qs = [...(formConfig.questions || [])];
     qs.splice(afterIndex + 1, 0, {
-      id, isSection: true, sectionTitle: 'New Section', sectionDescription: '', question: '', options: [], correctAnswer: '',
+      id, isSection: true, sectionTitle: '', sectionDescription: '', question: '', options: [], correctAnswer: '',
     } as CourseQuestion);
     updateConfig({ questions: qs });
   };
@@ -1224,6 +1238,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const insertQuestionAt = (afterIndex: number, overrideType?: QuestionTypeOrDownloads) => {
     const type = overrideType ?? newQuestionType;
     if (!formConfig) return;
+    if (type === 'lesson') { insertLessonAt(afterIndex); return; }
     if (type === 'downloads') {
       const id = Math.random().toString(36).substring(7);
       const qs = [...(formConfig.questions || [])];
@@ -1239,12 +1254,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     }
     const id = Math.random().toString(36).substring(7);
     const defaults: Record<QuestionType, Partial<CourseQuestion>> = {
-      multiple_choice:     { options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A' },
+      multiple_choice:     { options: ['', '', '', ''], correctAnswer: '' },
       fill_blank:          { options: [], correctAnswer: '' },
       arrange:             { options: ['Step 1', 'Step 2', 'Step 3', 'Step 4'], correctAnswer: 'Step 1|||Step 2|||Step 3|||Step 4' },
       image:               { options: ['0', '1'], correctAnswer: '0', optionImages: ['', ''] },
-      image_choice:        { options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A', imageUrl: '' },
-      code:                { options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A', codeSnippet: '', codeLanguage: 'javascript' },
+      image_choice:        { options: ['', '', '', ''], correctAnswer: '', imageUrl: '' },
+      code:                { options: ['', '', '', ''], correctAnswer: '', codeSnippet: '', codeLanguage: 'javascript' },
       code_review:         { options: [], correctAnswer: '', rubric: ['Code runs without errors', 'Follows naming conventions', 'Logic is correct'], reviewLanguage: 'javascript', minScore: 70 },
       excel_review:        { options: [], correctAnswer: '', rubric: ['Correct formulas used', 'Data is accurate', 'Formatting is clean'], context: '', minScore: 70 },
       dashboard_critique:  { options: [], correctAnswer: '', rubric: ['Visuals are appropriate', 'Insights are accurate', 'Layout is clear'], context: '', minScore: 70 },
@@ -1257,7 +1272,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     qs.splice(afterIndex + 1, 0, {
       id,
       type,
-      question: 'New Question',
+      question: '',
       ...defaults[type],
     } as CourseQuestion);
     updateConfig({ questions: qs });
@@ -1266,6 +1281,11 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
   const handlePickerSelect = (type: QuestionTypeOrDownloads) => {
     if (!pickerCtx) return;
     setPickerCtx(null);
+    if (type === 'lesson') {
+      if (pickerCtx.mode === 'insert') insertLessonAt(pickerCtx.afterIndex);
+      else if (pickerCtx.mode === 'bottom') insertLessonAt((formConfig?.questions?.length ?? 0) - 1);
+      return;
+    }
     if (pickerCtx.mode === 'bottom') {
       handleAddQuestion(type);
     } else if (pickerCtx.mode === 'insert') {
@@ -1300,9 +1320,30 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     handleUpdateQuestion(qId, { optionImages: newImages });
   };
 
-  const handleRemoveQuestion = (id: string) => {
-    if (!formConfig) return;
-    updateConfig({ questions: formConfig.questions?.filter(q => q.id !== id) || [] });
+  /** Ask before deleting an outline item; the dialog says exactly what goes. */
+  const askDelete = (q: CourseQuestion) => {
+    const qs = formConfig?.questions ?? [];
+    const nums = questionNumbers(qs);
+    const idx = qs.findIndex(x => x.id === q.id);
+    const plain = (t?: string) => (t ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    if (q.isSection) {
+      const name = q.sectionTitle || 'Untitled';
+      const withContent = moduleIds(qs, q.id, true);
+      const count = withContent.length - 1;
+      setPendingDelete(count > 0
+        ? { ids: withContent, confirm: 'Delete with content', title: `Delete the module "${name}"?`,
+            body: `It holds ${count === 1 ? '1 lesson or question' : `${count} lessons and questions`}.`,
+            alt: { label: 'Keep its content', ids: [q.id] } }
+        : { ids: [q.id], confirm: 'Delete module', title: `Delete the module "${name}"?`, body: 'It has no content. Only the heading is removed.' });
+    } else if (q.lessonOnly) {
+      setPendingDelete({ ids: [q.id], confirm: 'Delete', title: `Delete the lesson "${q.lesson?.title || 'Untitled'}"?`, body: 'Its content will be removed from the course.' });
+    } else if (q.isDownloads || q.isLinkedInShare) {
+      setPendingDelete({ ids: [q.id], confirm: 'Delete', title: `Delete "${(q.isDownloads ? q.downloadsTitle : q.linkedInShareTitle) || (q.isDownloads ? 'Downloads' : 'LinkedIn share')}"?`, body: 'It will be removed from the course.' });
+    } else {
+      const text = plain(q.question);
+      setPendingDelete({ ids: [q.id], confirm: 'Delete', title: `Delete Q${nums[idx] || ''}?`.replace('Q?', 'this question?'),
+        body: text ? `"${text.length > 80 ? `${text.slice(0, 80)}...` : text}" and its answers will be removed from the course.` : 'It will be removed from the course.' });
+    }
   };
 
   const handleUpdateQuestion = (id: string, updates: Partial<CourseQuestion>) => {
@@ -1545,22 +1586,32 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
     { id: 'publish', label: 'Publish', Icon: CheckCircle2, sections: ['share', 'submission'] },
   ] as const;
   const activeStudioMode = courseStudioModes.find(mode => mode.sections.includes(activeSection as never)) ?? courseStudioModes[0];
-  const readinessChecks = formConfig.isCourse ? [
-    { label: 'Course title', complete: Boolean(formConfig.title?.trim()) },
-    { label: 'Description', complete: Boolean(formConfig.description?.replace(/<[^>]*>/g, '').trim()) },
-    { label: 'Cover image', complete: Boolean(formConfig.coverImage) },
-    { label: 'Lesson content', complete: Boolean(formConfig.questions?.length) },
-  ] : [];
-  const readinessComplete = readinessChecks.filter(check => check.complete).length;
+  // Learner numbering (Q1, Q2 ...) for the outline, and what still blocks publishing.
+  const qNumbers = questionNumbers(formConfig.questions ?? []);
+  const outlineGroups = groupOutline(formConfig.questions ?? []);
+  const visibleOutlineIds = outlineGroups.flatMap(g => [
+    ...(g.section ? [g.section.id] : []),
+    ...(g.section && collapsedModules.has(g.section.id) ? [] : g.items.map(i => i.id)),
+  ]);
+  const publishIssues = formConfig.isCourse ? courseIssues(formConfig) : [];
+  const contentCount = (formConfig.questions ?? []).filter(q => !q.isSection).length;
+  /** "Go to it": open the tab and the outline row the issue is about. */
+  const goToIssue = (itemId: string) => {
+    if (!itemId) { setActiveSection('info'); return; }
+    setActiveSection('curriculum');
+    setExpandedQuestions(prev => new Set([...prev, itemId]));
+    setTimeout(() => document.querySelector(`[data-item-id="${itemId}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }), 150);
+  };
 
   return (
-    <div className="flex flex-col" style={{ background: 'transparent', color: FE.text, colorScheme: FE === FE_DARK ? 'dark' : 'light' }}>
+    // Bottom padding keeps the last rows clear of the floating save bar.
+    <div className="flex flex-col pb-28" style={{ background: 'transparent', color: FE.text, colorScheme: FE === FE_DARK ? 'dark' : 'light' }}>
       {/* -- Content Area (no left pane -- section nav is the horizontal stepper below) -- */}
       <div className="flex-1 flex flex-col">
         {/* Persistent save control remains reachable throughout the editor. */}
         <div className="fixed left-4 right-4 bottom-4 sm:left-auto sm:right-6 sm:bottom-6 z-[90] flex items-center justify-between sm:justify-end gap-3 p-2 rounded-xl" style={{ border: `1px solid ${FE.cardBorder}`, background: FE.card, boxShadow: FE === FE_DARK ? '0 14px 38px rgba(0,0,0,0.48)' : '0 14px 38px rgba(15,23,42,0.16)' }}>
           <span className="text-[11px] pl-2 whitespace-nowrap" style={{ color: FE.faint }}>
-            {saved ? '✓ All changes saved' : 'Unsaved changes'}
+            {isDirty ? 'Unsaved changes' : 'All changes saved'}
           </span>
           <button
             type="button"
@@ -1648,21 +1699,38 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
 
             {formConfig.isCourse && activeStudioMode.id === 'publish' && (
               <section className="rounded-2xl p-4 sm:p-5" style={{ background: FE.groupBg }}>
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Publish readiness</p>
-                    <h3 className="mt-1 text-base font-semibold" style={{ color: FE.text }}>{readinessComplete === readinessChecks.length ? 'Your course is ready to share' : `${readinessChecks.length - readinessComplete} items need attention`}</h3>
-                  </div>
-                  <span className="rounded-xl px-3 py-1.5 text-xs font-bold tabular-nums" style={{ background: readinessComplete === readinessChecks.length ? '#22c55e18' : `${accentColor}14`, color: readinessComplete === readinessChecks.length ? '#22c55e' : accentColor }}>{readinessComplete}/{readinessChecks.length}</span>
-                </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {readinessChecks.map(check => (
-                    <div key={check.label} className="flex items-center gap-2 rounded-xl px-3 py-2.5" style={{ background: FE.card }}>
-                      <span className="grid h-4 w-4 place-items-center rounded-full text-[9px] font-bold" style={{ background: check.complete ? '#22c55e' : FE.pill, color: check.complete ? '#fff' : FE.faint }}>{check.complete ? '✓' : '·'}</span>
-                      <span className="text-[11px] font-medium" style={{ color: check.complete ? FE.text : FE.faint }}>{check.label}</span>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Publish readiness</p>
+                <h3 className="mt-1 text-base font-semibold" style={{ color: FE.text }}>
+                  {publishIssues.length === 0 ? 'Ready to publish' : `${publishIssues.length} thing${publishIssues.length === 1 ? '' : 's'} to fix before publishing`}
+                </h3>
+                <div className="mt-4 flex flex-col gap-2">
+                  {publishIssues.map((issue, i) => (
+                    <div key={`${issue.id}-${i}`} className="flex items-center gap-2.5 rounded-xl px-3 py-2.5" style={{ background: FE.card }}>
+                      <span className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full text-[11px] font-bold" style={{ background: '#d97706', color: '#fff' }}>!</span>
+                      <span className="text-[12.5px] flex-1 min-w-0" style={{ color: FE.text }}>{issue.message}</span>
+                      <button type="button" onClick={() => goToIssue(issue.id)} className="text-[12px] font-semibold whitespace-nowrap hover:opacity-70" style={{ color: accentColor }}>Go to it</button>
                     </div>
                   ))}
+                  {[
+                    { ok: !!formConfig.title?.trim() && !!formConfig.description?.replace(/<[^>]*>/g, '').trim(), label: 'Title and description' },
+                    { ok: contentCount > 0, label: `${contentCount} item${contentCount === 1 ? '' : 's'} of content` },
+                  ].filter(c => c.ok).map(c => (
+                    <div key={c.label} className="flex items-center gap-2.5 rounded-xl px-3 py-2.5" style={{ background: FE.card }}>
+                      <span className="grid h-[18px] w-[18px] flex-shrink-0 place-items-center rounded-full" style={{ background: '#22c55e', color: '#fff' }}><Check className="w-3 h-3" /></span>
+                      <span className="text-[12.5px]" style={{ color: FE.text }}>{c.label}</span>
+                    </div>
+                  ))}
+                  {!formConfig.coverImage && (
+                    <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5" style={{ background: FE.card }}>
+                      <span className="h-[18px] w-[18px] flex-shrink-0 rounded-full" style={{ boxShadow: `inset 0 0 0 1.5px ${FE.faint}` }} />
+                      <span className="text-[12.5px] flex-1" style={{ color: FE.faint }}>Cover image (suggested)</span>
+                      <button type="button" onClick={() => setActiveSection('cover')} className="text-[12px] font-semibold whitespace-nowrap hover:opacity-70" style={{ color: accentColor }}>Add one</button>
+                    </div>
+                  )}
                 </div>
+                {publishIssues.length > 0 && (
+                  <p className="mt-3 text-[12px]" style={{ color: FE.faint }}>Publishing waits until these are fixed. Unpublishing is always possible.</p>
+                )}
               </section>
             )}
 
@@ -1699,6 +1767,46 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                   </p>
                 )}
               </div>
+              {/* What learners will learn: course identity, shown on the overview page beside the description. */}
+              {formConfig.isCourse && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className={labelCls} style={{ ...labelStyle, marginBottom: 0 }}>What learners will learn <span style={{ color: FE.faint }}>(shown on the course overview)</span></label>
+                    <button type="button" onClick={generateOutcomes} disabled={!!aiLoadingLabel}
+                      className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-50" style={{ color: accentColor }}>
+                      {aiLoadingLabel === 'Generating learning outcomes...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      Generate with AI
+                    </button>
+                  </div>
+                  {(formConfig.learnOutcomes || []).map((outcome, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={outcome}
+                        aria-label={`Outcome ${idx + 1}`}
+                        onChange={e => {
+                          const next = [...(formConfig.learnOutcomes || [])];
+                          next[idx] = e.target.value;
+                          updateConfig({ learnOutcomes: next });
+                        }}
+                        className={`${inputCls} flex-1`}
+                        style={inputStyle}
+                        placeholder="e.g. Clean a messy sales export"
+                      />
+                      <button type="button" aria-label={`Remove outcome ${idx + 1}`}
+                        onClick={() => updateConfig({ learnOutcomes: (formConfig.learnOutcomes || []).filter((_, i) => i !== idx) })}
+                        className="transition-colors hover:text-red-400" style={{ color: FE.faint }}>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => updateConfig({ learnOutcomes: [...(formConfig.learnOutcomes || []), ''] })}
+                    className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80" style={{ color: accentColor }}>
+                    + Add outcome
+                  </button>
+                  {aiError && aiLoadingLabel === '' && activeSection === 'info' && <p className="text-[11px]" style={{ color: '#D93025' }}>{aiError}</p>}
+                </div>
+              )}
               </div>
             )}
 
@@ -2287,6 +2395,11 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         >{label}</button>
                       ))}
                     </div>
+                    <p className="text-[10px] leading-relaxed" style={{ color: FE.faint }}>
+                      {(formConfig.lessonTiming ?? 'after') === 'before'
+                        ? 'Lesson opens automatically before each question. Students read first, then answer.'
+                        : 'Lesson is offered after answering. "Why?" if wrong, "Review Lesson" if right.'}
+                    </p>
                   </div>
                   {/* AI tutor */}
                   <div className="space-y-3 border-t pt-5" style={{ borderColor: FE.divider }}>
@@ -2318,6 +2431,21 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           style={(formConfig.passmark ?? 50) === pct ? { background: accentColor, color: 'white', boxShadow: '0 1px 3px rgba(15,23,42,0.12)' } : { background: 'transparent', color: FE.muted }}
                         >{pct}%</button>
                       ))}
+                      {/* Any other mark from 1 to 100. */}
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        aria-label="Custom pass mark"
+                        placeholder="Custom"
+                        value={![50, 60, 70, 80].includes(formConfig.passmark ?? 50) ? (formConfig.passmark ?? '') : ''}
+                        onChange={e => {
+                          const v = parseInt(e.target.value);
+                          if (!isNaN(v) && v >= 1 && v <= 100) updateConfig({ passmark: v });
+                        }}
+                        className="min-h-9 w-24 rounded-lg border px-3 py-1.5 text-xs font-semibold outline-none transition-all placeholder:font-medium"
+                        style={{ background: FE.input, borderColor: FE.inputBorder, color: FE.text }}
+                      />
                     </div>
                   </div>
                   {/* Timer */}
@@ -2362,95 +2490,18 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                   <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Shape the learning journey, add lessons, and create practice activities.</p>
                 </div>
                 <div className="space-y-3">
-                  <div className="p-3 rounded-xl space-y-3" style={{ background: FE.card }}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <label className={labelCls} style={{ ...labelStyle, marginBottom: 0 }}>AI Course Builder</label>
-                        <p className="text-[10px] mt-1 leading-relaxed" style={{ color: FE.faint }}>
-                          Generate questions and learning outcomes from a topic, then refine each question with AI.
-                        </p>
-                      </div>
-                      <div className="px-2 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ background: `${accentColor}18`, color: accentColor }}>
-                        AI
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setAiError(''); setAiPromptModalOpen(true); }}
-                        disabled={!!aiLoadingLabel}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
-                        style={{ background: accentColor, color: 'white' }}
-                      >
-                        {aiLoadingLabel === 'Generating questions...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                        Generate Questions
-                      </button>
-                      <button
-                        type="button"
-                        onClick={generateOutcomes}
-                        disabled={!!aiLoadingLabel}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
-                        style={{ background: FE.pill, color: FE.text, border: `1px solid ${FE.inputBorder}` }}
-                      >
-                        {aiLoadingLabel === 'Generating learning outcomes...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
-                        Generate Outcomes
-                      </button>
-                    </div>
-
-                    {aiError && <p className="text-[11px]" style={{ color: '#ef4444' }}>{aiError}</p>}
-                    {!aiError && aiSuccess && <p className="text-[11px]" style={{ color: '#10b981' }}>{aiSuccess}</p>}
-
-                    {!!formConfig.learnOutcomes?.length && (
-                      <div className="space-y-2 pt-1" style={{ borderTop: `1px solid ${FE.divider}` }}>
-                        <div className="flex items-center justify-between">
-                          <label className={labelCls} style={{ ...labelStyle, marginBottom: 0 }}>Learning outcomes</label>
-                          <button
-                            type="button"
-                            onClick={() => updateConfig({ learnOutcomes: [...(formConfig.learnOutcomes || []), ''] })}
-                            className="text-[10px] font-medium transition-colors hover:opacity-70"
-                            style={{ color: accentColor }}
-                          >
-                            Add outcome
-                          </button>
-                        </div>
-                        {(formConfig.learnOutcomes || []).map((outcome, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={outcome}
-                              onChange={e => {
-                                const next = [...(formConfig.learnOutcomes || [])];
-                                next[idx] = e.target.value;
-                                updateConfig({ learnOutcomes: next });
-                              }}
-                              className={`${inputCls} py-1.5 flex-1`}
-                              style={inputStyle}
-                              placeholder={`Outcome ${idx + 1}`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateConfig({ learnOutcomes: (formConfig.learnOutcomes || []).filter((_, i) => i !== idx) })}
-                              className="transition-colors hover:text-red-400"
-                              style={{ color: FE.faint }}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleQuestionDragStart} onDragEnd={handleQuestionDragEnd}>
-                    <SortableContext items={(formConfig.questions ?? []).map(q => q.id)} strategy={verticalListSortingStrategy}>
-                  {formConfig.questions?.map((q, qIdx) => {
+                    <SortableContext items={visibleOutlineIds} strategy={verticalListSortingStrategy}>
+                  {(() => {
+                  // Each row renders as before; the module groups below place it under its module.
+                  const renderItem = (q: CourseQuestion, qIdx: number) => {
                     const qType: QuestionType = q.type ?? 'multiple_choice';
+                    const qNo = qNumbers[qIdx];
                     const isExpanded = expandedQuestions.has(q.id);
 
                     const insertDivider = (
-                      <div key={`insert-${q.id}`} className="group relative flex items-center justify-center gap-1.5 h-5 my-0.5">
-                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px transition-colors" style={{ background: FE.divider }} />
+                      <div key={`insert-${q.id}`} className="group relative flex items-center justify-center gap-1.5 h-1.5 hover:h-6 transition-all">
+                        <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px opacity-0 group-hover:opacity-100 transition-opacity" style={{ background: FE.divider }} />
                         <button
                           type="button"
                           onClick={() => setPickerCtx({ mode: 'insert', afterIndex: qIdx })}
@@ -2465,9 +2516,42 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           className="relative hidden group-hover:flex items-center gap-1 px-2 py-0.5 text-[10px] rounded-full font-medium transition-all hover:opacity-90"
                           style={{ background: FE.pill, color: FE.muted, border: `1px solid ${FE.cardBorder}`, zIndex: 1 }}
                         >
-                          <Plus className="w-2.5 h-2.5" /> Section
+                          <Plus className="w-2.5 h-2.5" /> Module
                         </button>
                       </div>
+                    );
+
+                    // Shared by the downloads and LinkedIn steps: the same row header as lessons and questions.
+                    const stepRowStyle = { background: isExpanded ? FE.card : FE.groupBg, border: `1px solid ${isExpanded ? FE.cardBorder : 'transparent'}` };
+                    const stepHeader = (dragHandle: React.ReactNode, title: string, kind: string) => (
+                      <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
+                        {dragHandle}
+                        <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left min-w-0">
+                          <span className="text-[13px] truncate block" style={{ color: FE.text }}>{title}</span>
+                        </button>
+                        <div className="flex items-center gap-1.5">
+                          {(() => {
+                            const issue = itemIssues(q, qNo)[0];
+                            return issue ? <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: 'rgba(217,119,6,0.12)', color: '#b45309' }}>{issue.flag}</span> : null;
+                          })()}
+                          <span className="text-[11px] font-semibold rounded-lg px-2 py-1" style={{ background: FE.card, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>{kind}</span>
+                          <LockToggle locked={!!q.lockUntilPrevious} onToggle={() => handleUpdateQuestion(q.id, { lockUntilPrevious: !q.lockUntilPrevious })} accentColor={accentColor} />
+                          <button type="button" onClick={() => toggleQuestion(q.id)} aria-label={isExpanded ? 'Close' : 'Open'} className="p-1 transition-colors" style={{ color: FE.faint }}>
+                            {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                    const stepDelete = (label: string) => (
+                      <div className="flex justify-end">
+                        <button type="button" onClick={() => askDelete(q)}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors hover:text-red-500" style={{ color: FE.faint }}>
+                          <Trash2 className="w-3.5 h-3.5" /> {label}
+                        </button>
+                      </div>
+                    );
+                    const fieldLabel = (text: string, note?: string) => (
+                      <label className={labelCls} style={labelStyle}>{text}{note && <span style={{ color: FE.faint, fontWeight: 500 }}> ({note})</span>}</label>
                     );
 
                     // -- Section divider card --
@@ -2476,38 +2560,58 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         <React.Fragment key={q.id}>
                         <SortableQuestionShell id={q.id}>
                           {({ dragHandle }) => (
-                          <div className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${accentColor}40`, borderLeft: `3px solid ${accentColor}` }}>
+                          <div data-item-id={q.id} className="overflow-hidden" style={{ background: `${accentColor}1a` }}>
                             <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
                               {dragHandle}
                               <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left">
-                                <span className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
-                                  {q.sectionTitle || 'Section'}
+                                <span className="text-[12px] font-bold tracking-[0.08em] uppercase" style={{ color: accentColor }}>
+                                  Module {outlineGroups.filter(g => g.section).findIndex(g => g.section!.id === q.id) + 1}: {q.sectionTitle || 'Untitled'}
                                 </span>
                               </button>
-                              <button type="button" onClick={() => updateConfig({ questions: formConfig.questions?.filter(qq => qq.id !== q.id) })}
-                                className="p-1 rounded transition-colors hover:bg-red-500/10">
-                                <X className="w-3.5 h-3.5 text-red-400" />
+                              {!q.sectionTitle?.trim() && (
+                                <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: 'rgba(217,119,6,0.12)', color: '#b45309' }}>Needs a name</span>
+                              )}
+                              {(() => {
+                                const n = outlineGroups.find(g => g.section?.id === q.id)?.items.length ?? 0;
+                                return <span className="text-[11.5px] whitespace-nowrap" style={{ color: FE.muted }}>{n} item{n === 1 ? '' : 's'}</span>;
+                              })()}
+                              <button type="button" onClick={() => askDelete(q)} aria-label="Delete module"
+                                className="p-1 rounded transition-colors hover:text-red-500" style={{ color: FE.faint }}>
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
-                              <button type="button" onClick={() => toggleQuestion(q.id)} className="p-1 transition-colors" style={{ color: FE.faint }}>
-                                {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              {/* Folds the module to its heading; clicking the name opens its name and description. */}
+                              <button type="button" aria-label={collapsedModules.has(q.id) ? 'Expand module' : 'Collapse module'} aria-expanded={!collapsedModules.has(q.id)}
+                                onClick={() => setCollapsedModules(prev => { const next = new Set(prev); if (next.has(q.id)) next.delete(q.id); else next.add(q.id); return next; })}
+                                className="p-1 transition-colors" style={{ color: FE.faint }}>
+                                {collapsedModules.has(q.id) ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                               </button>
                             </div>
                             {isExpanded && (
-                            <div className="px-3.5 py-3 space-y-2">
+                            // White like every other open row, below the tinted heading strip.
+                            <div className="px-3.5 py-3 space-y-3" style={{ background: FE.card, borderBottom: `1px solid ${FE.divider}` }}>
+                              <div>
+                              <label htmlFor={`module-name-${q.id}`} className={labelCls} style={labelStyle}>Module name</label>
                               <input
+                                id={`module-name-${q.id}`}
                                 value={q.sectionTitle || ''}
                                 onChange={e => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, sectionTitle: e.target.value } : qq) })}
-                                placeholder="Section title…"
-                                className={`${inputCls} font-semibold`}
-                                style={inputStyle}
+                                placeholder="e.g. Week 1: Cleaning the data"
+                                autoFocus={!q.sectionTitle}
+                                className={inputCls}
+                                style={!q.sectionTitle?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
                               />
+                              </div>
+                              <div>
+                              <label htmlFor={`module-desc-${q.id}`} className={labelCls} style={labelStyle}>Description <span style={{ color: FE.faint }}>(optional, shown when the module starts)</span></label>
                               <input
+                                id={`module-desc-${q.id}`}
                                 value={q.sectionDescription || ''}
                                 onChange={e => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, sectionDescription: e.target.value } : qq) })}
-                                placeholder="Optional description…"
+                                placeholder="What learners will do in this module"
                                 className={inputCls}
                                 style={inputStyle}
                               />
+                              </div>
                             </div>
                             )}
                           </div>
@@ -2518,9 +2622,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       );
                     }
 
-                    // -- LinkedIn share block card --
-                    // Keep in sync with the identical card in app/create/page.tsx: create and edit
-                    // are two separate editors.
+                    // -- LinkedIn share step --
                     if (q.isLinkedInShare) {
                       const patch = (changes: Partial<CourseQuestion>) =>
                         updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, ...changes } : qq) });
@@ -2530,60 +2632,45 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         <React.Fragment key={q.id}>
                         <SortableQuestionShell id={q.id}>
                           {({ dragHandle }) => (
-                        <div className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid #0A66C240`, borderLeft: '3px solid #0A66C2' }}>
-                          <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
-                            {dragHandle}
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left">
-                              <span className="text-[10px] font-bold tracking-widest uppercase flex items-center gap-1.5" style={{ color: '#0A66C2' }}>
-                                <LinkedInIcon className="w-3 h-3" /> {q.linkedInShareTitle || 'LinkedIn Share'}
-                              </span>
-                            </button>
-                            <LockToggle
-                              locked={!!q.lockUntilPrevious}
-                              onToggle={() => patch({ lockUntilPrevious: !q.lockUntilPrevious })}
-                              accentColor={accentColor}
-                            />
-                            <button type="button" onClick={() => updateConfig({ questions: formConfig.questions?.filter(qq => qq.id !== q.id) })}
-                              className="p-1 rounded transition-colors hover:bg-red-500/10">
-                              <X className="w-3.5 h-3.5 text-red-400" />
-                            </button>
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="p-1 transition-colors" style={{ color: FE.faint }}>
-                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
+                        <div data-item-id={q.id} className="rounded-xl overflow-hidden transition-colors" style={stepRowStyle}>
+                          {stepHeader(dragHandle, q.linkedInShareTitle || 'LinkedIn share', 'LinkedIn share')}
                           {isExpanded && <div className="px-3.5 py-3 space-y-3">
+                            {stepDelete('Delete step')}
+                            <div>
+                            {fieldLabel('Title', 'the heading learners see')}
                             <input
                               value={q.linkedInShareTitle || ''}
                               onChange={e => patch({ linkedInShareTitle: e.target.value })}
-                              placeholder="Slide title e.g. Share your certificate on LinkedIn"
-                              className={`${inputCls} font-semibold`}
+                              placeholder="e.g. Share your certificate on LinkedIn"
+                              className={inputCls}
                               style={inputStyle}
                             />
+                            </div>
+                            <div>
+                            {fieldLabel('Instructions', 'optional')}
                             <RichTextEditor
                               value={q.linkedInShareDescription || ''}
                               onChange={html => patch({ linkedInShareDescription: html })}
                               placeholder="Tell students what to post and why it helps them..."
                               enableAiAssist
                             />
+                            </div>
                             {/* Suggested caption the student can copy straight into LinkedIn. */}
-                            <div className="space-y-1">
-                              <label className="text-[10px] font-bold tracking-widest uppercase" style={{ color: FE.faint }}>
-                                Suggested post text
-                              </label>
+                            <div>
+                              {fieldLabel('Suggested post text', 'optional, learners can copy it')}
                               <textarea
                                 value={q.linkedInSharePrompt || ''}
                                 onChange={e => patch({ linkedInSharePrompt: e.target.value })}
-                                placeholder="Optional. Students can copy this as a starting point for their post."
+                                placeholder="e.g. I just finished a course on cleaning sales data. Here is what I built..."
+
                                 rows={4}
                                 className={inputCls}
                                 style={inputStyle}
                               />
                             </div>
-                            <div className="flex flex-wrap items-end gap-3">
-                              <div className="space-y-1">
-                                <label className="text-[10px] font-bold tracking-widest uppercase" style={{ color: FE.faint }}>
-                                  Bonus XP (max {MAX_LINKEDIN_SHARE_POINTS})
-                                </label>
+                            <div className="flex flex-wrap items-end gap-5">
+                              <div>
+                                {fieldLabel('Bonus XP', `max ${MAX_LINKEDIN_SHARE_POINTS}`)}
                                 <input
                                   type="number"
                                   min={0}
@@ -2594,17 +2681,18 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                   style={{ ...inputStyle, width: 110 }}
                                 />
                               </div>
-                              <button
-                                type="button"
-                                onClick={() => patch({ linkedInShareRequired: !required })}
-                                className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
-                                style={required
-                                  ? { background: accentColor, color: 'white' }
-                                  : { background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.faint }}
-                              >
-                                {required ? <Lock className="w-3 h-3" /> : <LockOpen className="w-3 h-3" />}
-                                {required ? 'Required to continue' : 'Optional'}
-                              </button>
+                              <div>
+                                {fieldLabel('Learners must share to continue')}
+                                <div className="flex w-fit gap-1 rounded-xl p-1" style={{ background: FE.groupBg }}>
+                                  {([{ v: false, label: 'Optional' }, { v: true, label: 'Required' }] as const).map(({ v, label }) => (
+                                    <button key={label} type="button" onClick={() => patch({ linkedInShareRequired: v })} aria-pressed={required === v}
+                                      className="min-h-9 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all"
+                                      style={required === v ? { background: accentColor, color: '#fff' } : { background: 'transparent', color: FE.muted }}>
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
                             </div>
                             <p className="text-[11px] leading-relaxed" style={{ color: FE.faint }}>
                               Students paste the link to their own LinkedIn post. The link is checked, and a post
@@ -2629,45 +2717,34 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                         <React.Fragment key={q.id}>
                         <SortableQuestionShell id={q.id}>
                           {({ dragHandle }) => (
-                        <div className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                          <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
-                            {dragHandle}
-                            <span className="w-8 h-8 inline-flex flex-shrink-0 items-center justify-center rounded-lg" style={{ color: accentColor, background: `${accentColor}15` }}><Download className="w-4 h-4" /></span>
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 min-w-0 text-left">
-                              <span className="text-xs font-semibold truncate block" style={{ color: FE.text }}>{q.downloadsTitle || 'Downloads'}</span>
-                              <span className="text-[9px]" style={{ color: FE.faint }}>{dlItems.length} resource{dlItems.length === 1 ? '' : 's'}</span>
-                            </button>
-                            <LockToggle
-                              locked={!!q.lockUntilPrevious}
-                              onToggle={() => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, lockUntilPrevious: !qq.lockUntilPrevious } : qq) })}
-                              accentColor={accentColor}
-                            />
-                            <button type="button" onClick={() => updateConfig({ questions: formConfig.questions?.filter(qq => qq.id !== q.id) })}
-                              className="p-1 rounded transition-colors hover:bg-red-500/10">
-                              <X className="w-3.5 h-3.5 text-red-400" />
-                            </button>
-                            <button type="button" onClick={() => toggleQuestion(q.id)} className="p-1 transition-colors" style={{ color: FE.faint }}>
-                              {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
-                          </div>
+                        <div data-item-id={q.id} className="rounded-xl overflow-hidden transition-colors" style={stepRowStyle}>
+                          {stepHeader(dragHandle, q.downloadsTitle || 'Downloads', `Downloads (${dlItems.length})`)}
                           {isExpanded && <div className="px-3.5 py-3 space-y-3">
+                            {stepDelete('Delete downloads')}
+                            <div>
+                            {fieldLabel('Title', 'the heading learners see')}
                             <input
                               value={q.downloadsTitle || ''}
                               onChange={e => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, downloadsTitle: e.target.value } : qq) })}
-                              placeholder="Section title e.g. Course Materials"
-                              className={`${inputCls} font-semibold`}
+                              placeholder="e.g. Course files"
+                              className={inputCls}
                               style={inputStyle}
                             />
+                            </div>
+                            <div>
+                            {fieldLabel('Description', 'optional')}
                             <RichTextEditor
                               value={q.downloadsDescription || ''}
                               onChange={html => updateConfig({ questions: formConfig.questions?.map(qq => qq.id === q.id ? { ...qq, downloadsDescription: html } : qq) })}
-                              placeholder="Describe what students will find here..."
+                              placeholder="What learners will find here"
                               enableAiAssist
                             />
+                            </div>
+                            {fieldLabel('Files and links')}
                             {dlItems.length > 0 ? (
                               <div className="space-y-2 pt-1">
                                 {dlItems.map((item, itemIdx) => (
-                                  <div key={item.id} className="rounded-xl p-3 space-y-2.5" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
+                                  <div key={item.id} className="rounded-xl p-3 space-y-2.5" style={{ background: FE.groupBg }}>
                                     <div className="flex items-center justify-between">
                                       <div className="flex items-center gap-2 min-w-0">
                                         <span className="w-7 h-7 inline-flex flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-bold" style={{ color: accentColor, background: `${accentColor}15` }}>{itemIdx + 1}</span>
@@ -2689,19 +2766,25 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                         <button type="button" aria-label={`Remove resource ${itemIdx + 1}`} onClick={() => updateItems(dlItems.filter(it => it.id !== item.id))} className="w-7 h-7 inline-flex items-center justify-center rounded-lg transition-colors hover:bg-red-500/10"><X className="w-3.5 h-3.5 text-red-400" /></button>
                                       </div>
                                     </div>
+                                    <div>
+                                    {fieldLabel('Name', 'what learners see')}
                                     <input
                                       value={item.title}
                                       onChange={e => updateItems(dlItems.map(it => it.id === item.id ? { ...it, title: e.target.value } : it))}
-                                      placeholder={item.type === 'file' ? 'File name or label...' : 'Link label...'}
+                                      placeholder={item.type === 'file' ? 'e.g. March sales export' : 'e.g. Excel shortcuts guide'}
                                       className={inputCls}
-                                      style={inputStyle}
+                                      style={!item.title?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
                                     />
+                                    </div>
+                                    <div>
+                                    {fieldLabel('Description', 'optional')}
                                     <RichTextEditor
                                       value={item.description || ''}
                                       onChange={html => updateItems(dlItems.map(it => it.id === item.id ? { ...it, description: html } : it))}
-                                      placeholder="Short description (optional)..."
+                                      placeholder="What this file is for"
                                       enableAiAssist
                                     />
+                                    </div>
                                     {item.type === 'file' ? (
                                       item.fileUrl ? (
                                         <div className="flex items-center gap-2 px-2.5 py-2 rounded-lg" style={{ background: `${accentColor}10`, border: `1px solid ${accentColor}30` }}>
@@ -2741,13 +2824,16 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                         </label>
                                       )
                                     ) : (
+                                      <div>
+                                      {fieldLabel('Link')}
                                       <input
                                         value={item.linkUrl || ''}
                                         onChange={e => updateItems(dlItems.map(it => it.id === item.id ? { ...it, linkUrl: e.target.value } : it))}
                                         placeholder="https://..."
                                         className={inputCls}
-                                        style={inputStyle}
+                                        style={!item.linkUrl?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
                                       />
+                                      </div>
                                     )}
                                   </div>
                                 ))}
@@ -2760,14 +2846,14 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                             )}
                             <div className="flex gap-2 pt-1">
                               <button type="button" onClick={() => updateItems([...dlItems, { id: Math.random().toString(36).substring(7), title: '', type: 'file' }])}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all hover:opacity-80"
-                                style={{ background: `${accentColor}12`, color: accentColor }}>
-                                <Upload className="w-3 h-3" /> Add File
+                                className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80"
+                                style={{ color: accentColor }}>
+                                + Add file
                               </button>
                               <button type="button" onClick={() => updateItems([...dlItems, { id: Math.random().toString(36).substring(7), title: '', type: 'link' }])}
-                                className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all hover:opacity-80"
-                                style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
-                                <Link2 className="w-3 h-3" /> Add Link
+                                className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80"
+                                style={{ color: accentColor }}>
+                                + Add link
                               </button>
                             </div>
                           </div>}
@@ -2783,46 +2869,43 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       <React.Fragment key={q.id}>
                       <SortableQuestionShell id={q.id}>
                         {({ dragHandle }) => (
-                      <div className="rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
+                      <div data-item-id={q.id} className="rounded-xl overflow-hidden transition-colors" style={{ background: isExpanded ? FE.card : FE.groupBg, border: `1px solid ${isExpanded ? FE.cardBorder : 'transparent'}` }}>
                         <div className="flex items-center gap-2 px-3.5 py-2.5" style={{ borderBottom: isExpanded ? `1px solid ${FE.divider}` : 'none' }}>
                           {dragHandle}
                           <button type="button" onClick={() => toggleQuestion(q.id)} className="flex-1 text-left min-w-0">
-                            <span className="text-xs font-medium truncate block" style={{ color: FE.faint }}>
+                            <span className="text-[13px] truncate block" style={{ color: (q.lessonOnly ? q.lesson?.title : q.question) ? FE.text : FE.faint }}>
                               {q.lessonOnly
-                                ? (q.lesson?.title || 'Untitled lesson')
-                                : `Q${qIdx + 1}${q.question ? ` · ${q.question}` : ''}`}
+                                ? (q.lesson?.title || 'No title yet')
+                                : <><span className="font-semibold mr-1" style={{ color: FE.faint }}>Q{qNo}</span>{q.question?.replace(/<[^>]*>/g, ' ') || 'No question text yet'}</>}
                             </span>
                           </button>
                           <div className="flex items-center gap-1.5">
+                            {(() => {
+                              const issue = itemIssues(q, qNo)[0];
+                              return issue ? (
+                                <span className="text-[11px] font-semibold rounded-full px-2 py-0.5 whitespace-nowrap" style={{ background: 'rgba(217,119,6,0.12)', color: '#b45309' }}>{issue.flag}</span>
+                              ) : null;
+                            })()}
+                            {q.lessonOnly ? (
+                              <span className="text-[11px] font-semibold rounded-lg px-2 py-1" style={{ background: FE.card, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
+                                {q.lesson?.videoUrl ? (isHtmlEmbedUrl(q.lesson.videoUrl) ? 'Interactive' : 'Video') : 'Reading'}
+                              </span>
+                            ) : (
                             <button
                               type="button"
                               onClick={() => setPickerCtx({ mode: 'change', qId: q.id })}
                               className="flex items-center gap-1 text-[11px] font-semibold rounded-lg px-2 py-1 transition-opacity hover:opacity-70 cursor-pointer"
-                              style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}
+                              style={{ background: FE.card, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}
                             >
                               {TYPE_LABELS[qType] ?? qType}
                               <ChevronDown className="w-3 h-3 ml-0.5 flex-shrink-0" />
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateQuestion(q.id, {
-                                lessonOnly: !q.lessonOnly,
-                                ...(!q.lessonOnly && !q.lesson ? { lesson: { title: '', body: '', imageUrl: '', videoUrl: '' } } : {}),
-                              })}
-                              title="Lesson only (no question)"
-                              className="flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all"
-                              style={q.lessonOnly ? { background: accentColor, color: 'white' } : { background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.faint }}
-                            >
-                              <BookOpen className="w-3 h-3" /> Lesson only
-                            </button>
+                            )}
                             <LockToggle
                               locked={!!q.lockUntilPrevious}
                               onToggle={() => handleUpdateQuestion(q.id, { lockUntilPrevious: !q.lockUntilPrevious })}
                               accentColor={accentColor}
                             />
-                            <button type="button" onClick={() => handleRemoveQuestion(q.id)} className="p-1 transition-colors hover:text-red-400" style={{ color: FE.faint }}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
                             <button type="button" onClick={() => toggleQuestion(q.id)} className="p-1 transition-colors" style={{ color: FE.faint }}>
                               {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                             </button>
@@ -2831,6 +2914,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
 
                         {isExpanded && <div className="p-3.5 space-y-3">
                           <div className="flex flex-wrap gap-2">
+                            {/* Delete sits with the content it removes, and always asks first. */}
+                            <button type="button" onClick={() => askDelete(q)}
+                              className="order-last ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[11px] font-medium transition-colors hover:text-red-500"
+                              style={{ color: FE.faint }}>
+                              <Trash2 className="w-3.5 h-3.5" /> {q.lessonOnly ? 'Delete lesson' : 'Delete question'}
+                            </button>
                             {!q.lessonOnly && ['multiple_choice', 'code'].includes(qType) && (<>
                             <button
                               type="button"
@@ -2879,6 +2968,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           <div>
                             <label className={labelCls} style={labelStyle}>Question</label>
                             <input type="text" value={q.question} onChange={e => handleUpdateQuestion(q.id, { question: e.target.value })} className={inputCls} style={inputStyle}
+                              autoFocus={!q.question}
                               placeholder={qType === 'fill_blank' ? 'e.g. The capital of France is ___' : 'Enter your question...'} />
                             {qType === 'fill_blank' && (
                               <div className="mt-2 rounded-lg px-3 py-2" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
@@ -2920,8 +3010,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           {qType === 'image' && (
                             <div className="space-y-2.5">
                               <div className="flex items-center justify-between gap-3">
-                                <label className={labelCls} style={labelStyle}>Image options</label>
-                                <span className="text-[9px] font-semibold" style={{ color: FE.faint }}>Choose the correct image</span>
+                                <label className={labelCls} style={labelStyle}>Image options <span style={{ color: FE.faint }}>(pick the correct one)</span></label>
                               </div>
                               <div className="grid grid-cols-2 gap-2">
                                 {q.options.map((opt, optIdx) => {
@@ -3006,41 +3095,50 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           {(qType === 'multiple_choice' || qType === 'code') && (
                             <div className="space-y-2">
                               <div className="flex items-center justify-between gap-3">
-                                <label className={labelCls} style={labelStyle}>Answer options</label>
-                                <span className="text-[9px] font-semibold" style={{ color: FE.faint }}>Select the correct answer</span>
+                                <label className={labelCls} style={labelStyle}>Answer options <span style={{ color: FE.faint, fontWeight: 500 }}>(pick the correct one)</span></label>
                               </div>
-                              {q.options.map((opt, optIdx) => (
+                              {q.options.map((opt, optIdx) => {
+                                // A blank option is never the correct answer: a blank correct answer
+                                // used to match every blank option and show them all as correct.
+                                const isBlank = !opt.trim();
+                                const isRight = !isBlank && q.correctAnswer === opt;
+                                return (
                                 <div key={optIdx} className="flex items-center gap-2 rounded-xl px-2.5 py-2 transition-colors"
-                                  style={{ background: q.correctAnswer === opt ? `${accentColor}10` : FE.groupBg, border: `1px solid ${q.correctAnswer === opt ? `${accentColor}55` : FE.inputBorder}` }}>
-                                  <button type="button" onClick={() => handleUpdateQuestion(q.id, { correctAnswer: opt })}
-                                    aria-label={`Mark option ${optIdx + 1} as correct`} aria-pressed={q.correctAnswer === opt}
-                                    className="w-7 h-7 flex-shrink-0 inline-flex items-center justify-center rounded-lg text-[10px] font-bold transition-all"
-                                    style={{ color: q.correctAnswer === opt ? '#fff' : FE.faint, background: q.correctAnswer === opt ? accentColor : FE.pill }}>
-                                    {q.correctAnswer === opt ? <Check className="w-3.5 h-3.5" /> : optIdx + 1}
+                                  style={{ background: isRight ? `${accentColor}10` : isBlank ? 'rgba(217,119,6,0.08)' : FE.groupBg, border: `1px solid ${isRight ? `${accentColor}55` : isBlank ? 'rgba(217,119,6,0.55)' : FE.inputBorder}` }}>
+                                  <button type="button" onClick={() => { if (!isBlank) handleUpdateQuestion(q.id, { correctAnswer: opt }); }}
+                                    disabled={isBlank}
+                                    aria-label={`Mark option ${optIdx + 1} as correct`} aria-pressed={isRight}
+                                    className="w-7 h-7 flex-shrink-0 inline-flex items-center justify-center rounded-lg text-[10px] font-bold transition-all disabled:cursor-not-allowed"
+                                    style={{ color: isRight ? '#fff' : FE.faint, background: isRight ? accentColor : FE.pill }}>
+                                    {isRight ? <Check className="w-3.5 h-3.5" /> : optIdx + 1}
                                   </button>
                                   <input type="text" value={opt}
+                                    placeholder="Empty option. Fill it in or remove it."
                                     onChange={e => {
                                       const newOpts = [...q.options]; newOpts[optIdx] = e.target.value;
                                       const u: Partial<CourseQuestion> = { options: newOpts };
-                                      if (q.correctAnswer === opt) u.correctAnswer = e.target.value;
+                                      if (isRight) u.correctAnswer = e.target.value;
                                       handleUpdateQuestion(q.id, u);
                                     }}
                                     className={`${inputCls} py-1.5 flex-1`} style={{ ...inputStyle, background: 'transparent', border: 'none', paddingLeft: 2 }} />
                                   {q.options.length > 2 && (
-                                    <button type="button" onClick={() => {
+                                    <button type="button" aria-label={`Remove option ${optIdx + 1}`} onClick={() => {
                                       const newOpts = q.options.filter((_, i) => i !== optIdx);
                                       const u: Partial<CourseQuestion> = { options: newOpts };
-                                      if (q.correctAnswer === opt) u.correctAnswer = newOpts[0] ?? '';
+                                      if (isRight) u.correctAnswer = '';
                                       handleUpdateQuestion(q.id, u);
                                     }} className="transition-colors flex-shrink-0 hover:text-red-400" style={{ color: FE.faint }}>
                                       <X className="w-3.5 h-3.5" />
                                     </button>
                                   )}
                                 </div>
-                              ))}
+                                );
+                              })}
+                              {!q.options.some(opt => opt.trim() && opt === q.correctAnswer) && (
+                                <p className="text-[12px] font-medium" style={{ color: '#b45309' }}>Pick the correct answer. Learners cannot be marked right until you do.</p>
+                              )}
                               <button type="button" onClick={() => {
-                                const newOpts = [...q.options, `Option ${q.options.length + 1}`];
-                                handleUpdateQuestion(q.id, { options: newOpts });
+                                handleUpdateQuestion(q.id, { options: [...q.options, ''] });
                               }} className="text-xs transition-colors inline-flex items-center gap-1.5 mt-1 rounded-lg px-2.5 py-1.5 hover:opacity-70" style={{ color: FE.muted, background: FE.pill }}>
                                 <Plus className="w-3 h-3" /> Add answer option
                               </button>
@@ -3048,14 +3146,11 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           )}
 
                           {qType === 'fill_blank' && (
-                            <div className="rounded-xl p-3 space-y-2.5" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
-                              <div className="flex items-center gap-2">
-                                <span className="w-8 h-8 inline-flex items-center justify-center rounded-lg" style={{ color: accentColor, background: `${accentColor}16` }}><PenLine className="w-4 h-4" /></span>
-                                <div><p className="text-xs font-semibold" style={{ color: FE.text }}>Accepted answers</p><p className="text-[9px]" style={{ color: FE.faint }}>Learners can enter any answer separated by |</p></div>
-                              </div>
+                            <div className="space-y-2">
+                              <label className={labelCls} style={labelStyle}>Accepted answers <span style={{ color: FE.faint }}>(separate alternatives with |)</span></label>
                               <input type="text" value={q.correctAnswer}
                                 onChange={e => handleUpdateQuestion(q.id, { correctAnswer: e.target.value })}
-                                className={inputCls} style={inputStyle} placeholder="e.g. Paris" />
+                                className={inputCls} style={!q.correctAnswer?.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid '+'rgba(217,119,6,0.55)' } : inputStyle} placeholder="e.g. TRIM | trim()" />
                               {q.correctAnswer.trim() && (
                                 <div className="flex flex-wrap gap-1.5">
                                   {q.correctAnswer.split('|').map(answer => answer.trim()).filter(Boolean).map((answer, answerIdx) => (
@@ -3069,13 +3164,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           {qType === 'arrange' && (
                             <div className="space-y-2">
                               <div className="flex items-center justify-between gap-3">
-                                <label className={labelCls} style={labelStyle}>Correct sequence</label>
-                                <span className="text-[9px] font-semibold" style={{ color: FE.faint }}>Top item appears first</span>
+                                <label className={labelCls} style={labelStyle}>Correct order <span style={{ color: FE.faint }}>(top item comes first)</span></label>
                               </div>
                               {q.options.map((item, itemIdx) => (
-                                <div key={itemIdx} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
+                                <div key={itemIdx} className="flex items-center gap-2 rounded-xl px-2.5 py-2" style={!item.trim() ? { background: 'rgba(217,119,6,0.08)', border: '1px solid '+'rgba(217,119,6,0.55)' } : { background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
                                   <span className="w-7 h-7 inline-flex flex-shrink-0 items-center justify-center rounded-lg text-[10px] font-bold" style={{ color: accentColor, background: `${accentColor}15` }}>{itemIdx + 1}</span>
-                                  <input type="text" value={item}
+                                  <input type="text" value={item} placeholder="Empty item. Fill it in or remove it." aria-label={`Item ${itemIdx + 1}`}
                                     onChange={e => {
                                       const newOpts = [...q.options]; newOpts[itemIdx] = e.target.value;
                                       handleUpdateQuestion(q.id, { options: newOpts, correctAnswer: newOpts.join('|||') });
@@ -3112,10 +3206,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
 
                           {/* AI Review config */}
                           {(['code_review', 'excel_review', 'dashboard_critique', 'document_review', 'written_response'] as const).includes(qType as any) && (
-                            <div className="space-y-3 rounded-xl p-3" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                              <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>
-                                {qType === 'code_review' ? 'Code Review' : qType === 'excel_review' ? 'Excel Review' : qType === 'dashboard_critique' ? 'Dashboard Critique' : qType === 'written_response' ? 'Written Response' : 'Document Review'} Config
-                              </p>
+                            // Fields sit directly in the open row, like every other kind of question.
+                            <div className="space-y-3">
 
                               <div>
                                 <label className={labelCls} style={labelStyle}>{qType === 'written_response' ? 'Question / prompt' : 'Project brief / prompt'}</label>
@@ -3205,8 +3297,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                     max={2000}
                                     value={q.writtenMaxWords ?? 0}
                                     onChange={e => handleUpdateQuestion(q.id, { writtenMaxWords: Math.max(0, Number(e.target.value) || 0) })}
-                                    className={`${inputCls} w-24`}
-                                    style={inputStyle}
+                                    className={inputCls}
+                                    style={{ ...inputStyle, width: 112 }}
                                   />
                                 </div>
                               </>)}
@@ -3220,15 +3312,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                     className={`${inputCls} py-1.5`}
                                     style={inputStyle}
                                   >
-                                    <option value="ai_only">AI Only -- AI reviews and auto-grades</option>
-                                    <option value="manual">Manual -- Instructor reviews and grades</option>
-                                    <option value="hybrid">Hybrid -- AI reviews, instructor can override grade</option>
+                                    <option value="ai_only">AI only: the AI reviews and grades</option>
+                                    <option value="manual">Manual: you review and grade</option>
+                                    <option value="hybrid">Hybrid: the AI reviews, you can change the grade</option>
                                   </select>
                                 </div>
                               )}
 
                               <div>
-                                <label className={labelCls} style={labelStyle}>Rubric criteria</label>
+                                <label className={labelCls} style={labelStyle}>Rubric <span style={{ color: FE.faint }}>(what the AI grades against)</span></label>
                                 <div className="mb-2">
                                   {(() => {
                                     const busy: RubricImportKind | null = extractingRubric === `${q.id}:reference_solution`
@@ -3258,8 +3350,9 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                           handleUpdateQuestion(q.id, { rubric: next });
                                         }}
                                         className={`${inputCls} py-1.5 flex-1`}
-                                        style={inputStyle}
-                                        placeholder={`Criterion ${cIdx + 1}`}
+                                        style={!criterion.trim() ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid '+'rgba(217,119,6,0.55)' } : inputStyle}
+                                        placeholder="Empty criterion. Fill it in or remove it."
+                                        aria-label={`Criterion ${cIdx + 1}`}
                                       />
                                       <button
                                         type="button"
@@ -3284,15 +3377,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
 
                               {!(qType === 'document_review' && ((q as any).documentReviewMode === 'manual')) && (
                                 <div>
-                                  <label className={labelCls} style={labelStyle}>Minimum passing score (%)</label>
+                                  <label className={labelCls} style={labelStyle}>Pass mark <span style={{ color: FE.faint }}>(% the AI review must give)</span></label>
                                   <input
                                     type="number"
                                     min={0}
                                     max={100}
                                     value={q.minScore ?? 70}
                                     onChange={e => handleUpdateQuestion(q.id, { minScore: Number(e.target.value) })}
-                                    className={`${inputCls} w-24`}
-                                    style={inputStyle}
+                                    className={inputCls}
+                                    style={{ ...inputStyle, width: 112 }}
                                   />
                                 </div>
                               )}
@@ -3300,8 +3393,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           )}
 
                           {qType === 'sql_exercise' && (
-                            <div className="space-y-3 rounded-xl p-3" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                              <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>SQL Exercise Config</p>
+                            <div className="space-y-3">
                               <div>
                                 <label className={labelCls} style={labelStyle}>Student task</label>
                                 <AiTextarea value={q.question} onValueChange={value => handleUpdateQuestion(q.id, { question: value })} className={`${inputCls} min-h-[72px] resize-y`} style={inputStyle} placeholder="Ask the student to write a query..." />
@@ -3314,7 +3406,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                   </button>
                                 </div>
                                 {(q.sqlTables ?? []).map((table, tableIdx) => (
-                                  <div key={table.id ?? tableIdx} className="grid gap-2 rounded-lg p-2" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
+                                  <div key={table.id ?? tableIdx} className="grid gap-2 rounded-xl p-3" style={{ background: FE.groupBg }}>
                                     <div className="flex gap-2">
                                       <input value={table.tableName} onChange={e => {
                                         const tables = [...(q.sqlTables ?? [])];
@@ -3356,7 +3448,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                     </div>
                                     {table.seedSql?.trim() || (!table.fileUrl && !table.csvUrl && !table.fileName) ? (
                                       <div>
-                                        <label className={labelCls} style={labelStyle}>CREATE TABLE / INSERT seed SQL</label>
+                                        <label className={labelCls} style={labelStyle}>Table data as SQL <span style={{ color: FE.faint }}>(CREATE TABLE and INSERT statements)</span></label>
                                         <AiTextarea
                                           value={table.seedSql ?? ''}
                                           onValueChange={value => {
@@ -3385,12 +3477,15 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                   <span className="text-xs" style={{ color: q.sqlExpectedResult ? '#10b981' : FE.faint }}>{q.sqlExpectedResult ? `${q.sqlExpectedResult.rows.length} expected row(s) saved` : 'Expected result not computed'}</span>
                                 </div>
                               </div>
-                              <div className="grid sm:grid-cols-2 gap-2">
-                                <label className="flex items-center gap-2 text-xs" style={{ color: FE.muted }}>
+                              <div className="flex flex-wrap items-end gap-5">
+                                <label className="flex items-center gap-2 text-xs pb-2.5" style={{ color: FE.muted }}>
                                   <input type="checkbox" checked={!!q.sqlResultOrdered} onChange={e => handleUpdateQuestion(q.id, { sqlResultOrdered: e.target.checked })} />
-                                  Require row order
+                                  Rows must be in the same order
                                 </label>
-                                <input type="number" value={q.sqlNumericTolerance ?? 0} onChange={e => handleUpdateQuestion(q.id, { sqlNumericTolerance: Number(e.target.value) })} className={`${inputCls} py-1.5`} style={inputStyle} placeholder="Numeric tolerance" />
+                                <div>
+                                  <label htmlFor={`tol-${q.id}`} className={labelCls} style={labelStyle}>Number tolerance <span style={{ color: FE.faint }}>(how far off a number may be, 0 for exact)</span></label>
+                                  <input id={`tol-${q.id}`} type="number" min={0} value={q.sqlNumericTolerance ?? 0} onChange={e => handleUpdateQuestion(q.id, { sqlNumericTolerance: Number(e.target.value) })} className={inputCls} style={{ ...inputStyle, width: 112 }} />
+                                </div>
                               </div>
                               <div>
                                 <label className={labelCls} style={labelStyle}>Required SQL patterns <span style={{ color: FE.faint }}>(optional)</span></label>
@@ -3404,15 +3499,14 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                 <p className="mt-1 text-[11px]" style={{ color: FE.faint }}>One per line. Plain words must appear as SQL keywords; /regex/i is also supported.</p>
                               </div>
                               <div>
-                                <label className={labelCls} style={labelStyle}>Hints</label>
+                                <label className={labelCls} style={labelStyle}>Hints <span style={{ color: FE.faint }}>(optional, one per line)</span></label>
                                 <AiTextarea value={(q.sqlHints ?? []).join('\n')} onValueChange={value => handleUpdateQuestion(q.id, { sqlHints: value.split('\n').map(s => s.trim()).filter(Boolean) })} className={`${inputCls} min-h-[70px] resize-y`} style={inputStyle} placeholder="One hint per line" />
                               </div>
                             </div>
                           )}
 
                           {qType === 'python_exercise' && (
-                            <div className="space-y-3 rounded-xl p-3" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
-                              <p className="text-[10px] font-bold tracking-widest uppercase" style={{ color: accentColor }}>Python Exercise Config</p>
+                            <div className="space-y-3">
                               <div>
                                 <label className={labelCls} style={labelStyle}>Student task</label>
                                 <RichTextEditor value={q.question} onChange={html => handleUpdateQuestion(q.id, { question: html })} placeholder="Ask the student to write a Python script..." enableAiAssist />
@@ -3462,7 +3556,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                 )}
                               </div>
                               <div>
-                                <label className={labelCls} style={labelStyle}>Hints</label>
+                                <label className={labelCls} style={labelStyle}>Hints <span style={{ color: FE.faint }}>(optional, one per line)</span></label>
                                 <AiTextarea value={(q.pythonHints ?? []).join('\n')} onValueChange={value => handleUpdateQuestion(q.id, { pythonHints: value.split('\n').map(s => s.trim()).filter(Boolean) })} className={`${inputCls} min-h-[70px] resize-y`} style={inputStyle} placeholder="One hint per line" />
                               </div>
                             </div>
@@ -3498,9 +3592,12 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                           {/* Lesson section */}
                           <div className="rounded-xl overflow-hidden" style={{ border: `1px solid ${FE.cardBorder}` }}>
                             {(() => {
-                              const lessonOpen = !!(q.lesson && !closedLessons.has(q.id));
+                              // An item that is only a lesson opens straight onto its title and content;
+                              // a question's own attached lesson stays an optional, collapsible extra.
+                              const lessonOpen = q.lessonOnly ? !!q.lesson : !!(q.lesson && !closedLessons.has(q.id));
+                              const needsTitle = !!q.lessonOnly && !q.lesson?.title?.trim();
                               return (<>
-                            <button
+                            {!q.lessonOnly && <button
                               type="button"
                               onClick={() => {
                                 if (lessonOpen) {
@@ -3518,16 +3615,23 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                                 Lesson <span style={{ color: FE.faint }}>(optional)</span>
                               </span>
                               {lessonOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
+                            </button>}
                             {lessonOpen && q.lesson && (
-                              <div className="px-3 py-3 space-y-2" style={{ borderTop: `1px solid ${FE.divider}` }}>
+                              <div className="px-3 py-3 space-y-2" style={{ borderTop: q.lessonOnly ? 'none' : `1px solid ${FE.divider}` }}>
+                                {q.lessonOnly && (
+                                  <label htmlFor={`lesson-title-${q.id}`} className={labelCls} style={labelStyle}>
+                                    Title <span style={{ color: FE.faint, fontWeight: 500 }}>(the heading learners see)</span>
+                                  </label>
+                                )}
                                 <input
+                                  id={`lesson-title-${q.id}`}
                                   type="text"
                                   value={q.lesson.title || ''}
                                   onChange={e => handleUpdateQuestion(q.id, { lesson: { ...q.lesson, title: e.target.value } })}
+                                  autoFocus={needsTitle}
                                   className={inputCls}
-                                  style={inputStyle}
-                                  placeholder="Lesson title (optional)..."
+                                  style={needsTitle ? { ...inputStyle, background: 'rgba(217,119,6,0.08)', border: '1px solid rgba(217,119,6,0.55)' } : inputStyle}
+                                  placeholder={q.lessonOnly ? 'Add a title' : 'Lesson title (optional)...'}
                                 />
                                 <LessonEditor
                                   key={q.id}
@@ -3689,7 +3793,43 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       {insertDivider}
                       </React.Fragment>
                     );
-                  })}
+                  };
+                  const all = formConfig.questions ?? [];
+                  return outlineGroups.map(group => {
+                    const collapsed = !!group.section && collapsedModules.has(group.section.id);
+                    const lastIdx = group.items.length ? all.indexOf(group.items[group.items.length - 1]) : group.start;
+                    return (
+                      // One box per module: its heading strip on top, its content inside, as soft rows.
+                      <div key={group.section?.id ?? 'loose'} className="mb-2.5 rounded-xl overflow-hidden" style={{ background: FE.card, border: `1px solid ${FE.cardBorder}` }}>
+                        {group.section ? renderItem(group.section, group.start) : (
+                          <p className="px-3.5 py-2.5 text-[12px] font-bold uppercase tracking-[0.08em]" style={{ background: FE.groupBg, color: FE.muted }}>Not in a module</p>
+                        )}
+                        {!collapsed && (
+                          <>
+                            {group.items.length > 0 && (
+                              <div className="relative py-2 pr-2 pl-[22px]">
+                                <span aria-hidden="true" className="absolute left-3.5 top-2 bottom-2 w-0.5 rounded-full" style={{ background: FE.divider }} />
+                                {group.items.map(item => renderItem(item, all.indexOf(item)))}
+                              </div>
+                            )}
+                            {group.section && (
+                              <div className={`flex gap-1.5 pl-[22px] pb-2 ${group.items.length ? '' : 'pt-2'}`}>
+                                <button type="button" onClick={() => insertLessonAt(lastIdx)}
+                                  className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80" style={{ color: accentColor }}>
+                                  + Add lesson
+                                </button>
+                                <button type="button" onClick={() => setPickerCtx({ mode: 'insert', afterIndex: lastIdx })}
+                                  className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80" style={{ color: accentColor }}>
+                                  + Add question
+                                </button>
+                              </div>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  });
+                  })()}
                     </SortableContext>
                     <DragOverlay dropAnimation={{ duration: 180, easing: 'cubic-bezier(0.18,0.67,0.6,1.22)' }}>
                       {activeQuestionId ? (() => {
@@ -3704,21 +3844,45 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       })() : null}
                     </DragOverlay>
                   </DndContext>
-                  {(!formConfig.questions || formConfig.questions.length === 0) && <p className="text-xs text-center py-3" style={{ color: FE.faint }}>No questions yet.</p>}
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setPickerCtx({ mode: 'bottom' })}
-                      className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all flex-1 hover:opacity-80"
-                      style={{ background: accentColor, color: 'white' }}
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add Content
-                    </button>
-                    <button type="button" onClick={handleAddSection} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all flex-shrink-0 hover:opacity-80" style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
-                      <Plus className="w-3.5 h-3.5" /> Section
-                    </button>
-                  </div>
+                  {(() => {
+                    const isEmpty = !formConfig.questions || formConfig.questions.length === 0;
+                    // One quiet style for the secondary actions; Add lesson is the main one.
+                    const quiet = { background: FE.card, color: FE.text, border: `1px solid ${FE.cardBorder}` };
+                    const actions = (
+                      <div className={`flex flex-wrap items-center gap-2 ${isEmpty ? 'justify-center' : ''}`}>
+                        <button type="button" onClick={() => insertLessonAt((formConfig.questions?.length ?? 0) - 1)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-85"
+                          style={{ background: accentColor, color: 'white', border: `1px solid ${accentColor}` }}>
+                          <Plus className="w-3.5 h-3.5" /> Add lesson
+                        </button>
+                        <button type="button" onClick={() => setPickerCtx({ mode: 'bottom' })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-75" style={quiet}>
+                          <Plus className="w-3.5 h-3.5" /> Add question
+                        </button>
+                        <button type="button" onClick={handleAddSection}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-75" style={quiet}>
+                          <Plus className="w-3.5 h-3.5" /> Module
+                        </button>
+                        <button type="button" onClick={() => { setAiError(''); setAiPromptModalOpen(true); }} disabled={!!aiLoadingLabel}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-75 disabled:opacity-50" style={quiet}>
+                          {aiLoadingLabel === 'Generating questions...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: accentColor }} /> : <Sparkles className="w-3.5 h-3.5" style={{ color: accentColor }} />}
+                          Generate with AI
+                        </button>
+                      </div>
+                    );
+                    return isEmpty ? (
+                      // An empty course: one centred starting point with every way to begin.
+                      <div className="flex flex-col items-center text-center gap-3 rounded-xl px-6 py-10" style={{ background: FE.groupBg }}>
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: FE.text }}>Start your course</p>
+                          <p className="mt-1 text-xs" style={{ color: FE.muted }}>Add a lesson or a question, start a module, or let AI draft them from a topic.</p>
+                        </div>
+                        {actions}
+                      </div>
+                    ) : <div className="pt-1">{actions}</div>;
+                  })()}
+                  {activeSection === 'curriculum' && aiError && <p className="text-[11px]" style={{ color: '#D93025' }}>{aiError}</p>}
+                  {activeSection === 'curriculum' && !aiError && aiSuccess && <p className="text-[11px]" style={{ color: '#10b981' }}>{aiSuccess}</p>}
                 </div>
               </div>
             )}
@@ -4185,12 +4349,39 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
         </div>
       </div>
       <AnimatePresence>
+      {pendingDelete && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4" style={{ background: 'rgba(15,23,42,0.35)' }}
+          onClick={e => { if (e.target === e.currentTarget) setPendingDelete(null); }}>
+          <div role="dialog" aria-modal="true" aria-labelledby="delete-title" className="w-full max-w-sm rounded-2xl p-5 flex flex-col gap-3"
+            style={{ background: FE.card, boxShadow: '0 20px 50px rgba(0,0,0,0.2)' }}>
+            <p id="delete-title" className="text-[15px] font-semibold" style={{ color: FE.text }}>{pendingDelete.title}</p>
+            <p className="text-[13px]" style={{ color: FE.muted }}>{pendingDelete.body}</p>
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <button type="button" autoFocus onClick={() => setPendingDelete(null)}
+                className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: FE.pill, color: FE.text }}>Cancel</button>
+              {pendingDelete.alt && (
+                <button type="button" onClick={() => {
+                  const ids = new Set(pendingDelete.alt!.ids);
+                  updateConfig({ questions: (formConfig.questions ?? []).filter(x => !ids.has(x.id)) });
+                  setPendingDelete(null);
+                }} className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: FE.pill, color: FE.text }}>{pendingDelete.alt.label}</button>
+              )}
+              <button type="button" onClick={() => {
+                const ids = new Set(pendingDelete.ids);
+                updateConfig({ questions: (formConfig.questions ?? []).filter(x => !ids.has(x.id)) });
+                setPendingDelete(null);
+              }} className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background: '#D93025', color: '#fff' }}>{pendingDelete.confirm}</button>
+            </div>
+          </div>
+        </div>
+      )}
         {pickerCtx && (
           <QuestionTypePicker
             key="qtype-picker"
             onSelect={handlePickerSelect}
             onClose={() => setPickerCtx(null)}
             includeDownloads={pickerCtx.mode !== 'change'}
+            includeLesson={pickerCtx.mode !== 'change'}
           />
         )}
       </AnimatePresence>

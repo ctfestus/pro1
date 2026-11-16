@@ -93,8 +93,8 @@ export const TEMPLATES: { key: string; label: string; description: string; icon:
     icon: CalendarDays,
     color: '#1f1bc3',
     config: {
-      title: 'Event Registration',
-      description: 'Join us for an unforgettable experience. Fill in your details below to secure your spot.',
+      title: 'Untitled event',
+      description: '',
       coverImage: '',
       theme: 'forest',
       mode: 'dark',
@@ -114,19 +114,18 @@ export const TEMPLATES: { key: string; label: string; description: string; icon:
     icon: HelpCircle,
     color: '#ff9933',
     config: {
-      title: 'Knowledge Course',
-      description: 'Test your knowledge with this interactive course. Answer all questions and submit to see your results.',
+      title: 'Untitled course',
+      description: '',
       coverImage: '',
-      theme: 'amber',
+      theme: 'forest',
       mode: 'dark',
       font: 'google-sans-text',
       isCourse: true,
       fields: [],
       showAnswers: 'per_question',
       passmark: 50,
-      questions: [
-        { id: uid(), type: 'multiple_choice', question: 'What is your first question?', options: ['Option A', 'Option B', 'Option C', 'Option D'], correctAnswer: 'Option A' },
-      ],
+      // Starts empty: anything pre-filled here could be published by mistake.
+      questions: [],
     },
   },
   {
@@ -136,8 +135,8 @@ export const TEMPLATES: { key: string; label: string; description: string; icon:
     icon: ClipboardList,
     color: '#10b981',
     config: {
-      title: 'Customer Feedback Survey',
-      description: 'We value your opinion. Help us improve by sharing your experience. It only takes 2 minutes.',
+      title: 'Untitled survey',
+      description: '',
       coverImage: '',
       theme: 'emerald',
       mode: 'dark',
@@ -159,8 +158,8 @@ export const TEMPLATES: { key: string; label: string; description: string; icon:
     icon: Video,
     color: '#00a4ef',
     config: {
-      title: 'Webinar Registration',
-      description: 'Reserve your spot for our upcoming online session. We look forward to seeing you there.',
+      title: 'Untitled webinar',
+      description: '',
       coverImage: '',
       theme: 'forest',
       mode: 'dark',
