@@ -5,7 +5,7 @@ import { useTheme } from '@/components/ThemeProvider';
 import { useTenant } from '@/components/TenantProvider';
 import { motion } from 'motion/react';
 import {
-  Sparkles, Loader2, Check, Plus, Trash2, X, ChevronDown, ChevronUp, ChevronRight,
+  Sparkles, Loader2, Check, Plus, Trash2, X, ChevronDown, ChevronUp,
   Upload, Link2, FileText, Database, ArrowLeft, Code2, RefreshCw,
 } from 'lucide-react';
 import type { FormConfig } from '@/lib/course-schema';
@@ -137,9 +137,11 @@ export default function Page() {
         setPyWizardStep('brief');
       } else if (type === 'doc-course') {
         setDocWizardStep('input');
-      } else if (type) {
-        const match = TEMPLATES.find(t => t.key === type);
-        if (match) setFormConfig({ ...match.config });
+      } else {
+        // No start point chosen: the Create menu on the dashboard is where courses start.
+        const match = type ? TEMPLATES.find(t => t.key === type) : undefined;
+        if (!match) { router.replace('/dashboard'); return; }
+        setFormConfig({ ...match.config });
       }
       setIsLoadingEdit(false);
     }
@@ -255,15 +257,6 @@ export default function Page() {
       </button>
     </div>
   );
-
-  // -- Template selection --
-  const handleSelectTemplate = (template: typeof TEMPLATES[number]) => {
-    if (userRole === 'staff' && template.key !== 'event' && template.key !== 'webinar') {
-      showToast('Staff can only create live sessions.', 'error');
-      return;
-    }
-    setFormConfig(template.config);
-  };
 
   const handleGenerateSqlOutline = async () => {
     if (!sqlBrief.title.trim()) { showToast('Please enter a course title.', 'error'); return; }
@@ -600,8 +593,8 @@ export default function Page() {
           {sqlWizardStep === 'brief' && (
             <motion.div key="sql-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-3xl mx-auto">
               <div className="flex items-center justify-between mb-5">
-                <button type="button" onClick={() => setSqlWizardStep(null)} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
-                  <ArrowLeft className="w-4 h-4" /> Course types
+                <button type="button" onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
+                  <ArrowLeft className="w-4 h-4" /> Back to dashboard
                 </button>
                 <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#3b82f6' }}>Course Studio</span>
               </div>
@@ -754,8 +747,8 @@ export default function Page() {
           {docWizardStep === 'input' && (
             <motion.div key="doc-input" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-3xl mx-auto">
               <div className="flex items-center justify-between mb-5">
-                <button type="button" onClick={() => setDocWizardStep(null)} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
-                  <ArrowLeft className="w-4 h-4" /> Course types
+                <button type="button" onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
+                  <ArrowLeft className="w-4 h-4" /> Back to dashboard
                 </button>
                 <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: brandAccent }}>Course Studio</span>
               </div>
@@ -998,8 +991,8 @@ export default function Page() {
           {pyWizardStep === 'brief' && (
             <motion.div key="py-brief" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-3xl mx-auto">
               <div className="flex items-center justify-between mb-5">
-                <button type="button" onClick={() => setPyWizardStep(null)} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
-                  <ArrowLeft className="w-4 h-4" /> Course types
+                <button type="button" onClick={() => router.push('/dashboard')} className="flex items-center gap-2 text-sm font-medium transition-opacity hover:opacity-60" style={{ color: C.muted }}>
+                  <ArrowLeft className="w-4 h-4" /> Back to dashboard
                 </button>
                 <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: '#f59e0b' }}>Course Studio</span>
               </div>
@@ -1150,77 +1143,6 @@ export default function Page() {
               </div>
             </motion.div>
           )}
-
-          {/* Normal landing page */}
-          {!sqlWizardStep && !docWizardStep && !pyWizardStep && (
-            <>
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }} className="w-full mb-9">
-                <div className="flex items-center gap-2 mb-3">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-30" style={{ background: brandAccent }} />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full" style={{ background: brandAccent }} />
-                  </span>
-                  <span className="text-[11px] font-bold uppercase tracking-[0.18em]" style={{ color: brandAccent }}>Course Studio</span>
-                </div>
-                <h1 className="text-3xl sm:text-4xl font-semibold tracking-tight" style={{ color: C.text }}>How would you like to begin?</h1>
-                <p className="text-sm sm:text-base mt-2 max-w-2xl" style={{ color: C.muted }}>Start with a blank experience, transform your source material, or let AI build a specialist course you can refine.</p>
-              </motion.div>
-
-              <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="w-full">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {TEMPLATES.filter(t => userRole !== 'staff' || t.config.eventDetails?.isEvent).map((t, i) => {
-                    const Icon = t.icon;
-                    return (
-                      <motion.button key={t.key} type="button" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 +i * 0.07 }} onClick={() => handleSelectTemplate(t)} className="group relative flex items-start gap-4 p-5 sm:p-6 rounded-[22px] transition-all text-left hover:-translate-y-0.5" style={wizardPanelStyle}>
-                        <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: C.pill }}>
-                          <Icon className="w-4.5 h-4.5" style={{ color: C.muted, width: 18, height: 18 }} />
-                        </div>
-                        <div className="flex-1 min-w-0 pr-7">
-                          <p className="text-base font-semibold leading-tight" style={{ color: C.text }}>{t.label}</p>
-                          <p className="text-sm mt-1 leading-relaxed" style={{ color: C.muted }}>{t.description}</p>
-                        </div>
-                        <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: C.faint }} />
-                      </motion.button>
-                    );
-                  })}
-                  {/* SQL Course with AI */}
-                  {userRole !== 'staff' && <motion.button key="sql-course-ai" type="button" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 +TEMPLATES.length * 0.07 }} onClick={() => setSqlWizardStep('brief')} className="group relative flex items-start gap-4 p-5 sm:p-6 rounded-[22px] transition-all text-left hover:-translate-y-0.5" style={wizardPanelStyle}>
-                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: C.pill }}>
-                      <Database className="w-4.5 h-4.5" style={{ color: C.muted, width: 18, height: 18 }} />
-                    </div>
-                    <div className="flex-1 min-w-0 pr-7">
-                      <p className="text-base font-semibold leading-tight" style={{ color: C.text }}>SQL Course with AI</p>
-                      <p className="text-sm mt-1 leading-relaxed" style={{ color: C.muted }}>Generate applied exercises, a shared schema, and guided solutions.</p>
-                    </div>
-                    <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: C.faint }} />
-                  </motion.button>}
-                  {/* Python Course with AI */}
-                  {userRole !== 'staff' && <motion.button key="py-course-ai" type="button" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 +(TEMPLATES.length + 1) * 0.07 }} onClick={() => setPyWizardStep('brief')} className="group relative flex items-start gap-4 p-5 sm:p-6 rounded-[22px] transition-all text-left hover:-translate-y-0.5" style={wizardPanelStyle}>
-                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: C.pill }}>
-                      <Code2 className="w-4.5 h-4.5" style={{ color: C.muted, width: 18, height: 18 }} />
-                    </div>
-                    <div className="flex-1 min-w-0 pr-7">
-                      <p className="text-base font-semibold leading-tight" style={{ color: C.text }}>Python Course with AI</p>
-                      <p className="text-sm mt-1 leading-relaxed" style={{ color: C.muted }}>Build a data course with datasets, Python practice, and knowledge checks.</p>
-                    </div>
-                    <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: C.faint }} />
-                  </motion.button>}
-                  {/* Course from a Document */}
-                  {userRole !== 'staff' && <motion.button key="doc-course-ai" type="button" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 +(TEMPLATES.length + 2) * 0.07 }} onClick={() => setDocWizardStep('input')} className="group relative flex items-start gap-4 p-5 sm:p-6 rounded-[22px] transition-all text-left hover:-translate-y-0.5" style={wizardPanelStyle}>
-                    <div className="w-11 h-11 rounded-2xl flex items-center justify-center flex-shrink-0" style={{ background: C.pill }}>
-                      <FileText className="w-4.5 h-4.5" style={{ color: C.muted, width: 18, height: 18 }} />
-                    </div>
-                    <div className="flex-1 min-w-0 pr-7">
-                      <p className="text-base font-semibold leading-tight" style={{ color: C.text }}>Create from a Document</p>
-                      <p className="text-sm mt-1 leading-relaxed" style={{ color: C.muted }}>Transform a PDF, deck, guide, web page, or pasted text into a course.</p>
-                    </div>
-                    <ChevronRight className="absolute right-5 top-1/2 -translate-y-1/2 w-4 h-4 transition-transform group-hover:translate-x-0.5" style={{ color: C.faint }} />
-                  </motion.button>}
-                </div>
-              </motion.div>
-            </>
-          )}
-
         </div>
         <GeneratingOverlay visible={!!aiLoadingLabel} label={aiLoadingLabel || undefined} failed={aiFailed} />
       </main>
