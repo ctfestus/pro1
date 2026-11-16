@@ -31,7 +31,7 @@ import { RichTextEditor } from '@/components/RichTextEditor';
 import { AiTextarea } from '@/components/AiTextarea';
 import { LessonEditor } from '@/components/lesson/LessonEditorLazy';
 import { LessonAudioPlayer } from '@/components/lesson/LessonAudioPlayer';
-import { lessonHtmlToDoc } from '@/components/lesson/extensions';
+import { loadLessonHtmlToDoc } from '@/components/lesson/loadLessonHtmlToDoc';
 import { QuestionTypePicker, TYPE_LABELS } from '@/components/create/QuestionTypePicker';
 import type { QuestionTypeOrDownloads } from '@/components/create/QuestionTypePicker';
 import { getFontById } from '@/lib/fonts';
@@ -918,6 +918,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
     });
 
     if (!data) return;
+    const lessonHtmlToDoc = action === 'generate_lesson' ? await loadLessonHtmlToDoc() : null;
 
     setFormConfig(prev => {
       if (!prev) return prev;
@@ -945,7 +946,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 videoUrl: data.videoUrl || item.lesson?.videoUrl || '',
                 // rebuild the canonical doc from the regenerated HTML so the lesson
                 // stays doc-canonical (not body-only) and renders interactively.
-                doc: newBody ? lessonHtmlToDoc(newBody) : undefined,
+                doc: newBody && lessonHtmlToDoc ? lessonHtmlToDoc(newBody) : undefined,
               },
             };
           }
