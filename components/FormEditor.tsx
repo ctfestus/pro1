@@ -1767,6 +1767,46 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                   </p>
                 )}
               </div>
+              {/* What learners will learn: course identity, shown on the overview page beside the description. */}
+              {formConfig.isCourse && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className={labelCls} style={{ ...labelStyle, marginBottom: 0 }}>What learners will learn <span style={{ color: FE.faint }}>(shown on the course overview)</span></label>
+                    <button type="button" onClick={generateOutcomes} disabled={!!aiLoadingLabel}
+                      className="inline-flex items-center gap-1.5 text-[11.5px] font-semibold transition-opacity hover:opacity-70 disabled:opacity-50" style={{ color: accentColor }}>
+                      {aiLoadingLabel === 'Generating learning outcomes...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      Generate with AI
+                    </button>
+                  </div>
+                  {(formConfig.learnOutcomes || []).map((outcome, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <input
+                        type="text"
+                        value={outcome}
+                        aria-label={`Outcome ${idx + 1}`}
+                        onChange={e => {
+                          const next = [...(formConfig.learnOutcomes || [])];
+                          next[idx] = e.target.value;
+                          updateConfig({ learnOutcomes: next });
+                        }}
+                        className={`${inputCls} flex-1`}
+                        style={inputStyle}
+                        placeholder="e.g. Clean a messy sales export"
+                      />
+                      <button type="button" aria-label={`Remove outcome ${idx + 1}`}
+                        onClick={() => updateConfig({ learnOutcomes: (formConfig.learnOutcomes || []).filter((_, i) => i !== idx) })}
+                        className="transition-colors hover:text-red-400" style={{ color: FE.faint }}>
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button type="button" onClick={() => updateConfig({ learnOutcomes: [...(formConfig.learnOutcomes || []), ''] })}
+                    className="px-1.5 py-1 rounded-md text-xs font-semibold transition-colors hover:opacity-80" style={{ color: accentColor }}>
+                    + Add outcome
+                  </button>
+                  {aiError && aiLoadingLabel === '' && activeSection === 'info' && <p className="text-[11px]" style={{ color: '#D93025' }}>{aiError}</p>}
+                </div>
+              )}
               </div>
             )}
 
@@ -2450,88 +2490,6 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                   <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Shape the learning journey, add lessons, and create practice activities.</p>
                 </div>
                 <div className="space-y-3">
-                  <div className="p-3 rounded-xl space-y-3" style={{ background: FE.card }}>
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <label className={labelCls} style={{ ...labelStyle, marginBottom: 0 }}>AI Course Builder</label>
-                        <p className="text-[10px] mt-1 leading-relaxed" style={{ color: FE.faint }}>
-                          Generate questions and learning outcomes from a topic, then refine each question with AI.
-                        </p>
-                      </div>
-                      <div className="px-2 py-1 rounded-lg text-[10px] font-semibold uppercase tracking-[0.14em]" style={{ background: `${accentColor}18`, color: accentColor }}>
-                        AI
-                      </div>
-                    </div>
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        onClick={() => { setAiError(''); setAiPromptModalOpen(true); }}
-                        disabled={!!aiLoadingLabel}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
-                        style={{ background: accentColor, color: 'white' }}
-                      >
-                        {aiLoadingLabel === 'Generating questions...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                        Generate Questions
-                      </button>
-                      <button
-                        type="button"
-                        onClick={generateOutcomes}
-                        disabled={!!aiLoadingLabel}
-                        className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all disabled:opacity-50"
-                        style={{ background: FE.pill, color: FE.text, border: `1px solid ${FE.inputBorder}` }}
-                      >
-                        {aiLoadingLabel === 'Generating learning outcomes...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5" />}
-                        Generate Outcomes
-                      </button>
-                    </div>
-
-                    {aiError && <p className="text-[11px]" style={{ color: '#ef4444' }}>{aiError}</p>}
-                    {!aiError && aiSuccess && <p className="text-[11px]" style={{ color: '#10b981' }}>{aiSuccess}</p>}
-
-                    {/* Always shown, so the first outcome can be typed as well as generated. */}
-                    <div className="space-y-2 pt-1" style={{ borderTop: `1px solid ${FE.divider}` }}>
-                        <div className="flex items-center justify-between">
-                          <label className={labelCls} style={{ ...labelStyle, marginBottom: 0 }}>Learning outcomes</label>
-                          <button
-                            type="button"
-                            onClick={() => updateConfig({ learnOutcomes: [...(formConfig.learnOutcomes || []), ''] })}
-                            className="text-[10px] font-medium transition-colors hover:opacity-70"
-                            style={{ color: accentColor }}
-                          >
-                            Add outcome
-                          </button>
-                        </div>
-                        {(formConfig.learnOutcomes || []).map((outcome, idx) => (
-                          <div key={idx} className="flex items-center gap-2">
-                            <input
-                              type="text"
-                              value={outcome}
-                              onChange={e => {
-                                const next = [...(formConfig.learnOutcomes || [])];
-                                next[idx] = e.target.value;
-                                updateConfig({ learnOutcomes: next });
-                              }}
-                              className={`${inputCls} py-1.5 flex-1`}
-                              style={inputStyle}
-                              placeholder={`Outcome ${idx + 1}`}
-                            />
-                            <button
-                              type="button"
-                              onClick={() => updateConfig({ learnOutcomes: (formConfig.learnOutcomes || []).filter((_, i) => i !== idx) })}
-                              className="transition-colors hover:text-red-400"
-                              style={{ color: FE.faint }}
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ))}
-                        {!formConfig.learnOutcomes?.length && (
-                          <p className="text-[11px]" style={{ color: FE.faint }}>No outcomes yet. Add one, or generate them above.</p>
-                        )}
-                      </div>
-                  </div>
-
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleQuestionDragStart} onDragEnd={handleQuestionDragEnd}>
                     <SortableContext items={visibleOutlineIds} strategy={verticalListSortingStrategy}>
                   {(() => {
@@ -3876,7 +3834,10 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       })() : null}
                     </DragOverlay>
                   </DndContext>
-                  {(!formConfig.questions || formConfig.questions.length === 0) && <p className="text-xs text-center py-3" style={{ color: FE.faint }}>Nothing here yet. Add a lesson or a question.</p>}
+                  {(!formConfig.questions || formConfig.questions.length === 0) && <p className="text-xs text-center py-3" style={{ color: FE.faint }}>
+                    Nothing here yet. Add a lesson or a question, or{' '}
+                    <button type="button" onClick={() => { setAiError(''); setAiPromptModalOpen(true); }} className="font-semibold underline underline-offset-2" style={{ color: accentColor }}>generate them with AI</button>.
+                  </p>}
 
                   <div className="flex items-center gap-2 pt-1">
                     <button
@@ -3898,7 +3859,16 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                     <button type="button" onClick={handleAddSection} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all flex-shrink-0 hover:opacity-80" style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
                       <Plus className="w-3.5 h-3.5" /> Module
                     </button>
+                    {/* Occasional, so it sits quietly at the end rather than in a panel above the outline. */}
+                    <button type="button" onClick={() => { setAiError(''); setAiPromptModalOpen(true); }} disabled={!!aiLoadingLabel}
+                      className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-80 disabled:opacity-50"
+                      style={{ color: accentColor, background: `${accentColor}12` }}>
+                      {aiLoadingLabel === 'Generating questions...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
+                      Generate with AI
+                    </button>
                   </div>
+                  {activeSection === 'curriculum' && aiError && <p className="text-[11px]" style={{ color: '#D93025' }}>{aiError}</p>}
+                  {activeSection === 'curriculum' && !aiError && aiSuccess && <p className="text-[11px]" style={{ color: '#10b981' }}>{aiSuccess}</p>}
                 </div>
               </div>
             )}
