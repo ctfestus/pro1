@@ -1631,17 +1631,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
         </div>
         {formConfig.isCourse && (
           <div className="relative z-10" style={{ background: FE.card, borderBottom: `1px solid ${FE.cardBorder}` }}>
-            <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
-              <div className="min-w-0 mr-auto">
-                <p className="truncate text-base font-semibold leading-tight sm:text-lg" style={{ color: FE.text }}>{formConfig.title || 'Untitled course'}</p>
-              </div>
-              <button type="button" onClick={() => window.open(`/${customSlug || formId}`, '_blank', 'noopener,noreferrer')}
-                className="hidden items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold transition-colors sm:flex"
-                style={{ background: FE.groupBg, color: FE.muted }}>
-                <ExternalLink className="h-3.5 w-3.5" /> Preview
-              </button>
-            </div>
-            <nav className="flex items-center gap-1 overflow-x-auto px-4 pb-3 sm:px-6" aria-label="Course studio modes" style={{ scrollbarWidth: 'none' }}>
+            <nav className="flex items-center gap-1 overflow-x-auto px-4 py-3 sm:px-6" aria-label="Course studio modes" style={{ scrollbarWidth: 'none' }}>
               {courseStudioModes.map(mode => {
                 const active = mode.id === activeStudioMode.id;
                 return (

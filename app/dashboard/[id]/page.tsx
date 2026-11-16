@@ -272,7 +272,7 @@ function ResponsesTab({
         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
       </div>
     );
-    const summary = [
+    const summary = startedCount === 0 && notStartedStudents.length === 0 ? 'No learners yet.' : [
       `${startedCount} learner${startedCount === 1 ? '' : 's'}: ${completedByEmail.size} finished, ${inProgressStudents.length} in progress`,
       notStartedStudents.length ? `${notStartedStudents.length} not started` : '',
     ].filter(Boolean).join(', ');
@@ -2719,7 +2719,7 @@ export default function FormDetailPage() {
             <div className="max-w-6xl mx-auto flex flex-col gap-4">
               {/* One card: the title row, the tabs and the tab's content on the same surface. */}
               <div className="w-full min-w-0 rounded-2xl" style={{ background: isLight ? '#ffffff' : '#1E1F26', boxShadow: isLight ? '0 16px 38px rgba(15,23,42,0.045)' : 'none' }}>
-              {type !== 'course' && (
+              {(
           <div className="px-5 sm:px-6 pt-4 pb-2 flex items-center gap-3">
             <Link href="/dashboard" aria-label="Back to dashboard" className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-[10px] transition-opacity hover:opacity-70" style={{ color: hdrTextMut, background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)' }}>
               <ArrowLeft className="w-4 h-4" />
@@ -2727,7 +2727,7 @@ export default function FormDetailPage() {
 
             {/* What this is, then its name */}
             <div className="min-w-0">
-              <p className="text-[12px]" style={{ color: hdrTextMut }}>{type === 'virtual_experience' ? 'Virtual experience' : type === 'event' ? 'Event' : 'Form'}</p>
+              <p className="text-[12px]" style={{ color: hdrTextMut }}>{type === 'virtual_experience' ? 'Virtual experience' : type === 'course' ? 'Course' : type === 'event' ? 'Event' : 'Form'}</p>
               <p className="text-[17px] font-semibold truncate" style={{ color: hdrTextPrim }}>{form.title}</p>
             </div>
 
@@ -2737,7 +2737,7 @@ export default function FormDetailPage() {
                 <Link href={`/create/guided-project?id=${form.id}`} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
                   Edit
                 </Link>
-              ) : (
+              ) : type === 'course' ? null : (
                 <button onClick={() => setActiveTab('settings')} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
                   Edit
                 </button>
