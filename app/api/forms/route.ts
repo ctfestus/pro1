@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { courseIssues } from '@/lib/course-validation';
 import { randomBytes } from 'crypto';
 import { adminClient } from '@/lib/admin-client';
 import { requireRole, requireUser, isAuthError } from '@/lib/api-auth';
@@ -429,6 +430,19 @@ export async function PATCH(req: NextRequest) {
   }
   if (found.row.user_id !== user.id && role !== 'admin' && role !== 'staff') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  // A course is published only once it has no untitled lessons, answerless questions and the like:
+  // the same check the editor shows (lib/course-validation). Unpublishing is never blocked.
+  if (status === 'published' && found.table === 'courses' && found.row.status !== 'published') {
+    const { data: course } = await supabase.from('courses').select('title, questions').eq('id', formId).maybeSingle();
+    const issues = courseIssues({ title: course?.title, questions: course?.questions });
+    if (issues.length) {
+      return NextResponse.json({
+        error: `Fix ${issues.length} thing${issues.length === 1 ? '' : 's'} in the editor before publishing. First: ${issues[0].message}.`,
+        issues: issues.map(i => i.message),
+      }, { status: 422 });
+    }
   }
 
   const { error: updateError } = await supabase.from(found.table).update({ status }).eq('id', formId);

@@ -1964,6 +1964,9 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
       setCurrentStatus(newStatus);
       onStatusChange?.(newStatus);
       if (json.registrationWarning) setStatusWarning(json.registrationWarning);
+    } else {
+      // e.g. a course with an untitled lesson or a question without a correct answer
+      setStatusWarning(json.error || 'Could not change the status. Please try again.');
     }
     setStatusUpdating(false);
   };

@@ -5,13 +5,13 @@ import { motion } from 'motion/react';
 import {
   X, ListChecks, PenLine, ArrowUpDown, Image as ImageIcon, Images,
   Code2, Bot, Table2, BarChart2, ScrollText, MessageSquareText,
-  Database, Terminal, Download,
+  Database, Terminal, Download, BookOpen,
 } from 'lucide-react';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { useTheme } from '@/components/ThemeProvider';
 import type { QuestionType } from '@/lib/course-schema';
 
-export type QuestionTypeOrDownloads = QuestionType | 'downloads' | 'linkedin_share';
+export type QuestionTypeOrDownloads = QuestionType | 'downloads' | 'linkedin_share' | 'lesson';
 
 export const TYPE_LABELS: Record<QuestionTypeOrDownloads, string> = {
   multiple_choice:    'Multiple Choice',
@@ -29,6 +29,7 @@ export const TYPE_LABELS: Record<QuestionTypeOrDownloads, string> = {
   python_exercise:    'Python Exercise',
   downloads:          'Downloads',
   linkedin_share:     'LinkedIn Share',
+  lesson:             'Lesson',
 };
 
 type TypeEntry = { value: QuestionTypeOrDownloads; label: string; icon: React.ReactNode; wide?: boolean };
@@ -40,7 +41,16 @@ const OPT_IN_TYPES = new Set<QuestionTypeOrDownloads>(['image_choice']);
 // can never be "changed into" one. Gated together by the includeDownloads prop.
 const SLIDE_ONLY_TYPES = new Set<QuestionTypeOrDownloads>(['downloads', 'linkedin_share']);
 
+// A reading, video or interactive lesson: offered only by editors that have lessons (courses),
+// via the includeLesson prop, and only when adding (a question is not changed into a lesson).
 const CATEGORIES: Array<{ label: string; color: string; types: TypeEntry[] }> = [
+  {
+    label: 'Learn',
+    color: '#6b7280',
+    types: [
+      { value: 'lesson', label: 'Lesson', icon: <BookOpen className="w-[15px] h-[15px]" /> },
+    ],
+  },
   {
     label: 'Quiz',
     color: '#3b82f6',
@@ -87,9 +97,10 @@ interface QuestionTypePickerProps {
   onClose: () => void;
   includeDownloads?: boolean;
   allowedTypes?: QuestionTypeOrDownloads[];   // when set, only these types are offered
+  includeLesson?: boolean;                    // courses: offer "Lesson" when adding content
 }
 
-export function QuestionTypePicker({ onSelect, onClose, includeDownloads = true, allowedTypes }: QuestionTypePickerProps) {
+export function QuestionTypePicker({ onSelect, onClose, includeDownloads = true, allowedTypes, includeLesson = false }: QuestionTypePickerProps) {
   const { theme } = useTheme();
   const dark = theme === 'dark';
 
@@ -137,6 +148,7 @@ export function QuestionTypePicker({ onSelect, onClose, includeDownloads = true,
         <div className="px-3.5 pb-3.5">
           {CATEGORIES.map((cat, catIdx) => {
             let types = includeDownloads ? cat.types : cat.types.filter(t => !SLIDE_ONLY_TYPES.has(t.value));
+            if (!includeLesson) types = types.filter(t => t.value !== 'lesson');
             if (allowedTypes) types = types.filter(t => allowedTypes.includes(t.value));
             // image_choice is opt-in (certifications): hidden unless explicitly allowed.
             else types = types.filter(t => !OPT_IN_TYPES.has(t.value));
