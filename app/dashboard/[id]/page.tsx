@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { exportContent } from '@/lib/dashboard-export';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, ExternalLink, GitFork, Edit2, AlignLeft, HelpCircle, CalendarDays, Mail, Send, Bell, Award, Sun, Moon, Sparkles, X, ChevronDown, Eye,
+  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, ExternalLink, GitFork, Edit2, AlignLeft, HelpCircle, CalendarDays, Mail, Send, Bell, Award, Sun, Moon, Sparkles, X, ChevronDown, Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -17,6 +17,8 @@ import { useTenant } from '@/components/TenantProvider';
 import { LinkedInIcon } from '@/components/LinkedInIcon';
 import { veProgressPct, veCompletionCounts } from '@/lib/ve-completion';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
+import { isAnswerRight } from '@/lib/answer-rules';
+import { questionNumbers } from '@/lib/course-validation';
 import { ReviewReportView, LegacyReviewSummary, REVIEW_TYPES, REVIEW_LABELS } from '@/components/ReviewReportView';
 import { parseReviewNotes } from '@/lib/reviewRecord';
 import VeFileReportEditor from '@/components/dashboard/VeFileReportEditor';
@@ -108,6 +110,7 @@ function ResponsesTab({
   const [eventAttendance, setEventAttendance] = useState<any[]>([]);
   const [expandedSession, setExpandedSession] = useState<string | null>(null);
   const [reviewStudent, setReviewStudent] = useState<any | null>(null);
+  const [learnerFilter, setLearnerFilter] = useState<'all' | 'passed' | 'failed' | 'in_progress' | 'not_started'>('all');
   const [shares, setShares] = useState<any[]>(linkedInShares);
   useEffect(() => { setShares(linkedInShares); }, [linkedInShares]);
 
@@ -189,7 +192,6 @@ function ResponsesTab({
     const questions = form.config?.questions || [];
     const reviewQuestions = questions.filter((q: any) => REVIEW_TYPES.includes(q.type));
     const hasReview = reviewQuestions.length > 0;
-    const passmark = form.config?.passmark ?? 50;
     const completedAttempts = courseProgress.filter((p: any) => p.completed);
     const passedAttempts = completedAttempts.filter((p: any) => p.passed);
     const passRate = completedAttempts.length ? Math.round((passedAttempts.length / completedAttempts.length) * 100) : 0;
@@ -198,49 +200,31 @@ function ResponsesTab({
       : null;
     const topScore = completedAttempts.length ? Math.max(...completedAttempts.map((p: any) => p.score ?? 0)) : 0;
 
-    // Share slides carry a post URL, not an answer, so they would always read as 0% correct.
-    const questionStats = questions.filter((q: any) => !q.isLinkedInShare).map((q: any) => {
+    // Code exercises are judged by their stored pass flags; everything else by the shared answer rules.
+    const isRight = (q: any, answer: any) => {
+      if (q.type === 'sql_exercise' || q.type === 'python_exercise') {
+        try {
+          const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer;
+          return !!parsed?.passed && !parsed?.skipped && !parsed?.solutionViewed && (q.type === 'sql_exercise' || !!parsed?.proof);
+        } catch { return false; }
+      }
+      if (q.type === 'document_review') {
+        try { return JSON.parse(answer)?.completed === true; } catch { return answer === 'completed'; }
+      }
+      return isAnswerRight(q, answer);
+    };
+    // Graded questions only, numbered Q1, Q2 ... as learners see them (lessons, modules, downloads
+    // and share slides are not questions).
+    const qNumbers = questionNumbers(questions);
+    const questionStats = questions.map((q: any, i: number) => ({ q, no: qNumbers[i] })).filter((x: any) => x.no > 0).map(({ q, no }: any) => {
       const answered = completedAttempts.filter((p: any) => p.answers?.[q.id]);
-      const correct = answered.filter((p: any) => {
-        const answer = p.answers?.[q.id];
-        if ((q.type ?? '') === 'sql_exercise') {
-          try {
-            const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer;
-            return !!parsed?.passed && !parsed?.skipped && !parsed?.solutionViewed;
-          } catch {
-            return false;
-          }
-        }
-        if ((q.type ?? '') === 'python_exercise') {
-          try {
-            const parsed = typeof answer === 'string' ? JSON.parse(answer) : answer;
-            return !!parsed?.passed && !!parsed?.proof && !parsed?.skipped && !parsed?.solutionViewed;
-          } catch {
-            return false;
-          }
-        }
-        if (q.type === 'document_review') {
-          try { const p = JSON.parse(answer); return p?.completed === true; } catch { return answer === 'completed'; }
-        }
-        if (['code_review', 'excel_review', 'dashboard_critique', 'written_response'].includes(q.type)) return answer === 'completed';
-        if (q.type === 'fill_blank') {
-          const accepted = (q.correctAnswer ?? '').split('|').map((s: string) => s.trim().toLowerCase());
-          return accepted.includes(String(answer).trim().toLowerCase());
-        }
-        return answer === q.correctAnswer;
-      }).length;
-      const label = q.question || q.title || q.lesson?.title || 'Lesson';
-      return {
-        question: label.length > 30 ? `${label.slice(0, 30)}...` : label,
-        fullQuestion: label,
-        correct, incorrect: answered.length - correct, total: answered.length,
-        pct: answered.length ? Math.round((correct / answered.length) * 100) : 0,
-      };
+      const correct = answered.filter((p: any) => isRight(q, p.answers?.[q.id])).length;
+      return { no, text: q.question || q.lesson?.title || `Question ${no}`, correct, total: answered.length, pct: answered.length ? Math.round((correct / answered.length) * 100) : 0 };
     });
 
-    // Build enrolled student list: combine completed + in-progress (courseProgress) + not started (cohorts)
+    // Learners: finished (best attempt), in progress, and cohort members who have not started.
     const completedByEmail = new Map<string, any>();
-    for (const p of courseProgress.filter(p => p.completed)) {
+    for (const p of completedAttempts) {
       const key = (p.student_email || '').trim().toLowerCase();
       if (key) completedByEmail.set(key, p);
     }
@@ -253,286 +237,182 @@ function ResponsesTab({
       const key = (s.email || '').trim().toLowerCase();
       return key && !completedByEmail.has(key) && !inProgressEmails.has(key);
     });
-    const totalEnrolled = completedByEmail.size + inProgressStudents.length + notStartedStudents.length;
+    const startedCount = completedByEmail.size + inProgressStudents.length;
+
+    type LearnerStatus = 'passed' | 'failed' | 'in_progress' | 'not_started';
+    const learners: { key: string; name: string; email: string; status: LearnerStatus; pct: number; detail: string; updatedAt?: string; progress?: any }[] = [
+      ...[...completedByEmail.values()].map((p: any) => ({
+        key: `cp_${p.student_email}`, name: p.student_name, email: p.student_email, status: (p.passed ? 'passed' : 'failed') as LearnerStatus,
+        pct: p.score ?? 0, detail: `${p.score ?? 0}%`, updatedAt: p.updated_at, progress: p,
+      })).sort((a, b) => (a.status === b.status ? b.pct - a.pct : a.status === 'passed' ? -1 : 1)),
+      ...inProgressStudents.map((p: any) => {
+        // Shared rule: counts what this learner has done, ignoring module headings.
+        const counts = courseProgressCounts(questions, p.answers ?? {});
+        return { key: `ip_${p.student_email}`, name: p.student_name, email: p.student_email, status: 'in_progress' as LearnerStatus,
+          pct: courseProgressPct(questions, p.answers ?? {}), detail: `Item ${counts.done} of ${counts.total}`, updatedAt: p.updated_at, progress: p };
+      }),
+      ...notStartedStudents.map((s: any) => ({ key: `ns_${s.id}`, name: s.full_name, email: s.email, status: 'not_started' as LearnerStatus, pct: 0, detail: 'Not started' })),
+    ];
+    const counts: Record<LearnerStatus, number> = { passed: 0, failed: 0, in_progress: 0, not_started: 0 };
+    for (const l of learners) counts[l.status] += 1;
+    const shown = learnerFilter === 'all' ? learners : learners.filter(l => l.status === learnerFilter);
+
+    const soft = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
+    const line = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+    const good = isDark ? '#5fd39a' : '#00a656';
+    const bad = isDark ? '#F28B82' : '#D93025';
+    const wait = isDark ? '#f5b454' : '#b45309';
+    const statusLook: Record<LearnerStatus, { label: string; color: string }> = {
+      passed: { label: 'Passed', color: good }, failed: { label: 'Failed', color: bad },
+      in_progress: { label: 'In progress', color: wait }, not_started: { label: 'Not started', color: isDark ? '#7d8896' : '#888' },
+    };
+    const shortDate = (d?: string) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '');
+    const Bar = ({ pct, color }: { pct: number; color: string }) => (
+      <div className="h-1.5 w-20 flex-shrink-0 overflow-hidden rounded-full" style={{ background: soft }}>
+        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+      </div>
+    );
+    const summary = [
+      `${startedCount} learner${startedCount === 1 ? '' : 's'}: ${completedByEmail.size} finished, ${inProgressStudents.length} in progress`,
+      notStartedStudents.length ? `${notStartedStudents.length} not started` : '',
+    ].filter(Boolean).join(', ');
 
     return (
-      <div className="space-y-6">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: courseAccent }}>Course insights</p>
-            <h2 className={`mt-1 text-xl font-bold sm:text-2xl ${textPrim}`}>Learning performance</h2>
-            <p className={`mt-1 max-w-2xl text-sm leading-relaxed ${textMut}`}>Track participation, scores, question performance, and learner progress in one place.</p>
-          </div>
-          <button onClick={onExport} className={`flex min-h-10 items-center gap-2 rounded-xl px-3.5 py-2 text-xs font-semibold transition-opacity hover:opacity-70 ${textSub}`} style={{ background: isDark ? 'rgba(255,255,255,0.05)' : '#f5f6f7' }}>
+      <div className="space-y-7">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className={`text-sm ${textSub}`}>{summary}</p>
+          <button onClick={onExport} className={`flex items-center gap-2 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
             <Download className="h-3.5 w-3.5" /> Export CSV
           </button>
         </div>
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           {[
-            { label: 'Started',    value: totalEnrolled || '--',                                Icon: Users,      color: '#8b5cf6' },
-            { label: 'Avg Score',  value: avgScore !== null ? `${avgScore}%` : '--',             Icon: BarChart2,   color: '#00a4ef' },
-            { label: 'Pass Rate',  value: completedAttempts.length ? `${passRate}%` : '--',      Icon: TrendingUp,  color: '#10b981' },
-            { label: 'Top Score',  value: completedAttempts.length ? `${topScore}%` : '--',      Icon: Trophy,      color: '#f59e0b' },
-          ].map(({ label, value, Icon, color }) => (
-            <div key={label} className={`relative overflow-hidden border rounded-2xl p-5 ${card}`}>
-              <span className="absolute inset-x-0 top-0 h-0.5" style={{ background: color }} />
-              <div className="flex items-center gap-2 mb-3">
-                <span className="grid h-8 w-8 place-items-center rounded-lg" style={{ background: `${color}14` }}><Icon className="w-4 h-4" style={{ color }} /></span>
-                <span className={`text-xs font-medium uppercase tracking-wide ${textMut}`}>{label}</span>
-              </div>
-              <p className={`text-3xl font-bold ${textPrim}`}>{value}</p>
+            { label: 'Started',       value: startedCount || '--',                              Icon: Users },
+            { label: 'Average score', value: avgScore !== null ? `${avgScore}%` : '--',          Icon: BarChart2 },
+            { label: 'Pass rate',     value: completedAttempts.length ? `${passRate}%` : '--',   Icon: TrendingUp },
+            { label: 'Top score',     value: completedAttempts.length ? `${topScore}%` : '--',   Icon: Trophy },
+          ].map(({ label, value, Icon }) => (
+            <div key={label} className="rounded-xl p-4" style={{ background: soft }}>
+              <p className={`flex items-center gap-1.5 text-xs font-medium ${textMut}`}><Icon className="h-3.5 w-3.5" />{label}</p>
+              <p className={`mt-1.5 text-2xl font-bold tabular-nums ${textPrim}`}>{value}</p>
             </div>
           ))}
         </div>
 
-        {/* Per-question breakdown */}
-        {completedAttempts.length > 0 && (
-          <div className={`border rounded-3xl overflow-hidden ${card}`}>
-            <div className={`px-6 py-4 border-b flex items-center justify-between ${cardHeader}`}>
-              <h3 className={`text-base font-semibold ${textPrim}`}>Question Breakdown</h3>
-              <span className={`text-[11px] font-medium ${textMut}`}>{questionStats.length} items</span>
-            </div>
-            <div className={`divide-y ${dividerCls}`}>
-              {questionStats.map((q: any, i: number) => (
-                <div key={i} className="px-3 sm:px-6 py-3 sm:py-4 flex items-center gap-3 sm:gap-4">
-                  <span className={`text-xs font-mono w-5 flex-shrink-0 ${textMut}`}>Q{i + 1}</span>
-                  <p className={`flex-1 text-sm min-w-0 ${textSub}`}>{q.fullQuestion}</p>
-                  <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
-                    <span className="flex items-center gap-1 text-xs text-emerald-400"><CheckCircle2 className="w-3.5 h-3.5" /> {q.correct}</span>
-                    <span className="flex items-center gap-1 text-xs text-rose-400"><XCircle className="w-3.5 h-3.5" /> {q.incorrect}</span>
-                    <span className="text-xs font-semibold w-10 text-right" style={{ color: q.pct >= 50 ? '#10b981' : '#f43f5e' }}>{q.pct}%</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+        {completedAttempts.length > 0 && questionStats.length > 0 && (
+          <section>
+            <h3 className={`mb-2 text-[15px] font-semibold ${textPrim}`}>Questions</h3>
+            {questionStats.map((q: { no: number; text: string; correct: number; total: number; pct: number }) => (
+              <div key={q.no} className="flex items-center gap-3 py-2.5" style={{ borderTop: `1px solid ${line}` }}>
+                <span className={`w-7 flex-shrink-0 text-xs ${textMut}`}>Q{q.no}</span>
+                <p className={`min-w-0 flex-1 text-sm ${textSub}`}>{q.text}</p>
+                <span className="hidden sm:block"><Bar pct={q.pct} color={q.pct >= 50 ? good : bad} /></span>
+                <span className={`w-16 flex-shrink-0 text-right text-xs font-semibold tabular-nums ${textPrim}`}>{q.correct} of {q.total}</span>
+              </div>
+            ))}
+          </section>
         )}
 
         {/* LinkedIn shares -- post URLs are only pattern-checked, so spot-check them by hand. */}
         {shares.length > 0 && (
-          <div className={`rounded-3xl border overflow-hidden ${card}`}>
-            <div className={`px-6 py-4 border-b ${cardHeader}`}>
-              <h3 className={`text-base font-semibold flex items-center gap-2 ${textPrim}`}>
-                <LinkedInIcon className="w-4 h-4" style={{ color: '#0A66C2' }} /> LinkedIn Shares
-              </h3>
-              <p className={`text-xs mt-0.5 ${textMut}`}>
-                Each link was checked when submitted: a real LinkedIn post URL, naming the profile saved
-                on that student&apos;s account, and not already claimed. That is a consistency check and a
-                deterrent, not proof the LinkedIn account belongs to them -- and it says nothing about
-                whether the post is still live.
-              </p>
-            </div>
-            <div className={`divide-y ${dividerCls}`}>
-              {shares.map((s: any) => (
-                <div key={s.id} className="px-4 sm:px-6 py-3 flex flex-wrap items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <p className={`text-sm font-medium truncate ${textPrim}`}>
-                      {s.studentName || s.studentEmail || 'Unknown'}
-                    </p>
-                    <a href={s.postUrl} target="_blank" rel="noreferrer"
-                      className="text-xs break-all hover:underline" style={{ color: '#0A66C2' }}>
-                      {s.postUrl}
-                    </a>
-                  </div>
-                  <span className={`text-[11px] font-medium flex-shrink-0 ${textMut}`}>
-                    {s.points > 0 ? `${s.points} XP` : 'Recorded'}
-                  </span>
+          <section>
+            <h3 className={`flex items-center gap-2 text-[15px] font-semibold ${textPrim}`}>
+              <LinkedInIcon className="w-4 h-4" style={{ color: '#0A66C2' }} /> LinkedIn shares
+            </h3>
+            <p className={`mt-0.5 mb-2 text-xs ${textMut}`}>
+              Each link was checked when submitted: a real LinkedIn post URL, naming the profile saved
+              on that student&apos;s account, and not already claimed. That is a consistency check and a
+              deterrent, not proof the LinkedIn account belongs to them -- and it says nothing about
+              whether the post is still live.
+            </p>
+            {shares.map((s: any) => (
+              <div key={s.id} className="flex flex-wrap items-center gap-3 py-2.5" style={{ borderTop: `1px solid ${line}` }}>
+                <div className="min-w-0 flex-1">
+                  <p className={`truncate text-sm font-medium ${textPrim}`}>{s.studentName || s.studentEmail || 'Unknown'}</p>
+                  <a href={s.postUrl} target="_blank" rel="noreferrer" className="break-all text-xs hover:underline" style={{ color: '#0A66C2' }}>{s.postUrl}</a>
                 </div>
-              ))}
-            </div>
-          </div>
+                <span className={`flex-shrink-0 text-[11px] font-medium ${textMut}`}>{s.points > 0 ? `${s.points} XP` : 'Recorded'}</span>
+              </div>
+            ))}
+          </section>
         )}
 
-        {/* Submissions table */}
-        <div className={`rounded-3xl border overflow-hidden ${card}`}>
-          <div className={`px-6 py-4 border-b ${cardHeader}`}>
-            <h3 className={`text-base font-semibold ${textPrim}`}>Student Submissions</h3>
-          </div>
+        <section>
+          <h3 className={`mb-2 text-[15px] font-semibold ${textPrim}`}>Learners</h3>
+          {learners.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {([['all', 'All', learners.length], ['passed', 'Passed', counts.passed], ['failed', 'Failed', counts.failed],
+                 ['in_progress', 'In progress', counts.in_progress], ['not_started', 'Not started', counts.not_started]] as const).map(([key, label, n]) => {
+                const on = learnerFilter === key;
+                return (
+                  <button key={key} type="button" onClick={() => setLearnerFilter(key)} aria-pressed={on}
+                    className="rounded-full px-3 py-1 text-xs transition-colors"
+                    style={on ? { background: `color-mix(in srgb, ${courseAccent} 14%, transparent)`, color: courseAccent, fontWeight: 600 } : { background: soft, color: isDark ? '#A8B5C2' : '#555' }}>
+                    {label} {n}
+                  </button>
+                );
+              })}
+            </div>
+          )}
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className={`border-b ${tableHead}`}>
-                <tr>
-                  <th className="px-3 sm:px-6 py-3 font-medium">Student</th>
-                  <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Email</th>
-                  <th className="px-3 sm:px-6 py-3 font-medium">Score</th>
-                  <th className="px-3 sm:px-6 py-3 font-medium">Result</th>
-                  <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Date</th>
+            <table className="w-full min-w-[560px] text-left text-sm">
+              <thead>
+                <tr className={`text-xs ${textMut}`}>
+                  <th className="px-2 py-2 font-medium">Learner</th>
+                  <th className="px-2 py-2 font-medium">Status</th>
+                  <th className="px-2 py-2 font-medium">Score or progress</th>
+                  <th className="px-2 py-2 font-medium">Last active</th>
+                  {hasReview && <th className="px-2 py-2 font-medium">Reviews</th>}
                 </tr>
               </thead>
-              <tbody className={`divide-y ${dividerCls}`}>
-                {(() => {
-                  return completedAttempts.map((p: any) => {
-                    const pct = p.score ?? 0;
-                    const pass = p.passed ?? pct >= passmark;
-                    return (
-                      <tr key={`${p.student_id}_${p.attempt_number}`} className={`transition-colors ${tableRow}`}>
-                        <td className={`px-3 sm:px-6 py-3 font-medium ${textPrim}`}>{p.student_name || <span className={`italic ${textMut}`}>Unknown</span>}</td>
-                        <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 ${textMut}`}>{p.student_email || '--'}</td>
-                        <td className="px-3 sm:px-6 py-3">
-                          <span className={`font-semibold ${textPrim}`}>{pct}%</span>
+              <tbody>
+                {shown.map(l => {
+                  const look = statusLook[l.status];
+                  const submittedDocs = l.progress ? reviewQuestions.filter((q: any) => {
+                    const ans = l.progress.answers?.[q.id];
+                    return ans === 'completed' || ans === 'failed';
+                  }) : [];
+                  return (
+                    <tr key={l.key} className={`transition-colors ${tableRow}`} style={{ borderTop: `1px solid ${line}` }}>
+                      <td className="px-2 py-2.5">
+                        <p className={`font-medium ${textPrim}`}>{l.name || <span className={`italic ${textMut}`}>Unknown</span>}</p>
+                        <p className={`text-xs ${textMut}`}>{l.email || ''}</p>
+                      </td>
+                      <td className="px-2 py-2.5">
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold" style={{ color: look.color, border: `1px solid ${line}`, background: isDark ? 'transparent' : '#fff' }}>
+                          <span className="h-1.5 w-1.5 rounded-full" style={{ background: look.color }} />{look.label}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2.5">
+                        <div className="flex items-center gap-2">
+                          <Bar pct={l.pct} color={look.color} />
+                          <span className={`whitespace-nowrap text-xs ${textSub}`}>{l.detail}</span>
+                        </div>
+                      </td>
+                      <td className={`whitespace-nowrap px-2 py-2.5 text-xs ${textMut}`}>{shortDate(l.updatedAt)}</td>
+                      {hasReview && (
+                        <td className="px-2 py-2.5">
+                          {submittedDocs.length > 0 && (
+                            <button onClick={() => setReviewStudent({ ...l.progress, reviewQs: reviewQuestions })}
+                              className={`rounded-lg px-2.5 py-1 text-xs font-semibold transition-opacity hover:opacity-70 ${textPrim}`} style={{ background: soft }}>
+                              View {submittedDocs.length}
+                            </button>
+                          )}
                         </td>
-                        <td className="px-3 sm:px-6 py-3">
-                          <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${pass ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                            {pass ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                            {pass ? 'Passed' : 'Failed'}
-                          </span>
-                        </td>
-                        <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 whitespace-nowrap text-xs ${textMut}`}>{p.updated_at ? new Date(p.updated_at).toLocaleString() : '--'}</td>
-                      </tr>
-                    );
-                  });
-                })()}
-                {completedAttempts.length === 0 && (
-                  <tr><td colSpan={5} className={`px-6 py-12 text-center ${textMut}`}>No completed attempts yet. Share the course link to get started!</td></tr>
+                      )}
+                    </tr>
+                  );
+                })}
+                {shown.length === 0 && (
+                  <tr><td colSpan={hasReview ? 5 : 4} className={`px-2 py-10 text-center text-sm ${textMut}`}>
+                    {learners.length === 0 ? 'No learners yet. Share the course link to get started.' : 'No learners in this group.'}
+                  </td></tr>
                 )}
               </tbody>
             </table>
           </div>
-        </div>
-
-        {/* Enrolled Students */}
-        {(totalEnrolled > 0 || courseProgress.length > 0 || notStartedStudents.length > 0) && (
-          <div className={`rounded-3xl border overflow-hidden ${card}`}>
-            <div className={`px-6 py-4 border-b flex items-center justify-between ${cardHeader}`}>
-              <div>
-                <h3 className={`text-base font-semibold ${textPrim}`}>Students</h3>
-                <p className={`text-xs mt-0.5 ${textMut}`}>{notStartedStudents.length} not started · {inProgressStudents.length} in progress · {completedByEmail.size} completed</p>
-              </div>
-              <span className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-[#f1f2f3] text-[#555]'}`}>
-                {totalEnrolled} total
-              </span>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm">
-                <thead className={`border-b ${tableHead}`}>
-                  <tr>
-                    <th className="px-3 sm:px-6 py-3 font-medium">Student</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Email</th>
-                    <th className="px-3 sm:px-6 py-3 font-medium">Status</th>
-                    <th className="px-3 sm:px-6 py-3 font-medium">Progress</th>
-                    <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Last Active</th>
-                    {hasReview && <th className="hidden sm:table-cell px-3 sm:px-6 py-3 font-medium">Reports</th>}
-                  </tr>
-                </thead>
-                <tbody className={`divide-y ${dividerCls}`}>
-                  {/* Not started students (assigned via cohort but haven't begun) */}
-                  {notStartedStudents.map((s: any) => (
-                    <tr key={`ns_${s.id}`} className={`transition-colors ${tableRow}`}>
-                      <td className={`px-3 sm:px-6 py-3 font-medium ${textPrim}`}>{s.full_name || <span className={`italic ${textMut}`}>Unknown</span>}</td>
-                      <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 ${textMut}`}>{s.email || '--'}</td>
-                      <td className="px-3 sm:px-6 py-3">
-                        <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${isDark ? 'bg-zinc-700/60 text-zinc-400' : 'bg-zinc-100 text-zinc-500'}`}>
-                          <span className="w-1.5 h-1.5 rounded-full bg-zinc-400" />
-                          Not Started
-                        </span>
-                      </td>
-                      <td className="px-3 sm:px-6 py-3">
-                        <div className="flex items-center gap-2">
-                          <div className={`h-1.5 w-16 sm:w-20 rounded-full overflow-hidden ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
-                            <div className="h-full rounded-full bg-zinc-400" style={{ width: '0%' }} />
-                          </div>
-                          <span className={`text-xs ${textMut}`}>0/{questions.length || 0}</span>
-                        </div>
-                      </td>
-                      <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 whitespace-nowrap text-xs ${textMut}`}>--</td>
-                      {hasReview && <td className="hidden sm:table-cell px-3 sm:px-6 py-3">--</td>}
-                    </tr>
-                  ))}
-                  {/* In-progress students */}
-                  {inProgressStudents.map((p: any) => {
-                    // Shared rule: slide-index over raw length both ignored section dividers and
-                    // counted an optional share this student may have skipped.
-                    const progressCounts = courseProgressCounts(questions, p.answers ?? {});
-                    const progressPct = courseProgressPct(questions, p.answers ?? {});
-                    const submittedDocs = reviewQuestions.filter((q: any) => {
-                      const ans = p.answers?.[q.id];
-                      if (!ans) return false;
-                      return ans === 'completed' || ans === 'failed';
-                    });
-                    return (
-                      <tr key={`ip_${p.student_email}`} className={`transition-colors ${tableRow}`}>
-                        <td className={`px-3 sm:px-6 py-3 font-medium ${textPrim}`}>{p.student_name || <span className={`italic ${textMut}`}>Unknown</span>}</td>
-                        <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 ${textMut}`}>{p.student_email || '--'}</td>
-                        <td className="px-3 sm:px-6 py-3">
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${isDark ? 'bg-amber-500/15 text-amber-300' : 'bg-amber-50 text-amber-700'}`}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" />
-                            In Progress
-                          </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`h-1.5 w-16 sm:w-20 rounded-full overflow-hidden ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
-                              <div className="h-full rounded-full bg-amber-400" style={{ width: `${progressPct}%` }} />
-                            </div>
-                            <span className={`text-xs ${textMut}`}>{progressCounts.done}/{progressCounts.total}</span>
-                          </div>
-                        </td>
-                        <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 whitespace-nowrap text-xs ${textMut}`}>
-                          {p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '--'}
-                        </td>
-                        {hasReview && (
-                          <td className="hidden sm:table-cell px-3 sm:px-6 py-3">
-                            {submittedDocs.length > 0
-                              ? <button onClick={() => setReviewStudent({ ...p, reviewQs: reviewQuestions })} className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-opacity hover:opacity-70" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
-                                  View {submittedDocs.length}
-                                </button>
-                              : <span className={`text-xs ${textMut}`}>--</span>}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                  {/* Completed students */}
-                  {[...completedByEmail.values()].map((p: any) => {
-                    const pct = p.score ?? 0;
-                    const pass = p.passed ?? false;
-                    const submittedDocs = reviewQuestions.filter((q: any) => {
-                      const ans = p.answers?.[q.id];
-                      if (!ans) return false;
-                      return ans === 'completed' || ans === 'failed';
-                    });
-                    return (
-                      <tr key={`cp_${p.student_email}`} className={`transition-colors ${tableRow}`}>
-                        <td className={`px-3 sm:px-6 py-3 font-medium ${textPrim}`}>{p.student_name || <span className={`italic ${textMut}`}>Unknown</span>}</td>
-                        <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 ${textMut}`}>{p.student_email || '--'}</td>
-                        <td className="px-3 sm:px-6 py-3">
-                          <span className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full ${pass ? (isDark ? 'bg-emerald-500/15 text-emerald-300' : 'bg-emerald-50 text-emerald-700') : (isDark ? 'bg-rose-500/15 text-rose-300' : 'bg-rose-50 text-rose-700')}`}>
-                            {pass ? <CheckCircle2 className="w-3 h-3" /> : <XCircle className="w-3 h-3" />}
-                            {pass ? 'Passed' : 'Failed'}
-                          </span>
-                        </td>
-                        <td className="px-3 sm:px-6 py-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`h-1.5 w-16 sm:w-20 rounded-full overflow-hidden ${isDark ? 'bg-zinc-700' : 'bg-zinc-200'}`}>
-                              <div className="h-full rounded-full" style={{ width: `${pct}%`, background: pass ? '#10b981' : '#f43f5e' }} />
-                            </div>
-                            <span className={`text-xs ${textMut}`}>{pct}%</span>
-                          </div>
-                        </td>
-                        <td className={`hidden sm:table-cell px-3 sm:px-6 py-3 whitespace-nowrap text-xs ${textMut}`}>
-                          {p.updated_at ? new Date(p.updated_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : '--'}
-                        </td>
-                        {hasReview && (
-                          <td className="hidden sm:table-cell px-3 sm:px-6 py-3">
-                            {submittedDocs.length > 0
-                              ? <button onClick={() => setReviewStudent({ ...p, reviewQs: reviewQuestions })} className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-opacity hover:opacity-70" style={{ background: 'rgba(99,102,241,0.1)', color: '#6366f1' }}>
-                                  View {submittedDocs.length}
-                                </button>
-                              : <span className={`text-xs ${textMut}`}>--</span>}
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
-                  {totalEnrolled === 0 && (
-                    <tr><td colSpan={hasReview ? 6 : 5} className={`px-6 py-12 text-center ${textMut}`}>No students enrolled yet.</td></tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        </section>
 
       {/* Document review modal */}
       {reviewStudent && (() => {
@@ -1725,147 +1605,74 @@ function LeaderboardTab({ form, courseProgress }: { form: any; courseProgress: a
   const isDark = theme !== 'light';
   const courseAccent = form.config?.customAccent || COURSE_THEME_ACCENTS[form.config?.theme] || '#00bf63';
 
-  const passmark = form.config?.passmark ?? 50;
-  const totalQ   = form.config?.questions?.length ?? 1;
-
-  // Only show completed attempts, sorted by score desc then points desc
+  // Learners who finished, by score, with XP breaking ties.
   const rows = courseProgress
     .filter(p => p.completed)
     .map(p => ({ ...p, pct: p.score ?? 0 }))
     .sort((a, b) => b.pct - a.pct || (b.points ?? 0) - (a.points ?? 0));
 
-  const passCount = rows.filter(r => r.passed).length;
-  const avgPct    = rows.length ? Math.round(rows.reduce((s, r) => s + r.pct, 0) / rows.length) : 0;
-
-  const rankStyle = (rank: number) => {
-    if (rank === 1) return { color: '#f59e0b', glow: '0 0 12px rgba(245,158,11,0.4)' };
-    if (rank === 2) return { color: '#cbd5e1', glow: '0 0 8px rgba(203,213,225,0.3)' };
-    if (rank === 3) return { color: '#cd7c3b', glow: '0 0 8px rgba(205,124,59,0.3)' };
-    return { color: isDark ? '#52525b' : '#a1a1aa', glow: 'none' };
-  };
-
-  const bg   = isDark ? 'bg-zinc-900/35' : 'bg-white';
-  const bdr  = isDark ? 'border-zinc-800/60' : 'border-zinc-200';
-  const txt  = isDark ? 'text-white'         : 'text-zinc-900';
-  const muted = isDark ? 'text-zinc-500'     : 'text-zinc-400';
+  const txt   = isDark ? 'text-white' : 'text-zinc-900';
+  const muted = isDark ? 'text-zinc-400' : 'text-zinc-500';
+  const soft  = isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9';
+  const line  = isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)';
+  const good  = isDark ? '#5fd39a' : '#00a656';
+  const bad   = isDark ? '#F28B82' : '#D93025';
+  const gold  = isDark ? '#f2c14e' : '#c98a04';
+  const medal = [gold, isDark ? '#b8c0cc' : '#8a94a3', isDark ? '#e0955a' : '#b0632a'];
 
   if (rows.length === 0) return (
-    <div className="space-y-6">
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: courseAccent }}>Achievement</p>
-        <h2 className={`mt-1 text-xl font-bold sm:text-2xl ${txt}`}>Course leaderboard</h2>
-        <p className={`mt-1 max-w-2xl text-sm leading-relaxed ${muted}`}>Celebrate completed attempts and compare scores and earned XP.</p>
-      </div>
-      <div className={`rounded-2xl border p-16 text-center ${bg} ${bdr}`}>
-        <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl" style={{ background: `${courseAccent}12`, color: courseAccent }}><Trophy className="h-5 w-5" /></span>
-        <p className={`mt-4 font-semibold ${txt}`}>No completions yet</p>
-        <p className={`text-sm mt-1 ${muted}`}>The leaderboard will populate once students complete the course.</p>
-      </div>
+    <div className="rounded-2xl p-14 text-center" style={{ background: soft }}>
+      <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl" style={{ background: `${courseAccent}14`, color: courseAccent }}><Trophy className="h-5 w-5" /></span>
+      <p className={`mt-4 font-semibold ${txt}`}>No one has finished yet</p>
+      <p className={`mt-1 text-sm ${muted}`}>Learners appear here, ranked by score, once they finish the course.</p>
     </div>
   );
 
   return (
-    <div className="space-y-6">
-
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.16em]" style={{ color: courseAccent }}>Achievement</p>
-        <h2 className={`mt-1 text-xl font-bold sm:text-2xl ${txt}`}>Course leaderboard</h2>
-        <p className={`mt-1 max-w-2xl text-sm leading-relaxed ${muted}`}>Celebrate completed attempts and compare scores and earned XP.</p>
-      </div>
-
-      {/* -- Stats bar -- */}
-      <div className="grid grid-cols-3 gap-3">
-        {[
-          { label: 'Completions', value: rows.length, color: '#6366f1' },
-          { label: 'Avg Score', value: `${avgPct}%`, color: '#10b981' },
-          { label: 'Pass Rate', value: rows.length ? `${Math.round((passCount / rows.length) * 100)}%` : '--', color: '#f59e0b' },
-        ].map(({ label, value, color }) => (
-          <div key={label} className={`relative overflow-hidden rounded-2xl border px-5 py-4 ${bg} ${bdr}`}>
-            <span className="absolute inset-x-0 top-0 h-0.5" style={{ background: color }} />
-            <p className="text-[11px] font-semibold uppercase tracking-widest" style={{ color }}>{label}</p>
-            <p className={`text-2xl font-black mt-1 ${txt}`}>{value}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* -- Table -- */}
-      <div className={`rounded-2xl border overflow-hidden ${bg} ${bdr}`}>
-
-        {/* Header */}
-        <div className={`grid items-center px-3 sm:px-5 py-3 border-b grid-cols-[36px_1fr_80px] sm:grid-cols-[44px_1fr_120px_88px] ${bdr}`}>
-          <span className={`text-[11px] font-semibold uppercase tracking-widest ${muted}`}>Rank</span>
-          <span className={`text-[11px] font-semibold uppercase tracking-widest ${muted}`}>Student</span>
-          <span className={`text-[11px] font-semibold uppercase tracking-widest ${muted}`}>Score</span>
-          <span className={`hidden sm:block text-[11px] font-semibold uppercase tracking-widest ${muted}`}>XP</span>
-        </div>
-
-        {rows.map((r, i) => {
-          const rank   = i + 1;
-          const name   = r.student_name || 'Unknown';
-          const pct    = r.pct;
-          const pts    = r.points ?? 0;
-          const passed = r.passed ?? false;
-          const rs     = rankStyle(rank);
-          const isTop  = rank <= 3;
-
-          return (
-            <div
-              key={i}
-              className={`grid items-center px-3 sm:px-5 py-3 sm:py-4 border-b last:border-0 transition-all duration-150 group grid-cols-[36px_1fr_80px] sm:grid-cols-[44px_1fr_120px_88px] ${isDark ? 'border-zinc-800/40 hover:bg-zinc-900/80' : 'border-zinc-100 hover:bg-zinc-50'} ${rank === 1 ? (isDark ? 'bg-amber-500/[0.04]' : 'bg-amber-50/60') : ''}`}
-            >
-              {/* Rank */}
-              <div className="flex items-center justify-start">
-                <span
-                  className="text-sm font-black tabular-nums"
-                  style={{ color: rs.color, textShadow: rs.glow }}
-                >
-                  {rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`}
-                </span>
-              </div>
-
-              {/* Student */}
-              <div className="flex items-center gap-3 min-w-0">
-                <div
-                  className="w-8 h-8 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-black"
-                  style={{
-                    background: isTop ? `${rs.color}22` : isDark ? '#27272a' : '#f4f4f5',
-                    color: isTop ? rs.color : isDark ? '#71717a' : '#a1a1aa',
-                    boxShadow: isTop ? `0 0 0 1.5px ${rs.color}44` : 'none',
-                  }}
-                >
-                  {name.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="min-w-0">
-                  <p className={`text-sm font-semibold truncate ${txt}`}>{name}</p>
-                </div>
-              </div>
-
-              {/* Score + bar */}
-              <div className="space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <span className={`text-sm font-bold tabular-nums ${passed ? 'text-emerald-400' : muted}`}>{pct}%</span>
-                </div>
-                <div className={`h-1 rounded-full overflow-hidden ${isDark ? 'bg-zinc-800' : 'bg-zinc-100'}`}>
-                  <div
-                    className="h-full rounded-full transition-all"
-                    style={{ width: `${pct}%`, background: passed ? '#10b981' : '#f43f5e' }}
-                  />
-                </div>
-              </div>
-
-              {/* XP */}
-              <div className="hidden sm:block">
-                {pts > 0 ? (
-                  <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-1 rounded-lg ${isDark ? 'bg-yellow-500/10 text-yellow-400' : 'bg-yellow-50 text-yellow-600'}`}>
-                    ⭐ {pts.toLocaleString()}
-                  </span>
-                ) : (
-                  <span className={`text-xs ${muted}`}>--</span>
-                )}
-              </div>
-            </div>
-          );
-        })}
+    <div className="space-y-3">
+      <p className={`text-sm ${muted}`}>{rows.length} learner{rows.length === 1 ? '' : 's'} finished. Ranked by score; XP breaks ties.</p>
+      <div className="overflow-x-auto">
+        <table className="w-full min-w-[480px] text-left text-sm">
+          <thead>
+            <tr className={`text-xs ${muted}`}>
+              <th className="w-14 px-2 py-2 font-medium">Rank</th>
+              <th className="px-2 py-2 font-medium">Learner</th>
+              <th className="w-44 px-2 py-2 font-medium">Score</th>
+              <th className="w-24 px-2 py-2 font-medium">XP</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r, i) => {
+              const rank = i + 1;
+              const tint = medal[i];
+              const pts = r.points ?? 0;
+              return (
+                <tr key={`${r.student_id}_${i}`} style={{ borderTop: `1px solid ${line}`, background: rank === 1 ? `color-mix(in srgb, ${gold} 7%, transparent)` : undefined }}>
+                  <td className="px-2 py-2.5">
+                    <span className="grid h-7 w-7 place-items-center rounded-full text-xs font-bold tabular-nums"
+                      style={tint ? { background: `color-mix(in srgb, ${tint} 20%, transparent)`, color: tint } : { background: soft, color: isDark ? '#A8B5C2' : '#555' }}>
+                      {rank}
+                    </span>
+                  </td>
+                  <td className={`px-2 py-2.5 ${txt} ${rank <= 3 ? 'font-semibold' : ''}`}>{r.student_name || 'Unknown'}</td>
+                  <td className="px-2 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <div className="h-1.5 w-20 overflow-hidden rounded-full" style={{ background: soft }}>
+                        <div className="h-full rounded-full" style={{ width: `${r.pct}%`, background: r.passed ? good : bad }} />
+                      </div>
+                      <span className={`text-xs font-semibold tabular-nums ${txt}`}>{r.pct}%</span>
+                    </div>
+                  </td>
+                  <td className="px-2 py-2.5">
+                    {pts > 0
+                      ? <span className="inline-flex items-center gap-1 text-xs font-semibold tabular-nums" style={{ color: gold }}><Star className="h-3.5 w-3.5" />{pts.toLocaleString()}</span>
+                      : <span className={`text-xs ${muted}`}>--</span>}
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </div>
   );
@@ -1873,28 +1680,113 @@ function LeaderboardTab({ form, courseProgress }: { form: any; courseProgress: a
 
 
 // -- More Tab ---
-function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUrl: string; onClone: () => Promise<void>; onStatusChange?: (status: 'draft' | 'published') => void }) {
-  const { copied: linkCopied, copy: copyLink } = useCopy();
-  const { copied: embedCopied, copy: copyEmbed } = useCopy();
-  const [cloning, setCloning] = useState(false);
-  const [cloned, setCloned] = useState(false);
+// Draft or Published, with the switch. Shared by the Publish tab (events, forms, experiences)
+// and the course editor's Publish step, where `ready`/`unsaved` hold Publish back until the
+// course passes its checks and is saved (the server runs the same checks).
+function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false }: {
+  form: any; kind: string; onStatusChange?: (status: 'draft' | 'published') => void; ready?: boolean; unsaved?: boolean;
+}) {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusWarning, setStatusWarning] = useState('');
   const [currentStatus, setCurrentStatus] = useState<'draft' | 'published'>(form?.status ?? 'published');
+  const courseAccent = form.config?.customAccent || COURSE_THEME_ACCENTS[form.config?.theme] || '#00bf63';
+  const textPrim = isLight ? '#111' : '#fff';
+  const textMut  = isLight ? '#555' : '#71717a';
+  const published = currentStatus === 'published';
+  const blocked = !published && (!ready || unsaved);
+  const btn = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-45 flex-shrink-0';
+
+  const handleStatusToggle = async (newStatus: 'draft' | 'published') => {
+    if (newStatus === currentStatus || statusUpdating) return;
+    setStatusUpdating(true);
+    setStatusWarning('');
+    const { data: { session } } = await supabase.auth.getSession();
+    const res = await fetch('/api/forms', {
+      method:  'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
+      },
+      body: JSON.stringify({ formId: form.id, status: newStatus }),
+    });
+    const json = await res.json().catch(() => ({}));
+    if (res.ok) {
+      setCurrentStatus(newStatus);
+      onStatusChange?.(newStatus);
+      if (json.registrationWarning) setStatusWarning(json.registrationWarning);
+    } else {
+      // e.g. a course with an untitled lesson or a question without a correct answer
+      setStatusWarning(json.error || 'Could not change the status. Please try again.');
+    }
+    setStatusUpdating(false);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3.5"
+        style={{ background: published ? `${courseAccent}1a` : (isLight ? 'rgba(217,119,6,0.10)' : 'rgba(245,180,84,0.12)') }}>
+        <div className="min-w-0">
+          <p className="flex items-center gap-2 text-[14.5px] font-semibold" style={{ color: textPrim }}>
+            <span className="h-2 w-2 rounded-full" style={{ background: published ? courseAccent : '#d97706' }} />
+            {published ? 'Published' : 'Draft'}
+          </p>
+          <p className="mt-0.5 text-[13px]" style={{ color: textMut }}>
+            {published ? `Learners it is assigned to can open this ${kind}.`
+              : unsaved ? 'Save your changes, then publish.'
+              : !ready ? 'Fix the items below, then publish.'
+              : `Learners cannot see this ${kind} yet.`}
+          </p>
+        </div>
+        <button onClick={() => handleStatusToggle(published ? 'draft' : 'published')} disabled={statusUpdating || blocked}
+          className={btn} style={published ? { background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: textPrim } : { background: courseAccent, color: '#fff' }}>
+          {statusUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? 'Move to draft' : 'Publish'}
+        </button>
+      </div>
+      {statusWarning && <p className="text-[12.5px]" style={{ color: '#b45309' }}>{statusWarning}</p>}
+    </div>
+  );
+}
+
+// "Makes a draft copy you can change."
+function DuplicateRow({ kind, onClone }: { kind: string; onClone: () => Promise<void> }) {
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const [cloning, setCloning] = useState(false);
+  const [cloned, setCloned] = useState(false);
+  const handleClone = async () => {
+    setCloning(true);
+    await onClone();
+    setCloning(false);
+    setCloned(true);
+    setTimeout(() => setCloned(false), 3000);
+  };
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <p className="text-[14px] font-semibold" style={{ color: isLight ? '#111' : '#fff' }}>Duplicate</p>
+        <p className="text-[12.5px]" style={{ color: isLight ? '#555' : '#71717a' }}>Makes a draft copy you can change.</p>
+      </div>
+      <button onClick={handleClone} disabled={cloning || cloned}
+        className="inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0"
+        style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: isLight ? '#111' : '#fff' }}>
+        {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? 'Copy made' : `Duplicate ${kind}`}
+      </button>
+    </div>
+  );
+}
+
+function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUrl: string; onClone: () => Promise<void>; onStatusChange?: (status: 'draft' | 'published') => void }) {
+  const { copied: linkCopied, copy: copyLink } = useCopy();
+  const { copied: embedCopied, copy: copyEmbed } = useCopy();
   const { theme } = useTheme();
   const isLight = theme === 'light';
   const isCourse = form.config?.isCourse === true;
   const contentLabel = isCourse ? 'course' : 'form';
-  const courseAccent = form.config?.customAccent || COURSE_THEME_ACCENTS[form.config?.theme] || '#00bf63';
   const textPrim  = isLight ? '#111'              : '#fff';
   const textMut   = isLight ? '#555'              : '#71717a';
   const divider   = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(63,63,70,0.6)';
-  const inputBg   = isLight ? '#f0fdf4'           : '#18181b';
-  const inputBord = isLight ? '#d1d5db'           : '#3f3f46';
-  const btnBg     = isLight ? '#f3f4f6'           : '#27272a';
-  const btnBord   = isLight ? 'rgba(0,0,0,0.10)'  : '#3f3f46';
-  const codeBg    = isLight ? '#f3f4f6'           : '#18181b';
-  const panelStyle = { background: isLight ? '#ffffff' : 'rgba(24,24,27,0.48)', border: `1px solid ${divider}` };
 
   const embedCode = `<iframe
   src="${formUrl}"
@@ -1946,39 +1838,6 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
     },
   ];
 
-  const handleStatusToggle = async (newStatus: 'draft' | 'published') => {
-    if (newStatus === currentStatus || statusUpdating) return;
-    setStatusUpdating(true);
-    setStatusWarning('');
-    const { data: { session } } = await supabase.auth.getSession();
-    const res = await fetch('/api/forms', {
-      method:  'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
-      },
-      body: JSON.stringify({ formId: form.id, status: newStatus }),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (res.ok) {
-      setCurrentStatus(newStatus);
-      onStatusChange?.(newStatus);
-      if (json.registrationWarning) setStatusWarning(json.registrationWarning);
-    } else {
-      // e.g. a course with an untitled lesson or a question without a correct answer
-      setStatusWarning(json.error || 'Could not change the status. Please try again.');
-    }
-    setStatusUpdating(false);
-  };
-
-  const handleClone = async () => {
-    setCloning(true);
-    await onClone();
-    setCloning(false);
-    setCloned(true);
-    setTimeout(() => setCloned(false), 3000);
-  };
-
   // What this content is called, and whether it gets the wider sharing kit. Courses and virtual
   // experiences sit behind a login, so the link is all they need: pasted anywhere, it shows the
   // cover, title and description. Events and forms are shared widely and keep the social buttons,
@@ -1987,7 +1846,6 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
   const isExperience = !!(form.config?.isVirtualExperience || form.config?.isGuidedProject);
   const kind = isExperience ? 'experience' : isCourse ? 'course' : isEvent ? 'event' : 'form';
   const linkOnly = isExperience || isCourse;
-  const published = currentStatus === 'published';
   const soft = isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)';
   const btn = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0';
   const ghost = { background: soft, color: textPrim };
@@ -1998,23 +1856,7 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
     <div className="w-full max-w-3xl space-y-5" style={{ color: textPrim }}>
 
       {/* Status first: it is the main thing on this tab */}
-      <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl px-4 py-3.5"
-        style={{ background: published ? `${courseAccent}1a` : (isLight ? 'rgba(217,119,6,0.10)' : 'rgba(245,180,84,0.12)') }}>
-        <div className="min-w-0">
-          <p className="flex items-center gap-2 text-[14.5px] font-semibold" style={{ color: textPrim }}>
-            <span className="h-2 w-2 rounded-full" style={{ background: published ? courseAccent : '#d97706' }} />
-            {published ? 'Published' : 'Draft'}
-          </p>
-          <p className="mt-0.5 text-[13px]" style={{ color: textMut }}>
-            {published ? `Learners it is assigned to can open this ${kind}.` : `Learners cannot see this ${kind} yet.`}
-          </p>
-        </div>
-        <button onClick={() => handleStatusToggle(published ? 'draft' : 'published')} disabled={statusUpdating}
-          className={btn} style={published ? ghost : { background: courseAccent, color: '#fff' }}>
-          {statusUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? 'Move to draft' : 'Publish'}
-        </button>
-      </div>
-      {statusWarning && <p className="text-[12.5px]" style={{ color: '#b45309' }}>{statusWarning}</p>}
+      <StatusCard form={form} kind={kind} onStatusChange={onStatusChange} />
 
       {/* Link */}
       <div className={group} style={groupLine}>
@@ -2077,14 +1919,8 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
       )}
 
       {/* Duplicate */}
-      <div className={`${group} flex flex-wrap items-center justify-between gap-3`} style={groupLine}>
-        <div>
-          <p className="text-[14px] font-semibold">Duplicate</p>
-          <p className="text-[12.5px]" style={{ color: textMut }}>Makes a draft copy you can change.</p>
-        </div>
-        <button onClick={handleClone} disabled={cloning || cloned} className={btn} style={ghost}>
-          {cloning ? <Loader2 className="w-4 h-4 animate-spin" /> : cloned ? 'Copy made' : `Duplicate ${kind}`}
-        </button>
+      <div className={group} style={groupLine}>
+        <DuplicateRow kind={kind} onClone={onClone} />
       </div>
     </div>
   );
@@ -2873,9 +2709,12 @@ export default function FormDetailPage() {
         {(() => {
           // Experiences have no Settings tab (they are edited in the experience editor), so a link
           // that lands on the default opens their Report instead of an empty panel.
-          const shownTab: TabId = type === 'virtual_experience' && activeTab === 'settings' ? 'responses' : activeTab;
-          const visibleTabs = TABS.filter(tab => (!isStaff || tab.id === 'settings') && (!tab.courseOnly || type === 'course') && !(tab.id === 'settings' && type === 'virtual_experience'));
-          const tabLabel = (tab: typeof TABS[number]) => tab.id === 'responses' && (type === 'course' || type === 'virtual_experience') ? 'Report' : tab.label;
+          // Courses publish from the editor's Publish step, so an old Publish-tab link opens the editor.
+          const shownTab: TabId = type === 'virtual_experience' && activeTab === 'settings' ? 'responses'
+            : type === 'course' && activeTab === 'more' ? 'settings' : activeTab;
+          const visibleTabs = TABS.filter(tab => (!isStaff || tab.id === 'settings') && (!tab.courseOnly || type === 'course') && !(tab.id === 'settings' && type === 'virtual_experience') && !(tab.id === 'more' && type === 'course'));
+          const tabLabel = (tab: typeof TABS[number]) => tab.id === 'responses' && (type === 'course' || type === 'virtual_experience') ? 'Report'
+            : tab.id === 'settings' && type === 'course' ? 'Edit' : tab.label;
           return (
             <div className="max-w-6xl mx-auto flex flex-col gap-4">
               {/* One card: the title row, the tabs and the tab's content on the same surface. */}
@@ -2947,7 +2786,14 @@ export default function FormDetailPage() {
                     transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                   >
                   {shownTab === 'settings' && type !== 'virtual_experience' ? (
-                    <FormEditor formId={id as string} contentType={type === 'course' ? 'course' : 'event'} />
+                    <FormEditor formId={id as string} contentType={type === 'course' ? 'course' : 'event'}
+                      {...(type === 'course' ? {
+                        publishControls: ({ ready, unsaved }) => (
+                          <StatusCard form={form} kind="course" ready={ready} unsaved={unsaved}
+                            onStatusChange={(status) => setForm((f: any) => ({ ...f, status }))} />
+                        ),
+                        publishFooter: <DuplicateRow kind="course" onClone={handleClone} />,
+                      } : {})} />
                   ) : (
                     <div className="px-4 sm:px-6 py-6 sm:py-8 w-full">
                       {shownTab === 'responses' && type !== 'virtual_experience' && (

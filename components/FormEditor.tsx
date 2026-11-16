@@ -456,10 +456,15 @@ interface FormEditorProps {
   formId: string;
   contentType: 'course' | 'event';
   onSaved?: (id: string) => void;
+  /** Course Publish step: the Draft or Published switch, given whether the course is ready and saved. */
+  publishControls?: (state: { ready: boolean; unsaved: boolean }) => React.ReactNode;
+  /** Course Publish step: shown last (Duplicate). */
+  publishFooter?: React.ReactNode;
 }
 
-export default function FormEditor({ formId, contentType, onSaved }: FormEditorProps) {
+export default function FormEditor({ formId, contentType, onSaved, publishControls, publishFooter }: FormEditorProps) {
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [fontPickerOpen, setFontPickerOpen] = useState(false);
@@ -1697,6 +1702,8 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
             <div>
             <div className="flex min-w-0 flex-col gap-5">
 
+            {formConfig.isCourse && activeStudioMode.id === 'publish' && publishControls?.({ ready: publishIssues.length === 0, unsaved: isDirty })}
+
             {formConfig.isCourse && activeStudioMode.id === 'publish' && (
               <section className="rounded-2xl p-4 sm:p-5" style={{ background: FE.groupBg }}>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Publish readiness</p>
@@ -2115,11 +2122,24 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
             {((formConfig.isCourse && activeStudioMode.id === 'publish') || (!formConfig.isCourse && activeSection === 'share')) && (
               <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 0 } : undefined}>
               {formConfig.isCourse && <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Course link</p>
-                <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Create a short, recognizable URL for sharing your course.</p>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Link</p>
+                <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Pasted into WhatsApp, LinkedIn or X, the link shows the cover image, title and description.</p>
               </div>}
+              {formConfig.isCourse && (() => {
+                const liveUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}${contentPath({ slug: customSlug || formId, config: formConfig })}`;
+                const ghost = { background: FE.groupBg, color: FE.text };
+                return (
+                  <div className="flex flex-wrap gap-2">
+                    <input readOnly value={liveUrl} aria-label="Link to this course" onFocus={e => e.currentTarget.select()}
+                      className="min-w-0 flex-1 rounded-[10px] px-3 py-2 font-mono text-[12.5px] outline-none" style={{ background: FE.groupBg, color: FE.muted, border: 'none' }} />
+                    <button type="button" onClick={() => { navigator.clipboard?.writeText(liveUrl).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }).catch(() => {}); }}
+                      className="rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80" style={ghost}>{linkCopied ? 'Copied' : 'Copy'}</button>
+                    <a href={liveUrl} target="_blank" rel="noreferrer" className="rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80" style={ghost}>Open live page</a>
+                  </div>
+                );
+              })()}
               <div>
-                <label className={labelCls} style={labelStyle}>Custom slug (optional)</label>
+                <label className={labelCls} style={labelStyle}>{formConfig.isCourse ? 'Change the end of the link (optional)' : 'Custom slug (optional)'}</label>
                 <div className="flex min-h-12 items-center overflow-hidden rounded-xl transition-colors" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
                   <span className="self-stretch px-3 text-xs whitespace-nowrap flex items-center" style={{ color: FE.faint, borderRight: `1px solid ${FE.inputBorder}` }}>/</span>
                   <input type="text" value={customSlug} onChange={e => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="my-course" className="w-full bg-transparent px-3 py-3 text-sm font-medium outline-none placeholder:text-zinc-400" style={{ color: FE.text }} />
@@ -4204,7 +4224,7 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
             {((formConfig.isCourse && activeStudioMode.id === 'publish') || (!formConfig.isCourse && activeSection === 'submission')) && (
               <div className={formConfig.isCourse ? studioPanelClass : 'space-y-3'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 1 } : undefined}>
                 {formConfig.isCourse && <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Completion experience</p>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>When learners finish</p>
                   <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Choose what learners see and where they can go after finishing.</p>
                 </div>}
                 {/* Type selector */}
@@ -4337,6 +4357,10 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                   </div>
                 )}
               </div>
+            )}
+
+            {formConfig.isCourse && activeStudioMode.id === 'publish' && publishFooter && (
+              <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 2 }}>{publishFooter}</div>
             )}
 
             </div>
