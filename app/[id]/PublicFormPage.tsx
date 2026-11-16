@@ -1,5 +1,7 @@
 'use client';
 
+import { contentPath } from '@/lib/content-link';
+
 import { accentColorFor } from '@/lib/theme-types';
 import { DEFAULT_VE_ACCENT, readableAccent } from '@/lib/ve-accent';
 import { useEffect, useRef, useState } from 'react';
@@ -1208,7 +1210,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           })),
           ...(courses ?? []).map((c: any) => ({
             ...c,
-            config: { title: c.title, coverImage: c.cover_image },
+            config: { title: c.title, coverImage: c.cover_image, isCourse: true },
           })),
         ];
         // preserve the order the instructor selected
@@ -2286,7 +2288,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {relatedForms.map((rf: any) => {
                     const rfConfig = rf.config || {};
-                    const href = rf.slug ? `/${rf.slug}` : `/${rf.id}`;
+                    const href = contentPath({ id: rf.id, slug: rf.slug, config: rfConfig });
                     return (
                       <a key={rf.id} href={href} style={{ borderRadius: 20, overflow: 'hidden', display: 'flex', background: t.card, border: `1px solid ${t.cardBorder}`, boxShadow: t.cardShadow, textDecoration: 'none', transition: 'transform 0.2s, box-shadow 0.2s' }}
                         onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = dark ? '0 8px 28px rgba(0,0,0,0.5)' : '0 8px 28px rgba(0,0,0,0.12)'; }}
