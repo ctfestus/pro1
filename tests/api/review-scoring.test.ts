@@ -46,17 +46,31 @@ describe.each([
 
   it('uses marks rather than a high model score or an equal criterion count', async () => {
     const result = await run({ overallScore: 99, rubricGrades: [{ id: 2, passed: true, comment: 'Readable' }] });
-    expect(result.overallScore).toBe(99);
+    // The score shown is the share of the rubric met, never a separate quality score.
+    expect(result.overallScore).toBe(20);
     expect(result.rubricScore).toBe(20);
+    expect(result.categories).toEqual([]);
     expect(reviewPassed(result, 80)).toBe(false);
     expect(result.rubricGrades[0].passed).toBe(false);
   });
 
   it('passes at 80 even with low quality and an ungraded assessment note', async () => {
     const result = await run({ overallScore: 58, rubricGrades: [{ id: 1, passed: true, comment: 'Correct' }] });
-    expect(result.overallScore).toBe(58);
+    expect(result.overallScore).toBe(80);
     expect(result.rubricScore).toBe(80);
     expect(reviewPassed(result, 80)).toBe(true);
+  });
+
+  it('sends the rubric alone, without the general audit, and requires the grades', async () => {
+    await run({ rubricGrades: [] });
+    const [prompt, second, third] = (name === 'code' || name === 'written' || name === 'document' ? vi.mocked(generateJSON) : vi.mocked(generateVisionJSON)).mock.calls[0] as any[];
+    const schema = name === 'dashboard' ? third.properties.audit : name === 'code' || name === 'written' || name === 'document' ? second : third;
+    expect(prompt).toContain('INSTRUCTOR RUBRIC - THIS IS THE WHOLE REVIEW');
+    expect(prompt).toContain(`id 1: ${rubric[0]}`);
+    expect(prompt).not.toMatch(/CATEGORY 1|five categories|four categories|FEEDBACK STANDARDS/);
+    expect(schema.required).toContain('rubricGrades');
+    expect(schema.properties).not.toHaveProperty('categories');
+    expect(schema.properties).not.toHaveProperty('overallScore');
   });
 
   it('leaves the quality gate unchanged when no rubric is supplied', async () => {

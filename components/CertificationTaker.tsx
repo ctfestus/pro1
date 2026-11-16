@@ -20,6 +20,7 @@ import { useHoverPreview } from '@/lib/use-hover-preview';
 import Link from 'next/link';
 import { useTenant } from '@/components/TenantProvider';
 import { supabase } from '@/lib/supabase';
+import { useSessionToken } from '@/lib/use-session-token';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { sanitizeQuestionContent } from '@/lib/sanitize';
 import { setImmersive } from '@/lib/immersive';
@@ -117,9 +118,11 @@ export function CertificationResultSummary({ result, passmark, isPreview = false
 }
 
 export default function CertificationTaker({
-  certificationId, slug, config, studentName, studentEmail, sessionToken,
+  certificationId, slug, config, studentName, studentEmail, sessionToken: initialSessionToken,
   isDark, accentColor, logoUrl, logoDarkUrl, onExit, locked = false, unlockLabel = 'Enroll', unlockHref = '/pricing',
 }: Props) {
+  // Kept current, so a session left open does not send an expired token.
+  const sessionToken = useSessionToken(initialSessionToken);
   // Platform branding colours, used for the OVERVIEW only (the exam keeps the content `accentColor`):
   // - tenantBrand = Brand Colour (`brand_color`) -> the hero band. The OVERVIEW uses the BRAND color
   // (NOT primary/ocean -- that convention is only for the instructor editor, which mirrors courses).

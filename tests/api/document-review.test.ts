@@ -43,10 +43,12 @@ describe('document review input conversion', () => {
     expect(vi.mocked(generateVisionJSON).mock.calls[0][1].mimeType).toBe('application/pdf');
   });
 
-  it('refunds unusable DOCX inputs without calling an AI', async () => {
+  it('refunds unusable DOCX inputs without calling an AI, and blames the file rather than the service', async () => {
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      expect((await post(new File(['not a ZIP'], 'broken.docx'))).status).toBe(503);
+      const response = await post(new File(['not a ZIP'], 'broken.docx'));
+      expect(response.status).toBe(400);
+      expect((await response.json()).error).toContain('could not be read');
       expect(generateJSON).not.toHaveBeenCalled();
       expect(generateVisionJSON).not.toHaveBeenCalled();
       expect(refundAiFeature).toHaveBeenCalledTimes(1);

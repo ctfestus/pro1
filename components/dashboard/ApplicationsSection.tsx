@@ -3,6 +3,7 @@
 import { useContext, useEffect, useState } from 'react';
 import { BarChart3, Check, Copy, Edit2, FileText, Link2, Loader2, Pause, Play, Plus, QrCode, Search, Trash2, XCircle } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useSessionToken } from '@/lib/use-session-token';
 import { IsStaffContext } from '@/components/dashboard/context';
 import { ApplicationFormBuilder } from '@/components/dashboard/ApplicationFormBuilder';
 import { ApplicationReviewPanel } from '@/components/dashboard/ApplicationReviewPanel';
@@ -19,7 +20,9 @@ export function ApplicationsSection({ C }: { C: ThemeColors }) {
   const [reviewers, setReviewers] = useState<any[]>([]);
   const [relatedItems, setRelatedItems] = useState<any[]>([]);
   const [cohorts, setCohorts] = useState<any[]>([]);
-  const [token, setToken] = useState('');
+  // Kept current, so a dashboard left open does not send an expired token (also to the panels below).
+  const [loadedToken, setToken] = useState('');
+  const token = useSessionToken(loadedToken);
   const [mode, setMode] = useState<{ type: 'edit' | 'review' | 'insights'; form: ApplicationFormRecord } | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState('');

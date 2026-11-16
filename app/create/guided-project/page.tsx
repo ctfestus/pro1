@@ -657,6 +657,15 @@ function VirtualExperienceCreatePageInner() {
     }
   }, []);
 
+  // The access token is replaced about every hour. Keep the stored copy current, or a page left
+  // open sends an expired one and every AI call from it comes back "Unauthorized".
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.access_token) setSessionToken(session.access_token);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   // Load cohorts + existing project if editing
   useEffect(() => {
     const init = async () => {

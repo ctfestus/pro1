@@ -112,7 +112,6 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
   const [expandedIssues, setExpandedIssues] = useState<Set<number>>(() => new Set([0]));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const bg     = isDark ? '#0f0f0f' : '#f8fafc';
   const card   = isDark ? '#1a1a1a' : '#ffffff';
   const border = isDark ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
   const text   = isDark ? '#f0f0f0' : '#111';
@@ -428,13 +427,14 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-px sm:grid-cols-4" style={{ background: border }}>
+        {/* A rubric review has no quality categories, so the two tiles that count them are left out. */}
+        <div className={`grid grid-cols-2 gap-px ${result.categories.length > 0 ? 'sm:grid-cols-4' : ''}`} style={{ background: border }}>
           {[
-            { label: 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e' },
+            { label: 'Strengths', value: strengths, icon: ShieldCheck, color: '#22c55e', fromCategories: true },
             { label: 'Risks', value: errors.length + warnings.length, icon: TriangleAlert, color: '#f59e0b' },
-            { label: 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6' },
+            { label: 'Opportunities', value: opportunities, icon: Lightbulb, color: '#3b82f6', fromCategories: true },
             { label: 'Rubric passed', value: rubricTotal ? `${rubricPassed}/${rubricTotal}` : 'N/A', icon: CheckCircle2, color: accentColor },
-          ].map(metric => (
+          ].filter(metric => result.categories.length > 0 || !metric.fromCategories).map(metric => (
             <div key={metric.label} className="flex items-center gap-3 px-4 py-4 sm:px-5" style={{ background: card }}>
               <metric.icon className="h-4 w-4 shrink-0" style={{ color: metric.color }} />
               <div className="min-w-0"><span className="block text-lg font-bold leading-none tabular-nums" style={{ color: text }}>{metric.value}</span><span className="mt-1 block truncate text-[9px] font-semibold uppercase tracking-[0.1em]" style={{ color: muted }}>{metric.label}</span></div>
@@ -483,7 +483,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         </div>
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-2 lg:items-start">
+      <div className={`grid gap-4 ${result.rubricGrades?.length && result.categories.length > 0 ? 'lg:grid-cols-2' : ''} lg:items-start`}>
         {result.rubricGrades && result.rubricGrades.length > 0 && (
           <section className="rounded-[22px] p-4 sm:p-5" style={{ background: card, border: `1px solid ${border}` }}>
             <div className="flex items-center justify-between gap-3"><div><p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Rubric signal</p><h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Requirements check</h3></div><span className="text-sm font-bold tabular-nums" style={{ color: text }}>{rubricPassed}<span style={{ color: muted }}>/{rubricTotal}</span></span></div>
@@ -498,7 +498,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
           </section>
         )}
 
-        <section className="rounded-[22px] p-4 sm:p-5" style={{ background: card, border: `1px solid ${border}` }}>
+        {result.categories.length > 0 && <section className="rounded-[22px] p-4 sm:p-5" style={{ background: card, border: `1px solid ${border}` }}>
           <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Performance matrix</p>
           <h3 className="mt-1 text-base font-semibold" style={{ color: text }}>Quality by dimension</h3>
           <div className="mt-4 space-y-4">
@@ -510,7 +510,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
               </div>
             ))}
           </div>
-        </section>
+        </section>}
       </div>
 
       {result.topRecommendations.length > 0 && (

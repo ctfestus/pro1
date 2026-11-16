@@ -1,98 +1,25 @@
 
-import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
+import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
 import { getRedis } from '@/lib/redis';
-import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
+import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 
 export const dynamic = 'force-dynamic';
+// A review on a thinking model can run past the platform default; without this it is cut off mid-call.
+export const maxDuration = 120;
 
 const MAX_CODE_CHARS = 20_000;
-// Read from settings rather than declared here, so the AI features tab is the one place
-// this number lives. A constant left behind would quietly ignore whatever an admin typed.
-
-function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
-}
-
-async function authenticate(req: NextRequest): Promise<AuthedUser | NextResponse> {
-  const auth = await requireUser(req);
-  if (isAuthError(auth)) return auth.error;
-  return auth;
-}
-
-async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
-  // Whether this reviewer is included at all, and how many a day, both come from settings now --
-  // a free learner is refused because the free column says 0, not because a route says so.
-  return chargeAiFeature(auth, getRedis(), 'codeReview', {
-    unavailableMessage: 'Service temporarily unavailable',
-  });
-}
-
-
-const responseSchema = {
-  type: 'object',
-  properties: {
-    overallScore: { type: 'number' },
-    executiveSummary: { type: 'string' },
-    issues: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          lines:    { type: 'string' },
-          severity: { type: 'string' },
-          title:    { type: 'string' },
-          detail:   { type: 'string' },
-          fix:      { type: 'string' },
-        },
-        required: ['lines', 'severity', 'title', 'detail', 'fix'],
-      },
-    },
-    categories: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name:      { type: 'string' },
-          score:     { type: 'number' },
-          summary:   { type: 'string' },
-          strengths: { type: 'array', items: { type: 'string' } },
-          gaps:      { type: 'array', items: { type: 'string' } },
-        },
-        required: ['name', 'score', 'summary', 'strengths', 'gaps'],
-      },
-    },
-    topRecommendations: { type: 'array', items: { type: 'string' } },
-    rubricGrades: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id:        { type: 'integer', description: 'The 1-based position in the instructor rubric.' },
-          criterion: { type: 'string' },
-          passed:    { type: 'boolean' },
-          comment:   { type: 'string' },
-        },
-        required: ['id', 'criterion', 'passed', 'comment'],
-      },
-    },
-  },
-  required: ['overallScore', 'executiveSummary', 'issues', 'categories', 'topRecommendations'],
-};
+const FINDINGS = { key: 'issues', fields: ['lines', 'severity', 'title', 'detail', 'fix'] };
 
 const BASE_INSTRUCTIONS = `You review student code with the precision of a top-tier tech company code review and the clarity of a patient mentor.
 
 Your task: review the submitted code and deliver honest, actionable feedback structured as follows.
 
 ISSUE DETECTION
-Identify every issue in the code. For each issue provide:
+Identify the real issues in the code. For each issue provide:
 - lines: the line number(s) affected (e.g. "12", "5-8", or "" if global)
 - severity: "error" (breaks the code or produces wrong results), "warning" (works but is risky or inefficient), or "suggestion" (style, readability, or best practice)
 - title: a short, specific issue name (e.g. "Division by zero risk", "Unused variable")
@@ -109,52 +36,53 @@ CATEGORY 2: "Code Quality & Readability" -- Are names descriptive? Is structure 
 CATEGORY 3: "Efficiency & Performance" -- Are there unnecessary loops, redundant operations, or memory inefficiencies?
 CATEGORY 4: "Best Practices & Safety" -- Are language-specific conventions followed? Is error handling present? Are there security concerns?
 
-For each category provide score, a 2-sentence summary, 1-3 strengths, and 1-3 gaps.
+For each category provide score, a 1-sentence summary, up to 3 strengths, and up to 3 gaps ([] when there are none).
 
 Also provide:
 - overallScore: weighted average (one decimal)
 - executiveSummary: 2-3 sentences. Write as if briefing a technical lead on this student's submission. Be direct.
-- topRecommendations: exactly 3 strings -- the highest-impact changes, ordered by priority.
+- topRecommendations: up to 3 strings -- the highest-impact changes, ordered by priority. Fewer, or none, when the code does not need them.
 
 Return ONLY valid JSON matching the schema. No markdown fences, no explanation outside JSON.`;
 
-function buildSystemPrompt(language: string, dialect?: string, schema?: string): string {
-  const lang = language.toLowerCase();
+const ISSUE_FIELDS = `For each entry in "issues" provide: lines (the line number(s) affected, e.g. "12" or "5-8", or "" if global), severity ("error" for a failed criterion), title (starting "Criterion <id>:"), detail (1-2 sentences on what is wrong), and fix (the exact change to make).`;
 
-  if (lang === 'sql') {
-    const dialectName = dialect ?? 'standard SQL';
-    const schemaBlock = schema?.trim()
-      ? `\nSCHEMA AND CONTEXT PROVIDED BY STUDENT:\n${schema.trim()}\nUse this schema to validate table names, column names, data types, and JOIN conditions. Flag any reference to a table or column not present in the schema as an error.\n`
-      : '';
-    return `You are a Senior Data Engineer and SQL expert with 15+ years of experience specialising in ${dialectName}.${schemaBlock}
-${BASE_INSTRUCTIONS}
-
-SQL-SPECIFIC FOCUS AREAS (apply all that are relevant to ${dialectName}):
+const SQL_FOCUS = (dialectName: string) => `SQL-SPECIFIC FOCUS AREAS (apply all that are relevant to ${dialectName}):
 - Correctness: verify JOIN conditions (missing ON clause, cartesian products, wrong join type); NULL handling in WHERE/HAVING clauses (use IS NULL not = NULL); GROUP BY completeness (all non-aggregated SELECT columns must appear); HAVING vs WHERE placement; subquery correlated vs uncorrelated correctness.
 - Performance: missing or redundant indexes implied by the query; SELECT * in production queries; N+1 patterns; functions on indexed columns in WHERE (e.g. LOWER(col) = ... prevents index use); large IN lists; unnecessary DISTINCT.
 - Window functions: correct PARTITION BY / ORDER BY; ROWS vs RANGE frame differences; using window functions where aggregation suffices.
 - Dialect-specific pitfalls for ${dialectName}: flag any syntax or function not available in ${dialectName} (e.g. QUALIFY in BigQuery, ISNULL vs COALESCE differences, LIMIT vs TOP, date arithmetic syntax, STRING_AGG vs GROUP_CONCAT, UNNEST usage).
 - Safety: parameterised queries vs string concatenation (SQL injection); hardcoded credentials or environment values in queries.
 - Style: CTEs preferred over deeply nested subqueries; consistent aliasing; meaningful alias names (not single letters for complex tables).`;
-  }
 
-  if (lang === 'python') {
-    const schemaBlock = schema?.trim()
-      ? `\nDATA CONTEXT PROVIDED BY STUDENT:\n${schema.trim()}\nUse this context to validate column references, data types, and assumptions about the dataset.\n`
-      : '';
-    return `You are a Senior Data Scientist and Python engineer with 15+ years of experience in data analysis, data engineering, and machine learning pipelines.${schemaBlock}
-${BASE_INSTRUCTIONS}
-
-PYTHON-SPECIFIC FOCUS AREAS (data analysis and engineering context):
+const PYTHON_FOCUS = `PYTHON-SPECIFIC FOCUS AREAS (data analysis and engineering context):
 - Pandas anti-patterns: chained indexing (df[...][...] vs .loc/.iloc); iterrows() over vectorised operations; apply() where built-in methods exist; inplace=True misuse; not using .copy() when slicing; implicit index alignment gotchas.
 - Memory efficiency: loading entire datasets when chunking/lazy evaluation suffices; object dtype columns that should be category; unnecessary full DataFrame copies; not releasing memory after large intermediates.
 - Correctness: NaN propagation in aggregations; float comparison without tolerance; off-by-one in date ranges; timezone-naive vs timezone-aware datetime mixing; incorrect merge/join keys.
 - Code quality: PEP 8 naming and spacing; functions longer than 30 lines without decomposition; magic numbers; missing type hints on function signatures; bare except clauses.
 - Data analysis best practices: reproducibility (random seeds); hardcoded file paths; missing data validation at pipeline entry; no assertions on expected DataFrame shape or dtypes after transforms.
 - Performance: use of .apply() vs vectorised NumPy/Pandas; SQL pushdown (filtering at DB level rather than Python); unnecessary .reset_index() calls; sorting when unnecessary.`;
-  }
 
-  return `You are a Senior Software Engineer and technical educator with 15+ years of experience across software development, data engineering, and analytics.\n${BASE_INSTRUCTIONS}`;
+// With a rubric the prompt is the reviewer, the data context and the rubric. The general audit and
+// the language focus areas are left out entirely: they are what pulled a report off the rubric.
+function buildSystemPrompt(language: string, dialect: string | undefined, schema: string | undefined, rubric: string[]): string {
+  const lang = language.toLowerCase();
+  const dialectName = dialect ?? 'standard SQL';
+  const reviewer = lang === 'sql'
+    ? `You are a Senior Data Engineer and SQL expert with 15+ years of experience specialising in ${dialectName}.`
+    : lang === 'python'
+      ? 'You are a Senior Data Scientist and Python engineer with 15+ years of experience in data analysis, data engineering, and machine learning pipelines.'
+      : 'You are a Senior Software Engineer and technical educator with 15+ years of experience across software development, data engineering, and analytics.';
+  const dataContext = !schema?.trim() ? ''
+    : lang === 'sql'
+      ? `\nSCHEMA AND CONTEXT PROVIDED BY STUDENT:\n${schema.trim()}\nUse this schema to validate table names, column names, data types, and JOIN conditions.\n`
+      : `\nDATA CONTEXT PROVIDED BY STUDENT:\n${schema.trim()}\nUse this context to validate column references, data types, and assumptions about the dataset.\n`;
+
+  if (rubric.length > 0) {
+    return `${reviewer} You are marking a student's code against the instructor's rubric.${dataContext}\n${rubricInstructions(rubric, 'issues')}\n\n${ISSUE_FIELDS}`;
+  }
+  const focus = lang === 'sql' ? `\n\n${SQL_FOCUS(dialectName)}` : lang === 'python' ? `\n\n${PYTHON_FOCUS}` : '';
+  return `${reviewer}${dataContext}\n${BASE_INSTRUCTIONS}${focus}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -163,10 +91,11 @@ export async function POST(req: NextRequest) {
   let refundAttempt: (() => Promise<void>) | null = null;
 
   try {
-    const auth = await authenticate(req);
-    if (auth instanceof NextResponse) return auth;
+    const auth = await requireUser(req);
+    if (isAuthError(auth)) return auth.error;
 
-    const { code, language = 'Unknown', dialect, schema, rubric } = await req.json();
+    const { code, language = 'Unknown', dialect, schema, rubric: rawRubric } = await req.json();
+    const rubric: string[] = Array.isArray(rawRubric) ? rawRubric.filter(c => typeof c === 'string' && c.trim()) : [];
     if (!code?.trim()) return NextResponse.json({ error: 'code is required' }, { status: 400 });
 
     if (code.length > MAX_CODE_CHARS) {
@@ -178,33 +107,29 @@ export async function POST(req: NextRequest) {
 
     // Charged only once the request is worth running. Taking the attempt first meant an empty or
     // oversized submission drained an allowance for a review that was never going to happen.
-    const charge = await checkRateLimit(auth);
+    const charge = await chargeAiFeature(auth, getRedis(), 'codeReview', {
+      unavailableMessage: 'Service temporarily unavailable',
+    });
     if (charge.response) return charge.response;
     // Only an attempt the counter really took can be given back.
     const receipt = charge.receipt;
     if (receipt) refundAttempt = () => refundAiFeature(receipt);
 
-    const systemPrompt = buildSystemPrompt(language, dialect, schema);
-
-    const rubricSection = Array.isArray(rubric) && rubric.length > 0
-      ? `\n\nINSTRUCTOR RUBRIC -- GRADE EACH CRITERION\nGrade every criterion below with a "passed" boolean and a 1-2 sentence "comment".\n\nCriteria:\n${rubric.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\nGrade strictly.`
-      : '';
-
     const dialectLabel = dialect ? ` (${dialect})` : '';
-    const fullPrompt = `${systemPrompt}${rubricSection}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
+    const fullPrompt = `${buildSystemPrompt(language, dialect, schema, rubric)}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nLanguage: ${language}${dialectLabel}\n\nCode to review:\n\`\`\`${language.toLowerCase()}\n${code}\n\`\`\``;
 
-    const parsed = await generateJSON(fullPrompt, responseSchema, { feature: 'code-review',
+    const parsed = await generateJSON(fullPrompt, reviewSchema({ findings: FINDINGS, hasRubric: rubric.length > 0 }), { feature: 'code-review',
       temperature: 0.25,
       usageContext: {
         operation: 'code-review',
         metadata: {
           codeChars: code.length,
           language: String(language),
-          rubricCriteria: Array.isArray(rubric) ? rubric.length : 0,
+          rubricCriteria: rubric.length,
         },
       },
     });
-    return NextResponse.json(scoreRubricReview(parsed, Array.isArray(rubric) ? rubric : []));
+    return NextResponse.json(scoreRubricReview(parsed, rubric));
   } catch (err: any) {
     console.error('code-review error:', err);
     // The review never happened, so it should not have cost them an attempt.

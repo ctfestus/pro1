@@ -14,7 +14,7 @@
 
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
-import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
@@ -23,13 +23,14 @@ import { readBoundedJson } from '@/lib/bounded-json';
 import type { AuthedUser } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
+// A review on a thinking model can run past the platform default; without this it is cut off mid-call.
+export const maxDuration = 120;
 
 // Practice and graded work get SEPARATE daily budgets, because they share this route. On one
 // counter, a student who worked through their lesson's ungraded knowledge checks could not then
 // submit the graded question -- practising would lock them out of assessed work. The graded budget
 // is sized to the player's 2 attempts per question; practice gets the larger allowance.
-// Read from settings rather than declared here, so the AI features tab is the one place
-// this number lives. A constant left behind would quietly ignore whatever an admin typed.
+// The numbers themselves come from settings (the AI features tab).
 type ReviewDepth = 'brief' | 'full';
 // Max length of the answer we send to the model. Keep the player-side counters in sync
 // (WrittenResponsePlayer, KnowledgeCheck). Not exported: a route module may only export handlers.
@@ -68,56 +69,7 @@ async function checkRateLimit(auth: AuthedUser, depth: ReviewDepth) {
   });
 }
 
-const responseSchema = {
-  type: 'object',
-  properties: {
-    overallScore:     { type: 'number' },
-    executiveSummary: { type: 'string' },
-    sections: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name:           { type: 'string' },
-          severity:       { type: 'string' },
-          title:          { type: 'string' },
-          detail:         { type: 'string' },
-          recommendation: { type: 'string' },
-        },
-        required: ['name', 'severity', 'title', 'detail', 'recommendation'],
-      },
-    },
-    categories: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          name:      { type: 'string' },
-          score:     { type: 'number' },
-          summary:   { type: 'string' },
-          strengths: { type: 'array', items: { type: 'string' } },
-          gaps:      { type: 'array', items: { type: 'string' } },
-        },
-        required: ['name', 'score', 'summary', 'strengths', 'gaps'],
-      },
-    },
-    topRecommendations: { type: 'array', items: { type: 'string' } },
-    rubricGrades: {
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id:        { type: 'integer', description: 'The 1-based position in the instructor rubric.' },
-          criterion: { type: 'string' },
-          passed:    { type: 'boolean' },
-          comment:   { type: 'string' },
-        },
-        required: ['id', 'criterion', 'passed', 'comment'],
-      },
-    },
-  },
-  required: ['overallScore', 'executiveSummary'],
-};
+const FINDINGS = { key: 'sections', fields: ['name', 'severity', 'title', 'detail', 'recommendation'] };
 
 const SEVERITIES = new Set(['critical', 'improvement', 'suggestion']);
 
@@ -184,19 +136,18 @@ export async function POST(req: NextRequest) {
     maxWords       ? `LENGTH LIMIT: the student was told to answer in ${maxWords} words or fewer. Judge the answer within that budget -- do not fault it for omitting depth it had no room for, and keep every recommendation achievable inside the limit.` : '',
     context        ? `CONTEXT THE STUDENT WAS GIVEN:\n${context}` : '',
     expectedAnswer ? `MODEL ANSWER (reference only, the student never sees this; do not require identical wording):\n${expectedAnswer}` : '',
-    rubric.length
-      ? `RUBRIC -- grade every criterion with a "passed" boolean and a one-sentence "comment":\n${rubric.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
-      : '',
   ].filter(Boolean).join('\n\n');
 
-  const depthInstructions = brief
+  // With a rubric the review is the rubric; the four-category audit is only for answers without one.
+  const depthInstructions = rubric.length
+    ? `${rubricInstructions(rubric, brief ? undefined : 'sections')}${brief ? '' : `
+
+For each entry in "sections" provide: name (the part of the answer it concerns), severity ("critical" for a failed criterion), title (starting "Criterion <id>:"), detail (1-2 sentences on what is missing or wrong), and recommendation (the concrete fix).`}`
+    : brief
     ? `Return:
 - overallScore: 0-100 (one decimal)
 - executiveSummary: 2-3 sentences addressed to the student. Name one specific thing their answer did, then the single most useful change.
-- rubricGrades: one entry per rubric criterion (omit if no rubric was given)
-- topRecommendations: at most 2 concrete next steps
-- sections: []
-- categories: []`
+- topRecommendations: at most 2 concrete next steps`
     : `Score the answer in these four categories (0-100 each):
 1. Understanding and accuracy - is the substance correct, and does it answer what was actually asked?
 2. Depth of reasoning - does the answer explain WHY, weigh trade-offs, and go past a definition?
@@ -206,10 +157,9 @@ export async function POST(req: NextRequest) {
 Return:
 - overallScore: weighted average 0-100 (one decimal)
 - executiveSummary: 2-3 sentences on the overall quality of this answer
-- categories: the four categories above, each with a summary, strengths, and gaps
+- categories: the four categories above, each with a 1-sentence summary, up to 3 strengths and up to 3 gaps ([] when there are none)
 - sections: the specific issues in the answer. For each -- name: the part of the answer it concerns (for example "Opening claim", "Second paragraph", "Conclusion"); severity: "critical", "improvement", or "suggestion"; title: a short issue name; detail: 1-2 sentences on the problem; recommendation: the concrete fix
-- topRecommendations: exactly 3 highest-impact improvements, ordered by impact
-- rubricGrades: one entry per rubric criterion (omit if no rubric was given)`;
+- topRecommendations: up to 3 highest-impact improvements, ordered by impact; fewer, or none, when the answer does not need them`;
 
   const prompt = `You are an experienced instructor marking a student's written answer. You are rigorous about substance and generous about style: judge what the student demonstrates they understand, not whether they used your preferred phrasing.
 
@@ -235,7 +185,8 @@ Return ONLY valid JSON. No markdown fences.`;
   if (charge.response) return charge.response;
 
   try {
-    const parsed = await generateJSON(prompt, responseSchema, { feature: 'written-review',
+    const schema = reviewSchema({ findings: brief ? undefined : FINDINGS, hasRubric: rubric.length > 0 });
+    const parsed = await generateJSON(prompt, schema, { feature: 'written-review',
       temperature: 0.3,
       usageContext: {
         operation: 'written-review',
@@ -248,21 +199,21 @@ Return ONLY valid JSON. No markdown fences.`;
       },
     });
     const arr = (value: unknown) => (Array.isArray(value) ? value : []);
-    const score = Number(parsed?.overallScore);
-    const result = scoreRubricReview(parsed, rubric);
+    const result: any = scoreRubricReview(parsed, rubric);
+    const score = Number(result?.overallScore);
     return NextResponse.json({
       ...(rubric.length ? { rubricScore: result.rubricScore } : {}),
       overallScore:     Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0,
       executiveSummary: String(parsed?.executiveSummary ?? ''),
       // Normalized so a player can always .map()/.filter() these without a shape guard.
-      sections: arr(parsed?.sections).map((s: any) => ({
+      sections: arr(result?.sections).map((s: any) => ({
         name:           String(s?.name ?? ''),
         severity:       SEVERITIES.has(s?.severity) ? s.severity : 'suggestion',
         title:          String(s?.title ?? ''),
         detail:         String(s?.detail ?? ''),
         recommendation: String(s?.recommendation ?? ''),
       })),
-      categories: arr(parsed?.categories).map((c: any) => ({
+      categories: arr(result?.categories).map((c: any) => ({
         name:      String(c?.name ?? ''),
         score:     Number.isFinite(Number(c?.score)) ? Math.max(0, Math.min(100, Number(c.score))) : 0,
         summary:   String(c?.summary ?? ''),

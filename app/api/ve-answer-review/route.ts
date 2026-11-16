@@ -9,9 +9,8 @@ import { readBoundedJson } from '@/lib/bounded-json';
 import type { AuthedUser } from '@/lib/api-auth';
 
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
 
-// Read from settings rather than declared here, so the AI features tab is the one place
-// this number lives. A constant left behind would quietly ignore whatever an admin typed.
 // Max length of a written answer we send to the model (HTML stripped). Keep the client-side
 // caps/counters in the VE players (VirtualExperienceTaker, AssignmentExperiencePlayer) in sync.
 const MAX_ANSWER_CHARS = 2000;
@@ -36,14 +35,15 @@ async function checkRateLimit(auth: AuthedUser): Promise<AiFeatureCharge> {
 }
 
 
+const PASS_MARK = 60;
+
 const responseSchema = {
   type: 'object',
   properties: {
     score:    { type: 'number' },
-    passed:   { type: 'boolean' },
     feedback: { type: 'string' },
   },
-  required: ['score', 'passed', 'feedback'],
+  required: ['score', 'feedback'],
 };
 
 export async function POST(req: NextRequest) {
@@ -154,8 +154,11 @@ export async function POST(req: NextRequest) {
   const taskLabel   = question || description || 'this task';
   const lessonLine  = [moduleTitle, lessonTitle].filter(Boolean).join(' > ');
 
-  const rubricLines = Array.isArray(rubric) && rubric.length > 0
-    ? `Criteria: ${rubric.join(' | ')}`
+  const criteria: string[] = Array.isArray(rubric) ? rubric.filter(c => typeof c === 'string' && c.trim()) : [];
+  // The criteria are the instructor's statement of what a good answer needs, so they set the score
+  // and bound the feedback. Without them the reviewer judges the task as written.
+  const rubricLines = criteria.length > 0
+    ? `Criteria - judge the response against these and nothing else:\n${criteria.map((c, i) => `${i + 1}. ${c}`).join('\n')}`
     : '';
   const contextLine  = context       ? `Context: ${context}` : '';
   const modelLine    = expectedAnswer ? `Strong answer covers: ${expectedAnswer}` : '';
@@ -167,7 +170,9 @@ Task: ${taskLabel}
 ${extras ? `\n${extras}\n` : ''}
 Their response: "${studentAnswer}"
 
-Score 0-100 (60+ passes). Write exactly 2-3 sentences of feedback. Rules:
+${criteria.length > 0
+    ? `Score 0-100 as the share of the criteria the response meets (${PASS_MARK}+ passes). Feedback covers only the criteria: do not raise anything they do not ask for.`
+    : `Score 0-100 (${PASS_MARK}+ passes).`} Write exactly 2-3 sentences of feedback. Rules:
 - Be direct. Cut any sentence that does not add information.
 - Reference what they actually wrote, not generic advice.
 - If passed: name one specific strength, then one concrete way to go further.
@@ -183,11 +188,9 @@ ${REVIEW_GRADING_INSTRUCTIONS}`;
 
   try {
     const parsed = await generateJSON(prompt, responseSchema, { feature: 've-answer-review', usageContext: { operation: 've-answer-review' }, temperature: 0.4 });
-    return NextResponse.json({
-      passed:   !!parsed.passed,
-      feedback: parsed.feedback || '',
-      score:    typeof parsed.score === 'number' ? Math.round(parsed.score) : 0,
-    });
+    // Passing is read off the score, so the verdict can never disagree with the number beside it.
+    const score = typeof parsed.score === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.score))) : 0;
+    return NextResponse.json({ passed: score >= PASS_MARK, feedback: parsed.feedback || '', score });
   } catch (err: any) {
     console.error('[ve-answer-review]', err);
     // The review never happened, so it should not have cost them an attempt.
