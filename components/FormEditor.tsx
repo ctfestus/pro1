@@ -3834,39 +3834,43 @@ export default function FormEditor({ formId, contentType, onSaved }: FormEditorP
                       })() : null}
                     </DragOverlay>
                   </DndContext>
-                  {(!formConfig.questions || formConfig.questions.length === 0) && <p className="text-xs text-center py-3" style={{ color: FE.faint }}>
-                    Nothing here yet. Add a lesson or a question, or{' '}
-                    <button type="button" onClick={() => { setAiError(''); setAiPromptModalOpen(true); }} className="font-semibold underline underline-offset-2" style={{ color: accentColor }}>generate them with AI</button>.
-                  </p>}
-
-                  <div className="flex items-center gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => insertLessonAt((formConfig.questions?.length ?? 0) - 1)}
-                      className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-80"
-                      style={{ background: accentColor, color: 'white' }}
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add lesson
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPickerCtx({ mode: 'bottom' })}
-                      className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-80"
-                      style={{ background: FE.pill, color: FE.text, border: `1px solid ${FE.cardBorder}` }}
-                    >
-                      <Plus className="w-3.5 h-3.5" /> Add question
-                    </button>
-                    <button type="button" onClick={handleAddSection} className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all flex-shrink-0 hover:opacity-80" style={{ background: FE.pill, border: `1px solid ${FE.inputBorder}`, color: FE.muted }}>
-                      <Plus className="w-3.5 h-3.5" /> Module
-                    </button>
-                    {/* Occasional, so it sits quietly at the end rather than in a panel above the outline. */}
-                    <button type="button" onClick={() => { setAiError(''); setAiPromptModalOpen(true); }} disabled={!!aiLoadingLabel}
-                      className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-all hover:opacity-80 disabled:opacity-50"
-                      style={{ color: accentColor, background: `${accentColor}12` }}>
-                      {aiLoadingLabel === 'Generating questions...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5" />}
-                      Generate with AI
-                    </button>
-                  </div>
+                  {(() => {
+                    const isEmpty = !formConfig.questions || formConfig.questions.length === 0;
+                    // One quiet style for the secondary actions; Add lesson is the main one.
+                    const quiet = { background: FE.card, color: FE.text, border: `1px solid ${FE.cardBorder}` };
+                    const actions = (
+                      <div className={`flex flex-wrap items-center gap-2 ${isEmpty ? 'justify-center' : ''}`}>
+                        <button type="button" onClick={() => insertLessonAt((formConfig.questions?.length ?? 0) - 1)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-85"
+                          style={{ background: accentColor, color: 'white', border: `1px solid ${accentColor}` }}>
+                          <Plus className="w-3.5 h-3.5" /> Add lesson
+                        </button>
+                        <button type="button" onClick={() => setPickerCtx({ mode: 'bottom' })}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-75" style={quiet}>
+                          <Plus className="w-3.5 h-3.5" /> Add question
+                        </button>
+                        <button type="button" onClick={handleAddSection}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-75" style={quiet}>
+                          <Plus className="w-3.5 h-3.5" /> Module
+                        </button>
+                        <button type="button" onClick={() => { setAiError(''); setAiPromptModalOpen(true); }} disabled={!!aiLoadingLabel}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-opacity hover:opacity-75 disabled:opacity-50" style={quiet}>
+                          {aiLoadingLabel === 'Generating questions...' ? <Loader2 className="w-3.5 h-3.5 animate-spin" style={{ color: accentColor }} /> : <Sparkles className="w-3.5 h-3.5" style={{ color: accentColor }} />}
+                          Generate with AI
+                        </button>
+                      </div>
+                    );
+                    return isEmpty ? (
+                      // An empty course: one centred starting point with every way to begin.
+                      <div className="flex flex-col items-center text-center gap-3 rounded-xl px-6 py-10" style={{ background: FE.groupBg }}>
+                        <div>
+                          <p className="text-sm font-semibold" style={{ color: FE.text }}>Start your course</p>
+                          <p className="mt-1 text-xs" style={{ color: FE.muted }}>Add a lesson or a question, start a module, or let AI draft them from a topic.</p>
+                        </div>
+                        {actions}
+                      </div>
+                    ) : <div className="pt-1">{actions}</div>;
+                  })()}
                   {activeSection === 'curriculum' && aiError && <p className="text-[11px]" style={{ color: '#D93025' }}>{aiError}</p>}
                   {activeSection === 'curriculum' && !aiError && aiSuccess && <p className="text-[11px]" style={{ color: '#10b981' }}>{aiSuccess}</p>}
                 </div>
