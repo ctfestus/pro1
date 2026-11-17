@@ -3,6 +3,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
+import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature, type AiFeatureCharge } from '@/lib/ai-feature-gate';
 import { readBoundedJson } from '@/lib/bounded-json';
@@ -195,6 +196,7 @@ ${REVIEW_GRADING_INSTRUCTIONS}`;
     console.error('[ve-answer-review]', err);
     // The review never happened, so it should not have cost them an attempt.
     if (charge.receipt) await refundAiFeature(charge.receipt);
+    if (err instanceof AiConfigurationError) return aiConfigurationResponse();
     return NextResponse.json({ error: 'AI review failed. Please try again.' }, { status: 500 });
   }
 }

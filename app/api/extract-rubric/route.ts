@@ -2,6 +2,7 @@
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { generateJSON, generateVisionJSON } from '@/lib/ai';
 import { NextRequest, NextResponse } from 'next/server';
+import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { assertZipWithinLimit, extractDocxText } from '@/lib/office-text';
 import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
 import { normalizeReviewSheetNames } from '@/lib/excel-review-config';
@@ -134,7 +135,9 @@ export async function POST(req: NextRequest) {
               metadata: { ...usageMetadata, sourceKind: 'document' },
             },
           });
-        } catch {
+        } catch (err) {
+          // A setup problem is not the file's fault: report it as such below.
+          if (err instanceof AiConfigurationError) throw err;
           return NextResponse.json(
             { error: 'Could not extract rubric from this file. If the AI service is unavailable, try uploading an image screenshot instead.' },
             { status: 422 },
@@ -148,6 +151,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ criteria });
   } catch (err: any) {
     console.error('[extract-rubric]', err);
+    if (err instanceof AiConfigurationError) return aiConfigurationResponse();
     // "Failed to extract rubric from file" sent instructors hunting through a file that was never
     // the problem. A busy model is the common failure and it says so.
     const message = String(err?.message ?? '').toLowerCase();
