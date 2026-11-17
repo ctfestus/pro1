@@ -13,7 +13,7 @@ import { mergeRubricCriteria, type RubricImportKind } from '@/lib/rubric-criteri
 import { motion, AnimatePresence } from 'motion/react';
 import {
   Loader2, Save, Check, Plus, Trash2, Image as ImageIcon, Images, Sun, Moon,
-  X, MapPin, ArrowUpRight, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Sparkles,
+  X, MapPin, ArrowUpRight, ChevronDown, ChevronUp, ChevronRight, Sparkles,
   GripVertical, BookOpen, Monitor, ExternalLink, Video, Search,
   CalendarDays, ClipboardList, CheckCircle2, Settings, Upload, Download, Link2, FileText,
   Lock, LockOpen, Users, Music, FileCode,
@@ -460,9 +460,11 @@ interface FormEditorProps {
   publishControls?: (state: { ready: boolean; unsaved: boolean }) => React.ReactNode;
   /** Course Publish step: shown last (Duplicate). */
   publishFooter?: React.ReactNode;
+  /** Publish step, after the link: the wider sharing kit (events: share buttons, embed, QR code). */
+  publishShare?: React.ReactNode;
 }
 
-export default function FormEditor({ formId, contentType, onSaved, publishControls, publishFooter }: FormEditorProps) {
+export default function FormEditor({ formId, contentType, onSaved, publishControls, publishFooter, publishShare }: FormEditorProps) {
   const [formConfig, setFormConfig] = useState<FormConfig | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -1587,14 +1589,23 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
     { id: 'submission', label: 'Completion' },
   ] as { id: string; label: string }[]);
   const editorSectionIds = editorSections.map(section => section.id);
-  const courseStudioModes = [
+  // The editor's steps: each shows one or more sections, and the step bar switches between them.
+  type StudioMode = { id: string; label: string; Icon: typeof Blocks; sections: string[] };
+  const studioModes: StudioMode[] = formConfig.isCourse ? [
     { id: 'build', label: 'Build', Icon: Blocks, sections: ['info'] },
     { id: 'content', label: 'Content', Icon: Video, sections: ['curriculum'] },
     { id: 'design', label: 'Design', Icon: Monitor, sections: ['cover', 'appearance'] },
     { id: 'settings', label: 'Settings', Icon: Settings, sections: ['course_settings', 'points', 'cohorts'] },
     { id: 'publish', label: 'Publish', Icon: CheckCircle2, sections: ['share', 'submission'] },
-  ] as const;
-  const activeStudioMode = courseStudioModes.find(mode => mode.sections.includes(activeSection as never)) ?? courseStudioModes[0];
+  ] : [
+    { id: 'details', label: 'Details', Icon: CalendarDays, sections: ['info', 'cover', 'event_details', 'speakers'] },
+    { id: 'registration', label: 'Registration', Icon: ClipboardList, sections: ['fields'] },
+    { id: 'design', label: 'Design', Icon: Monitor, sections: ['appearance'] },
+    { id: 'settings', label: 'Settings', Icon: Settings, sections: ['visibility', 'cohorts'] },
+    { id: 'publish', label: 'Publish', Icon: CheckCircle2, sections: ['share', 'submission'] },
+  ];
+  const activeStudioMode = studioModes.find(mode => mode.sections.includes(activeSection)) ?? studioModes[0];
+  const inStep = (sectionId: string) => activeStudioMode.sections.includes(sectionId);
   // Learner numbering (Q1, Q2 ...) for the outline, and what still blocks publishing.
   const qNumbers = questionNumbers(formConfig.questions ?? []);
   const outlineGroups = groupOutline(formConfig.questions ?? []);
@@ -1633,10 +1644,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
             {saved ? 'Saved!' : 'Save Changes'}
           </button>
         </div>
-        {formConfig.isCourse && (
-          <div className="relative z-10" style={{ background: FE.card, borderBottom: `1px solid ${FE.cardBorder}` }}>
-            <nav className="flex items-center gap-1 overflow-x-auto px-4 py-3 sm:px-6" aria-label="Course studio modes" style={{ scrollbarWidth: 'none' }}>
-              {courseStudioModes.map(mode => {
+        <div className="relative z-10" style={{ background: FE.card, borderBottom: `1px solid ${FE.cardBorder}` }}>
+            <nav className="flex items-center gap-1 overflow-x-auto px-4 py-3 sm:px-6" aria-label="Editor steps" style={{ scrollbarWidth: 'none' }}>
+              {studioModes.map(mode => {
                 const active = mode.id === activeStudioMode.id;
                 return (
                   <button key={mode.id} type="button" onClick={() => goToSection(mode.sections[0], editorSectionIds)}
@@ -1647,41 +1657,10 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 );
               })}
             </nav>
-          </div>
-        )}
+        </div>
         <div className="flex-1">
           <div>
           <div>
-          {(() => {
-            const navSections = editorSections;
-            // Courses: the highlighted step above already names the step and switches between them.
-            if (formConfig.isCourse) return null;
-            const ids = editorSectionIds;
-            const i = ids.indexOf(activeSection);
-            const currentLabel = navSections[editorSectionIds.indexOf(activeSection)]?.label;
-            return (
-              <div className="px-5 py-4 sm:px-8" style={{ borderBottom: `1px solid ${FE.cardBorder}` }}>
-                <div className="flex items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <h2 className="truncate text-lg font-bold leading-tight sm:text-xl" style={{ color: FE.text }}>{currentLabel}</h2>
-                    <p className="mt-1 text-[11px] font-medium" style={{ color: FE.faint }}>Step {i + 1} of {ids.length}</p>
-                  </div>
-                  <div className="flex flex-shrink-0 items-center gap-2">
-                    <button type="button" disabled={i <= 0} onClick={() => goToSection(ids[i - 1], ids)} aria-label="Previous"
-                      className="grid h-9 w-9 place-items-center rounded-full transition-opacity hover:opacity-70 disabled:opacity-30"
-                      style={{ border: `1px solid ${FE.cardBorder}`, color: FE.muted }}>
-                      <ChevronLeft className="h-4 w-4"/>
-                    </button>
-                    <button type="button" disabled={i >= ids.length - 1} onClick={() => goToSection(ids[i + 1], ids)} aria-label="Next"
-                      className="grid h-9 w-9 place-items-center rounded-full transition-opacity hover:opacity-70 disabled:opacity-30"
-                      style={{ border: `1px solid ${FE.cardBorder}`, color: FE.muted }}>
-                      <ChevronRight className="h-4 w-4"/>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            );
-          })()}
           <AnimatePresence mode="wait" custom={secDir}>
           <motion.div key={activeSection} custom={secDir}
             initial={{ opacity: 0, x: secDir * 28 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: secDir * -28 }}
@@ -1690,7 +1669,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
             <div>
             <div className="flex min-w-0 flex-col gap-5">
 
-            {formConfig.isCourse && activeStudioMode.id === 'publish' && publishControls?.({ ready: publishIssues.length === 0, unsaved: isDirty })}
+            {activeStudioMode.id === 'publish' && publishControls?.({ ready: publishIssues.length === 0, unsaved: isDirty })}
 
             {formConfig.isCourse && activeStudioMode.id === 'publish' && (
               <section className="rounded-2xl p-4 sm:p-5" style={{ background: FE.groupBg }}>
@@ -1729,14 +1708,33 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </section>
             )}
 
-            {activeSection === 'info' && (
-              <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? studioPanelStyle : undefined}>
-              {formConfig.isCourse && <div>
+            {inStep('info') && formConfig.eventDetails?.isEvent && (
+                <div className="flex items-center justify-between gap-4 rounded-2xl p-4" style={{ background: `${accentColor}0e` }}>
+                  <div className="flex items-start gap-3 min-w-0">
+                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${accentColor}1f`, color: accentColor }}>
+                      <Sparkles className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold" style={{ color: FE.text }}>AI Event Assistant</p>
+                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: FE.faint }}>Generate the setup, registration fields, and confirmation copy from a short brief.</p>
+                    </div>
+                  </div>
+                  <button type="button" onClick={() => setEventAssistantOpen(true)} disabled={!!aiLoadingLabel}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-opacity disabled:opacity-50 flex-shrink-0"
+                    style={{ background: accentColor, color: 'white' }}>
+                    <Sparkles className="w-3.5 h-3.5" /> Open Assistant
+                  </button>
+                </div>
+            )}
+
+            {inStep('info') && (
+              <div className={studioPanelClass} style={studioPanelStyle}>
+              {formConfig.isCourse ? <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Course identity</p>
                 <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Give learners a clear promise before they begin.</p>
-              </div>}
+              </div> : <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>About the event</p>}
               <div>
-                <label className={labelCls} style={labelStyle}>{formConfig.isCourse ? 'Course title' : 'Form title'}</label>
+                <label className={labelCls} style={labelStyle}>{formConfig.isCourse ? 'Course title' : 'Event title'}</label>
                 <input type="text" value={formConfig.title} onChange={e => updateConfig({ title: e.target.value })} className={inputCls} style={inputStyle} />
               </div>
               <div>
@@ -1805,24 +1803,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {activeSection === 'event_details' && formConfig.eventDetails?.isEvent && (
-              <div className="space-y-5">
-                <div className="flex items-center justify-between gap-4 rounded-2xl p-4" style={{ background: `${accentColor}0e` }}>
-                  <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: `${accentColor}1f`, color: accentColor }}>
-                      <Sparkles className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold" style={{ color: FE.text }}>AI Event Assistant</p>
-                      <p className="text-[11px] mt-0.5 leading-relaxed" style={{ color: FE.faint }}>Generate the setup, registration fields, and confirmation copy from a short brief.</p>
-                    </div>
-                  </div>
-                  <button type="button" onClick={() => setEventAssistantOpen(true)} disabled={!!aiLoadingLabel}
-                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-opacity disabled:opacity-50 flex-shrink-0"
-                    style={{ background: accentColor, color: 'white' }}>
-                    <Sparkles className="w-3.5 h-3.5" /> Open Assistant
-                  </button>
-                </div>
+            {inStep('event_details') && formConfig.eventDetails?.isEvent && (
+              <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 1 }}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>When and where</p>
                 {/* FORMAT -- type + location */}
                 <div className="space-y-3">
                   <p className="text-[11px] font-bold uppercase tracking-widest" style={{ color: FE.faint }}>Format</p>
@@ -1880,7 +1863,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                   <div>
                     <label className={labelCls} style={labelStyle}>Timezone</label>
                     <select value={formConfig.eventDetails.timezone || ''} onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, timezone: e.target.value } })} className={inputCls} style={inputStyle}>
-                      <option value="">Select timezone…</option>
+                      <option value="">Select timezone</option>
                       <optgroup label="Africa">
                         <option value="GMT+0 (Accra)">GMT+0 - Accra</option>
                         <option value="GMT+1 (Lagos)">GMT+1 - Lagos</option>
@@ -1987,7 +1970,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {activeSection === 'visibility' && formConfig.eventDetails?.isEvent && (() => {
+            {inStep('visibility') && formConfig.eventDetails?.isEvent && (() => {
               // Two independent switches, each with a fixed label so its state is read from the
               // switch, not from wording that changes. Public registration: migration 244.
               const ev = formConfig.eventDetails!;
@@ -2005,7 +1988,8 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 },
               ];
               return (
-                <div className="space-y-3">
+                <div className={studioPanelClass} style={studioPanelStyle}>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Visibility</p>
                   {rows.map(r => (
                     <button key={r.key} type="button" role="switch" aria-checked={r.on} onClick={r.toggle}
                       className="w-full flex items-center justify-between gap-4 px-4 py-3.5 rounded-xl border text-left transition-colors duration-200"
@@ -2026,7 +2010,9 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               );
             })()}
 
-            {activeSection === 'speakers' && formConfig.eventDetails?.isEvent && (
+            {inStep('speakers') && formConfig.eventDetails?.isEvent && (
+              <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 1 }}>
+              <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Speakers</p>
               <SpeakersEditor
                 speakers={formConfig.eventDetails.speakers ?? []}
                 onChange={next => updateConfig({ eventDetails: { ...formConfig.eventDetails!, speakers: next } })}
@@ -2037,14 +2023,15 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 labelStyle={labelStyle}
                 onError={msg => showToast(msg)}
               />
+              </div>
             )}
 
-            {((formConfig.isCourse && activeStudioMode.id === 'settings') || (activeSection === 'cohorts' && formConfig?.eventDetails?.isEvent)) && (
-              <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 2 } : undefined}>
-                {formConfig.isCourse && <div>
+            {inStep('cohorts') && (
+              <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 2 }}>
+                {formConfig.isCourse ? <div>
                   <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Learner access</p>
                   <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Choose Everyone or the cohorts that can access this course.</p>
-                </div>}
+                </div> : <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Access</p>}
                 {formConfig.isCourse && <button
                   type="button"
                   onClick={() => { setCourseAvailableToEveryone(true); setSelectedCohortIds([]); }}
@@ -2107,18 +2094,18 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {((formConfig.isCourse && activeStudioMode.id === 'publish') || (!formConfig.isCourse && activeSection === 'share')) && (
-              <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 0 } : undefined}>
-              {formConfig.isCourse && <div>
+            {inStep('share') && (
+              <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 0 }}>
+              <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Link</p>
                 <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Pasted into WhatsApp, LinkedIn or X, the link shows the cover image, title and description.</p>
-              </div>}
-              {formConfig.isCourse && (() => {
+              </div>
+              {(() => {
                 const liveUrl = `${typeof window !== 'undefined' ? window.location.origin : ''}${contentPath({ slug: customSlug || formId, config: formConfig })}`;
                 const ghost = { background: FE.groupBg, color: FE.text };
                 return (
                   <div className="flex flex-wrap gap-2">
-                    <input readOnly value={liveUrl} aria-label="Link to this course" onFocus={e => e.currentTarget.select()}
+                    <input readOnly value={liveUrl} aria-label={`Link to this ${formConfig.isCourse ? 'course' : 'event'}`} onFocus={e => e.currentTarget.select()}
                       className="min-w-0 flex-1 rounded-[10px] px-3 py-2 font-mono text-[12.5px] outline-none" style={{ background: FE.groupBg, color: FE.muted, border: 'none' }} />
                     <button type="button" onClick={() => { navigator.clipboard?.writeText(liveUrl).then(() => { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2000); }).catch(() => {}); }}
                       className="rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80" style={ghost}>{linkCopied ? 'Copied' : 'Copy'}</button>
@@ -2127,7 +2114,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
                 );
               })()}
               <div>
-                <label className={labelCls} style={labelStyle}>{formConfig.isCourse ? 'Change the end of the link (optional)' : 'Custom slug (optional)'}</label>
+                <label className={labelCls} style={labelStyle}>Change the end of the link (optional)</label>
                 <div className="flex min-h-12 items-center overflow-hidden rounded-xl transition-colors" style={{ background: FE.groupBg, border: `1px solid ${FE.inputBorder}` }}>
                   <span className="self-stretch px-3 text-xs whitespace-nowrap flex items-center" style={{ color: FE.faint, borderRight: `1px solid ${FE.inputBorder}` }}>/</span>
                   <input type="text" value={customSlug} onChange={e => setCustomSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))} placeholder="my-course" className="w-full bg-transparent px-3 py-3 text-sm font-medium outline-none placeholder:text-zinc-400" style={{ color: FE.text }} />
@@ -2137,12 +2124,16 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {(activeSection === 'cover' || (formConfig.isCourse && activeStudioMode.id === 'design')) && (
-              <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5'} style={formConfig.isCourse ? studioPanelStyle : undefined}>
-              {formConfig.isCourse && <div>
+            {inStep('share') && publishShare && (
+              <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 0 }}>{publishShare}</div>
+            )}
+
+            {inStep('cover') && (
+              <div className={studioPanelClass} style={studioPanelStyle}>
+              {formConfig.isCourse ? <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Cover &amp; media</p>
                 <p className="mt-1 text-xs" style={{ color: FE.faint }}>Choose the visual learners see before opening the course.</p>
-              </div>}
+              </div> : <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Cover image</p>}
               {formConfig.coverImage ? (
                 <div className="space-y-3">
                   <div className="relative h-32 w-full overflow-hidden rounded-xl group sm:h-40" style={{ border: `1px solid ${FE.cardBorder}` }}>
@@ -2185,12 +2176,12 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {(activeSection === 'appearance' || (formConfig.isCourse && activeStudioMode.id === 'design')) && (
-              <div className={formConfig.isCourse ? studioPanelClass : 'space-y-5 pt-2'} style={formConfig.isCourse ? studioPanelStyle : undefined}>
-              {formConfig.isCourse && <div>
+            {inStep('appearance') && (
+              <div className={studioPanelClass} style={studioPanelStyle}>
+              <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Appearance</p>
-                <p className="mt-1 text-xs" style={{ color: FE.faint }}>Set the course theme, typography, and accent color.</p>
-              </div>}
+                <p className="mt-1 text-xs" style={{ color: FE.faint }}>Set the {formConfig.isCourse ? 'course' : 'event'} theme, typography, and accent color.</p>
+              </div>
               <div>
                 <label className={labelCls} style={labelStyle}>Mode</label>
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -3895,8 +3886,18 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {activeSection === 'fields' && !formConfig.isCourse && (
-              <div className="space-y-2">
+            {inStep('fields') && !formConfig.isCourse && (
+              <div className={studioPanelClass} style={studioPanelStyle}>
+                <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>Registration</p>
+                {formConfig.eventDetails?.isEvent && (
+                  <div>
+                    <label className={labelCls} style={labelStyle}>Capacity (optional)</label>
+                    <input type="number" min={1} value={formConfig.eventDetails.capacity ?? ''} placeholder="No limit"
+                      onChange={e => updateConfig({ eventDetails: { ...formConfig.eventDetails!, capacity: e.target.value ? Math.max(1, Math.floor(Number(e.target.value))) : undefined } })}
+                      className={inputCls} style={{ ...inputStyle, maxWidth: 160 }} />
+                  </div>
+                )}
+                <label className={labelCls} style={labelStyle}>Registration questions</label>
                   <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
                     <SortableContext items={formConfig.fields.map(f => f.id)} strategy={verticalListSortingStrategy}>
                       <div className="space-y-2">
@@ -4209,12 +4210,12 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {((formConfig.isCourse && activeStudioMode.id === 'publish') || (!formConfig.isCourse && activeSection === 'submission')) && (
-              <div className={formConfig.isCourse ? studioPanelClass : 'space-y-3'} style={formConfig.isCourse ? { ...studioPanelStyle, order: 1 } : undefined}>
-                {formConfig.isCourse && <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>When learners finish</p>
-                  <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>Choose what learners see and where they can go after finishing.</p>
-                </div>}
+            {inStep('submission') && (
+              <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 1 }}>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-[0.14em]" style={{ color: accentColor }}>{formConfig.isCourse ? 'When learners finish' : 'When people register'}</p>
+                  <p className="mt-1 text-xs leading-relaxed" style={{ color: FE.faint }}>{formConfig.isCourse ? 'Choose what learners see and where they can go after finishing.' : 'Choose what people see and where they can go after registering.'}</p>
+                </div>
                 {/* Type selector */}
                 <div>
                   <label className={labelCls} style={labelStyle}>What happens after submission</label>
@@ -4348,7 +4349,7 @@ export default function FormEditor({ formId, contentType, onSaved, publishContro
               </div>
             )}
 
-            {formConfig.isCourse && activeStudioMode.id === 'publish' && publishFooter && (
+            {activeStudioMode.id === 'publish' && publishFooter && (
               <div className={studioPanelClass} style={{ ...studioPanelStyle, order: 2 }}>{publishFooter}</div>
             )}
 

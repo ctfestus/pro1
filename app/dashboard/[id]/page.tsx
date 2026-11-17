@@ -6,7 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { exportContent } from '@/lib/dashboard-export';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, Eye,
+  Loader2, ArrowLeft, Download, CheckCircle2, XCircle, Users, Trophy, Star, TrendingUp, BarChart2, BarChart3, Settings, Copy, Check, AlignLeft, Mail, Send, Bell, Sun, Moon, X, ChevronDown, ChevronRight, Eye,
 } from 'lucide-react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
@@ -473,74 +473,42 @@ function ResponsesTab({
       ? Object.entries(selectedResponse.data || {}).filter(([key, value]) => key !== 'email' && value !== null && value !== undefined && value !== '')
       : [];
     const spotsLeft = capacity > 0 ? Math.max(capacity - seatsTaken, 0) : null;
+    const attendedCount = new Set(eventAttendance.map((a: any) => String(a.student_id))).size;
 
     return (
       <>
         <div className="space-y-6">
-          <div className={`overflow-hidden rounded-[28px] border ${card}`}>
-            <div className={isDark ? 'bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.16),transparent_40%),linear-gradient(180deg,rgba(24,24,27,0.98),rgba(24,24,27,0.9))] p-6 sm:p-7' : 'bg-[radial-gradient(circle_at_top_left,rgba(16,185,129,0.12),transparent_40%),linear-gradient(180deg,#ffffff,#f8fafc)] p-6 sm:p-7'}>
-              <div className="flex flex-col gap-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <span className={`inline-flex w-fit items-center rounded-full px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.22em] ${isDark ? 'bg-emerald-500/12 text-emerald-300' : 'bg-emerald-50 text-emerald-700'}`}>
-                      Event responses
-                    </span>
-                    <div>
-                      <p className={`text-4xl font-semibold tracking-tight ${textPrim}`}>{seatsTaken}</p>
-                      <p className={`mt-1 text-sm ${textMut}`}>
-                        {capacity > 0 ? `${fillPercent}% of capacity claimed` : 'Registered participants'}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 sm:min-w-[280px]">
-                    <div className={`rounded-2xl px-4 py-3 ${isDark ? 'bg-white/5' : 'bg-white/85 shadow-sm'}`}>
-                      <p className={`text-[11px] font-medium uppercase tracking-[0.18em] ${textMut}`}>Capacity</p>
-                      <p className={`mt-2 text-xl font-semibold ${textPrim}`}>{capacity > 0 ? capacity : 'Open'}</p>
-                    </div>
-                    <div className={`rounded-2xl px-4 py-3 ${isDark ? 'bg-white/5' : 'bg-white/85 shadow-sm'}`}>
-                      <p className={`text-[11px] font-medium uppercase tracking-[0.18em] ${textMut}`}>Remaining</p>
-                      <p className={`mt-2 text-xl font-semibold ${textPrim}`}>{spotsLeft !== null ? spotsLeft : '--'}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="max-w-2xl">
-                  <div className={`relative h-2.5 overflow-hidden rounded-full ${isDark ? 'bg-white/8' : 'bg-[#ebe7de]'}`}>
-                    <div
-                      className="absolute inset-y-0 left-0 rounded-full"
-                      style={{
-                        width: `${progressWidth}%`,
-                        background: 'linear-gradient(90deg, #10b981 0%, #34d399 45%, #6ee7b7 100%)',
-                      }}
-                    />
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <p className={`text-sm ${textMut}`}>Participant occupancy</p>
-                    <p className={`text-sm font-medium ${textPrim}`}>
-                      {capacity > 0 ? `${seatsTaken} / ${capacity}` : `${seatsTaken} registered`}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center gap-3">
-                  <button
-                    onClick={onExport}
-                    className={`inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-medium transition-colors ${isDark ? 'bg-white/6 text-white hover:bg-white/10' : 'bg-white text-[#111] shadow-sm hover:bg-[#f5f6f7] border border-[rgba(0,0,0,0.07)]'}`}
-                  >
-                    <Download className="w-4 h-4" /> Export participants
-                  </button>
-                  <p className={`text-sm ${textMut}`}>Select a participant to see the full registration response.</p>
-                </div>
-              </div>
-            </div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className={`text-sm ${textSub}`}>{capacity > 0 ? `${seatsTaken} registered of ${capacity} places` : `${seatsTaken} registered`}</p>
+            <button onClick={onExport} className={`inline-flex items-center gap-2 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-70 ${textPrim}`}
+              style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
+              <Download className="w-3.5 h-3.5" /> Export participants
+            </button>
           </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'Registered', value: seatsTaken },
+              { label: 'Capacity',   value: capacity > 0 ? capacity : 'No limit' },
+              { label: 'Remaining',  value: spotsLeft !== null ? spotsLeft : '--' },
+              { label: 'Attended',   value: attendedCount },
+            ].map(t => (
+              <div key={t.label} className="rounded-xl p-4" style={{ background: isDark ? 'rgba(255,255,255,0.055)' : '#F4F6F9' }}>
+                <p className={`text-xs font-medium ${textMut}`}>{t.label}</p>
+                <p className={`mt-1.5 text-2xl font-bold tabular-nums ${textPrim}`}>{t.value}</p>
+              </div>
+            ))}
+          </div>
+          {capacity > 0 && (
+            <div className="h-2 overflow-hidden rounded-full" style={{ background: isDark ? 'rgba(255,255,255,0.08)' : '#ebe7de' }}>
+              <div className="h-full rounded-full" style={{ width: `${progressWidth}%`, background: 'linear-gradient(90deg, #10b981 0%, #34d399 45%, #6ee7b7 100%)' }} />
+            </div>
+          )}
 
           <div className={`rounded-[28px] border ${card}`}>
             <div className={`flex items-center justify-between gap-3 border-b px-6 py-5 ${cardHeader}`}>
               <div>
                 <h3 className={`text-base font-semibold ${textPrim}`}>{isPublicEvent ? 'Cohort participants' : 'Participants'}</h3>
-                <p className={`mt-1 text-sm ${textMut}`}>{isPublicEvent ? 'Students registered through their cohort.' : 'A focused view of who registered and when they joined.'}</p>
+                <p className={`mt-1 text-sm ${textMut}`}>{isPublicEvent ? 'Students registered through their cohort.' : 'Who registered and when. Open a row for their full registration.'}</p>
               </div>
               <span className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-[#f1f2f3] text-[#555]'}`}>
                 {totalCount} total
@@ -557,11 +525,10 @@ function ResponsesTab({
                     >
                       <div className="min-w-0 flex-1">
                         <p className={`truncate text-sm font-semibold ${textPrim}`}>{r.participantName}</p>
-                        <p className={`mt-0.5 text-xs truncate sm:hidden ${textMut}`}>{r.participantEmail}</p>
-                        <p className={`mt-1 text-xs ${textMut}`}>Open response details</p>
+                        <p className={`mt-0.5 text-xs truncate ${textMut}`}>{r.participantEmail}</p>
                       </div>
-                      <p className={`hidden sm:block truncate text-sm min-w-0 flex-1 ${textSub}`}>{r.participantEmail}</p>
                       <p className={`text-right text-xs font-medium flex-shrink-0 ${textMut}`}>{r.submittedDate}</p>
+                      <ChevronRight className={`h-4 w-4 flex-shrink-0 ${textMut}`} aria-hidden="true" />
                     </button>
                   ))}
                 </div>
@@ -588,7 +555,7 @@ function ResponsesTab({
               <div className={`rounded-[28px] border ${card}`}>
                 <div className={`flex items-center justify-between gap-3 border-b px-6 py-5 ${cardHeader}`}>
                   <div>
-                    <h3 className={`text-base font-semibold ${textPrim}`}>Session Attendance</h3>
+                    <h3 className={`text-base font-semibold ${textPrim}`}>Session attendance</h3>
                     <p className={`mt-1 text-sm ${textMut}`}>Recorded each time a student clicks the Join button.</p>
                   </div>
                   <span className={`rounded-full px-3 py-1 text-xs font-medium ${isDark ? 'bg-zinc-800 text-zinc-300' : 'bg-[#f1f2f3] text-[#555]'}`}>
@@ -1732,7 +1699,7 @@ function StatusCard({ form, kind, onStatusChange, ready = true, unsaved = false 
           </p>
         </div>
         <button onClick={() => handleStatusToggle(published ? 'draft' : 'published')} disabled={statusUpdating || blocked}
-          className={btn} style={published ? { background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: textPrim } : { background: courseAccent, color: '#fff' }}>
+          className={btn} style={published ? { background: isLight ? '#ffffff' : '#1E1F26', color: textPrim } : { background: courseAccent, color: '#fff' }}>
           {statusUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : published ? 'Move to draft' : 'Publish'}
         </button>
       </div>
@@ -1769,17 +1736,18 @@ function DuplicateRow({ kind, onClone }: { kind: string; onClone: () => Promise<
   );
 }
 
-function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUrl: string; onClone: () => Promise<void>; onStatusChange?: (status: 'draft' | 'published') => void }) {
-  const { copied: linkCopied, copy: copyLink } = useCopy();
+// Share buttons, embed code and QR code: events and forms are shared widely. Shown in the
+// Publish tab (forms) and in the event editor's Publish step.
+function ShareKit({ form, formUrl, kind }: { form: any; formUrl: string; kind: string }) {
   const { copied: embedCopied, copy: copyEmbed } = useCopy();
   const { theme } = useTheme();
   const isLight = theme === 'light';
-  const isCourse = form.config?.isCourse === true;
-  const contentLabel = isCourse ? 'course' : 'form';
-  const textPrim  = isLight ? '#111'              : '#fff';
-  const textMut   = isLight ? '#555'              : '#71717a';
-  const divider   = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(63,63,70,0.6)';
-
+  const textPrim = isLight ? '#111' : '#fff';
+  const textMut  = isLight ? '#555' : '#71717a';
+  const soft = isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)';
+  const btn = 'inline-flex items-center justify-center gap-1.5 rounded-[10px] px-3.5 py-2 text-[13px] font-semibold transition-opacity hover:opacity-80 disabled:opacity-60 flex-shrink-0';
+  const ghost = { background: soft, color: textPrim };
+  const contentLabel = kind;
   const embedCode = `<iframe
   src="${formUrl}"
   width="600"
@@ -1830,6 +1798,56 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
     },
   ];
 
+
+  return (
+    <div className="space-y-5" style={{ color: textPrim }}>
+      <div className="space-y-2.5">
+        <p className="text-[14px] font-semibold">Share</p>
+        <div className="flex flex-wrap gap-2">
+          {socialLinks.map(({ label, href, Icon }) => (
+            <a key={label} href={href} target="_blank" rel="noreferrer" className={btn} style={ghost}>
+              <Icon className="w-4 h-4 flex-shrink-0" /> {label}
+            </a>
+          ))}
+        </div>
+      </div>
+      <div className="space-y-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-[14px] font-semibold">Embed</p>
+            <p className="text-[12.5px]" style={{ color: textMut }}>Paste this code into any web page.</p>
+          </div>
+          <button onClick={() => copyEmbed(embedCode)} className={btn} style={ghost}>
+            {embedCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy embed code</>}
+          </button>
+        </div>
+        <pre className="overflow-x-auto whitespace-pre rounded-[10px] px-4 py-3 font-mono text-[12.5px] leading-relaxed" style={{ background: soft, color: textMut }}>{embedCode}</pre>
+      </div>
+      <div className="space-y-2.5">
+        <p className="text-[14px] font-semibold">QR code</p>
+        <div className="flex flex-wrap items-start gap-5">
+          <img src={qrUrl} alt={`QR code for this ${kind}`} className="h-32 w-32 flex-shrink-0 rounded-xl" />
+          <div className="space-y-2 pt-1">
+            <p className="text-[13px]" style={{ color: textMut }}>{kind === 'event' ? 'Print or show it at your event so people can scan and open it.' : `Scan to open the ${kind}.`}</p>
+            <a href={qrUrl} download={`qr-${form.slug || form.id}.png`} className={btn} style={ghost}>
+              <Download className="w-4 h-4" /> Download QR code
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUrl: string; onClone: () => Promise<void>; onStatusChange?: (status: 'draft' | 'published') => void }) {
+  const { copied: linkCopied, copy: copyLink } = useCopy();
+  const { theme } = useTheme();
+  const isLight = theme === 'light';
+  const isCourse = form.config?.isCourse === true;
+  const textPrim  = isLight ? '#111'              : '#fff';
+  const textMut   = isLight ? '#555'              : '#71717a';
+  const divider   = isLight ? 'rgba(0,0,0,0.08)' : 'rgba(63,63,70,0.6)';
+
   // What this content is called, and whether it gets the wider sharing kit. Courses and virtual
   // experiences sit behind a login, so the link is all they need: pasted anywhere, it shows the
   // cover, title and description. Events and forms are shared widely and keep the social buttons,
@@ -1869,44 +1887,12 @@ function MoreTab({ form, formUrl, onClone, onStatusChange }: { form: any; formUr
             Pasted into WhatsApp, LinkedIn or X, the link shows the cover image, title and description.
           </p>
         )}
-        {!linkOnly && (
-          <div className="flex flex-wrap gap-2 pt-1">
-            {socialLinks.map(({ label, href, Icon }) => (
-              <a key={label} href={href} target="_blank" rel="noreferrer" className={btn} style={ghost}>
-                <Icon className="w-4 h-4 flex-shrink-0" /> {label}
-              </a>
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Events and forms: embed code and a QR code for printing */}
+      {/* Events and forms: share buttons, embed code and a QR code for printing */}
       {!linkOnly && (
         <div className={group} style={groupLine}>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[14px] font-semibold">Embed</p>
-              <p className="text-[12.5px]" style={{ color: textMut }}>Paste this code into any web page.</p>
-            </div>
-            <button onClick={() => copyEmbed(embedCode)} className={btn} style={ghost}>
-              {embedCopied ? <><Check className="w-4 h-4" /> Copied</> : <><Copy className="w-4 h-4" /> Copy embed code</>}
-            </button>
-          </div>
-          <pre className="overflow-x-auto whitespace-pre rounded-[10px] px-4 py-3 font-mono text-[12.5px] leading-relaxed" style={{ background: soft, color: textMut }}>{embedCode}</pre>
-        </div>
-      )}
-      {!linkOnly && (
-        <div className={group} style={groupLine}>
-          <p className="text-[14px] font-semibold">QR code</p>
-          <div className="flex flex-wrap items-start gap-5">
-            <img src={qrUrl} alt={`QR code for this ${kind}`} className="h-32 w-32 flex-shrink-0 rounded-xl" />
-            <div className="space-y-2 pt-1">
-              <p className="text-[13px]" style={{ color: textMut }}>{isEvent ? 'Print or show it at your event so people can scan and open it.' : `Scan to open the ${kind}.`}</p>
-              <a href={qrUrl} download={`qr-${form.slug || form.id}.png`} className={btn} style={ghost}>
-                <Download className="w-4 h-4" /> Download QR code
-              </a>
-            </div>
-          </div>
+          <ShareKit form={form} formUrl={formUrl} kind={kind} />
         </div>
       )}
 
@@ -2689,10 +2675,11 @@ export default function FormDetailPage() {
           // that lands on the default opens their Report instead of an empty panel.
           // Courses publish from the editor's Publish step, so an old Publish-tab link opens the editor.
           const shownTab: TabId = type === 'virtual_experience' && activeTab === 'settings' ? 'responses'
-            : type === 'course' && activeTab === 'more' ? 'settings' : activeTab;
-          const visibleTabs = TABS.filter(tab => (!isStaff || tab.id === 'settings') && (!tab.courseOnly || type === 'course') && !(tab.id === 'settings' && type === 'virtual_experience') && !(tab.id === 'more' && type === 'course'));
+            : (type === 'course' || type === 'event') && activeTab === 'more' ? 'settings' : activeTab;
+          const visibleTabs = TABS.filter(tab => (!isStaff || tab.id === 'settings') && (!tab.courseOnly || type === 'course') && !(tab.id === 'settings' && type === 'virtual_experience') && !(tab.id === 'more' && (type === 'course' || type === 'event')));
           const tabLabel = (tab: typeof TABS[number]) => tab.id === 'responses' && (type === 'course' || type === 'virtual_experience') ? 'Report'
-            : tab.id === 'settings' && type === 'course' ? 'Edit' : tab.label;
+            : tab.id === 'responses' && type === 'event' ? 'Registrations'
+            : tab.id === 'settings' && (type === 'course' || type === 'event') ? 'Edit' : tab.label;
           return (
             <div className="max-w-6xl mx-auto flex flex-col gap-4">
               {/* One card: the title row, the tabs and the tab's content on the same surface. */}
@@ -2715,7 +2702,7 @@ export default function FormDetailPage() {
                 <Link href={`/create/guided-project?id=${form.id}`} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
                   Edit
                 </Link>
-              ) : type === 'course' ? null : (
+              ) : type === 'course' || type === 'event' ? null : (
                 <button onClick={() => setActiveTab('settings')} className="hidden sm:flex items-center px-3.5 py-2 rounded-[10px] text-[13px] font-semibold transition-opacity hover:opacity-75" style={{ background: isLight ? '#F4F6F9' : 'rgba(255,255,255,0.055)', color: hdrTextPrim }}>
                   Edit
                 </button>
@@ -2765,12 +2752,14 @@ export default function FormDetailPage() {
                   >
                   {shownTab === 'settings' && type !== 'virtual_experience' ? (
                     <FormEditor formId={id as string} contentType={type === 'course' ? 'course' : 'event'}
-                      {...(type === 'course' ? {
+                      {...(!isStaff && (type === 'course' || type === 'event') ? {
+                        // Publishing lives in the editor's Publish step (staff never had the Publish tab).
                         publishControls: ({ ready, unsaved }) => (
-                          <StatusCard form={form} kind="course" ready={ready} unsaved={unsaved}
+                          <StatusCard form={form} kind={type} ready={ready} unsaved={unsaved}
                             onStatusChange={(status) => setForm((f: any) => ({ ...f, status }))} />
                         ),
-                        publishFooter: <DuplicateRow kind="course" onClone={handleClone} />,
+                        publishShare: type === 'event' ? <ShareKit form={form} formUrl={formUrl} kind="event" /> : undefined,
+                        publishFooter: <DuplicateRow kind={type} onClone={handleClone} />,
                       } : {})} />
                   ) : (
                     <div className="px-4 sm:px-6 py-6 sm:py-8 w-full">
