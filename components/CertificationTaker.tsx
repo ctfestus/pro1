@@ -548,7 +548,7 @@ export default function CertificationTaker({
   if (phase === 'loading') {
     return (
       <div style={{ minHeight: '100vh', background: t.bg, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <Loader2 className="w-7 h-7 animate-spin" style={{ color: accentColor }} />
+        <Loader2 className="w-8 h-8 animate-spin" style={{ color: accentColor, opacity: 0.6 }} />
       </div>
     );
   }
@@ -1520,7 +1520,7 @@ function CertPrepCourses({ prepItems, brandColor, actionColor = brandColor, ov, 
 
   if (details.length === 0) return embedded ? (
     <div style={{ minHeight: 150, borderRadius: 16, padding: 22, display: 'grid', placeItems: 'center', textAlign: 'center', background: ov.surface, color: ov.muted, fontSize: 13.5 }}>
-      {loading ? 'Loading required learning…' : prepItems.length > 0 ? 'The configured learning is not currently published.' : 'No required course or learning path has been configured for this certification.'}
+      {loading ? 'Loading required learning' : prepItems.length > 0 ? 'The configured learning is not currently published.' : 'No required course or learning path has been configured for this certification.'}
     </div>
   ) : null;
 
