@@ -1932,9 +1932,12 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
   // No raw requirement total here on purpose: per-student counts come from veCompletionCounts, which
   // excludes a skipped optional LinkedIn share. A shared denominator cannot express that, because
   // whether a share counts depends on whether THAT student claimed it.
+  // AI review steps count too: their saved reports are only reachable from the Review panel, so an
+  // experience whose only reviewed work is, say, a code review still needs the Review column.
   const needsReview = modules.some((m: any) =>
     (m.lessons || []).some((l: any) =>
-      (l.requirements || []).some((r: any) => r.type === 'text' || r.type === 'upload' || (r.type === 'deliverable' && r.emailFrame))));
+      (l.requirements || []).some((r: any) => r.type === 'text' || r.type === 'upload' || (r.type === 'deliverable' && r.emailFrame)
+        || REVIEW_TYPES.includes(r.type))));
   // A learner has something to review once any task an instructor reviews (written answers, uploads,
   // deliverables, LinkedIn shares, AI reviews) holds their work, or once a review already exists.
   const reviewedTaskIds: string[] = modules.flatMap((m: any) => (m.lessons || []).flatMap((l: any) => (l.requirements || [])
