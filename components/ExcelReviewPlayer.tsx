@@ -8,14 +8,15 @@ import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import RubricReviewReport, { isRubricReport } from '@/components/RubricReviewReport';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
 import { useAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
+import type { RubricGrade } from '@/lib/review-gate';
 import type { ExcelReviewTarget } from '@/lib/excel-review-config';
 
-interface RubricGrade { criterion: string; passed: boolean; comment: string; }
 interface SheetIssue {
   cell: string;
   severity: 'error' | 'warning' | 'suggestion';
@@ -234,8 +235,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
   }
 
 
-  // Where the instructor set criteria, those decide the gate -- the quality score below is
-  // commentary on the formulas that are present, not a measure of whether the task was done.
+  // Where the instructor set criteria, the share of them met is both the score and the gate.
   // Criteria count, not grade count: a criterion the AI skipped still counts against the pass
   // mark, so the denominator has to be what the instructor set. `rubricCriteriaCount` comes back
   // with the review; the `rubric` prop covers a report saved before the route sent it.
@@ -252,27 +252,49 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
     : 0;
   const gradedCount = rubricTotal - ungradedCriteria;
 
+  // The review still decides a pass or fail; it says so when part of the workbook was too large to
+  // read, so a student can see which sheets the verdict was based on.
+  const truncationNotice = result.extractionTruncated ? (
+      <div className="flex items-start gap-3 px-4 py-3" style={{ background: isDark ? 'rgba(245,158,11,0.10)' : '#fffbeb', borderLeft: '3px solid #f59e0b' }}>
+        <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
+        <div>
+          <p className="text-sm font-semibold" style={{ color: text }}>Part of your workbook was too large to read</p>
+          <p className="text-xs mt-1" style={{ color: muted }}>
+            This result is based only on the parts that could be read.
+            {result.partiallyReviewedSheetNames?.length ? ` Read in part: ${result.partiallyReviewedSheetNames.join(', ')}.` : ''}
+          </p>
+        </div>
+      </div>
+  ) : null;
+
+  if (isRubricReport(result)) {
+    return (
+      <div className="space-y-4">
+        {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
+        <RubricReviewReport
+          reportLabel="Workbook review"
+          metadata={`Excel workbook${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
+          workNoun="workbook"
+          summary={result.executiveSummary}
+          grades={result.rubricGrades ?? []}
+          legacyFindings={result.issues.map(issue => ({ title: issue.title, location: issue.cell, fix: issue.fix }))}
+          score={gate.score}
+          minScore={effectiveMinScore}
+          attemptsLeft={showAttemptCount && maxReviews !== undefined ? Math.max(0, maxReviews - reviewsUsed) : null}
+          isDark={isDark}
+          accentColor={accentColor}
+          onExport={downloadPdf}
+          onRetry={showReset ? reset : undefined}>
+          {truncationNotice}
+        </RubricReviewReport>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
       {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
-      {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
-        <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
-      )}
-
-      {/* The review still decides a pass or fail; it says so when part of the workbook was too
-          large to read, so a student can see which sheets the verdict was based on. */}
-      {result.extractionTruncated && (
-        <div className="flex items-start gap-3 px-4 py-3" style={{ background: isDark ? 'rgba(245,158,11,0.10)' : '#fffbeb', borderLeft: '3px solid #f59e0b' }}>
-          <TriangleAlert className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: '#f59e0b' }} />
-          <div>
-            <p className="text-sm font-semibold" style={{ color: text }}>Part of your workbook was too large to read</p>
-            <p className="text-xs mt-1" style={{ color: muted }}>
-              This result is based only on the parts that could be read.
-              {result.partiallyReviewedSheetNames?.length ? ` Read in part: ${result.partiallyReviewedSheetNames.join(', ')}.` : ''}
-            </p>
-          </div>
-        </div>
-      )}
+      {truncationNotice}
 
       <AiStructuredReviewReport
         reportLabel="Workbook review"
@@ -289,6 +311,7 @@ export default function ExcelReviewPlayer({ reqId, isDark, accentColor, hideWork
         rubricGrades={result.rubricGrades}
         accentColor={accentColor}
         isDark={isDark}
+        passed={effectiveMinScore ? gate.score >= effectiveMinScore : undefined}
         actions={<>
           <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="w-3.5 h-3.5" /> Export</button>
           {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="w-3.5 h-3.5" /> Try again</button>}

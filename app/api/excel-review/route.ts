@@ -82,9 +82,7 @@ const RUBRIC_PROMPT = `You are a senior Excel specialist marking a student's wor
 
 ${READING}`;
 
-const RUBRIC_EVIDENCE = `Absence of evidence is a fail, not a pass: if a criterion requires formulas in named cells and those cells hold typed constants, or are missing entirely, it fails. Never pass a criterion because the displayed value looks right. Name the cells or sheets you checked in each comment.
-
-For each entry in "issues" provide: cell (the cell reference, e.g. "B5" or "Sheet1!C12"), severity ("error" for a failed criterion), title (starting "Criterion <id>:"), detail (1-2 sentences on what is wrong), and fix (the exact corrected formula or change to make).`;
+const RUBRIC_EVIDENCE = `Absence of evidence is a fail, not a pass: if a criterion requires formulas in named cells and those cells hold typed constants, or are missing entirely, it fails. Never pass a criterion because the displayed value looks right. Name the cells or sheets you checked in each comment, and give the exact corrected formula as the fix where one applies.`;
 
 const SYSTEM_PROMPT = `You are a panel of senior Excel specialists -- a Financial Modeller, Finance Analyst, Fintech Analyst, Business Intelligence Analyst, Data Analyst, and Data Scientist -- each with 15+ years of hands-on Excel experience working across African business contexts including banking, fintech, FMCG, telecoms, retail, healthcare, and public sector.
 
@@ -199,7 +197,7 @@ export async function POST(req: NextRequest) {
 
     const hasRubric = rubric.length > 0;
     const instructions = hasRubric
-      ? `${RUBRIC_PROMPT}\n${contextBlock}${sheetBlock}\n${rubricInstructions(rubric, 'issues')}\n\n${RUBRIC_EVIDENCE}\n`
+      ? `${RUBRIC_PROMPT}\n${contextBlock}${sheetBlock}\n${rubricInstructions(rubric, 'the cell or range, e.g. "B5" or "Sheet1!C12:C20"')}\n\n${RUBRIC_EVIDENCE}\n`
       : `${SYSTEM_PROMPT}${contextBlock}${sheetBlock}`;
     const prompt = `${instructions}${truncationBlock}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nEXTRACTED SPREADSHEET CONTENTS:\n${extracted}`;
 
@@ -265,9 +263,12 @@ export async function POST(req: NextRequest) {
     // The share of the rubric met is both the gate and the score shown. Computed here so every
     // consumer -- the VE player, the course player, and any saved report re-rendered later -- agrees.
     const rubricScore = rubricPassRate(graded.grades, rubric) ?? 0;
+    // The fixes travel on the grades, so the findings, categories and recommendations stay empty.
     const result = {
       ...parsed,
+      issues: [],
       categories: [],
+      topRecommendations: [],
       overallScore: rubricScore,
       rubricGrades: graded.grades,
       rubricScore,

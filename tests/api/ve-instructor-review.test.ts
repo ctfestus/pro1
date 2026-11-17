@@ -632,3 +632,40 @@ describe('saving reports with a review', () => {
     expect(writes).toHaveLength(0);
   });
 });
+
+describe('AI draft route: a File Upload step with a rubric', () => {
+  const RUBRIC = ['Totals are correct: 60 marks', 'Has a churn slide: 40 marks', 'Assessment Note: accept any chart type'];
+  const withRubric = () => [{ title: 'M1', lessons: [{ title: 'Mission', requirements: [
+    { id: 'u1', type: 'upload', label: 'Send the deck', description: 'Brief', rubric: RUBRIC },
+  ] }] }];
+
+  it('grades each criterion, takes criterion text from the rubric and works out the score', async () => {
+    setupDraft({ modules: withRubric() });
+    respondWith('Revenue grew 12 percent.');
+    mockGenerateJSON.mockResolvedValue({
+      executiveSummary: 'Totals are right; the churn slide is missing.',
+      rubricGrades: [
+        { id: 2, passed: false, comment: 'No churn slide.', location: 'Slide 5', fix: 'Add a churn slide.' },
+        { id: 1, passed: true, comment: 'Checked the totals.', location: '', fix: '', criterion: 'Invented: 100 marks' },
+        { id: 3, passed: true, comment: 'Applied.', location: '', fix: '' },
+      ],
+    });
+
+    const res = await draft();
+    expect(res.status).toBe(200);
+    const { report } = await res.json();
+    expect(report.score).toBe(60);
+    expect(report.summary).toBe('Totals are right; the churn slide is missing.');
+    expect(report.rubricGrades.map((g: any) => g.criterion)).toEqual(RUBRIC);
+    expect(report.rubricGrades[1]).toMatchObject({ passed: false, location: 'Slide 5', fix: 'Add a churn slide.' });
+    expect(report.findings).toEqual([]);
+    expect(report.aiDrafted).toBe(true);
+
+    const [prompt, schema] = mockGenerateJSON.mock.calls[0];
+    expect(String(prompt)).toContain('INSTRUCTOR RUBRIC - THIS IS THE WHOLE REVIEW');
+    expect(String(prompt)).toContain('id 2: Has a churn slide: 40 marks');
+    expect(String(prompt)).not.toContain('categories: 3-5 quality dimensions');
+    expect((schema as any).required).toEqual(['executiveSummary', 'rubricGrades']);
+  });
+});
+

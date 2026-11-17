@@ -4,6 +4,7 @@
 // Shared by the instructor's preview (dashboard Review panel) and the student's VE details.
 
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import RubricReviewReport from '@/components/RubricReviewReport';
 import { INSTRUCTOR_SEVERITY_LABELS, type InstructorFileReport } from '@/lib/ve-instructor-report';
 
 const filled = (list: string[]) => list.map(s => s.trim()).filter(Boolean);
@@ -14,6 +15,23 @@ export default function InstructorFileReportView({ report, title, accentColor, i
   accentColor: string;
   isDark: boolean;
 }) {
+  // Graded on the step's rubric: the same report the AI reviewers use for a rubric.
+  if (report.rubricGrades?.length) {
+    return (
+      <RubricReviewReport
+        reportLabel={title}
+        metadata="Reviewed by your instructor"
+        workNoun="file"
+        summary={report.summary}
+        grades={report.rubricGrades}
+        score={report.score}
+        attemptsLeft={null}
+        isDark={isDark}
+        accentColor={accentColor}
+        showClosingNote={false}
+      />
+    );
+  }
   return (
     <AiStructuredReviewReport
       reportLabel="Instructor review"

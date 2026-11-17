@@ -31,6 +31,10 @@ export interface RubricGrade {
   criterion: string;
   passed: boolean;
   comment: string;
+  /** For a criterion not met: where the problem is (a cell, line or section). */
+  location?: string;
+  /** For a criterion not met: the change that would meet it. */
+  fix?: string;
 }
 
 export interface GatedReviewResult {
@@ -91,10 +95,14 @@ export function collectRubricGrades(criteria: readonly string[], ...responses: u
       // First valid verdict for an id wins. A later one is a duplicate, not a spare grade to
       // hand to some criterion that went ungraded.
       if (claimed.has(id)) continue;
+      const location = typeof entry.location === 'string' ? entry.location.trim() : '';
+      const fix = typeof entry.fix === 'string' ? entry.fix.trim() : '';
       claimed.set(id, {
         criterion: criteria[id - 1],
         passed: entry.passed,
         comment: typeof entry.comment === 'string' ? entry.comment : '',
+        ...(location ? { location } : {}),
+        ...(fix ? { fix } : {}),
       });
     }
   }
@@ -105,6 +113,23 @@ export function collectRubricGrades(criteria: readonly string[], ...responses: u
     comment: UNGRADED_COMMENT,
   });
   return { grades, covered: claimed.size, ungraded: criteria.length - claimed.size };
+}
+
+/** True for a criterion the model never graded, which counts as not met. */
+export function isUngraded(grade: { comment?: string }): boolean {
+  return grade.comment === UNGRADED_COMMENT;
+}
+
+/**
+ * The marks one rubric line carries. An "Assessment Note" line is guidance and carries none; a line
+ * that states no marks weighs 1. `explicit` says whether the line stated its marks.
+ */
+export function criterionMarks(text: string): { weight: number; note: boolean; explicit: boolean } {
+  if (/^\s*Assessment Note\b/i.test(text)) return { weight: 0, note: true, explicit: false };
+  const marks = [...text.matchAll(/\b(\d+(?:\.\d+)?)\s+marks?\b(?!\s+total)/gi)];
+  return marks.length
+    ? { weight: Number(marks[marks.length - 1][1]), note: false, explicit: true }
+    : { weight: 1, note: false, explicit: false };
 }
 
 /**
@@ -128,10 +153,8 @@ export function rubricPassRate(
   let totalWeight = 0;
   let passedWeight = 0;
   for (let i = 0; i < totalCount; i++) {
-    const text = texts[i] ?? '';
-    if (/^\s*Assessment Note\b/i.test(text)) continue;
-    const marks = [...text.matchAll(/\b(\d+(?:\.\d+)?)\s+marks?\b(?!\s+total)/gi)];
-    const weight = marks.length ? Number(marks[marks.length - 1][1]) : 1;
+    const { weight, note } = criterionMarks(texts[i] ?? '');
+    if (note) continue;
     totalWeight += weight;
     if (grades?.[i]?.passed === true) passedWeight += weight;
   }
@@ -140,14 +163,24 @@ export function rubricPassRate(
 
 /**
  * Turn a rubric review into its report. The score is the share of the rubric met, so the number a
- * student reads is the number that gates them; a rubric review carries no quality categories.
+ * student reads is the number that gates them. A rubric review carries its corrections on the
+ * grades themselves, so the quality categories, the findings list (`findingsKey`) and the
+ * recommendations come back empty: saved reports keep the shape every player and export reads.
  * A review with no rubric is returned as the model scored it.
  */
-export function scoreRubricReview<T extends object>(result: T, criteria: readonly string[]) {
+export function scoreRubricReview<T extends object>(result: T, criteria: readonly string[], findingsKey?: string) {
   if (!criteria.length) return result;
   const { grades } = collectRubricGrades(criteria, (result as { rubricGrades?: unknown } | null)?.rubricGrades);
   const rubricScore = rubricPassRate(grades, criteria) ?? 0;
-  return { ...result, categories: [], rubricGrades: grades, rubricScore, overallScore: rubricScore };
+  return {
+    ...result,
+    ...(findingsKey ? { [findingsKey]: [] } : {}),
+    categories: [],
+    topRecommendations: [],
+    rubricGrades: grades,
+    rubricScore,
+    overallScore: rubricScore,
+  };
 }
 
 export function reviewGate(result: GatedReviewResult, criteriaCount = 0): ReviewGate {

@@ -12,7 +12,7 @@ import { countCompletedRequirements, isVeComplete } from '@/lib/ve-completion';
 import { mergeVeProgress, reversibleDeliverableRequirementIds, shouldCompleteVeAttempt } from '@/lib/ve-progress';
 import { hasPublishedStudentContentAccess } from '@/lib/student-content-access';
 import { veReviewHref } from '@/lib/pending-ve-review';
-import { clampScore, normalizeInstructorReports, reportableRequirementIds, sameReportContent, type InstructorFileReport } from '@/lib/ve-instructor-report';
+import { clampScore, normalizeInstructorReports, reportableRequirementIds, reportableRubrics, sameReportContent, type InstructorFileReport } from '@/lib/ve-instructor-report';
 import { applyEmailTemplate } from '@/lib/email-template-service';
 import { hasStandaloneVeReportEligibility, loadStandaloneVeReportStudentIds } from '@/lib/standalone-ve-access';
 
@@ -331,7 +331,7 @@ export async function POST(req: NextRequest) {
     const savedReports = ((attempt.review as any)?.reports ?? {}) as Record<string, { fileUrl?: string }>;
     const reports = body.reports === undefined
       ? savedReports
-      : normalizeInstructorReports(body.reports, reportableRequirementIds(ve.modules));
+      : normalizeInstructorReports(body.reports, reportableRequirementIds(ve.modules), reportableRubrics(ve.modules));
     if (body.reports !== undefined) {
       for (const [reqId, report] of Object.entries(reports) as [string, InstructorFileReport][]) {
         const currentFileUrl = String((attempt.progress as any)?.[reqId]?.fileUrl || '');

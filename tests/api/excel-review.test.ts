@@ -632,7 +632,8 @@ describe('POST /api/excel-review - rubric gating', () => {
     expect(String(prompt)).not.toContain('FORMULA CHOICE');
     expect((schema as any).properties).not.toHaveProperty('categories');
     expect(String(prompt)).toContain(`id 4: ${CRITERIA[3]}`);
-    expect((schema as any).properties.rubricGrades.items.required).toEqual(['id', 'passed', 'comment']);
+    expect((schema as any).properties.rubricGrades.items.required).toEqual(['id', 'passed', 'comment', 'location', 'fix']);
+    expect((schema as any).properties).not.toHaveProperty('issues');
     expect(String(prompt)).toContain('Absence of evidence is a fail');
     expect(String(prompt)).toContain('typed constant');
     expect((schema as any).required).toContain('rubricGrades');

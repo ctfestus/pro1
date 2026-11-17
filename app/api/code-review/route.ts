@@ -45,7 +45,6 @@ Also provide:
 
 Return ONLY valid JSON matching the schema. No markdown fences, no explanation outside JSON.`;
 
-const ISSUE_FIELDS = `For each entry in "issues" provide: lines (the line number(s) affected, e.g. "12" or "5-8", or "" if global), severity ("error" for a failed criterion), title (starting "Criterion <id>:"), detail (1-2 sentences on what is wrong), and fix (the exact change to make).`;
 
 const SQL_FOCUS = (dialectName: string) => `SQL-SPECIFIC FOCUS AREAS (apply all that are relevant to ${dialectName}):
 - Correctness: verify JOIN conditions (missing ON clause, cartesian products, wrong join type); NULL handling in WHERE/HAVING clauses (use IS NULL not = NULL); GROUP BY completeness (all non-aggregated SELECT columns must appear); HAVING vs WHERE placement; subquery correlated vs uncorrelated correctness.
@@ -79,7 +78,7 @@ function buildSystemPrompt(language: string, dialect: string | undefined, schema
       : `\nDATA CONTEXT PROVIDED BY STUDENT:\n${schema.trim()}\nUse this context to validate column references, data types, and assumptions about the dataset.\n`;
 
   if (rubric.length > 0) {
-    return `${reviewer} You are marking a student's code against the instructor's rubric.${dataContext}\n${rubricInstructions(rubric, 'issues')}\n\n${ISSUE_FIELDS}`;
+    return `${reviewer} You are marking a student's code against the instructor's rubric.${dataContext}\n${rubricInstructions(rubric, 'the line number(s), e.g. "12" or "5-8", or "" if it concerns the whole submission')}`;
   }
   const focus = lang === 'sql' ? `\n\n${SQL_FOCUS(dialectName)}` : lang === 'python' ? `\n\n${PYTHON_FOCUS}` : '';
   return `${reviewer}${dataContext}\n${BASE_INSTRUCTIONS}${focus}`;
@@ -129,7 +128,7 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    return NextResponse.json(scoreRubricReview(parsed, rubric));
+    return NextResponse.json(scoreRubricReview(parsed, rubric, 'issues'));
   } catch (err: any) {
     console.error('code-review error:', err);
     // The review never happened, so it should not have cost them an attempt.

@@ -11,11 +11,13 @@ import React, { useState } from 'react';
 import { Loader2, CheckCircle2, Zap, RotateCcw, PenLine, Download, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
+import type { RubricGrade } from '@/lib/review-gate';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import RubricReviewReport, { isRubricReport } from '@/components/RubricReviewReport';
 import { AiReviewUpgradeNote, AiReviewDailyLimitNotice } from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
 import { useAiReviewEntitlement, refreshAiReviewEntitlement } from '@/lib/use-ai-review-entitlement';
@@ -27,7 +29,6 @@ interface SectionIssue {
   detail: string;
   recommendation: string;
 }
-interface RubricGrade { criterion: string; passed: boolean; comment: string; }
 interface CategoryScore {
   name: string;
   score: number;
@@ -275,21 +276,50 @@ export default function WrittenResponsePlayer({
     );
   }
 
+  const answerBox = answer.trim() ? (
+    <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden' }}>
+      <div style={{ padding: '12px 20px', borderBottom: `1px solid ${border}` }}>
+        <p style={{ fontSize: 11, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>Your answer</p>
+      </div>
+      <p style={{ padding: '14px 20px', fontSize: 13, lineHeight: 1.7, color: text, whiteSpace: 'pre-wrap' }}>{answer}</p>
+    </div>
+  ) : null;
+  const errorNote = error ? (
+    <div className="flex flex-col items-start">
+      <p className="text-xs text-red-400 font-medium">{error}</p>
+      {upgradeUrl && entitlement.canUpgrade && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
+    </div>
+  ) : null;
+
+  if (isRubricReport(result)) {
+    return (
+      <div className="space-y-4">
+        <AiReviewDisclaimer isDark={isDark} />
+        {answerBox}
+        <RubricReviewReport
+          reportLabel="Written response review"
+          metadata={`Submitted answer${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
+          workNoun="answer"
+          summary={result.executiveSummary}
+          grades={result.rubricGrades ?? []}
+          legacyFindings={(result.sections ?? []).map(section => ({ title: section.title, location: section.name, fix: section.recommendation }))}
+          score={reviewGate(result, rubric?.length).score}
+          minScore={minScore}
+          attemptsLeft={showAttemptCount && maxReviews !== undefined ? Math.max(0, maxReviews - reviewsUsed) : null}
+          isDark={isDark}
+          accentColor={accentColor}
+          onExport={downloadPdf}
+          onRetry={showReset ? reset : undefined}
+        />
+        {errorNote}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4" style={{ fontFamily: 'var(--font-sans)' }}>
       <AiReviewDisclaimer isDark={isDark} />
-      {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
-        <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
-      )}
-
-      {answer.trim() && (
-        <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden' }}>
-          <div style={{ padding: '12px 20px', borderBottom: `1px solid ${border}` }}>
-            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: muted }}>Your answer</p>
-          </div>
-          <p style={{ padding: '14px 20px', fontSize: 13, lineHeight: 1.7, color: text, whiteSpace: 'pre-wrap' }}>{answer}</p>
-        </div>
-      )}
+      {answerBox}
 
       <AiStructuredReviewReport
         reportLabel="AI written response review"
@@ -313,25 +343,21 @@ export default function WrittenResponsePlayer({
         rubricGrades={result.rubricGrades}
         accentColor={accentColor}
         isDark={isDark}
+        passed={minScore ? reviewPassed(result, minScore, rubric?.length) : undefined}
         actions={<>
           <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="w-3.5 h-3.5" /> Export</button>
           {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="w-3.5 h-3.5" /> Try again</button>}
         </>}
       />
 
-      {error && (
-          <div className="flex flex-col items-start">
-            <p className="text-xs text-red-400 font-medium">{error}</p>
-            {upgradeUrl && entitlement.canUpgrade && <AiReviewUpgradeNote accentColor={accentColor} upgradeUrl={upgradeUrl} priceLabel={entitlement.priceLabel} />}
-          </div>
-        )}
+      {errorNote}
 
       {minScore && !reviewPassed(result, minScore, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached &middot; {reviewGate(result, rubric?.length).score.toFixed(1)}/100 &middot; Required: {minScore}/100
+              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {minScore}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the feedback above, revise your answer, and submit another review.</p>
           </div>
@@ -340,7 +366,7 @@ export default function WrittenResponsePlayer({
         <div className="flex items-center gap-2 rounded-2xl px-4 py-3.5" style={{ background: `${accentColor}10` }}>
           <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
           <p style={{ fontSize: 12, fontWeight: 600, color: accentColor }}>
-            Review complete &middot; {(result.sections ?? []).length} note{(result.sections ?? []).length !== 1 ? 's' : ''} on your answer
+            Review complete | {(result.sections ?? []).length} note{(result.sections ?? []).length !== 1 ? 's' : ''} on your answer
           </p>
         </div>
       )}

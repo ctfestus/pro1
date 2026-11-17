@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectRubricGrades, reviewGate, reviewPassed, rubricPassRate, scoreRubricReview, UNGRADED_COMMENT } from '@/lib/review-gate';
+import { collectRubricGrades, criterionMarks, isUngraded, reviewGate, reviewPassed, rubricPassRate, scoreRubricReview, UNGRADED_COMMENT } from '@/lib/review-gate';
 
 const grade = (passed: boolean) => ({ passed });
 
@@ -225,5 +225,37 @@ describe('collectRubricGrades across attempts', () => {
   it('takes grades from a later attempt when the first returned nothing usable', () => {
     const out = collectRubricGrades(CRITERIA, 'not an array', [g(1, true), g(2, true), g(3, true), g(4, true)]);
     expect(out).toMatchObject({ covered: 4, ungraded: 0 });
+  });
+});
+
+describe('fixes on grades', () => {
+  const criteria = ['Totals use SUMIFS: 60 marks', 'Margin is a formula: 40 marks'];
+
+  it('keeps the location and fix the model gave, trimmed, and drops empty ones', () => {
+    const { grades } = collectRubricGrades(criteria, [
+      { id: 1, passed: true, comment: 'ok', location: '', fix: '' },
+      { id: 2, passed: false, comment: 'typed values', location: ' Sales!H41:H240 ', fix: ' Use =(F41-G41)/F41 ' },
+    ]);
+    expect(grades[0]).toEqual({ criterion: criteria[0], passed: true, comment: 'ok' });
+    expect(grades[1]).toMatchObject({ location: 'Sales!H41:H240', fix: 'Use =(F41-G41)/F41' });
+  });
+
+  it('empties the findings, categories and recommendations of a rubric report', () => {
+    const report = scoreRubricReview({ issues: [{ title: 'x' }], categories: [{}], topRecommendations: ['y'], rubricGrades: [{ id: 1, passed: true }] }, criteria, 'issues');
+    expect(report).toMatchObject({ issues: [], categories: [], topRecommendations: [], rubricScore: 60, overallScore: 60 });
+  });
+
+  it('flags a criterion the model never graded', () => {
+    const { grades } = collectRubricGrades(criteria, [{ id: 1, passed: true, comment: '' }]);
+    expect(grades.map(isUngraded)).toEqual([false, true]);
+  });
+});
+
+describe('criterionMarks', () => {
+  it('reads the last stated marks, treats notes as guidance and unmarked lines as weight 1', () => {
+    expect(criterionMarks('Part A (2 marks) and part B: 8 marks')).toEqual({ weight: 8, note: false, explicit: true });
+    expect(criterionMarks('Assessment Note: accept alternatives')).toEqual({ weight: 0, note: true, explicit: false });
+    expect(criterionMarks('Uses SUMIFS')).toEqual({ weight: 1, note: false, explicit: false });
+    expect(criterionMarks('Section worth 20 marks total')).toEqual({ weight: 1, note: false, explicit: false });
   });
 });
