@@ -406,7 +406,7 @@ function normalizeToolList(tools: readonly string[] | undefined): string[] {
 }
 
 
-function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, note, sheetNames }: {
+function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, note, sheetNames, grader = 'AI grades each criterion as pass or fail' }: {
   criteria: string[];
   // The requirement's worksheets, so a workbook upload is read the same way the review reads it.
   sheetNames?: string[];
@@ -418,6 +418,8 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, not
   // Only the review types whose pass gate reads the rubric pass one, so the copy stays true
   // for the types still gated on the AI quality score.
   note?: string;
+  // Who marks the criteria, shown beside the heading.
+  grader?: string;
 }) {
   const [draft, setDraft] = useState('');
   const [extracting, setExtracting] = useState<RubricImportKind | null>(null);
@@ -460,7 +462,7 @@ function RubricBuilder({ criteria, onChange, onImport, C, inp, sessionToken, not
       <p className="text-[12.5px] font-semibold" style={{ color: C.muted }}>
         Grading rubric
         <span className="ml-1.5 font-normal" style={{ color: C.faint }}>
-          (optional) AI grades each criterion as pass or fail
+          (optional) {grader}
         </span>
       </p>
       {note && <p className="text-[11px]" style={{ color: C.faint }}>{note}</p>}
@@ -2890,6 +2892,17 @@ function VirtualExperienceCreatePageInner() {
                                                     />
                                                     <p className="text-[11px] mt-1" style={{ color: C.muted }}>When you draft a report with AI, only these worksheets are read. Leave blank to read the first 5.</p>
                                                   </div>
+                                                  <RubricBuilder
+                                                    criteria={req.rubric ?? []}
+                                                    onChange={rubric => updateReq(mod.id, les.id, req.id, { rubric })}
+                                                    onImport={incoming => updateReq(mod.id, les.id, req.id, current => ({ rubric: mergeRubricCriteria(current.rubric ?? [], incoming) }))}
+                                                    C={C}
+                                                    inp={inp}
+                                                    sessionToken={sessionToken}
+                                                    sheetNames={req.reviewSheetNames}
+                                                    grader="you mark each criterion as met or not met"
+                                                    note="With criteria set, your file report is graded on them: the AI draft gives each one a verdict, and the score is the share of criteria met."
+                                                  />
                                                 </div>
                                               )}
                                               {req.type === 'text' && (

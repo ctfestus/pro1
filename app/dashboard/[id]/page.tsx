@@ -2236,14 +2236,14 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
 
       {/* Review modal */}
       {reviewing && (() => {
-        const reviewableReqs: { moduleTitle: string; lessonTitle: string; label: string; type: string; reqId: string }[] = [];
+        const reviewableReqs: { moduleTitle: string; lessonTitle: string; label: string; type: string; reqId: string; rubric?: string[] }[] = [];
         const aiReviewReqs: { moduleTitle: string; lessonTitle: string; label: string; type: string; reqId: string }[] = [];
         modules.forEach((m: any) => {
           (m.lessons || []).forEach((l: any) => {
             (l.requirements || []).forEach((r: any) => {
               // Deliverables are listed too: the older email-style ones let students attach a file.
               if (r.type === 'text' || r.type === 'upload' || r.type === 'deliverable' || r.type === 'linkedin_share') {
-                reviewableReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || `Untitled task (${({ text: 'Short answer', upload: 'File upload', deliverable: 'Deliverable', linkedin_share: 'LinkedIn share' } as Record<string, string>)[r.type] || 'task'})`, type: r.type, reqId: r.id });
+                reviewableReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || `Untitled task (${({ text: 'Short answer', upload: 'File upload', deliverable: 'Deliverable', linkedin_share: 'LinkedIn share' } as Record<string, string>)[r.type] || 'task'})`, type: r.type, reqId: r.id, rubric: Array.isArray(r.rubric) ? r.rubric : undefined });
               } else if (REVIEW_TYPES.includes(r.type)) {
                 aiReviewReqs.push({ moduleTitle: m.title, lessonTitle: l.title, label: r.label || r.description || REVIEW_LABELS[r.type] || 'AI Review', type: r.type, reqId: r.id });
               }
@@ -2323,7 +2323,7 @@ function VirtualExperienceReportTab({ form, onCount }: { form: any; onCount?: (n
                                     style={{ background: '#10b98115', color: '#10b981' }}>
                                     View uploaded file
                                   </a>
-                                  <VeFileReportEditor key={`${revSession}:${req.reqId}`} attemptId={reviewing.id} reqId={req.reqId} fileUrl={fileUrl} title={req.label} isDark={isDark}
+                                  <VeFileReportEditor key={`${revSession}:${req.reqId}`} attemptId={reviewing.id} reqId={req.reqId} fileUrl={fileUrl} title={req.label} rubric={req.rubric} isDark={isDark}
                                     report={revReports[req.reqId] ?? null}
                                     onChange={report => revSessionRef.current === revSession && setRevReports(prev => {
                                       const next = { ...prev };

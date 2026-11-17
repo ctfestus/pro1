@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import JSZip from 'jszip';
 import {
+  emptyInstructorReport,
+  hasReportContent,
   normalizeInstructorReport,
   normalizeInstructorReports,
   reportableRequirementIds,
+  reportableRubrics,
 } from '@/lib/ve-instructor-report';
 import { extractDocxText, extractPptxText } from '@/lib/office-text';
 
@@ -154,3 +157,65 @@ describe('assertZipWithinLimit with an empty part', () => {
     await expect(assertZipWithinLimit(buffer, 10_000)).resolves.toBeUndefined();
   });
 });
+
+describe('instructor reports graded on a rubric', () => {
+  const RUBRIC = ['Totals are correct: 60 marks', 'Has a churn slide: 40 marks'];
+
+  it('grades editor rows in rubric order, recomputes the score and ignores a sent score', () => {
+    const report = normalizeInstructorReport({
+      score: 99,
+      summary: ' Good start ',
+      findings: [{ title: 'Ignored in a rubric report' }],
+      rubricGrades: [
+        { criterion: 'Tampered: 100 marks', passed: true, comment: ' ok ' },
+        { passed: false, comment: 'Missing', location: 'Slide 5', fix: 'Add it' },
+      ],
+    }, RUBRIC)!;
+    expect(report.score).toBe(60);
+    expect(report.summary).toBe('Good start');
+    expect(report.findings).toEqual([]);
+    expect(report.rubricGrades).toEqual([
+      { criterion: RUBRIC[0], passed: true, comment: 'ok' },
+      { criterion: RUBRIC[1], passed: false, comment: 'Missing', location: 'Slide 5', fix: 'Add it' },
+    ]);
+  });
+
+  it('marks a criterion with no verdict as not met', () => {
+    const report = normalizeInstructorReport({ summary: '', rubricGrades: [{ passed: true, comment: '' }] }, RUBRIC)!;
+    expect(report.score).toBe(60);
+    expect(report.rubricGrades![1].passed).toBe(false);
+  });
+
+  it('keeps a free-form report free-form when the step has no rubric', () => {
+    const report = normalizeInstructorReport({ score: 70, summary: 's', rubricGrades: [{ passed: true }] })!;
+    expect(report.score).toBe(70);
+    expect(report.rubricGrades).toBeUndefined();
+  });
+
+  it('grades each step on its own rubric when saving the review', () => {
+    const modules = [{ lessons: [{ requirements: [
+      { id: 'u1', type: 'upload', rubric: [' Totals are correct: 60 marks ', '', 'Has a churn slide: 40 marks'] },
+      { id: 'u2', type: 'upload' },
+      { id: 't1', type: 'text', rubric: ['Not a file step'] },
+    ] }] }];
+    const rubrics = reportableRubrics(modules);
+    expect([...rubrics.keys()]).toEqual(['u1']);
+    expect(rubrics.get('u1')).toEqual(RUBRIC);
+    const reports = normalizeInstructorReports({
+      u1: { summary: '', rubricGrades: [{ passed: true, comment: '' }, { passed: true, comment: '' }] },
+      u2: { score: 55, summary: 'Free-form' },
+    }, reportableRequirementIds(modules), rubrics);
+    expect(reports.u1.score).toBe(100);
+    expect(reports.u2.score).toBe(55);
+  });
+
+  it('starts a blank rubric report with every criterion not met and a score of 0', () => {
+    const draft = emptyInstructorReport(RUBRIC);
+    expect(draft.score).toBe(0);
+    expect(draft.rubricGrades!.map(g => g.passed)).toEqual([false, false]);
+    expect(hasReportContent(draft)).toBe(false);
+    expect(hasReportContent({ ...draft, rubricGrades: [{ ...draft.rubricGrades![0], passed: true }, draft.rubricGrades![1]] })).toBe(true);
+    expect(emptyInstructorReport().score).toBeNull();
+  });
+});
+

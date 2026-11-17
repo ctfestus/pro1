@@ -16,7 +16,8 @@ import { toPlainText } from '@/lib/plain-text';
 import { lessonPlainText } from '@/lib/lesson-doc';
 import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
 import { ArchiveTooLargeError, assertZipWithinLimit, extractDocxText, extractPptxText } from '@/lib/office-text';
-import { hasReportContent, normalizeInstructorReport, reportableRequirementIds } from '@/lib/ve-instructor-report';
+import { hasReportContent, normalizeInstructorReport, reportableRequirementIds, reportableRubrics } from '@/lib/ve-instructor-report';
+import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { normalizeReviewSheetNames } from '@/lib/excel-review-config';
 import { repairVeSubmissionUrl } from '@/lib/ve-upload';
 import { hasStandaloneVeReportEligibility } from '@/lib/standalone-ve-access';
@@ -102,7 +103,7 @@ const responseSchema = {
   required: ['score', 'summary', 'findings', 'categories', 'recommendations'],
 };
 
-function buildPrompt(ctx: { veTitle: string; company: string; role: string; lessonTitle: string; missionContent: string; taskLabel: string; taskBrief: string; fileName: string }) {
+function buildPrompt(ctx: { veTitle: string; company: string; role: string; lessonTitle: string; missionContent: string; taskLabel: string; taskBrief: string; fileName: string; rubric: string[] }) {
   return `You are drafting a review report for an instructor. The instructor will check and edit it before the student sees it, so be accurate and specific; never invent content that is not in the submission.
 
 The student completed a workplace simulation ("virtual experience") and uploaded a file for one of its tasks.
@@ -114,7 +115,11 @@ Task brief (as the student saw it):
 ${ctx.taskBrief || '(no brief provided)'}
 
 Uploaded file: ${ctx.fileName}
+${ctx.rubric.length ? `
+${rubricInstructions(ctx.rubric, 'where in the file, e.g. "Slide 3", "Sheet Sales, C4" or "Section: Methodology"')}
+Address the executiveSummary to the student ("you").
 
+${REVIEW_GRADING_INSTRUCTIONS}` : `
 Judge how well the file completes the task brief, as a senior professional in this field would.
 
 Return:
@@ -122,7 +127,7 @@ Return:
 - summary: 2-3 sentences addressed to the student ("you") on how well the work meets the brief.
 - findings: the specific issues and notable points. For each: location (where in the file, e.g. "Slide 3", "Sheet Sales, C4", "Section: Methodology"; "General" if not tied to one place), severity ("critical" = fails the brief, "improvement" = notable weakness, "suggestion" = refinement), title (short), detail (1-2 sentences), fix (one concrete action).
 - categories: 3-5 quality dimensions suited to this task (e.g. Accuracy, Analysis depth, Communication), each scored 0-100 with a one-sentence summary, strengths and gaps.
-- recommendations: exactly 3 highest-impact next steps, ordered by impact.`;
+- recommendations: exactly 3 highest-impact next steps, ordered by impact.`}`;
 }
 
 export async function POST(req: NextRequest) {
@@ -195,6 +200,9 @@ export async function POST(req: NextRequest) {
       if (found) { requirement = found; lesson = l; }
     }
   }
+  // With a rubric on the step the draft grades each criterion instead of writing a free-form audit.
+  const rubric = reportableRubrics(ve.modules).get(reqId) ?? [];
+  const schema = rubric.length ? reviewSchema({ hasRubric: true }) : responseSchema;
   // The brief exactly as the player shows it: an email-framed step shows its email body in place of
   // the description, and a deliverable may carry its brief as a document.
   const briefParts = [
@@ -213,6 +221,7 @@ export async function POST(req: NextRequest) {
     // {{first_name}} tags are left as written; the model is drafting about the work, not greeting anyone.
     taskBrief: briefParts.join('\n\n').slice(0, 4000),
     fileName,
+    rubric,
   });
 
   // Charged before the download and extraction, so an account at its limit cannot keep making the
@@ -303,14 +312,17 @@ export async function POST(req: NextRequest) {
   const usageContext = { operation: 've-instructor-review-draft', metadata: { fileType: ext } };
   try {
     const raw = BINARY_MIME[ext]
-      ? await generateVisionJSON(prompt, { data: Buffer.from(buffer).toString('base64'), mimeType: BINARY_MIME[ext] }, responseSchema, { feature: 've-instructor-review-draft',  temperature: 0.2, usageContext })
-      : await generateJSON(`${prompt}${sheetPrompt}\n\nFILE CONTENTS:\n${text}`, responseSchema, { feature: 've-instructor-review-draft',  temperature: 0.2, effort: 'low', usageContext });
+      ? await generateVisionJSON(prompt, { data: Buffer.from(buffer).toString('base64'), mimeType: BINARY_MIME[ext] }, schema, { feature: 've-instructor-review-draft',  temperature: 0.2, usageContext })
+      : await generateJSON(`${prompt}${sheetPrompt}\n\nFILE CONTENTS:\n${text}`, schema, { feature: 've-instructor-review-draft',  temperature: 0.2, effort: 'low', usageContext });
 
-    const report = normalizeInstructorReport({ ...raw, aiDrafted: true, fileUrl });
+    const report = rubric.length
+      ? normalizeInstructorReport({ summary: raw?.executiveSummary, rubricGrades: raw?.rubricGrades, aiDrafted: true, fileUrl }, rubric)
+      : normalizeInstructorReport({ ...raw, aiDrafted: true, fileUrl });
     if (!report || !hasReportContent(report)) {
       await refund();
       return NextResponse.json({ error: 'The AI returned an empty draft. Please try again.' }, { status: 502 });
     }
+    if (rubric.length) return NextResponse.json({ report, notices });
     // Extra rows are trimmed; too few means the draft is missing a section the instructor relies on.
     report.categories = report.categories.slice(0, DRAFT_CATEGORIES.max);
     report.recommendations = report.recommendations.slice(0, DRAFT_RECOMMENDATIONS);

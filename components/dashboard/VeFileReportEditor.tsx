@@ -3,9 +3,12 @@
 // Instructor report on one uploaded file in the VE Review panel. The instructor drafts it with AI
 // (or starts blank), edits every field, and can preview exactly what the student will see. Nothing
 // is saved here: the parent sends all reports with the review on Submit Review.
+// When the step has a rubric, a new report is graded on it: a Met or Not met verdict per criterion,
+// with a comment and, when not met, where and what to change. Its score follows from the verdicts.
 
 import { useState } from 'react';
 import { Eye, Loader2, Pencil, Plus, Sparkles, Trash2 } from 'lucide-react';
+import { criterionMarks, isUngraded, rubricPassRate, type RubricGrade } from '@/lib/review-gate';
 import { supabase } from '@/lib/supabase';
 import InstructorFileReportView from '@/components/InstructorFileReportView';
 import {
@@ -18,12 +21,14 @@ const toLines = (list: string[]) => list.join('\n');
 // Capped at the server's per-list limit, so a line past it cannot be typed and then silently dropped.
 const fromLines = (text: string) => text.split('\n').slice(0, REPORT_COUNTS.listItems);
 
-export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, report, onChange, onDraftingChange, onFileReplaced, isDark }: {
+export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, rubric = [], report, onChange, onDraftingChange, onFileReplaced, isDark }: {
   attemptId: string;
   // The uploaded file the panel is showing. Drafts and new reports are tied to it.
   fileUrl: string;
   reqId: string;
   title: string;
+  // The step's rubric, if it has one. A report written from scratch is then graded on it.
+  rubric?: string[];
   report: InstructorReportDraft | null;
   onChange: (report: InstructorReportDraft | null) => void;
   // Lets the panel hold Submit Review while a draft is in flight.
@@ -87,7 +92,7 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
             {drafting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
             {drafting ? 'Drafting report' : 'Draft report with AI'}
           </button>
-          <button onClick={() => onChange({ ...emptyInstructorReport(), fileUrl })} disabled={drafting}
+          <button onClick={() => onChange({ ...emptyInstructorReport(rubric), fileUrl })} disabled={drafting}
             className={`inline-flex items-center gap-2 text-[14px] font-semibold px-4 py-2.5 rounded-xl border transition-opacity hover:opacity-70 disabled:opacity-40 ${isDark ? 'border-zinc-700 text-zinc-200' : 'border-[#e3e5e8] text-[#333]'}`}>
             <Pencil className="w-4 h-4" /> Write report
           </button>
@@ -100,6 +105,18 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
   const set = (patch: Partial<InstructorReportDraft>) => onChange({ ...report, ...patch });
   const setFinding = (i: number, patch: Partial<InstructorFileReport['findings'][number]>) =>
     set({ findings: report.findings.map((f, j) => j === i ? { ...f, ...patch } : f) });
+  // A verdict, comment or fix changed: the score is recomputed from the verdicts, as the server does.
+  const setGrade = (i: number, patch: Partial<RubricGrade>) => {
+    const rubricGrades = (report.rubricGrades ?? []).map((g, j) => {
+      if (j !== i) return g;
+      const next = { ...g, ...patch };
+      // Giving a verdict to a criterion the AI skipped drops its "not graded" comment.
+      if (patch.passed !== undefined && isUngraded(g)) next.comment = '';
+      return next;
+    });
+    set({ rubricGrades, score: rubricPassRate(rubricGrades, rubricGrades.map(g => g.criterion)) ?? 0 });
+  };
+  const rubricMode = (report.rubricGrades?.length ?? 0) > 0;
   const setCategory = (i: number, patch: Partial<InstructorFileReport['categories'][number]>) =>
     set({ categories: report.categories.map((c, j) => j === i ? { ...c, ...patch } : c) });
   const notice = `rounded-xl px-4 py-3 text-[13px] leading-relaxed space-y-2 ${isDark ? 'bg-amber-500/10 text-amber-200' : 'bg-amber-50 text-amber-900'}`;
@@ -147,11 +164,19 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
         // Locked while a redraft runs: it replaces the report, so edits made meanwhile would be lost.
         <fieldset disabled={drafting} className="min-w-0 space-y-7 disabled:opacity-60">
           <div className="grid gap-4 sm:grid-cols-[140px_minmax(0,1fr)]">
-            <div>
-              <label className={label}>File score (0 - 100)</label>
-              <input type="number" min={0} max={100} value={report.score ?? ''} placeholder="Required"
-                onChange={e => set({ score: e.target.value === '' ? null : Math.max(0, Math.min(100, Number(e.target.value) || 0)) })} className={`${field} w-full`} />
-            </div>
+            {rubricMode ? (
+              <div>
+                <p className={label}>File score</p>
+                <p className={`text-[22px] font-bold tabular-nums ${textPrim}`}>{report.score ?? 0}<span className={`text-[14px] font-semibold ${textMut}`}> / 100</span></p>
+                <p className={`text-[12px] mt-0.5 ${textMut}`}>From the criteria met</p>
+              </div>
+            ) : (
+              <div>
+                <label className={label}>File score (0 - 100)</label>
+                <input type="number" min={0} max={100} value={report.score ?? ''} placeholder="Required"
+                  onChange={e => set({ score: e.target.value === '' ? null : Math.max(0, Math.min(100, Number(e.target.value) || 0)) })} className={`${field} w-full`} />
+              </div>
+            )}
             <div className="min-w-0">
               <label className={label}>Summary for the student</label>
               <textarea rows={3} value={report.summary} maxLength={REPORT_LIMITS.summary} onChange={e => set({ summary: e.target.value })}
@@ -159,6 +184,56 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
             </div>
           </div>
 
+          {rubricMode ? (
+            <section className="space-y-3">
+              <p className={heading}>Rubric</p>
+              {(report.rubricGrades ?? []).map((g, i) => {
+                const marks = criterionMarks(g.criterion);
+                return (
+                  <div key={i} className={`space-y-3 pb-5 border-b ${divider}`}>
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <p className={`min-w-0 flex-1 text-[15px] font-medium leading-snug ${textPrim}`}>{g.criterion}</p>
+                      {marks.note ? (
+                        <span className={`text-[13px] font-semibold ${textMut}`}>Guidance, no marks</span>
+                      ) : (
+                        <div className="flex gap-1.5" role="radiogroup" aria-label="Verdict">
+                          {([[true, 'Met', '#16a34a'], [false, 'Not met', '#dc2626']] as const).map(([value, text, color]) => {
+                            const on = g.passed === value && !isUngraded(g);
+                            return (
+                              <button key={text} type="button" role="radio" aria-checked={on} onClick={() => setGrade(i, { passed: value })}
+                                className="text-[13px] font-semibold px-3 py-1 rounded-full border transition-colors"
+                                style={on ? { background: color, borderColor: color, color: '#fff' } : { borderColor: isDark ? '#3f3f46' : '#e3e5e8', color: isDark ? '#a1a1aa' : '#5f6368' }}>
+                                {text}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <label className={label}>{marks.note ? 'How you applied the note' : 'What you checked'}</label>
+                      <textarea rows={2} value={g.comment} maxLength={REPORT_LIMITS.detail} onChange={e => setGrade(i, { comment: e.target.value })}
+                        className={`${field} w-full resize-y`} />
+                    </div>
+                    {!marks.note && !g.passed && (
+                      <div className="grid gap-3 sm:grid-cols-[200px_minmax(0,1fr)]">
+                        <div className="min-w-0">
+                          <label className={label}>Where in the file</label>
+                          <input value={g.location ?? ''} maxLength={REPORT_LIMITS.location} onChange={e => setGrade(i, { location: e.target.value })}
+                            placeholder="e.g. Slide 3" className={`${field} w-full`} />
+                        </div>
+                        <div className="min-w-0">
+                          <label className={label}>What to change</label>
+                          <textarea rows={2} value={g.fix ?? ''} maxLength={REPORT_LIMITS.fix} onChange={e => setGrade(i, { fix: e.target.value })}
+                            className={`${field} w-full resize-y`} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </section>
+          ) : (<>
           {/* Findings */}
           <section className="space-y-3">
             <p className={heading}>Findings</p>
@@ -266,6 +341,7 @@ export default function VeFileReportEditor({ attemptId, reqId, fileUrl, title, r
             <label className={label}>One per line, up to {REPORT_COUNTS.listItems}</label>
             <textarea rows={3} value={toLines(report.recommendations)} onChange={e => set({ recommendations: fromLines(e.target.value) })} className={`${field} w-full resize-y`} />
           </section>
+          </>)}
         </fieldset>
       )}
     </div>

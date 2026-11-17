@@ -41,6 +41,8 @@ interface Props {
   accentColor: string;
   onExport?: () => void;
   onRetry?: () => void;
+  /** The "fix and submit again" note under the criteria. Off for an instructor's report. */
+  showClosingNote?: boolean;
   /** Anything to show between the header and the result, such as a reading-limit warning. */
   children?: ReactNode;
 }
@@ -74,7 +76,7 @@ const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
 export default function RubricReviewReport({
   reportLabel, metadata, workNoun, summary, grades, legacyFindings = [], score, minScore, attemptsLeft,
-  isDark, accentColor, onExport, onRetry, children,
+  isDark, accentColor, onExport, onRetry, showClosingNote = true, children,
 }: Props) {
   const t = isDark ? DARK : LIGHT;
 
@@ -103,7 +105,7 @@ export default function RubricReviewReport({
     : hasMarks && totalMarks === 100 ? ` You need ${minScore} to pass.` : ` You need ${minScore} out of 100 to pass.`;
   const resultLine = `You met ${metText}${marksText}.${passText}`;
 
-  const closingNote = good ? null
+  const closingNote = good || !showClosingNote ? null
     : attemptsLeft === 0
       ? `Fix the criteria marked not met in your ${workNoun}. You have no review attempts left.`
       : `Fix the criteria marked not met, update your ${workNoun}, and submit another review.${attemptsLeft ? ` You have ${plural(attemptsLeft, 'attempt')} left.` : ''}`;
@@ -171,7 +173,7 @@ export default function RubricReviewReport({
             : hasMarks ? `${fmt(status === 'met' ? marks.weight : 0)} of ${fmt(marks.weight)} marks`
             : status === 'met' ? 'Met' : status === 'ungraded' ? 'Not graded' : 'Not met';
           const comment = status === 'ungraded'
-            ? `The AI reviewer did not grade this criterion, so it counts as not met.${onRetry ? ' Submit again to have it graded.' : ''}`
+            ? `${grade.comment}${onRetry ? ' Submit again to have it graded.' : ''}`
             : grade.comment;
           const Icon = status === 'met' ? Check : status === 'failed' ? X : status === 'ungraded' ? Minus : Info;
           const iconLabel = status === 'met' ? 'Met' : status === 'failed' ? 'Not met' : status === 'ungraded' ? 'Not graded' : undefined;
