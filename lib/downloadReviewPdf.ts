@@ -71,6 +71,8 @@ export interface StructuredReviewPdfData {
     criterion: string;
     passed: boolean;
     comment: string;
+    location?: string;
+    fix?: string;
   }>;
 }
 
@@ -190,14 +192,19 @@ export async function downloadStructuredReviewPdf(data: StructuredReviewPdfData,
     const opportunities = data.categories.reduce((count, category) => count + category.gaps.length, 0);
     const rubricPassed = data.rubricGrades?.filter(grade => grade.passed).length ?? 0;
     const rubricTotal = data.rubricGrades?.length ?? 0;
-    const metrics = [
-      [data.metricLabels?.errors ?? 'ERRORS', String(errors), severityColors.error],
-      [data.metricLabels?.warnings ?? 'WARNINGS', String(warnings), severityColors.warning],
-      [data.metricLabels?.opportunities ?? 'OPPORTUNITIES', String(opportunities), severityColors.suggestion],
-      [data.metricLabels?.rubric ?? 'RUBRIC PASSED', rubricTotal ? `${rubricPassed}/${rubricTotal}` : 'N/A', accent],
-    ] as const;
+    // Only tiles with something behind them: a rubric review has no findings list and no
+    // categories, so it would otherwise print zeros that read as a clean bill of health.
+    const hasFindings = data.issues.length > 0 || !rubricTotal;
+    const metrics: Array<readonly [string, string, Rgb]> = [
+      ...(hasFindings ? [
+        [data.metricLabels?.errors ?? 'ERRORS', String(errors), severityColors.error] as const,
+        [data.metricLabels?.warnings ?? 'WARNINGS', String(warnings), severityColors.warning] as const,
+      ] : []),
+      ...(data.categories.length > 0 ? [[data.metricLabels?.opportunities ?? 'OPPORTUNITIES', String(opportunities), severityColors.suggestion] as const] : []),
+      [data.metricLabels?.rubric ?? 'RUBRIC PASSED', rubricTotal ? `${rubricPassed}/${rubricTotal}` : 'N/A', accent] as const,
+    ];
     const metricGap = 8;
-    const metricWidth = (contentWidth - metricGap * 3) / 4;
+    const metricWidth = (contentWidth - metricGap * (metrics.length - 1)) / metrics.length;
     metrics.forEach(([label, value, color], index) => {
       const x = margin + index * (metricWidth + metricGap);
       pdf.setDrawColor(...line);
@@ -211,7 +218,7 @@ export async function downloadStructuredReviewPdf(data: StructuredReviewPdfData,
     y += 72;
 
     if (data.issues.length > 0) {
-      sectionTitle('Diagnostic feed', data.findingsTitle ?? 'Findings in your code');
+      sectionTitle('Findings', data.findingsTitle ?? 'Findings in your code');
       data.issues.forEach(issue => {
         const color = severityColors[issue.severity];
         setText(10, ink, 'bold');
@@ -291,7 +298,7 @@ export async function downloadStructuredReviewPdf(data: StructuredReviewPdfData,
     }
 
     if (data.categories.length > 0) {
-      sectionTitle('Performance matrix', 'Quality by dimension');
+      sectionTitle('Quality', 'Quality by dimension');
       data.categories.forEach(category => {
         const summary = wrap(category.summary, contentWidth - 28, 9);
         const rowHeight = 38 + summary.length * lineHeight(9);
@@ -313,10 +320,14 @@ export async function downloadStructuredReviewPdf(data: StructuredReviewPdfData,
     }
 
     if (data.rubricGrades?.length) {
-      sectionTitle('Rubric signal', 'Requirements check');
+      sectionTitle('Rubric', 'What you were asked to do');
       data.rubricGrades.forEach(grade => {
         const comment = wrap(grade.comment, contentWidth - 52, 9);
-        const rowHeight = Math.max(40, 27 + comment.length * lineHeight(9));
+        // A criterion not met carries the change that would meet it.
+        const fixText = !grade.passed && grade.fix ? `What to change${grade.location ? ` (${grade.location})` : ''}: ${grade.fix}` : '';
+        const fixLines = fixText ? wrap(fixText, contentWidth - 52, 9) : [];
+        const fixHeight = fixLines.length ? 6 + fixLines.length * lineHeight(9) : 0;
+        const rowHeight = Math.max(40, 27 + comment.length * lineHeight(9) + fixHeight);
         ensureSpace(rowHeight + 6);
         pdf.setFillColor(...soft);
         pdf.roundedRect(margin, y, contentWidth, rowHeight, 9, 9, 'F');
@@ -335,13 +346,17 @@ export async function downloadStructuredReviewPdf(data: StructuredReviewPdfData,
         pdf.text(grade.criterion, margin + 36, y + 20);
         setText(9, muted);
         pdf.text(comment, margin + 36, y + 36, { lineHeightFactor: 1.42 });
+        if (fixLines.length) {
+          setText(9, ink);
+          pdf.text(fixLines, margin + 36, y + 42 + comment.length * lineHeight(9), { lineHeightFactor: 1.42 });
+        }
         y += rowHeight + 6;
       });
       y += 8;
     }
 
     if (data.topRecommendations.length > 0) {
-      sectionTitle('Next best actions', 'Your improvement path');
+      sectionTitle('Next steps', 'Your improvement path');
       data.topRecommendations.forEach((recommendation, index) => {
         const lines = wrap(recommendation, contentWidth - 58, 9.5);
         const rowHeight = Math.max(44, 25 + lines.length * lineHeight(9.5));

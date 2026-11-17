@@ -169,11 +169,11 @@ describe('AI vendor boundary', () => {
 describe('review schemas', () => {
   const findings = { key: 'issues', fields: ['lines', 'severity', 'title', 'detail', 'fix'] };
 
-  it('asks a rubric review for grades and corrections only, with every field required', () => {
+  it('asks a rubric review for the summary and grades only, each grade carrying its fix', () => {
     const schema = reviewSchema({ findings, hasRubric: true });
-    expect(schema.required).toEqual(['executiveSummary', 'issues', 'topRecommendations', 'rubricGrades']);
-    expect(schema.properties.rubricGrades.items.required).toEqual(['id', 'passed', 'comment']);
-    expect(schema.properties.issues.items.required).toEqual(findings.fields);
+    expect(schema.required).toEqual(['executiveSummary', 'rubricGrades']);
+    expect(Object.keys(schema.properties)).toEqual(['executiveSummary', 'rubricGrades']);
+    expect(schema.properties.rubricGrades.items.required).toEqual(['id', 'passed', 'comment', 'location', 'fix']);
   });
 
   it('asks a review with no rubric for a scored audit and no grades', () => {
@@ -183,7 +183,7 @@ describe('review schemas', () => {
 
   it('leaves findings and categories out of a brief review', () => {
     expect(reviewSchema({ hasRubric: false }).required).toEqual(['executiveSummary', 'overallScore', 'topRecommendations']);
-    expect(reviewSchema({ hasRubric: true }).required).toEqual(['executiveSummary', 'topRecommendations', 'rubricGrades']);
+    expect(reviewSchema({ hasRubric: true }).required).toEqual(['executiveSummary', 'rubricGrades']);
   });
 
   it('compiles and converts for every provider', () => {

@@ -24,7 +24,6 @@ const SUPPORTED_MIME: Record<string, string> = {
 
 const FINDINGS = { key: 'sections', fields: ['name', 'severity', 'title', 'detail', 'recommendation'] };
 
-const SECTION_FIELDS = `For each entry in "sections" provide: name (the part of the document it concerns), severity ("critical" for a failed criterion), title (starting "Criterion <id>:"), detail (1-2 sentences on what is missing or wrong), and recommendation (the specific change to make).`;
 
 const SYSTEM_PROMPT = `You are a panel of senior business consultants and strategy advisors -- a Strategy Partner, a Management Consultant, a Corporate Finance Director, a Market Research Lead, and a Business Writing Coach -- each with 15+ years of experience reviewing strategy and business reports across African markets including banking, fintech, FMCG, telecoms, retail, healthcare, manufacturing, agriculture, and public sector.
 
@@ -117,7 +116,7 @@ export async function POST(req: NextRequest) {
     // With a rubric the business-report audit is left out entirely: it is what pulled a report off
     // the rubric, and most rubrics are not about a strategy report at all.
     const instructions = rubric.length > 0
-      ? `You are an experienced instructor marking a student's submitted document against the instructor's rubric.\n${contextBlock}\n${rubricInstructions(rubric, 'sections')}\n\n${SECTION_FIELDS}`
+      ? `You are an experienced instructor marking a student's submitted document against the instructor's rubric.\n${contextBlock}\n${rubricInstructions(rubric, 'the section or page of the document')}`
       : `${SYSTEM_PROMPT}${contextBlock}`;
     const promptText = `${instructions}\n\n${REVIEW_GRADING_INSTRUCTIONS}\n\nReview the attached document.`;
     const schema = reviewSchema({ findings: FINDINGS, hasRubric: rubric.length > 0 });
@@ -160,7 +159,7 @@ export async function POST(req: NextRequest) {
       parsed = await generateVisionJSON(promptText, { mimeType, data: Buffer.from(buffer).toString('base64') }, schema, options);
     }
 
-    const result = scoreRubricReview(parsed, rubric);
+    const result = scoreRubricReview(parsed, rubric, 'sections');
     return NextResponse.json(warning ? { ...result, warning } : result);
   } catch (err: any) {
     console.error('[document-review] error:', err);

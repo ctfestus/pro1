@@ -1,10 +1,10 @@
 // What the AI reviewers are asked for: the shared grading rules, the rubric block and the response
 // schema. One wording and one schema, so every reviewer treats a rubric the same way.
 //
-// Two modes. With a rubric the review IS the rubric: a verdict per criterion, a finding per failed
-// criterion, and nothing else -- no quality categories and no model-chosen score (the route computes
-// the score from the verdicts, see lib/review-gate). Without a rubric the reviewer runs its own
-// audit and scores it.
+// Two modes. With a rubric the review IS the rubric: a verdict per criterion, carrying where the
+// problem is and the fix when it is not met, plus a short summary -- no findings list, no
+// recommendations, no quality categories and no model-chosen score (the route computes the score from
+// the verdicts, see lib/review-gate). Without a rubric the reviewer runs its own audit and scores it.
 
 import type { JsonSchema } from '@/lib/ai';
 
@@ -15,10 +15,10 @@ export const REVIEW_GRADING_INSTRUCTIONS = `GRADING RULES - these take precedenc
 - Do not pad. When there is nothing to correct, return an empty list rather than inventing a finding or a recommendation.`;
 
 /**
- * The rubric block for a review prompt. `findings` names the list that carries the corrections
- * ("issues", "sections" or "elements"); omit it for a reviewer that returns grades only.
+ * The rubric block for a review prompt. `location` says what a location is for this kind of work,
+ * for example 'the cell or range, e.g. "Sheet1!C12"'.
  */
-export function rubricInstructions(rubric: readonly string[], findings?: string): string {
+export function rubricInstructions(rubric: readonly string[], location: string): string {
   return `INSTRUCTOR RUBRIC - THIS IS THE WHOLE REVIEW
 The rubric below is what the student was asked to do. Review the submission against these criteria and nothing else. Do not comment on anything the rubric does not ask for, even if you would normally flag it.
 
@@ -26,11 +26,9 @@ Criteria:
 ${rubric.map((criterion, i) => `id ${i + 1}: ${criterion}`).join('\n')}
 
 Return:
-- rubricGrades: one entry per id, each id exactly once: its "id" as numbered above, a "passed" boolean, and a 1-2 sentence "comment" naming the evidence you checked. A criterion passes or fails as a whole; pass it only when the submission shows it was met. Ids you omit are marked as not met, and ids that are not on this list are discarded.
-- For an "Assessment Note" line, return passed: true and say in the comment how you applied the note. A note is guidance on how to grade, not a requirement to fail.${findings ? `
-- ${findings}: only for failed criteria, none for passed ones. Each says where the problem is and the exact change that would meet the criterion, and names the criterion id it belongs to.` : ''}
-- executiveSummary: 2-3 sentences addressed to the student on which criteria were met and which were not.
-- topRecommendations: at most 3, each the fix for a failed criterion, most important first. Return [] when every criterion passed.`;
+- rubricGrades: one entry per id, each id exactly once: its "id" as numbered above, a "passed" boolean, a 1-2 sentence "comment" naming the evidence you checked, and two fields for a criterion that is not met: "location" (${location}) and "fix" (the exact change that would meet the criterion). Return "" for location and fix when the criterion is met. A criterion passes or fails as a whole; pass it only when the submission shows it was met. Ids you omit are marked as not met, and ids that are not on this list are discarded.
+- For an "Assessment Note" line, return passed: true, "" for location and fix, and say in the comment how you applied the note. A note is guidance on how to grade, not a requirement to fail.
+- executiveSummary: 2-3 sentences addressed to the student on which criteria were met and which were not.`;
 }
 
 const strings = (fields: readonly string[]) => ({
@@ -61,25 +59,35 @@ export const RUBRIC_GRADES = {
   items: {
     type: 'object',
     properties: {
-      id:      { type: 'integer', description: 'The criterion id as numbered in the instructor rubric.' },
-      passed:  { type: 'boolean' },
-      comment: { type: 'string' },
+      id:       { type: 'integer', description: 'The criterion id as numbered in the instructor rubric.' },
+      passed:   { type: 'boolean' },
+      comment:  { type: 'string' },
+      location: { type: 'string' },
+      fix:      { type: 'string' },
     },
-    required: ['id', 'passed', 'comment'],
+    required: ['id', 'passed', 'comment', 'location', 'fix'],
   },
 };
 
 /**
- * Response schema for a review. `findings` is the list of corrections and its string fields, for
- * example { key: 'issues', fields: ['lines', 'severity', 'title', 'detail', 'fix'] }; leave it out
- * for a brief review that returns no findings. Every property listed is required.
+ * Response schema for a review. With a rubric it is the summary and the grades, which carry their
+ * own fixes. Without one, `findings` is the list of corrections and its string fields, for example
+ * { key: 'issues', fields: ['lines', 'severity', 'title', 'detail', 'fix'] }; leave it out for a
+ * brief review that returns no findings. Every property listed is required.
  */
 export function reviewSchema(opts: { findings?: { key: string; fields: readonly string[] }; hasRubric: boolean }): JsonSchema {
-  const properties: Record<string, JsonSchema> = { executiveSummary: { type: 'string' } };
-  if (!opts.hasRubric) properties.overallScore = { type: 'number' };
-  if (opts.findings) properties[opts.findings.key] = { type: 'array', items: strings(opts.findings.fields) };
-  if (opts.findings && !opts.hasRubric) properties.categories = CATEGORIES;
+  if (opts.hasRubric) {
+    return {
+      type: 'object',
+      properties: { executiveSummary: { type: 'string' }, rubricGrades: RUBRIC_GRADES },
+      required: ['executiveSummary', 'rubricGrades'],
+    };
+  }
+  const properties: Record<string, JsonSchema> = { executiveSummary: { type: 'string' }, overallScore: { type: 'number' } };
+  if (opts.findings) {
+    properties[opts.findings.key] = { type: 'array', items: strings(opts.findings.fields) };
+    properties.categories = CATEGORIES;
+  }
   properties.topRecommendations = { type: 'array', items: { type: 'string' } };
-  if (opts.hasRubric) properties.rubricGrades = RUBRIC_GRADES;
   return { type: 'object', properties, required: Object.keys(properties) };
 }

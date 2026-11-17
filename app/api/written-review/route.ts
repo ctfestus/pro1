@@ -140,9 +140,7 @@ export async function POST(req: NextRequest) {
 
   // With a rubric the review is the rubric; the four-category audit is only for answers without one.
   const depthInstructions = rubric.length
-    ? `${rubricInstructions(rubric, brief ? undefined : 'sections')}${brief ? '' : `
-
-For each entry in "sections" provide: name (the part of the answer it concerns), severity ("critical" for a failed criterion), title (starting "Criterion <id>:"), detail (1-2 sentences on what is missing or wrong), and recommendation (the concrete fix).`}`
+    ? rubricInstructions(rubric, 'the part of the answer, for example "Second paragraph"')
     : brief
     ? `Return:
 - overallScore: 0-100 (one decimal)
@@ -199,7 +197,7 @@ Return ONLY valid JSON. No markdown fences.`;
       },
     });
     const arr = (value: unknown) => (Array.isArray(value) ? value : []);
-    const result: any = scoreRubricReview(parsed, rubric);
+    const result: any = scoreRubricReview(parsed, rubric, 'sections');
     const score = Number(result?.overallScore);
     return NextResponse.json({
       ...(rubric.length ? { rubricScore: result.rubricScore } : {}),
@@ -220,11 +218,13 @@ Return ONLY valid JSON. No markdown fences.`;
         strengths: arr(c?.strengths).map(String),
         gaps:      arr(c?.gaps).map(String),
       })),
-      topRecommendations: arr(parsed?.topRecommendations).map(String),
+      topRecommendations: arr(result?.topRecommendations).map(String),
       rubricGrades: arr(result?.rubricGrades).map((g: any) => ({
         criterion: String(g?.criterion ?? ''),
         passed:    !!g?.passed,
         comment:   String(g?.comment ?? ''),
+        ...(g?.location ? { location: String(g.location) } : {}),
+        ...(g?.fix ? { fix: String(g.fix) } : {}),
       })),
     });
   } catch (err: any) {

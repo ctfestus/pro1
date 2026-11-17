@@ -15,14 +15,15 @@ it('keeps the shared rules to the task and forbids padding', () => {
   expect(REVIEW_GRADING_INSTRUCTIONS).toContain('Do not pad');
 });
 
-it('makes the rubric the whole review, by id, with corrections only for failed criteria', () => {
-  const block = rubricInstructions(['Uses SUMIFS', 'Assessment Note: accept alternatives'], 'issues');
+it('makes the rubric the whole review, by id, with the fix carried on each criterion not met', () => {
+  const block = rubricInstructions(['Uses SUMIFS', 'Assessment Note: accept alternatives'], 'the cell or range');
   expect(block).toContain('id 2: Assessment Note: accept alternatives');
   expect(block).toContain('these criteria and nothing else');
   expect(block).toContain('Ids you omit are marked as not met');
-  expect(block).toContain('- issues: only for failed criteria');
-  expect(block).toContain('Return [] when every criterion passed');
-  expect(rubricInstructions(['Uses SUMIFS'])).not.toContain('only for failed criteria');
+  expect(block).toContain('"location" (the cell or range) and "fix"');
+  expect(block).toContain('Return "" for location and fix when the criterion is met');
+  // Nothing outside the grades: no findings list and no recommendations to drift off the rubric.
+  expect(block).not.toMatch(/topRecommendations|issues|sections/);
 });
 
 it.each(['excel-review', 'code-review', 'dashboard-critique', 'document-review', 'written-review'])(

@@ -86,8 +86,8 @@ Return ONLY valid JSON matching the schema. No markdown fences, no explanation t
 function rubricPrompt(rubric: string[]) {
   return `You are a senior dashboard designer marking a student's dashboard screenshot against the instructor's rubric.
 
-${rubricInstructions(rubric)}
-Put rubricGrades, executiveSummary and topRecommendations inside "audit".
+${rubricInstructions(rubric, 'the dashboard element, e.g. "Revenue by region bar chart"')}
+Put rubricGrades and executiveSummary inside "audit".
 
 ELEMENTS
 Box only the dashboard components a rubric criterion is about, one entry per component. For each:

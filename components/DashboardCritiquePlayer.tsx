@@ -4,10 +4,12 @@ import React, { useState, useRef, useCallback } from 'react';
 import { Loader2, UploadIcon, Eye, EyeOff, RotateCcw, CheckCircle2, Zap, Download, Lightbulb } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
+import type { RubricGrade } from '@/lib/review-gate';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
+import RubricReviewReport, { isRubricReport } from '@/components/RubricReviewReport';
 import AiReviewWorkspaceHeader from '@/components/AiReviewWorkspaceHeader';
 import AiReviewUpgradePrompt from '@/components/AiReviewUpgradePrompt';
 import AiReviewLockOverlay from '@/components/AiReviewLockOverlay';
@@ -31,11 +33,6 @@ interface AuditCategory {
   strengths: string[];
   gaps: string[];
   priority: 'HIGH' | 'MEDIUM' | 'LOW';
-}
-interface RubricGrade {
-  criterion: string;
-  passed: boolean;
-  comment: string;
 }
 interface Audit {
   overallScore: number;
@@ -259,9 +256,37 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
     );
   }
 
+  // A rubric review shows the rubric report, which carries its own export, retry and pass or fail,
+  // so the toolbar buttons, attempt line and score banner below give way to it.
+  const rubricMode = isRubricReport(result?.audit);
+  const rubricReport = rubricMode && result?.audit ? (
+    <RubricReviewReport
+      reportLabel="Dashboard review"
+      metadata={`Dashboard screenshot${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`}
+      workNoun="dashboard"
+      summary={result.audit.executiveSummary}
+      grades={result.audit.rubricGrades ?? []}
+      score={reviewGate(result.audit, rubric?.length).score}
+      minScore={minScore}
+      attemptsLeft={showAttemptCount && maxReviews !== undefined ? Math.max(0, maxReviews - reviewsUsed) : null}
+      isDark={isDark}
+      accentColor={accentColor}
+      onExport={downloadPdf}
+      onRetry={showReset ? reset : undefined}
+    />
+  ) : null;
+
   // Saved report with no screenshot: assignment/VE store the report only (not the base64 image),
   // and the course flow no longer persists the image either. Render the holistic report without
   // the interactive overlay so students and instructors still see the saved feedback on reload.
+  if (result && !imageDataUrl && rubricReport) {
+    return (
+      <div className="space-y-3">
+        {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
+        {rubricReport}
+      </div>
+    );
+  }
   if (result && !imageDataUrl) {
     return (
       <div className="space-y-3">
@@ -275,7 +300,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
           </button>
         </div>
         {result.audit ? (
-          <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} />
+          <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} passed={minScore ? reviewGate(result.audit, rubric?.length).score >= minScore : undefined} />
         ) : (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}30` }}>
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
@@ -377,7 +402,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   return (
     <div className="space-y-3">
       {!hideWorkspaceHeader && <AiReviewDisclaimer isDark={isDark} />}
-      {showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
+      {!rubricMode && showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 && (
         <p style={{ fontSize: 11, fontWeight: 600, color: muted }}>Attempt {reviewsUsed} of {maxReviews}</p>
       )}
       {/* Toolbar */}
@@ -397,7 +422,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
             {zonesVisible ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
             {zonesVisible ? 'Zones Visible' : 'Zones Hidden'}
           </button>
-          {result && (
+          {result && !rubricMode && (
             <button
               onClick={downloadPdf}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
@@ -406,7 +431,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
               <Download className="w-3 h-3" /> PDF
             </button>
           )}
-          {showReset && (
+          {showReset && !rubricMode && (
             <button
               onClick={reset}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
@@ -546,7 +571,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       })()}
 
       {/* Completion / gate */}
-      {result && (() => {
+      {result && !rubricMode && (() => {
         const score = reviewGate(result.audit ?? { overallScore: 0 }, rubric?.length).score;
         const failed = !!minScore && score < minScore;
         return failed ? (
@@ -576,14 +601,15 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
 
       {/* Holistic Audit Report */}
-      {result?.audit && <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} />}
+      {rubricReport}
+      {result?.audit && !rubricMode && <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} passed={minScore ? reviewGate(result.audit, rubric?.length).score >= minScore : undefined} />}
     </div>
   );
 }
 
 
 
-export function AuditReport({ audit, elements, accentColor, isDark }: { audit: Audit; elements: CritiqueElement[]; accentColor: string; isDark: boolean }) {
+export function AuditReport({ audit, elements, accentColor, isDark, passed }: { audit: Audit; elements: CritiqueElement[]; accentColor: string; isDark: boolean; passed?: boolean }) {
 
   return (
     <div className="space-y-3">
@@ -610,6 +636,7 @@ export function AuditReport({ audit, elements, accentColor, isDark }: { audit: A
         rubricGrades={audit.rubricGrades}
         accentColor={accentColor}
         isDark={isDark}
+        passed={passed}
       />
 
     </div>
