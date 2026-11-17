@@ -10,6 +10,7 @@ import { requireUser } from '@/lib/api-auth';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 import { generateJSON, generateVisionJSON } from '@/lib/ai';
 import { POST } from '@/app/api/document-review/route';
+import { makeSupabaseStub } from '../helpers/supabaseStub';
 
 async function post(file: File) {
   const body = new FormData();
@@ -19,7 +20,8 @@ async function post(file: File) {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireUser).mockResolvedValue({ user: { id: 'student' }, role: 'student' } as any);
+  // Staff preview of unsaved content: these tests are about reading the file, not where the rubric comes from.
+  vi.mocked(requireUser).mockResolvedValue({ user: { id: 'inst' }, serviceDb: makeSupabaseStub({ students: { data: { role: 'instructor' } } }) } as any);
   vi.mocked(chargeAiFeature).mockResolvedValue({ receipt: { id: 'charged' } } as any);
   vi.mocked(generateJSON).mockResolvedValue({ overallScore: 85 });
   vi.mocked(generateVisionJSON).mockResolvedValue({ overallScore: 85 });

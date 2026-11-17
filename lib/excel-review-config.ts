@@ -205,29 +205,3 @@ export function parseExcelReviewTarget(value: unknown): ExcelReviewTarget | null
   if (source === 'assignment') return { source, contentId, ...(itemId ? { itemId } : {}) };
   return null;
 }
-
-export function findExcelReviewItem(target: ExcelReviewTarget, stored: any): any | null {
-  if (target.source === 'course') {
-    return (Array.isArray(stored?.questions) ? stored.questions : [])
-      .find((question: any) => question?.id === target.itemId && question?.type === 'excel_review') ?? null;
-  }
-
-  if (target.source === 'virtual_experience') {
-    for (const experienceModule of (Array.isArray(stored?.modules) ? stored.modules : [])) {
-      for (const lesson of (Array.isArray(experienceModule?.lessons) ? experienceModule.lessons : [])) {
-        const requirement = (Array.isArray(lesson?.requirements) ? lesson.requirements : [])
-          .find((item: any) => item?.id === target.itemId && item?.type === 'excel_review');
-        if (requirement) return requirement;
-      }
-    }
-    return null;
-  }
-
-  if (!target.itemId) return stored?.type === 'excel_review' ? stored?.config ?? null : null;
-  for (const scenario of (Array.isArray(stored?.config?.scenarios) ? stored.config.scenarios : [])) {
-    const task = (Array.isArray(scenario?.tasks) ? scenario.tasks : [])
-      .find((item: any) => item?.id === target.itemId && item?.type === 'excel_review');
-    if (task) return task;
-  }
-  return null;
-}

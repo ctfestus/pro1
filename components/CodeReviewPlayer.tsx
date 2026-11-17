@@ -4,6 +4,7 @@ import React, { useState, useRef } from 'react';
 import { CheckCircle2, Zap, RotateCcw, Code2, Download, Upload, FileCode, Lock, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
+import type { ReviewTarget } from '@/lib/review-target';
 import AiStructuredReviewReport from '@/components/AiStructuredReviewReport';
 import RubricReviewReport, { isRubricReport } from '@/components/RubricReviewReport';
 import type { RubricGrade } from '@/lib/review-gate';
@@ -37,6 +38,7 @@ interface CategoryScore {
 }
 interface ReviewResult {
   overallScore: number;
+  minScore?: number;
   rubricScore?: number | null;
   executiveSummary: string;
   issues: LineIssue[];
@@ -59,6 +61,8 @@ interface Props {
   rubric?: string[];
   schema?: string;
   minScore?: number;
+  // The saved step being reviewed. The server grades on its rubric and pass mark, not on the props.
+  reviewTarget?: ReviewTarget;
   reviewLanguage?: string;
   maxReviews?: number;
   showAttemptCount?: boolean;
@@ -68,7 +72,7 @@ interface Props {
 }
 
 
-export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0, rubric, schema, minScore, reviewLanguage, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0, rubric, schema, minScore, reviewTarget, reviewLanguage, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   // Lock the "already completed" views only when: no per-question limit (VE/assignment), at limit,
   // or state was lost on page reload (no saved report and no further attempts).
@@ -124,6 +128,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
           ...(language === 'SQL' ? { dialect } : {}),
           ...(schema?.trim() ? { schema: schema.trim() } : {}),
           ...(rubric?.length ? { rubric } : {}),
+          ...(reviewTarget ? { reviewTarget } : {}),
         }),
       });
       const json = await res.json();
@@ -134,7 +139,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
       if (json.error) throw new Error(json.error);
       const enriched: ReviewResult = { ...json, language, ...(language === 'SQL' ? { dialect } : {}) };
       setResult(enriched);
-      const passed = reviewPassed(enriched, minScore, rubric?.length);
+      const passed = reviewPassed(enriched, enriched.minScore ?? minScore, rubric?.length);
       onComplete(enriched, passed);
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
@@ -344,6 +349,8 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
   }
 
   // Result state
+  // The pass mark the server graded with; the prop covers a report saved before it was returned.
+  const passMark = result.minScore ?? minScore;
   const metadata = `${result.language ?? language}${result.language === 'SQL' && result.dialect ? ` | ${result.dialect}` : ''}${showAttemptCount && maxReviews !== undefined && reviewsUsed > 0 ? ` | Attempt ${reviewsUsed} of ${maxReviews}` : ''}`;
 
   if (isRubricReport(result)) {
@@ -358,7 +365,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
           grades={result.rubricGrades ?? []}
           legacyFindings={result.issues.map(issue => ({ title: issue.title, location: issue.lines, fix: issue.fix }))}
           score={reviewGate(result, rubric?.length).score}
-          minScore={minScore}
+          minScore={passMark}
           attemptsLeft={showAttemptCount && maxReviews !== undefined ? Math.max(0, maxReviews - reviewsUsed) : null}
           isDark={isDark}
           accentColor={accentColor}
@@ -387,7 +394,7 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
         rubricGrades={result.rubricGrades}
         accentColor={accentColor}
         isDark={isDark}
-        passed={minScore ? reviewPassed(result, minScore, rubric?.length) : undefined}
+        passed={passMark ? reviewPassed(result, passMark, rubric?.length) : undefined}
         actions={<>
           <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="h-3.5 w-3.5" /> Export</button>
           {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="h-3.5 w-3.5" /> Try again</button>}
@@ -395,12 +402,12 @@ export default function CodeReviewPlayer({ reqId, isDark, accentColor, hideWorks
       />
 
       {/* Completion / gate */}
-      {minScore && !reviewPassed(result, minScore, rubric?.length) ? (
+      {passMark && !reviewPassed(result, passMark, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {minScore}/100
+              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {passMark}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, revise your code, and submit another review.</p>
           </div>

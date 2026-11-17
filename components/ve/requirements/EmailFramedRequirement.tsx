@@ -487,13 +487,13 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
             </p>
             {!(req.type === 'document_review' && req.documentReviewMode === 'manual') && <div style={{ marginBottom: 10 }}><AiNote t={t} /></div>}
             {req.type === 'dashboard_critique' && (
-              <DashboardCritiquePlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
+              <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 savedResult={undefined} savedImageUrl={undefined} rubric={req.rubric}
                 onReviewStart={startReview} onReviewError={onReviewError}
                 onComplete={(result) => { finishReview(); markDone(buildReviewNotes('dashboard_critique', result, saved?.notes), true); }} />
             )}
             {req.type === 'code_review' && (
-              <CodeReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
+              <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 savedResult={undefined} rubric={req.rubric} schema={req.schema} reviewLanguage={req.reviewLanguage} minScore={req.minScore}
                 onReviewStart={startReview} onReviewError={onReviewError}
                 onComplete={(result, passed) => { finishReview(); markDone(buildReviewNotes('code_review', result, saved?.notes), passed); }} />
@@ -506,7 +506,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
                 onComplete={(result, passed) => { finishReview(); markDone(buildReviewNotes('excel_review', result, saved?.notes), passed); }} />
             )}
             {req.type === 'document_review' && (
-              <DocumentReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
+              <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={false}
                 context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode}
                 onComplete={(result, passed) => markDone(buildReviewNotes('document_review', result, saved?.notes), passed)} />
             )}
@@ -551,11 +551,11 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
               <p style={{ margin: '0 0 18px' }}>Thanks for sending over your {typeLabel}. I have completed the review - please find my detailed feedback below.</p>
               <div style={{ background: isDark ? '#111' : '#f8fafc', borderRadius: 10, padding: 16, border: `1px solid ${isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)'}` }}>
                 {req.type === 'dashboard_critique' && savedReport && (
-                  <DashboardCritiquePlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                  <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={savedReport as any} savedImageUrl={undefined} rubric={req.rubric} onComplete={() => {}} />
                 )}
                 {req.type === 'code_review' && savedReport && (
-                  <CodeReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                  <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={isFullReport('code_review', savedReport) ? savedReport as any : undefined}
                     rubric={req.rubric} schema={req.schema} reviewLanguage={req.reviewLanguage} minScore={req.minScore} onComplete={() => {}} />
                 )}
@@ -565,7 +565,7 @@ export function EmailFramedRequirement({ req, qi, rowStyle, ctx }: RequirementPr
                     context={req.context} reviewSheetNames={req.reviewSheetNames} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
                 )}
                 {req.type === 'document_review' && savedReport && (
-                  <DocumentReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
+                  <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={true}
                     savedResult={isFullReport('document_review', savedReport) ? savedReport as any : undefined}
                     context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode} onComplete={() => {}} />
                 )}

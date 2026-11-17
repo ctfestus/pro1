@@ -16,6 +16,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
+import { resolveReviewItem, reviewMinScore } from '@/lib/review-target';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
@@ -122,13 +123,25 @@ export async function POST(req: NextRequest) {
   }
 
   const brief          = body?.depth === 'brief';
-  const question       = clampText(body?.question, MAX_PROMPT_FIELD_CHARS);
-  const context        = clampText(body?.context, MAX_PROMPT_FIELD_CHARS);
-  const expectedAnswer = clampText(body?.expectedAnswer, MAX_PROMPT_FIELD_CHARS);
-  const rubric         = clampRubric(body?.rubric);
+  // A graded written answer is marked on the saved question's settings, never the request's (staff
+  // previews aside). An inline knowledge check is ungraded practice and sends its own.
+  let settings: any = body;
+  if (!brief) {
+    const resolved = await resolveReviewItem(auth, body?.reviewTarget, 'written_response', {
+      question: body?.question, context: body?.context, expectedAnswer: body?.expectedAnswer,
+      rubric: body?.rubric, writtenMaxWords: body?.maxWords, minScore: body?.minScore,
+    });
+    if ('response' in resolved) return resolved.response;
+    settings = resolved.item;
+  }
+  const question       = clampText(settings?.question, MAX_PROMPT_FIELD_CHARS);
+  const context        = clampText(settings?.context, MAX_PROMPT_FIELD_CHARS);
+  const expectedAnswer = clampText(settings?.expectedAnswer, MAX_PROMPT_FIELD_CHARS);
+  const rubric         = clampRubric(settings?.rubric);
+  const minScore       = brief ? undefined : reviewMinScore(settings);
   // Word ceiling the author set on the answer, if any. Passed so the reviewer does not fault an
   // answer for lacking depth it had no room for, or ask for additions that would breach the cap.
-  const rawMaxWords    = Math.floor(Number(body?.maxWords));
+  const rawMaxWords    = Math.floor(Number(brief ? body?.maxWords : settings?.writtenMaxWords));
   const maxWords       = Number.isFinite(rawMaxWords) && rawMaxWords > 0 ? Math.min(rawMaxWords, 5000) : 0;
 
   const grounding = [
@@ -201,6 +214,7 @@ Return ONLY valid JSON. No markdown fences.`;
     const score = Number(result?.overallScore);
     return NextResponse.json({
       ...(rubric.length ? { rubricScore: result.rubricScore } : {}),
+      ...(minScore !== undefined ? { minScore } : {}),
       overallScore:     Number.isFinite(score) ? Math.max(0, Math.min(100, score)) : 0,
       executiveSummary: String(parsed?.executiveSummary ?? ''),
       // Normalized so a player can always .map()/.filter() these without a shape guard.

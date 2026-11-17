@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react';
 import { CheckCircle2, Zap, RotateCcw, FileText, Download, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
+import type { ReviewTarget } from '@/lib/review-target';
 import type { RubricGrade } from '@/lib/review-gate';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
@@ -32,6 +33,7 @@ interface CategoryScore {
 }
 interface ReviewResult {
   overallScore: number;
+  minScore?: number;
   rubricScore?: number | null;
   executiveSummary: string;
   sections: SectionIssue[];
@@ -53,6 +55,8 @@ interface Props {
   context?: string;
   rubric?: string[];
   minScore?: number;
+  // The saved step being reviewed. The server grades on its rubric and pass mark, not on the props.
+  reviewTarget?: ReviewTarget;
   maxReviews?: number;
   documentReviewMode?: 'ai_only' | 'manual' | 'hybrid';
   showAttemptCount?: boolean;
@@ -64,7 +68,7 @@ const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
 
 export default function DocumentReviewPlayer({
   reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, reviewsUsed = 0,
-  context, rubric, minScore, maxReviews, documentReviewMode = 'ai_only', showAttemptCount, onComplete,
+  context, rubric, minScore, reviewTarget, maxReviews, documentReviewMode = 'ai_only', showAttemptCount, onComplete,
 }: Props) {
   const isManual = documentReviewMode === 'manual';
   const isHybrid = documentReviewMode === 'hybrid';
@@ -130,6 +134,7 @@ export default function DocumentReviewPlayer({
       fd.append('file', file);
       if (context?.trim()) fd.append('context', context.trim());
       if (rubric?.length) fd.append('rubric', JSON.stringify(rubric));
+      if (reviewTarget) fd.append('reviewTarget', JSON.stringify(reviewTarget));
 
       const res = await fetch('/api/document-review', {
         method: 'POST',
@@ -144,7 +149,7 @@ export default function DocumentReviewPlayer({
       if (json.error) throw new Error(json.error);
       setResult(json);
 
-      const passed = reviewPassed(json, minScore, rubric?.length);
+      const passed = reviewPassed(json, json.minScore ?? minScore, rubric?.length);
       onComplete(json, passed);
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
@@ -247,6 +252,8 @@ export default function DocumentReviewPlayer({
   }
 
 
+  // The pass mark the server graded with; the prop covers a report saved before it was returned.
+  const passMark = result.minScore ?? minScore;
   const warningNotice = result?.warning ? (
     <div role="alert" className="flex items-start gap-2 rounded-lg p-3" style={{ background: card, color: text }}>
       <TriangleAlert size={16} className="mt-0.5 shrink-0" aria-hidden="true" />
@@ -266,7 +273,7 @@ export default function DocumentReviewPlayer({
           grades={result.rubricGrades ?? []}
           legacyFindings={result.sections.map(section => ({ title: section.title, location: section.name, fix: section.recommendation }))}
           score={reviewGate(result, rubric?.length).score}
-          minScore={minScore}
+          minScore={passMark}
           attemptsLeft={showAttemptCount && maxReviews !== undefined ? Math.max(0, maxReviews - reviewsUsed) : null}
           isDark={isDark}
           accentColor={accentColor}
@@ -305,7 +312,7 @@ export default function DocumentReviewPlayer({
         rubricGrades={result.rubricGrades}
         accentColor={accentColor}
         isDark={isDark}
-        passed={minScore ? reviewPassed(result, minScore, rubric?.length) : undefined}
+        passed={passMark ? reviewPassed(result, passMark, rubric?.length) : undefined}
         actions={<>
           <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="w-3.5 h-3.5" /> Export</button>
           {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="w-3.5 h-3.5" /> Try again</button>}
@@ -314,12 +321,12 @@ export default function DocumentReviewPlayer({
 
 
       {/* Pass/fail gate */}
-      {minScore && !reviewPassed(result, minScore, rubric?.length) ? (
+      {passMark && !reviewPassed(result, passMark, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {minScore}/100
+              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {passMark}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the improvement path above, revise your document, and submit another review.</p>
           </div>

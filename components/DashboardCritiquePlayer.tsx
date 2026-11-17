@@ -5,6 +5,7 @@ import { Loader2, UploadIcon, Eye, EyeOff, RotateCcw, CheckCircle2, Zap, Downloa
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
 import type { RubricGrade } from '@/lib/review-gate';
+import type { ReviewTarget } from '@/lib/review-target';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
 import AiReviewDisclaimer from '@/components/AiReviewDisclaimer';
 import { AiReviewDropzone, AiReviewSubmitButton } from '@/components/AiReviewUpload';
@@ -36,6 +37,7 @@ interface AuditCategory {
 }
 interface Audit {
   overallScore: number;
+  minScore?: number;
   rubricScore?: number | null;
   executiveSummary: string;
   categories: AuditCategory[];
@@ -55,6 +57,8 @@ interface Props {
   savedImageUrl?: string;
   rubric?: string[];
   minScore?: number;
+  // The saved step being reviewed. The server grades on its rubric and pass mark, not on the props.
+  reviewTarget?: ReviewTarget;
   reviewsUsed?: number;
   maxReviews?: number;
   showAttemptCount?: boolean;
@@ -123,7 +127,7 @@ const TYPE_COLORS: Record<string, string> = {
   OTHER:          '#94a3b8',
 };
 
-export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, savedImageUrl, rubric, minScore, reviewsUsed = 0, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
+export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hideWorkspaceHeader, completed, savedResult, savedImageUrl, rubric, minScore, reviewTarget, reviewsUsed = 0, maxReviews, showAttemptCount, onReviewStart, onReviewError, onComplete }: Props) {
   const atLimit = maxReviews !== undefined && reviewsUsed >= maxReviews;
   const shouldLock = maxReviews === undefined || atLimit || reviewsUsed === 0;
   // Offer Reset (try again) only while attempts remain. Once a submission is terminal -- completed
@@ -167,7 +171,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
           'Content-Type': 'application/json',
           ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}),
         },
-        body: JSON.stringify({ imageBase64: base64, mimeType, ...(rubric?.length ? { rubric } : {}) }),
+        body: JSON.stringify({ imageBase64: base64, mimeType, ...(rubric?.length ? { rubric } : {}), ...(reviewTarget ? { reviewTarget } : {}) }),
       });
       const json = await res.json();
       if (res.status === 402 || json.code === 'paid_plan_required') {
@@ -178,7 +182,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       }
       if (json.error) throw new Error(json.error);
       setResult(json);
-      const passed = reviewPassed(json.audit ?? { overallScore: 0 }, minScore, rubric?.length);
+      const passed = reviewPassed(json.audit ?? { overallScore: 0 }, json.audit?.minScore ?? minScore, rubric?.length);
       onComplete(json, dataUrl, passed);
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
@@ -186,7 +190,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
     } finally {
       setAnalyzing(false);
     }
-  }, [onComplete, onReviewStart, onReviewError, rubric, minScore]);
+  }, [onComplete, onReviewStart, onReviewError, rubric, minScore, reviewTarget]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -259,6 +263,8 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
   // A rubric review shows the rubric report, which carries its own export, retry and pass or fail,
   // so the toolbar buttons, attempt line and score banner below give way to it.
   const rubricMode = isRubricReport(result?.audit);
+  // The pass mark the server graded with; the prop covers a report saved before it was returned.
+  const passMark = result?.audit?.minScore ?? minScore;
   const rubricReport = rubricMode && result?.audit ? (
     <RubricReviewReport
       reportLabel="Dashboard review"
@@ -267,7 +273,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       summary={result.audit.executiveSummary}
       grades={result.audit.rubricGrades ?? []}
       score={reviewGate(result.audit, rubric?.length).score}
-      minScore={minScore}
+      minScore={passMark}
       attemptsLeft={showAttemptCount && maxReviews !== undefined ? Math.max(0, maxReviews - reviewsUsed) : null}
       isDark={isDark}
       accentColor={accentColor}
@@ -300,7 +306,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
           </button>
         </div>
         {result.audit ? (
-          <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} passed={minScore ? reviewGate(result.audit, rubric?.length).score >= minScore : undefined} />
+          <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} passed={passMark ? reviewGate(result.audit, rubric?.length).score >= passMark : undefined} />
         ) : (
           <div className="flex items-center gap-2 px-3 py-2 rounded-xl" style={{ background: `${accentColor}12`, border: `1px solid ${accentColor}30` }}>
             <CheckCircle2 className="w-4 h-4 flex-shrink-0" style={{ color: accentColor }} />
@@ -573,7 +579,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
       {/* Completion / gate */}
       {result && !rubricMode && (() => {
         const score = reviewGate(result.audit ?? { overallScore: 0 }, rubric?.length).score;
-        const failed = !!minScore && score < minScore;
+        const failed = !!passMark && score < passMark;
         return failed ? (
           <div className="flex items-start gap-3 px-4 py-3" style={{ background: 'rgba(239,68,68,0.08)', borderLeft: '2px solid #ef4444' }}>
             <div style={{ flexShrink: 0, marginTop: 1 }}>
@@ -583,7 +589,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
             </div>
             <div>
               <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-                Score {score.toFixed(1)}/100 | Below the {minScore}/100 minimum -- no point awarded
+                Score {score.toFixed(1)}/100 | Below the {passMark}/100 minimum -- no point awarded
               </p>
               <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>You can continue or try again with a revised dashboard.</p>
             </div>
@@ -602,7 +608,7 @@ export default function DashboardCritiquePlayer({ reqId, isDark, accentColor, hi
 
       {/* Holistic Audit Report */}
       {rubricReport}
-      {result?.audit && !rubricMode && <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} passed={minScore ? reviewGate(result.audit, rubric?.length).score >= minScore : undefined} />}
+      {result?.audit && !rubricMode && <AuditReport audit={result.audit} elements={result.elements ?? []} accentColor={accentColor} isDark={isDark} passed={passMark ? reviewGate(result.audit, rubric?.length).score >= passMark : undefined} />}
     </div>
   );
 }

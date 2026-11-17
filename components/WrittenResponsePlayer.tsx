@@ -11,6 +11,7 @@ import React, { useState } from 'react';
 import { Loader2, CheckCircle2, Zap, RotateCcw, PenLine, Download, TriangleAlert } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { reviewGate, reviewPassed } from '@/lib/review-gate';
+import type { ReviewTarget } from '@/lib/review-target';
 import type { RubricGrade } from '@/lib/review-gate';
 import { AI_REVIEW_UPGRADE_URL } from '@/lib/ai-review-upgrade';
 import { downloadStructuredReviewPdf } from '@/lib/downloadReviewPdf';
@@ -38,6 +39,7 @@ interface CategoryScore {
 }
 export interface WrittenReviewResult {
   overallScore: number;
+  minScore?: number;
   rubricScore?: number | null;
   executiveSummary: string;
   sections: SectionIssue[];
@@ -62,6 +64,8 @@ interface Props {
   rubric?: string[];
   expectedAnswer?: string;
   minScore?: number;
+  // The saved step being reviewed. The server grades on its rubric and pass mark, not on the props.
+  reviewTarget?: ReviewTarget;
   maxWords?: number;   // word ceiling; 0/undefined = no limit
   maxReviews?: number;
   showAttemptCount?: boolean;
@@ -75,7 +79,7 @@ function countWords(value: string): number {
 
 export default function WrittenResponsePlayer({
   reqId, isDark, accentColor, completed, savedResult, savedAnswer, reviewsUsed = 0,
-  question, context, rubric, expectedAnswer, minScore, maxWords, maxReviews, showAttemptCount, onComplete,
+  question, context, rubric, expectedAnswer, minScore, reviewTarget, maxWords, maxReviews, showAttemptCount, onComplete,
 }: Props) {
   const atLimit    = maxReviews !== undefined && reviewsUsed >= maxReviews;
   const shouldLock = maxReviews === undefined || atLimit || reviewsUsed === 0;
@@ -131,6 +135,7 @@ export default function WrittenResponsePlayer({
           // So the reviewer does not ask for more depth than the word ceiling allows.
           maxWords: limit || undefined,
           studentAnswer: answer.slice(0, MAX_ANSWER_CHARS),
+          ...(reviewTarget ? { reviewTarget } : {}),
         }),
       });
       const json = await res.json();
@@ -140,7 +145,7 @@ export default function WrittenResponsePlayer({
       if (json.error) throw new Error(json.error);
       setResult(json);
 
-      const passed = reviewPassed(json, minScore, rubric?.length);
+      const passed = reviewPassed(json, json.minScore ?? minScore, rubric?.length);
       onComplete(json, passed, answer.slice(0, MAX_ANSWER_CHARS));
     } catch (err: any) {
       setError(err.message || 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.');
@@ -276,6 +281,8 @@ export default function WrittenResponsePlayer({
     );
   }
 
+  // The pass mark the server graded with; the prop covers a report saved before it was returned.
+  const passMark = result.minScore ?? minScore;
   const answerBox = answer.trim() ? (
     <div style={{ background: card, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden' }}>
       <div style={{ padding: '12px 20px', borderBottom: `1px solid ${border}` }}>
@@ -304,7 +311,7 @@ export default function WrittenResponsePlayer({
           grades={result.rubricGrades ?? []}
           legacyFindings={(result.sections ?? []).map(section => ({ title: section.title, location: section.name, fix: section.recommendation }))}
           score={reviewGate(result, rubric?.length).score}
-          minScore={minScore}
+          minScore={passMark}
           attemptsLeft={showAttemptCount && maxReviews !== undefined ? Math.max(0, maxReviews - reviewsUsed) : null}
           isDark={isDark}
           accentColor={accentColor}
@@ -343,7 +350,7 @@ export default function WrittenResponsePlayer({
         rubricGrades={result.rubricGrades}
         accentColor={accentColor}
         isDark={isDark}
-        passed={minScore ? reviewPassed(result, minScore, rubric?.length) : undefined}
+        passed={passMark ? reviewPassed(result, passMark, rubric?.length) : undefined}
         actions={<>
           <button onClick={downloadPdf} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: card, color: text }}><Download className="w-3.5 h-3.5" /> Export</button>
           {showReset && <button onClick={reset} className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold" style={{ background: `${accentColor}18`, color: accentColor }}><RotateCcw className="w-3.5 h-3.5" /> Try again</button>}
@@ -352,12 +359,12 @@ export default function WrittenResponsePlayer({
 
       {errorNote}
 
-      {minScore && !reviewPassed(result, minScore, rubric?.length) ? (
+      {passMark && !reviewPassed(result, passMark, rubric?.length) ? (
         <div className="flex items-start gap-3 rounded-2xl px-4 py-3.5" style={{ background: 'rgba(239,68,68,0.08)' }}>
           <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" style={{ color: '#ef4444' }} />
           <div>
             <p style={{ fontSize: 12, fontWeight: 700, color: '#ef4444', marginBottom: 2 }}>
-              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {minScore}/100
+              Minimum score not reached | {reviewGate(result, rubric?.length).score.toFixed(1)}/100 | Required: {passMark}/100
             </p>
             <p style={{ fontSize: 12, color: '#ef4444', opacity: 0.8 }}>Use the feedback above, revise your answer, and submit another review.</p>
           </div>

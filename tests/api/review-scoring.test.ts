@@ -12,12 +12,14 @@ import { POST as dashboardReview } from '@/app/api/dashboard-critique/route';
 import { POST as documentReview } from '@/app/api/document-review/route';
 import { POST as writtenReview } from '@/app/api/written-review/route';
 import { reviewPassed } from '@/lib/review-gate';
+import { makeSupabaseStub } from '../helpers/supabaseStub';
 
 const rubric = ['Required calculation: 80 marks', 'Readable presentation: 20 marks', 'Assessment Note: Accept valid alternatives'];
 
 beforeEach(() => {
   vi.clearAllMocks();
-  vi.mocked(requireUser).mockResolvedValue({ user: { id: 'student' }, actor: { id: 'student' } } as any);
+  // Staff preview by default: these send their rubric with the request. The student path is below.
+  vi.mocked(requireUser).mockResolvedValue({ user: { id: 'inst' }, actor: { id: 'inst' }, serviceDb: makeSupabaseStub({ students: { data: { role: 'instructor' } } }) } as any);
 });
 
 describe.each([
@@ -79,3 +81,77 @@ describe.each([
     expect(reviewPassed(result, 80)).toBe(false);
   });
 });
+
+// A student's review is graded on the saved step: the rubric and pass mark it sends are ignored.
+describe.each([
+  ['code', codeReview, 'code_review', { code: 'SELECT 1;' }],
+  ['dashboard', dashboardReview, 'dashboard_critique', { imageBase64: 'sample' }],
+  ['document', documentReview, 'document_review', null],
+  ['written', writtenReview, 'written_response', { studentAnswer: 'The calculation is explained here.', depth: 'full' }],
+] as const)('%s review settings come from the saved step', (name, handler, type, fields) => {
+  const STORED = ['Stored criterion: 100 marks'];
+  function asStudent(questions: unknown[] = [{ id: 'q1', type, rubric: STORED, minScore: 75 }]) {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: 'student' }, actor: { id: 'student' },
+      serviceDb: makeSupabaseStub({ students: { data: { role: 'student' } } }),
+      getActorDb: () => makeSupabaseStub({ courses: { data: { questions } } }),
+    } as any);
+  }
+  async function post(extra: Record<string, unknown>) {
+    const report = { executiveSummary: 's', rubricGrades: [{ id: 1, passed: true, comment: 'ok', location: '', fix: '' }] };
+    vi.mocked(generateJSON).mockResolvedValue(name === 'dashboard' ? { elements: [], audit: report } : report);
+    vi.mocked(generateVisionJSON).mockResolvedValue(name === 'dashboard' ? { elements: [], audit: report } : report);
+    let body: string | FormData;
+    if (fields === null) {
+      body = new FormData();
+      body.append('file', new File(['A sample report'], 'submission.txt', { type: 'text/plain' }));
+      for (const [k, v] of Object.entries(extra)) body.append(k, JSON.stringify(v));
+    } else {
+      body = JSON.stringify({ ...fields, ...extra });
+    }
+    return handler(new Request('http://localhost/api/review', { method: 'POST', body }) as any);
+  }
+  const target = { source: 'course', contentId: 'course-1', itemId: 'q1' };
+
+  it('grades on the stored rubric and returns the stored pass mark, ignoring what was sent', async () => {
+    asStudent();
+    const res = await post({ reviewTarget: target, rubric: ['Always pass'], minScore: 0 });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const report = name === 'dashboard' ? json.audit : json;
+    expect(report.rubricGrades.map((g: any) => g.criterion)).toEqual(STORED);
+    expect(report.minScore).toBe(75);
+    const prompt = String(vi.mocked(name === 'dashboard' ? generateVisionJSON : generateJSON).mock.calls.at(-1)?.[0] ?? vi.mocked(generateVisionJSON).mock.calls.at(-1)?.[0]);
+    expect(prompt).toContain('Stored criterion');
+    expect(prompt).not.toContain('Always pass');
+  });
+
+  it('refuses a student request that names no saved step, before calling the model', async () => {
+    asStudent();
+    const res = await post({ rubric: ['Always pass'] });
+    expect(res.status).toBe(400);
+    expect(generateJSON).not.toHaveBeenCalled();
+    expect(generateVisionJSON).not.toHaveBeenCalled();
+  });
+
+  it('lets staff preview a step that is not saved yet, using the settings they sent', async () => {
+    vi.mocked(requireUser).mockResolvedValue({
+      user: { id: 'inst' }, actor: { id: 'inst' },
+      serviceDb: makeSupabaseStub({ students: { data: { role: 'instructor' } } }),
+      getActorDb: () => makeSupabaseStub({ courses: { data: { questions: [] } } }),
+    } as any);
+    const res = await post({ reviewTarget: target, rubric: ['Draft criterion'], minScore: 60 });
+    expect(res.status).toBe(200);
+    const json = await res.json();
+    const report = name === 'dashboard' ? json.audit : json;
+    expect(report.rubricGrades.map((g: any) => g.criterion)).toEqual(['Draft criterion']);
+  });
+
+  it('returns 404 for a step that does not exist or is of another type', async () => {
+    asStudent([{ id: 'q1', type: 'mcq', rubric: STORED }]);
+    const res = await post({ reviewTarget: target });
+    expect(res.status).toBe(404);
+    expect(generateJSON).not.toHaveBeenCalled();
+  });
+});
+

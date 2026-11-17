@@ -3,6 +3,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
+import { resolveReviewItem, reviewMinScore, reviewRubric, reviewText } from '@/lib/review-target';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
@@ -74,8 +75,8 @@ function buildSystemPrompt(language: string, dialect: string | undefined, schema
       : 'You are a Senior Software Engineer and technical educator with 15+ years of experience across software development, data engineering, and analytics.';
   const dataContext = !schema?.trim() ? ''
     : lang === 'sql'
-      ? `\nSCHEMA AND CONTEXT PROVIDED BY STUDENT:\n${schema.trim()}\nUse this schema to validate table names, column names, data types, and JOIN conditions.\n`
-      : `\nDATA CONTEXT PROVIDED BY STUDENT:\n${schema.trim()}\nUse this context to validate column references, data types, and assumptions about the dataset.\n`;
+      ? `\nSCHEMA AND CONTEXT PROVIDED BY THE INSTRUCTOR:\n${schema.trim()}\nUse this schema to validate table names, column names, data types, and JOIN conditions.\n`
+      : `\nDATA CONTEXT PROVIDED BY THE INSTRUCTOR:\n${schema.trim()}\nUse this context to validate column references, data types, and assumptions about the dataset.\n`;
 
   if (rubric.length > 0) {
     return `${reviewer} You are marking a student's code against the instructor's rubric.${dataContext}\n${rubricInstructions(rubric, 'the line number(s), e.g. "12" or "5-8", or "" if it concerns the whole submission')}`;
@@ -93,8 +94,8 @@ export async function POST(req: NextRequest) {
     const auth = await requireUser(req);
     if (isAuthError(auth)) return auth.error;
 
-    const { code, language = 'Unknown', dialect, schema, rubric: rawRubric } = await req.json();
-    const rubric: string[] = Array.isArray(rawRubric) ? rawRubric.filter(c => typeof c === 'string' && c.trim()) : [];
+    const body = await req.json();
+    const { code, language = 'Unknown', dialect } = body;
     if (!code?.trim()) return NextResponse.json({ error: 'code is required' }, { status: 400 });
 
     if (code.length > MAX_CODE_CHARS) {
@@ -103,6 +104,13 @@ export async function POST(req: NextRequest) {
         { status: 413 },
       );
     }
+
+    // Rubric, pass mark and schema come from the saved step, never the request (staff previews aside).
+    const resolved = await resolveReviewItem(auth, body.reviewTarget, 'code_review', { rubric: body.rubric, schema: body.schema, minScore: body.minScore });
+    if ('response' in resolved) return resolved.response;
+    const rubric = reviewRubric(resolved.item);
+    const schema = reviewText(resolved.item, 'schema', 20_000);
+    const minScore = reviewMinScore(resolved.item);
 
     // Charged only once the request is worth running. Taking the attempt first meant an empty or
     // oversized submission drained an allowance for a review that was never going to happen.
@@ -128,7 +136,7 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    return NextResponse.json(scoreRubricReview(parsed, rubric, 'issues'));
+    return NextResponse.json({ ...scoreRubricReview(parsed, rubric, 'issues'), minScore });
   } catch (err: any) {
     console.error('code-review error:', err);
     // The review never happened, so it should not have cost them an attempt.
