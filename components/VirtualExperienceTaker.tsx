@@ -909,7 +909,7 @@ export default function VirtualExperienceTaker({
               style={{ background: isDark ? '#1c1c1c' : '#fff' }} onClick={e => e.stopPropagation()}>
               {/* Pinned, so the way out is always visible however far the review is scrolled. */}
               <div className="sticky top-0 z-10 flex justify-end pt-3 pb-1 -mr-2" style={{ background: isDark ? '#1c1c1c' : '#fff' }}>
-                <button onClick={() => setReviewOpen(false)} aria-label="Close" className="p-1.5 rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
+                <button onClick={() => setReviewOpen(false)} aria-label="Close" className="grid h-11 w-11 place-items-center rounded-lg transition-opacity hover:opacity-70" style={{ color: muted }}>
                   <X className="w-5 h-5" />
                 </button>
               </div>
