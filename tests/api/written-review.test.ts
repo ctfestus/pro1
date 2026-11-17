@@ -72,10 +72,10 @@ function throwingRedis() {
 }
 
 // depth 'full' is the graded written_response question; 'brief' is the lesson knowledge check.
+const QUESTION = { id: 'q1', type: 'written_response', question: 'Why is the Q3 revenue figure double counted?', rubric: ['Identifies the duplicated invoice'] };
 const answerBody = (extra: Record<string, unknown> = {}) => ({
   depth: 'full',
-  question: 'Why is the Q3 revenue figure double counted?',
-  rubric: ['Identifies the duplicated invoice'],
+  reviewTarget: { source: 'course', contentId: 'course-1', itemId: 'q1' },
   studentAnswer: 'The same invoice is recorded in both August and September.',
   ...extra,
 });
@@ -85,6 +85,7 @@ beforeEach(() => {
   mockRequireUser.mockResolvedValue({
     user: { id: 'student-1' },
     actor: { id: 'student-1' },
+    getActorDb: () => makeSupabaseStub({ courses: { data: { questions: [QUESTION] } } }),
     // The gate reads the caller's plan before spending a counter. Stubbed as an active subscriber
     // so these tests still exercise the paid caps they were written against.
     serviceDb: makeSupabaseStub({

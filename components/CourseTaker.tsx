@@ -3384,7 +3384,7 @@ export function CourseTaker({
 
                   {/* -- AI Review players -- */}
                   {questionType === 'code_review' && (
-                    <CodeReviewPlayer
+                    <CodeReviewPlayer reviewTarget={formId ? { source: 'course', contentId: formId, itemId: currentQuestion.id } : undefined}
                       reqId={currentQuestion.id}
                       isDark={isDark}
                       accentColor={accent}
@@ -3419,7 +3419,7 @@ export function CourseTaker({
                     />
                   )}
                   {questionType === 'dashboard_critique' && (
-                    <DashboardCritiquePlayer
+                    <DashboardCritiquePlayer reviewTarget={formId ? { source: 'course', contentId: formId, itemId: currentQuestion.id } : undefined}
                       reqId={currentQuestion.id}
                       isDark={isDark}
                       accentColor={accent}
@@ -3435,7 +3435,7 @@ export function CourseTaker({
                     />
                   )}
                   {questionType === 'document_review' && (
-                    <DocumentReviewPlayer
+                    <DocumentReviewPlayer reviewTarget={formId ? { source: 'course', contentId: formId, itemId: currentQuestion.id } : undefined}
                       reqId={currentQuestion.id}
                       isDark={isDark}
                       accentColor={accent}
@@ -3452,7 +3452,7 @@ export function CourseTaker({
                     />
                   )}
                   {questionType === 'written_response' && (
-                    <WrittenResponsePlayer
+                    <WrittenResponsePlayer reviewTarget={formId ? { source: 'course', contentId: formId, itemId: currentQuestion.id } : undefined}
                       // Keyed so two written-response slides in a row do not share draft/report state.
                       key={currentQuestion.id}
                       reqId={currentQuestion.id}

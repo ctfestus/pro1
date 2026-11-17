@@ -44,7 +44,7 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-4">
         {header}
-        <DashboardCritiquePlayer hideWorkspaceHeader
+        <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader
           reqId={req.id}
           isDark={isDark ?? false}
           accentColor={accentColor}
@@ -71,7 +71,7 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-4">
         {header}
-        <CodeReviewPlayer hideWorkspaceHeader
+        <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader
           reqId={req.id}
           isDark={isDark ?? false}
           accentColor={accentColor}
@@ -128,7 +128,7 @@ export function AiReviewRequirement({ req, rowStyle, ctx }: RequirementProps) {
     return (
       <div style={rowStyle} className="px-4 sm:px-8 py-5 space-y-4">
         {header}
-        <DocumentReviewPlayer hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={done}
+        <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id }} hideWorkspaceHeader reqId={req.id} isDark={isDark ?? false} accentColor={accentColor} completed={done}
           savedResult={isFullReport('document_review', report) ? report as any : undefined} context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode}
           onComplete={(result, passed) => setProgress(prev => { const next = { ...prev, [req.id]: { completed: passed, notes: buildReviewNotes('document_review', result, prev[req.id]?.notes) } }; saveProgress(next, currentModId, currentLesId); return next; })} />
       </div>

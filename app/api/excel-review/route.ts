@@ -7,9 +7,8 @@ import { getRedis } from '@/lib/redis';
 import { refundAiFeature, reserveAiFeatureLimit, spendAiFeatureReservation } from '@/lib/ai-feature-gate';
 import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
 import { UNGRADED_COMMENT, collectRubricGrades, reviewPassed, rubricCriterionId, rubricPassRate } from '@/lib/review-gate';
+import { loadReviewItem } from '@/lib/review-target';
 import {
-  canAccessAssignedVirtualExperience,
-  findExcelReviewItem,
   normalizeExcelReviewConfig,
   parseExcelReviewTarget,
   type ExcelReviewConfig,
@@ -21,48 +20,8 @@ export const dynamic = 'force-dynamic';
 // A review on a thinking model can run past the platform default; without this it is cut off mid-call.
 export const maxDuration = 120;
 
-async function loadVirtualExperience(auth: AuthedUser, target: Extract<ExcelReviewTarget, { source: 'virtual_experience' }>): Promise<any | null> {
-  const direct = await auth.getActorDb()
-    .from('virtual_experiences')
-    .select('modules')
-    .eq('id', target.contentId)
-    .maybeSingle();
-  if (direct.data) return direct.data;
-  if (!target.assignmentId) return null;
-
-  const svc = auth.serviceDb;
-  const [{ data: ve }, { data: assignment }, { data: caller }, { data: memberships }] = await Promise.all([
-    svc.from('virtual_experiences').select('id, user_id, modules').eq('id', target.contentId).maybeSingle(),
-    svc.from('assignments').select('id, created_by, status, config, cohort_ids, group_ids').eq('id', target.assignmentId).maybeSingle(),
-    svc.from('students').select('role, cohort_id').eq('id', auth.user.id).maybeSingle(),
-    svc.from('group_members').select('group_id').eq('student_id', auth.user.id),
-  ]);
-  if (!ve || !assignment || assignment.status !== 'published' || assignment.config?.ve_form_id !== target.contentId) return null;
-
-  const allowed = canAccessAssignedVirtualExperience({
-    userId: auth.user.id,
-    callerRole: caller?.role,
-    callerCohortId: caller?.cohort_id,
-    callerGroupIds: (memberships ?? []).map((membership: any) => membership.group_id as string),
-    experienceOwnerId: ve.user_id,
-    assignmentOwnerId: assignment.created_by,
-    assignmentCohortIds: assignment.cohort_ids,
-    assignmentGroupIds: assignment.group_ids,
-  });
-  return allowed ? ve : null;
-}
-
 async function resolveReviewConfig(auth: AuthedUser, target: ExcelReviewTarget): Promise<ExcelReviewConfig | NextResponse> {
-  let stored: any = null;
-  if (target.source === 'course') {
-    stored = (await auth.getActorDb().from('courses').select('questions').eq('id', target.contentId).maybeSingle()).data;
-  } else if (target.source === 'assignment') {
-    stored = (await auth.getActorDb().from('assignments').select('type, config').eq('id', target.contentId).maybeSingle()).data;
-  } else {
-    stored = await loadVirtualExperience(auth, target);
-  }
-
-  const item = stored ? findExcelReviewItem(target, stored) : null;
+  const item = await loadReviewItem(auth, target, 'excel_review');
   if (!item) return NextResponse.json({ error: 'Excel review activity not found.' }, { status: 404 });
 
   const config = normalizeExcelReviewConfig(item);

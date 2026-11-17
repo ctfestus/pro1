@@ -796,7 +796,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             </p>
           )}
           {assignmentType === 'code_review' && (
-            <CodeReviewPlayer
+            <CodeReviewPlayer reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               reqId={assignment.id}
               isDark={isDark}
               accentColor={C.green}
@@ -824,7 +824,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             />
           )}
           {assignmentType === 'dashboard_critique' && (
-            <DashboardCritiquePlayer
+            <DashboardCritiquePlayer reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               reqId={assignment.id}
               isDark={isDark}
               accentColor={C.green}
@@ -835,7 +835,7 @@ export function AssignmentDetail({ assignment, userId, studentName, studentEmail
             />
           )}
           {assignmentType === 'document_review' && (
-            <DocumentReviewPlayer
+            <DocumentReviewPlayer reviewTarget={{ source: 'assignment', contentId: assignment.id }}
               reqId={assignment.id}
               isDark={isDark}
               accentColor={C.green}

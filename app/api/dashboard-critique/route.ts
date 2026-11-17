@@ -3,6 +3,7 @@ import { requireUser, isAuthError } from '@/lib/api-auth';
 import { generateVisionJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
+import { resolveReviewItem, reviewMinScore, reviewRubric } from '@/lib/review-target';
 import { NextRequest, NextResponse } from 'next/server';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
@@ -223,8 +224,8 @@ export async function POST(req: NextRequest) {
     const auth = await requireUser(req);
     if (isAuthError(auth)) return auth.error;
 
-    const { imageBase64, mimeType = 'image/png', rubric: rawRubric } = await req.json();
-    const rubric: string[] = Array.isArray(rawRubric) ? rawRubric.filter(c => typeof c === 'string' && c.trim()) : [];
+    const body = await req.json();
+    const { imageBase64, mimeType = 'image/png' } = body;
     if (!imageBase64) return NextResponse.json({ error: 'imageBase64 required' }, { status: 400 });
 
     if (imageBase64.length > MAX_IMAGE_BYTES) {
@@ -233,6 +234,12 @@ export async function POST(req: NextRequest) {
         { status: 413 },
       );
     }
+
+    // Rubric and pass mark come from the saved step, never the request (staff previews aside).
+    const resolved = await resolveReviewItem(auth, body.reviewTarget, 'dashboard_critique', { rubric: body.rubric, minScore: body.minScore });
+    if ('response' in resolved) return resolved.response;
+    const rubric = reviewRubric(resolved.item);
+    const minScore = reviewMinScore(resolved.item);
 
     // Charged only once the request is worth running. Taking the attempt first meant a missing or
     // oversized screenshot drained an allowance for a review that was never going to happen.
@@ -258,7 +265,7 @@ export async function POST(req: NextRequest) {
         },
       },
     });
-    return NextResponse.json({ ...parsed, audit: scoreRubricReview(parsed.audit, rubric) });
+    return NextResponse.json({ ...parsed, audit: { ...scoreRubricReview(parsed.audit, rubric), minScore } });
   } catch (err: any) {
     console.error('dashboard-critique error:', err);
     // The review never happened, so it should not have cost them an attempt.

@@ -291,14 +291,15 @@ export default function StandardAssignmentPlayer({
     // Re-runnable while the assignment is still editable (draft OR submitted-not-graded),
     // consistent with the text/upload tasks; read-only once graded or for a non-leader viewer.
     const completed = readOnly;
-    const common = { reqId, isDark, accentColor: scenarioAccent, completed, rubric: task.rubric, minScore: task.minScore } as const;
+    // The server grades each AI task on its saved settings, found through this target.
+    const reviewTarget = { source: 'assignment', contentId: assignmentId, itemId: task.id } as const;
+    const common = { reqId, isDark, accentColor: scenarioAccent, completed, rubric: task.rubric, minScore: task.minScore, reviewTarget } as const;
     if (task.type === 'code_review') {
       return <CodeReviewPlayer {...common} savedResult={a.report} schema={task.schema}
         onComplete={(result: any) => patch(task.id, { report: result, score: reviewGate(result, task.rubric?.length).score })} />;
     }
     if (task.type === 'excel_review') {
       return <ExcelReviewPlayer {...common} savedResult={a.report} context={task.context} reviewSheetNames={task.reviewSheetNames}
-        reviewTarget={{ source: 'assignment', contentId: assignmentId, itemId: task.id }}
         onComplete={(result: any) => patch(task.id, { report: result, score: reviewGate(result, task.rubric?.length).score })} />;
     }
     if (task.type === 'document_review') {

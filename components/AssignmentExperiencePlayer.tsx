@@ -1458,13 +1458,13 @@ export default function AssignmentExperiencePlayer({
                                       {req.type === 'dashboard_critique' ? 'Attach your dashboard for review' : req.type === 'code_review' ? 'Paste or upload your code' : req.type === 'excel_review' ? 'Upload your Excel file' : 'Upload your document'}
                                     </p>
                                     {req.type === 'dashboard_critique' && (
-                                      <DashboardCritiquePlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={false}
+                                      <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} reqId={req.id} isDark={isDark} accentColor={accent} completed={false}
                                         savedResult={undefined} savedImageUrl={undefined} rubric={(req as any).rubric}
                                         onReviewStart={startReview} onReviewError={onReviewError}
                                         onComplete={(result) => { finishReview(); updateProgress(req.id, { completed: true, notes: buildReviewNotes('dashboard_critique', result, saved?.notes) }); }} />
                                     )}
                                     {req.type === 'code_review' && (
-                                      <CodeReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={false}
+                                      <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} reqId={req.id} isDark={isDark} accentColor={accent} completed={false}
                                         savedResult={undefined} rubric={req.rubric} schema={req.schema} minScore={req.minScore}
                                         onReviewStart={startReview} onReviewError={onReviewError}
                                         onComplete={(result, passed) => { finishReview(); updateProgress(req.id, { completed: passed, notes: buildReviewNotes('code_review', result, saved?.notes) }); }} />
@@ -1477,7 +1477,7 @@ export default function AssignmentExperiencePlayer({
                                         onComplete={(result, passed) => { finishReview(); updateProgress(req.id, { completed: passed, notes: buildReviewNotes('excel_review', result, saved?.notes) }); }} />
                                     )}
                                     {req.type === 'document_review' && (
-                                      <DocumentReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={false}
+                                      <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} reqId={req.id} isDark={isDark} accentColor={accent} completed={false}
                                         context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode}
                                         onComplete={(result, passed) => updateProgress(req.id, { completed: passed, notes: buildReviewNotes('document_review', result, saved?.notes) })} />
                                     )}
@@ -1522,11 +1522,11 @@ export default function AssignmentExperiencePlayer({
                                       <p style={{ margin: '0 0 18px' }}>Thanks for sending over your {typeLabel}. I have completed the review - please find my detailed feedback below.</p>
                                       <div style={{ background: subtle, borderRadius: 10, padding: 16, border: `1px solid ${border}` }}>
                                         {req.type === 'dashboard_critique' && savedReport && (
-                                          <DashboardCritiquePlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
+                                          <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
                                             savedResult={savedReport as any} savedImageUrl={undefined} rubric={(req as any).rubric} onComplete={() => {}} />
                                         )}
                                         {req.type === 'code_review' && (() => { const r = isFullReport('code_review', savedReport) ? savedReport : undefined; return (
-                                          <CodeReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
+                                          <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
                                             savedResult={r as any} rubric={req.rubric} schema={req.schema} minScore={req.minScore} onComplete={() => {}} />
                                         ); })()}
                                         {req.type === 'excel_review' && (() => { const r = isFullReport('excel_review', savedReport) ? savedReport : undefined; return (
@@ -1534,7 +1534,7 @@ export default function AssignmentExperiencePlayer({
                                             savedResult={r as any} context={req.context} reviewSheetNames={req.reviewSheetNames} rubric={req.rubric} minScore={req.minScore} onComplete={() => {}} />
                                         ); })()}
                                         {req.type === 'document_review' && (() => { const r = isFullReport('document_review', savedReport) ? savedReport : undefined; return (
-                                          <DocumentReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
+                                          <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} reqId={req.id} isDark={isDark} accentColor={accent} completed={true}
                                             savedResult={r as any} context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode} onComplete={() => {}} />
                                         ); })()}
                                       </div>
@@ -1924,7 +1924,7 @@ export default function AssignmentExperiencePlayer({
                                 </div>
                                 {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
                               </div>
-                              <DashboardCritiquePlayer
+                              <DashboardCritiquePlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }}
                                 reqId={req.id}
                                 isDark={isDark}
                                 accentColor={accent}
@@ -1953,7 +1953,7 @@ export default function AssignmentExperiencePlayer({
                                 </div>
                                 {isDone && <CheckCircle2 className="w-4 h-4 flex-shrink-0 mt-0.5" style={{ color: accent }}/>}
                               </div>
-                              <CodeReviewPlayer
+                              <CodeReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }}
                                 reqId={req.id}
                                 isDark={isDark}
                                 accentColor={accent}
@@ -2011,7 +2011,7 @@ export default function AssignmentExperiencePlayer({
                           return (
                             <div key={req.id} className="space-y-3">
                               <div className="flex items-start gap-2"><span className="text-[10px] font-bold uppercase tracking-widest px-1.5 py-0.5 rounded mt-0.5" style={{ background: `${accent}12`, color: accent }}>AI Document Review</span><div className="flex-1"><p className="text-sm font-semibold" style={{ color: text }}>{req.label}</p>{req.description && <p className="text-xs mt-0.5" style={{ color: muted }}>{req.description}</p>}</div></div>
-                              <DocumentReviewPlayer reqId={req.id} isDark={isDark} accentColor={accent} completed={isDone || readOnly}
+                              <DocumentReviewPlayer reviewTarget={{ source: 'virtual_experience', contentId: formId, itemId: req.id, ...(assignmentId ? { assignmentId } : {}) }} reqId={req.id} isDark={isDark} accentColor={accent} completed={isDone || readOnly}
                                 savedResult={isFullReport('document_review', savedReport) ? savedReport as any : undefined} context={req.context} rubric={req.rubric} minScore={req.minScore} documentReviewMode={req.documentReviewMode}
                                 onComplete={(result, passed) => updateProgress(req.id, { completed: passed, notes: buildReviewNotes('document_review', result, saved?.notes) })} />
                             </div>

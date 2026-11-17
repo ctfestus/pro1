@@ -6,6 +6,7 @@ import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 import { generateJSON, generateVisionJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { scoreRubricReview } from '@/lib/review-gate';
+import { resolveReviewItem, reviewMinScore, reviewRubric, reviewText } from '@/lib/review-target';
 import { assertZipWithinLimit, extractDocxText } from '@/lib/office-text';
 import { withTimeout, EXTRACTION_TIMEOUT_MS } from '@/lib/excel-workbook-extract';
 
@@ -78,13 +79,13 @@ export async function POST(req: NextRequest) {
 
     const formData  = await req.formData();
     const file      = formData.get('file') as File | null;
-    const context   = (formData.get('context') as string | null) ?? '';
-    let rubric: string[] = [];
+    let sentRubric: unknown = [];
+    let reviewTarget: unknown = null;
     try {
-      const sent = JSON.parse((formData.get('rubric') as string | null) || '[]');
-      if (Array.isArray(sent)) rubric = sent.filter(c => typeof c === 'string' && c.trim());
+      sentRubric = JSON.parse((formData.get('rubric') as string | null) || '[]');
+      reviewTarget = JSON.parse((formData.get('reviewTarget') as string | null) || 'null');
     } catch {
-      return NextResponse.json({ error: 'Invalid rubric.' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid request.' }, { status: 400 });
     }
 
     if (!file) return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -97,6 +98,15 @@ export async function POST(req: NextRequest) {
     if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json({ error: 'File too large. Maximum size is 10 MB.' }, { status: 413 });
     }
+
+    // Rubric, pass mark and context come from the saved step, never the request (staff previews aside).
+    const resolved = await resolveReviewItem(auth, reviewTarget, 'document_review', {
+      rubric: sentRubric, context: formData.get('context'), minScore: formData.get('minScore'),
+    });
+    if ('response' in resolved) return resolved.response;
+    const rubric = reviewRubric(resolved.item);
+    const context = reviewText(resolved.item, 'context');
+    const minScore = reviewMinScore(resolved.item);
 
     // Charged after validation so bad requests don't burn credits. Whether this reviewer is included
     // at all, and how many a day, both come from settings.
@@ -159,7 +169,7 @@ export async function POST(req: NextRequest) {
       parsed = await generateVisionJSON(promptText, { mimeType, data: Buffer.from(buffer).toString('base64') }, schema, options);
     }
 
-    const result = scoreRubricReview(parsed, rubric, 'sections');
+    const result = { ...scoreRubricReview(parsed, rubric, 'sections'), minScore };
     return NextResponse.json(warning ? { ...result, warning } : result);
   } catch (err: any) {
     console.error('[document-review] error:', err);
