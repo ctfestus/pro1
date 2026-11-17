@@ -18,6 +18,7 @@ import { REVIEW_GRADING_INSTRUCTIONS, reviewSchema, rubricInstructions } from '@
 import { scoreRubricReview } from '@/lib/review-gate';
 import { resolveReviewItem, reviewMinScore } from '@/lib/review-target';
 import { NextRequest, NextResponse } from 'next/server';
+import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 import { readBoundedJson } from '@/lib/bounded-json';
@@ -247,6 +248,7 @@ Return ONLY valid JSON. No markdown fences.`;
     // actually taken. Practice checks and full reviews meter separately, so the refund also has to
     // name the counter that was spent.
     if (charge.receipt) await refundAiFeature(charge.receipt);
+    if (err instanceof AiConfigurationError) return aiConfigurationResponse();
     return NextResponse.json({
       error: 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.',
     }, { status: 503 });

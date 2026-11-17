@@ -3,6 +3,7 @@ import { requireUser, isAuthError, type AuthedUser } from '@/lib/api-auth';
 import { generateJSON } from '@/lib/ai';
 import { REVIEW_GRADING_INSTRUCTIONS, RUBRIC_GRADES, reviewSchema, rubricInstructions } from '@/lib/review-instructions';
 import { NextRequest, NextResponse } from 'next/server';
+import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
 import { refundAiFeature, reserveAiFeatureLimit, spendAiFeatureReservation } from '@/lib/ai-feature-gate';
 import { EXTRACTION_TIMEOUT_MS, extractFromWorkbook, withTimeout } from '@/lib/excel-workbook-extract';
@@ -246,6 +247,7 @@ export async function POST(req: NextRequest) {
     console.error('excel-review error:', err);
     // The review never happened, so it should not have cost them an attempt.
     await refundAttempt?.();
+    if (err instanceof AiConfigurationError) return aiConfigurationResponse();
     return NextResponse.json({
       error: 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.',
     }, { status: 503 });

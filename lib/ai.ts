@@ -4,6 +4,7 @@ import { openaiAdapter } from './ai/adapters/openai';
 import { anthropicAdapter } from './ai/adapters/anthropic';
 import { CLAUDE_ASSET_TYPES, keyFor, modelFor, providerChain } from './ai/config';
 import { AiValidationError, validateAiResult } from './ai/schema';
+import { AiConfigurationError, isMisconfiguredProviderError } from './ai/errors';
 import type { AiAdapter, AiProvider, AiRequest, AiResult, GenerateJSONOpts, JsonSchema } from './ai/types';
 
 export type { GenerateJSONOpts, JsonSchema } from './ai/types';
@@ -90,6 +91,9 @@ async function generate(raw: AiRequest): Promise<any> {
     request = { ...request, opts: { ...request.opts, apiKey: undefined } };
   }
   let lastError: unknown;
+  // Stays true only while every provider tried has refused the site's own setup (a bad or missing
+  // key). One busy or failing provider makes the outcome a service problem instead.
+  let onlyMisconfigured = true;
   let fallbackReason: string | undefined = legacyDoc ? 'legacy_doc_compatibility' : undefined;
   for (const [index, provider] of chain.entries()) {
     const adapter = adapters[provider];
@@ -111,6 +115,7 @@ async function generate(raw: AiRequest): Promise<any> {
         return finish(current, result);
       } catch (err) {
         lastError = err;
+        if (!isMisconfiguredProviderError(err)) onlyMisconfigured = false;
         if (err instanceof AiRefusalError) throw err;
         fallbackReason = isRetryableAiError(err) ? 'transient_or_invalid_output' : 'provider_error';
         if (attempt > retries || !isRetryableAiError(err)) break;
@@ -123,6 +128,7 @@ async function generate(raw: AiRequest): Promise<any> {
     if (provider === 'anthropic' && !isOperationalAiError(lastError)) break;
   }
   if (lastError instanceof AiValidationError || lastError instanceof AiTruncationError) throw lastError;
+  if (onlyMisconfigured) throw new AiConfigurationError();
   // Vendor error payloads can contain generated text. Route logs receive a safe message only.
   throw new Error('AI service unavailable. Please try again.');
 }

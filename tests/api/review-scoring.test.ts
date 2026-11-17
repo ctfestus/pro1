@@ -155,3 +155,18 @@ describe.each([
   });
 });
 
+describe('an AI setup failure', () => {
+  it('tells the learner to contact an administrator rather than that the service is busy', async () => {
+    const { AiConfigurationError } = await import('@/lib/ai/errors');
+    vi.mocked(generateJSON).mockRejectedValue(new AiConfigurationError());
+    const errorLog = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const res = await codeReview(new Request('http://localhost/api/review', { method: 'POST', body: JSON.stringify({ code: 'SELECT 1;', rubric: rubric }) }) as any);
+      expect(res.status).toBe(503);
+      const json = await res.json();
+      expect(json.error).toBe('There is a problem with the AI service. Please tell your administrator. Your work has not been lost.');
+      expect(json.error).not.toContain('busy');
+    } finally { errorLog.mockRestore(); }
+  });
+});
+

@@ -76,4 +76,21 @@ describe('generateJSON retry behaviour', () => {
     expect(generateContent).toHaveBeenCalledTimes(2);
     expect(openaiCreate).toHaveBeenCalledTimes(1);
   });
+
+  it('reports a bad API key on every provider as a setup problem, not a busy service', async () => {
+    generateContent.mockRejectedValue(new Error(JSON.stringify({
+      error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT', details: [{ reason: 'API_KEY_INVALID' }] },
+    })));
+    openaiCreate.mockRejectedValue(Object.assign(new Error("You didn't provide an API key."), { status: 401 }));
+
+    await expect(generateJSON('prompt')).rejects.toMatchObject({ name: 'AiConfigurationError' });
+    expect(generateContent).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps the service failure when only one provider is misconfigured', async () => {
+    generateContent.mockRejectedValue(new Error(JSON.stringify({ error: { code: 400, message: 'API key not valid.', status: 'INVALID_ARGUMENT' } })));
+    openaiCreate.mockRejectedValue(Object.assign(new Error('Bad request'), { status: 400 }));
+
+    await expect(generateJSON('prompt')).rejects.toThrow('AI service unavailable');
+  });
 });

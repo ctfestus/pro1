@@ -1,6 +1,7 @@
 
 import { requireUser, isAuthError } from '@/lib/api-auth';
 import { NextRequest, NextResponse } from 'next/server';
+import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 import { getRedis } from '@/lib/redis';
 import { chargeAiFeature, refundAiFeature } from '@/lib/ai-feature-gate';
 import { generateJSON, generateVisionJSON } from '@/lib/ai';
@@ -175,6 +176,7 @@ export async function POST(req: NextRequest) {
     console.error('[document-review] error:', err);
     // The review never happened, so it should not have cost them an attempt.
     await refundAttempt?.();
+    if (err instanceof AiConfigurationError) return aiConfigurationResponse();
     return NextResponse.json({
       error: 'The AI review service is busy right now. Please wait a moment and try again. Your work has not been lost.',
     }, { status: 503 });

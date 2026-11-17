@@ -5,6 +5,7 @@
  * stored when they submit the review (guided-project-progress, action 'review').
  */
 import { NextRequest, NextResponse } from 'next/server';
+import { AiConfigurationError, aiConfigurationResponse } from '@/lib/ai/errors';
 
 import { requireRole, isAuthError } from '@/lib/api-auth';
 import { adminClient } from '@/lib/admin-client';
@@ -334,6 +335,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     console.error('[ve-instructor-review/draft]', err);
     await refund();
+    if (err instanceof AiConfigurationError) return aiConfigurationResponse();
     return NextResponse.json({ error: 'The AI could not draft this report right now. Please try again.' }, { status: 503 });
   }
 }
