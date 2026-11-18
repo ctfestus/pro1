@@ -46,6 +46,7 @@ import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
 import { useToolIcons } from '@/lib/use-tool-icons';
 import { PromoCard } from '@/components/PromoCard';
 import { DiscountScrollPopup } from '@/components/DiscountScrollPopup';
+import { ShareButtons } from '@/components/ShareButtons';
 import { promotionForItem, type PromotionTeaser } from '@/lib/pricing-offer';
 import { contentPageTitle, keepDocumentTitle } from '@/lib/document-title';
 
@@ -429,11 +430,33 @@ function DetailSkeleton() {
           ))}
         </div>
         <div className="dsk-card order-1 lg:order-2">
-          {bar('100%', 46)}
           {bar(110, 11)}
           {[0, 1, 2, 3].map(i => <div key={i}>{bar(`${70 - i * 6}%`, 12)}</div>)}
+          {bar('100%', 46)}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The share buttons (components/ShareButtons) in their own card, last in the side column. The link
+ * keeps ?catalogueType, because a slug alone can name a course and an experience at once.
+ */
+function ShareCard({ title, blurb, colors }: {
+  title: string;
+  blurb: string;
+  colors: { card: string; text: string; muted: string; button: string; shadow: string };
+}) {
+  const here = new URL(window.location.href);
+  const type = here.searchParams.get('catalogueType');
+  const url = `${here.origin}${here.pathname}${type ? `?catalogueType=${encodeURIComponent(type)}` : ''}`;
+  return (
+    <div style={{
+      background: colors.card, borderRadius: 14, padding: '16px 18px', boxShadow: colors.shadow,
+      ['--ev-surface' as string]: colors.button, ['--ev-text' as string]: colors.text, ['--ev-muted' as string]: colors.muted,
+    } as React.CSSProperties}>
+      <ShareButtons url={url} title={title} blurb={blurb} />
     </div>
   );
 }
@@ -597,12 +620,6 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                 </div>
               </div>
             )}
-            <Link href={href} className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
-              style={{ background: C.cta, color: C.ctaText }}>
-              {path.locked && <Lock className="h-4 w-4" />}
-              {cta}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
             <div>
               <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.08em]" style={{ color: C.faint }}>This path includes</p>
               <ul className="flex flex-col gap-2.5">
@@ -613,6 +630,12 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                 ))}
               </ul>
             </div>
+            <Link href={href} className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
+              style={{ background: C.cta, color: C.ctaText }}>
+              {path.locked && <Lock className="h-4 w-4" />}
+              {cta}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </div>
           {whoShouldTake.length > 0 && (
             <div style={{ ...card, padding: '20px' }}>
@@ -624,6 +647,8 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
               </ul>
             </div>
           )}
+          <ShareCard title={path.title} blurb={toPlainText(description)}
+            colors={{ card: C.card, text: C.text, muted: C.faint, button: isDark ? C.pill : '#ffffff', shadow: cardShadow(isDark) }} />
         </div>
       </div>
 
@@ -1572,6 +1597,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
             {/* Guide profile (VE only) -- the real professional playing the manager, with
                 their actual title, employer and LinkedIn. */}
             {guide && <div style={{ borderRadius: 14, boxShadow: cardShadow }}><GuideCard guide={guide} theme={guideTheme} /></div>}
+            <ShareCard title={config.title || form.title} blurb={String(config.tagline ?? '')}
+              colors={{ card: gp.card, text: gp.title, muted: gp.muted, button: isLight ? '#ffffff' : gp.subtle, shadow: cardShadow }} />
           </div>
         </div>
 
@@ -1760,6 +1787,16 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   in dark mode, where a light one does not read at all. */}
               <div style={{ background: cp.card, borderRadius: 14, boxShadow: courseCardShadow }}>
                 <div style={{ padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  <div>
+                    <p style={{ fontSize: 11, fontWeight: 700, color: cp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>This course includes</p>
+                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
+                      {[...courseFacts.map(f => f.Icon === Zap ? { ...f, label: `${f.label} to earn` } : f), { Icon: BadgeCheck, label: 'Verifiable certificate' }].map(({ Icon, label }) => (
+                        <li key={label} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, color: cp.title }}>
+                          <Icon style={{ width: 15, height: 15, color: cp.muted, flexShrink: 0 }} strokeWidth={2.1} />{label}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                   {/* CTA */}
                   {form.locked ? (
                     <>
@@ -1785,20 +1822,12 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                       Start Course <ArrowRight style={{ width: 15, height: 15 }} />
                     </button>
                   )}
-                  <div>
-                    <p style={{ fontSize: 11, fontWeight: 700, color: cp.muted, textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>This course includes</p>
-                    <ul style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: 0, padding: 0, listStyle: 'none' }}>
-                      {[...courseFacts.map(f => f.Icon === Zap ? { ...f, label: `${f.label} to earn` } : f), { Icon: BadgeCheck, label: 'Verifiable certificate' }].map(({ Icon, label }) => (
-                        <li key={label} style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 13.5, color: cp.title }}>
-                          <Icon style={{ width: 15, height: 15, color: cp.muted, flexShrink: 0 }} strokeWidth={2.1} />{label}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
                 </div>
               </div>
               {/* Digital products the author recommends with this course (shows nothing if none). */}
               <RecommendedProducts courseId={form.id} palette={{ card: cp.card, title: cp.title, muted: cp.muted, border: cp.border, accent: accentColor }} />
+              <ShareCard title={config.title || form.title} blurb={toPlainText(config.tagline || config.description || '')}
+                colors={{ card: cp.card, text: cp.title, muted: cp.muted, button: dark ? cp.subtle : '#ffffff', shadow: courseCardShadow }} />
             </div>
           </div>
         )}
