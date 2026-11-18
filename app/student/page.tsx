@@ -120,9 +120,10 @@ export default function StudentDashboard() {
   const [mounted, setMounted] = useState(false);
   const C = useC();
   const { toggle: toggleTheme, theme } = useTheme();
-  const { logoUrl, logoDarkUrl, emailBannerUrl, appName, primaryColor } = useTenant();
+  const { logoUrl, logoDarkUrl, emailBannerUrl, appName } = useTenant();
   // Dark mode keeps the ocean accent; light mode uses the tenant's primary color.
-  const navAccent = theme === 'dark' ? '#3E93FF' : (primaryColor || '#3E93FF');
+  // The selected menu item: the ocean blue in both themes (the tenant's deep primary read too heavy).
+  const navAccent = '#3E93FF';
   const router = useRouter();
   const [user, setUser]       = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -791,11 +792,11 @@ export default function StudentDashboard() {
                   })}
                 </div>
                 {activeSection === 'courses' && (
-                  <label className="flex w-full items-center gap-2 rounded-xl px-3 py-2 sm:w-64"
+                  <label className="flex w-full items-center gap-2 rounded-xl px-3 py-2 transition-shadow focus-within:shadow-[0_0_0_3px_rgba(62,147,255,0.25)] sm:w-64"
                     style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
                     <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
                     <input value={courseSearch} onChange={e => setCourseSearch(e.target.value)} placeholder="Search courses"
-                      aria-label="Search courses" className="min-w-0 flex-1 bg-transparent text-sm outline-none" style={{ color: C.text }} />
+                      aria-label="Search courses" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
                   </label>
                 )}
               </div>
