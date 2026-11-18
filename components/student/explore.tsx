@@ -348,7 +348,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
 
                     {item.category && (
                       <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold"
-                        style={{ background: '#3E93FF', color: '#ffffff' }}>
+                        style={{ background: '#F5D77A', color: '#3d2e00' }}>
                         {item.category}
                       </span>
                     )}
@@ -534,7 +534,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           </div>
         )}
         {item.category && (
-          <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold" style={{ background: '#3E93FF', color: '#ffffff' }}>
+          <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
             {item.category}
           </span>
         )}
