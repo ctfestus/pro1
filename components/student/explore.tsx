@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, Award, BarChart3, BookOpen, Briefcase, Check, Clock, Film, Gift, Globe, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search, Target } from 'lucide-react';
+import { ArrowRight, Award, BarChart3, BookOpen, Briefcase, Check, Clock, Film, Gift, Globe, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search, Tag, Target } from 'lucide-react';
 import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
@@ -55,6 +55,7 @@ interface CatalogueItem {
   tools?: string[];
   examMinutes?: number;
   passmark?: number;
+  topics?: string[];
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
@@ -421,7 +422,14 @@ function CataloguePreview({ item, accent, onOpen, C }: {
   onOpen: (item: CatalogueItem) => void;
   C: typeof LIGHT_C;
 }) {
-  const previewShadow = '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)';
+  // The preview floats over cards of the same colour, so it needs its own edge and a deep shadow
+  // to read as a layer above the page; in dark mode it also sits on a lighter surface.
+  const isLight = C.page === LIGHT_C.page;
+  const previewShadow = isLight
+    ? '0 24px 48px -12px rgba(15,23,42,0.30), 0 8px 20px -8px rgba(15,23,42,0.14)'
+    : '0 24px 48px -12px rgba(0,0,0,0.70), 0 8px 20px -8px rgba(0,0,0,0.50)';
+  const previewSurface = isLight ? C.card : '#24252e';
+  const previewEdge = isLight ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.12)';
   const toolIcon = useToolIcons();
   const desc = (item.description ?? '')
     .replace(/<[^>]*>/g, ' ')
@@ -437,8 +445,8 @@ function CataloguePreview({ item, accent, onOpen, C }: {
         className="rounded-2xl overflow-hidden"
         style={{
           width: popupW,
-          background: C.card,
-          border: `1px solid ${C.cardBorder}`,
+          background: previewSurface,
+          border: `1px solid ${previewEdge}`,
           boxShadow: previewShadow,
         }}
       >
@@ -531,8 +539,8 @@ function CataloguePreview({ item, accent, onOpen, C }: {
     <div
       className="rounded-2xl overflow-hidden"
       style={{
-        background: C.card,
-        border: `1px solid ${C.cardBorder}`,
+        background: previewSurface,
+        border: `1px solid ${previewEdge}`,
         boxShadow: previewShadow,
       }}
     >
@@ -578,7 +586,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           </p>
         )}
 
-        {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length) && (
+        {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
           <div className="flex flex-wrap gap-1.5">
             {item.level && <PreviewFact C={C} icon={<BarChart3 className="h-3.5 w-3.5" />}>{item.level}</PreviewFact>}
             {item.duration && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.duration}</PreviewFact>}
@@ -587,13 +595,14 @@ function CataloguePreview({ item, accent, onOpen, C }: {
             {item.tools?.map(tool => (
               <PreviewFact key={tool} C={C} icon={toolIcon(tool) ? <img src={toolIcon(tool)!} alt="" className="h-3.5 w-3.5 object-contain" /> : null}>{tool}</PreviewFact>
             ))}
+            {item.topics?.map(topic => <PreviewFact key={topic} C={C} icon={<Tag className="h-3.5 w-3.5" />}>{topic}</PreviewFact>)}
           </div>
         )}
 
         {item.outcomes?.length ? (
           <div>
             <p className="mb-2 text-xs font-bold" style={{ color: C.text }}>
-              {item.type === 'certification' ? 'What it covers' : 'What you will learn'}
+              {item.type === 'certification' ? 'What it covers' : item.type === 'book' ? 'What you will get' : 'What you will learn'}
             </p>
             <ul className="flex flex-col gap-1.5">
               {item.outcomes.map(outcome => (

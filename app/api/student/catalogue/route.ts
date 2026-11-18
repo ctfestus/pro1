@@ -54,6 +54,7 @@ export interface CatalogueItem {
   tools?: string[];
   examMinutes?: number;
   passmark?: number;
+  topics?: string[];
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Only ever set on a single-item lookup of a locked item. */
@@ -73,13 +74,16 @@ const cleanList = (list: string[] | null | undefined) =>
 
 /** What the Explore preview says about an item beyond its description; only what it has. */
 function previewFacts(r: Row) {
-  const outcomes = cleanList(r.learn_outcomes).slice(0, 3);
+  // A digital product's skills are what the buyer gets from it.
+  const outcomes = cleanList(r.learn_outcomes ?? r.skills).slice(0, 3);
+  const topics = cleanList(r.topics).slice(0, 4);
   const tools = cleanList(r.tools);
   return {
     ...(outcomes.length ? { outcomes } : {}),
     ...(r.difficulty ? { level: r.difficulty.charAt(0).toUpperCase() + r.difficulty.slice(1) } : {}),
     ...(r.duration ? { duration: r.duration } : {}),
     ...(tools.length ? { tools } : {}),
+    ...(topics.length ? { topics } : {}),
     ...(r.time_limit && r.time_limit > 0 ? { examMinutes: r.time_limit } : {}),
     ...(r.passmark ? { passmark: r.passmark } : {}),
   };
@@ -103,6 +107,9 @@ type Row = {
   tools?: string[] | null;
   time_limit?: number | null;
   passmark?: number | null;
+  topics?: string[] | null;
+  skills?: string[] | null;
+  authors?: string[] | null;
   // One partner per course; the untyped client infers a to-one join as a list.
   partner?: Partner | Partner[] | null;
   cohort_ids: string[] | null;
@@ -173,7 +180,7 @@ export async function GET(req: NextRequest) {
       // address). The file path itself is a filter, never selected: it must not reach the browser
       // (downloads go through /api/books/[id]/file, which re-checks access).
       fetchAllRows<BookRow>((from, to) => db.from('books')
-        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, purchasable, license_expires_at', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, category, topics, skills, authors, difficulty, cohort_ids, available_to_everyone, purchasable, license_expires_at', { count: 'exact' })
         .eq('status', 'published').or('file_path.not.is.null,format.eq.link').order('id').range(from, to)),
       // Books the learner bought or was given open like anything else they have access to.
       fetchAllRows<{ book_id: string }>((from, to) => db.from('book_entitlements')
@@ -220,7 +227,8 @@ export async function GET(req: NextRequest) {
         // An experience is grouped by its industry, the way the landing page shows it.
         category: r.category ?? (r.industry ? r.industry.charAt(0).toUpperCase() + r.industry.slice(1) : null),
         // Who it is from, as My Learning shows it: a course's partner, an experience's role.
-        byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : [r.role, r.company].filter(Boolean).join(', ') || null,
+        byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : ([r.role, r.company].filter(Boolean).join(', ')
+          || (cleanList(r.authors).length ? `By ${cleanList(r.authors).join(', ')}` : null)),
         bylineLogo: partnerOf(r)?.logo_url ?? null,
         ...previewFacts(r),
         locked: !(
