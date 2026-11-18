@@ -387,6 +387,57 @@ function cataloguePathToPathRow(item: any) {
   };
 }
 
+/**
+ * What a course, experience or path page looks like while it loads: the top bar, the dark banner
+ * with a title and its facts, cards on the left and the button card on the right.
+ *
+ * It is drawn on the server, before the learner's theme is known, so its colours follow the
+ * data-theme attribute in CSS rather than a prop: the markup is the same either way, and nothing
+ * mismatches when the page hydrates.
+ */
+const DETAIL_SKELETON_CSS = `
+.dsk{--pg:#F2F5FA;--cd:#ffffff;--bar:rgba(15,23,42,0.07);min-height:100vh;background:var(--pg)}
+[data-theme="dark"] .dsk{--pg:#141414;--cd:#1e1e1e;--bar:rgba(255,255,255,0.07)}
+.dsk-card{background:var(--cd);border-radius:14px;padding:22px 24px;display:flex;flex-direction:column;gap:12px}
+.dsk-bar{background:var(--bar);border-radius:8px}
+.dsk-ban{background:rgba(255,255,255,0.14);border-radius:8px}`;
+
+function DetailSkeleton() {
+  const bar = (width: string | number, height: number, className = 'dsk-bar') =>
+    <div className={`${className} animate-pulse`} style={{ width, height }} />;
+  return (
+    <div className="dsk" aria-busy="true">
+      <style>{DETAIL_SKELETON_CSS}</style>
+      <div style={{ height: 56, background: 'var(--cd)', borderBottom: '1px solid var(--bar)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px' }}>
+        {bar(96, 28)}{bar(64, 26)}
+      </div>
+      <div style={{ minHeight: 340, background: '#0a0a0a', display: 'flex', alignItems: 'flex-end' }}>
+        <div style={{ maxWidth: 1140, margin: '0 auto', width: '100%', padding: '32px 16px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {bar(120, 14, 'dsk-ban')}
+          {bar('min(560px, 80%)', 34, 'dsk-ban')}
+          {bar('min(640px, 90%)', 14, 'dsk-ban')}
+          <div style={{ display: 'flex', gap: 18, flexWrap: 'wrap' }}>{[90, 100, 70, 170].map(w => <div key={w}>{bar(w, 14, 'dsk-ban')}</div>)}</div>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_300px]" style={{ maxWidth: 1140, margin: '0 auto', padding: '24px 16px', gap: 20, alignItems: 'start' }}>
+        <div className="order-2 lg:order-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {[3, 5].map(rows => (
+            <div key={rows} className="dsk-card">
+              {bar(160, 16)}
+              {Array.from({ length: rows }, (_, i) => <div key={i}>{bar(`${85 - i * 8}%`, 12)}</div>)}
+            </div>
+          ))}
+        </div>
+        <div className="dsk-card order-1 lg:order-2">
+          {bar('100%', 46)}
+          {bar(110, 11)}
+          {[0, 1, 2, 3].map(i => <div key={i}>{bar(`${70 - i * 6}%`, 12)}</div>)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /** A card lift that reads on either ground. A light shadow is invisible on a dark page. */
 const cardShadow = (isDark: boolean) =>
   isDark ? '0 2px 14px rgba(0,0,0,0.26)' : '0 2px 12px rgba(15,23,42,0.07)';
@@ -1105,6 +1156,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       }
   };
 
+  if (loading && (catalogueType === 'course' || catalogueType === 'virtual_experience' || catalogueType === 'learning_path')) {
+    return <DetailSkeleton />;
+  }
   if (loading) {
     return (
       <div style={{ minHeight: '100vh', background: '#F2F5FA', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
