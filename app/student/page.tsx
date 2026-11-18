@@ -792,8 +792,9 @@ export default function StudentDashboard() {
                   })}
                 </div>
                 {activeSection === 'courses' && (
-                  <label className="flex w-full items-center gap-2 rounded-xl px-3 py-2 transition-shadow focus-within:shadow-[0_0_0_3px_rgba(62,147,255,0.25)] sm:w-64"
-                    style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+                  <label className="flex w-full items-center gap-2 rounded-xl border border-[var(--search-line)] px-3 py-2 transition-colors focus-within:border-[var(--search-focus)] sm:w-64"
+                    style={{ background: C.card, ['--search-line' as string]: C.cardBorder, ['--search-focus' as string]: theme === 'dark' ? 'rgba(255,255,255,0.28)' : '#b6bcc6' }}>
+                    {/* Focus shows as the same 1px border turning a darker neutral grey. */}
                     <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
                     <input value={courseSearch} onChange={e => setCourseSearch(e.target.value)} placeholder="Search courses"
                       aria-label="Search courses" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
