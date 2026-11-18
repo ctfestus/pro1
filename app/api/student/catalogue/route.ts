@@ -47,6 +47,13 @@ export interface CatalogueItem {
   /** A course's partner ("Offered by ...") or an experience's role. */
   byline?: string | null;
   bylineLogo?: string | null;
+  /** Preview facts, present only when the item has them. */
+  outcomes?: string[];
+  level?: string;
+  duration?: string;
+  tools?: string[];
+  examMinutes?: number;
+  passmark?: number;
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Only ever set on a single-item lookup of a locked item. */
@@ -61,6 +68,23 @@ export interface CatalogueItem {
   inStore?: boolean;
 }
 
+const cleanList = (list: string[] | null | undefined) =>
+  (list ?? []).map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+
+/** What the Explore preview says about an item beyond its description; only what it has. */
+function previewFacts(r: Row) {
+  const outcomes = cleanList(r.learn_outcomes).slice(0, 3);
+  const tools = cleanList(r.tools);
+  return {
+    ...(outcomes.length ? { outcomes } : {}),
+    ...(r.difficulty ? { level: r.difficulty.charAt(0).toUpperCase() + r.difficulty.slice(1) } : {}),
+    ...(r.duration ? { duration: r.duration } : {}),
+    ...(tools.length ? { tools } : {}),
+    ...(r.time_limit && r.time_limit > 0 ? { examMinutes: r.time_limit } : {}),
+    ...(r.passmark ? { passmark: r.passmark } : {}),
+  };
+}
+
 type Partner = { name: string; logo_url: string | null; is_active: boolean };
 
 type Row = {
@@ -72,6 +96,13 @@ type Row = {
   category?: string | null;
   industry?: string | null;
   role?: string | null;
+  company?: string | null;
+  learn_outcomes?: string[] | null;
+  difficulty?: string | null;
+  duration?: string | null;
+  tools?: string[] | null;
+  time_limit?: number | null;
+  passmark?: number | null;
   // One partner per course; the untyped client infers a to-one join as a list.
   partner?: Partner | Partner[] | null;
   cohort_ids: string[] | null;
@@ -127,16 +158,16 @@ export async function GET(req: NextRequest) {
   try {
     const [courses, paths, ves, certifications, books, entitlements] = await Promise.all([
       fetchAllRows<Row>((from, to) => db.from('courses')
-        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, category, learn_outcomes, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
         .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
-        .select('id, title, slug, cover_image, description, industry, role, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, industry, role, company, difficulty, duration, tools, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('certifications')
-        .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, learn_outcomes, time_limit, passmark, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       // Books with a file, or link products (migration 243; save_book only publishes one with its
       // address). The file path itself is a filter, never selected: it must not reach the browser
@@ -189,8 +220,9 @@ export async function GET(req: NextRequest) {
         // An experience is grouped by its industry, the way the landing page shows it.
         category: r.category ?? (r.industry ? r.industry.charAt(0).toUpperCase() + r.industry.slice(1) : null),
         // Who it is from, as My Learning shows it: a course's partner, an experience's role.
-        byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : r.role || null,
+        byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : [r.role, r.company].filter(Boolean).join(', ') || null,
         bylineLogo: partnerOf(r)?.logo_url ?? null,
+        ...previewFacts(r),
         locked: !(
           r.available_to_everyone === true
           || inCohort(r)

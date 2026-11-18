@@ -17,10 +17,10 @@
  * courses and virtual_experiences), and /api/student/catalogue returns display fields only, so a
  * locked card carries no course content to leak.
  */
-import { useEffect, useMemo, useState, type ElementType } from 'react';
+import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, Award, BookOpen, Briefcase, Film, Gift, Globe, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search } from 'lucide-react';
+import { ArrowRight, Award, BarChart3, BookOpen, Briefcase, Check, Clock, Film, Gift, Globe, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search, Target } from 'lucide-react';
 import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
@@ -49,6 +49,12 @@ interface CatalogueItem {
   /** A course's partner ("Offered by ...") or an experience's role. */
   byline?: string | null;
   bylineLogo?: string | null;
+  outcomes?: string[];
+  level?: string;
+  duration?: string;
+  tools?: string[];
+  examMinutes?: number;
+  passmark?: number;
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
@@ -67,14 +73,6 @@ const ROW_TITLE: Record<CatalogueType, string> = {
 
 // Image-less fallbacks, mirroring the landing page's per-type gradients so a card with no cover
 // still reads as its type rather than as a broken tile.
-const TYPE_GRAD: Record<CatalogueType, string> = {
-  course:             'linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%)',
-  learning_path:      'linear-gradient(135deg,#92400E 0%,#F59E0B 100%)',
-  virtual_experience: 'linear-gradient(135deg,#064E3B 0%,#10B981 100%)',
-  certification:      'linear-gradient(135deg,#155E75 0%,#06B6D4 100%)',
-  book:               'linear-gradient(135deg,#7C2D12 0%,#EA580C 100%)',
-};
-
 const TYPE_ORDER: CatalogueType[] = ['course', 'learning_path', 'virtual_experience', 'certification', 'book'];
 const INITIAL_VISIBLE = 8;
 const LOAD_MORE_STEP = 8;
@@ -192,7 +190,7 @@ export function ExploreSection({ C }: {
 
   // Path previews widen with the path's contents so their thumbnails lay out in rows.
   const openHover = (item: CatalogueItem, el: HTMLElement) => openPreview(item, el, {
-    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 400,
+    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 340,
     height: 560,
   });
 
@@ -408,6 +406,15 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   );
 }
 
+function PreviewFact({ C, icon, children }: { C: typeof LIGHT_C; icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.text }}>
+      {icon && <span className="flex" style={{ color: C.faint }}>{icon}</span>}
+      {children}
+    </span>
+  );
+}
+
 function CataloguePreview({ item, accent, onOpen, C }: {
   item: CatalogueItem;
   accent: string;
@@ -415,6 +422,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
   C: typeof LIGHT_C;
 }) {
   const previewShadow = '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)';
+  const toolIcon = useToolIcons();
   const desc = (item.description ?? '')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
@@ -529,12 +537,15 @@ function CataloguePreview({ item, accent, onOpen, C }: {
       }}
     >
       <div className="p-3 pb-0">
-      <div className="relative w-full aspect-video overflow-hidden rounded-xl" style={{ background: coverUrl ? '#0b0b0d' : TYPE_GRAD[item.type] }}>
+      <div className="relative w-full aspect-video overflow-hidden rounded-xl" style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
         {coverUrl ? (
           <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
+          // No cover: the tool's logo on soft grey, as the card shows it.
           <div className="w-full h-full flex items-center justify-center">
-            {(() => { const Icon = TYPE_ICON[item.type]; return <Icon className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
+            {item.category && toolIcon(item.category)
+              ? <img src={toolIcon(item.category)!} alt="" className="h-12 w-12 object-contain" />
+              : (() => { const Icon = TYPE_ICON[item.type]; return <Icon className="w-9 h-9" style={{ color: C.faint }} />; })()}
           </div>
         )}
         {item.category && (
@@ -562,10 +573,38 @@ function CataloguePreview({ item, accent, onOpen, C }: {
         </div>
 
         {desc && (
-          <p className="text-[14px] leading-relaxed line-clamp-4" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
+          <p className="text-[14px] leading-relaxed line-clamp-2" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
             {desc}
           </p>
         )}
+
+        {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length) && (
+          <div className="flex flex-wrap gap-1.5">
+            {item.level && <PreviewFact C={C} icon={<BarChart3 className="h-3.5 w-3.5" />}>{item.level}</PreviewFact>}
+            {item.duration && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.duration}</PreviewFact>}
+            {item.examMinutes && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.examMinutes} min exam</PreviewFact>}
+            {item.passmark && <PreviewFact C={C} icon={<Target className="h-3.5 w-3.5" />}>Pass mark {item.passmark}%</PreviewFact>}
+            {item.tools?.map(tool => (
+              <PreviewFact key={tool} C={C} icon={toolIcon(tool) ? <img src={toolIcon(tool)!} alt="" className="h-3.5 w-3.5 object-contain" /> : null}>{tool}</PreviewFact>
+            ))}
+          </div>
+        )}
+
+        {item.outcomes?.length ? (
+          <div>
+            <p className="mb-2 text-xs font-bold" style={{ color: C.text }}>
+              {item.type === 'certification' ? 'What it covers' : 'What you will learn'}
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {item.outcomes.map(outcome => (
+                <li key={outcome} className="flex gap-2 text-[13px] leading-snug" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
+                  <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={3} style={{ color: C.successText }} />
+                  <span className="line-clamp-2">{outcome}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {item.locked ? (
           <button

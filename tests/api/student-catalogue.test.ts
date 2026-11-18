@@ -239,7 +239,7 @@ describe('GET /api/student/catalogue', () => {
     // lesson, one gradeable question at 50 base points, and a section that is neither.
     expect(item).toEqual({
       id: 'c7', type: 'course', title: 'Locked course', slug: 'locked-course',
-      coverImage: 'cover.jpg', description: 'Overview', category: 'Data', byline: null, bylineLogo: null, locked: true,
+      coverImage: 'cover.jpg', description: 'Overview', category: 'Data', byline: null, bylineLogo: null, outcomes: ['Read a query plan'], locked: true,
       unlock: { plans: [] },
       mode: 'light', theme: 'ocean', font: 'inter', customAccent: '#123456',
       learnOutcomes: ['Read a query plan'],
