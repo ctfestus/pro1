@@ -506,28 +506,14 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
             </div>
           )}
 
-          {(skills.length > 0 || whoShouldTake.length > 0) && (
-            <div className="grid gap-6 sm:grid-cols-2" style={card}>
-              {skills.length > 0 && (
-                <div>
-                  <h2 style={{ ...heading, marginBottom: 12 }}>Skills you will learn</h2>
-                  <div className="flex flex-wrap gap-2">
-                    {skills.map((skill: string) => (
-                      <span key={skill} className="rounded-lg px-2.5 py-1 text-[13px] font-semibold" style={{ background: C.pill, color: C.text }}>{skill}</span>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {whoShouldTake.length > 0 && (
-                <div>
-                  <h2 style={{ ...heading, marginBottom: 12 }}>Who should take this path</h2>
-                  <ul className="space-y-2.5">
-                    {whoShouldTake.map((who: string) => (
-                      <li key={who} className="flex items-start gap-2.5 text-[14px] leading-relaxed" style={{ color: C.muted }}>{tick}{who}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+          {skills.length > 0 && (
+            <div style={card}>
+              <h2 style={{ ...heading, marginBottom: 12 }}>Skills you will learn</h2>
+              <div className="flex flex-wrap gap-2">
+                {skills.map((skill: string) => (
+                  <span key={skill} className="rounded-lg px-2.5 py-1 text-[13px] font-semibold" style={{ background: C.pill, color: C.text }}>{skill}</span>
+                ))}
+              </div>
             </div>
           )}
 
@@ -545,7 +531,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
           </div>
         </div>
 
-        <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72 }}>
+        <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 14 }}>
           <div style={{ ...card, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 16 }}>
             {tools.length > 0 && (
               <div>
@@ -577,6 +563,16 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
               </ul>
             </div>
           </div>
+          {whoShouldTake.length > 0 && (
+            <div style={{ ...card, padding: '20px' }}>
+              <h2 style={{ ...heading, fontSize: 15, marginBottom: 12 }}>Who should take this path</h2>
+              <ul className="space-y-2.5">
+                {whoShouldTake.map((who: string) => (
+                  <li key={who} className="flex items-start gap-2.5 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>{tick}{who}</li>
+                ))}
+              </ul>
+            </div>
+          )}
         </div>
       </div>
 
