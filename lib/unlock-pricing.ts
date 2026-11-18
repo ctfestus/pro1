@@ -62,6 +62,14 @@ export function unlockPlanName(unlock: UnlockInfo): string | null {
 }
 
 /**
+ * Where a locked item's button goes: the pricing page, told which item it was, so it can show
+ * the plans that open that item rather than every plan.
+ */
+export function pricingHrefFor(ref: string, type: string): string {
+  return `/pricing?ref=${encodeURIComponent(ref)}&type=${encodeURIComponent(type)}`;
+}
+
+/**
  * What a locked item's button says. No figure: the price belongs on the pricing page beside the
  * lengths it applies to, not on a course panel where it reads as the price of that one course.
  */

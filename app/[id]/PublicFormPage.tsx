@@ -40,7 +40,7 @@ import { MissionOutline } from '@/components/ve/MissionOutline';
 import { MoreLikeThis } from './MoreLikeThis';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
-import { enrollLabel } from '@/lib/unlock-pricing';
+import { enrollLabel, pricingHrefFor } from '@/lib/unlock-pricing';
 import { signInHref } from '@/lib/auth-redirect';
 import { toPlainText, looksLikeHtml } from '@/lib/plain-text';
 import { useToolIcons } from '@/lib/use-tool-icons';
@@ -497,7 +497,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
   // trace of what was clicked.
   // A learner who is already signed in and has access starts the path where it runs, in My
   // Learning, rather than being sent to a sign-in screen they have already passed.
-  const href = path.locked ? '/pricing' : signedIn ? `/student?path=${encodeURIComponent(path.id)}#learning_paths` : authHref;
+  const href = path.locked ? pricingHrefFor(path.id, 'learning_path') : signedIn ? `/student?path=${encodeURIComponent(path.id)}#learning_paths` : authHref;
   const cta = path.locked ? enrollLabel(path.unlock) : signedIn ? 'Start path' : 'Start for free';
   const isDark = C.page !== '#F2F5FA';
   const toolIcon = useToolIcons();
@@ -1300,7 +1300,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
         logoDarkUrl={logoDarkUrl}
         locked={certNoAccess || certSignedOut}
         unlockLabel={certNoAccess ? enrollLabel(form.unlock) : 'Sign in to start'}
-        unlockHref={certNoAccess ? '/pricing' : backHere}
+        unlockHref={certNoAccess ? pricingHrefFor(form.id, 'certification') : backHere}
         onExit={() => { window.location.href = certAuth ? '/student' : '/'; }}
       />
       {/* Only while the overview is all there is: a signed-in candidate with access may be mid-exam. */}
@@ -1556,7 +1556,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
               {/* CTA */}
               {form.locked ? (
-                <Link href="/pricing" style={ctaStyle}>
+                <Link href={pricingHrefFor(form.id, 'virtual_experience')} style={ctaStyle}>
                   {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
                 </Link>
               ) : signedOut ? (
@@ -1801,7 +1801,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   {form.locked ? (
                     <>
                     <Link
-                      href="/pricing"
+                      href={pricingHrefFor(form.id, 'course')}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
                     >
                       {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />

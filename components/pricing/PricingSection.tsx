@@ -61,6 +61,8 @@ export interface PricingSectionProps extends PricingPageData {
   durationOptions: number[];
   selectedDuration: number | null;
   onSelectDuration: (months: number) => void;
+  /** Arrived from a locked item: only its plans are listed, so say which item, and offer the rest. */
+  forItem?: { title: string; onShowAll: () => void } | null;
 }
 
 export function PricingSection({
@@ -77,6 +79,7 @@ export function PricingSection({
   durationOptions,
   selectedDuration,
   onSelectDuration,
+  forItem,
 }: PricingSectionProps) {
   const hFont = headingFont ? `'${headingFont}', sans-serif` : undefined;
   const bFont = bodyFont ? `'${bodyFont}', sans-serif` : undefined;
@@ -107,19 +110,32 @@ export function PricingSection({
             <h2 className="text-3xl font-black tracking-[-0.035em] sm:text-4xl" style={{ color: '#101828', fontFamily: hFont, textWrap: 'balance' }}>
               Flexible Payment Plans
             </h2>
+            {forItem ? (
+              <p className="mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: '#5F6B7A' }}>
+                {plans.length === 1 ? 'The plan that includes' : 'Plans that include'}{' '}
+                <span className="font-bold" style={{ color: '#101828' }}>{forItem.title}</span>.{' '}
+                <button type="button" onClick={forItem.onShowAll} className="font-bold underline-offset-4 hover:underline" style={{ color: primaryColor }}>
+                  See all plans
+                </button>
+              </p>
+            ) : (
             <p className="mt-3 max-w-2xl text-sm leading-6 sm:text-base" style={{ color: '#5F6B7A' }}>
               Level up your career with our flexible payment plans.
             </p>
+            )}
           </div>
 
         </div>
 
         <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {/* The free tier does not open a locked item, so it is not offered as one of its plans. */}
+          {!forItem && (
           <FreePlanCard
             free={free}
             signedIn={signedIn}
             hFont={hFont}
           />
+          )}
           {plans.map(plan => (
             <PlanCard
               key={plan.id}
