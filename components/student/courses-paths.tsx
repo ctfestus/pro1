@@ -429,7 +429,6 @@ function LearningPathGrid({ paths, C, onOpen }: { paths: any[]; C: typeof LIGHT_
             done={complete}
             figure={`${completedCount} of ${totalItems}`}
             figureLabel="Completed"
-            chip={{ label: 'Learning path' }}
             action={{
               label: path.locked ? enrollLabel(path.unlock) : complete ? 'Review path' : path.needs_track ? 'Choose track' : started ? 'Continue path' : 'Start path',
               onClick: open,

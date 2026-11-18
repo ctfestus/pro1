@@ -222,18 +222,6 @@ function VirtualExperienceDetailPane({ form, attempt, C, onClose, focusReview = 
 }
 
 // Group virtual experiences by industry; named industries alphabetical, "Other" last
-// Each module is a stage; the current one is the first not yet finished.
-function veStage(modules: any[], progress: any, completed: boolean): string {
-  const total = modules.length;
-  if (!total) return '0';
-  if (completed) return `${total} of ${total}`;
-  const idx = modules.findIndex(m => {
-    const c = veCompletionCounts([m], progress);
-    return c.totalReqs > c.doneReqs;
-  });
-  return `${idx < 0 ? total : idx + 1} of ${total}`;
-}
-
 function VeCard({ form, attempt, deadline, C, onDetails }: {
   form: any; attempt: any; deadline?: Date | null; C: typeof LIGHT_C; onDetails: () => void;
 }) {
@@ -241,6 +229,9 @@ function VeCard({ form, attempt, deadline, C, onDetails }: {
   const modules = form.config?.modules || form.modules || [];
   const pct = completed ? 100 : veProgressPct(modules, attempt?.progress ?? {});
   const role = [form.role, form.company].filter(Boolean).join(' at ');
+  // Missions are the lessons, grouped under the experience's modules.
+  const missions = modules.reduce((n: number, m: any) => n + (m.lessons?.length ?? 0), 0);
+  const industry = (form.industry ?? form.config?.industry ?? '').trim().replace(/\b\w/g, (ch: string) => ch.toUpperCase());
   return (
     <LearningCard
       C={C}
@@ -252,9 +243,9 @@ function VeCard({ form, attempt, deadline, C, onDetails }: {
       description={toPlainText(form.tagline)}
       progress={pct}
       done={completed}
-      figure={veStage(modules, attempt?.progress ?? {}, completed)}
-      figureLabel="Stage"
-      chip={{ label: 'Virtual experience' }}
+      figure={missions}
+      figureLabel={missions === 1 ? 'Mission' : 'Missions'}
+      chip={industry ? { label: industry } : null}
       action={{ label: completed ? 'Review' : attempt ? 'Continue' : 'Start', href: `/${form.slug || form.id}`, quiet: completed }}
       onOpen={onDetails}
     />
