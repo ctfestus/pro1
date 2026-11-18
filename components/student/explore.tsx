@@ -20,7 +20,7 @@
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, Award, BarChart3, BookOpen, Briefcase, Check, Clock, Film, Gift, Globe, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search, Tag, Target } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, Briefcase, Check, Clock, Film, Gift, Globe, GraduationCap, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search, Tag, Target } from 'lucide-react';
 import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
@@ -588,7 +588,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
 
         {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
           <div className="flex flex-wrap gap-1.5">
-            {item.level && <PreviewFact C={C} icon={<BarChart3 className="h-3.5 w-3.5" />}>{item.level}</PreviewFact>}
+            {item.level && <PreviewFact C={C} icon={<GraduationCap className="h-3.5 w-3.5" />}>{item.level} level</PreviewFact>}
             {item.duration && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.duration}</PreviewFact>}
             {item.examMinutes && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.examMinutes} min exam</PreviewFact>}
             {item.passmark && <PreviewFact C={C} icon={<Target className="h-3.5 w-3.5" />}>Pass mark {item.passmark}%</PreviewFact>}
