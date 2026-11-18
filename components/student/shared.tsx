@@ -65,7 +65,7 @@ export function StatusBadge({ status }: { status: string }) {
     completed:    { label: 'Completed',    bg: '#f0fdf4', color: '#16a34a' },
     enrolled:     { label: 'Enrolled',     bg: '#eff6ff', color: '#2563eb' },
     assigned:     { label: 'Assigned',     bg: '#eff6ff', color: '#2563eb' },
-    submitted:    { label: 'Submitted',    bg: '#f5f3ff', color: '#7c3aed' },
+    submitted:    { label: 'Submitted',    bg: '#ffffff', color: '#16a34a' },
     graded:       { label: 'Graded',       bg: '#f0fdf4', color: '#16a34a' },
     late:         { label: 'Late',         bg: '#fef2f2', color: '#dc2626' },
     missed:       { label: 'Missed',       bg: '#fef2f2', color: '#dc2626' },

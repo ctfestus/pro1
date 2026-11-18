@@ -145,7 +145,6 @@ export function PaymentsSection({ userId, C, readOnly = false }: { userId: strin
     if (s === 'completed') return '#2563eb';
     if (s === 'overdue')   return '#dc2626';
     if (s === 'pending_deposit') return '#d97706';
-    if (s === 'waived')    return '#7c3aed';
     return C.muted;
   };
   const statusLabel = (s: string) => {

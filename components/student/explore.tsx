@@ -209,10 +209,6 @@ export function ExploreSection({ C }: {
   return (
     <div className="space-y-6">
       <div className="space-y-3">
-        <p className="text-sm" style={{ color: C.muted }}>
-          Explore the full catalogue. Purchase access or enroll to unlock more learning.
-        </p>
-
         {/* Type on the left, access on the right of the same line. Access began as a second row
             of pills and read as more of the same control, when it asks a different question --
             which kind of thing, against what I can open. A select next to a segmented control

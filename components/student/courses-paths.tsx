@@ -2,12 +2,12 @@
 
 // Courses and learning-path journeys shared by the learner dashboard and public detail pages.
 
-import { Fragment, useEffect, useState, useMemo, useRef, useCallback } from 'react';
+import { Fragment, useEffect, useState, useMemo, useCallback } from 'react';
 import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import {
-  BookOpen, Award, X, Check, CheckCircle, ChevronRight, ChevronLeft, Play, FileText, GraduationCap, Search, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase, Hand, Sparkles,
+  BookOpen, Award, X, Check, CheckCircle, Play, GraduationCap, Layers, ShieldCheck, AlertCircle, Lock, RefreshCw, Film, Briefcase, Hand, Sparkles,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/components/ThemeProvider';
@@ -21,145 +21,57 @@ import { resolveCoverUrl } from '@/lib/cloudinary-url';
 import { courseProgressCounts, courseProgressPct } from '@/lib/course-progress';
 import { enrollLabel } from '@/lib/unlock-pricing';
 import { CORE_ONLY_TRACK } from '@/lib/learning-path-tracks';
-import { CarouselSkeleton, EmptyState, ProgressBar, DeadlineNote, stripSqlSolutions } from '@/components/student/shared';
+import { LearningCard, deadlineTag } from '@/components/student/learning-card';
+import { CarouselSkeleton, EmptyState, ProgressBar, stripSqlSolutions } from '@/components/student/shared';
 
 // --- Course card ---
-function CourseCard({ course, deadline, C, onDetails }: { course: any; deadline?: Date | null; C: typeof LIGHT_C; onDetails: () => void }) {
+function courseCover(c: any): string | null {
+  return c.config?.coverImage ?? c.form?.config?.coverImage ?? c.form?.cover_image ?? null;
+}
+
+function CourseCard({ course, deadline, C, onDetails }: {
+  course: any; deadline?: Date | null; C: typeof LIGHT_C; onDetails: () => void;
+}) {
   const questions = course.form?.questions ?? course.config?.questions ?? course.form?.config?.questions ?? [];
-  // Shared rule: an unclaimed optional LinkedIn slide leaves the denominator, so a student who
-  // skipped it is not shown short of 100%.
-  const courseCounts = courseProgressCounts(questions, course.answers ?? {});
-  const answeredQ = courseCounts.done;
-  const totalQ = courseCounts.total;
-  const currentIdx = course.current_question_index ?? 0;
   const completed = !!course.completed_at;
   const passed = course.passed === true;
+  const started = (course.current_question_index ?? 0) > 0;
+  // Shared rule: an unclaimed optional LinkedIn slide leaves the denominator.
   const progress = completed ? 100 : courseProgressPct(questions, course.answers ?? {});
   const score = course.score ?? 0;
-  const coverImage = course.config?.coverImage ?? course.form?.config?.coverImage;
-  const description: string = course.form?.config?.description ?? course.form?.description ?? '';
   const category: string | null = course.form?.category ?? null;
   const toolIcon = useToolIcons();
-  const categoryIcon = category ? toolIcon(category) : null;
-  const certId: string | null = course.cert_id ?? null;
-  const [imgErr, setImgErr] = useState(false);
-
-  const courseUrl = `/${course.slug || course.form?.slug || course.form_id}`;
-  const actionHref = courseUrl;
-  const actionLabel = completed ? (passed ? 'Review' : 'Retake') : currentIdx > 0 ? 'Continue' : 'Start';
-
-  // eslint-disable-next-line react-hooks/purity
-  const nowMs = Date.now();
-  const daysLeft = deadline && !completed
-    ? Math.ceil((deadline.getTime() - nowMs) / 86400000)
-    : null;
-  const deadlineLabel = daysLeft === null ? null
-    : daysLeft < 0  ? 'Overdue'
-    : daysLeft === 0 ? 'Due today'
-    : `${daysLeft}d left`;
-  const deadlineColor = daysLeft === null ? null
-    : daysLeft < 0  ? '#ef4444'
-    : daysLeft <= 3 ? '#f59e0b'
-    : '#6b7280';
+  const icon = category ? toolIcon(category) : null;
+  const lessons = questions.filter((q: any) => q.lesson?.title || q.lesson?.body || q.lesson?.doc).length;
+  const showScore = completed && score > 0;
+  const partner = course.form?.partner;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="rounded-2xl overflow-hidden flex flex-col"
-      style={{ background: C.card, minHeight: 500, boxShadow: '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)' }}
-    >
-      {/* Cover -- clicking opens the detail pane */}
-      <div className="p-3 cursor-pointer" onClick={onDetails}>
-        <div className="relative h-44 overflow-hidden rounded-xl group">
-          {coverImage && !imgErr
-            ? <img src={resolveCoverUrl(coverImage)} alt={course.form?.title} onError={() => setImgErr(true)}
-                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"/>
-            : <div className="w-full h-full flex items-center justify-center">
-                <BookOpen className="w-10 h-10 opacity-30" style={{ color: C.green }}/>
-              </div>
-          }
-          {completed && (
-            <div className="absolute top-2 right-2">
-              <span className="text-[11px] font-semibold px-2.5 py-1 rounded-full"
-                style={{ background: passed ? '#f0fdf4' : '#fef2f2', color: passed ? '#16a34a' : '#dc2626' }}>
-                {passed ? 'Passed' : 'Not passed'}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="p-5 flex flex-col flex-1">
-        {/* Category tag */}
-        {category && (
-          <div className="self-start inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full mb-3"
-            style={{ background: C.pill }}>
-            {categoryIcon && <img src={categoryIcon} alt={category} className="w-3.5 h-3.5 object-contain flex-shrink-0" />}
-            <span className="text-[11px] font-semibold" style={{ color: C.muted }}>{category}</span>
-          </div>
-        )}
-
-        <h3 className="mb-1.5 line-clamp-2 leading-snug cursor-pointer hover:opacity-70 transition-opacity"
-          style={{ color: C.text, fontSize: '17.5px', fontFamily: 'var(--font-lato)', fontWeight: 900 }} onClick={onDetails}>
-          {course.form?.title ?? 'Untitled Course'}
-        </h3>
-        {course.form?.partner && (
-          <div className="flex items-center gap-1.5 mb-2 text-xs" style={{ color: C.faint }}>
-            {course.form.partner.logo_url && (
-              <img src={course.form.partner.logo_url} alt="" className="w-4 h-4 object-contain" />
-            )}
-            <span>Offered by {course.form.partner.name}</span>
-          </div>
-        )}
-
-
-        {description && (
-          <p className="mb-2.5 line-clamp-4" style={{ color: C.faint, fontSize: '14.5px', fontFamily: 'var(--font-lato)', lineHeight: 1.45 }}>
-            {description.replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/\s+/g, ' ').trim()}
-          </p>
-        )}
-
-        {deadlineLabel && (
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full mb-2"
-            style={{ background: `${deadlineColor ?? '#6b7280'}18`, color: deadlineColor ?? '#6b7280' }}>
-            ⏰ {deadlineLabel}
-          </span>
-        )}
-        <div className="flex items-center justify-between mb-3">
-          <span className="text-xs" style={{ color: C.faint }}>
-            {completed ? 'Completed' : currentIdx > 0 ? `${progress}% done` : 'Not started'}
-          </span>
-          {completed && score > 0 && (
-            <span className="text-xs font-semibold" style={{ color: passed ? '#16a34a' : '#dc2626' }}>Score: {score}%</span>
-          )}
-        </div>
-        <ProgressBar value={progress} color="#22c55e"/>
-
-        <div className="mt-auto pt-4 flex items-center justify-between gap-2">
-          {/* Details button */}
-          <button onClick={onDetails}
-            className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-xl transition-opacity hover:opacity-70"
-            style={{ background: C.pill, color: C.muted }}>
-            <FileText className="w-3.5 h-3.5"/>
-            Details
-          </button>
-
-          <div className="flex items-center gap-2">
-            {/* Primary action */}
-            <a href={actionHref} target="_blank" rel="noreferrer"
-              className="flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-70 dashboard-cta"
-              style={{
-                background: completed ? C.pill : C.cta,
-                color: completed ? C.muted : C.ctaText,
-              }}>
-              <Play className="w-3.5 h-3.5"/>
-              {actionLabel}
-            </a>
-          </div>
-        </div>
-      </div>
-    </motion.div>
+    <LearningCard
+      C={C}
+      cover={courseCover(course)}
+      fallbackLogo={icon}
+      tag={completed ? (passed ? { label: 'Completed', tone: 'green' } : { label: 'Not passed', tone: 'red' }) : deadlineTag(deadline, false)}
+      title={course.form?.title ?? 'Untitled course'}
+      byline={partner ? (
+        <span className="inline-flex items-center gap-1.5">
+          {partner.logo_url && <img src={partner.logo_url} alt="" className="h-4 w-4 object-contain" />}
+          Offered by {partner.name}
+        </span>
+      ) : null}
+      description={toPlainText(course.form?.config?.description ?? course.form?.description)}
+      progress={progress}
+      done={completed}
+      figure={showScore ? `${score}%` : lessons || courseProgressCounts(questions, course.answers ?? {}).total}
+      figureLabel={showScore ? 'Final score' : lessons ? (lessons === 1 ? 'Lesson' : 'Lessons') : 'Questions'}
+      chip={category ? { label: category, icon } : null}
+      action={{
+        label: completed ? (passed ? 'Review' : 'Retake') : started ? 'Resume' : 'Start',
+        href: `/${course.slug || course.form?.slug || course.form_id}`,
+        quiet: completed && passed,
+      }}
+      onOpen={onDetails}
+    />
   );
 }
 
@@ -489,70 +401,45 @@ export function LearningPathsSection({ C }: { C: typeof LIGHT_C }) {
     setSelectedPathId(pathId);
   };
   return (
-    <LearningPathCarousel paths={paths} C={C} onOpen={openPath}/>
+    <LearningPathGrid paths={paths} C={C} onOpen={openPath}/>
   );
 }
 
-function LearningPathCarousel({ paths, C, onOpen }: { paths: any[]; C: typeof LIGHT_C; onOpen: (id: string) => void }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
-
+function LearningPathGrid({ paths, C, onOpen }: { paths: any[]; C: typeof LIGHT_C; onOpen: (id: string) => void }) {
   return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-      {paths.length > 1 && (
-        <div className="mb-4 flex justify-end">
-          <div className="flex flex-shrink-0 items-center gap-2">
-            <button onClick={() => scrollByCards(-1)} aria-label="Previous learning path"
-              className="grid h-9 w-9 place-items-center rounded-full transition-opacity hover:opacity-70"
-              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-              <ChevronLeft className="h-4 w-4"/>
-            </button>
-            <button onClick={() => scrollByCards(1)} aria-label="Next learning path"
-              className="grid h-9 w-9 place-items-center rounded-full transition-opacity hover:opacity-70"
-              style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-              <ChevronRight className="h-4 w-4"/>
-            </button>
-          </div>
-        </div>
-      )}
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 snap-x" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {paths.map((path: any) => {
-          const totalItems = (path.item_ids ?? []).length;
-          const completedIds: string[] = path.progress?.completed_item_ids ?? [];
-          const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
-          const pct = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
-          const complete = totalItems > 0 && completedCount === totalItems && !path.needs_track;
-          const hasItemProgress = (path.items ?? []).some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
-          const started = !complete && (completedCount > 0 || hasItemProgress);
-          // The first unfinished item, so the card says where the learner picks up.
-          const next = !complete && !path.needs_track
-            ? (path.items ?? []).find((item: any) => !completedIds.includes(item.id))
-            : null;
-          return (
-            <div key={path.id} className="w-[220px] flex-shrink-0 snap-start">
-              <button onClick={() => onOpen(path.id)} className="group block w-full text-left transition-transform hover:-translate-y-0.5">
-                <CoverThumbnail cover={path.cover_image} alt={path.title} Icon={Layers}>
-                  {complete ? (
-                    <span className="absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-full shadow-sm" style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed"><Check className="h-3 w-3" strokeWidth={3}/></span>
-                  ) : started ? (
-                    <span className="absolute top-2 left-2 rounded-md px-2 py-0.5 text-[10px] font-bold" style={{ background: '#22c55e', color: '#ffffff' }}>In progress</span>
-                  ) : null}
-                </CoverThumbnail>
-                <p className="mt-2 text-xs" style={{ color: C.faint }}>Learning path</p>
-                <p className="mt-0.5 line-clamp-2 text-[15px] font-bold leading-snug" style={{ color: C.text }}>{path.title}</p>
-                <ProgressBar value={pct} color="#22c55e"/>
-                <p className="mt-1 text-[11px]" style={{ color: C.faint }}>
-                  {complete ? 'Completed' : path.needs_track ? 'Choose your track' : completedCount > 0 ? `${completedCount} of ${totalItems} complete` : started ? 'In progress' : `${totalItems} item${totalItems !== 1 ? 's' : ''}, not started`}
-                </p>
-                {next && (
-                  <p className="mt-0.5 truncate text-[11px]" style={{ color: C.muted }}>Next: {next.title}</p>
-                )}
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </section>
+    <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+      {paths.map((path: any) => {
+        const totalItems = (path.item_ids ?? []).length;
+        const completedIds: string[] = path.progress?.completed_item_ids ?? [];
+        const completedCount = (path.item_ids ?? []).filter((id: string) => completedIds.includes(id)).length;
+        const complete = totalItems > 0 && completedCount === totalItems && !path.needs_track;
+        const hasItemProgress = (path.items ?? []).some((item: any) => typeof item.in_progress_pct === 'number' && item.in_progress_pct > 0);
+        const started = !complete && (completedCount > 0 || hasItemProgress);
+        const open = () => onOpen(path.id);
+        return (
+          <LearningCard
+            key={path.id}
+            C={C}
+            cover={path.cover_image}
+            fallbackIcon={Layers}
+            tag={complete ? { label: 'Completed', tone: 'green' } : path.needs_track ? { label: 'Choose your track', tone: 'amber' } : null}
+            title={path.title}
+            description={toPlainText(path.description)}
+            progress={totalItems ? (completedCount / totalItems) * 100 : 0}
+            done={complete}
+            figure={`${completedCount} of ${totalItems}`}
+            figureLabel="Completed"
+            chip={{ label: 'Learning path' }}
+            action={{
+              label: path.locked ? enrollLabel(path.unlock) : complete ? 'Review path' : path.needs_track ? 'Choose track' : started ? 'Continue path' : 'Start path',
+              onClick: open,
+              quiet: complete,
+            }}
+            onOpen={open}
+          />
+        );
+      })}
+    </div>
   );
 }
 
@@ -1216,19 +1103,20 @@ export function PathRow({ path, C, publicPreview = false, hideHeader = false, on
   );
 }
 
-// Group courses by their tool/category; named tools alphabetical, "Other" last
-function groupCoursesByTool(courses: any[]): [string, any[]][] {
-  const groups = new Map<string, any[]>();
+// Courses grouped by their tool/category, named groups alphabetical. With no categories at all
+// there is one unnamed group; otherwise uncategorised courses come last as "More courses".
+function groupCourses(courses: any[]): [string | null, any[]][] {
+  const named = new Map<string, any[]>();
+  const rest: any[] = [];
   for (const c of courses) {
-    const key = (c.form?.category ?? '').trim() || 'Other';
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(c);
+    const key = (c.form?.category ?? '').trim();
+    if (!key) { rest.push(c); continue; }
+    if (!named.has(key)) named.set(key, []);
+    named.get(key)!.push(c);
   }
-  return [...groups.entries()].sort((a, b) => {
-    if (a[0] === 'Other') return 1;
-    if (b[0] === 'Other') return -1;
-    return a[0].localeCompare(b[0]);
-  });
+  if (!named.size) return [[null, rest]];
+  const groups: [string | null, any[]][] = [...named.entries()].sort((x, y) => x[0].localeCompare(y[0]));
+  return rest.length ? [...groups, ['More courses', rest]] : groups;
 }
 
 function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8 h-8', children, className = '' }: {
@@ -1265,93 +1153,9 @@ function CoverThumbnail({ cover, alt = '', Icon = BookOpen, iconClassName = 'w-8
   );
 }
 
-// One tool group rendered as a titled, horizontally-scrolling carousel of course cards
-function ToolRow({ tool, courses, deadlines, C, onDetails }: { tool: string; courses: any[]; deadlines: Record<string, Date | null>; C: typeof LIGHT_C; onDetails: (c: any) => void }) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const toolIcon = useToolIcons();
-  const icon = toolIcon(tool);
-  const scrollByCards = (dir: number) => scrollRef.current?.scrollBy({ left: dir * 320, behavior: 'smooth' });
-
-  return (
-    <section className="rounded-2xl p-5 sm:p-6" style={{ background: C.card }}>
-      {/* Header: tool name + nav arrows */}
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-2.5 min-w-0">
-          {icon && <img src={icon} alt="" className="w-6 h-6 object-contain flex-shrink-0"/>}
-          <h3 className="text-xl sm:text-2xl font-bold leading-tight truncate" style={{ color: C.text }}>{tool}</h3>
-        </div>
-        <div className="flex items-center gap-2 flex-shrink-0">
-          <button onClick={() => scrollByCards(-1)} aria-label="Scroll left"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronLeft className="w-4 h-4"/>
-          </button>
-          <button onClick={() => scrollByCards(1)} aria-label="Scroll right"
-            className="w-9 h-9 rounded-full grid place-items-center transition-opacity hover:opacity-70"
-            style={{ border: `1px solid ${C.cardBorder}`, color: C.muted }}>
-            <ChevronRight className="w-4 h-4"/>
-          </button>
-        </div>
-      </div>
-
-      {/* Carousel */}
-      <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-1 mt-4 snap-x"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-        {courses.map((c: any) => {
-          const completed  = !!c.completed_at;
-          const currentIdx = c.current_question_index ?? 0;
-          const cover      = c.form?.config?.coverImage ?? c.form?.cover_image;
-          const title      = c.form?.title ?? 'Untitled Course';
-          const status     = completed ? 'Completed' : currentIdx > 0 ? 'In progress' : null;
-          const questions  = c.form?.questions ?? c.form?.config?.questions ?? [];
-          // Shared rule, so a skipped optional LinkedIn slide does not show as unfinished.
-          const cardCounts = courseProgressCounts(questions, c.answers ?? {});
-          const answeredQ  = cardCounts.done;
-          const totalQ     = cardCounts.total;
-          const progress   = completed ? 100 : courseProgressPct(questions, c.answers ?? {});
-          return (
-            <div key={c.form_id} className="flex-shrink-0 w-[220px] snap-start">
-              <button onClick={() => onDetails(c)} className="block w-full text-left transition-transform hover:-translate-y-0.5">
-                <CoverThumbnail cover={cover} alt={title}>
-                  {completed ? (
-                    <span className="absolute top-2 left-2 flex items-center justify-center w-5 h-5 rounded-full shadow-sm"
-                      style={{ background: '#16a34a', color: '#ffffff' }} title="Completed" aria-label="Completed">
-                      <Check className="w-3 h-3" strokeWidth={3}/>
-                    </span>
-                  ) : status && (
-                    <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md"
-                      style={{ background: '#22c55e', color: '#ffffff' }}>
-                      {status}
-                    </span>
-                  )}
-                </CoverThumbnail>
-                {c.form?.partner && (
-                  <div className="flex items-center gap-2 mt-2" style={{ color: C.faint }}>
-                    {c.form.partner.logo_url && (
-                      <img src={c.form.partner.logo_url} alt="" className="w-5 h-5 object-contain flex-shrink-0" />
-                    )}
-                    <span className="text-xs truncate">{c.form.partner.name}</span>
-                  </div>
-                )}
-                <p className={`text-[15px] font-bold leading-snug ${c.form?.partner ? 'mt-1' : 'mt-2'} mb-2.5 line-clamp-2`} style={{ color: C.text }}>{title}</p>
-                <ProgressBar value={progress} color="#22c55e"/>
-                <div className="mt-1 flex items-center justify-between gap-2">
-                  <p className="text-[11px]" style={{ color: C.faint }}>
-                    {completed ? 'Completed' : currentIdx > 0 ? `${progress}% complete` : 'Not started'}
-                  </p>
-                  <DeadlineNote deadline={deadlines[c.form_id]} done={completed}/>
-                </div>
-              </button>
-            </div>
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 // --- Courses section ---
-export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstandingProp }: { userEmail: string; userId?: string; C: typeof LIGHT_C; isOutstandingProp?: boolean }) {
+export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstandingProp, searchQuery = '' }: { userEmail: string; userId?: string; C: typeof LIGHT_C; isOutstandingProp?: boolean; searchQuery?: string }) {
+  const toolIcon = useToolIcons();
   const [courses,   setCourses]   = useState<any[]>([]);
   const [deadlines, setDeadlines] = useState<Record<string, Date | null>>({});
   const [loading,   setLoading]   = useState(true);
@@ -1362,9 +1166,6 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
   const [veStatusMap, setVeStatusMap] = useState<Record<string, { started: boolean; completed: boolean }>>({});
   const [isOutstandingInternal, setIsOutstandingInternal] = useState(false);
   const isOutstanding = isOutstandingProp ?? isOutstandingInternal;
-  // Semantic search
-  const [searchQuery,   setSearchQuery]   = useState('');
-  const searchTimer = useRef<any>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -1605,47 +1406,28 @@ export function CoursesSection({ userEmail, userId: userIdProp, C, isOutstanding
             style={{ background: C.cta, color: C.ctaText }}><BookOpen className="w-4 h-4"/> Browse courses</Link>}/>
       )}
 
-      {/* Semantic search bar */}
-      <div className="relative">
-        <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: C.muted }} />
-        <input
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search courses by topic, skill, or keyword…"
-          className="w-full pl-10 pr-10 py-2.5 rounded-xl text-sm outline-none transition-all"
-          style={{
-            background:  C.card,
-            border:      `1px solid ${C.cardBorder}`,
-            color:       C.text,
-          }}
-        />
-      </div>
+      {searchResults !== null && searchResults.length === 0 && (
+        <p className="text-sm text-center py-6" style={{ color: C.muted }}>
+          No courses found for &ldquo;{searchQuery.trim()}&rdquo;
+        </p>
+      )}
 
-      {/* Search results */}
-      {searchResults !== null && (
-        <div>
-          {searchResults.length === 0 ? (
-            <p className="text-sm text-center py-6" style={{ color: C.muted }}>
-              No courses found for &ldquo;{searchQuery}&rdquo;
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-              {searchResults.map((c: any) => (
-                <CourseCard key={c.form_id} course={c} deadline={deadlines[c.form_id]} C={C} onDetails={() => setDetailCourse(c)} />
-              ))}
+      {groupCourses(searchResults ?? courses).filter(([, list]) => list.length > 0).map(([label, list]) => (
+        <section key={label ?? 'all'} className="space-y-4">
+          {label && (
+            <div className="flex items-center gap-2.5">
+              {toolIcon(label) && <img src={toolIcon(label)!} alt="" className="h-6 w-6 object-contain" />}
+              <h3 className="text-lg font-bold" style={{ color: C.text }}>{label}</h3>
             </div>
           )}
-        </div>
-      )}
-
-      {/* Courses grouped by tool -- hidden while searching */}
-      {searchResults === null && (
-        <div className="space-y-6">
-          {groupCoursesByTool(courses).map(([tool, list]) => (
-            <ToolRow key={tool} tool={tool} courses={list} deadlines={deadlines} C={C} onDetails={setDetailCourse} />
-          ))}
-        </div>
-      )}
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+            {list.map((c: any) => (
+              <CourseCard key={c.form_id} course={c} deadline={deadlines[c.form_id]} C={C}
+                onDetails={() => setDetailCourse(c)} />
+            ))}
+          </div>
+        </section>
+      ))}
 
       <AnimatePresence>
         {detailCourse && (

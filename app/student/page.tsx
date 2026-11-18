@@ -7,7 +7,7 @@ import {
   Settings, Sun, Moon, Menu, X,
   AlertTriangle,
   Loader2, ChevronRight, ChevronLeft,
-  FileText, Film, Layers, Briefcase,
+  FileText, Search,
   Zap, RefreshCw,
   Check,
 } from 'lucide-react';
@@ -97,6 +97,25 @@ function isSectionVisibleForStudent(id: SectionId, showExplore: boolean, showCoh
   return true;
 }
 
+// The line under each section's title. My Learning, overview, my program, certifications and the
+// AI toolkit open with their own introduction instead.
+const SECTION_LINES: Partial<Record<SectionId, string>> = {
+  explore:       'Explore the full catalogue. Purchase access or enroll to unlock more learning.',
+  products:      'Digital products you have bought, or that your program gives you. Open or download them any time.',
+  data_center:   'Explore real-world datasets and sharpen your skills in data analysis, visualization, and storytelling. Each dataset comes with business questions designed to challenge how you think with data.',
+  events:        'Upcoming sessions for your cohort. Join from here when they start.',
+  assignments:   'Continue your work, track deadlines, and review feedback.',
+  calendar:      'Live sessions and assignment deadlines, by month, week or list.',
+  schedule:      'Study plans your instructors publish for your cohort.',
+  recordings:    'Recordings for your courses, once your instructors publish them.',
+  community:     'Discussion groups for your cohort.',
+  announcements: 'Posts from your instructors and admins.',
+  leaderboard:   'How your XP compares with others in your cohort.',
+  certificates:  'Certificates you have earned. Download them or add them to LinkedIn.',
+  badges:        'Badges you have earned, and the ones still to earn.',
+  payments:      'Your plan, your payments and what is due next.',
+};
+
 export default function StudentDashboard() {
   const [mounted, setMounted] = useState(false);
   const C = useC();
@@ -112,6 +131,7 @@ export default function StudentDashboard() {
   const [activeSection, setActiveSection] = useState<SectionId>('overview');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navCollapsed, setNavCollapsed] = useState(true);
+  const [courseSearch, setCourseSearch] = useState('');
   const [isOutstanding,        setIsOutstanding]        = useState(false);
   const [enrollmentStatus,     setEnrollmentStatus]     = useState<string | null>(null);
   const [showOutstandingModal, setShowOutstandingModal] = useState(false);
@@ -611,16 +631,8 @@ export default function StudentDashboard() {
                             <div className="relative w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors"
                               style={{ background: isActive ? `${navAccent}18` : C.pill }}>
                               <item.Icon className="w-4 h-4" style={{ color: isActive ? navAccent : theme === 'dark' ? 'rgba(255,255,255,0.35)' : '#9ca3af' }}/>
-                              {navCollapsed && 'badge' in item && item.badge && (
-                                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: C.green, boxShadow: `0 0 0 2px ${C.card}` }}/>
-                              )}
                             </div>
                             {!navCollapsed && <span className="truncate">{item.label}</span>}
-                            {!navCollapsed && 'badge' in item && item.badge && (
-                              <span className="ml-auto text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full" style={{ background: C.green, color: '#fff' }}>
-                                {item.badge}
-                              </span>
-                            )}
                           </button>
                         );
                       })}
@@ -649,10 +661,12 @@ export default function StudentDashboard() {
         <main className="flex-1 min-w-0 overflow-y-auto px-5 md:px-8 py-7" style={{ background: activeSection === 'certifications' ? (theme === 'dark' ? C.page : '#ffffff') : undefined }}>
           {hasBootcampCohort && effectiveId && <NextSessionBanner userId={effectiveId} C={C}/>}
           <motion.div key={activeSection} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.2 }}>
-            {/* Section header -- hidden on overview (has its own greeting), my program (titled by the cohort) and assignments (manages its own title) */}
-            {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'assignments' && activeSection !== 'certifications' && (
-              <div className="flex items-center justify-between mb-6">
+            {/* Section header: the menu name and one line. Hidden on overview (its own greeting), my
+                program (titled by the cohort) and certifications (its own landing). */}
+            {activeSection !== 'overview' && activeSection !== 'my_program' && activeSection !== 'certifications' && (
+              <div className="mb-6">
                 <h1 className="text-[22px] font-bold tracking-tight" style={{ color: C.text }}>{isMyLearning ? 'My Learning' : activeItem.label}</h1>
+                {SECTION_LINES[activeSection] && <p className="mt-1 text-sm" style={{ color: C.muted }}>{SECTION_LINES[activeSection]}</p>}
               </div>
             )}
 
@@ -747,34 +761,41 @@ export default function StudentDashboard() {
             )}
 
             {isMyLearning && user && (
-              <div
-                role="tablist"
-                aria-label="My Learning sections"
-                className="flex gap-1 overflow-x-auto rounded-xl p-1 mb-6"
-                style={{ background: C.card }}>
-                {([
-                  { id: 'learning_paths', label: 'Learning Paths', Icon: Layers },
-                  { id: 'courses', label: 'Courses', Icon: Film },
-                  { id: 'virtual_experiences', label: 'Virtual Experiences', Icon: Briefcase },
-                ] as const).map(({ id, label, Icon }) => {
-                  const selected = activeSection === id;
-                  return (
-                    <button
-                      key={id}
-                      role="tab"
-                      aria-selected={selected}
-                      onClick={() => goSection(id)}
-                      className="flex min-w-max flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-semibold transition-all"
-                      style={{
-                        background: selected ? C.page : 'transparent',
-                        color: selected ? navAccent : C.muted,
-                        boxShadow: selected ? '0 1px 3px rgba(0,0,0,0.10)' : 'none',
-                      }}>
-                      <Icon className="w-4 h-4" />
-                      {label}
-                    </button>
-                  );
-                })}
+              <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+                {/* Grey pill track, the open tab in white. */}
+                <div role="tablist" aria-label="My Learning sections" className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl p-1"
+                  style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.06)' : '#E8EBF0' }}>
+                  {([
+                    { id: 'courses', label: 'Courses' },
+                    { id: 'learning_paths', label: 'Learning paths' },
+                    { id: 'virtual_experiences', label: 'Virtual experiences' },
+                  ] as const).map(({ id, label }) => {
+                    const selected = activeSection === id;
+                    return (
+                      <button
+                        key={id}
+                        role="tab"
+                        aria-selected={selected}
+                        onClick={() => goSection(id)}
+                        className="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+                        style={{
+                          background: selected ? (theme === 'dark' ? '#2a2c35' : '#ffffff') : 'transparent',
+                          color: selected ? C.text : C.muted,
+                          boxShadow: selected ? '0 1px 2px rgba(15,23,42,0.08), 0 1px 6px rgba(15,23,42,0.06)' : 'none',
+                        }}>
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+                {activeSection === 'courses' && (
+                  <label className="flex w-full items-center gap-2 rounded-xl px-3 py-2 sm:w-64"
+                    style={{ background: C.card, border: `1px solid ${C.cardBorder}` }}>
+                    <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
+                    <input value={courseSearch} onChange={e => setCourseSearch(e.target.value)} placeholder="Search courses"
+                      aria-label="Search courses" className="min-w-0 flex-1 bg-transparent text-sm outline-none" style={{ color: C.text }} />
+                  </label>
+                )}
               </div>
             )}
 
@@ -785,7 +806,7 @@ export default function StudentDashboard() {
               <MyProgramSection C={C} coursesLocked={isOutstanding} studentName={viewingAs?.name ?? profile?.full_name ?? null}/>
             )}
             {activeSection === 'courses' && user && (
-              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding}/>
+              <CoursesSection userEmail={effectiveEmail} userId={effectiveId} C={C} isOutstandingProp={isOutstanding} searchQuery={courseSearch}/>
             )}
             {activeSection === 'learning_paths' && user && (
               <LearningPathsSection C={C}/>

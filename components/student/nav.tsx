@@ -11,7 +11,7 @@ import {
 
 export const NAV_ITEMS = [
   { id: 'overview',          label: 'Dashboard',           Icon: LayoutDashboard },
-  { id: 'my_program',        label: 'My Bootcamp',         Icon: Route, badge: 'New' },
+  { id: 'my_program',        label: 'My Bootcamp',         Icon: Route           },
   { id: 'courses',           label: 'My Learning',         Icon: Film            },
   { id: 'learning_paths',    label: 'Learning Paths',      Icon: Layers          },
   { id: 'virtual_experiences', label: 'Virtual Experiences', Icon: Briefcase     },
@@ -27,7 +27,7 @@ export const NAV_ITEMS = [
   { id: 'schedule',          label: 'Schedule',            Icon: Calendar        },
   { id: 'recordings',       label: 'Recordings',          Icon: Video           },
   { id: 'leaderboard',       label: 'Leaderboard',         Icon: Trophy          },
-  { id: 'certificates',      label: 'Certificates',        Icon: Award           },
+  { id: 'certificates',      label: 'My Certificates',     Icon: Award           },
   { id: 'badges',            label: 'Badges',              Icon: Medal           },
   { id: 'ai_toolkit',        label: 'AI Toolkit',          Icon: Sparkles        },
   { id: 'payments',          label: 'My Plan',             Icon: CreditCard      },
