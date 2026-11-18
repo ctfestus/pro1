@@ -56,10 +56,10 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
         About{' '}
         <span style={{ position: 'relative', display: 'inline-block', fontWeight: 800, color: palette.text, paddingBottom: 3 }}>
           {perDay}
-          {/* A hand-drawn swoosh under the figure, in the ribbon's colour. */}
+          {/* A hand-drawn swoosh under the figure: green, or the ocean blue in dark mode. */}
           <svg aria-hidden="true" viewBox="0 0 100 10" preserveAspectRatio="none"
             style={{ position: 'absolute', left: 0, bottom: -3, width: '100%', height: 7, overflow: 'visible' }}>
-            <path d="M2 7 C 25 1, 70 1, 98 5" fill="none" stroke={palette.dark ? '#3E93FF' : '#E9B949'} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+            <path d="M2 7 C 25 1, 70 1, 98 5" fill="none" stroke={palette.dark ? '#3E93FF' : '#16a34a'} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
           </svg>
         </span>{' '}
         a day. One payment, no automatic renewal.
