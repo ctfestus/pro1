@@ -230,7 +230,8 @@ export async function GET(req: NextRequest) {
         byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : ([r.role, r.company].filter(Boolean).join(', ')
           || (cleanList(r.authors).length ? `By ${cleanList(r.authors).join(', ')}` : null)),
         bylineLogo: partnerOf(r)?.logo_url ?? null,
-        ...previewFacts(r),
+        // A path has its own overview fields (pathOverviewFields below).
+        ...(type === 'learning_path' ? {} : previewFacts(r)),
         locked: !(
           r.available_to_everyone === true
           || inCohort(r)

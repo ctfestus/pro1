@@ -33,6 +33,8 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
   const show = () => {
     setActive(Math.max(0, options.findIndex(o => o.value === value)));
     setOpen(true);
+    // Safari does not focus a clicked button, and closing on outside click relies on blur.
+    buttonRef.current?.focus();
   };
   const choose = (v: V) => {
     onChange(v);
@@ -104,6 +106,8 @@ export function MenuSelect<V extends string>({ label, value, options, onChange, 
                   aria-selected={selected}
                   tabIndex={-1}
                   onMouseEnter={() => setActive(i)}
+                  // Keep focus on the trigger while an option is pressed.
+                  onMouseDown={e => e.preventDefault()}
                   onClick={() => choose(o.value)}
                   className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors"
                   style={{ background: i === active ? C.pill : 'transparent', color: C.text, fontWeight: selected ? 600 : 400 }}
