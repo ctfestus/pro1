@@ -54,7 +54,7 @@ export function LearningCard({
 
   return (
     <article
-      className="group flex min-h-[580px] cursor-pointer flex-col rounded-2xl transition-all hover:-translate-y-0.5 hover:shadow-lg"
+      className="group flex h-full cursor-pointer flex-col rounded-2xl transition-all hover:-translate-y-0.5 hover:shadow-lg"
       style={{ background: C.card, boxShadow: '0 1px 3px rgba(15,23,42,0.06), 0 6px 20px rgba(15,23,42,0.06)' }}
       onClick={onOpen}
     >
@@ -87,9 +87,11 @@ export function LearningCard({
           {byline && <div className="mt-1 text-xs" style={{ color: C.faint }}>{byline}</div>}
         </div>
         {description && (
-          <p className="line-clamp-3 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>{description}</p>
+          <p className="line-clamp-4 text-[13.5px] leading-relaxed" style={{ color: C.muted }}>{description}</p>
         )}
 
+        {/* Progress, figure and action sit at the bottom, so they line up across a row. */}
+        <div className="mt-auto flex flex-col gap-4">
         <div>
           <p className="mb-1.5 text-[12.5px] font-semibold" style={{ color: C.text }}>Progress</p>
           <div className="flex items-center gap-3">
@@ -115,10 +117,11 @@ export function LearningCard({
           )}
         </div>
 
-        <div className="mt-auto pt-1" onClick={e => e.stopPropagation()}>
+        <div className="pt-1" onClick={e => e.stopPropagation()}>
           {action.href
             ? <a href={action.href} target="_blank" rel="noreferrer" className={`${actionClass} dashboard-cta`} style={actionStyle}>{action.label}</a>
             : <button type="button" onClick={action.onClick} className={actionClass} style={actionStyle}>{action.label}</button>}
+        </div>
         </div>
       </div>
     </article>
