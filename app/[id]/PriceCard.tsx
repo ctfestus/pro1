@@ -27,16 +27,20 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
   const prices = plans.flatMap(plan => plan.prices ?? []);
   if (!prices.length) return null;
 
-  // The lowest a month, among every length of every plan that opens the item. Prices arrive with
-  // any running discount already applied.
-  const cheapest = prices.reduce((best, price) =>
-    price.amount / price.durationMonths < best.amount / best.durationMonths ? price : best);
-  const perMonth = unlockMoney(cheapest.currency, cheapest.amount / cheapest.durationMonths);
+  // Lead with a price someone can actually pay: the best value (lowest a month) among every length
+  // of every plan that opens the item, with any running discount already applied. The monthly
+  // figure only follows it, as what it works out to -- shown alone, it read as a second price
+  // beside the real one-month price.
+  const best = prices.reduce((cheapest, price) =>
+    price.amount / price.durationMonths < cheapest.amount / cheapest.durationMonths ? price : cheapest);
   const planName = unlockPlanName(unlock);
   const single = plans.length === 1;
-  const terms = single
-    ? `${prices.map(price => `${unlockMoney(price.currency, price.amount)} for ${unlockDurationLabel(price.durationMonths)}`).join(', or ')}. One payment, no automatic renewal.`
-    : `Included in ${plans.length} plans.`;
+  const others = single ? prices.filter(price => price !== best) : [];
+  const detail = [
+    best.durationMonths > 1 ? `Works out to ${unlockMoney(best.currency, best.amount / best.durationMonths)} a month.` : '',
+    others.length ? `Or ${others.map(price => `${unlockMoney(price.currency, price.amount)} for ${unlockDurationLabel(price.durationMonths)}`).join(', or ')}.` : '',
+    single ? '' : `Included in ${plans.length} plans.`,
+  ].filter(Boolean).join(' ');
   const ribbon = single && planName ? `${planName.replace(/\s*plan$/i, '')} plan` : 'Plans';
 
   return (
@@ -53,11 +57,12 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
         <Lock style={{ width: 18, height: 18 }} /> Unlock this {NOUN[kind]}
       </p>
       <p style={{ margin: 0, fontSize: 13.5, color: palette.muted }}>
-        {!single && 'From '}
-        <span style={{ fontSize: 26, fontWeight: 800, color: palette.text, letterSpacing: '-0.02em', marginRight: 4 }}>{perMonth}</span>
-        a month
+        <span style={{ fontSize: 26, fontWeight: 800, color: palette.text, letterSpacing: '-0.02em', marginRight: 4 }}>{unlockMoney(best.currency, best.amount)}</span>
+        for {unlockDurationLabel(best.durationMonths)}
       </p>
-      <p style={{ margin: '-6px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>{terms}</p>
+      <p style={{ margin: '-6px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>
+        {detail} One payment, no automatic renewal.
+      </p>
       <Link href={pricingHrefFor(itemId, kind)}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: 13, borderRadius: 12, background: palette.accent, color: '#ffffff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
         {enrollLabel(unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
