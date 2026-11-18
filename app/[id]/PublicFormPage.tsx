@@ -38,6 +38,7 @@ import { PathRow, PathSpecializations, pathCoreOnly } from '@/components/student
 import { publicGuide, GuideByline, GuideCard } from '@/components/ve/guide';
 import { MissionOutline } from '@/components/ve/MissionOutline';
 import { MoreLikeThis } from './MoreLikeThis';
+import { PriceCard, hasPriceCard } from './PriceCard';
 import { clearStudentMode, getStudentMode, installStudentModeFetchBridge, type StudentModeContext } from '@/lib/student-mode-client';
 import { useC } from '@/lib/theme';
 import { enrollLabel, pricingHrefFor } from '@/lib/unlock-pricing';
@@ -630,13 +631,20 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
                 ))}
               </ul>
             </div>
+            {/* A locked path with plans on sale has its button in the price card below. */}
+            {!hasPriceCard(path.locked, path.unlock) && (
             <Link href={href} className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold"
               style={{ background: C.cta, color: C.ctaText }}>
               {path.locked && <Lock className="h-4 w-4" />}
               {cta}
               <ArrowRight className="h-4 w-4" />
             </Link>
+            )}
           </div>
+          {hasPriceCard(path.locked, path.unlock) && (
+            <PriceCard kind="learning_path" itemId={path.id} unlock={path.unlock}
+              palette={{ card: C.card, text: C.text, muted: C.muted, line: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)', accent: C.cta, shadow: cardShadow(isDark) }} />
+          )}
           {whoShouldTake.length > 0 && (
             <div style={{ ...card, padding: '20px' }}>
               <h2 style={{ ...heading, fontSize: 15, marginBottom: 12 }}>Who should take this path</h2>
@@ -1409,6 +1417,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
       ...(config.difficulty ? [{ Icon: Zap, label: String(config.difficulty).replace(/^./, (c: string) => c.toUpperCase()) }] : []),
       { Icon: BadgeCheck, label: 'Certificate on completion' },
     ];
+    const vePriced = hasPriceCard(form.locked, form.unlock);
     const ctaStyle = { width: '100%', padding: '13px', borderRadius: 12, background: indColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' } as const;
     const secondaryStyle = { width: '100%', padding: '11px', borderRadius: 12, background: gp.subtle, color: gp.body, fontSize: 13, fontWeight: 600, border: 'none', textDecoration: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7 } as const;
 
@@ -1528,7 +1537,9 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
           {/* Right sidebar */}
           <div className="order-1 lg:order-2 lg:sticky" style={{ top: 72, display: 'flex', flexDirection: 'column', gap: 14 }}>
 
-            {/* Enrollment card */}
+            {/* Enrollment card. A locked experience with plans on sale has its button in the price
+                card below, so this card stays only for the tools. */}
+            {(!vePriced || config.tools?.length > 0) && (
             <div style={{ background: gp.card, borderRadius: 14, padding: '20px 20px 22px', display: 'flex', flexDirection: 'column', gap: 14, boxShadow: cardShadow }}>
               {/* Tools */}
               {config.tools?.length > 0 && (
@@ -1555,11 +1566,11 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               )}
 
               {/* CTA */}
-              {form.locked ? (
+              {form.locked ? (vePriced ? null : (
                 <Link href={pricingHrefFor(form.id, 'virtual_experience')} style={ctaStyle}>
                   {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
                 </Link>
-              ) : signedOut ? (
+              )) : signedOut ? (
                 <Link href={backHere} style={ctaStyle}>
                   Start for free <ArrowRight style={{ width: 15, height: 15 }} />
                 </Link>
@@ -1593,6 +1604,12 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                 </button>
               ))}
             </div>
+            )}
+
+            {vePriced && (
+              <PriceCard kind="virtual_experience" itemId={form.id} unlock={form.unlock}
+                palette={{ card: gp.card, text: gp.title, muted: gp.muted, line: gp.border, accent: indColor, shadow: cardShadow }} />
+            )}
 
             {/* Guide profile (VE only) -- the real professional playing the manager, with
                 their actual title, employer and LinkedIn. */}
@@ -1797,8 +1814,8 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                       ))}
                     </ul>
                   </div>
-                  {/* CTA */}
-                  {form.locked ? (
+                  {/* CTA. A locked course with plans on sale has its button in the price card below. */}
+                  {form.locked ? (hasPriceCard(form.locked, form.unlock) ? null : (
                     <>
                     <Link
                       href={pricingHrefFor(form.id, 'course')}
@@ -1807,7 +1824,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                       {enrollLabel(form.unlock)} <ArrowRight style={{ width: 15, height: 15 }} />
                     </Link>
                     </>
-                  ) : signedOut ? (
+                  )) : signedOut ? (
                     <Link
                       href={backHere}
                       style={{ width: '100%', padding: '13px', borderRadius: 10, background: accentColor, color: '#fff', fontSize: 14, fontWeight: 700, textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, letterSpacing: '-0.01em' }}
@@ -1824,6 +1841,10 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
                   )}
                 </div>
               </div>
+              {hasPriceCard(form.locked, form.unlock) && (
+                <PriceCard kind="course" itemId={form.id} unlock={form.unlock}
+                  palette={{ card: cp.card, text: cp.title, muted: cp.muted, line: cp.border, accent: accentColor, shadow: courseCardShadow }} />
+              )}
               {/* Digital products the author recommends with this course (shows nothing if none). */}
               <RecommendedProducts courseId={form.id} palette={{ card: cp.card, title: cp.title, muted: cp.muted, border: cp.border, accent: accentColor }} />
               <ShareCard title={config.title || form.title} blurb={toPlainText(config.tagline || config.description || '')}
