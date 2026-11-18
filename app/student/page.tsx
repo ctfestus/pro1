@@ -780,7 +780,7 @@ export default function StudentDashboard() {
                         role="tab"
                         aria-selected={selected}
                         onClick={() => goSection(id)}
-                        className="whitespace-nowrap rounded-lg px-4 py-2 text-sm font-semibold transition-colors"
+                        className={`whitespace-nowrap rounded-lg px-4 py-2 text-sm transition-colors ${selected ? 'font-semibold' : 'font-normal'}`}
                         style={{
                           background: selected ? (theme === 'dark' ? '#2a2c35' : '#ffffff') : 'transparent',
                           color: selected ? C.text : C.muted,
