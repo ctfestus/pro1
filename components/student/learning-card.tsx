@@ -54,12 +54,12 @@ export function LearningCard({
 
   return (
     <article
-      className="group flex min-h-[540px] cursor-pointer flex-col rounded-2xl transition-all hover:-translate-y-0.5 hover:shadow-lg"
+      className="group flex min-h-[580px] cursor-pointer flex-col rounded-2xl transition-all hover:-translate-y-0.5 hover:shadow-lg"
       style={{ background: C.card, boxShadow: '0 1px 3px rgba(15,23,42,0.06), 0 6px 20px rgba(15,23,42,0.06)' }}
       onClick={onOpen}
     >
       <div className="p-3 pb-0">
-      <div className="relative h-52 w-full overflow-hidden rounded-xl" style={{ background: showImage ? '#0b0b0d' : C.pill }}>
+      <div className="relative aspect-video w-full overflow-hidden rounded-xl" style={{ background: showImage ? '#0b0b0d' : C.pill }}>
         {showImage ? (
           <img src={resolveCoverUrl(cover)} alt="" loading="lazy" onError={() => setImgErr(true)}
             className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105" />
@@ -79,7 +79,7 @@ export function LearningCard({
       </div>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 p-5">
+      <div className="flex flex-1 flex-col gap-4 p-6">
         <div>
           <h3 className="line-clamp-2 text-[17px] font-bold leading-snug" style={{ color: C.text }}>
             <button type="button" className="text-left" onClick={e => { e.stopPropagation(); onOpen(); }}>{title}</button>
