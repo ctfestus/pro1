@@ -643,7 +643,7 @@ function PublicLearningPathOverview({ path, C, authHref, signedIn }: { path: any
           </div>
           {hasPriceCard(path.locked, path.unlock) && (
             <PriceCard kind="learning_path" itemId={path.id} unlock={path.unlock}
-              palette={{ card: C.card, text: C.text, muted: C.muted, line: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)', accent: C.cta, shadow: cardShadow(isDark) }} />
+              palette={{ card: C.card, text: C.text, muted: C.muted, line: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(15,23,42,0.10)', accent: C.cta, shadow: cardShadow(isDark), dark: isDark }} />
           )}
           {whoShouldTake.length > 0 && (
             <div style={{ ...card, padding: '20px' }}>
@@ -1608,7 +1608,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
 
             {vePriced && (
               <PriceCard kind="virtual_experience" itemId={form.id} unlock={form.unlock}
-                palette={{ card: gp.card, text: gp.title, muted: gp.muted, line: gp.border, accent: indColor, shadow: cardShadow }} />
+                palette={{ card: gp.card, text: gp.title, muted: gp.muted, line: gp.border, accent: indColor, shadow: cardShadow, dark: !isLight }} />
             )}
 
             {/* Guide profile (VE only) -- the real professional playing the manager, with
@@ -1843,7 +1843,7 @@ export default function PublicFormPage({ promotions = [], publicEventPath = null
               </div>
               {hasPriceCard(form.locked, form.unlock) && (
                 <PriceCard kind="course" itemId={form.id} unlock={form.unlock}
-                  palette={{ card: cp.card, text: cp.title, muted: cp.muted, line: cp.border, accent: accentColor, shadow: courseCardShadow }} />
+                  palette={{ card: cp.card, text: cp.title, muted: cp.muted, line: cp.border, accent: accentColor, shadow: courseCardShadow, dark }} />
               )}
               {/* Digital products the author recommends with this course (shows nothing if none). */}
               <RecommendedProducts courseId={form.id} palette={{ card: cp.card, title: cp.title, muted: cp.muted, border: cp.border, accent: accentColor }} />

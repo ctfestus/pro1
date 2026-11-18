@@ -21,7 +21,7 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
   itemId: string;
   unlock: UnlockInfo;
   /** The page's own colours; accent is the page's button colour. */
-  palette: { card: string; text: string; muted: string; line: string; accent: string; shadow: string };
+  palette: { card: string; text: string; muted: string; line: string; accent: string; shadow: string; dark: boolean };
 }) {
   // One offer: the best value (lowest a month) among every length of every plan that opens the
   // item, with any running discount already applied. Lead with what is charged, then what that
@@ -39,7 +39,8 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
       <span style={{
         position: 'absolute', top: -11, right: 14, padding: '4px 18px 4px 10px', borderRadius: '4px 0 0 4px',
         clipPath: 'polygon(0 0, 100% 0, calc(100% - 8px) 50%, 100% 100%, 0 100%)',
-        background: `color-mix(in srgb, ${palette.accent} 24%, ${palette.card})`, color: palette.text,
+        // Light gold, as on Explore's labels; the ocean blue in dark mode.
+        background: palette.dark ? '#3E93FF' : '#F5D77A', color: palette.dark ? '#ffffff' : '#3d2e00',
         fontSize: 11, fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase',
       }}>
         {planName ? `${planName.replace(/\s*plan$/i, '')} plan` : 'Best value'}
@@ -52,7 +53,16 @@ export function PriceCard({ kind, itemId, unlock, palette }: {
         for {unlockDurationLabel(best.durationMonths)}
       </p>
       <p style={{ margin: '-6px 0 0', fontSize: 13, lineHeight: 1.55, color: palette.muted }}>
-        About {perDay} a day. One payment, no automatic renewal.
+        About{' '}
+        <span style={{ position: 'relative', display: 'inline-block', fontWeight: 800, color: palette.text, paddingBottom: 3 }}>
+          {perDay}
+          {/* A hand-drawn swoosh under the figure, in the ribbon's colour. */}
+          <svg aria-hidden="true" viewBox="0 0 100 10" preserveAspectRatio="none"
+            style={{ position: 'absolute', left: 0, bottom: -3, width: '100%', height: 7, overflow: 'visible' }}>
+            <path d="M2 7 C 25 1, 70 1, 98 5" fill="none" stroke={palette.dark ? '#3E93FF' : '#E9B949'} strokeWidth="3" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+          </svg>
+        </span>{' '}
+        a day. One payment, no automatic renewal.
       </p>
       <Link href={pricingHrefFor(itemId, kind)}
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, padding: 13, borderRadius: 12, background: palette.accent, color: '#ffffff', fontSize: 14, fontWeight: 700, textDecoration: 'none' }}>
