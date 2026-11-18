@@ -17,20 +17,22 @@
  * courses and virtual_experiences), and /api/student/catalogue returns display fields only, so a
  * locked card carries no course content to leak.
  */
-import { useEffect, useMemo, useState, type ElementType } from 'react';
+import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AnimatePresence } from 'motion/react';
-import { ArrowRight, Award, BookOpen, Briefcase, Film, Layers, Lock, Loader2, Package, Play } from 'lucide-react';
+import { ArrowRight, Award, BookOpen, Briefcase, Check, Clock, Film, Gift, Globe, GraduationCap, Layers, LayoutGrid, Lock, Loader2, Package, Play, Search, Tag, Target } from 'lucide-react';
+import { MenuSelect } from '@/components/MenuSelect';
 import { supabase } from '@/lib/supabase';
 import { useTenant } from '@/components/TenantProvider';
 import { HoverPreviewCard } from '@/components/student/shared';
 import { useHoverPreview } from '@/lib/use-hover-preview';
 import { LIGHT_C } from '@/lib/theme';
 import { resolveCoverUrl } from '@/lib/cloudinary-url';
+import { matchesSearch } from '@/lib/plain-text';
+import { useToolIcons } from '@/lib/use-tool-icons';
 import type { SectionId } from '@/components/student/nav';
 import { groupCatalogue, type ExploreAccess } from '@/lib/explore-filter';
 import type { CataloguePathItem } from '@/lib/catalogue-path-items';
-import { categoryColor, CATEGORY_TEXT } from '@/lib/category-color';
 import { formatMoney } from '@/lib/books/format';
 import { PriceTag } from '@/components/books/store/PriceTag';
 
@@ -44,42 +46,34 @@ interface CatalogueItem {
   coverImage: string | null;
   description: string | null;
   category: string | null;
+  /** A course's partner ("Offered by ...") or an experience's role. */
+  byline?: string | null;
+  bylineLogo?: string | null;
+  outcomes?: string[];
+  level?: string;
+  duration?: string;
+  tools?: string[];
+  examMinutes?: number;
+  passmark?: number;
+  topics?: string[];
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
   prices?: { currency: string; amount: number; original?: number }[];
-  /** Books only: the kind of product, e.g. "Template". */
-  productTypeLabel?: string;
   /** Books only: listed in the public store; otherwise the learner's copy is in My Books. */
   inStore?: boolean;
 }
 
-const TYPE_LABEL: Record<CatalogueType, string> = {
-  course:             'Course',
-  learning_path:      'Learning Path',
-  virtual_experience: 'Virtual Experience',
-  certification:      'Certification',
-  book:               'Digital Product',
-};
-
 const ROW_TITLE: Record<CatalogueType, string> = {
   course:             'Courses',
-  learning_path:      'Learning Paths',
-  virtual_experience: 'Virtual Experiences',
+  learning_path:      'Learning paths',
+  virtual_experience: 'Virtual experiences',
   certification:      'Certifications',
-  book:               'Digital Products',
+  book:               'Digital products',
 };
 
 // Image-less fallbacks, mirroring the landing page's per-type gradients so a card with no cover
 // still reads as its type rather than as a broken tile.
-const TYPE_GRAD: Record<CatalogueType, string> = {
-  course:             'linear-gradient(135deg,#1E3A8A 0%,#3B82F6 100%)',
-  learning_path:      'linear-gradient(135deg,#92400E 0%,#F59E0B 100%)',
-  virtual_experience: 'linear-gradient(135deg,#064E3B 0%,#10B981 100%)',
-  certification:      'linear-gradient(135deg,#155E75 0%,#06B6D4 100%)',
-  book:               'linear-gradient(135deg,#7C2D12 0%,#EA580C 100%)',
-};
-
 const TYPE_ORDER: CatalogueType[] = ['course', 'learning_path', 'virtual_experience', 'certification', 'book'];
 const INITIAL_VISIBLE = 8;
 const LOAD_MORE_STEP = 8;
@@ -94,6 +88,8 @@ const TYPE_ICON: Record<CatalogueType, ElementType> = {
 
 // What a learner can open now, versus what a plan would open. Two different questions from the
 // type filter, so a separate control rather than more entries in the same row.
+const ACCESS_ICON: Record<ExploreAccess, ElementType> = { all: Globe, free: Gift, paid: Lock };
+
 const ACCESS_FILTERS: { value: ExploreAccess; label: string }[] = [
   { value: 'all',  label: 'All access' },
   { value: 'free', label: 'Free' },
@@ -103,23 +99,11 @@ const ACCESS_FILTERS: { value: ExploreAccess; label: string }[] = [
 const FILTERS: { value: 'all' | CatalogueType; label: string }[] = [
   { value: 'all',                label: 'All content' },
   { value: 'course',             label: 'Courses' },
-  { value: 'learning_path',      label: 'Learning Paths' },
-  { value: 'virtual_experience', label: 'Virtual Experiences' },
+  { value: 'learning_path',      label: 'Learning paths' },
+  { value: 'virtual_experience', label: 'Virtual experiences' },
   { value: 'certification',      label: 'Certifications' },
-  { value: 'book',               label: 'Digital Products' },
+  { value: 'book',               label: 'Digital products' },
 ];
-
-function CategoryPill({ category }: { category: string }) {
-  const color = categoryColor(category);
-  return (
-    <span
-      className="inline-flex max-w-full items-center rounded-md px-2.5 py-1 text-[11px] font-bold leading-none"
-      style={{ background: color, color: CATEGORY_TEXT }}
-    >
-      <span className="truncate">{category}</span>
-    </span>
-  );
-}
 
 const resolvedCover = (coverImage: string | null) => resolveCoverUrl(coverImage) || '';
 // Every card is a real link, so middle-click, open-in-new-tab and copy-link work everywhere.
@@ -160,6 +144,7 @@ export function ExploreSection({ C }: {
   const [error,   setError]   = useState('');
   const [filter,  setFilter]  = useState<'all' | CatalogueType>('all');
   const [access,  setAccess]  = useState<ExploreAccess>('all');
+  const [search,  setSearch]  = useState('');
 
   const { hover, open: openPreview, scheduleClose, cancelClose, close: closeHover } = useHoverPreview<CatalogueItem>();
 
@@ -187,13 +172,17 @@ export function ExploreSection({ C }: {
   // for a subscriber, who has everything unlocked, and hid the rest from everyone else. Anyone
   // who only wants what they can start now picks Free above, which is a choice they can see.
   const grouped = useMemo(
-    () => groupCatalogue(items, TYPE_ORDER, filter, access) as Map<CatalogueType, CatalogueItem[]>,
-    [items, filter, access],
+    () => groupCatalogue(items.filter(i => matchesSearch(search, i.title, i.description, i.category)), TYPE_ORDER, filter, access) as Map<CatalogueType, CatalogueItem[]>,
+    [items, filter, access, search],
   );
 
-  const pillStyle = C.page === LIGHT_C.page
-    ? { background: '#ffffff', color: C.muted, border: `1px solid ${C.cardBorder}` }
-    : { background: C.card, color: C.text, border: `1px solid ${C.cardBorder}` };
+  const isLight = C.page === LIGHT_C.page;
+  // White fields with a thin border that darkens on focus, like My Learning's search.
+  const fieldStyle = {
+    background: C.card,
+    ['--explore-line' as string]: C.cardBorder,
+    ['--explore-focus' as string]: isLight ? '#b6bcc6' : 'rgba(255,255,255,0.28)',
+  };
 
   const open = (item: CatalogueItem) => {
     closeHover();
@@ -202,8 +191,8 @@ export function ExploreSection({ C }: {
 
   // Path previews widen with the path's contents so their thumbnails lay out in rows.
   const openHover = (item: CatalogueItem, el: HTMLElement) => openPreview(item, el, {
-    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 320,
-    height: 500,
+    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 340,
+    height: 560,
   });
 
   return (
@@ -215,41 +204,24 @@ export function ExploreSection({ C }: {
             says "these are not the same" without a word of explanation, and on a narrow screen
             it wraps below while still looking like its own thing. */}
         <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap gap-2" role="group" aria-label="Filter by content type">
-          {FILTERS.map(f => {
-            const active = filter === f.value;
-            return (
-              <button
-                key={f.value}
-                type="button"
-                aria-pressed={active}
-                onClick={() => { setFilter(f.value); closeHover(); }}
-                className="px-3.5 py-2 rounded-full text-sm font-semibold transition-all"
-                style={active
-                  ? { background: C.cta, color: C.ctaText }
-                  : pillStyle}
-              >
-                {f.label}
-              </button>
-            );
-          })}
+        {/* Type and access as two menus on the left, search on the right. */}
+        <div className="flex flex-wrap items-center gap-2">
+          <MenuSelect label="Content type" value={filter} C={C}
+            options={FILTERS.map(f => ({ ...f, icon: f.value === 'all' ? LayoutGrid : TYPE_ICON[f.value] }))}
+            onChange={v => { setFilter(v); closeHover(); }} />
+          <MenuSelect label="Show by access" value={access} C={C}
+            options={ACCESS_FILTERS.map(f => ({ ...f, icon: ACCESS_ICON[f.value] }))}
+            onChange={v => { setAccess(v); closeHover(); }} />
         </div>
 
-        <label className="flex items-center gap-2 text-sm" style={{ color: C.muted }}>
-          <span className="font-semibold">Show</span>
-          <select
-            value={access}
-            onChange={e => { setAccess(e.target.value as ExploreAccess); closeHover(); }}
-            className="rounded-full px-3.5 py-2 text-sm font-semibold outline-none cursor-pointer"
-            // The same resting style as the pills beside it, so it follows the mode rather than
-            // staying white on a dark page.
-            style={pillStyle}
-          >
-            {ACCESS_FILTERS.map(f => (
-              <option key={f.value} value={f.value}>{f.label}</option>
-            ))}
-          </select>
-        </label>
+        <div className="flex w-full items-center sm:w-auto">
+          <label className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[var(--explore-line)] px-3 py-2 transition-colors focus-within:border-[var(--explore-focus)] sm:w-60 sm:flex-none"
+            style={fieldStyle}>
+            <Search className="h-4 w-4 flex-shrink-0" style={{ color: C.faint }} />
+            <input value={search} onChange={e => { setSearch(e.target.value); closeHover(); }} placeholder="Search the catalogue"
+              aria-label="Search the catalogue" className="min-w-0 flex-1 bg-transparent text-sm outline-none focus-visible:!outline-none" style={{ color: C.text }} />
+          </label>
+        </div>
         </div>
       </div>
 
@@ -322,6 +294,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   onHoverLeave: () => void;
 }) {
   const [visibleCount, setVisibleCount] = useState(INITIAL_VISIBLE);
+  const toolIcon = useToolIcons();
   const Icon = TYPE_ICON[type];
   const visibleItems = items.slice(0, visibleCount);
   const remaining = Math.max(0, items.length - visibleItems.length);
@@ -345,7 +318,7 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
       {/* Four across from lg, not three. The hover preview is a fixed 320px, so against a
           three-column card on a wide screen it read as undersized -- a small panel floating over
           a much larger tile. A narrower card puts the two closer in size. */}
-      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-4 gap-4 pt-4">
+      <div className="grid grid-cols-1 min-[520px]:grid-cols-2 lg:grid-cols-3 gap-5 pt-4">
         {visibleItems.map(item => (
           <div
             key={item.id}
@@ -359,33 +332,34 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                 <>
                   <div
                     className="relative rounded-xl overflow-hidden w-full aspect-video transition-shadow duration-300 group-hover:shadow-[0_14px_30px_-12px_rgba(2,32,71,0.45)]"
-                    style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}
+                    style={{ background: coverUrl ? '#0b0b0d' : C.pill }}
                   >
                     {coverUrl
                       ? <img src={coverUrl} alt={item.title} loading="lazy"
                           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.07]" />
-                      : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]"
-                          style={{ background: TYPE_GRAD[type] }}>
-                          {(() => { const Icon = TYPE_ICON[type]; return <Icon className="w-8 h-8" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
+                      : <div className="w-full h-full flex items-center justify-center transition-transform duration-500 group-hover:scale-[1.07]">
+                          {/* No cover: the tool's logo on soft grey, or the type's icon. */}
+                          {item.category && toolIcon(item.category)
+                            ? <img src={toolIcon(item.category)!} alt="" className="h-12 w-12 object-contain" />
+                            : (() => { const Icon = TYPE_ICON[type]; return <Icon className="w-8 h-8" style={{ color: C.faint }} />; })()}
                         </div>
                     }
 
                     <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
                       style={{ background: 'linear-gradient(to top, rgba(1,15,35,0.42), transparent 55%)' }} />
 
-                    {item.locked && (
-                      <span
-                        aria-label="Locked"
-                        className="absolute top-2 left-2 w-7 h-7 rounded-full grid place-items-center"
-                        style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
-                        <Lock className="w-3.5 h-3.5" />
+                    {item.category && (
+                      <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold"
+                        style={{ background: '#F5D77A', color: '#3d2e00' }}>
+                        {item.category}
                       </span>
                     )}
-
-                    <div className="absolute bottom-2 right-2 w-8 h-8 rounded-full grid place-items-center opacity-0 translate-y-1.5 group-hover:opacity-100 group-hover:translate-y-0 transition-all duration-300 shadow-md pointer-events-none"
-                      style={{ background: 'white', color: '#101828' }}>
-                      <ArrowRight className="w-4 h-4" />
-                    </div>
+                    {item.locked && (
+                      <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold"
+                        style={{ background: '#ffffff', color: '#111111' }}>
+                        <Lock className="h-3 w-3" /> Locked
+                      </span>
+                    )}
                   </div>
 
                   <p className="text-[15px] font-bold leading-snug mt-2.5 line-clamp-2" style={{ color: C.text }}>
@@ -394,11 +368,6 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
                   {item.locked && item.prices?.length ? (
                     <PriceTag prices={item.prices} className="block text-sm font-bold mt-1" style={{ color: C.text }} />
                   ) : null}
-                  {item.category && (
-                    <div className="mt-2">
-                      <CategoryPill category={item.category} />
-                    </div>
-                  )}
                 </>
               );
               return (
@@ -438,13 +407,30 @@ function CatalogueRow({ title, type, items, C, accent, onOpen, onHover, onHoverL
   );
 }
 
+function PreviewFact({ C, icon, children }: { C: typeof LIGHT_C; icon: ReactNode; children: ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold" style={{ background: C.pill, color: C.text }}>
+      {icon && <span className="flex" style={{ color: C.faint }}>{icon}</span>}
+      {children}
+    </span>
+  );
+}
+
 function CataloguePreview({ item, accent, onOpen, C }: {
   item: CatalogueItem;
   accent: string;
   onOpen: (item: CatalogueItem) => void;
   C: typeof LIGHT_C;
 }) {
-  const previewShadow = '0 4px 16px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.04)';
+  // The preview floats over cards of the same colour, so it needs its own edge and a deep shadow
+  // to read as a layer above the page; in dark mode it also sits on a lighter surface.
+  const isLight = C.page === LIGHT_C.page;
+  const previewShadow = isLight
+    ? '0 24px 48px -12px rgba(15,23,42,0.30), 0 8px 20px -8px rgba(15,23,42,0.14)'
+    : '0 24px 48px -12px rgba(0,0,0,0.70), 0 8px 20px -8px rgba(0,0,0,0.50)';
+  const previewSurface = isLight ? C.card : '#24252e';
+  const previewEdge = isLight ? 'rgba(15,23,42,0.12)' : 'rgba(255,255,255,0.12)';
+  const toolIcon = useToolIcons();
   const desc = (item.description ?? '')
     .replace(/<[^>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
@@ -459,8 +445,8 @@ function CataloguePreview({ item, accent, onOpen, C }: {
         className="rounded-2xl overflow-hidden"
         style={{
           width: popupW,
-          background: C.card,
-          border: `1px solid ${C.cardBorder}`,
+          background: previewSurface,
+          border: `1px solid ${previewEdge}`,
           boxShadow: previewShadow,
         }}
       >
@@ -546,57 +532,94 @@ function CataloguePreview({ item, accent, onOpen, C }: {
     );
   }
 
+  const coverUrl = resolvedCover(item.coverImage);
+  // Laid out like the My Learning card: an inset cover, title and byline, a longer description,
+  // then a full-width action.
   return (
     <div
       className="rounded-2xl overflow-hidden"
       style={{
-        background: C.card,
-        border: `1px solid ${C.cardBorder}`,
+        background: previewSurface,
+        border: `1px solid ${previewEdge}`,
         boxShadow: previewShadow,
       }}
     >
-      {(() => {
-        const coverUrl = resolvedCover(item.coverImage);
-        return (
-      <div className="relative w-full aspect-video" style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}>
+      <div className="p-3 pb-0">
+      <div className="relative w-full aspect-video overflow-hidden rounded-xl" style={{ background: coverUrl ? '#0b0b0d' : C.pill }}>
         {coverUrl ? (
           <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center" style={{ background: TYPE_GRAD[item.type] }}>
-            {(() => { const Icon = TYPE_ICON[item.type]; return <Icon className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
+          // No cover: the tool's logo on soft grey, as the card shows it.
+          <div className="w-full h-full flex items-center justify-center">
+            {item.category && toolIcon(item.category)
+              ? <img src={toolIcon(item.category)!} alt="" className="h-12 w-12 object-contain" />
+              : (() => { const Icon = TYPE_ICON[item.type]; return <Icon className="w-9 h-9" style={{ color: C.faint }} />; })()}
           </div>
         )}
-        <span className="absolute top-2 left-2 text-[10px] font-bold px-2 py-0.5 rounded-md" style={{ background: accent, color: 'white' }}>
-          {item.type === 'book' && item.productTypeLabel ? item.productTypeLabel : TYPE_LABEL[item.type]}
-        </span>
+        {item.category && (
+          <span className="absolute left-0 top-3 max-w-[70%] truncate px-2.5 py-1 text-[11px] font-bold" style={{ background: '#F5D77A', color: '#3d2e00' }}>
+            {item.category}
+          </span>
+        )}
         {item.locked && (
-          <span className="absolute top-2 right-2 w-7 h-7 rounded-full grid place-items-center" style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
-            <Lock className="w-3.5 h-3.5" />
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: '#ffffff', color: '#111111' }}>
+            <Lock className="h-3 w-3" /> Locked
           </span>
         )}
       </div>
-        );
-      })()}
+      </div>
 
-      <div className="p-5">
-        <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
+      <div className="flex flex-col gap-4 p-6">
+        <div>
+          <h3 className="text-[17px] font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
+          {item.byline && (
+            <div className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: C.faint, fontFamily: 'var(--font-lato)' }}>
+              {item.bylineLogo && <img src={item.bylineLogo} alt="" className="h-4 w-4 object-contain" />}
+              {item.byline}
+            </div>
+          )}
+        </div>
 
         {desc && (
-          <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: C.muted }}>
+          <p className="text-[14px] leading-relaxed line-clamp-2" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
             {desc}
           </p>
         )}
-        {item.category && (
-          <div className="mb-3">
-            <CategoryPill category={item.category} />
+
+        {(item.level || item.duration || item.examMinutes || item.passmark || item.tools?.length || item.topics?.length) && (
+          <div className="flex flex-wrap gap-1.5">
+            {item.level && <PreviewFact C={C} icon={<GraduationCap className="h-3.5 w-3.5" />}>{item.level} level</PreviewFact>}
+            {item.duration && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.duration}</PreviewFact>}
+            {item.examMinutes && <PreviewFact C={C} icon={<Clock className="h-3.5 w-3.5" />}>{item.examMinutes} min exam</PreviewFact>}
+            {item.passmark && <PreviewFact C={C} icon={<Target className="h-3.5 w-3.5" />}>Pass mark {item.passmark}%</PreviewFact>}
+            {item.tools?.map(tool => (
+              <PreviewFact key={tool} C={C} icon={toolIcon(tool) ? <img src={toolIcon(tool)!} alt="" className="h-3.5 w-3.5 object-contain" /> : null}>{tool}</PreviewFact>
+            ))}
+            {item.topics?.map(topic => <PreviewFact key={topic} C={C} icon={<Tag className="h-3.5 w-3.5" />}>{topic}</PreviewFact>)}
           </div>
         )}
+
+        {item.outcomes?.length ? (
+          <div>
+            <p className="mb-2 text-xs font-bold" style={{ color: C.text }}>
+              {item.type === 'certification' ? 'What it covers' : item.type === 'book' ? 'What you will get' : 'What you will learn'}
+            </p>
+            <ul className="flex flex-col gap-1.5">
+              {item.outcomes.map(outcome => (
+                <li key={outcome} className="flex gap-2 text-[13px] leading-snug" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
+                  <Check className="mt-0.5 h-3.5 w-3.5 flex-shrink-0" strokeWidth={3} style={{ color: C.successText }} />
+                  <span className="line-clamp-2">{outcome}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {item.locked ? (
           <button
             type="button"
             onClick={() => onOpen(item)}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
+            className="flex w-full items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90"
             style={{ background: C.cta, color: C.ctaText }}
           >
             <ArrowRight className="w-3.5 h-3.5" />
@@ -614,7 +637,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
               {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}
             </>
           );
-          const cta = 'inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90';
+          const cta = 'flex w-full items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90';
           const ctaStyle = { background: '#00bf63', color: 'white' };
           const href = directHref(item);
           // A link where one exists, for the same reason the card is one: middle-click, open in a

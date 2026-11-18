@@ -24,7 +24,6 @@ import { VE_PREVIEW_COLUMNS, vePreviewFields } from '@/lib/ve-preview';
 import { pathItemFromRow, type CataloguePathItem } from '@/lib/catalogue-path-items';
 import { pathOverviewFields } from '@/lib/path-overview';
 import { isLicenseExpired } from '@/lib/books/schema';
-import { productTypeLabel } from '@/lib/books/product-type';
 import { shownPrice, type PriceRow, type ShownPrice } from '@/lib/books/pricing';
 import { CERTIFICATION_PREVIEW_COLUMNS, certificationPreviewConfig } from '@/lib/certification-preview';
 import {
@@ -45,6 +44,17 @@ export interface CatalogueItem {
   coverImage: string | null;
   description: string | null;
   category: string | null;
+  /** A course's partner ("Offered by ...") or an experience's role. */
+  byline?: string | null;
+  bylineLogo?: string | null;
+  /** Preview facts, present only when the item has them. */
+  outcomes?: string[];
+  level?: string;
+  duration?: string;
+  tools?: string[];
+  examMinutes?: number;
+  passmark?: number;
+  topics?: string[];
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Only ever set on a single-item lookup of a locked item. */
@@ -57,9 +67,29 @@ export interface CatalogueItem {
    * to My Books for it instead of to a store page that would not find it.
    */
   inStore?: boolean;
-  /** Books only: what kind of product, as it reads, e.g. "Template" (migration 242). */
-  productTypeLabel?: string;
 }
+
+const cleanList = (list: string[] | null | undefined) =>
+  (list ?? []).map(v => (typeof v === 'string' ? v.trim() : '')).filter(Boolean);
+
+/** What the Explore preview says about an item beyond its description; only what it has. */
+function previewFacts(r: Row) {
+  // A digital product's skills are what the buyer gets from it.
+  const outcomes = cleanList(r.learn_outcomes ?? r.skills).slice(0, 3);
+  const topics = cleanList(r.topics).slice(0, 4);
+  const tools = cleanList(r.tools);
+  return {
+    ...(outcomes.length ? { outcomes } : {}),
+    ...(r.difficulty ? { level: r.difficulty.charAt(0).toUpperCase() + r.difficulty.slice(1) } : {}),
+    ...(r.duration ? { duration: r.duration } : {}),
+    ...(tools.length ? { tools } : {}),
+    ...(topics.length ? { topics } : {}),
+    ...(r.time_limit && r.time_limit > 0 ? { examMinutes: r.time_limit } : {}),
+    ...(r.passmark ? { passmark: r.passmark } : {}),
+  };
+}
+
+type Partner = { name: string; logo_url: string | null; is_active: boolean };
 
 type Row = {
   id: string;
@@ -68,6 +98,20 @@ type Row = {
   cover_image: string | null;
   description: string | null;
   category?: string | null;
+  industry?: string | null;
+  role?: string | null;
+  company?: string | null;
+  learn_outcomes?: string[] | null;
+  difficulty?: string | null;
+  duration?: string | null;
+  tools?: string[] | null;
+  time_limit?: number | null;
+  passmark?: number | null;
+  topics?: string[] | null;
+  skills?: string[] | null;
+  authors?: string[] | null;
+  // One partner per course; the untyped client infers a to-one join as a list.
+  partner?: Partner | Partner[] | null;
   cohort_ids: string[] | null;
   available_to_everyone?: boolean | null;
 };
@@ -121,22 +165,22 @@ export async function GET(req: NextRequest) {
   try {
     const [courses, paths, ves, certifications, books, entitlements] = await Promise.all([
       fetchAllRows<Row>((from, to) => db.from('courses')
-        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, category, learn_outcomes, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
         .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
-        .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, industry, role, company, difficulty, duration, tools, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('certifications')
-        .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, learn_outcomes, time_limit, passmark, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       // Books with a file, or link products (migration 243; save_book only publishes one with its
       // address). The file path itself is a filter, never selected: it must not reach the browser
       // (downloads go through /api/books/[id]/file, which re-checks access).
       fetchAllRows<BookRow>((from, to) => db.from('books')
-        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, purchasable, license_expires_at, product_type, product_type_label', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, category, topics, skills, authors, difficulty, cohort_ids, available_to_everyone, purchasable, license_expires_at', { count: 'exact' })
         .eq('status', 'published').or('file_path.not.is.null,format.eq.link').order('id').range(from, to)),
       // Books the learner bought or was given open like anything else they have access to.
       fetchAllRows<{ book_id: string }>((from, to) => db.from('book_entitlements')
@@ -168,6 +212,10 @@ export async function GET(req: NextRequest) {
       for (const r of rows) displayById.set(r.id, pathItemFromRow(r, type));
     }
 
+    const partnerOf = (r: Row) => {
+      const p = Array.isArray(r.partner) ? r.partner[0] : r.partner;
+      return p?.is_active ? p : null;
+    };
     const map = (rows: Row[], type: CatalogueType, viaPath: boolean): CatalogueItem[] =>
       rows.map(r => ({
         id: r.id,
@@ -176,7 +224,13 @@ export async function GET(req: NextRequest) {
         slug: r.slug ?? null,
         coverImage: r.cover_image ?? null,
         description: r.description ?? null,
-        category: r.category ?? null,
+        // An experience is grouped by its industry, the way the landing page shows it.
+        category: r.category ?? (r.industry ? r.industry.charAt(0).toUpperCase() + r.industry.slice(1) : null),
+        // Who it is from, as My Learning shows it: a course's partner, an experience's role.
+        byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : ([r.role, r.company].filter(Boolean).join(', ')
+          || (cleanList(r.authors).length ? `By ${cleanList(r.authors).join(', ')}` : null)),
+        bylineLogo: partnerOf(r)?.logo_url ?? null,
+        ...previewFacts(r),
         locked: !(
           r.available_to_everyone === true
           || inCohort(r)
@@ -218,9 +272,8 @@ export async function GET(req: NextRequest) {
       const prices = pricesByBook.get(item.id) ?? [];
       const forSale = row.purchasable === true && prices.length > 0;
       const inStore = forSale || row.available_to_everyone === true;
-      const kind = productTypeLabel((row as any).product_type, (row as any).product_type_label);
-      if (open) bookItems.push({ ...item, locked: false, inStore, productTypeLabel: kind });
-      else if (forSale) bookItems.push({ ...item, prices, inStore, productTypeLabel: kind });
+      if (open) bookItems.push({ ...item, locked: false, inStore });
+      else if (forSale) bookItems.push({ ...item, prices, inStore });
     }
 
     const items: CatalogueItem[] = [
