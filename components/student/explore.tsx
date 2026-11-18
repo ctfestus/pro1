@@ -46,6 +46,9 @@ interface CatalogueItem {
   coverImage: string | null;
   description: string | null;
   category: string | null;
+  /** A course's partner ("Offered by ...") or an experience's role. */
+  byline?: string | null;
+  bylineLogo?: string | null;
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Books only: the price of a locked book, bought on its own. */
@@ -189,8 +192,8 @@ export function ExploreSection({ C }: {
 
   // Path previews widen with the path's contents so their thumbnails lay out in rows.
   const openHover = (item: CatalogueItem, el: HTMLElement) => openPreview(item, el, {
-    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 320,
-    height: 500,
+    width: item.type === 'learning_path' ? Math.min(640, Math.max(360, (item.pathItems?.length ?? 0) * 120 + 32)) : 400,
+    height: 560,
   });
 
   return (
@@ -513,6 +516,9 @@ function CataloguePreview({ item, accent, onOpen, C }: {
     );
   }
 
+  const coverUrl = resolvedCover(item.coverImage);
+  // Laid out like the My Learning card: an inset cover, title and byline, a longer description,
+  // then a full-width action.
   return (
     <div
       className="rounded-2xl overflow-hidden"
@@ -522,14 +528,12 @@ function CataloguePreview({ item, accent, onOpen, C }: {
         boxShadow: previewShadow,
       }}
     >
-      {(() => {
-        const coverUrl = resolvedCover(item.coverImage);
-        return (
-      <div className="relative w-full aspect-video" style={{ background: coverUrl ? '#0b0b0d' : 'transparent' }}>
+      <div className="p-3 pb-0">
+      <div className="relative w-full aspect-video overflow-hidden rounded-xl" style={{ background: coverUrl ? '#0b0b0d' : TYPE_GRAD[item.type] }}>
         {coverUrl ? (
           <img src={coverUrl} alt={item.title} loading="lazy" className="w-full h-full object-cover" />
         ) : (
-          <div className="w-full h-full flex items-center justify-center" style={{ background: TYPE_GRAD[item.type] }}>
+          <div className="w-full h-full flex items-center justify-center">
             {(() => { const Icon = TYPE_ICON[item.type]; return <Icon className="w-10 h-10" style={{ color: 'rgba(255,255,255,0.7)' }} />; })()}
           </div>
         )}
@@ -539,19 +543,26 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           </span>
         )}
         {item.locked && (
-          <span className="absolute top-2 right-2 w-7 h-7 rounded-full grid place-items-center" style={{ background: 'rgba(0,0,0,0.62)', color: '#ffffff', backdropFilter: 'blur(8px)' }}>
-            <Lock className="w-3.5 h-3.5" />
+          <span className="absolute right-2 top-2 inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[11px] font-bold" style={{ background: '#ffffff', color: '#111111' }}>
+            <Lock className="h-3 w-3" /> Locked
           </span>
         )}
       </div>
-        );
-      })()}
+      </div>
 
-      <div className="p-5">
-        <h3 className="text-lg font-bold leading-snug mb-2 line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
+      <div className="flex flex-col gap-4 p-6">
+        <div>
+          <h3 className="text-[17px] font-bold leading-snug line-clamp-2" style={{ color: C.text }}>{item.title}</h3>
+          {item.byline && (
+            <div className="mt-1 flex items-center gap-1.5 text-xs" style={{ color: C.faint, fontFamily: 'var(--font-lato)' }}>
+              {item.bylineLogo && <img src={item.bylineLogo} alt="" className="h-4 w-4 object-contain" />}
+              {item.byline}
+            </div>
+          )}
+        </div>
 
         {desc && (
-          <p className="text-sm leading-relaxed line-clamp-3 mb-3" style={{ color: C.muted }}>
+          <p className="text-[14px] leading-relaxed line-clamp-4" style={{ color: C.muted, fontFamily: 'var(--font-lato)' }}>
             {desc}
           </p>
         )}
@@ -560,7 +571,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
           <button
             type="button"
             onClick={() => onOpen(item)}
-            className="inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90"
+            className="flex w-full items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90"
             style={{ background: C.cta, color: C.ctaText }}
           >
             <ArrowRight className="w-3.5 h-3.5" />
@@ -578,7 +589,7 @@ function CataloguePreview({ item, accent, onOpen, C }: {
               {item.type === 'virtual_experience' ? 'Start experience' : item.type === 'certification' ? 'Start certification' : 'Start learning'}
             </>
           );
-          const cta = 'inline-flex items-center gap-1.5 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-90';
+          const cta = 'flex w-full items-center justify-center gap-1.5 text-sm font-bold py-2.5 rounded-xl transition-opacity hover:opacity-90';
           const ctaStyle = { background: '#00bf63', color: 'white' };
           const href = directHref(item);
           // A link where one exists, for the same reason the card is one: middle-click, open in a

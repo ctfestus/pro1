@@ -44,6 +44,9 @@ export interface CatalogueItem {
   coverImage: string | null;
   description: string | null;
   category: string | null;
+  /** A course's partner ("Offered by ...") or an experience's role. */
+  byline?: string | null;
+  bylineLogo?: string | null;
   locked: boolean;
   pathItems?: CataloguePathItem[];
   /** Only ever set on a single-item lookup of a locked item. */
@@ -58,6 +61,8 @@ export interface CatalogueItem {
   inStore?: boolean;
 }
 
+type Partner = { name: string; logo_url: string | null; is_active: boolean };
+
 type Row = {
   id: string;
   title: string | null;
@@ -66,6 +71,9 @@ type Row = {
   description: string | null;
   category?: string | null;
   industry?: string | null;
+  role?: string | null;
+  // One partner per course; the untyped client infers a to-one join as a list.
+  partner?: Partner | Partner[] | null;
   cohort_ids: string[] | null;
   available_to_everyone?: boolean | null;
 };
@@ -119,13 +127,13 @@ export async function GET(req: NextRequest) {
   try {
     const [courses, paths, ves, certifications, books, entitlements] = await Promise.all([
       fetchAllRows<Row>((from, to) => db.from('courses')
-        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, category, cohort_ids, available_to_everyone, partner:partners(name, logo_url, is_active)', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<PathRow>((from, to) => db.from('learning_paths')
         .select('id, title, cover_image, description, cohort_ids, item_ids, tracks, tracks_optional, available_to_everyone, overview, skills, who_should_take, tools', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('virtual_experiences')
-        .select('id, title, slug, cover_image, description, industry, cohort_ids, available_to_everyone', { count: 'exact' })
+        .select('id, title, slug, cover_image, description, industry, role, cohort_ids, available_to_everyone', { count: 'exact' })
         .eq('status', 'published').order('id').range(from, to)),
       fetchAllRows<Row>((from, to) => db.from('certifications')
         .select('id, title, slug, cover_image, description, cohort_ids, available_to_everyone', { count: 'exact' })
@@ -166,6 +174,10 @@ export async function GET(req: NextRequest) {
       for (const r of rows) displayById.set(r.id, pathItemFromRow(r, type));
     }
 
+    const partnerOf = (r: Row) => {
+      const p = Array.isArray(r.partner) ? r.partner[0] : r.partner;
+      return p?.is_active ? p : null;
+    };
     const map = (rows: Row[], type: CatalogueType, viaPath: boolean): CatalogueItem[] =>
       rows.map(r => ({
         id: r.id,
@@ -176,6 +188,9 @@ export async function GET(req: NextRequest) {
         description: r.description ?? null,
         // An experience is grouped by its industry, the way the landing page shows it.
         category: r.category ?? (r.industry ? r.industry.charAt(0).toUpperCase() + r.industry.slice(1) : null),
+        // Who it is from, as My Learning shows it: a course's partner, an experience's role.
+        byline: partnerOf(r) ? `Offered by ${partnerOf(r)!.name}` : r.role || null,
+        bylineLogo: partnerOf(r)?.logo_url ?? null,
         locked: !(
           r.available_to_everyone === true
           || inCohort(r)
